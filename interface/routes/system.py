@@ -3052,9 +3052,9 @@ async def _probe_desktop_access_summary(*, allow_probe: bool = True) -> dict[str
         payload["screen_text_ready"] = (
             effective_automation_granted and effective_accessibility_granted
         )
-        payload["menu_clock_ready"] = (
-            effective_automation_granted and effective_accessibility_granted
-        )
+        # The clock is host state, not UI content. Its native Foundation read
+        # is independent of Accessibility and Apple Events readiness.
+        payload["menu_clock_ready"] = sys.platform == "darwin"
         if payload["menu_clock_ready"]:
             from core.skills.computer_use import ComputerUseSkill
 

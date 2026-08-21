@@ -3342,33 +3342,18 @@ end tell
                 return {"ok": True, "text": result}
 
             elif action == "read_menu_clock":
-                blocked = await self._require_permissions(
-                    "reading the macOS menu bar clock",
-                    "ACCESSIBILITY",
-                    "AUTOMATION",
-                )
-                if blocked:
-                    fallback = time.strftime("%a %b %d %H:%M")
-                    return {
-                        "ok": True,
-                        "status": "limited",
-                        "clock_text": fallback,
-                        "text": fallback,
-                        "source": "system_clock_permission_fallback",
-                        "permission_result": blocked,
-                    }
                 try:
                     result = await asyncio.to_thread(self._read_menu_clock_macos)
                     return {
                         "ok": True,
                         "clock_text": result,
                         "text": result,
-                        "source": "macos_menu_bar",
+                        "source": "macos_system_clock",
                     }
                 except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
                     _record_computer_use_degradation(
                         exc,
-                        action="returned deterministic system clock fallback after menu clock read failed",
+                        action="returned deterministic fallback after native system clock read failed",
                         stage="read_menu_clock",
                         severity="warning",
                     )
@@ -5037,81 +5022,29 @@ end tell
 
 
     def _read_menu_clock_macos(self) -> str:
-        """Read the live menu bar clock through System Events."""
-        script = """
-tell application "System Events"
-    set ccError to "none"
-    set suiError to "none"
-    
-    try
-        if exists process "ControlCenter" then
-            tell process "ControlCenter"
-                set clockItem to first menu bar item of menu bar 1 whose description is "Clock"
-                set clockVal to value of clockItem
-                if clockVal is not missing value then
-                    return clockVal
-                end if
-            end tell
-        else
-            set ccError to "ControlCenter process does not exist"
-        end if
-    on error errStr number errNum
-        set ccError to errStr & " (" & errNum & ")"
-    end try
-    
-    try
-        if exists process "ControlCenter" then
-            tell process "ControlCenter"
-                repeat with item1 in menu bar items of menu bar 1
-                    try
-                        set d to description of item1
-                        set v to value of item1
-                        if v is not missing value then
-                            set d_lower to my lowercase(d as string)
-                            if d_lower contains "clock" or d_lower contains "time" or v contains "AM" or v contains "PM" or v contains ":" or v contains " " then
-                                return v
-                            end if
-                        end if
-                    end try
-                end repeat
-            end tell
-        end if
-    on error errStr number errNum
-        if ccError is "none" or ccError contains "does not exist" then
-            set ccError to "Fallback search: " & errStr & " (" & errNum & ")"
-        end if
-    end try
-    
-    try
-        if exists process "SystemUIServer" then
-            tell process "SystemUIServer"
-                set clockItem to first menu bar item of menu bar 1 whose description is "Clock"
-                return name of clockItem
-            end tell
-        else
-            set suiError to "SystemUIServer process does not exist"
-        end if
-    on error errStr number errNum
-        set suiError to errStr & " (" & errNum & ")"
-    end try
-    
-    error "Clock menu bar item not found. ControlCenter error: " & ccError & ". SystemUIServer error: " & suiError
-end tell
+        """Read the host clock through macOS' locale-aware Foundation API.
 
-on lowercase(txt)
-    set the_alphabet to "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    set the_lowercase to "abcdefghijklmnopqrstuvwxyz"
-    set the_result to ""
-    repeat with i from 1 to count of characters in txt
-        set the_char to character i of txt
-        set the_index to offset of the_char in the_alphabet
-        if the_index is not 0 then
-            set the_result to the_result & character the_index of the_lowercase
-        else
-            set the_result to the_result & the_char
-        end if
-    end repeat
-    return the_result
-end lowercase
-"""
-        return self._run_applescript(script, timeout=10)[:240]
+        Time is OS state, not accessibility content. Walking ControlCenter's
+        UI tree required two unrelated TCC grants and routinely outlived the
+        desktop-readiness route's deadline, leaving abandoned Apple Events
+        work behind. Foundation reads the same system wall clock directly and
+        formats it with the user's macOS locale without touching the desktop.
+        """
+        if sys.platform != "darwin":
+            raise RuntimeError("native macOS system clock is unavailable")
+        from Foundation import (
+            NSDate,
+            NSDateFormatter,
+            NSDateFormatterMediumStyle,
+            NSDateFormatterShortStyle,
+        )
+
+        value = NSDateFormatter.localizedStringFromDate_dateStyle_timeStyle_(
+            NSDate.date(),
+            NSDateFormatterMediumStyle,
+            NSDateFormatterShortStyle,
+        )
+        text = str(value or "").strip()
+        if not text:
+            raise RuntimeError("native macOS system clock returned no value")
+        return text[:240]

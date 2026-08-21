@@ -1657,13 +1657,13 @@ function applyDesktopAccessSummary(summary) {
             detail: access.screen_text_ready ? (frontmostApp ? `Frontmost app detected: ${frontmostApp}` : 'Desktop text access is live.') : 'Requires both Accessibility and Automation.',
         },
         {
-            label: 'Menu Bar Clock',
+            label: 'System Clock',
             tone: desktopAccessCapabilityTone(!!access.menu_clock_ready),
             state: access.menu_clock_ready ? 'Ready' : 'Blocked',
-            meta: 'Read the live macOS menu bar clock instead of only local process time.',
+            meta: 'Read the live macOS wall clock in the user’s locale.',
             detail: access.menu_clock_ready
-                ? (escText(access.menu_clock_text, '') ? `Latest probe: ${escText(access.menu_clock_text, '')}` : 'Aura can query the menu bar clock when needed.')
-                : (escText(access.menu_clock_error, '') || 'Requires both Accessibility and Automation.'),
+                ? (escText(access.menu_clock_text, '') ? `Latest probe: ${escText(access.menu_clock_text, '')}` : 'Aura can query the native system clock when needed.')
+                : (escText(access.menu_clock_error, '') || 'The native system clock is unavailable.'),
         },
     ];
 

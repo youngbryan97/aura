@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1052,7 +1051,7 @@ async def test_computer_use_create_folder_uses_allowed_artifact_roots(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_computer_use_clock_falls_back_when_permission_probe_times_out(monkeypatch):
+async def test_computer_use_clock_does_not_require_desktop_permissions(monkeypatch):
     from core.container import ServiceContainer
 
     tracker = get_degradation_tracker()
@@ -1062,8 +1061,7 @@ async def test_computer_use_clock_falls_back_when_permission_probe_times_out(mon
 
     class SlowPermissionGuard:
         async def check_permission(self, *_args, **_kwargs):
-            await asyncio.sleep(0.1)
-            return {"granted": True, "status": "active", "guidance": ""}
+            raise AssertionError("system clock must not request desktop permissions")
 
         def get_guidance(self, *_args, **_kwargs):
             return "permission guidance"
@@ -1076,16 +1074,14 @@ async def test_computer_use_clock_falls_back_when_permission_probe_times_out(mon
         else default,
     )
 
+    monkeypatch.setattr(skill, "_read_menu_clock_macos", lambda: "Aug 21, 2026 at 7:26 AM")
+
     result = await skill.execute({"action": "read_menu_clock", "target": ""}, context={})
 
     assert result["ok"] is True
-    assert result["status"] == "limited"
-    assert result["source"] == "system_clock_permission_fallback"
-    assert result["permission_result"]["status"] == "timeout"
-    assert any(
-        "bounded permission timeout" in record.action
-        for record in tracker.recent(subsystem="computer_use")
-    )
+    assert result["source"] == "macos_system_clock"
+    assert result["clock_text"] == "Aug 21, 2026 at 7:26 AM"
+    assert tracker.recent(subsystem="computer_use") == []
     tracker.reset()
 
 
@@ -1264,32 +1260,25 @@ def test_desktop_artifact_verifier_rejects_unproven_mutations():
 
 
 @pytest.mark.asyncio
-async def test_computer_use_clock_falls_back_when_applescript_times_out(monkeypatch):
+async def test_computer_use_clock_falls_back_when_native_clock_fails(monkeypatch):
     tracker = get_degradation_tracker()
     tracker.reset()
     skill = ComputerUseSkill()
 
-    async def allow_permissions(*_args, **_kwargs):
-        return None
+    def fail_native_clock():
+        raise RuntimeError("native clock unavailable")
 
-    run_calls = []
-
-    def fake_run(*_args, timeout, **_kwargs):
-        run_calls.append((_args, timeout, _kwargs))
-        raise subprocess.TimeoutExpired(cmd=["osascript"], timeout=timeout)
-
-    monkeypatch.setattr(skill, "_require_permissions", allow_permissions)
-    monkeypatch.setattr("core.skills.computer_use.subprocess.run", fake_run)
+    monkeypatch.setattr(skill, "_read_menu_clock_macos", fail_native_clock)
 
     result = await skill.execute({"action": "read_menu_clock", "target": ""}, context={})
 
     assert result["ok"] is True
-    assert len(run_calls) == 1
     assert result["status"] == "limited"
     assert result["source"] == "system_clock_fallback"
-    assert "AppleScript timed out" in result["error"]
+    assert "native clock unavailable" in result["error"]
     assert any(
-        "clock fallback" in record.action for record in tracker.recent(subsystem="computer_use")
+        "native system clock" in record.action
+        for record in tracker.recent(subsystem="computer_use")
     )
     tracker.reset()
 
