@@ -4889,6 +4889,26 @@ class CapabilityEngine(AuraBaseModule):
         if skill_name not in active_skills:
             return None
 
+        # A skill that knows it cannot run here says so, and is not offered.
+        #
+        # LIVE, 2026-08-21. build_app was offered on every build request and
+        # depends on a code model needing 21.5GB beside a resident 25.3GB
+        # cortex. It spent forty to seventy seconds of each turn and failed
+        # every time. This is the rule the deep solver lane already follows:
+        # a lane that cannot load is a hole, not a fallback.
+        target = meta.instance or meta.skill_class
+        available = getattr(target, "available_here", None)
+        if callable(available):
+            try:
+                if available() is False:
+                    logger.info(
+                        "🚫 [SKILL] %s not offered: it reports it cannot run on this host.",
+                        skill_name,
+                    )
+                    return None
+            except Exception:  # noqa: BLE001 - a skill that cannot answer is offered
+                pass
+
         cost = int(getattr(meta, "metabolic_cost", 1) or 1)
         is_core = bool(getattr(meta, "is_core_personality", False))
         if allowed_max_cost is None:

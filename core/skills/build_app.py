@@ -36,6 +36,39 @@ class BuildAppSkill(BaseSkill):
         "persist until it does, and retain the lesson. Writes it to disk to open and use."
     )
     input_model = BuildAppInput
+
+    @staticmethod
+    def available_here() -> bool:
+        """Whether this host can actually run a build.
+
+        The verified builder generates with the local code model, which wants
+        21.5GB beside a resident 25.3GB cortex and is refused on this
+        machine. Offered anyway it spent forty to seventy seconds of every
+        build request and failed each time, while the plain turn wrote the
+        same page in thirty.
+
+        Measured rather than assumed: it asks the lane whether it would be
+        admitted, so a host with room offers the skill.
+        """
+        try:
+            from core.brain.llm.local_code_model import (
+                ReadinessState,
+                get_local_code_model,
+            )
+
+            model = get_local_code_model()
+            if model is None:
+                return False
+            receipt = model.readiness()
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
+            return False
+        # The accessor hands back a lazy handle whether or not the model can
+        # ever load, so asking whether it is None answered True on a host that
+        # refuses it. The receipt is the model's own account of itself.
+        return getattr(receipt, "state", None) not in {
+            ReadinessState.ABSENT,
+            ReadinessState.FAILED,
+        }
     # The verified loop researches + generates + tests + repairs across several
     # iterations on the 32B, so it needs a generous budget.
     timeout_seconds = 1500.0
