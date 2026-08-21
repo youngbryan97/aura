@@ -41,7 +41,7 @@ def scan(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_published_cache", {})
 
     def run(body, *, targets=(), published=(), env=((), ()), suite=None,
-            ignored=(), files=(), symbols=(), routes=()):
+            ignored=(), files=(), symbols=(), routes=(), labels=()):
         for rel in files:
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,7 @@ def scan(tmp_path, monkeypatch):
                 p.startswith(rel.rstrip("/") + "/") for p in published),
         )
         found = gate.scan("DOC.md", set(targets), {}, (set(env[0]), tuple(env[1])),
-                          suite, set(symbols), set(routes))
+                          suite, set(symbols), set(routes), set(labels))
         return {f["kind"] for f in found}
 
     return run
@@ -309,6 +309,29 @@ def test_routes_resolve_both_prefixes_from_the_real_tree():
     assert "/api/devices/revoke-scope" in routes
 
 
+# ---- where a document says to click -------------------------------------
+
+
+def test_a_settings_group_the_ui_does_not_have_is_reported(scan):
+    """USER_GUIDE.md sent a stuck user to Settings -> Models. No such group."""
+    body = "Fix it under Settings → Models → Reset cortex."
+    assert "settings_group_not_in_ui" in scan(body, labels={"voice", "memory"})
+
+
+def test_a_real_settings_group_passes(scan):
+    assert scan("Settings → Voice holds both toggles.", labels={"voice"}) == set()
+
+
+def test_the_operating_system_settings_are_not_ours(scan):
+    body = "Grant it in System Settings → Privacy → Microphone."
+    assert scan(body, labels={"voice"}) == set()
+
+
+def test_an_arrow_between_pipeline_stages_is_not_navigation(scan):
+    body = "User Input → Sanitizer → Working Memory → Model Context."
+    assert scan(body, labels={"voice"}) == set()
+
+
 # ---- the tree itself -----------------------------------------------------
 
 
@@ -329,10 +352,11 @@ def test_every_current_document_still_resolves():
     suite = gate.recorded_suite_size()
     symbols = gate.defined_symbols()
     routes = gate.declared_routes()
+    labels = gate.ui_labels()
     cache: dict[str, set[str]] = {}
     for rel in gate.tracked_docs():
         findings.extend(
-            gate.scan(rel, targets, cache, env_names, suite, symbols, routes))
+            gate.scan(rel, targets, cache, env_names, suite, symbols, routes, labels))
     assert findings == [], "\n".join(
         f"{f['doc']}:{f['line']} {f['kind']}: {f['detail']}" for f in findings
     )

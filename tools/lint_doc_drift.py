@@ -137,6 +137,14 @@ FOREIGN_SYMBOLS = frozenset({
 ROUTE_CLAIM = re.compile(
     r"\b(GET|POST|PUT|DELETE|PATCH)\s+(/[A-Za-z0-9_/{}.-]{2,})")
 
+#: "Settings → X" tells a reader where to click. The arrow is used far more
+#: often for data flow ("User Input → Sanitizer → Working Memory"), so only
+#: this one prefix is read as navigation, and only Aura's own Settings —
+#: "System Settings → Privacy" is macOS and "Repository Settings → About" is
+#: GitHub. USER_GUIDE.md sent a stuck user to Settings → Models and
+#: OPERATOR_GUIDE.md to Settings → Performance; neither group exists.
+SETTINGS_NAV = re.compile(r"(?<!System )(?<!Repository )\bSettings\s*→\s*([A-Z][A-Za-z ]{2,20}?)(?=\s*(?:→|[.,;:)]|$))")
+
 QUOTED_COUNT = re.compile(r"[\"“][^\"”\n]*\d[\d,]{3,}[^\"”\n]*[\"”]")
 
 #: Some documents name a file precisely because it is not there.
@@ -224,6 +232,21 @@ def tracked_docs() -> list[str]:
 #: every flag override without any of them appearing in the tree.
 SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
                 "Makefile", "*.plist", "*.command", "*.js", "*.ts")
+
+
+def ui_labels() -> set[str]:
+    """Every label the shipped interface renders, lower-cased."""
+    found: set[str] = set()
+    for pattern in ("interface/static/*.html", "interface/static/*.js",
+                    "interface/static/shell/src/*.jsx"):
+        for f in ROOT.glob(pattern):
+            body = f.read_text(errors="replace")
+            found |= {m.group(1).strip().lower()
+                      for m in re.finditer(r">([A-Za-z][A-Za-z0-9 &/'-]{2,30})<", body)}
+            found |= {m.group(1).strip().lower()
+                      for m in re.finditer(
+                          r'(?:placeholder|title|aria-label|value)="([^"]{3,30})"', body)}
+    return found
 
 
 def declared_routes() -> set[str]:
@@ -340,7 +363,7 @@ def _resolve(doc: Path, target: str) -> Path | None:
 def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
          env_names: tuple[set[str], tuple[str, ...]],
          suite: tuple[int, int] | None, symbols: set[str],
-         routes: set[str]) -> list[dict]:
+         routes: set[str], labels: set[str]) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -397,6 +420,13 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
                         continue
                     note(i, "env_var_has_no_reader", name, scope)
 
+        # Where a document tells a reader to click.
+        if labels and not names_an_absence(i) and not QUOTED_COUNT.search(line):
+            for m in SETTINGS_NAV.finditer(line):
+                group = m.group(1).strip()
+                if group.lower() not in labels:
+                    note(i, "settings_group_not_in_ui", f"Settings → {group}", line)
+
         # A route the document tells a reader to call.
         if routes and not names_an_absence(i):
             for m in ROUTE_CLAIM.finditer(line):
@@ -418,7 +448,11 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
             if not claim:
                 continue
             cited = claim.group(1)
-            if not (ROOT / cited).exists():
+            # Repo-relative is the common form, but a page inside docs/ that
+            # writes `runbooks/x.md` beside a link to the same file means the
+            # sibling. Accept either rather than asking the author to pick.
+            beside = doc.parent / cited
+            if not ((ROOT / cited).exists() or (ROOT / beside).exists()):
                 if (not is_output_path(cited)
                         and not PLACEHOLDER.search(cited)
                         and not names_an_absence(i)):
@@ -538,11 +572,13 @@ def main() -> int:
     suite = recorded_suite_size()
     symbols = defined_symbols()
     routes = declared_routes()
+    labels = ui_labels()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
-        findings.extend(scan(rel, targets, cache, env_names, suite, symbols, routes))
+        findings.extend(
+            scan(rel, targets, cache, env_names, suite, symbols, routes, labels))
 
     per_doc: dict[str, int] = {}
     for f in findings:

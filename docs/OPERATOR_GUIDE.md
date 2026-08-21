@@ -159,7 +159,10 @@ malformed mutation cannot crash the parent process.
 - `AURA_MODEL`        — primary model name (default: Qwen2.5-32B-Instruct-8bit)
 - `AURA_DEEP_MODEL`   — heavy lane for solver tier
 - `AURA_LLM__MLX_DEEP_MODEL_PATH` — explicit on-disk path
-- Cloud fallback: Settings → Models → Cloud Fallback (off by default).
+- There is no cloud fallback and no setting for one. Every lane the router
+  can reach is local, and `allow_cloud_fallback` is coerced to `False` in
+  `core/brain/request_contract.py` whatever a caller passes — see
+  [`docs/runbooks/local-inference-boundary.md`](runbooks/local-inference-boundary.md).
 - Failure policy: [`docs/MODEL_PROVIDER_FAILURE_POLICY.md`](MODEL_PROVIDER_FAILURE_POLICY.md).
 
 ### Fully local frontier-reasoning solver lane
@@ -191,8 +194,9 @@ shows the alternate lane preserves Aura's conversation identity, RAM envelope,
 and full-mind route.
 
 ## Performance tuning
-- Settings → Performance: cap on warm models (1, 2, or 3 concurrent
-  heavy lanes), tick interval, dashboard refresh rate.
+- There is no Performance settings group. Lane concurrency is not an operator
+  setting: one model loads at a time through the GPU semaphore, and the
+  memory monitor decides what stays warm.
 - Memory monitor lowers max_tokens under RAM pressure and triggers a VRAM
   purge as pressure climbs. The ceilings are set by
   `AURA_PROCESS_RSS_LIMIT_GB` (main process), `AURA_MLX_MEMORY_LIMIT_GB`
