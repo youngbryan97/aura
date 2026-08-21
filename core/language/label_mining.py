@@ -97,6 +97,20 @@ def _first_successful_tool(actions_json: object) -> str:
     return ""
 
 
+def _teaches_only_itself(request: str, tool: str) -> bool:
+    """Whether the request names the tool it used.
+
+    "Use tool 'web_search'" teaches nothing except that the name appears
+    twice. Checked wherever pairs become labels, not only where they are read
+    from the log, so a caller handing pairs in gets the same discipline.
+    """
+    text = str(request or "")
+    if text.strip().lower().startswith("use tool"):
+        return True
+    name = str(tool or "").strip()
+    return bool(name) and bool(re.search(rf"\b{re.escape(name)}\b", text, re.IGNORECASE))
+
+
 def mine_request_tool_pairs(limit: int = 4000) -> list[LabelledRequest]:
     """Distinct requests a person made, with the capability that ran."""
     path = _database()
@@ -134,10 +148,7 @@ def mine_request_tool_pairs(limit: int = 4000) -> list[LabelledRequest]:
         tool = _first_successful_tool(actions_json)
         if not tool:
             continue
-        # Never learn from the answer.
-        if request.lower().startswith("use tool") or re.search(
-            rf"\b{re.escape(tool)}\b", request, re.IGNORECASE
-        ):
+        if _teaches_only_itself(request, tool):
             continue
         seen[request] = tool
     return [LabelledRequest(request=request, tool=tool) for request, tool in seen.items()]
@@ -151,7 +162,11 @@ def mine_desktop_actuation_labels(
     The decision `looks_like_desktop_objective` makes with seventeen patterns,
     read instead off what actually ran.
     """
-    rows = list(pairs) if pairs is not None else mine_request_tool_pairs()
+    rows = [
+        row
+        for row in (list(pairs) if pairs is not None else mine_request_tool_pairs())
+        if not _teaches_only_itself(row.request, row.tool)
+    ]
     positives = [row.request for row in rows if row.tool in ACTUATION_TOOLS]
     negatives = [row.request for row in rows if row.tool not in ACTUATION_TOOLS]
     return positives, negatives

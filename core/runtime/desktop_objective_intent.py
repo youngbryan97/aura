@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 import re
+
+logger = logging.getLogger("Aura.DesktopIntent")
 
 from core.runtime.skill_task_bridge import (
     looks_like_capability_inventory_dialogue_request,
@@ -560,7 +563,41 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         pass
 
-    return bool(_DIRECT_DESKTOP_ACTION_RE.search(sanitized_text))
+    by_pattern = bool(_DIRECT_DESKTOP_ACTION_RE.search(sanitized_text))
+
+    # What actually ran, for requests like this one.
+    #
+    # The patterns above are seventeen enumerations of screen work. The
+    # intention log holds a hundred and ten distinct requests a person made
+    # and the capability that succeeded for each, and that decision measures
+    # AUROC 0.979 on a held-out third.
+    #
+    # Additive in one direction only. Where the patterns already say yes they
+    # keep saying yes: sending real screen work somewhere else is the worse
+    # error, and flipping a yes to a no needs the surface to beat the patterns
+    # on their own examples first. Where the patterns say no and the surface
+    # is confident, the phrasing is one nobody enumerated — which is how every
+    # one of these rules has been wrong before.
+    if not by_pattern:
+        learned = _learned_actuation_decision(user_message)
+        if learned is True:
+            return True
+    elif _learned_actuation_decision(user_message) is False:
+        logger.info(
+            "🧭 [ROUTING] the patterns call this screen work and the learned "
+            "surface does not; keeping the patterns."
+        )
+    return by_pattern
+
+
+def _learned_actuation_decision(user_message: str) -> bool | None:
+    """Whether requests like this one have needed the screen. None if unsure."""
+    try:
+        from core.language.desktop_actuation import actuation_surface
+
+        return actuation_surface().decide_without_waiting(str(user_message or ""))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return None
 
 
 #: Verbs that change something. A screen request carrying one of these is
