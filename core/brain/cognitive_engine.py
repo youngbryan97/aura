@@ -23,6 +23,7 @@ from core.goals.objective_lifecycle import (
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime import background_policy, response_policy
 from core.runtime.errors import record_degradation
+from core.runtime.flags import env_present
 from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.pipeline_blueprint import (
     instantiate_legacy_runtime_phases,
@@ -924,6 +925,16 @@ def _bind_live_mind_generation_contract(context: dict[str, Any]) -> dict[str, An
         live_mind_context,
         user_message=context.get("visible_user_message"),
     )
+    if generation_controls:
+        from core.brain.llm.user_surface_recurrence import (
+            admit_user_surface_recurrent_loops,
+        )
+
+        generation_controls["clean_user_surface_recurrent_loops"] = (
+            admit_user_surface_recurrent_loops(
+                generation_controls.get("clean_user_surface_recurrent_loops")
+            )
+        )
     controls_bound = _live_mind_controls_bound(
         live_mind_context,
         generation_controls,
@@ -981,31 +992,13 @@ def _desktop_history_messages_from_context(
     *,
     max_pairs: int = 4,
 ) -> list[dict[str, str]]:
-    exchanges = context.get("recent_completed_exchanges")
-    if not isinstance(exchanges, (list, tuple)):
-        return []
+    from core.conversation.delivered_history import delivered_exchange_messages
 
-    from core.utils.injected_blocks import is_stamped_runtime_payload
-
-    messages: list[dict[str, str]] = []
-    for entry in list(exchanges)[-max(1, int(max_pairs)) :]:
-        if not isinstance(entry, dict):
-            continue
-        # These become user and assistant MESSAGES. An entry this runtime did
-        # not produce would become an assistant turn Aura never took, quoted
-        # back to her as her own prior words — and she would answer as if she
-        # had said it. The stamp is per entry, so a forged one mixed into a
-        # real list is dropped on its own.
-        if not is_stamped_runtime_payload(entry):
-            _note_unattested_exchange(entry)
-            continue
-        user_text = _compact_text(entry.get("user"), limit=420)
-        aura_text = _compact_text(entry.get("aura"), limit=520)
-        if user_text:
-            messages.append({"role": "user", "content": user_text})
-        if aura_text and aura_text != "...":
-            messages.append({"role": "assistant", "content": aura_text})
-    return messages
+    return delivered_exchange_messages(
+        context.get("recent_completed_exchanges"),
+        max_pairs=max_pairs,
+        on_unattested=_note_unattested_exchange,
+    )
 
 
 def _record_objective_binding(
@@ -1737,13 +1730,19 @@ class CognitiveEngine:
         USER-FACING turn into one. A live turn keeps its state and its commit
         whatever the environment says.
         """
-        import os
-
         if str(origin or "").strip().lower() == "test":
             return True
         ambient = (
-            os.environ.get("AURA_AGI_MAX_TASKS") is not None
-            or os.environ.get("AURA_TESTING") is not None
+            env_present(
+                "AURA_AGI_MAX_TASKS",
+                description="Bounded AGI proof task-count override",
+                owner="core.brain.cognitive_engine",
+            )
+            or env_present(
+                "AURA_TESTING",
+                description="Process test-isolation marker",
+                owner="core.brain.cognitive_engine",
+            )
         )
         if not ambient:
             return False

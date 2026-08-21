@@ -27,6 +27,10 @@ from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
 from core.brain.llm.token_budget_evidence import CALIBRATION_SCHEMA
+from core.brain.llm.user_surface_recurrence import (
+    admit_user_surface_recurrent_loops,
+    user_surface_recurrent_ceiling,
+)
 from core.conversation.user_surface_contract import (
     UserSurfacePromptResolution,
     resolve_user_surface_prompt,
@@ -144,22 +148,6 @@ _FLAG_SURFACE_RETRY_WALL_S = _declare_flag(
     description="Migrated from a raw environment read; see owner for the lane.",
     owner="flag-migration",
 )
-_FLAG_USER_SURFACE_RECURRENT_LOOPS = _declare_flag(
-    "AURA_USER_SURFACE_RECURRENT_LOOPS",
-    kind=_FlagKind.STRING,
-    default="1",
-    description="Migrated from a raw environment read; see owner for the lane.",
-    owner="flag-migration",
-)
-_FLAG_USER_SURFACE_RECURRENT_MAX_LOOPS = _declare_flag(
-    "AURA_USER_SURFACE_RECURRENT_MAX_LOOPS",
-    kind=_FlagKind.STRING,
-    default=None,
-    description="Migrated from a raw environment read; see owner for the lane.",
-    owner="flag-migration",
-)
-
-
 logger = logging.getLogger("MLXWorker")
 
 
@@ -447,20 +435,14 @@ def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
 #:
 #: So the ceiling is 1 until an accuracy gate says otherwise. Raising it is an
 #: experiment and has to be asked for.
-_LIVE_RECURRENT_CEILING_DEFAULT = 1
-
-
 def _live_recurrent_ceiling() -> int:
-    return max(1, _safe_int(_FLAG_USER_SURFACE_RECURRENT_MAX_LOOPS.value(),
-                            _LIVE_RECURRENT_CEILING_DEFAULT))
+    return user_surface_recurrent_ceiling()
 
 
 def _surface_control_recurrent_loops(job: dict[str, Any]) -> int:
-    configured = job.get(
-        "clean_user_surface_recurrent_loops",
-        _FLAG_USER_SURFACE_RECURRENT_LOOPS.value(),
+    return admit_user_surface_recurrent_loops(
+        job.get("clean_user_surface_recurrent_loops")
     )
-    return max(1, min(_safe_int(configured, 1), _live_recurrent_ceiling()))
 
 
 # Typed finite-range admission for sampling controls crossing the IPC
@@ -816,6 +798,22 @@ def _surface_generation_control_receipt(
         "semantic_completion_incomplete": bool(
             state.get("semantic_completion_incomplete", False)
         ),
+        "semantic_completion_missing_part_count": max(
+            0,
+            _safe_int(state.get("semantic_completion_missing_part_count"), 0),
+        ),
+        "semantic_completion_missing_part_indexes": list(
+            state.get("semantic_completion_missing_part_indexes") or []
+        ),
+        "semantic_completion_quality_reasons": list(
+            state.get("semantic_completion_quality_reasons") or []
+        ),
+        "semantic_completion_epistemic_partition_covered": state.get(
+            "semantic_completion_epistemic_partition_covered"
+        ),
+        "semantic_completion_terminal_boundary": bool(
+            state.get("semantic_completion_terminal_boundary", False)
+        ),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -1143,10 +1141,47 @@ def _semantic_completion_receipt_state(
     response_text: Any,
     *,
     generated_tokens: int,
-) -> dict[str, bool]:
+) -> dict[str, Any]:
     """Describe completion without changing the model's decode distribution."""
 
     required = bool(job.get("semantic_completion_contract", False))
+    candidate = _surface_quality_candidate(job, response_text).rstrip()
+    terminal_boundary = bool(
+        candidate.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]"))
+    )
+    missing_indexes: list[int] = []
+    quality_reasons: list[str] = []
+    epistemic_covered: bool | None = None
+    if required:
+        try:
+            from core.conversation.request_coverage import (
+                requested_epistemic_partition_is_covered,
+                unanswered_question_parts,
+            )
+            from core.runtime.structured_input import analyze_prompt_shape
+
+            validation_prompt = _surface_validation_prompt(job)
+            shape = analyze_prompt_shape(validation_prompt)
+            missing = list(unanswered_question_parts(candidate, shape))
+            segments = list(getattr(shape, "question_segments", ()) or ())
+            missing_indexes = [
+                index for index, segment in enumerate(segments) if segment in missing
+            ]
+            epistemic_covered = requested_epistemic_partition_is_covered(
+                validation_prompt,
+                candidate,
+            )
+            quality_reasons = list(_surface_quality_failure_reasons(job, candidate))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_mlx_degradation(
+                exc,
+                action="reported semantic completion as incomplete because diagnostics were unavailable",
+                severity="warning",
+            )
+            quality_reasons = ["completion_diagnostics_unavailable"]
+    # The established validator remains the authority. Diagnostics explain its
+    # decision; they do not reimplement it and accidentally create a second,
+    # divergent completion contract.
     satisfied = bool(
         required
         and _semantic_surface_stop_ready(
@@ -1159,6 +1194,11 @@ def _semantic_completion_receipt_state(
         "semantic_completion_contract": required,
         "semantic_completion_satisfied": satisfied,
         "semantic_completion_incomplete": bool(required and not satisfied),
+        "semantic_completion_missing_part_count": len(missing_indexes),
+        "semantic_completion_missing_part_indexes": missing_indexes,
+        "semantic_completion_quality_reasons": quality_reasons,
+        "semantic_completion_epistemic_partition_covered": epistemic_covered,
+        "semantic_completion_terminal_boundary": terminal_boundary,
     }
 
 
@@ -8426,6 +8466,28 @@ def _mlx_worker_loop(
                         semantic_completion_state["semantic_completion_satisfied"]
                     )
                     surface_control_state.update(semantic_completion_state)
+                    if (
+                        semantic_completion_state["semantic_completion_incomplete"]
+                        and not expected_empty_precompile
+                    ):
+                        logger.warning(
+                            "User-surface generation ended before semantic completion: "
+                            "missing_parts=%s quality=%s epistemic_covered=%s "
+                            "terminal_boundary=%s tokens=%d",
+                            semantic_completion_state[
+                                "semantic_completion_missing_part_indexes"
+                            ],
+                            semantic_completion_state[
+                                "semantic_completion_quality_reasons"
+                            ],
+                            semantic_completion_state[
+                                "semantic_completion_epistemic_partition_covered"
+                            ],
+                            semantic_completion_state[
+                                "semantic_completion_terminal_boundary"
+                            ],
+                            total_generated_tokens,
+                        )
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.

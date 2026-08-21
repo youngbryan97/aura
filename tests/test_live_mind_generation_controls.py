@@ -68,6 +68,36 @@ def test_live_mind_generation_controls_reduce_sampling_under_distress():
     assert pressured["clean_user_surface_recurrent_loops"] == 2
 
 
+def test_bound_live_mind_contract_requests_only_worker_authorized_depth(monkeypatch):
+    from core.brain.cognitive_engine import _bind_live_mind_generation_contract
+
+    monkeypatch.delenv("AURA_USER_SURFACE_RECURRENT_MAX_LOOPS", raising=False)
+    context = {
+        "visible_user_message": "How are you doing?",
+        "live_mind_context": _ready_live_mind_context(),
+    }
+
+    controls = _bind_live_mind_generation_contract(context)
+
+    assert controls["clean_user_surface_recurrent_loops"] == 1
+    assert context["live_mind_generation_controls"] == controls
+    assert context["live_mind_controls_bound"] is True
+
+
+def test_bound_live_mind_contract_honors_measured_depth_opt_in(monkeypatch):
+    from core.brain.cognitive_engine import _bind_live_mind_generation_contract
+
+    monkeypatch.setenv("AURA_USER_SURFACE_RECURRENT_MAX_LOOPS", "2")
+    context = {
+        "visible_user_message": "How are you doing?",
+        "live_mind_context": _ready_live_mind_context(),
+    }
+
+    controls = _bind_live_mind_generation_contract(context)
+
+    assert controls["clean_user_surface_recurrent_loops"] == 2
+
+
 def test_live_mind_surface_receipt_normalizes_stale_worker_bound_flag():
     from core.brain.live_mind_contract import (
         normalize_live_mind_surface_control_receipt,

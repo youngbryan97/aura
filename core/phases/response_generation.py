@@ -25,6 +25,7 @@ from core.conversation.response_reliability import (
     repair_instruction_shape,
     requested_output_contract,
 )
+from core.intent.opaque_spans import first_named_url as _first_named_url
 from core.phases.dialogue_policy import enforce_dialogue_contract
 from core.phases.executive_guard import get_executive_guard
 from core.phases.response_contract import build_response_contract
@@ -42,8 +43,6 @@ from core.utils.injected_blocks import stamp_grounding
 
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
-
-from core.intent.opaque_spans import first_named_url as _first_named_url
 
 #: Enough of a rejected draft to judge the rejection by.
 _REJECTED_DRAFT_LOG_CHARS = 400
@@ -1621,7 +1620,31 @@ class ResponseGenerationPhase(BasePhase):
                 )
 
                 await bind_unified_context_to_state(state, objective)
-                messages = ContextAssembler.build_messages(state, objective)
+                runtime_context = kwargs.get("context")
+                if not isinstance(runtime_context, dict):
+                    runtime_context = {}
+                delivered_history = None
+                if (
+                    not is_background
+                    and not is_test_run
+                    and "recent_completed_exchanges" in runtime_context
+                ):
+                    from core.conversation.delivered_history import (
+                        delivered_exchange_messages,
+                    )
+
+                    delivered_history = delivered_exchange_messages(
+                        runtime_context.get("recent_completed_exchanges"),
+                        max_pairs=4,
+                    )
+                if delivered_history is None:
+                    messages = ContextAssembler.build_messages(state, objective)
+                else:
+                    messages = ContextAssembler.build_messages(
+                        state,
+                        objective,
+                        conversation_history=delivered_history,
+                    )
             contract = build_response_contract(
                 state,
                 objective,
@@ -1637,7 +1660,14 @@ class ResponseGenerationPhase(BasePhase):
                     runtime_context=kwargs.get("context") if isinstance(kwargs.get("context"), dict) else {},
                 )
                 if search_executed:
-                    messages = ContextAssembler.build_messages(state, objective)
+                    if delivered_history is None:
+                        messages = ContextAssembler.build_messages(state, objective)
+                    else:
+                        messages = ContextAssembler.build_messages(
+                            state,
+                            objective,
+                            conversation_history=delivered_history,
+                        )
                     contract = build_response_contract(
                         state,
                         objective,

@@ -2343,6 +2343,7 @@ class ContextAssembler:
         max_tokens: int | None = None,
         *,
         record_attention: bool = False,
+        conversation_history: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, str]]:
         """
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
@@ -2565,10 +2566,15 @@ class ContextAssembler:
         # 3. PRIORITY 3: Recent History (Maintain Conversational Thread)
         retained_history = []
         history_chars = 0
+        history_source = (
+            list(state.cognition.working_memory or [])
+            if conversation_history is None
+            else list(conversation_history)
+        )
         working_memory = cls._filter_stale_skill_results(
             state,
             objective,
-            list(state.cognition.working_memory or []),
+            history_source,
         )
         # Keep the last 4 messages strictly if possible
         recent_history = working_memory[-4:] if len(working_memory) >= 4 else working_memory

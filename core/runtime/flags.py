@@ -282,6 +282,37 @@ def aura_root_override() -> str:
     ).strip()
 
 
+def user_surface_recurrent_loops_override() -> str:
+    """Return the default recurrent depth requested for user-surface decode."""
+
+    return str(
+        declare(
+            "AURA_USER_SURFACE_RECURRENT_LOOPS",
+            kind=FlagKind.STRING,
+            default="1",
+            description="Default recurrent passes requested for a live user-surface decode",
+            owner="core.runtime.flags",
+        ).value()
+        or "1"
+    ).strip()
+
+
+def user_surface_recurrent_max_loops_override() -> str | None:
+    """Return the explicitly authorized maximum live user-surface depth."""
+
+    value = declare(
+        "AURA_USER_SURFACE_RECURRENT_MAX_LOOPS",
+        kind=FlagKind.STRING,
+        default=None,
+        description=(
+            "Maximum recurrent passes admitted on a live user surface; depth above "
+            "one remains an explicit measured opt-in"
+        ),
+        owner="core.runtime.flags",
+    ).value()
+    return None if value is None else str(value).strip()
+
+
 def reset_registry_for_test() -> None:
     with _REGISTRY_LOCK:
         _REGISTRY.clear()

@@ -249,15 +249,17 @@ def test_incomplete_semantic_candidate_remains_eligible_for_append_only_completi
     partial = "Dijkstra finalizes the minimum unsettled tentative distance."
 
     assert not _semantic_surface_stop_ready(job, partial, generated_tokens=32)
-    assert _semantic_completion_receipt_state(
+    receipt = _semantic_completion_receipt_state(
         job,
         partial,
         generated_tokens=32,
-    ) == {
-        "semantic_completion_contract": True,
-        "semantic_completion_satisfied": False,
-        "semantic_completion_incomplete": True,
-    }
+    )
+    assert receipt["semantic_completion_contract"] is True
+    assert receipt["semantic_completion_satisfied"] is False
+    assert receipt["semantic_completion_incomplete"] is True
+    assert receipt["semantic_completion_missing_part_indexes"] == [2, 4]
+    assert receipt["semantic_completion_missing_part_count"] == 2
+    assert receipt["semantic_completion_terminal_boundary"] is True
     assert _classify_generation_stop_reason(
         soft_cancelled=False,
         deadline_hit=False,
