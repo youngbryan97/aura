@@ -6197,7 +6197,8 @@ def _mlx_worker_loop(
             )
         else:
             logger.info(
-                "Certified recurrent adapter inactive: %s",
+                "Optional recurrent LoRA adapter inactive (independent of the CP568 "
+                "semantic-neural serving lane): %s",
                 recurrent_adapter_activation["reason"],
             )
 
@@ -6218,7 +6219,8 @@ def _mlx_worker_loop(
             )
         else:
             logger.info(
-                "Unified recurrent shadow inactive: %s",
+                "Optional unified recurrent shadow package inactive (independent of "
+                "the CP568 semantic-neural serving lane): %s",
                 unified_recurrent_shadow_status["reason"],
             )
         (
@@ -6238,7 +6240,8 @@ def _mlx_worker_loop(
             )
         else:
             logger.info(
-                "Unified recurrent qualified serving inactive: %s",
+                "Optional unified typed-controller serving inactive (independent of "
+                "the CP568 semantic-neural serving lane): %s",
                 unified_recurrent_qualified_activation_status["reason"],
             )
         consumed_unified_recurrent_canary_nonces: set[str] = set()

@@ -6147,6 +6147,40 @@ def get_latent_cortex_service(orchestrator: Any = None) -> LatentCortexService:
     return _INSTANCE
 
 
+def _report_qualified_recurrent_serving_status(status: dict[str, Any]) -> None:
+    """Make the promoted bounded serving lane explicit at runtime boot."""
+
+    reason = str(status.get("reason") or "unknown")
+    if status.get("active") is True:
+        receipt = status.get("receipt")
+        receipt = receipt if isinstance(receipt, dict) else {}
+        families = receipt.get("allowed_families")
+        family_count = len(families) if isinstance(families, list) else 0
+        logger.info(
+            "Qualified semantic-neural serving ACTIVE: package=%s mode=%s "
+            "promotion=%s families=%d activation=%s",
+            receipt.get("package_id") or "unknown",
+            receipt.get("mode") or "unknown",
+            receipt.get("promotion_mode") or "unknown",
+            family_count,
+            receipt.get("activation_sha256") or "unknown",
+        )
+        return
+    if reason == "semantic_neural_serving_disabled":
+        logger.info("Qualified semantic-neural serving disabled by explicit kill switch")
+        return
+    record_degradation(
+        "latent_cortex.qualified_recurrent_serving",
+        RuntimeError(reason),
+        severity="warning",
+        action=(
+            "kept the general latent cortex available while exposing the inactive "
+            "certified qualified package"
+        ),
+        enforce_failure_policy=False,
+    )
+
+
 def register_latent_cortex(orchestrator: Any = None) -> LatentCortexService:
     from core.runtime.service_registry import get_runtime_service, register_runtime_service
     from core.service_names import ServiceNames
@@ -6167,20 +6201,7 @@ def register_latent_cortex(orchestrator: Any = None) -> LatentCortexService:
         )
 
         qualified_status = semantic_neural_default_serving_status()
-        qualified_reason = str(qualified_status.get("reason") or "unknown")
-        if qualified_status.get("active") is not True and qualified_reason != (
-            "semantic_neural_serving_disabled"
-        ):
-            record_degradation(
-                "latent_cortex.qualified_recurrent_serving",
-                RuntimeError(qualified_reason),
-                severity="warning",
-                action=(
-                    "kept the general latent cortex available while exposing the "
-                    "inactive certified qualified package"
-                ),
-                enforce_failure_policy=False,
-            )
+        _report_qualified_recurrent_serving_status(qualified_status)
     except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "latent_cortex.qualified_recurrent_serving",
