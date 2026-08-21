@@ -110,6 +110,89 @@ def _is_sha(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(c in _HEX for c in value)
 
 
+def qualified_recurrent_result_receipt_errors(
+    value: Any,
+    *,
+    answer_text: str,
+    expected_family: str,
+) -> list[str]:
+    """Verify the typed result envelope that crosses into user-facing chat.
+
+    Qualified recurrence does not use the resident text decoder.  Its answer is
+    canonical serialization of an authenticated recurrent state, so ordinary
+    model-generation ownership receipts do not apply.  This check binds the
+    exact answer bytes to the answer-blind admission and the sealed result
+    before chat may treat that distinction as meaningful.
+    """
+
+    if not isinstance(value, Mapping):
+        return ["qualified_recurrent_result_receipt_missing"]
+    body = {key: item for key, item in value.items() if key != "receipt_sha256"}
+    errors: list[str] = []
+    if value.get("schema") != QUALIFIED_RECURRENT_RESULT_SCHEMA:
+        errors.append("qualified_recurrent_result_schema_invalid")
+    if value.get("receipt_sha256") != _canonical_sha256(body):
+        errors.append("qualified_recurrent_result_seal_invalid")
+    answer = str(answer_text or "").strip()
+    if not answer or value.get("answer_sha256") != hashlib.sha256(
+        answer.encode("utf-8")
+    ).hexdigest():
+        errors.append("qualified_recurrent_answer_binding_invalid")
+
+    admission_value = value.get("admission")
+    if not isinstance(admission_value, Mapping):
+        errors.append("qualified_recurrent_admission_receipt_missing")
+    else:
+        admission_body = {
+            key: item for key, item in admission_value.items() if key != "receipt_sha256"
+        }
+        try:
+            admission = QualifiedRecurrentAdmission(
+                schema=str(admission_value.get("schema") or ""),
+                family=str(admission_value.get("family") or ""),
+                task_depth=admission_value.get("task_depth"),
+                parser_id=str(admission_value.get("parser_id") or ""),
+                public_source_sha256=str(
+                    admission_value.get("public_source_sha256") or ""
+                ),
+                syntax_sha256=str(admission_value.get("syntax_sha256") or ""),
+            )
+        except (TypeError, ValueError):
+            errors.append("qualified_recurrent_admission_identity_invalid")
+        else:
+            if (
+                admission_value.get("receipt_sha256")
+                != _canonical_sha256(admission_body)
+                or dict(admission_value) != admission.receipt()
+            ):
+                errors.append("qualified_recurrent_admission_seal_invalid")
+            if admission.family != str(expected_family or ""):
+                errors.append("qualified_recurrent_family_binding_invalid")
+
+    semantic_result = "semantic_state_receipt" in value
+    typed_result = "worker_receipt" in value
+    if semantic_result == typed_result:
+        errors.append("qualified_recurrent_result_provenance_ambiguous")
+    elif semantic_result:
+        activation = value.get("activation_receipt")
+        if (
+            value.get("serialization")
+            != "canonical_json_from_authenticated_semantic_state"
+            or not isinstance(value.get("semantic_state_receipt"), Mapping)
+            or not isinstance(activation, Mapping)
+            or activation.get("promotion_mode") != "active"
+        ):
+            errors.append("qualified_recurrent_semantic_provenance_invalid")
+    elif (
+        not isinstance(value.get("worker_receipt"), Mapping)
+        or type(value.get("public_token_count")) is not int
+        or value.get("public_token_count", 0) <= 0
+        or not _is_sha(value.get("public_tokens_sha256"))
+    ):
+        errors.append("qualified_recurrent_typed_provenance_invalid")
+    return list(dict.fromkeys(errors))
+
+
 def _admit_khop(prompt: str, match: re.Match[str]) -> QualifiedRecurrentAdmission:
     if match.group("keys") != "node":
         raise ValueError("qualified khop result contract differs")
@@ -542,5 +625,6 @@ __all__ = [
     "admit_qualified_recurrent_objective",
     "execute_qualified_recurrent_objective",
     "project_qualified_public_tokens",
+    "qualified_recurrent_result_receipt_errors",
     "render_qualified_recurrent_answer",
 ]

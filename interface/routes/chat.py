@@ -4735,11 +4735,35 @@ def _route_desktop_cognitive_failure_to_resilience(
     return outcome
 
 
-def _generation_metadata_consumed_foreground_owner(metadata: Any) -> bool:
+def _generation_metadata_consumed_foreground_owner(
+    metadata: Any,
+    *,
+    response_text: str = "",
+) -> bool:
     """Return whether a CognitiveEngine result proves resident model work ran."""
 
     if not isinstance(metadata, dict):
         return False
+    if (
+        metadata.get("response_path") == "cognitive_engine_qualified_recurrent"
+        and metadata.get("qualified_recurrent_succeeded") is True
+        and metadata.get("model_generation_used") is False
+        and metadata.get("live_mind_generation_required") is False
+    ):
+        try:
+            from core.brain.llm.qualified_recurrent_ingress import (
+                qualified_recurrent_result_receipt_errors,
+            )
+
+            receipt_errors = qualified_recurrent_result_receipt_errors(
+                metadata.get("qualified_recurrent_receipt"),
+                answer_text=response_text,
+                expected_family=str(metadata.get("qualified_recurrent_family") or ""),
+            )
+        except (ImportError, TypeError, ValueError):
+            receipt_errors = ["qualified_recurrent_result_validation_unavailable"]
+        if not receipt_errors:
+            return False
     if bool(metadata.get("model_retry_suppressed")):
         return True
     if bool(metadata.get("latent_cortex_attempted")):
@@ -4767,6 +4791,49 @@ def _generation_metadata_consumed_foreground_owner(metadata: Any) -> bool:
         if type(attempts) is int and attempts > 0 and bool(receipt.get("applied")):
             return True
     return False
+
+
+def _bind_qualified_recurrent_public_answer(
+    trace: dict[str, Any] | None,
+    response_text: Any,
+) -> bool:
+    """Bind certified recurrent provenance to the exact bytes being delivered."""
+
+    if not isinstance(trace, dict):
+        return False
+    qualified_path = (
+        str(trace.get("response_path") or "").strip()
+        == "cognitive_engine_qualified_recurrent"
+    )
+    if not qualified_path:
+        return False
+    errors: list[str]
+    try:
+        from core.brain.llm.qualified_recurrent_ingress import (
+            qualified_recurrent_result_receipt_errors,
+        )
+
+        errors = qualified_recurrent_result_receipt_errors(
+            trace.get("qualified_recurrent_receipt"),
+            answer_text=str(response_text or ""),
+            expected_family=str(trace.get("qualified_recurrent_family") or ""),
+        )
+    except (ImportError, TypeError, ValueError) as exc:
+        errors = [f"qualified_recurrent_result_validation_unavailable:{type(exc).__name__}"]
+    proven = bool(
+        trace.get("qualified_recurrent_succeeded") is True
+        and trace.get("model_generation_used") is False
+        and trace.get("live_mind_generation_required") is False
+        and not errors
+    )
+    trace.update(
+        {
+            "qualified_recurrent_path_proven": proven,
+            "qualified_recurrent_delivery_errors": errors,
+            "authored_answer_completion_proven": proven,
+        }
+    )
+    return proven
 
 
 def _worker_receipt_transaction_id(receipt: Any, response_text: Any) -> str:
@@ -4968,13 +5035,17 @@ async def _run_cognitive_engine_chat_turn(
         metadata: Any,
         *,
         continuation_segment: bool = False,
+        response_text: str = "",
     ) -> None:
         """Record physical decodes without confusing segments with new answers."""
 
         if (
             turn_trace is None
             or not require_engine
-            or not _generation_metadata_consumed_foreground_owner(metadata)
+            or not _generation_metadata_consumed_foreground_owner(
+                metadata,
+                response_text=response_text,
+            )
         ):
             return
         turn_trace["foreground_model_generation_consumed"] = True
@@ -5001,6 +5072,7 @@ async def _run_cognitive_engine_chat_turn(
         adopt_response_path: bool = True,
         inherit_turn_context: bool = True,
         count_foreground_generation: bool = True,
+        response_text: str = "",
     ) -> None:
         """Bind the accepted generation's receipt without retaining stale fields."""
 
@@ -5065,6 +5137,37 @@ async def _run_cognitive_engine_chat_turn(
                 receipt.get("generation_required", True),
             )
         )
+        metadata_response_path = str(metadata.get("response_path") or "").strip()
+        qualified_recurrent_path = (
+            metadata_response_path == "cognitive_engine_qualified_recurrent"
+        )
+        qualified_recurrent_receipt = metadata.get("qualified_recurrent_receipt")
+        qualified_recurrent_family = str(
+            metadata.get("qualified_recurrent_family") or ""
+        ).strip()
+        qualified_recurrent_errors: list[str] = []
+        if qualified_recurrent_path:
+            try:
+                from core.brain.llm.qualified_recurrent_ingress import (
+                    qualified_recurrent_result_receipt_errors,
+                )
+
+                qualified_recurrent_errors = qualified_recurrent_result_receipt_errors(
+                    qualified_recurrent_receipt,
+                    answer_text=response_text,
+                    expected_family=qualified_recurrent_family,
+                )
+            except (ImportError, TypeError, ValueError) as exc:
+                qualified_recurrent_errors = [
+                    f"qualified_recurrent_result_validation_unavailable:{type(exc).__name__}"
+                ]
+        qualified_recurrent_path_proven = bool(
+            qualified_recurrent_path
+            and metadata.get("qualified_recurrent_succeeded") is True
+            and metadata.get("model_generation_used") is False
+            and generation_required is False
+            and not qualified_recurrent_errors
+        )
         turn_trace.update(
             {
                 "live_mind_controls_bound": controls_bound,
@@ -5102,10 +5205,24 @@ async def _run_cognitive_engine_chat_turn(
                 ),
                 "text_mutations": receipt_mutations,
                 "text_mutation_count": len(receipt_mutations),
+                "qualified_recurrent_path_proven": qualified_recurrent_path_proven,
+                "qualified_recurrent_family": qualified_recurrent_family,
+                "qualified_recurrent_receipt": (
+                    dict(qualified_recurrent_receipt)
+                    if isinstance(qualified_recurrent_receipt, dict)
+                    else {}
+                ),
+                "qualified_recurrent_delivery_errors": qualified_recurrent_errors,
+                "qualified_recurrent_succeeded": bool(
+                    metadata.get("qualified_recurrent_succeeded", False)
+                ),
+                "model_generation_used": metadata.get("model_generation_used"),
             }
         )
+        if qualified_recurrent_path_proven:
+            turn_trace["authored_answer_completion_proven"] = True
         if count_foreground_generation:
-            _record_foreground_generation(metadata)
+            _record_foreground_generation(metadata, response_text=response_text)
         latent_metadata_present = any(
             key in metadata
             for key in (
@@ -5171,7 +5288,6 @@ async def _run_cognitive_engine_chat_turn(
                 ),
                 }
             )
-        metadata_response_path = str(metadata.get("response_path") or "").strip()
         if adopt_response_path and metadata_response_path:
             turn_trace["response_path"] = metadata_response_path
         if bool(metadata.get("model_retry_suppressed", False)):
@@ -6911,6 +7027,7 @@ async def _run_cognitive_engine_chat_turn(
     _adopt_generation_metadata(
         thought_metadata,
         source_label="desktop_chat_preflight_live_mind_controls",
+        response_text=raw_text,
     )
     text = _strip_user_visible_context_leaks(raw_text)
     if turn_trace is not None:
@@ -21209,6 +21326,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             user_message=_semantic_user_message,
             reply_text=_final_reply,
         )
+        _bind_qualified_recurrent_public_answer(_live_turn_trace, _final_reply)
 
         final_live_turn_contract = _live_turn_contract(
             lane_status=lane_status,

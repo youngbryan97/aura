@@ -87,6 +87,45 @@ def test_admission_does_not_broaden_to_uncertified_or_tampered_language():
     assert ingress.admit_qualified_recurrent_objective(aliased) is None
 
 
+def test_result_receipt_binds_exact_answer_and_answer_blind_admission():
+    task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082101)[0]
+    admission = ingress.admit_qualified_recurrent_objective(task.prompt)
+    assert admission is not None
+    body = {
+        "schema": ingress.QUALIFIED_RECURRENT_RESULT_SCHEMA,
+        "admission": admission.receipt(),
+        "semantic_state_receipt": {"state_sha256": "s" * 64},
+        "surface_decode_receipt": None,
+        "activation_receipt": {
+            "promotion_mode": "active",
+            "activation_sha256": "a" * 64,
+        },
+        "serialization": "canonical_json_from_authenticated_semantic_state",
+        "answer_sha256": hashlib.sha256(task.answer.encode("utf-8")).hexdigest(),
+    }
+    receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
+
+    assert ingress.qualified_recurrent_result_receipt_errors(
+        receipt,
+        answer_text=task.answer,
+        expected_family=task.family,
+    ) == []
+    assert "qualified_recurrent_answer_binding_invalid" in (
+        ingress.qualified_recurrent_result_receipt_errors(
+            receipt,
+            answer_text=f"{task.answer} tampered",
+            expected_family=task.family,
+        )
+    )
+    assert "qualified_recurrent_family_binding_invalid" in (
+        ingress.qualified_recurrent_result_receipt_errors(
+            receipt,
+            answer_text=task.answer,
+            expected_family="frontier_coding",
+        )
+    )
+
+
 def test_admission_recognizes_only_exact_semantic_issuer_grammars():
     tasks = frontier_process_task_battery(
         ("coding", "calibration", "misleading_premise", "scientific_inference"),

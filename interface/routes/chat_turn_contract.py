@@ -695,15 +695,29 @@ def _build_live_turn_contract_payload(
     model_native_output = bool(
         not post_generation_repair_applied and not unreceipted_runtime_replacement
     )
+    confidence = str(response_confidence or "").strip().lower()
+    qualified_recurrent_response_path = (
+        response_path == "cognitive_engine_qualified_recurrent"
+    )
+    qualified_recurrent_path_proven = bool(
+        qualified_recurrent_response_path
+        and trace.get("qualified_recurrent_path_proven") is True
+        and trace.get("qualified_recurrent_succeeded") is True
+        and trace.get("model_generation_used") is False
+        and live_mind_generation_required is False
+        and isinstance(trace.get("qualified_recurrent_receipt"), dict)
+        and bool(trace.get("qualified_recurrent_receipt"))
+        and not trace.get("qualified_recurrent_delivery_errors")
+    )
     live_mind_controls_structurally_bound = bool(
         (not live_mind_context_required)
+        or qualified_recurrent_path_proven
         or (
             live_mind_controls_bound
             and live_mind_controls_application_satisfied
             and live_mind_surface_quality_gate_passed
         )
     )
-    confidence = str(response_confidence or "").strip().lower()
     accepted_full_mind_response_paths = {
         "cognitive_engine",
         "protected_foreground",
@@ -741,6 +755,7 @@ def _build_live_turn_contract_payload(
         "cognitive_engine_self_condition_semantic_completion",
         "cognitive_engine_bounded_planning",
         "cognitive_engine_latent_cortex",
+        "cognitive_engine_qualified_recurrent",
     }
     latent_cortex_response_path = response_path == "cognitive_engine_latent_cortex"
     latent_cortex_path_proven = bool(
@@ -756,6 +771,9 @@ def _build_live_turn_contract_payload(
     )
     latent_cortex_path_requirement_satisfied = bool(
         not latent_cortex_response_path or latent_cortex_path_proven
+    )
+    qualified_recurrent_path_requirement_satisfied = bool(
+        not qualified_recurrent_response_path or qualified_recurrent_path_proven
     )
     foreground_model_generation_count = int(trace.get("foreground_model_generation_count") or 0)
     foreground_model_generation_segment_count = int(
@@ -842,6 +860,7 @@ def _build_live_turn_contract_payload(
         and not legacy_fallback_used
         and response_path in accepted_full_mind_response_paths
         and latent_cortex_path_requirement_satisfied
+        and qualified_recurrent_path_requirement_satisfied
         and single_owner_model_generation_proven
         and not authorship_replacement_applied
     )
@@ -919,6 +938,8 @@ def _build_live_turn_contract_payload(
         missing_proofs.append("latent_cortex_path_unproven")
     if latent_cortex_response_path and not latent_cortex_output_quality_proven:
         missing_proofs.append("latent_cortex_output_quality_unproven")
+    if qualified_recurrent_response_path and not qualified_recurrent_path_proven:
+        missing_proofs.append("qualified_recurrent_path_unproven")
     if not single_owner_model_generation_proven:
         missing_proofs.append(
             "duplicate_foreground_model_generation"
@@ -1007,6 +1028,14 @@ def _build_live_turn_contract_payload(
         "latent_cortex_output_mutation_chain": latent_cortex_output_mutation_chain,
         "latent_cortex_path_proven": latent_cortex_path_proven,
         "latent_cortex_path_requirement_satisfied": (latent_cortex_path_requirement_satisfied),
+        "qualified_recurrent_path_proven": qualified_recurrent_path_proven,
+        "qualified_recurrent_path_requirement_satisfied": (
+            qualified_recurrent_path_requirement_satisfied
+        ),
+        "qualified_recurrent_family": str(trace.get("qualified_recurrent_family") or ""),
+        "qualified_recurrent_delivery_errors": list(
+            trace.get("qualified_recurrent_delivery_errors") or []
+        ),
         "latent_cortex_final_text_transformed": bool(
             trace.get("latent_cortex_final_text_transformed")
         ),

@@ -11817,6 +11817,186 @@ def test_released_reusable_latent_episode_does_not_exhaust_foreground_owner():
     assert chat_routes._generation_metadata_consumed_foreground_owner(metadata) is True
 
 
+def test_certified_recurrent_typed_answer_has_non_generative_delivery_ownership():
+    from core.brain.llm import qualified_recurrent_ingress as ingress
+    from core.learning.frontier_process_supervision import frontier_process_task_battery
+    from interface.routes import chat as chat_routes
+
+    task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082102)[0]
+    admission = ingress.admit_qualified_recurrent_objective(task.prompt)
+    assert admission is not None
+    body = {
+        "schema": ingress.QUALIFIED_RECURRENT_RESULT_SCHEMA,
+        "admission": admission.receipt(),
+        "semantic_state_receipt": {"state_sha256": "s" * 64},
+        "surface_decode_receipt": None,
+        "activation_receipt": {
+            "promotion_mode": "active",
+            "activation_sha256": "a" * 64,
+        },
+        "serialization": "canonical_json_from_authenticated_semantic_state",
+        "answer_sha256": hashlib.sha256(task.answer.encode("utf-8")).hexdigest(),
+    }
+    receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
+    metadata = {
+        "response_path": "cognitive_engine_qualified_recurrent",
+        "qualified_recurrent_succeeded": True,
+        "qualified_recurrent_family": task.family,
+        "qualified_recurrent_receipt": receipt,
+        "latent_cortex_attempted": True,
+        "model_generation_used": False,
+        "live_mind_generation_required": False,
+    }
+    assert (
+        chat_routes._generation_metadata_consumed_foreground_owner(
+            metadata,
+            response_text=task.answer,
+        )
+        is False
+    )
+
+    trace = {
+        **metadata,
+        "qualified_recurrent_path_proven": True,
+        "qualified_recurrent_delivery_errors": [],
+        "engine_think_invoked": True,
+        "cognitive_engine_reply_accepted": True,
+        "cognitive_engine_reply_failed": False,
+        "bounded_contract_used": False,
+        "legacy_fallback_used": False,
+        "foreground_model_generation_consumed": False,
+        "foreground_model_generation_count": 0,
+        "foreground_model_generation_segment_count": 0,
+        "foreground_model_generation_transaction_count": 0,
+        "authored_answer_completion_proven": True,
+        "live_mind_context_present": True,
+        "live_mind_snapshot_present": True,
+        "live_mind_snapshot_ready": True,
+        "final_requested_output_contract_evaluated": True,
+        "final_requested_output_contract_required": True,
+        "final_requested_output_contract_satisfied": True,
+    }
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status=metadata["response_path"],
+        reply_source=metadata["response_path"],
+        turn_trace=trace,
+    )
+    assert contract["qualified_recurrent_path_proven"] is True
+    assert contract["single_owner_model_generation_proven"] is True
+    assert contract["authentic_cognitive_reply"] is True
+    assert contract["answer_delivery_proven"] is True
+    assert "live_mind_controls_unbound" not in contract["full_mind_missing_proofs"]
+
+    assert chat_routes._bind_qualified_recurrent_public_answer(
+        trace,
+        task.answer + " tampered",
+    ) is False
+    rejected = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status=metadata["response_path"],
+        reply_source=metadata["response_path"],
+        turn_trace=trace,
+    )
+    assert rejected["qualified_recurrent_path_proven"] is False
+    assert rejected["answer_delivery_proven"] is False
+    assert "qualified_recurrent_path_unproven" in rejected["full_mind_missing_proofs"]
+
+
+@pytest.mark.asyncio
+async def test_desktop_chat_adopts_certified_recurrent_answer_without_fake_decode(
+    monkeypatch,
+):
+    from core.brain.llm import qualified_recurrent_ingress as ingress
+    from core.learning.frontier_process_supervision import frontier_process_task_battery
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082103)[0]
+    admission = ingress.admit_qualified_recurrent_objective(task.prompt)
+    assert admission is not None
+    body = {
+        "schema": ingress.QUALIFIED_RECURRENT_RESULT_SCHEMA,
+        "admission": admission.receipt(),
+        "semantic_state_receipt": {"state_sha256": "s" * 64},
+        "surface_decode_receipt": None,
+        "activation_receipt": {
+            "promotion_mode": "active",
+            "activation_sha256": "a" * 64,
+        },
+        "serialization": "canonical_json_from_authenticated_semantic_state",
+        "answer_sha256": hashlib.sha256(task.answer.encode("utf-8")).hexdigest(),
+    }
+    receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
+    metadata = {
+        "response_path": "cognitive_engine_qualified_recurrent",
+        "qualified_recurrent_eligible": True,
+        "qualified_recurrent_attempted": True,
+        "qualified_recurrent_succeeded": True,
+        "qualified_recurrent_family": task.family,
+        "qualified_recurrent_receipt": receipt,
+        "latent_cortex_selected": True,
+        "latent_cortex_attempted": True,
+        "latent_cortex_succeeded": True,
+        "latent_cortex_identity_bound": True,
+        "latent_cortex_receipt": receipt,
+        "model_generation_used": False,
+        "live_mind_generation_required": False,
+    }
+
+    class _FakeCognitiveEngine:
+        async def think(self, *_args, **_kwargs):
+            return SimpleNamespace(content=task.answer, metadata=metadata)
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+        async def execute_with_retry(self, _name, operation, **_kwargs):
+            return await operation()
+
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        chat_routes,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: (
+                _FakeCognitiveEngine() if name == "cognitive_engine" else default
+            )
+        ),
+    )
+
+    trace = {}
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        task.prompt,
+        visible_user_message=task.prompt,
+        origin="user",
+        timeout_s=60.0,
+        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert reply == task.answer
+    assert trace["response_path"] == "cognitive_engine_qualified_recurrent"
+    assert trace["qualified_recurrent_path_proven"] is True
+    assert trace["foreground_model_generation_consumed"] is False
+    assert trace["foreground_model_generation_count"] == 0
+    assert trace["authored_answer_completion_proven"] is True
+
+
 @pytest.mark.asyncio
 async def test_truncated_completion_replacement_cannot_become_authoritative(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
