@@ -8,6 +8,21 @@ import pytest
 from core.runtime import launch_provenance
 
 
+def test_runtime_shell_request_path_is_canonical_and_rejects_traversal():
+    assert (
+        launch_provenance.runtime_shell_request_path("interface/static/aura.js")
+        == "/static/aura.js"
+    )
+    for invalid in (
+        "static/aura.js",
+        "/interface/static/aura.js",
+        "interface/../aura.js",
+        "interface/static\\aura.js",
+    ):
+        with pytest.raises(ValueError):
+            launch_provenance.runtime_shell_request_path(invalid)
+
+
 def test_runtime_shell_digest_is_path_bound_and_content_sensitive(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

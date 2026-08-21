@@ -48,6 +48,11 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, ge
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.launch_provenance import (
+    RUNTIME_SHELL_ASSETS,
+    RUNTIME_SHELL_PUBLIC_ASSETS,
+    runtime_shell_request_path,
+)
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 
 try:
@@ -720,36 +725,14 @@ NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
-_RUNTIME_REVISION_NO_STORE_PATHS = frozenset(
-    {
-        "/",
-        "/static/index.html",
-        "/static/design_tokens.css",
-        "/static/motion_design.css",
-        "/static/error_banner.css",
-        "/static/aura.css",
-        "/static/presence_design.css",
-        "/static/vendor/vis-network.min.js",
-        "/static/error_banner.js",
-        "/static/sound_design.js",
-        "/static/perf_collector.js",
-        "/static/aura.js",
-        "/static/manifest.json",
-        "/static/service-worker.js",
-        "/static/aura_avatar.svg",
-        "/static/vendor/fonts/fredoka-variable-latin.woff2",
-        "/static/vendor/fonts/ibm-plex-mono-400-latin.woff2",
-        "/static/vendor/fonts/ibm-plex-mono-500-latin.woff2",
-        "/static/vendor/fonts/ibm-plex-mono-600-latin.woff2",
-        "/static/voice-processor.js",
-    }
+_RUNTIME_REVISION_SHELL_PATHS = frozenset(
+    runtime_shell_request_path(relative) for relative in RUNTIME_SHELL_ASSETS
 )
 _RUNTIME_REVISION_ADDRESSED_PATHS = frozenset(
-    {
-        "/static/icon.svg",
-        "/static/icon-192.png",
-        "/static/icon-512.png",
-    }
+    runtime_shell_request_path(relative) for relative in RUNTIME_SHELL_PUBLIC_ASSETS
+)
+_RUNTIME_REVISION_NO_STORE_PATHS = frozenset(
+    {"/", *(_RUNTIME_REVISION_SHELL_PATHS - _RUNTIME_REVISION_ADDRESSED_PATHS)}
 )
 def _cache_policy_for_path(
     path: str,

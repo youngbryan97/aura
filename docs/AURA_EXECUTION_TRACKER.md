@@ -51143,3 +51143,27 @@ the remote-provider removal and are the next bounded repair. Canonical smoke
 passes `120/120` with one environment-dependent skip. The running pre-checkpoint
 process remains on its original source and was intentionally not restarted;
 live confirmation belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-837: Give the Signed Runtime Shell One Inventory
+
+Remote-provider removal correctly deleted an unrelated route dependency, but
+that import had also leaked the signed shell inventory as a private symbol used
+by health contracts. The application simultaneously maintained a second manual
+list of shell request paths in its cache middleware. The owner and the serving
+policy could drift independently, and the health suite was left with two broken
+contracts after the private alias disappeared.
+
+Launch provenance now owns the source-asset inventory, the explicitly public
+immutable subset, and the validated mapping from source-relative assets to HTTP
+request paths. Server cache policy is derived from those declarations rather
+than restating twenty-three paths. Unaddressed shell requests remain no-store;
+revision-addressed public icons receive public immutable caching; all other
+revision-addressed shell bytes remain private immutable. Traversal, absolute
+paths and platform-specific separators are rejected by the canonical mapper.
+
+Provenance, immutable-snapshot and health-read-model contracts pass `54/54`.
+The combined integrity, logging, health, provenance and shell boundary passes
+`130/130`; canonical smoke passes `120/120` with one environment-dependent
+skip. Ruff, compilation and diff hygiene pass. The running pre-checkpoint
+process was intentionally not restarted, so live confirmation belongs to the
+next normal installed-app restart.

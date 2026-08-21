@@ -678,19 +678,19 @@ def test_runtime_revision_contract_covers_exact_source_workspace_and_shell_ident
 
 
 def test_runtime_shell_asset_identity_changes_with_live_shell_bytes(tmp_path):
-    from interface.routes import system as system_routes
+    from core.runtime import launch_provenance
 
-    for relative in system_routes._RUNTIME_REVISION_SHELL_ASSETS:
+    for relative in launch_provenance.RUNTIME_SHELL_ASSETS:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"asset:{relative}\n", encoding="utf-8")
 
-    before = system_routes._runtime_shell_assets_sha256(tmp_path)
+    before = launch_provenance.runtime_shell_assets_sha256(tmp_path)
     (tmp_path / "interface/static/aura.js").write_text(
         "asset:interface/static/aura.js\nchanged\n",
         encoding="utf-8",
     )
-    after = system_routes._runtime_shell_assets_sha256(tmp_path)
+    after = launch_provenance.runtime_shell_assets_sha256(tmp_path)
 
     assert len(before) == 64
     assert len(after) == 64
@@ -1287,11 +1287,11 @@ def test_runtime_revision_cache_has_short_negative_ttl_and_explicit_invalidation
 
 
 def test_every_runtime_revision_shell_asset_is_no_store_or_revision_addressed():
+    from core.runtime import launch_provenance
     from interface import server
-    from interface.routes import system as system_routes
 
-    for relative in system_routes._RUNTIME_REVISION_SHELL_ASSETS:
-        path = "/" + relative.removeprefix("interface/")
+    for relative in launch_provenance.RUNTIME_SHELL_ASSETS:
+        path = launch_provenance.runtime_shell_request_path(relative)
         policy = server._cache_policy_for_path(path)
         assert policy is not None, path
         assert policy["Cache-Control"].startswith("no-store"), path
@@ -1300,6 +1300,11 @@ def test_every_runtime_revision_shell_asset_is_no_store_or_revision_addressed():
             revision_addressed=True,
         )
         assert addressed["Cache-Control"].endswith("immutable"), path
+
+    assert server._RUNTIME_REVISION_SHELL_PATHS == {
+        launch_provenance.runtime_shell_request_path(relative)
+        for relative in launch_provenance.RUNTIME_SHELL_ASSETS
+    }
 
     assert server._cache_policy_for_path("/")["Cache-Control"].startswith("no-store")
     assert server._cache_policy_for_path("/data/uploads/private.png")[

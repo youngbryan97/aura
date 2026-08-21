@@ -49,6 +49,17 @@ RUNTIME_SHELL_ASSETS = (
     "interface/static/vendor/fonts/ibm-plex-mono-600-latin.woff2",
     "interface/static/voice-processor.js",
 )
+# Revision-addressed icons are safe for shared immutable caching. Every other
+# shell byte remains private to the authenticated desktop runtime.
+RUNTIME_SHELL_PUBLIC_ASSETS = frozenset(
+    {
+        "interface/static/icon.svg",
+        "interface/static/icon-192.png",
+        "interface/static/icon-512.png",
+    }
+)
+if not RUNTIME_SHELL_PUBLIC_ASSETS.issubset(RUNTIME_SHELL_ASSETS):
+    raise RuntimeError("public runtime shell assets must belong to the signed shell")
 
 _SOURCE_PATHS = (
     "aura_main.py",
@@ -100,6 +111,21 @@ _RECOVERABLE_ERRORS = (
 
 def _truthy(value: object) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def runtime_shell_request_path(relative: str) -> str:
+    """Map one signed source asset to its canonical HTTP request path."""
+
+    normalized = str(relative or "").strip()
+    prefix = "interface/"
+    if (
+        not normalized.startswith(prefix)
+        or normalized.startswith("/")
+        or "\\" in normalized
+        or any(part in {"", ".", ".."} for part in normalized.split("/"))
+    ):
+        raise ValueError(f"runtime shell asset path is invalid: {relative!r}")
+    return "/" + normalized.removeprefix(prefix)
 
 
 def _run_git(root: Path, arguments: Sequence[str], *, timeout: float = 3.0) -> str:
@@ -735,12 +761,14 @@ __all__ = [
     "EXPECTED_BUNDLE_ID",
     "LAUNCH_PROVENANCE_SCHEMA",
     "RUNTIME_SHELL_ASSETS",
+    "RUNTIME_SHELL_PUBLIC_ASSETS",
     "build_launch_manifest",
     "capture_runtime_shell_assets",
     "collect_source_identity",
     "collect_runtime_launch_provenance",
     "runtime_shell_assets_digest",
     "runtime_shell_assets_sha256",
+    "runtime_shell_request_path",
     "validate_launch_source",
     "write_launch_manifest",
 ]
