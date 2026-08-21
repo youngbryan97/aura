@@ -62,6 +62,11 @@ class TabularAnswer:
     filters: tuple[tuple[str, str], ...] = ()
     rows_used: int = 0
     rows_total: int = 0
+    #: Set when the question contrasts two values of one column. Holds the
+    #: column, the two values, and each group's figure on each side.
+    split_column: str = ""
+    sides: tuple[str, str] = ("", "")
+    contrast: tuple[tuple[str, float, float], ...] = ()
 
     def leader(self) -> tuple[str, float] | None:
         return self.ranking[0] if self.ranking else None
@@ -111,13 +116,25 @@ def _column_named_in(question: str, header: list[str]) -> list[str]:
     return named
 
 
-def _value_column(header: list[str], rows: list[dict[str, str]], question: str) -> str | None:
+def _value_column(
+    header: list[str],
+    rows: list[dict[str, str]],
+    question: str,
+    reserved: set[str] | None = None,
+) -> str | None:
     """The column being measured: named if the question names one, else the
-    only one that is reliably numeric."""
+    only one that is reliably numeric.
+
+    A column the question contrasts two values of is an axis, not a measure.
+    Without that, "2024 vs 2025 spend by team" had two numeric columns to
+    choose between, named neither, and gave up on a computable question.
+    """
+    held = reserved or set()
     numeric = [
         column
         for column in header
-        if rows
+        if column not in held
+        and rows
         and sum(1 for row in rows[:50] if _numeric(row.get(column)) is not None)
         >= max(1, min(len(rows), 50) * 0.8)
     ]
@@ -130,13 +147,18 @@ def _value_column(header: list[str], rows: list[dict[str, str]], question: str) 
 
 
 def _group_column(
-    header: list[str], rows: list[dict[str, str]], question: str, value_column: str
+    header: list[str],
+    rows: list[dict[str, str]],
+    question: str,
+    value_column: str,
+    reserved: set[str] | None = None,
 ) -> str | None:
     """The column the answer is broken down BY."""
+    held = (reserved or set()) | {value_column}
     candidates = [
         column
         for column in _column_named_in(question, header)
-        if column != value_column and _numeric(rows[0].get(column)) is None
+        if column not in held and _numeric(rows[0].get(column)) is None
     ]
     if not candidates:
         return None
@@ -204,20 +226,115 @@ def _affirmative_value(values: set[str]) -> str | None:
     return positives[0] if len(positives) == 1 and negatives else None
 
 
-def _names_both_senses(question: str, column: str) -> bool:
-    """True when the question asks about a column's yes AND its no.
+#: Words that ask for the distance between two figures rather than their order.
+_GAP_WORDS = re.compile(r"\b(?:gap|difference|differ|spread|delta|swing|apart)\b")
 
-    LIVE, 2026-08-21. "which category has the biggest gap between approved and
-    unapproved spend?" was answered with total spend by category — the right
-    arithmetic for a question nobody asked, badged as computed. The negation
-    was detected, which correctly stopped the approved-only filter, and then
-    no filter was applied at all and the unfiltered total was served with
-    authority.
 
-    A question naming both senses is asking about the difference between
-    them, which this form cannot express. Declining sends it to the model,
-    which is what the contract at the top of this file promises.
+def _contrast_column(
+    header: list[str], rows: list[dict[str, str]], question: str, exclude: set[str]
+) -> tuple[str, str, str] | None:
+    """The column this question contrasts two values of, and which two.
+
+    LIVE, 2026-08-21, twice in one question. "which category has the biggest
+    gap between approved and unapproved spend?" first came back as total spend
+    by category — the right arithmetic for a question nobody asked, badged
+    computed, and plausible because the top row is the same either way. Made
+    to decline instead, the turn fell through to the model, which invented all
+    three figures and served them at high confidence.
+
+    Declining is the wrong remedy for arithmetic. The file is on disk and the
+    comparison is computable, so it is computed. Two shapes are read here, and
+    neither knows a domain: a question that names both values of a two-valued
+    column ("2024 vs 2025"), and one that names the column and negates it
+    ("approved and unapproved").
     """
+    asked = _words(question)
+    lowered = str(question or "").lower()
+    for column in header:
+        if column in exclude:
+            continue
+        values = [
+            value
+            for value in dict.fromkeys(str(row.get(column, "")).strip() for row in rows)
+            if value
+        ]
+        if len(values) != 2:
+            continue
+        named = [value for value in values if _words(value) <= asked]
+        if len(named) == 2:
+            # Order them as the question does, so "2024 vs 2025" reads that way.
+            named.sort(key=lambda value: lowered.find(value.lower()))
+            return column, named[0], named[1]
+        if _names_both_senses(question, column):
+            affirmative = _affirmative_value(set(values))
+            if affirmative:
+                other = next(value for value in values if value != affirmative)
+                return column, affirmative, other
+    return None
+
+
+def _contrast_answer(
+    target: Path,
+    kept: list[dict[str, str]],
+    rows: list[dict[str, str]],
+    question: str,
+    value_column: str,
+    group_column: str,
+    split: tuple[str, str, str],
+    applied: list[tuple[str, str]],
+) -> TabularAnswer | None:
+    """Each group's figure on both sides of the split, ranked by the distance."""
+    column, left, right = split
+    aggregation = _aggregation(question)
+    sums: dict[tuple[str, str], float] = defaultdict(float)
+    seen: dict[tuple[str, str], int] = defaultdict(int)
+    used = 0
+    for row in kept:
+        side = str(row.get(column, "")).strip()
+        if side not in {left, right}:
+            continue
+        amount = _numeric(row.get(value_column))
+        if amount is None:
+            continue
+        key = (str(row.get(group_column, "")).strip() or "(blank)", side)
+        sums[key] += amount
+        seen[key] += 1
+        used += 1
+    groups = {key[0] for key in sums}
+    if not groups:
+        return None
+
+    def figure(group: str, side: str) -> float:
+        key = (group, side)
+        if aggregation == "count":
+            return float(seen[key])
+        if aggregation == "mean":
+            return sums[key] / seen[key] if seen[key] else 0.0
+        return sums[key]
+
+    rows_out = [(group, figure(group, left), figure(group, right)) for group in groups]
+    by_distance = _GAP_WORDS.search(str(question or "").lower()) is not None
+    rows_out.sort(
+        key=lambda item: abs(item[1] - item[2]) if by_distance else item[1] - item[2],
+        reverse=True,
+    )
+    return TabularAnswer(
+        path=str(target),
+        group_column=group_column,
+        value_column=value_column,
+        aggregation="count" if aggregation == "count" else ("mean" if aggregation == "mean" else "total"),
+        ranking=tuple((group, left_figure - right_figure) for group, left_figure, right_figure in rows_out),
+        filters=tuple(applied),
+        rows_used=used,
+        rows_total=len(rows),
+        split_column=column,
+        sides=(left, right),
+        contrast=tuple(rows_out),
+    )
+
+
+def _names_both_senses(question: str, column: str) -> bool:
+    """True when the question asks about a column's yes AND its no."""
     lowered = str(question or "").lower()
     if not _negated_near(lowered, column):
         return False
@@ -262,20 +379,18 @@ def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | 
         header, rows = _read_rows(target)
         if not rows:
             return None
-        value_column = _value_column(header, rows, question)
+        # Read the contrast first: a column the question names both values of
+        # is the axis being compared, so it cannot also be the measure or the
+        # breakdown.
+        proposed = _contrast_column(header, rows, question, set())
+        reserved = {proposed[0]} if proposed else set()
+        value_column = _value_column(header, rows, question, reserved)
         if not value_column:
             return None
-        group_column = _group_column(header, rows, question, value_column)
+        group_column = _group_column(header, rows, question, value_column, reserved)
         if not group_column:
             return None
-        # A question about the difference between a column's two values is not
-        # a question this form can answer, and answering the unfiltered table
-        # instead is the failure the docstring above exists to prevent.
-        for column in header:
-            if column not in {value_column, group_column} and _names_both_senses(
-                question, column
-            ):
-                return None
+        split = _contrast_column(header, rows, question, {value_column, group_column})
 
         applied = _filters(header, rows, question, {value_column, group_column})
         kept = [
@@ -309,6 +424,10 @@ def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | 
         ranking = tuple(
             sorted(scored.items(), key=lambda item: item[1], reverse=not ascending)
         )
+        if split:
+            return _contrast_answer(
+                target, kept, rows, question, value_column, group_column, split, applied
+            )
         return TabularAnswer(
             path=str(target),
             group_column=group_column,
@@ -334,6 +453,8 @@ def describe_tabular_answer(answer: TabularAnswer | None) -> str:
     """The reading as a sentence, or "" when there is nothing to report."""
     if answer is None or not answer.ranking:
         return ""
+    if answer.contrast:
+        return _describe_contrast(answer)
     leader, amount = answer.ranking[0]
     unit = "" if answer.aggregation == "count" else ""
     lines = [
@@ -353,5 +474,30 @@ def describe_tabular_answer(answer: TabularAnswer | None) -> str:
     head = (
         f"By {answer.group_column}, {answer.aggregation} {answer.value_column}"
         f"{restriction} ({answer.rows_used} of {answer.rows_total} rows):"
+    )
+    return head + "\n- " + "\n- ".join(lines)
+
+
+def _describe_contrast(answer: TabularAnswer) -> str:
+    """Both sides and the distance between them, so the reading is checkable."""
+    left, right = answer.sides
+
+    def figure(value: float) -> str:
+        return f"{int(value)}" if answer.aggregation == "count" else f"{value:,.2f}"
+
+    lines = [
+        f"{group} — {figure(on_left)} vs {figure(on_right)} "
+        f"({'+' if on_left >= on_right else '-'}{figure(abs(on_left - on_right))})"
+        for group, on_left, on_right in answer.contrast[:6]
+    ]
+    restriction = ""
+    if answer.filters:
+        restriction = " where " + ", ".join(
+            f"{column} is {value}" for column, value in answer.filters
+        )
+    head = (
+        f"By {answer.group_column}, {answer.aggregation} {answer.value_column}"
+        f"{restriction}, {answer.split_column} {left} vs {right}"
+        f" ({answer.rows_used} of {answer.rows_total} rows):"
     )
     return head + "\n- " + "\n- ".join(lines)
