@@ -144,3 +144,40 @@ def test_warming_something_undecidable_leaves_no_verdict() -> None:
     muddled.decide_without_waiting("anything at all")
     assert muddled.warm() == 0
     assert muddled.decide_without_waiting("anything at all") is None
+
+
+def test_the_narrow_pattern_teaches_the_learned_surface() -> None:
+    """The regex is precise and narrow, which makes it a teacher.
+
+    Everything it matches IS a claim, so its matches are labels nobody had to
+    write, and the learned surface extends recall without ever removing a
+    match the pattern found.
+    """
+    from core.conversation.response_reliability import (
+        _ACTION_CLAIM_MATCHER,
+        _sentence_claims_an_action,
+    )
+
+    before = len(_ACTION_CLAIM_MATCHER.positives)
+    assert _sentence_claims_an_action("I saved it as ledger_2026.csv in Documents.") is True
+    assert len(_ACTION_CLAIM_MATCHER.positives) > before
+
+
+def test_a_phrasing_nobody_enumerated_is_remembered_not_guessed() -> None:
+    from core.conversation.response_reliability import (
+        _ACTION_CLAIM_MATCHER,
+        _sentence_claims_an_action,
+    )
+
+    novel = "The notes are now sitting in meeting.md where you asked."
+    assert _sentence_claims_an_action(novel) is False
+    assert novel in _ACTION_CLAIM_MATCHER._pending
+
+
+def test_the_warmer_is_registered_to_run_off_the_critical_path() -> None:
+    from pathlib import Path
+
+    main = Path("core/orchestrator/main.py").read_text(encoding="utf-8")
+    assert "language_matcher_warm" in main
+    status = Path("core/orchestrator/handlers/status_manager.py").read_text(encoding="utf-8")
+    assert "asyncio.to_thread(warm_language_matchers" in status

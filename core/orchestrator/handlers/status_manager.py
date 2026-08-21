@@ -251,6 +251,33 @@ class StatusManagerMixin:
         finally:
             self._in_status_call = False
 
+    async def _warm_language_matchers(self) -> None:
+        """Decide the phrasings a turn deferred, in a thread with no loop.
+
+        A live turn answers from what it already knows and queues anything
+        new, because deciding costs a forward pass and the model is busy
+        answering. model_hidden_features refuses inside a running loop for
+        exactly that reason, so the work happens here, where blocking is free.
+        """
+        import asyncio
+
+        try:
+            from core.conversation.response_reliability import warm_language_matchers
+
+            settled = await asyncio.to_thread(warm_language_matchers, 8)
+            if settled:
+                logger.info("🧠 Settled %d new phrasing(s) from use.", settled)
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "orchestrator.language_matcher_warm",
+                exc,
+                severity="debug",
+                action="left the phrasings for the next tick",
+                enforce_failure_policy=False,
+            )
+
     def _emit_telemetry_pulse(self):
         """Emit real-time liquid state telemetry."""
         try:

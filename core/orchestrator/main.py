@@ -1907,6 +1907,17 @@ class RobustOrchestrator(
             TaskSpec(name="telemetry_heartbeat", coro=self._emit_telemetry_pulse, tick_interval=5.0)
         )
 
+        # Settle phrasings the learned matchers saw and could not decide. A
+        # turn queues what it has not seen; this is where the forward pass
+        # that decides it happens.
+        await scheduler.register(
+            TaskSpec(
+                name="language_matcher_warm",
+                coro=self._warm_language_matchers,
+                tick_interval=90.0,
+            )
+        )
+
         # 🎯 [PEER MODE] Evolution 6: Autonomous Goal Genesis
         await scheduler.register(
             TaskSpec(

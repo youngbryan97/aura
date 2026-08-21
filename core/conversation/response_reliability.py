@@ -6045,6 +6045,9 @@ _SCREEN_PERCEPTION_CLAIM_RE = re.compile(
 #: Acting on the machine. Evidence is a tool receipt: nothing observes an
 #: action into existence.
 #: A file, named as one: something with an extension, or a path.
+from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
+from core.language.model_features import model_hidden_features as _model_hidden_features
+
 _FILE_ARTIFACT_PATTERN = (
     r"(?:\b[\w][\w.\-]{0,60}\.(?:html?|css|js|jsx|ts|tsx|py|json|csv|tsv|txt|md|"
     r"pdf|sh|zsh|ya?ml|toml|xml|sql|ini|cfg|log|png|jpe?g|svg|zip)\b"
@@ -6155,6 +6158,57 @@ _EXECUTION_CLAIM_HEDGE_RE = re.compile(
 )
 
 
+#: Whether a sentence claims a completed action, learned rather than listed.
+#:
+#: The pattern above is precise and narrow: everything it matches IS a claim,
+#: and it has missed a new phrasing every time one arrived. That makes it a
+#: teacher. Its matches become positive examples, the declaration below
+#: supplies the near-misses that must stay negative, and the learned surface
+#: extends the recall without ever removing a match the pattern found.
+_ACTION_CLAIM_MATCHER = _LearnedMatcher(
+    name="action_claim",
+    positives=(
+        "I saved it as sitting_timer.html in your Downloads folder.",
+        "I've set a reminder for 20 minutes to check the oven.",
+        "I opened Chrome for you.",
+        "I created the file and put it on your desktop.",
+        "I wrote the notes out to meeting.md.",
+        "I've added that to your calendar.",
+    ),
+    negatives=(
+        "You could save it as timer.html if you like.",
+        "Would you like me to write it to disk?",
+        "An html file is just text with tags.",
+        "I think sitting_timer.html would be a good name.",
+        "Shall I put that on your calendar?",
+        "I can open Chrome if you want.",
+    ),
+    features=_model_hidden_features,
+)
+
+
+def _sentence_claims_an_action(clause: str) -> bool:
+    """Whether this clause asserts something was done.
+
+    The pattern first, because it is exact. The learned surface only after,
+    and only to ADD — a phrasing nobody enumerated still reads as a claim once
+    it has been seen once.
+    """
+    if _DESKTOP_ACTION_CLAIM_RE.search(clause):
+        _ACTION_CLAIM_MATCHER.observe(clause, holds=True)
+        return True
+    return _ACTION_CLAIM_MATCHER.decide_without_waiting(clause) is True
+
+
+def warm_language_matchers(limit: int = 8) -> int:
+    """Settle phrasings seen but not yet decided. Off the critical path.
+
+    Returns how many were settled. Safe to call from a background task and
+    pointless to call from inside a turn, where the model is busy answering.
+    """
+    return _ACTION_CLAIM_MATCHER.warm(limit=limit)
+
+
 def _has_unfounded_tool_execution_claim(
     reply_text: Any,
     *,
@@ -6224,6 +6278,11 @@ def _has_unfounded_tool_execution_claim(
         or _quotes_a_result(raw)
     )
     if not match:
+        # Nothing the patterns know. A phrasing they have seen before but
+        # never enumerated still counts, one sentence at a time.
+        for sentence in re.split(r"(?<=[.!?])\s+|\n", raw):
+            if _ACTION_CLAIM_MATCHER.decide_without_waiting(sentence) is True:
+                return not tool_receipts
         return False
     # Only the sentence carrying the claim decides whether it was hedged, and
     # only evidence of the same kind can vouch for it;
@@ -6231,6 +6290,7 @@ def _has_unfounded_tool_execution_claim(
     start = max(0, raw.rfind(".", 0, match.start()) + 1)
     end = raw.find(".", match.end())
     clause = raw[start : end if end != -1 else len(raw)]
+    _ACTION_CLAIM_MATCHER.observe(clause, holds=True)
     # A quoted result had a producer or it was written by the model. Every
     # other kind of execution claim keeps the older, permissive reading, where
     # any receipt at all is enough, because those can be founded by work this
