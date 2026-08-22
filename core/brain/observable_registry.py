@@ -544,17 +544,12 @@ def _asking_part(text: str) -> str:
 
     The word was never the defect. Whether the message is a question was
     tested against the whole message and what it is about was tested against
-    the whole message, so a question at the end licensed a match anywhere —
-    including inside a sentence describing something else entirely. Topic and
-    question have to be found in the same breath to mean anything.
+    the whole message, so a question at the end licensed a match anywhere.
+    Topic and question have to be found in the same breath to mean anything.
     """
-    sentences = [part.strip() for part in re.split(r"(?<=[.?!])\s+", str(text or ""))]
-    asking = [
-        part
-        for part in sentences
-        if part and (part.endswith("?") or _ASKING_CLAUSE.match(part))
-    ]
-    return " ".join(asking) if asking else str(text or "")
+    from core.language.asking_clauses import asking_part
+
+    return asking_part(text)
 
 
 def _matches_queued_work(prompt: str) -> bool:

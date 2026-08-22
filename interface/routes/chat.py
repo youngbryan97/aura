@@ -14876,6 +14876,21 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _compose(
+    user_message: object, reply: object, measured: str, matches: Any
+) -> str:
+    """A reading replaces a guess about the same thing, and nothing else.
+
+    LIVE, 2026-08-22: "how long have you been up, and what have you got going
+    on today?" was answered with the uptime figure alone. Every number was
+    right and half the message went unanswered, because a channel that matches
+    returns its reading in place of the whole reply.
+    """
+    from core.conversation.composed_answer import compose_measured
+
+    return compose_measured(user_message, reply, measured, matches)
+
+
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
     """Answer a quantitative question about a data file by computing it.
 
@@ -14949,7 +14964,7 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
         measured = describe_lifetime()
         if measured:
             logger.info("⏳ Served the cumulative lifetime from the continuity record.")
-            return measured
+            return _compose(user_message, reply, measured, _matches_lifetime)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.lifetime",
@@ -15066,7 +15081,9 @@ def _serve_recent_activity(user_message: object, reply: object) -> object:
         if not described:
             return reply
         logger.info("🗂️ Served the activity record from the intention log.")
-        return described
+        return _compose(
+            user_message, reply, described, looks_like_a_question_about_recent_activity
+        )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.recent_activity",
@@ -15112,7 +15129,9 @@ def _serve_queued_work(user_message: object, reply: object) -> object:
             "and nothing else queued:"
         )
         logger.info("🗓️ Served the queued-work list from the coordinator.")
-        return head + "\n" + "\n".join(lines)
+        return _compose(
+            user_message, reply, head + "\n" + "\n".join(lines), _matches_queued_work
+        )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.queued_work",

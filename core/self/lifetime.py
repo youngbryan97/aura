@@ -150,5 +150,9 @@ def describe_lifetime() -> str:
         parts.append(f"{lifetime.current()} of it in this one")
     today = turns_today()
     if today:
-        parts.append(f"and you have said {today} things to me today")
+        # "you have said 1 things to me today" — a measured fact, delivered
+        # in a way that reads as a machine reading it out.
+        parts.append(
+            f"and you have said {today} thing{'' if today == 1 else 's'} to me today"
+        )
     return ", ".join(parts) + "."
