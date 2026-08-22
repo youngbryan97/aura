@@ -47,7 +47,10 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "ManageAbilities": "state_mutation",
     "add_belief": "state_mutation",
     "auto_refactor": "privileged_mutation",
-    "branching_futures": "pure_compute",
+    # Copies a repository subset into a sandbox directory, writes into it
+    # and spawns. "pure_compute" is the strongest no-effect claim there
+    # is, and it was on the skill that builds a sandbox.
+    "branching_futures": "sandboxed_compute",
     "browser_action": "external_io",
     "build_app": "read_write_artifacts",
     "clock": "status",
@@ -79,7 +82,10 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "inter_agent_comm": "external_io",
     "internal_sandbox": "sandboxed_compute",
     "knowledge_base": "state_mutation",
-    "listen": "read_only",
+    # Writes the captured audio through the file-write gateway before it
+    # transcribes anything. "read_only" told the Will this skill had no
+    # effect at all.
+    "listen": "read_write_artifacts",
     "local_reference_search": "read_only",
     "malware_analysis": "read_only",
     "manifest_to_device": "read_write_artifacts",
@@ -90,8 +96,11 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "messages": "external_io",
     "native_chat": "pure_compute",
     "network_discovery": "external_io",
-    "network_ops": "read_only",
-    "network_recon": "read_only",
+    # Opens sockets and spawns processes. Declared as an observation, it
+    # was classified `observe` and asked for nothing.
+    "network_ops": "privileged_mutation",
+    # Resolves names, which is a network call however small.
+    "network_recon": "external_io",
     "notify_user": "external_io",
     "os_automation": "foreground_desktop_control",
     "os_manipulation": "foreground_desktop_control",

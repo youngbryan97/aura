@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """One refusal, shared by every ratchet that records a baseline.
 
-Three tools here wrote `json.dumps(current)` when handed `--write-baseline`.
-That is not a ratchet. It is a record of the last time somebody ran the
-refresh, and this repository has already had one refresh re-record 37 grown
-entries as the new normal — after which nobody could tell which numbers were
-earned and which were levelled up.
+Three tools here wrote `json.dumps(current)` when handed `--write-baseline`,
+which records the last time somebody ran the refresh and nothing else. This
+repository has already had one refresh re-record 37 grown entries as the new
+normal, after which nobody could tell which numbers were earned and which were
+levelled up.
 
 The rule this enforces is not "the number may never rise". Sometimes it must:
 work lands that a gate cannot judge, or debt arrives from a direction the gate

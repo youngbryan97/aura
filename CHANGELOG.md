@@ -24,6 +24,16 @@ without evidence to back a claim yet.
 ## 2026-08
 
 ### Added
+- **A skill may not reach past the scope it declares**
+  (`core/skills/effect_reach.py`, `tools/check_skill_effect_scope.py`) —
+  registration refused a skill that declared no recognised `effect_scope` and
+  never compared the declaration with the code. `network_ops` declared
+  `read_only` while opening sockets and spawning processes, so the Will
+  classified it `observe` and asked for nothing; `network_recon` resolved
+  names under the same label, `listen` wrote captured audio under it, and
+  `branching_futures` claimed `pure_compute` while building a sandbox. All
+  four are corrected, the check runs at registration as well as in CI, and
+  the eleven remaining mismatches are on a shrink-only list.
 - **Ownership, review and a branch policy** (`.github/CODEOWNERS`,
   `config/branch_protection_policy.json`, `tools/check_review_policy.py`,
   `tools/check_branch_protection.py`) — `main` reported `protected: false`

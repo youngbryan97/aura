@@ -5016,6 +5016,347 @@ def _protected_foreground_bytes_unchanged(
     return bool(status == "protected_foreground" and expected and expected == delivered)
 
 
+async def _check_a_reply_against_her_own_source(
+    *,
+    text: Any,
+    turn_trace: Any,
+    visible: Any,
+) -> Any:
+    """Check a reply that claims her own code against the source itself.
+
+    Moved out of ``_run_cognitive_engine_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    1.
+    """
+    if text and (_turn_may_concern_own_source(visible) or _reply_claims_own_code(text)):
+        try:
+            from core.self.source_excerpt import reply_fabricates_own_code
+
+            # Off the loop: the search is a subprocess walking the source
+            # tree, and seconds of it on the event loop is how a foreground
+            # turn becomes a freeze.
+            _fabricated = await asyncio.to_thread(reply_fabricates_own_code, text)
+            if _fabricated:
+                from core.conversation.response_reliability import (
+                    own_source_excerpt_floor,
+                )
+                from core.self.source_excerpt import (
+                    grounded_excerpt_reply as _grounded_excerpt_reply,
+                )
+
+                # The repair used to be gated on `asks_for_own_source`, a
+                # phrase list — while the DECISION to check at all was made
+                # by meaning. So the two disagreed, and they disagreed in
+                # the worst possible direction.
+                #
+                # Live 2026-08-04, three times: "Can you share a snippet of
+                # your own code" is not "show me", so the pattern said no,
+                # the floor returned "", and the log read "no grounded
+                # excerpt was available to replace it" — while the tree sat
+                # right there, readable. The invention was PROVEN and then
+                # served anyway, because the only path to a real excerpt
+                # was spelled a way she had not been asked.
+                #
+                # Meaning already decided this turn is about her source.
+                # Reading it must not require a second, narrower vote.
+                _grounded = str(own_source_excerpt_floor(visible) or "").strip()
+                if not _grounded:
+                    _grounded = str(
+                        await asyncio.to_thread(_grounded_excerpt_reply, visible)
+                    ).strip()
+                logger.warning(
+                    "Reply showed code that is not in the source tree; %s.",
+                    "replacing it with a real excerpt read from disk"
+                    if _grounded
+                    else "the tree could not be read, so the invention was withdrawn",
+                )
+                if not _grounded:
+                    # Nothing real to show and something false already
+                    # written. Serving it is the one option that is never
+                    # allowed: proven-invented code must not reach the
+                    # person just because the repair came up empty.
+                    _grounded = (
+                        "I need to correct myself: the code I just showed you "
+                        "is not in my source tree — I generated it rather than "
+                        "reading it, and I can't reach my own files right now "
+                        "to show you the real thing. Ask me again in a moment "
+                        "and I'll read it off disk instead of inventing it."
+                    )
+                _append_turn_text_mutation(
+                    turn_trace,
+                    stage="chat.own_source_claim_unverified",
+                    method="source_tree_excerpt_substitution",
+                    reasons=["shown_code_absent_from_source_tree"],
+                    before=text,
+                    after=_grounded,
+                    deterministic=True,
+                    authorship_effect="replaced_by_runtime",
+                )
+                text = _grounded
+            # Whatever she ended up showing, remember where it came from, so
+            # the next turn can say so instead of disowning it.
+            from core.self.source_excerpt import (
+                grounded_excerpt_reply,
+                last_shown_excerpt,
+                provenance_sentence,
+                remember_shown_excerpt,
+                reply_is_grounded_in_source,
+                source_tree_is_readable,
+            )
+
+            # A REQUEST to see her code that neither shows any nor cites a
+            # file has not reached her source at all.
+            #
+            # Live 2026-08-04: "show me how you're actually built" arrived
+            # with real excerpts attached and she answered "I can't show you
+            # code files directly", then described her architecture from
+            # memory. A false capability denial made while holding the file
+            # — the third form of one defect, after inventing a snippet and
+            # after disowning a real one. All three end with the person
+            # believing something untrue about what she can do.
+            #
+            # But this substitution used to run on the WIDE gate above — "the
+            # turn may concern her source" — which is the right question for
+            # deciding whether to CHECK and the wrong one for deciding to
+            # REPLACE. It scored True on "Can you still reason through the
+            # desktop path?" and swapped a correct answer about the reasoning
+            # lane for a code excerpt nobody asked for. A reply that simply
+            # contains no code is not a reply that denied having any.
+            #
+            # So: substitute when she was asked to show source, or when the
+            # reply says she cannot — never merely because the subject came up.
+            from core.utils.own_source_intent import (
+                asks_for_own_source as _asks_for_own_source,
+            )
+            from core.utils.own_source_intent import (
+                reply_denies_showing_source as _reply_denies_showing_source,
+            )
+
+            _asked_to_be_shown = bool(_asks_for_own_source(visible))
+            _denied_capability = bool(_reply_denies_showing_source(text))
+            if (
+                not _fabricated
+                and (_asked_to_be_shown or _denied_capability)
+                and source_tree_is_readable()
+                and not await asyncio.to_thread(reply_is_grounded_in_source, text)
+            ):
+                _real = await asyncio.to_thread(grounded_excerpt_reply, visible)
+                if _real:
+                    logger.warning(
+                        "A question about her source was answered without "
+                        "showing or citing any; substituting a real excerpt."
+                    )
+                    _append_turn_text_mutation(
+                        turn_trace,
+                        stage="chat.own_source_answer_ungrounded",
+                        method="source_tree_excerpt_substitution",
+                        reasons=["reply_cited_no_real_source"],
+                        before=text,
+                        after=_real,
+                        deterministic=True,
+                        authorship_effect="replaced_by_runtime",
+                    )
+                    text = _real
+
+            # Asked where real code came from, a reply that never names the
+            # file has not answered. Live 2026-08-04 she showed
+            # core/mycelium.py:88 and then said it "isn't from a Python
+            # module" — reading "module" as "importable package" and
+            # answering a question nobody asked while the path sat on
+            # record. Denying true provenance misleads exactly as much as
+            # inventing a snippet, so it is corrected from the same record.
+            _shown = last_shown_excerpt()
+            if (
+                _shown
+                and _turn_asks_where_that_came_from(visible)
+                and _shown["relative_path"] not in text
+            ):
+                _truth = provenance_sentence()
+                if _truth:
+                    logger.warning(
+                        "Provenance question answered without naming %s; "
+                        "correcting from the recorded citation.",
+                        _shown["relative_path"],
+                    )
+                    _append_turn_text_mutation(
+                        turn_trace,
+                        stage="chat.own_source_provenance_unnamed",
+                        method="recorded_citation_substitution",
+                        reasons=["shown_code_provenance_not_stated"],
+                        before=text,
+                        after=_truth,
+                        deterministic=True,
+                        authorship_effect="replaced_by_runtime",
+                    )
+                    text = _truth
+            remember_shown_excerpt(text)
+        except _CHAT_RECOVERABLE_ERRORS as _source_check_exc:
+            record_degradation(
+                "chat",
+                _source_check_exc,
+                severity="warning",
+                action=("served a code claim without checking it against the source tree"),
+            )
+    return text
+
+
+def _compose_the_engine_message(
+    *,
+    capability_inventory_contract: Any,
+    context: Any,
+    context_challenge_context: Any,
+    conversation_recall_context: Any,
+    engine_user_message: Any,
+    grounded_runtime_status_context: Any,
+    memory_state_contract: Any,
+    require_engine: Any,
+    runtime_fact_status_contract: Any,
+    state_native_output_owner: Any,
+    visible: Any,
+) -> Any:
+    """Build the message the engine sees, with the directives this turn needs.
+
+    Moved out of ``_run_cognitive_engine_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 11 name(s) from the turn and hands back
+    1.
+    """
+    if require_engine and not state_native_output_owner:
+        engine_directives: list[str] = []
+        if _chat_memory_state._normalize_user_message(visible).startswith(
+            "you with me"
+        ) or re.search(
+            r"\b(?:you\s+with\s+me|still\s+with\s+me|are\s+you\s+(?:there|with\s+me))\b",
+            visible,
+            flags=re.IGNORECASE,
+        ):
+            engine_directives.append(
+                "Presence contract: answer with the phrase 'I'm here with you' and one grounded sentence about staying on this thread."
+            )
+        if context_challenge_context:
+            engine_directives.append(
+                "Context challenge evidence: "
+                f"{context_challenge_context} "
+                "Answer from this evidence in one or two complete sentences under 70 words. "
+                "If the evidence supports a pitch, project, story, or prior object, name it; "
+                "if it does not, say the jump has no supported prior object and answer from "
+                "the actual recent text."
+            )
+        if conversation_recall_context:
+            engine_directives.append(
+                "Conversation recall evidence: "
+                f"{conversation_recall_context} "
+                "Answer the recall question from this evidence exactly enough to be correct."
+            )
+        if _is_current_request_recap_request(visible):
+            engine_directives.append(
+                "Current-request recap contract: explicitly state what the current visible "
+                "request asks, using 'You asked me to...' or equivalent direct wording before "
+                "answering the rest of the prompt."
+            )
+        if runtime_fact_status_contract and not memory_state_contract:
+            engine_directives.append(
+                "Runtime path contract: answer the runtime/path question directly. "
+                "Name the live cognition path handling this turn, including CognitiveEngine "
+                "and the active Cortex/model lane when present. Treat this verified runtime "
+                f"status as authoritative: {grounded_runtime_status_context} Do not answer with "
+                "a generic assistant identity or invent a bounded-status substitute."
+            )
+        if capability_inventory_contract:
+            engine_directives.append(
+                "Capability inventory contract: answer from grounded_capability_inventory_context only. "
+                "Use this order: categories including the exact phrase browser/web research; governance/Will/Authority/permissions; receipts or effect "
+                "verification; one hypothetical chain; explicit non-execution boundary for this turn."
+            )
+        if _is_self_claim_boundary_question(visible):
+            engine_directives.append(
+                "Evidence-bound self-claim context: "
+                f"{context.get('evidence_bound_self_claim_context') or ''} "
+                "Use the word evidence, distinguish functional self-modeling from phenomenal consciousness/private qualia, and avoid generic AI disclaimers."
+            )
+        if re.search(r"\b(?:two\s+rules?|one\s+example|invent)\b", visible, flags=re.IGNORECASE):
+            engine_directives.append(
+                "Creative construction contract: keep the invented name from the user prompt in the answer, include explicit labels Rule 1, Rule 2, and Example, and end with a complete sentence."
+            )
+        if engine_directives:
+            engine_user_message = (
+                f"{engine_user_message}\n\n"
+                "[LIVE DESKTOP FULL-MIND CONTRACT]\n"
+                + "\n".join(f"- {directive}" for directive in engine_directives)
+                + "\n[END LIVE DESKTOP FULL-MIND CONTRACT]"
+            )
+    return engine_user_message
+
+
+def _note_the_latent_metadata(
+    *,
+    latent_metadata_present: Any,
+    metadata: Any,
+    turn_trace: Any,
+) -> None:
+    """Record what the latent pass reported, on the turn's trace.
+
+    Moved out of ``_run_cognitive_engine_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    0.
+    """
+    if latent_metadata_present:
+        raw_latent_receipt = metadata.get("latent_cortex_receipt")
+        turn_trace.update(
+            {
+            "latent_cortex_selected": bool(metadata.get("latent_cortex_selected", False)),
+            "latent_cortex_selection_reason": str(
+                metadata.get("latent_cortex_selection_reason") or ""
+            ),
+            "latent_cortex_depth_worthy": bool(
+                metadata.get("latent_cortex_depth_worthy", False)
+            ),
+            "latent_cortex_prompt_shape": (
+                dict(metadata.get("latent_cortex_prompt_shape") or {})
+                if isinstance(metadata.get("latent_cortex_prompt_shape"), dict)
+                else {}
+            ),
+            "latent_cortex_attempted": bool(metadata.get("latent_cortex_attempted", False)),
+            "latent_cortex_succeeded": bool(metadata.get("latent_cortex_succeeded", False)),
+            "latent_cortex_fallback_used": bool(
+                metadata.get("latent_cortex_fallback_used", False)
+            ),
+            "latent_cortex_failure_reason": str(
+                metadata.get("latent_cortex_failure_reason") or ""
+            )[:500],
+            "latent_cortex_identity_bound": bool(
+                metadata.get("latent_cortex_identity_bound", False)
+            ),
+            "latent_cortex_final_text_transformed": bool(
+                metadata.get("latent_cortex_final_text_transformed", False)
+            ),
+            "latent_cortex_final_output_quality": (
+                dict(metadata.get("latent_cortex_final_output_quality") or {})
+                if isinstance(metadata.get("latent_cortex_final_output_quality"), dict)
+                else {}
+            ),
+            "latent_cortex_raw_final_quality_hash_match": bool(
+                metadata.get("latent_cortex_raw_final_quality_hash_match", False)
+            ),
+            "latent_cortex_receipt": (
+                dict(raw_latent_receipt) if isinstance(raw_latent_receipt, dict) else {}
+            ),
+            "latent_cortex_ingress": (
+                dict(metadata.get("latent_cortex_ingress") or {})
+                if isinstance(metadata.get("latent_cortex_ingress"), dict)
+                else {}
+            ),
+            "latent_cortex_progress": (
+                dict(metadata.get("latent_cortex_progress") or {})
+                if isinstance(metadata.get("latent_cortex_progress"), dict)
+                else {}
+            ),
+            }
+        )
+
+
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
     *,
@@ -5349,59 +5690,11 @@ async def _run_cognitive_engine_chat_turn(
                 "latent_cortex_progress",
             )
         )
-        if latent_metadata_present:
-            raw_latent_receipt = metadata.get("latent_cortex_receipt")
-            turn_trace.update(
-                {
-                "latent_cortex_selected": bool(metadata.get("latent_cortex_selected", False)),
-                "latent_cortex_selection_reason": str(
-                    metadata.get("latent_cortex_selection_reason") or ""
-                ),
-                "latent_cortex_depth_worthy": bool(
-                    metadata.get("latent_cortex_depth_worthy", False)
-                ),
-                "latent_cortex_prompt_shape": (
-                    dict(metadata.get("latent_cortex_prompt_shape") or {})
-                    if isinstance(metadata.get("latent_cortex_prompt_shape"), dict)
-                    else {}
-                ),
-                "latent_cortex_attempted": bool(metadata.get("latent_cortex_attempted", False)),
-                "latent_cortex_succeeded": bool(metadata.get("latent_cortex_succeeded", False)),
-                "latent_cortex_fallback_used": bool(
-                    metadata.get("latent_cortex_fallback_used", False)
-                ),
-                "latent_cortex_failure_reason": str(
-                    metadata.get("latent_cortex_failure_reason") or ""
-                )[:500],
-                "latent_cortex_identity_bound": bool(
-                    metadata.get("latent_cortex_identity_bound", False)
-                ),
-                "latent_cortex_final_text_transformed": bool(
-                    metadata.get("latent_cortex_final_text_transformed", False)
-                ),
-                "latent_cortex_final_output_quality": (
-                    dict(metadata.get("latent_cortex_final_output_quality") or {})
-                    if isinstance(metadata.get("latent_cortex_final_output_quality"), dict)
-                    else {}
-                ),
-                "latent_cortex_raw_final_quality_hash_match": bool(
-                    metadata.get("latent_cortex_raw_final_quality_hash_match", False)
-                ),
-                "latent_cortex_receipt": (
-                    dict(raw_latent_receipt) if isinstance(raw_latent_receipt, dict) else {}
-                ),
-                "latent_cortex_ingress": (
-                    dict(metadata.get("latent_cortex_ingress") or {})
-                    if isinstance(metadata.get("latent_cortex_ingress"), dict)
-                    else {}
-                ),
-                "latent_cortex_progress": (
-                    dict(metadata.get("latent_cortex_progress") or {})
-                    if isinstance(metadata.get("latent_cortex_progress"), dict)
-                    else {}
-                ),
-                }
-            )
+        _note_the_latent_metadata(
+            latent_metadata_present=latent_metadata_present,
+            metadata=metadata,
+            turn_trace=turn_trace,
+        )
         if adopt_response_path and metadata_response_path:
             turn_trace["response_path"] = metadata_response_path
         if bool(metadata.get("model_retry_suppressed", False)):
@@ -6302,70 +6595,19 @@ async def _run_cognitive_engine_chat_turn(
         )
     evidence_binding_finished_at = time.perf_counter()
 
-    if require_engine and not state_native_output_owner:
-        engine_directives: list[str] = []
-        if _chat_memory_state._normalize_user_message(visible).startswith(
-            "you with me"
-        ) or re.search(
-            r"\b(?:you\s+with\s+me|still\s+with\s+me|are\s+you\s+(?:there|with\s+me))\b",
-            visible,
-            flags=re.IGNORECASE,
-        ):
-            engine_directives.append(
-                "Presence contract: answer with the phrase 'I'm here with you' and one grounded sentence about staying on this thread."
-            )
-        if context_challenge_context:
-            engine_directives.append(
-                "Context challenge evidence: "
-                f"{context_challenge_context} "
-                "Answer from this evidence in one or two complete sentences under 70 words. "
-                "If the evidence supports a pitch, project, story, or prior object, name it; "
-                "if it does not, say the jump has no supported prior object and answer from "
-                "the actual recent text."
-            )
-        if conversation_recall_context:
-            engine_directives.append(
-                "Conversation recall evidence: "
-                f"{conversation_recall_context} "
-                "Answer the recall question from this evidence exactly enough to be correct."
-            )
-        if _is_current_request_recap_request(visible):
-            engine_directives.append(
-                "Current-request recap contract: explicitly state what the current visible "
-                "request asks, using 'You asked me to...' or equivalent direct wording before "
-                "answering the rest of the prompt."
-            )
-        if runtime_fact_status_contract and not memory_state_contract:
-            engine_directives.append(
-                "Runtime path contract: answer the runtime/path question directly. "
-                "Name the live cognition path handling this turn, including CognitiveEngine "
-                "and the active Cortex/model lane when present. Treat this verified runtime "
-                f"status as authoritative: {grounded_runtime_status_context} Do not answer with "
-                "a generic assistant identity or invent a bounded-status substitute."
-            )
-        if capability_inventory_contract:
-            engine_directives.append(
-                "Capability inventory contract: answer from grounded_capability_inventory_context only. "
-                "Use this order: categories including the exact phrase browser/web research; governance/Will/Authority/permissions; receipts or effect "
-                "verification; one hypothetical chain; explicit non-execution boundary for this turn."
-            )
-        if _is_self_claim_boundary_question(visible):
-            engine_directives.append(
-                "Evidence-bound self-claim context: "
-                f"{context.get('evidence_bound_self_claim_context') or ''} "
-                "Use the word evidence, distinguish functional self-modeling from phenomenal consciousness/private qualia, and avoid generic AI disclaimers."
-            )
-        if re.search(r"\b(?:two\s+rules?|one\s+example|invent)\b", visible, flags=re.IGNORECASE):
-            engine_directives.append(
-                "Creative construction contract: keep the invented name from the user prompt in the answer, include explicit labels Rule 1, Rule 2, and Example, and end with a complete sentence."
-            )
-        if engine_directives:
-            engine_user_message = (
-                f"{engine_user_message}\n\n"
-                "[LIVE DESKTOP FULL-MIND CONTRACT]\n"
-                + "\n".join(f"- {directive}" for directive in engine_directives)
-                + "\n[END LIVE DESKTOP FULL-MIND CONTRACT]"
-            )
+    engine_user_message = _compose_the_engine_message(
+        capability_inventory_contract=capability_inventory_contract,
+        context=context,
+        context_challenge_context=context_challenge_context,
+        conversation_recall_context=conversation_recall_context,
+        engine_user_message=engine_user_message,
+        grounded_runtime_status_context=grounded_runtime_status_context,
+        memory_state_contract=memory_state_contract,
+        require_engine=require_engine,
+        runtime_fact_status_contract=runtime_fact_status_contract,
+        state_native_output_owner=state_native_output_owner,
+        visible=visible,
+    )
     preparation_finished_at = time.perf_counter()
     final_binding_stages = {
         "trace_ms": round((trace_binding_finished_at - context_bound_at) * 1000.0, 2),
@@ -8260,175 +8502,11 @@ async def _run_cognitive_engine_chat_turn(
     # Only a PROVEN absence acts. A search that could not run proves nothing,
     # and treating that as fabrication would destroy real excerpts whenever
     # the search itself broke.
-    if text and (_turn_may_concern_own_source(visible) or _reply_claims_own_code(text)):
-        try:
-            from core.self.source_excerpt import reply_fabricates_own_code
-
-            # Off the loop: the search is a subprocess walking the source
-            # tree, and seconds of it on the event loop is how a foreground
-            # turn becomes a freeze.
-            _fabricated = await asyncio.to_thread(reply_fabricates_own_code, text)
-            if _fabricated:
-                from core.conversation.response_reliability import (
-                    own_source_excerpt_floor,
-                )
-                from core.self.source_excerpt import (
-                    grounded_excerpt_reply as _grounded_excerpt_reply,
-                )
-
-                # The repair used to be gated on `asks_for_own_source`, a
-                # phrase list — while the DECISION to check at all was made
-                # by meaning. So the two disagreed, and they disagreed in
-                # the worst possible direction.
-                #
-                # Live 2026-08-04, three times: "Can you share a snippet of
-                # your own code" is not "show me", so the pattern said no,
-                # the floor returned "", and the log read "no grounded
-                # excerpt was available to replace it" — while the tree sat
-                # right there, readable. The invention was PROVEN and then
-                # served anyway, because the only path to a real excerpt
-                # was spelled a way she had not been asked.
-                #
-                # Meaning already decided this turn is about her source.
-                # Reading it must not require a second, narrower vote.
-                _grounded = str(own_source_excerpt_floor(visible) or "").strip()
-                if not _grounded:
-                    _grounded = str(
-                        await asyncio.to_thread(_grounded_excerpt_reply, visible)
-                    ).strip()
-                logger.warning(
-                    "Reply showed code that is not in the source tree; %s.",
-                    "replacing it with a real excerpt read from disk"
-                    if _grounded
-                    else "the tree could not be read, so the invention was withdrawn",
-                )
-                if not _grounded:
-                    # Nothing real to show and something false already
-                    # written. Serving it is the one option that is never
-                    # allowed: proven-invented code must not reach the
-                    # person just because the repair came up empty.
-                    _grounded = (
-                        "I need to correct myself: the code I just showed you "
-                        "is not in my source tree — I generated it rather than "
-                        "reading it, and I can't reach my own files right now "
-                        "to show you the real thing. Ask me again in a moment "
-                        "and I'll read it off disk instead of inventing it."
-                    )
-                _append_turn_text_mutation(
-                    turn_trace,
-                    stage="chat.own_source_claim_unverified",
-                    method="source_tree_excerpt_substitution",
-                    reasons=["shown_code_absent_from_source_tree"],
-                    before=text,
-                    after=_grounded,
-                    deterministic=True,
-                    authorship_effect="replaced_by_runtime",
-                )
-                text = _grounded
-            # Whatever she ended up showing, remember where it came from, so
-            # the next turn can say so instead of disowning it.
-            from core.self.source_excerpt import (
-                grounded_excerpt_reply,
-                last_shown_excerpt,
-                provenance_sentence,
-                remember_shown_excerpt,
-                reply_is_grounded_in_source,
-                source_tree_is_readable,
-            )
-
-            # A REQUEST to see her code that neither shows any nor cites a
-            # file has not reached her source at all.
-            #
-            # Live 2026-08-04: "show me how you're actually built" arrived
-            # with real excerpts attached and she answered "I can't show you
-            # code files directly", then described her architecture from
-            # memory. A false capability denial made while holding the file
-            # — the third form of one defect, after inventing a snippet and
-            # after disowning a real one. All three end with the person
-            # believing something untrue about what she can do.
-            #
-            # But this substitution used to run on the WIDE gate above — "the
-            # turn may concern her source" — which is the right question for
-            # deciding whether to CHECK and the wrong one for deciding to
-            # REPLACE. It scored True on "Can you still reason through the
-            # desktop path?" and swapped a correct answer about the reasoning
-            # lane for a code excerpt nobody asked for. A reply that simply
-            # contains no code is not a reply that denied having any.
-            #
-            # So: substitute when she was asked to show source, or when the
-            # reply says she cannot — never merely because the subject came up.
-            from core.utils.own_source_intent import (
-                asks_for_own_source as _asks_for_own_source,
-            )
-            from core.utils.own_source_intent import (
-                reply_denies_showing_source as _reply_denies_showing_source,
-            )
-
-            _asked_to_be_shown = bool(_asks_for_own_source(visible))
-            _denied_capability = bool(_reply_denies_showing_source(text))
-            if (
-                not _fabricated
-                and (_asked_to_be_shown or _denied_capability)
-                and source_tree_is_readable()
-                and not await asyncio.to_thread(reply_is_grounded_in_source, text)
-            ):
-                _real = await asyncio.to_thread(grounded_excerpt_reply, visible)
-                if _real:
-                    logger.warning(
-                        "A question about her source was answered without "
-                        "showing or citing any; substituting a real excerpt."
-                    )
-                    _append_turn_text_mutation(
-                        turn_trace,
-                        stage="chat.own_source_answer_ungrounded",
-                        method="source_tree_excerpt_substitution",
-                        reasons=["reply_cited_no_real_source"],
-                        before=text,
-                        after=_real,
-                        deterministic=True,
-                        authorship_effect="replaced_by_runtime",
-                    )
-                    text = _real
-
-            # Asked where real code came from, a reply that never names the
-            # file has not answered. Live 2026-08-04 she showed
-            # core/mycelium.py:88 and then said it "isn't from a Python
-            # module" — reading "module" as "importable package" and
-            # answering a question nobody asked while the path sat on
-            # record. Denying true provenance misleads exactly as much as
-            # inventing a snippet, so it is corrected from the same record.
-            _shown = last_shown_excerpt()
-            if (
-                _shown
-                and _turn_asks_where_that_came_from(visible)
-                and _shown["relative_path"] not in text
-            ):
-                _truth = provenance_sentence()
-                if _truth:
-                    logger.warning(
-                        "Provenance question answered without naming %s; "
-                        "correcting from the recorded citation.",
-                        _shown["relative_path"],
-                    )
-                    _append_turn_text_mutation(
-                        turn_trace,
-                        stage="chat.own_source_provenance_unnamed",
-                        method="recorded_citation_substitution",
-                        reasons=["shown_code_provenance_not_stated"],
-                        before=text,
-                        after=_truth,
-                        deterministic=True,
-                        authorship_effect="replaced_by_runtime",
-                    )
-                    text = _truth
-            remember_shown_excerpt(text)
-        except _CHAT_RECOVERABLE_ERRORS as _source_check_exc:
-            record_degradation(
-                "chat",
-                _source_check_exc,
-                severity="warning",
-                action=("served a code claim without checking it against the source tree"),
-            )
+    text = await _check_a_reply_against_her_own_source(
+        text=text,
+        turn_trace=turn_trace,
+        visible=visible,
+    )
 
     if turn_trace is not None:
         accepted_response_path = str(turn_trace.get("response_path") or "").strip()

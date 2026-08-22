@@ -115,6 +115,8 @@ class Seam:
             "returns": self.returns,
             "awaits": self.awaits,
             "depth": self.depth,
+            "jumps": self.jumps,
+            "inside_loop": self.inside_loop,
             "safe": self.safe,
             "blockers": self.blockers,
         }

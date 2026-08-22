@@ -379,6 +379,551 @@ def _postconditions_lost(baseline: dict[str, Any] | None, adapted: dict[str, Any
     return sorted(name for name in (adapted.get("failed") or ()) if str(name) in satisfied_on_base)
 
 
+def _restore_the_action_continuation(
+    *,
+    action_continuation_restore: Any,
+    action_continuation_restore_verified: Any,
+    active_action_continuation: Any,
+    budget: Any,
+    cache: Any,
+    capture_current_action_frame: Any,
+    capture_frame_kwargs: Any,
+    ensemble: Any,
+    intervention_arm: Any,
+    restore_action_opportunity_continuation: Any,
+    rollback_continuation: Any,
+) -> Any:
+    """Restore the action-opportunity continuation this episode carried in.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    1.
+    """
+    if action_continuation_restore is not None:
+        try:
+            restore_action_opportunity_continuation(
+                action_continuation_restore,
+                ensemble=ensemble,
+                cache=cache,
+                budget=budget,
+            )
+            active_action_continuation = capture_current_action_frame(
+                **capture_frame_kwargs
+            )
+            if (
+                active_action_continuation.state_components
+                != action_continuation_restore.state_components
+            ):
+                differing = sorted(
+                    name
+                    for name, value in (
+                        active_action_continuation.state_components.items()
+                    )
+                    if value
+                    != action_continuation_restore.state_components.get(name)
+                )
+                raise ActionContinuationDrift(
+                    "restored action continuation differs before action:"
+                    + ",".join(differing)
+                )
+        except Exception as restore_exc:  # noqa: BLE001 - transactional rollback
+            try:
+                restore_action_opportunity_continuation(
+                    rollback_continuation,
+                    ensemble=ensemble,
+                    cache=cache,
+                    budget=budget,
+                )
+                if (
+                    capture_current_action_frame(
+                        **capture_frame_kwargs
+                    ).state_components
+                    != rollback_continuation.state_components
+                ):
+                    raise RuntimeError(
+                        "action continuation rollback verification failed"
+                    )
+            except Exception as rollback_exc:  # noqa: BLE001 - fatal ambiguity
+                raise UnknownActionStateApplicationError(
+                    {
+                        "operation_id": "engine-first-action-restore",
+                        "arm": intervention_arm,
+                        "worker_pid": None,
+                        "request_sha256": "",
+                        "snapshot_sha256": "",
+                    }
+                ) from rollback_exc
+            raise restore_exc
+        if action_continuation_restore_verified is not None:
+            from core.brain.llm.latent_cortex.campaign_journal import (
+                canonical_json_bytes,
+            )
+
+            action_continuation_restore_verified(
+                hashlib.sha256(
+                    canonical_json_bytes(
+                        active_action_continuation.state_components
+                    )
+                ).hexdigest()
+            )
+    return active_action_continuation
+
+
+def _pick_the_winner_by_counterfactual(
+    *,
+    blind_scores: Any,
+    branch_probe_texts: Any,
+    budget: Any,
+    ensemble: Any,
+    receipt: Any,
+    safety_reserve: Any,
+    selection_basis: Any,
+    self: Any,
+    verification_objective: Any,
+    verifier: Any,
+    winner: Any,
+) -> tuple[Any, Any]:
+    """Pick the winning branch by counterfactual verification when it is on.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 11 name(s) from the turn and hands back
+    2.
+    """
+    if (
+        self.config.counterfactual_verifier_enabled
+        and verifier is not None
+        and verification_objective.strip()
+        and len(branch_probe_texts) == len(ensemble.branches)
+        and len(blind_scores) == len(ensemble.branches)
+    ):
+        try:
+            from core.brain.llm.latent_cortex.counterfactual_verifier import (
+                run_counterfactual_verifier,
+            )
+
+            receipt.counterfactual_verifier = run_counterfactual_verifier(
+                branch_probe_texts,
+                objective=verification_objective,
+                task_scores={branch: round(score, 6) for branch, score in blind_scores.items()},
+                selected_branch=winner.index,
+                max_atoms=self.config.counterfactual_verifier_max_atoms,
+                max_interventions=(self.config.counterfactual_verifier_max_interventions),
+                generate=lambda prompt: self._fresh_verifier_generation(
+                    prompt,
+                    budget,
+                    max_tokens=self.config.counterfactual_verifier_max_tokens,
+                    reserve_layer_apps=safety_reserve,
+                ),
+            )
+            if receipt.counterfactual_verifier["selection_authority_admitted"]:
+                selected = int(receipt.counterfactual_verifier["selected_branch"])
+                winner = next(
+                    branch for branch in ensemble.branches if branch.index == selected
+                )
+                selection_basis = f"{selection_basis}_counterfactual_tiebreak"
+        except (
+            ImportError,
+            OSError,
+            OverflowError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            receipt.flag(f"counterfactual_verifier_abstained:{type(exc).__name__}")
+            receipt.counterfactual_verifier = {
+                "requested": True,
+                "available": False,
+                "reason": _public_reason("verifier_unavailable", exc),
+                "selection_effect": "none",
+            }
+    elif self.config.counterfactual_verifier_enabled:
+        receipt.counterfactual_verifier = {
+            "requested": True,
+            "available": False,
+            "reason": (
+                "admitted_task_verifier_unavailable"
+                if verifier is None
+                else "verification_objective_unavailable"
+                if not verification_objective.strip()
+                else "complete_branch_probe_inventory_unavailable"
+            ),
+            "selection_effect": "none",
+        }
+    return selection_basis, winner
+
+
+def _record_prefix_stability(
+    *,
+    branch_probe_texts: Any,
+    budget: Any,
+    receipt: Any,
+    safety_reserve: Any,
+    self: Any,
+    verification_objective: Any,
+    winner: Any,
+) -> None:
+    """Record how stable the winning prefix was, when that measurement is on.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 7 name(s) from the turn and hands back
+    0.
+    """
+    if (
+        self.config.prefix_stability_enabled
+        and verification_objective.strip()
+        and winner.index in branch_probe_texts
+    ):
+        try:
+            from core.brain.llm.latent_cortex.prefix_stability import (
+                run_prefix_stability_verifier,
+            )
+
+            receipt.prefix_stability = run_prefix_stability_verifier(
+                branch_probe_texts[winner.index],
+                objective=verification_objective,
+                samples=self.config.prefix_stability_samples,
+                temperature=self.config.prefix_stability_temperature,
+                top_p=self.config.prefix_stability_top_p,
+                seed_root=self.config.prefix_stability_seed,
+                calibrator_config=self.config.prefix_stability_calibrator,
+                generate=lambda prompt, seed, temperature, top_p: (
+                    self._fresh_verifier_generation(
+                        prompt,
+                        budget,
+                        max_tokens=self.config.prefix_stability_max_tokens,
+                        reserve_layer_apps=safety_reserve,
+                        temperature=temperature,
+                        top_p=top_p,
+                        sample_seed=seed,
+                    )
+                ),
+            )
+        except (
+            ImportError,
+            OSError,
+            OverflowError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            receipt.flag(f"prefix_stability_abstained:{type(exc).__name__}")
+            receipt.prefix_stability = {
+                "requested": True,
+                "available": False,
+                "reason": _public_reason("verifier_unavailable", exc),
+                "selection_effect": "none",
+                "correctness_effect": "none",
+            }
+    elif self.config.prefix_stability_enabled:
+        receipt.prefix_stability = {
+            "requested": True,
+            "available": False,
+            "reason": (
+                "verification_objective_unavailable"
+                if not verification_objective.strip()
+                else "selected_branch_probe_unavailable"
+            ),
+            "selection_effect": "none",
+            "correctness_effect": "none",
+        }
+
+
+def _probe_before_the_fast_weight_update(
+    *,
+    admission: Any,
+    bridge_tokens: Any,
+    budget: Any,
+    cache: Any,
+    evidence_provider: Any,
+    fast_weight_candidate_verifier: Any,
+    fast_weight_target_tokens: Any,
+    fw_verifier_pre: Any,
+    fw_verifier_pre_text: Any,
+    fw_verifier_pre_tokens: Any,
+    information_verifier: Any,
+    objective_sha256: Any,
+    receipt: Any,
+    runner: Any,
+    safety_reserve: Any,
+    self: Any,
+    winner: Any,
+) -> tuple[Any, Any, Any, Any, Any]:
+    """Measure the verifier before a fast-weight update, inside the compute budget.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 12 name(s) from the turn and hands back
+    5.
+    """
+    if fast_weight_candidate_verifier is not None and self.tokenizer is not None:
+        probe_cost = self._verifier_probe_layer_apps(bridge_tokens)
+        if probe_cost + safety_reserve > budget.remaining_layer_apps:
+            raise RuntimeError("compute budget cannot admit fast-weight evidence probe")
+        evaluation_index = len(getattr(information_verifier, "evaluations", ()))
+        fw_verifier_pre_tokens = self._decode_probe(
+            winner,
+            cache,
+            runner,
+            budget,
+            bridge_tokens=bridge_tokens,
+            use_cache=False,
+            force_exact_tokens=True,
+        )
+        fw_verifier_pre_text = self.tokenizer.decode(fw_verifier_pre_tokens)
+        fw_verifier_pre = float(
+            fast_weight_candidate_verifier(fw_verifier_pre_text)
+        )
+        source_sha256 = hashlib.sha256(fw_verifier_pre_text.encode("utf-8")).hexdigest()
+        if callable(evidence_provider):
+            try:
+                admission, fast_weight_target_tokens = evidence_provider(
+                    fw_verifier_pre_text,
+                    evaluation_index=evaluation_index,
+                    tokenizer=self.tokenizer,
+                    structural_diversity=receipt.structural_diversity,
+                )
+                admission = validate_fast_weight_admission(
+                    admission,
+                    expected_source_sha256=source_sha256,
+                    expected_objective_sha256=objective_sha256,
+                )
+                if admission["target_token_count"] != len(
+                    fast_weight_target_tokens
+                ) or admission["target_tokens_sha256"] != token_sequence_sha256(
+                    fast_weight_target_tokens
+                ):
+                    raise ValueError(
+                        "fast-weight private target differs from its admission commitment"
+                    )
+            except _LATENT_PHASE_ERRORS as exc:
+                receipt.flag(f"fast_weight_evidence_rejected:{type(exc).__name__}")
+                admission = unavailable_admission(
+                    source_sha256=source_sha256,
+                    objective_sha256=objective_sha256,
+                    reason="candidate_evaluation_unavailable",
+                )
+                fast_weight_target_tokens = []
+        else:
+            admission = unavailable_admission(
+                source_sha256=source_sha256,
+                objective_sha256=objective_sha256,
+                reason="verifier_provider_untrusted",
+            )
+    return admission, fast_weight_target_tokens, fw_verifier_pre, fw_verifier_pre_text, fw_verifier_pre_tokens
+
+
+def _seed_the_sham_control(
+    *,
+    fast_weights: Any,
+    fw_incumbent_input_features: Any,
+    fw_query_input_features: Any,
+    fw_sham_initial_snapshot: Any,
+    fw_sham_output_corrections: Any,
+    fw_sham_semantic_seed_vectors: Any,
+    fw_sham_trajectory_directions: Any,
+    receipt: Any,
+    self: Any,
+) -> Any:
+    """Seed the sham control so the fast-weight result has a null to beat.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 8 name(s) from the turn and hands back
+    1.
+    """
+    if fw_sham_trajectory_directions is not None:
+        fast_weights.reseed_output_subspace_by_layer(
+            fw_sham_trajectory_directions,
+            seed_source="verified_semantic_contrast",
+        )
+        receipt.flag("fast_weight_matched_trajectory_subspace")
+        fw_sham_initial_snapshot = fast_weights.snapshot_delta()
+        if (
+            fw_query_input_features is not None
+            and fw_incumbent_input_features is not None
+            and fw_sham_output_corrections is not None
+        ):
+            supervised_keys = (
+                fw_incumbent_input_features
+                if self.config.fast_weights.supervised_trajectory_key_source
+                == "incumbent_trajectory"
+                else fw_query_input_features
+            )
+            fast_weights.install_supervised_trajectory_map(
+                supervised_keys,
+                fw_sham_output_corrections,
+                gain=self.config.fast_weights.associative_bootstrap_gain,
+                regularization=(
+                    self.config.fast_weights.associative_bootstrap_regularization
+                ),
+                key_source=(
+                    self.config.fast_weights.supervised_trajectory_key_source
+                ),
+            )
+        else:
+            fast_weights.install_minimum_norm_keys(
+                gain=self.config.fast_weights.associative_bootstrap_gain,
+                regularization=(
+                    self.config.fast_weights.associative_bootstrap_regularization
+                ),
+            )
+    elif fw_sham_semantic_seed_vectors is not None:
+        fast_weights.reseed_output_subspace(
+            fw_sham_semantic_seed_vectors,
+            seed_source="verified_semantic_contrast",
+        )
+        receipt.flag("fast_weight_matched_semantic_subspace")
+        fw_sham_initial_snapshot = fast_weights.snapshot_delta()
+        fast_weights.install_minimum_norm_keys(
+            gain=self.config.fast_weights.associative_bootstrap_gain,
+            regularization=(
+                self.config.fast_weights.associative_bootstrap_regularization
+            ),
+        )
+    return fw_sham_initial_snapshot
+
+
+def _score_the_branches_blind(
+    *,
+    blind_scores: Any,
+    branch_probe_texts: Any,
+    branch_verifier_score: Any,
+    ensemble: Any,
+    pending_verifier: Any,
+    receipt: Any,
+    run_decoy_balanced_review: Any,
+    runner: Any,
+    select_without_task_verifier: Any,
+    selection_basis: Any,
+    valid_contract_branches: Any,
+    verifier: Any,
+    winner: Any,
+) -> tuple[Any, Any, Any, Any, Any, Any]:
+    """Score the branches blind, with decoys, before anything is chosen.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 8 name(s) from the turn and hands back
+    6.
+    """
+    try:
+        (
+            blind_scores,
+            receipt.blind_review,
+            receipt.decoy_verification,
+        ) = run_decoy_balanced_review(
+            branch_probe_texts,
+            pending_verifier,
+            episode_id=receipt.episode_id,
+            objective_sha256=receipt.input_tokens_sha256,
+            isolation_receipt=ensemble.isolation_receipt(
+                runner.cache_discipline_receipt()
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - flagged on the receipt with the exception type
+        receipt.flag(f"branch_decoy_review_failed:{type(exc).__name__}")
+        branch_probe_texts = {}
+        verifier = None
+        winner = select_without_task_verifier()
+    else:
+        if receipt.decoy_verification["selection_admitted"]:
+            verifier = pending_verifier
+            if valid_contract_branches is not None:
+                if not valid_contract_branches:
+                    receipt.flag("branch_selection_no_contract_valid_candidate")
+                else:
+                    invalid_count = len(ensemble.branches) - len(
+                        valid_contract_branches
+                    )
+                    if invalid_count:
+                        receipt.flag(
+                            f"branch_selection_contract_rejected:{invalid_count}"
+                        )
+            winner = ensemble.select(
+                score_fn=lambda branch: _contract_admitted_branch_score(
+                    branch.index,
+                    blind_scores,
+                    valid_contract_branches,
+                )
+            )
+            selection_basis = "task_verifier"
+            if math.isfinite(float(winner.score)):
+                branch_verifier_score = float(winner.score)
+        else:
+            receipt.flag("branch_verifier_decoy_calibration_failed")
+            verifier = None
+            winner = select_without_task_verifier()
+    return blind_scores, branch_probe_texts, branch_verifier_score, selection_basis, verifier, winner
+
+
+def _apply_the_verified_teaching_event(
+    *,
+    fast_weight_learning_state: Any,
+    fast_weight_teaching_event: Any,
+    fast_weights: Any,
+    fw_incumbent_input_features: Any,
+    fw_query_input_features: Any,
+    fw_treatment_output_corrections: Any,
+    receipt: Any,
+    self: Any,
+) -> None:
+    """Seed the sham control so the fast-weight result has a null to beat.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 8 name(s) from the turn and hands back
+    0.
+    """
+    if (
+        fast_weight_teaching_event
+        and self.config.fast_weights.associative_bootstrap_enabled
+    ):
+        if (
+            fw_query_input_features is not None
+            and fw_incumbent_input_features is not None
+            and fw_treatment_output_corrections is not None
+        ):
+            supervised_keys = (
+                fw_incumbent_input_features
+                if self.config.fast_weights.supervised_trajectory_key_source
+                == "incumbent_trajectory"
+                else fw_query_input_features
+            )
+            write_receipt = fast_weights.install_supervised_trajectory_map(
+                supervised_keys,
+                fw_treatment_output_corrections,
+                gain=self.config.fast_weights.associative_bootstrap_gain,
+                regularization=(
+                    self.config.fast_weights.associative_bootstrap_regularization
+                ),
+                key_source=(
+                    self.config.fast_weights.supervised_trajectory_key_source
+                ),
+            )
+            fast_weight_learning_state["controls"][
+                "supervised_trajectory_map"
+            ] = write_receipt
+            receipt.flag(
+                "fast_weight_supervised_trajectory_write:"
+                f"{len(write_receipt['layers'])}"
+            )
+        else:
+            write_receipt = fast_weights.install_minimum_norm_keys(
+                gain=self.config.fast_weights.associative_bootstrap_gain,
+                regularization=(
+                    self.config.fast_weights.associative_bootstrap_regularization
+                ),
+            )
+            receipt.flag(
+                "fast_weight_minimum_norm_write:"
+                f"{len(write_receipt['layers'])}"
+            )
+            receipt.flag("fast_weight_answer_decode_keys_compiled")
+
+
 class LatentCortexEngine:
     """Runs complete latent-reasoning episodes on one frozen model."""
 
@@ -4488,73 +5033,19 @@ class LatentCortexEngine:
                     }
                     rollback_continuation = capture_current_action_frame(**capture_frame_kwargs)
                     active_action_continuation = rollback_continuation
-                    if action_continuation_restore is not None:
-                        try:
-                            restore_action_opportunity_continuation(
-                                action_continuation_restore,
-                                ensemble=ensemble,
-                                cache=cache,
-                                budget=budget,
-                            )
-                            active_action_continuation = capture_current_action_frame(
-                                **capture_frame_kwargs
-                            )
-                            if (
-                                active_action_continuation.state_components
-                                != action_continuation_restore.state_components
-                            ):
-                                differing = sorted(
-                                    name
-                                    for name, value in (
-                                        active_action_continuation.state_components.items()
-                                    )
-                                    if value
-                                    != action_continuation_restore.state_components.get(name)
-                                )
-                                raise ActionContinuationDrift(
-                                    "restored action continuation differs before action:"
-                                    + ",".join(differing)
-                                )
-                        except Exception as restore_exc:  # noqa: BLE001 - transactional rollback
-                            try:
-                                restore_action_opportunity_continuation(
-                                    rollback_continuation,
-                                    ensemble=ensemble,
-                                    cache=cache,
-                                    budget=budget,
-                                )
-                                if (
-                                    capture_current_action_frame(
-                                        **capture_frame_kwargs
-                                    ).state_components
-                                    != rollback_continuation.state_components
-                                ):
-                                    raise RuntimeError(
-                                        "action continuation rollback verification failed"
-                                    )
-                            except Exception as rollback_exc:  # noqa: BLE001 - fatal ambiguity
-                                raise UnknownActionStateApplicationError(
-                                    {
-                                        "operation_id": "engine-first-action-restore",
-                                        "arm": intervention_arm,
-                                        "worker_pid": None,
-                                        "request_sha256": "",
-                                        "snapshot_sha256": "",
-                                    }
-                                ) from rollback_exc
-                            raise restore_exc
-                        if action_continuation_restore_verified is not None:
-                            from core.brain.llm.latent_cortex.campaign_journal import (
-                                canonical_json_bytes,
-                            )
-
-                            action_continuation_restore_verified(
-                                hashlib.sha256(
-                                    canonical_json_bytes(
-                                        active_action_continuation.state_components
-                                    )
-                                ).hexdigest()
-                            )
+                    active_action_continuation = _restore_the_action_continuation(
+                        action_continuation_restore=action_continuation_restore,
+                        action_continuation_restore_verified=action_continuation_restore_verified,
+                        active_action_continuation=active_action_continuation,
+                        budget=budget,
+                        cache=cache,
+                        capture_current_action_frame=capture_current_action_frame,
+                        capture_frame_kwargs=capture_frame_kwargs,
+                        ensemble=ensemble,
+                        intervention_arm=intervention_arm,
+                        restore_action_opportunity_continuation=restore_action_opportunity_continuation,
+                        rollback_continuation=rollback_continuation,
+                    )
                     continuation_pending = False
                     if action_continuation_capture is not None:
                         action_continuation_capture(active_action_continuation)
@@ -5993,53 +6484,21 @@ class LatentCortexEngine:
                     run_decoy_balanced_review,
                 )
 
-                try:
-                    (
-                        blind_scores,
-                        receipt.blind_review,
-                        receipt.decoy_verification,
-                    ) = run_decoy_balanced_review(
-                        branch_probe_texts,
-                        pending_verifier,
-                        episode_id=receipt.episode_id,
-                        objective_sha256=receipt.input_tokens_sha256,
-                        isolation_receipt=ensemble.isolation_receipt(
-                            runner.cache_discipline_receipt()
-                        ),
-                    )
-                except Exception as exc:  # noqa: BLE001 - flagged on the receipt with the exception type
-                    receipt.flag(f"branch_decoy_review_failed:{type(exc).__name__}")
-                    branch_probe_texts = {}
-                    verifier = None
-                    winner = select_without_task_verifier()
-                else:
-                    if receipt.decoy_verification["selection_admitted"]:
-                        verifier = pending_verifier
-                        if valid_contract_branches is not None:
-                            if not valid_contract_branches:
-                                receipt.flag("branch_selection_no_contract_valid_candidate")
-                            else:
-                                invalid_count = len(ensemble.branches) - len(
-                                    valid_contract_branches
-                                )
-                                if invalid_count:
-                                    receipt.flag(
-                                        f"branch_selection_contract_rejected:{invalid_count}"
-                                    )
-                        winner = ensemble.select(
-                            score_fn=lambda branch: _contract_admitted_branch_score(
-                                branch.index,
-                                blind_scores,
-                                valid_contract_branches,
-                            )
-                        )
-                        selection_basis = "task_verifier"
-                        if math.isfinite(float(winner.score)):
-                            branch_verifier_score = float(winner.score)
-                    else:
-                        receipt.flag("branch_verifier_decoy_calibration_failed")
-                        verifier = None
-                        winner = select_without_task_verifier()
+                blind_scores, branch_probe_texts, branch_verifier_score, selection_basis, verifier, winner = _score_the_branches_blind(
+                    blind_scores=blind_scores,
+                    branch_probe_texts=branch_probe_texts,
+                    branch_verifier_score=branch_verifier_score,
+                    ensemble=ensemble,
+                    pending_verifier=pending_verifier,
+                    receipt=receipt,
+                    run_decoy_balanced_review=run_decoy_balanced_review,
+                    runner=runner,
+                    select_without_task_verifier=select_without_task_verifier,
+                    selection_basis=selection_basis,
+                    valid_contract_branches=valid_contract_branches,
+                    verifier=verifier,
+                    winner=winner,
+                )
         else:
             if pending_verifier is not None and self.tokenizer is not None:
                 if self.config.branch_verifier_mode == "required":
@@ -6183,66 +6642,19 @@ class LatentCortexEngine:
         # same exact arithmetic interventions in a fresh zero-offset context;
         # deterministic recomputation, not generated prose, assigns the
         # robustness score. Stronger task-verifier evidence is never displaced.
-        if (
-            self.config.counterfactual_verifier_enabled
-            and verifier is not None
-            and verification_objective.strip()
-            and len(branch_probe_texts) == len(ensemble.branches)
-            and len(blind_scores) == len(ensemble.branches)
-        ):
-            try:
-                from core.brain.llm.latent_cortex.counterfactual_verifier import (
-                    run_counterfactual_verifier,
-                )
-
-                receipt.counterfactual_verifier = run_counterfactual_verifier(
-                    branch_probe_texts,
-                    objective=verification_objective,
-                    task_scores={branch: round(score, 6) for branch, score in blind_scores.items()},
-                    selected_branch=winner.index,
-                    max_atoms=self.config.counterfactual_verifier_max_atoms,
-                    max_interventions=(self.config.counterfactual_verifier_max_interventions),
-                    generate=lambda prompt: self._fresh_verifier_generation(
-                        prompt,
-                        budget,
-                        max_tokens=self.config.counterfactual_verifier_max_tokens,
-                        reserve_layer_apps=safety_reserve,
-                    ),
-                )
-                if receipt.counterfactual_verifier["selection_authority_admitted"]:
-                    selected = int(receipt.counterfactual_verifier["selected_branch"])
-                    winner = next(
-                        branch for branch in ensemble.branches if branch.index == selected
-                    )
-                    selection_basis = f"{selection_basis}_counterfactual_tiebreak"
-            except (
-                ImportError,
-                OSError,
-                OverflowError,
-                RuntimeError,
-                TypeError,
-                ValueError,
-            ) as exc:
-                receipt.flag(f"counterfactual_verifier_abstained:{type(exc).__name__}")
-                receipt.counterfactual_verifier = {
-                    "requested": True,
-                    "available": False,
-                    "reason": _public_reason("verifier_unavailable", exc),
-                    "selection_effect": "none",
-                }
-        elif self.config.counterfactual_verifier_enabled:
-            receipt.counterfactual_verifier = {
-                "requested": True,
-                "available": False,
-                "reason": (
-                    "admitted_task_verifier_unavailable"
-                    if verifier is None
-                    else "verification_objective_unavailable"
-                    if not verification_objective.strip()
-                    else "complete_branch_probe_inventory_unavailable"
-                ),
-                "selection_effect": "none",
-            }
+        selection_basis, winner = _pick_the_winner_by_counterfactual(
+            blind_scores=blind_scores,
+            branch_probe_texts=branch_probe_texts,
+            budget=budget,
+            ensemble=ensemble,
+            receipt=receipt,
+            safety_reserve=safety_reserve,
+            selection_basis=selection_basis,
+            self=self,
+            verification_objective=verification_objective,
+            verifier=verifier,
+            winner=winner,
+        )
 
         # SPARK-042: challenge the provisional winner in an entirely fresh KV
         # context. This is intentionally a refutation veto, not another
@@ -6329,64 +6741,15 @@ class LatentCortexEngine:
         # verified prefix. Every continuation receives a fresh zero-offset KV
         # cache and a local deterministic RNG key. This evidence is diagnostic
         # only: it cannot choose a branch or certify correctness.
-        if (
-            self.config.prefix_stability_enabled
-            and verification_objective.strip()
-            and winner.index in branch_probe_texts
-        ):
-            try:
-                from core.brain.llm.latent_cortex.prefix_stability import (
-                    run_prefix_stability_verifier,
-                )
-
-                receipt.prefix_stability = run_prefix_stability_verifier(
-                    branch_probe_texts[winner.index],
-                    objective=verification_objective,
-                    samples=self.config.prefix_stability_samples,
-                    temperature=self.config.prefix_stability_temperature,
-                    top_p=self.config.prefix_stability_top_p,
-                    seed_root=self.config.prefix_stability_seed,
-                    calibrator_config=self.config.prefix_stability_calibrator,
-                    generate=lambda prompt, seed, temperature, top_p: (
-                        self._fresh_verifier_generation(
-                            prompt,
-                            budget,
-                            max_tokens=self.config.prefix_stability_max_tokens,
-                            reserve_layer_apps=safety_reserve,
-                            temperature=temperature,
-                            top_p=top_p,
-                            sample_seed=seed,
-                        )
-                    ),
-                )
-            except (
-                ImportError,
-                OSError,
-                OverflowError,
-                RuntimeError,
-                TypeError,
-                ValueError,
-            ) as exc:
-                receipt.flag(f"prefix_stability_abstained:{type(exc).__name__}")
-                receipt.prefix_stability = {
-                    "requested": True,
-                    "available": False,
-                    "reason": _public_reason("verifier_unavailable", exc),
-                    "selection_effect": "none",
-                    "correctness_effect": "none",
-                }
-        elif self.config.prefix_stability_enabled:
-            receipt.prefix_stability = {
-                "requested": True,
-                "available": False,
-                "reason": (
-                    "verification_objective_unavailable"
-                    if not verification_objective.strip()
-                    else "selected_branch_probe_unavailable"
-                ),
-                "selection_effect": "none",
-                "correctness_effect": "none",
-            }
+        _record_prefix_stability(
+            branch_probe_texts=branch_probe_texts,
+            budget=budget,
+            receipt=receipt,
+            safety_reserve=safety_reserve,
+            self=self,
+            verification_objective=verification_objective,
+            winner=winner,
+        )
         # SPARK-049 executes only after the prior verifier mesh. The attempt
         # may spend compute above the protected completion/fallback reserve,
         # adds a separately verified candidate, and cannot mutate a branch or
@@ -7071,60 +7434,25 @@ class LatentCortexEngine:
                 receipt.flag(
                     "fast_weight_candidate_local_evidence_without_branch_selection"
                 )
-            if fast_weight_candidate_verifier is not None and self.tokenizer is not None:
-                probe_cost = self._verifier_probe_layer_apps(bridge_tokens)
-                if probe_cost + safety_reserve > budget.remaining_layer_apps:
-                    raise RuntimeError("compute budget cannot admit fast-weight evidence probe")
-                evaluation_index = len(getattr(information_verifier, "evaluations", ()))
-                fw_verifier_pre_tokens = self._decode_probe(
-                    winner,
-                    cache,
-                    runner,
-                    budget,
-                    bridge_tokens=bridge_tokens,
-                    use_cache=False,
-                    force_exact_tokens=True,
-                )
-                fw_verifier_pre_text = self.tokenizer.decode(fw_verifier_pre_tokens)
-                fw_verifier_pre = float(
-                    fast_weight_candidate_verifier(fw_verifier_pre_text)
-                )
-                source_sha256 = hashlib.sha256(fw_verifier_pre_text.encode("utf-8")).hexdigest()
-                if callable(evidence_provider):
-                    try:
-                        admission, fast_weight_target_tokens = evidence_provider(
-                            fw_verifier_pre_text,
-                            evaluation_index=evaluation_index,
-                            tokenizer=self.tokenizer,
-                            structural_diversity=receipt.structural_diversity,
-                        )
-                        admission = validate_fast_weight_admission(
-                            admission,
-                            expected_source_sha256=source_sha256,
-                            expected_objective_sha256=objective_sha256,
-                        )
-                        if admission["target_token_count"] != len(
-                            fast_weight_target_tokens
-                        ) or admission["target_tokens_sha256"] != token_sequence_sha256(
-                            fast_weight_target_tokens
-                        ):
-                            raise ValueError(
-                                "fast-weight private target differs from its admission commitment"
-                            )
-                    except _LATENT_PHASE_ERRORS as exc:
-                        receipt.flag(f"fast_weight_evidence_rejected:{type(exc).__name__}")
-                        admission = unavailable_admission(
-                            source_sha256=source_sha256,
-                            objective_sha256=objective_sha256,
-                            reason="candidate_evaluation_unavailable",
-                        )
-                        fast_weight_target_tokens = []
-                else:
-                    admission = unavailable_admission(
-                        source_sha256=source_sha256,
-                        objective_sha256=objective_sha256,
-                        reason="verifier_provider_untrusted",
-                    )
+            admission, fast_weight_target_tokens, fw_verifier_pre, fw_verifier_pre_text, fw_verifier_pre_tokens = _probe_before_the_fast_weight_update(
+                admission=admission,
+                bridge_tokens=bridge_tokens,
+                budget=budget,
+                cache=cache,
+                evidence_provider=evidence_provider,
+                fast_weight_candidate_verifier=fast_weight_candidate_verifier,
+                fast_weight_target_tokens=fast_weight_target_tokens,
+                fw_verifier_pre=fw_verifier_pre,
+                fw_verifier_pre_text=fw_verifier_pre_text,
+                fw_verifier_pre_tokens=fw_verifier_pre_tokens,
+                information_verifier=information_verifier,
+                objective_sha256=objective_sha256,
+                receipt=receipt,
+                runner=runner,
+                safety_reserve=safety_reserve,
+                self=self,
+                winner=winner,
+            )
             if (
                 admission["admitted"] is not True
                 and self.config.verified_objective_teacher_enabled
@@ -7552,51 +7880,16 @@ class LatentCortexEngine:
                         "fast_weight_query_gate:"
                         f"{len(query_gate_receipt['layers'])}"
                     )
-                if (
-                    fast_weight_teaching_event
-                    and self.config.fast_weights.associative_bootstrap_enabled
-                ):
-                    if (
-                        fw_query_input_features is not None
-                        and fw_incumbent_input_features is not None
-                        and fw_treatment_output_corrections is not None
-                    ):
-                        supervised_keys = (
-                            fw_incumbent_input_features
-                            if self.config.fast_weights.supervised_trajectory_key_source
-                            == "incumbent_trajectory"
-                            else fw_query_input_features
-                        )
-                        write_receipt = fast_weights.install_supervised_trajectory_map(
-                            supervised_keys,
-                            fw_treatment_output_corrections,
-                            gain=self.config.fast_weights.associative_bootstrap_gain,
-                            regularization=(
-                                self.config.fast_weights.associative_bootstrap_regularization
-                            ),
-                            key_source=(
-                                self.config.fast_weights.supervised_trajectory_key_source
-                            ),
-                        )
-                        fast_weight_learning_state["controls"][
-                            "supervised_trajectory_map"
-                        ] = write_receipt
-                        receipt.flag(
-                            "fast_weight_supervised_trajectory_write:"
-                            f"{len(write_receipt['layers'])}"
-                        )
-                    else:
-                        write_receipt = fast_weights.install_minimum_norm_keys(
-                            gain=self.config.fast_weights.associative_bootstrap_gain,
-                            regularization=(
-                                self.config.fast_weights.associative_bootstrap_regularization
-                            ),
-                        )
-                        receipt.flag(
-                            "fast_weight_minimum_norm_write:"
-                            f"{len(write_receipt['layers'])}"
-                        )
-                        receipt.flag("fast_weight_answer_decode_keys_compiled")
+                _apply_the_verified_teaching_event(
+                    fast_weight_learning_state=fast_weight_learning_state,
+                    fast_weight_teaching_event=fast_weight_teaching_event,
+                    fast_weights=fast_weights,
+                    fw_incumbent_input_features=fw_incumbent_input_features,
+                    fw_query_input_features=fw_query_input_features,
+                    fw_treatment_output_corrections=fw_treatment_output_corrections,
+                    receipt=receipt,
+                    self=self,
+                )
                 if fast_weight_teaching_event and fw_treatment_context_tokens:
                     fw_loss = build_teacher_forced_answer_loss(
                         self.model,
@@ -7659,55 +7952,17 @@ class LatentCortexEngine:
                     fw_initial_snapshot,
                     reason="fast_weights_matched_control_reset",
                 )
-                if fw_sham_trajectory_directions is not None:
-                    fast_weights.reseed_output_subspace_by_layer(
-                        fw_sham_trajectory_directions,
-                        seed_source="verified_semantic_contrast",
-                    )
-                    receipt.flag("fast_weight_matched_trajectory_subspace")
-                    fw_sham_initial_snapshot = fast_weights.snapshot_delta()
-                    if (
-                        fw_query_input_features is not None
-                        and fw_incumbent_input_features is not None
-                        and fw_sham_output_corrections is not None
-                    ):
-                        supervised_keys = (
-                            fw_incumbent_input_features
-                            if self.config.fast_weights.supervised_trajectory_key_source
-                            == "incumbent_trajectory"
-                            else fw_query_input_features
-                        )
-                        fast_weights.install_supervised_trajectory_map(
-                            supervised_keys,
-                            fw_sham_output_corrections,
-                            gain=self.config.fast_weights.associative_bootstrap_gain,
-                            regularization=(
-                                self.config.fast_weights.associative_bootstrap_regularization
-                            ),
-                            key_source=(
-                                self.config.fast_weights.supervised_trajectory_key_source
-                            ),
-                        )
-                    else:
-                        fast_weights.install_minimum_norm_keys(
-                            gain=self.config.fast_weights.associative_bootstrap_gain,
-                            regularization=(
-                                self.config.fast_weights.associative_bootstrap_regularization
-                            ),
-                        )
-                elif fw_sham_semantic_seed_vectors is not None:
-                    fast_weights.reseed_output_subspace(
-                        fw_sham_semantic_seed_vectors,
-                        seed_source="verified_semantic_contrast",
-                    )
-                    receipt.flag("fast_weight_matched_semantic_subspace")
-                    fw_sham_initial_snapshot = fast_weights.snapshot_delta()
-                    fast_weights.install_minimum_norm_keys(
-                        gain=self.config.fast_weights.associative_bootstrap_gain,
-                        regularization=(
-                            self.config.fast_weights.associative_bootstrap_regularization
-                        ),
-                    )
+                fw_sham_initial_snapshot = _seed_the_sham_control(
+                    fast_weights=fast_weights,
+                    fw_incumbent_input_features=fw_incumbent_input_features,
+                    fw_query_input_features=fw_query_input_features,
+                    fw_sham_initial_snapshot=fw_sham_initial_snapshot,
+                    fw_sham_output_corrections=fw_sham_output_corrections,
+                    fw_sham_semantic_seed_vectors=fw_sham_semantic_seed_vectors,
+                    fw_sham_trajectory_directions=fw_sham_trajectory_directions,
+                    receipt=receipt,
+                    self=self,
+                )
                 fast_weights.reset_optimization_trace()
                 vocab_size = int(self.model.model.embed_tokens.weight.shape[0])
                 if not fw_sham_target_tokens:

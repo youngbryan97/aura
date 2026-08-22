@@ -1,6 +1,6 @@
 # Threat model
 
-Status: written 2026-08-21. Every control below is attacked from the
+Status: written 2026-08-21, revised 2026-08-22. Every control below is attacked from the
 attacker's side in `tests/security/`, and `tools/check_threat_model.py` fails
 when this document names a test that does not exist.
 
@@ -66,14 +66,20 @@ spot is invisible. Read the coverage column as "this is checked", never as
 | 11 | Secret leakage to a child | one classifier shared with the subprocess gateway | `tests/security/test_adversarial_surface.py` | checked |
 | 12 | Unsafe migration or recovery | checksum verified against source; two-phase ledger | `tests/test_migration_ledger_is_checked.py` | checked |
 | 13 | Malicious stored memory | untrusted text is fenced with a per-call tag | `tests/security/test_adversarial_surface.py` | partial — fencing is checked, the paths that must use it are not exhaustively enumerated |
-| 14 | A compromised skill or plugin package | `core/security/plugin_allowlist.py` | `tests/test_plugin_allowlist.py` | partial — an allowlisted package still runs in-process with no isolation |
+| 14 | A compromised skill or plugin package | `core/security/plugin_allowlist.py`, plus an effect-scope declaration checked against the module's actual reach at registration | `tests/test_plugin_allowlist.py`, `tests/test_a_skill_cannot_reach_past_its_declaration.py` | partial — a skill that reaches past its declaration does not load, and one that loads still runs in-process with the interpreter's authority |
 
 ## What is not covered
 
 - **An independent review.** Named first because it is the largest gap.
 - **In-process isolation for skills.** A skill runs with the process's
-  authority. The allowlist decides which ones load; nothing constrains one
-  after it has loaded.
+  authority, and Python offers no way to take that away from an imported
+  module. What is enforced instead is the declaration: a skill states an
+  effect scope, `core/skills/effect_reach.py` measures what its module reaches
+  for, and registration refuses one that reaches past it. That caught four
+  false declarations — `network_ops` and `network_recon` claiming `read_only`
+  while opening sockets, `listen` claiming it under a file write, and
+  `branching_futures` claiming `pure_compute` while building a sandbox. It
+  does not stop a loaded skill from doing what it declared.
 - **Linux and Windows.** The seatbelt is macOS. On other platforms a confined
   command has rlimits and an allowlist and no kernel boundary, and
   `ExecutionResult` says which one the caller got.

@@ -1766,6 +1766,89 @@ async def _attach_the_present_moment(
             )
 
 
+def _refresh_volatile_grounding(
+    *,
+    ambient_grounding_blocks: Any,
+    context: Any,
+    contract_grounding_blocks: Any,
+    has_volatile_grounding: Any,
+    messages: Any,
+    self: Any,
+    system_prompt: Any,
+    task_grounding_blocks: Any,
+) -> tuple[Any, Any]:
+    """Refresh grounding that goes stale between the prompt and the answer.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 8 name(s) from the turn and hands back
+    2.
+    """
+    if has_volatile_grounding and isinstance(messages, list) and messages:
+        # BEFORE the final user turn, not after it.
+        #
+        # Riding dead last put a multi-thousand-character block of self-state
+        # between the person's question and the model's turn, and the model
+        # continued the nearest thing instead of answering. Measured live:
+        # asked to run a real sandbox calculation and report the result, the
+        # entire reply was "Things feel unusually settled right now. My
+        # attention is on internal monitoring..." — the grounding text
+        # continued as prose, with no answer, no code, and no refusal, on a
+        # turn whose plan read scaffold=7023 request=518 (ratio 13.6x).
+        #
+        # Sitting just ahead of the last user message keeps the whole point
+        # of volatile-last — every stable token, system prompt through prior
+        # history, is still a reusable KV prefix, and the only thing behind
+        # the churn is the new turn that had to be prefilled anyway — while
+        # the last words before the model's turn are the person's own.
+        # The budget is enforced during compaction, and this block is added
+        # afterwards — so without a cap here it simply escapes it. Measured
+        # 2026-07-28 on the contract profile: compaction produced a 974-char
+        # payload well inside its 2,800 budget, then 1,727 characters of
+        # grounding arrived as a second system message and the turn went out
+        # at 3,013. The grounding is not optional — it is what stops her
+        # narrating a present she was never given — so it is fitted rather
+        # than dropped, keeping whole blocks in priority order.
+        grounding_message = {
+            "role": "system",
+            "content": self._fit_grounding_blocks(
+                contract_blocks=contract_grounding_blocks,
+                task_blocks=task_grounding_blocks,
+                ambient_blocks=ambient_grounding_blocks,
+                limit=self._grounding_char_budget(context, messages),
+            ),
+        }
+        final_user_index = next(
+            (
+                index
+                for index in range(len(messages) - 1, -1, -1)
+                if isinstance(messages[index], dict)
+                and str(messages[index].get("role", "")).strip().lower() == "user"
+            ),
+            None,
+        )
+        if final_user_index is None:
+            messages = [*messages, grounding_message]
+        else:
+            messages = [
+                *messages[:final_user_index],
+                grounding_message,
+                *messages[final_user_index:],
+            ]
+    elif has_volatile_grounding:
+        # No message list to ride behind (single-prompt lanes): keep the old
+        # behaviour rather than dropping the grounding entirely.
+        system_prompt = "\n\n".join(
+            [
+                str(system_prompt or ""),
+                *contract_grounding_blocks,
+                *task_grounding_blocks,
+                *ambient_grounding_blocks,
+            ]
+        ).strip()
+    return messages, system_prompt
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -12390,68 +12473,16 @@ class InferenceGate:
             or task_grounding_blocks
             or ambient_grounding_blocks
         )
-        if has_volatile_grounding and isinstance(messages, list) and messages:
-            # BEFORE the final user turn, not after it.
-            #
-            # Riding dead last put a multi-thousand-character block of self-state
-            # between the person's question and the model's turn, and the model
-            # continued the nearest thing instead of answering. Measured live:
-            # asked to run a real sandbox calculation and report the result, the
-            # entire reply was "Things feel unusually settled right now. My
-            # attention is on internal monitoring..." — the grounding text
-            # continued as prose, with no answer, no code, and no refusal, on a
-            # turn whose plan read scaffold=7023 request=518 (ratio 13.6x).
-            #
-            # Sitting just ahead of the last user message keeps the whole point
-            # of volatile-last — every stable token, system prompt through prior
-            # history, is still a reusable KV prefix, and the only thing behind
-            # the churn is the new turn that had to be prefilled anyway — while
-            # the last words before the model's turn are the person's own.
-            # The budget is enforced during compaction, and this block is added
-            # afterwards — so without a cap here it simply escapes it. Measured
-            # 2026-07-28 on the contract profile: compaction produced a 974-char
-            # payload well inside its 2,800 budget, then 1,727 characters of
-            # grounding arrived as a second system message and the turn went out
-            # at 3,013. The grounding is not optional — it is what stops her
-            # narrating a present she was never given — so it is fitted rather
-            # than dropped, keeping whole blocks in priority order.
-            grounding_message = {
-                "role": "system",
-                "content": self._fit_grounding_blocks(
-                    contract_blocks=contract_grounding_blocks,
-                    task_blocks=task_grounding_blocks,
-                    ambient_blocks=ambient_grounding_blocks,
-                    limit=self._grounding_char_budget(context, messages),
-                ),
-            }
-            final_user_index = next(
-                (
-                    index
-                    for index in range(len(messages) - 1, -1, -1)
-                    if isinstance(messages[index], dict)
-                    and str(messages[index].get("role", "")).strip().lower() == "user"
-                ),
-                None,
-            )
-            if final_user_index is None:
-                messages = [*messages, grounding_message]
-            else:
-                messages = [
-                    *messages[:final_user_index],
-                    grounding_message,
-                    *messages[final_user_index:],
-                ]
-        elif has_volatile_grounding:
-            # No message list to ride behind (single-prompt lanes): keep the old
-            # behaviour rather than dropping the grounding entirely.
-            system_prompt = "\n\n".join(
-                [
-                    str(system_prompt or ""),
-                    *contract_grounding_blocks,
-                    *task_grounding_blocks,
-                    *ambient_grounding_blocks,
-                ]
-            ).strip()
+        messages, system_prompt = _refresh_volatile_grounding(
+            ambient_grounding_blocks=ambient_grounding_blocks,
+            context=context,
+            contract_grounding_blocks=contract_grounding_blocks,
+            has_volatile_grounding=has_volatile_grounding,
+            messages=messages,
+            self=self,
+            system_prompt=system_prompt,
+            task_grounding_blocks=task_grounding_blocks,
+        )
         # Cache policy is not a caller preference.
         #
         # morpho_kwargs is populated from `context` early, then several

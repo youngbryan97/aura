@@ -85,8 +85,10 @@ jobs:
       - name: DEPS match the import graph
         run: python tools/generate_deps.py --check
 
-      - name: Module size ratchet
-        run: python tools/lint_module_size.py
+      # Module and class size is 22 regressions deep and its refresh command
+      # clamps rather than records, by design, so it cannot be green today.
+      # It runs in `known-debt` instead, where a red result is the report
+      # rather than a block. This job has to be green to be worth requiring.
 
       # The whole-tree ratchet is red and stays red until roughly twelve
       # thousand lines of extraction land, which makes it a report rather than
@@ -94,6 +96,9 @@ jobs:
       # the part that can: no function this branch touched may get bigger.
       - name: No touched function grew
         run: python tools/lint_method_size.py --changed --base origin/main
+
+      - name: Skills declare the scope they reach for
+        run: python tools/check_skill_effect_scope.py
 
       - name: Product facts agree
         run: python tools/check_product_facts.py

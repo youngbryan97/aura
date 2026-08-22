@@ -1402,6 +1402,66 @@ _REALTIME_SENSOR_SKILLS = frozenset(
 )
 
 
+def _skill_reaches_beyond_its_scope(skill_class: Any, declared: str) -> str:
+    """"" when the declaration covers the module, the refusal otherwise.
+
+    Measured from the module's source, so it costs one AST parse per skill at
+    registration and nothing afterwards. Mismatches that predate this check
+    are grandfathered in config/skill_effect_scope_baseline.json, which only
+    shrinks; a skill added after it must declare what it reaches for.
+    """
+    try:
+        from core.skills.effect_reach import measure_file, measure_source, violation
+
+        module_file = inspect.getsourcefile(skill_class)
+        if not module_file:
+            return ""
+        # A skill's helpers usually sit beside it at module level, so the
+        # module is the right unit — but only when the module IS a skill
+        # module. A class defined inside a test file or a fixture would
+        # otherwise inherit that file's imports, which is how a test double
+        # named `runtime_instance_skill` came to "reach" the file-write
+        # gateway that the test itself imports.
+        resolved = Path(module_file).resolve()
+        in_skill_tree = any(
+            part in {"skills"} for part in resolved.parts
+        ) and "tests" not in resolved.parts
+        if in_skill_tree:
+            reach = measure_file(resolved)
+        else:
+            try:
+                reach = measure_source(inspect.getsource(skill_class))
+            except (OSError, TypeError):
+                return ""
+        problem: str = violation(declared, reach)
+        if not problem:
+            return ""
+        key = f"{getattr(skill_class, 'name', '')}:{declared}"
+        if any(entry.startswith(key + "->") for entry in _grandfathered_overreach()):
+            return ""
+        return problem
+    except (ImportError, OSError, TypeError, ValueError) as exc:
+        # A check that cannot run has not cleared anything, but refusing every
+        # skill because the analyser broke would take the whole catalog down.
+        record_degradation(
+            "capability_engine.effect_scope",
+            exc,
+            severity="warning",
+            action="registered the skill without comparing its scope with its reach",
+        )
+        return ""
+
+
+@lru_cache(maxsize=1)
+def _grandfathered_overreach() -> frozenset[str]:
+    path = Path(__file__).resolve().parent.parent / "config" / "skill_effect_scope_baseline.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return frozenset()
+    return frozenset(str(entry) for entry in payload.get("grandfathered", ()))
+
+
 class CapabilityEngine(AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
 
@@ -3284,6 +3344,15 @@ class CapabilityEngine(AuraBaseModule):
         policy = resolve_skill_policy(skill_name, str(getattr(target, "effect_scope", "") or ""))
         if policy is None:
             raise ValueError(f"runtime skill {skill_name!r} requires a recognized effect_scope")
+        overreach = _skill_reaches_beyond_its_scope(skill_class, policy.effect_scope)
+        if overreach:
+            # The declaration is what the Will decides on and what the catalog
+            # advertises. A skill whose module reaches past it is not
+            # mislabelled, it is a false statement to the authority that
+            # authorises it — so it does not load.
+            raise ValueError(
+                f"runtime skill {skill_name!r} {overreach}"
+            )
 
         existing = self.skills.get(skill_name)
         if existing is not None and not replace:

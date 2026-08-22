@@ -127,3 +127,7 @@ tools/typecheck_changed.py
 
 # Adopted by tools/typecheck_changed.py
 tools/generate_deps.py
+
+# Adopted by tools/typecheck_changed.py
+core/skills/catalog_policy.py
+tools/ratchet_baseline.py

@@ -1,0 +1,17 @@
+{
+  "description": "Skills whose module reaches further than the effect_scope they declare. Every entry here spawns a process, and the analyser does not distinguish spawning a repo-literal program (`say`, `manim`, `pytest`) from spawning one a caller named \u2014 that distinction is made by tests/test_general_execution_surfaces_are_governed.py, which asks the Will for the second kind. Escalating all of them to privileged_mutation would make voice output need privileged authority, which is a behaviour regression dressed as a fix. No entry here is classified `observe`: a skill that promises no effect and has one is corrected, never grandfathered. This list may only SHRINK: tools/check_skill_effect_scope.py fails on any mismatch not listed here and refuses to add one.",
+  "count": 11,
+  "grandfathered": [
+    "branching_futures:sandboxed_compute->declares sandboxed_compute and reaches privileged_mutation",
+    "computer_use:foreground_desktop_control->declares foreground_desktop_control and reaches privileged_mutation",
+    "internal_sandbox:sandboxed_compute->declares sandboxed_compute and reaches privileged_mutation",
+    "manim_renderer:read_write_artifacts->declares read_write_artifacts and reaches privileged_mutation",
+    "memory_sync:state_mutation->declares state_mutation and reaches privileged_mutation",
+    "sovereign_network:external_io->declares external_io and reaches privileged_mutation",
+    "speak:external_io->declares external_io and reaches privileged_mutation",
+    "system_ops:foreground_desktop_control->declares foreground_desktop_control and reaches privileged_mutation",
+    "test_generator:read_write_artifacts->declares read_write_artifacts and reaches privileged_mutation",
+    "toggle_senses:state_mutation->declares state_mutation and reaches privileged_mutation",
+    "voice_output:external_io->declares external_io and reaches privileged_mutation"
+  ]
+}

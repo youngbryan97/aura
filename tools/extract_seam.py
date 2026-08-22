@@ -397,6 +397,17 @@ def extract(
     ):
         refusals.append("a generator body cannot be moved into a nested function")
 
+    # A helper whose name already exists in the module silently shadows the
+    # first one, and every call to the earlier name binds to the later
+    # definition. That happened: two seams in the same file were both cut as
+    # `_seed_the_sham_control`, and one call site started passing arguments
+    # the function it now resolved to does not take.
+    if _name_is_taken(source, name):
+        refusals.append(
+            f"{name!r} is already defined in this module; a second definition "
+            "would shadow the first and rebind its callers"
+        )
+
     if refusals:
         print(f"refusing to extract {start}-{end}:")
         for refusal in refusals:
@@ -509,6 +520,20 @@ def extract(
         apply=apply,
         nested=False,
     )
+
+
+def _name_is_taken(source: str, name: str) -> bool:
+    """Is this name already bound at module level, or as a method anywhere?"""
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == name:
+                return True
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    return True
+    return False
 
 
 def _module_level_insertion_point(source: str, function: str, fn: ast.AST) -> int:

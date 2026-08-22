@@ -238,7 +238,10 @@ def _budget_for_total_gb(host_total_gb: float) -> float:
         )
 
         if desktop_resource_guard_enabled():
-            return compute_process_rss_limit(int(host_total_gb * 1024**3)) / float(1024**3)
+            # Annotated because `--follow-imports=skip` hides
+            # desktop_boot_safety from mypy, so its return arrives as Any.
+            limit_bytes: float = compute_process_rss_limit(int(host_total_gb * 1024**3))
+            return limit_bytes / float(1024**3)
     except (ImportError, RuntimeError, TypeError, ValueError):
         pass
     fraction = max(0.30, min(0.95, float(_BUDGET_FRACTION_FLAG.value())))

@@ -314,3 +314,38 @@ def test_an_input_the_caller_may_not_hold_is_refused(tmp_path):
         module, "serve", 9, 11, "_read_contract", is_async=False, apply=False
     )
     assert code == 1
+
+
+COLLIDING_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def _already_here(*, value: Any) -> Any:
+    return value
+
+
+def serve(flag, value):
+    if flag:
+        value = value + 1
+        value = value * 2
+    return value
+'''
+
+
+def test_a_helper_name_already_in_the_module_is_refused(tmp_path):
+    """Two seams cut under one name shadow each other.
+
+    It happened: two blocks in `latent_cortex/engine.py` were both extracted
+    as `_seed_the_sham_control`, the second definition shadowed the first, and
+    a call site started passing arguments the function it now resolved to does
+    not take. Python does not complain; mypy did.
+    """
+    module = tmp_path / "sample_collision.py"
+    module.write_text(COLLIDING_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 11, 13, "_already_here", is_async=False, apply=False
+    )
+    assert code == 1

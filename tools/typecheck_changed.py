@@ -125,17 +125,38 @@ def errors_at(revision: str, relative: str) -> int | None:
 
 
 def adopt(passing: list[str]) -> None:
-    """Record the files that reached zero. The list only ever grows."""
+    """Record the files that reached zero, if the whole list still passes.
+
+    Clean on its own is not clean in company. `make typecheck` runs mypy over
+    every allowlisted file in ONE invocation, and with
+    `--follow-imports=skip` a module that another listed file imports resolves
+    differently there than it does alone — `core/brain/lane_admission.py` was
+    adopted as clean and then failed the combined run on a value that arrives
+    as Any only when its callee is visible. So the combined run is the test,
+    and an addition that breaks it is taken back out.
+    """
     if not passing:
         return
     existing = allowlisted()
     fresh = [p for p in passing if p not in existing]
     if not fresh:
         return
+
+    original = ALLOWLIST.read_text("utf-8") if ALLOWLIST.exists() else ""
     with ALLOWLIST.open("a", encoding="utf-8") as handle:
         handle.write("\n# Adopted by tools/typecheck_changed.py\n")
         for path in fresh:
             handle.write(f"{path}\n")
+
+    combined_ok, output = run_mypy(sorted(allowlisted()))
+    if not combined_ok:
+        ALLOWLIST.write_text(original, encoding="utf-8")
+        print(
+            f"not adopting {len(fresh)} file(s): clean alone, and the combined "
+            "run fails with them in. Fix the combined errors first:"
+        )
+        print("\n".join(f"   {line}" for line in output.splitlines()[:8]))
+        return
     print(f"adopted {len(fresh)} file(s) into {ALLOWLIST.name}")
 
 
