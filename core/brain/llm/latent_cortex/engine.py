@@ -2931,8 +2931,24 @@ class LatentCortexEngine:
             + mx.sum(new_probability * (new_log_probability - log_midpoint))
         )
         js_bits = float(js_nats / math.log(2.0))
-        if not math.isfinite(js_bits) or not -1e-7 <= js_bits <= 1.0 + 1e-7:
+        # The tolerance comes from the arithmetic, not from a round number.
+        #
+        # Jensen-Shannon divergence is in [0, 1] bits, and two IDENTICAL lanes
+        # should give exactly 0. In float32 over a vocabulary they give
+        # -1.7e-07: the sum accumulates one rounding error per term, and the
+        # result lands just past a hand-picked +/-1e-7 — so the guard refused
+        # the most ordinary case there is, two lanes that agree, and the
+        # episode fell back to a vanilla decode.
+        #
+        # A sum of n float32 terms carries an error bounded by about n * eps,
+        # which is what this computes. Outside that band the value is wrong and
+        # still raises; inside it, a divergence of -1.7e-07 is zero and is
+        # recorded as zero rather than as a fault.
+        width = int(old.shape[0])
+        tolerance = width * float(mx.finfo(mx.float32).eps) / math.log(2.0)
+        if not math.isfinite(js_bits) or not -tolerance <= js_bits <= 1.0 + tolerance:
             raise ValueError("heterogeneous JS divergence is invalid")
+        js_bits = min(1.0, max(0.0, js_bits))
         js_bits = min(1.0, max(0.0, js_bits))
         if policy == "select_old":
             policy_logits = old
@@ -2986,6 +3002,7 @@ class LatentCortexEngine:
         from core.brain.llm.recurrent_depth import (
             _restore_recurrent_caches,
             _snapshot_recurrent_caches,
+            isolate_cache_buffers,
         )
 
         if type(max_tokens) is not int or max_tokens <= 0:
@@ -3009,6 +3026,11 @@ class LatentCortexEngine:
             self.n_layers,
             snapshots,
         )
+        # One snapshot restored into two caches hands both the same buffer
+        # objects, so the lanes write into each other. See
+        # `isolate_cache_buffers`.
+        isolate_cache_buffers(old_cache, 0, self.n_layers)
+        isolate_cache_buffers(new_cache, 0, self.n_layers)
         kv_tree = getattr(self, "_episode_kv_state_tree", None)
         old_transaction = None
         new_transaction = None

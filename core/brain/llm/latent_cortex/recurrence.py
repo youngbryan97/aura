@@ -108,10 +108,33 @@ def _cache_matches_snapshot(cache, start: int, end: int, snapshots: list) -> boo
                 return False
             continue
         kind = snapshot[0]
-        if kind == "state":
+        if kind == "buffers":
+            # The shape `_snapshot_recurrent_caches` emits for a live MLX
+            # cache, and the one this function did not know about.
+            #
+            # "buffers" was added to the producer and to
+            # `_restore_recurrent_caches`, and to neither of the two functions
+            # that VERIFY a restore. So every boundary restore compared a
+            # real cache against a snapshot kind it did not recognise, fell to
+            # the `else: return False` below, and raised "exact KV boundary
+            # restoration failed" — the episode degraded to a vanilla decode
+            # and twenty-nine tests failed on a receipt key the fallback does
+            # not carry. A snapshot format is a contract between four
+            # functions; three of them had it.
+            if item.keys is not snapshot[1] or item.values is not snapshot[2]:
+                return False
+            if snapshot[3] is not None and not _snapshot_value_matches(
+                getattr(item, "meta_state", None), snapshot[3]
+            ):
+                return False
+            if not _cache_coordinates_match(item, snapshot[4]):
+                return False
+        elif kind == "state":
             if not _snapshot_value_matches(item.state, snapshot[1]):
                 return False
             if not _snapshot_value_matches(item.meta_state, snapshot[2]):
+                return False
+            if len(snapshot) > 3 and not _cache_coordinates_match(item, snapshot[3]):
                 return False
         elif kind == "attrs":
             if (
@@ -121,6 +144,19 @@ def _cache_matches_snapshot(cache, start: int, end: int, snapshots: list) -> boo
             ):
                 return False
         else:
+            return False
+    return True
+
+
+def _cache_coordinates_match(cache_entry: Any, coordinates: Any) -> bool:
+    """The same comparison `_verify_cache_coordinates` raises on."""
+    if not isinstance(coordinates, dict):
+        return True
+    for attr, expected in coordinates.items():
+        observed = getattr(cache_entry, attr, None)
+        left = observed.tolist() if observed is not None and hasattr(observed, "tolist") else observed
+        right = expected.tolist() if expected is not None and hasattr(expected, "tolist") else expected
+        if left != right:
             return False
     return True
 

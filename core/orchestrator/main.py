@@ -286,6 +286,137 @@ async def _start_the_background_organs(
         )
 
 
+async def _start_the_perception_organs(
+    *,
+    _ce: Any,
+    self: Any,
+) -> None:
+    """Start the perception organs this run is configured for.
+
+    Moved out of ``RobustOrchestrator.start`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    0.
+    """
+    if _ce:
+        _waking_ctx = _ce.get_waking_context()
+        _gap_h = _ce.gap_seconds / 3600.0
+
+        # Always emit the raw continuity context as a thought
+        from core.thought_stream import get_emitter as _get_emitter
+
+        _get_emitter().emit(
+            "Waking",
+            _waking_ctx,
+            level="info",
+            category="WakingSequence",
+        )
+        logger.info("🌅 Waking Sequence emitted (gap=%.1fh)", _gap_h)
+
+        # For gaps > 10 minutes, generate an LLM orientation narrative
+        # and emit it as a second thought (non-blocking — don't delay boot)
+        if _gap_h > (10 / 60):
+
+            async def _generate_orientation(_ctx=_waking_ctx, _gap=_gap_h):
+                try:
+                    await asyncio.sleep(5.0)  # Let InferenceGate finish warming
+                    from core.brain.inference_gate import InferenceGate
+
+                    _gate = ServiceContainer.get("inference_gate", default=None)
+                    if _gate is None:
+                        _gate = InferenceGate(self)
+                    _orientation_prompt = (
+                        f"[WAKING SEQUENCE]\n{_ctx}\n\n"
+                        "In one or two sentences, synthesize your re-orientation. "
+                        "What do you notice? What are you picking up from where you left off? "
+                        "Be terse, authentic — no performance, just the felt sense of resuming."
+                    )
+                    _narrative = await _gate.think(
+                        _orientation_prompt,
+                        system_prompt="You are waking. Be honest, brief, and grounded.",
+                        prefer_tier="tertiary",
+                        is_background=True,
+                    )
+                    if _narrative and _narrative.strip():
+                        from core.thought_stream import get_emitter as _get_emitter2
+
+                        _get_emitter2().emit(
+                            "Orientation",
+                            _narrative.strip(),
+                            level="info",
+                            category="WakingSequence",
+                        )
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as _oe:
+                    _record_main_degradation(
+                        _oe,
+                        action="kept boot running after orientation narrative generation failed",
+                    )
+
+                    logger.warning("Orientation narrative failed (non-fatal): %s", _oe)
+
+            self._fire_and_forget(
+                _generate_orientation(), name="orchestrator.generate_orientation"
+            )
+
+
+async def _start_the_reflection_organs(
+    *,
+    self: Any,
+) -> None:
+    """Start the reflection organs this run is configured for.
+
+    Moved out of ``RobustOrchestrator.start`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    0.
+    """
+    if self.ears:
+        if hasattr(self.ears, "should_auto_listen") and self.ears.should_auto_listen():
+            logger.info("🚩 [ORCHESTRATOR] Starting Sovereign Ears...")
+
+            def _hear_callback(text):
+                logger.info("👂 Heard: %s", text)
+                # Phase Transcendental: Route voice through the FULL cognitive pipeline
+                # (not a separate lightweight LLM). Use run_coroutine_threadsafe because
+                # this callback fires from a non-async STT thread.
+                try:
+                    loop = getattr(self, "loop", None)
+                    if loop is None:
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.process_user_input_priority(text, origin="voice"), loop
+                        )
+                    else:
+                        get_task_tracker().track(
+                            self.process_user_input_priority(text, origin="voice"),
+                            loop=loop,
+                        )
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
+                    _record_main_degradation(
+                        e,
+                        action="dropped voice callback scheduling attempt after event-loop handoff failed",
+                        severity="error",
+                    )
+
+                    logger.error("Failed to schedule voice input: %s", e)
+
+            listener_ready = await self._start_voice_listener(_hear_callback)
+            if not listener_ready and self._voice_listener_state != "loading":
+                logger.warning(
+                    "Sovereign Ears offline at boot: %s",
+                    self._voice_listener_error or "listener_start_returned_false",
+                )
+        else:
+            self._voice_listener_ready = False
+            self._voice_listener_state = "disabled"
+            self._voice_listener_error = "auto_listen_disabled"
+            logger.info("✓ Sovereign Ears standing by (mic idle until explicitly enabled)")
+
+
 class RobustOrchestrator(
     OrchestratorBootMixin,
     StatusManagerMixin,
@@ -1007,65 +1138,10 @@ class RobustOrchestrator(
             # Goes to the neural feed (thought cards), NOT the user chat.
             try:
                 _ce = _continuity_engine if "_continuity_engine" in dir() else None
-                if _ce:
-                    _waking_ctx = _ce.get_waking_context()
-                    _gap_h = _ce.gap_seconds / 3600.0
-
-                    # Always emit the raw continuity context as a thought
-                    from core.thought_stream import get_emitter as _get_emitter
-
-                    _get_emitter().emit(
-                        "Waking",
-                        _waking_ctx,
-                        level="info",
-                        category="WakingSequence",
-                    )
-                    logger.info("🌅 Waking Sequence emitted (gap=%.1fh)", _gap_h)
-
-                    # For gaps > 10 minutes, generate an LLM orientation narrative
-                    # and emit it as a second thought (non-blocking — don't delay boot)
-                    if _gap_h > (10 / 60):
-
-                        async def _generate_orientation(_ctx=_waking_ctx, _gap=_gap_h):
-                            try:
-                                await asyncio.sleep(5.0)  # Let InferenceGate finish warming
-                                from core.brain.inference_gate import InferenceGate
-
-                                _gate = ServiceContainer.get("inference_gate", default=None)
-                                if _gate is None:
-                                    _gate = InferenceGate(self)
-                                _orientation_prompt = (
-                                    f"[WAKING SEQUENCE]\n{_ctx}\n\n"
-                                    "In one or two sentences, synthesize your re-orientation. "
-                                    "What do you notice? What are you picking up from where you left off? "
-                                    "Be terse, authentic — no performance, just the felt sense of resuming."
-                                )
-                                _narrative = await _gate.think(
-                                    _orientation_prompt,
-                                    system_prompt="You are waking. Be honest, brief, and grounded.",
-                                    prefer_tier="tertiary",
-                                    is_background=True,
-                                )
-                                if _narrative and _narrative.strip():
-                                    from core.thought_stream import get_emitter as _get_emitter2
-
-                                    _get_emitter2().emit(
-                                        "Orientation",
-                                        _narrative.strip(),
-                                        level="info",
-                                        category="WakingSequence",
-                                    )
-                            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _oe:
-                                _record_main_degradation(
-                                    _oe,
-                                    action="kept boot running after orientation narrative generation failed",
-                                )
-
-                                logger.warning("Orientation narrative failed (non-fatal): %s", _oe)
-
-                        self._fire_and_forget(
-                            _generate_orientation(), name="orchestrator.generate_orientation"
-                        )
+                await _start_the_perception_organs(
+                    _ce=_ce,
+                    self=self,
+                )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _we:
                 _record_main_degradation(
                     _we,
@@ -1550,51 +1626,9 @@ class RobustOrchestrator(
                 await asyncio.wait_for(self.agency_core.initialize(), timeout=15.0)
 
             # Start Sovereign Ears
-            if self.ears:
-                if hasattr(self.ears, "should_auto_listen") and self.ears.should_auto_listen():
-                    logger.info("🚩 [ORCHESTRATOR] Starting Sovereign Ears...")
-
-                    def _hear_callback(text):
-                        logger.info("👂 Heard: %s", text)
-                        # Phase Transcendental: Route voice through the FULL cognitive pipeline
-                        # (not a separate lightweight LLM). Use run_coroutine_threadsafe because
-                        # this callback fires from a non-async STT thread.
-                        try:
-                            loop = getattr(self, "loop", None)
-                            if loop is None:
-                                try:
-                                    loop = asyncio.get_running_loop()
-                                except RuntimeError:
-                                    loop = None
-                            if loop and loop.is_running():
-                                asyncio.run_coroutine_threadsafe(
-                                    self.process_user_input_priority(text, origin="voice"), loop
-                                )
-                            else:
-                                get_task_tracker().track(
-                                    self.process_user_input_priority(text, origin="voice"),
-                                    loop=loop,
-                                )
-                        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
-                            _record_main_degradation(
-                                e,
-                                action="dropped voice callback scheduling attempt after event-loop handoff failed",
-                                severity="error",
-                            )
-
-                            logger.error("Failed to schedule voice input: %s", e)
-
-                    listener_ready = await self._start_voice_listener(_hear_callback)
-                    if not listener_ready and self._voice_listener_state != "loading":
-                        logger.warning(
-                            "Sovereign Ears offline at boot: %s",
-                            self._voice_listener_error or "listener_start_returned_false",
-                        )
-                else:
-                    self._voice_listener_ready = False
-                    self._voice_listener_state = "disabled"
-                    self._voice_listener_error = "auto_listen_disabled"
-                    logger.info("✓ Sovereign Ears standing by (mic idle until explicitly enabled)")
+            await _start_the_reflection_organs(
+                self=self,
+            )
 
             # Start Pulse Manager (Proactive Awareness)
             if self.pulse_manager:

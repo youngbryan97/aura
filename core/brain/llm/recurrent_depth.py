@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
@@ -358,6 +359,42 @@ def _snapshot_recurrent_caches(cache, start: int, end: int) -> list:
             "mlx_lm."
         )
     return snapshots
+
+
+def isolate_cache_buffers(cache: Any, start: int, end: int) -> None:
+    """Give this cache its own K/V storage, so writing it writes nothing else.
+
+    ``_restore_recurrent_caches`` assigns the snapshot's arrays straight onto
+    the cache — ``c.keys = snap[1]`` — which is what preserves the spare
+    allocation and is exactly right for the rewind it was written for, where
+    one cache goes back to its own earlier state.
+
+    Restoring ONE snapshot into TWO caches is a different thing, and it
+    aliases them: both lanes end up holding the same buffer objects, so the
+    "cache-isolated" lanes in the heterogeneous dual-lane decode wrote into
+    each other. Their persisted logits differed by 34.9 and their bridged
+    logits were byte-identical, which reported a Jensen-Shannon divergence of
+    exactly zero — a measurement that could not vary, presented as a
+    measurement.
+    """
+    import mlx.core as mx
+
+    for index in range(start, end):
+        entry = cache[index]
+        if entry is None:
+            continue
+        for attribute in ("keys", "values"):
+            value = getattr(entry, attribute, None)
+            if value is None:
+                continue
+            setattr(entry, attribute, mx.array(value))
+        mx.eval(
+            *[
+                getattr(entry, attribute)
+                for attribute in ("keys", "values")
+                if getattr(entry, attribute, None) is not None
+            ]
+        )
 
 
 def _restore_recurrent_caches(cache, start: int, end: int, snapshots: list):

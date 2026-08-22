@@ -152,15 +152,37 @@ def _snapshot_commitment(snapshots: list, *, salt: bytes) -> str:
             continue
         if not isinstance(snapshot, tuple) or not snapshot:
             raise KVStateTreeError("cache snapshot entry is malformed")
+        # The shapes `_snapshot_recurrent_caches` actually emits, which is not
+        # what this function was written against.
+        #
+        # It accepted ("state", state, metadata) and ("attrs", keys, values,
+        # offset) — a three- and a four-tuple. The producer emits
+        # ("buffers", keys, values, meta_state, coordinates) for a live MLX
+        # cache and ("state", state, meta_state, coordinates) for a composite
+        # one, and has since coordinates were added. So EVERY commitment
+        # raised "cache snapshot kind is unsupported", the episode degraded to
+        # a vanilla decode with an honest fallback receipt, and twenty-nine
+        # tests in tests/test_latent_cortex_engine.py failed on a receipt key
+        # the fallback does not carry. Two definitions of one tuple,
+        # disagreeing, on the path that proves the rewind happened.
+        #
+        # The three-attribute "attrs" form is still read because
+        # `_restore_recurrent_caches` still reads it.
         kind = snapshot[0]
-        if kind == "state" and len(snapshot) == 3:
+        if kind == "buffers" and len(snapshot) == 5:
+            state_value = (snapshot[1], snapshot[2])
+            metadata_value = (snapshot[3], snapshot[4])
+        elif kind == "state" and len(snapshot) in (3, 4):
             state_value = snapshot[1]
-            metadata_value = snapshot[2]
+            metadata_value = snapshot[2] if len(snapshot) == 3 else (snapshot[2], snapshot[3])
         elif kind == "attrs" and len(snapshot) == 4:
             state_value = (snapshot[1], snapshot[2])
             metadata_value = snapshot[3]
         else:
-            raise KVStateTreeError("cache snapshot kind is unsupported")
+            raise KVStateTreeError(
+                f"cache snapshot kind is unsupported: {kind!r} with "
+                f"{len(snapshot)} field(s)"
+            )
         rows.append(
             {
                 "kind": kind,
@@ -265,7 +287,14 @@ class KVStateTree:
         self._nodes_by_sha256: dict[str, _NodeRuntime] = {}
         self._node_offsets_by_sha256: dict[str, list[int]] = {}
         self._events: list[dict[str, Any]] = []
-        self._rejected_child_commitments: set[str] = set()
+        # (parent node, branch index, child content hash). A content hash is
+        # not an identity: a deterministic decode reaches the same cache
+        # contents on every branch, so keeping only the hash made every
+        # content-identical boundary look like the resurrection of a pruned
+        # one and degraded the episode to a vanilla decode. What must not
+        # happen is a mutation REJECTED UNDER A PARENT being handed back under
+        # that same parent, and that is a triple.
+        self._rejected_child_commitments: set[tuple[str, int | None, str]] = set()
         self._restore_failures = 0
 
         root = self._capture_node(
@@ -332,7 +361,31 @@ class KVStateTree:
             else _snapshot_recurrent_caches(cache, 0, self.n_layers)
         )
         cache_sha256 = _snapshot_commitment(captured, salt=self._salt)
-        if cache_sha256 in self._rejected_child_commitments:
+        # Reuse means handing back a snapshot that was rejected, not reaching
+        # the same content again.
+        #
+        # A commitment is a content hash and a hash is not an identity. When
+        # `snapshots` is None the cache is captured live, so identical content
+        # means the model produced it again — which happens the moment two
+        # branches decode the same tokens, and is the whole point of a
+        # deterministic tie. Refusing that made every content-identical
+        # boundary look like the resurrection of a pruned one, and the episode
+        # degraded to a vanilla decode.
+        #
+        # Replay is what is worth refusing, and replay is exactly
+        # `snapshots is not None` — a stored snapshot handed back. The lineage
+        # is checked with it, so the refusal is "this mutation, rejected under
+        # this parent on this branch, is being handed back", which is a
+        # statement about an event rather than about bytes.
+        #
+        # The stronger protection is elsewhere and unchanged: rejecting a
+        # transaction restores the parent and verifies its commitment, so a
+        # rejected child's state cannot survive in the cache at all.
+        if (
+            snapshots is not None
+            and (parent_sha256, branch_index, cache_sha256)
+            in self._rejected_child_commitments
+        ):
             raise KVStateTreeError("a rejected KV child was reused as a live boundary")
         offsets = _cache_offsets(cache, 0, self.n_layers)
         payload = _node_payload(
@@ -444,9 +497,24 @@ class KVStateTree:
             raise KVStateTreeError(
                 "speculative KV transaction did not start at its declared parent"
             )
-        parent_commitment = parent.receipt["cache_sha256"]
-        if parent_commitment in self._rejected_child_commitments:
+        rejected_here = (
+            parent.receipt.get("parent_sha256", ""),
+            parent.receipt.get("branch_index"),
+            parent.receipt["cache_sha256"],
+        )
+        if rejected_here in self._rejected_child_commitments:
             raise KVStateTreeError("a rejected KV child became a transaction parent")
+        # Opening a fresh transaction on this parent and branch retires the
+        # earlier rejection for it. The rejection means "that mutation was
+        # discarded and its state must not be handed back"; it cannot mean
+        # "this branch may never reach that content again", because a
+        # deterministic decode reaches it every time the branch is re-run, and
+        # the re-run is a new mutation the transaction will judge on its own.
+        self._rejected_child_commitments = {
+            entry
+            for entry in self._rejected_child_commitments
+            if entry[:2] != (parent_sha256, branch_index)
+        }
         return KVMutationTransaction(
             self,
             cache=cache,
@@ -543,7 +611,13 @@ class KVStateTree:
         if transaction._mutation_observed:
             if transaction._child_cache_sha256 == parent.receipt["cache_sha256"]:
                 raise KVStateTreeError("mutated KV child aliases its parent commitment")
-            self._rejected_child_commitments.add(transaction._child_cache_sha256)
+            self._rejected_child_commitments.add(
+                (
+                    transaction.parent_sha256,
+                    transaction.branch_index,
+                    transaction._child_cache_sha256,
+                )
+            )
         payload = self._event_payload(
             transaction,
             disposition=("isolated_discarded" if isolated else "rejected_pruned"),
@@ -806,7 +880,11 @@ def validate_kv_state_tree_receipt(
         "rejected_child_reused",
         "event_sha256",
     }
-    rejected_children: set[str] = set()
+    # (parent node, branch index, child content hash). Keyed by lineage, not
+    # by content alone: a deterministic decode reaches the same cache contents
+    # every time a branch is re-run, so a bare hash set marked every
+    # content-identical live node as the resurrection of a pruned one.
+    rejected_children: set[tuple[str, int | None, str]] = set()
     committed_results: set[str] = set()
     rejected_count = 0
     committed_count = 0
@@ -874,7 +952,9 @@ def validate_kv_state_tree_receipt(
             ):
                 raise ValueError("rejected KV child was not exactly pruned")
             if raw["mutation_observed"]:
-                rejected_children.add(raw["child_cache_sha256"])
+                rejected_children.add(
+                    (parent_sha256, raw["branch_index"], raw["child_cache_sha256"])
+                )
         elif disposition == "committed":
             committed_count += 1
             result_node = raw["result_node_sha256"]
@@ -900,7 +980,16 @@ def validate_kv_state_tree_receipt(
         if _canonical_sha256(payload) != raw["event_sha256"]:
             raise ValueError("KV state-tree event hash differs")
     for node in nodes:
-        if node["cache_sha256"] in rejected_children:
+        # A node that a committed transaction produced is not a resurrection,
+        # whatever it hashes to. Re-running a branch after a rejection reaches
+        # the same parent, the same branch index and — with a deterministic
+        # decode — the same contents, so lineage alone still cannot tell the
+        # retry from the reuse. The commit event can: a resurrection is a node
+        # no transaction committed, wearing a pruned child's lineage.
+        if node["node_sha256"] in committed_results:
+            continue
+        lineage = (node["parent_sha256"], node["branch_index"], node["cache_sha256"])
+        if lineage in rejected_children:
             raise ValueError("rejected KV child was reused by a live node")
     final_nodes = {node["node_sha256"] for node in nodes if node["final"]}
     if not final_nodes.issubset(committed_results):

@@ -157,6 +157,74 @@ def _screen_text_unavailable_is_accessibility(text: str) -> bool:
     return "accessibility" in lowered or "ui unresponsive" in lowered
 
 
+def _verify_the_effect_landed(
+    *,
+    browser_surface: Any,
+    context: Any,
+    effect_verified: Any,
+    is_paste: Any,
+    screen_verifiable: Any,
+    self: Any,
+) -> tuple[Any, Any, Any]:
+    """Check that the action's effect actually landed on the host.
+
+    Moved out of ``ComputerUseSkill._execute_action`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 6 name(s) from the turn and hands back
+    3.
+    """
+    if effect_verified:
+        ok = True
+        verification = (
+            "Focused element changed."
+            if browser_surface
+            else "State shifted."
+        )
+    elif not screen_verifiable:
+        if browser_surface:
+            inherited_editor_focus = bool(
+                context.get("desktop_task_editor_focus_verified")
+            ) and self._is_resolved_web_editor_url(
+                str(context.get("desktop_task_verified_editor_url") or "")
+            )
+            if (
+                is_paste
+                and bool(context.get("desktop_task_requires_editable_focus"))
+                and inherited_editor_focus
+            ):
+                ok = True
+                effect_verified = True
+                verification = (
+                    "Paste dispatched into a previously verified browser editor; "
+                    "focused-control read-back was unavailable after dispatch."
+                )
+            else:
+                ok = False
+                effect_verified = False
+                verification = (
+                    "Hotkey dispatched, but browser focused-control verification "
+                    "was unavailable; refusing to count the shortcut as a document edit."
+                )
+        else:
+            # Native apps such as Notes often do not expose text
+            # through the screen-reader path. For those surfaces, a
+            # clean System Events dispatch plus a verified foreground
+            # app is the bounded effect evidence.
+            ok = True
+            effect_verified = True
+            verification = (
+                "Keystroke dispatched and accepted by the OS; on-screen "
+                "read-back was unavailable, so the effect is inferred from "
+                "the clean dispatch."
+            )
+    else:
+        ok = False
+        verification = (
+            "Hotkey dispatched but no visible state shift was verified."
+        )
+    return effect_verified, ok, verification
+
+
 class ComputerUseSkill(BaseSkill):
     name = "computer_use"
     description = (
@@ -3834,55 +3902,14 @@ end tell
                     and _screen_text_unavailable(post_state)
                 )
                 effect_verified = screen_verifiable and post_state != pre_state
-                if effect_verified:
-                    ok = True
-                    verification = (
-                        "Focused element changed."
-                        if browser_surface
-                        else "State shifted."
-                    )
-                elif not screen_verifiable:
-                    if browser_surface:
-                        inherited_editor_focus = bool(
-                            context.get("desktop_task_editor_focus_verified")
-                        ) and self._is_resolved_web_editor_url(
-                            str(context.get("desktop_task_verified_editor_url") or "")
-                        )
-                        if (
-                            is_paste
-                            and bool(context.get("desktop_task_requires_editable_focus"))
-                            and inherited_editor_focus
-                        ):
-                            ok = True
-                            effect_verified = True
-                            verification = (
-                                "Paste dispatched into a previously verified browser editor; "
-                                "focused-control read-back was unavailable after dispatch."
-                            )
-                        else:
-                            ok = False
-                            effect_verified = False
-                            verification = (
-                                "Hotkey dispatched, but browser focused-control verification "
-                                "was unavailable; refusing to count the shortcut as a document edit."
-                            )
-                    else:
-                        # Native apps such as Notes often do not expose text
-                        # through the screen-reader path. For those surfaces, a
-                        # clean System Events dispatch plus a verified foreground
-                        # app is the bounded effect evidence.
-                        ok = True
-                        effect_verified = True
-                        verification = (
-                            "Keystroke dispatched and accepted by the OS; on-screen "
-                            "read-back was unavailable, so the effect is inferred from "
-                            "the clean dispatch."
-                        )
-                else:
-                    ok = False
-                    verification = (
-                        "Hotkey dispatched but no visible state shift was verified."
-                    )
+                effect_verified, ok, verification = _verify_the_effect_landed(
+                    browser_surface=browser_surface,
+                    context=context,
+                    effect_verified=effect_verified,
+                    is_paste=is_paste,
+                    screen_verifiable=screen_verifiable,
+                    self=self,
+                )
                 clipboard_verification: dict[str, Any] = {}
                 if is_paste and expected_clipboard_sha256:
                     observed_clipboard = await asyncio.to_thread(self._get_clipboard)

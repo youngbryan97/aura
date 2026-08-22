@@ -190,6 +190,25 @@ without evidence to back a claim yet.
   touches must pass strict mypy and is adopted into the allowlist when it does.
 
 ### Fixed
+- **Five linked defects that made the latent cortex fall back on every episode**
+  (`kv_state_tree.py`, `recurrence.py`, `recurrent_depth.py`, `engine.py`) —
+  twenty-nine tests in `tests/test_latent_cortex_engine.py` were failing.
+  `_snapshot_recurrent_caches` emits a `("buffers", keys, values, meta_state,
+  coordinates)` shape for a live MLX cache, and neither of the two functions
+  that VERIFY a snapshot knew about it: `_snapshot_commitment` raised "cache
+  snapshot kind is unsupported" on every commitment and
+  `_cache_matches_snapshot` returned False on every restore. A snapshot format
+  is a contract between four functions and three of them had it. Behind that,
+  the rejected-child guards keyed on a content hash, which a deterministic
+  decode reaches again on every retry, so a re-run branch looked like the
+  resurrection of a pruned one; they key on lineage now, and a node a
+  transaction committed is never a resurrection whatever it hashes to. The
+  Jensen-Shannon bound allowed ±1e-7 where two identical float32 lanes give
+  -1.7e-07, so the most ordinary case there is — two lanes that agree — was
+  rejected as invalid; the tolerance comes from the width and the float
+  epsilon now. And the two "cache-isolated" lanes shared their K/V buffers,
+  because one snapshot restored into two caches assigns both the same arrays:
+  their divergence was structurally zero, a measurement that could not vary.
 - **Path containment in the shell skill** — `rm` compared paths with
   `startswith`, which admits `/allowed/project-evil` for a root of
   `/allowed/project`. The workspace jail had the same defect in its
