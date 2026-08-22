@@ -14066,6 +14066,75 @@ def _recovered_search_result(query: str, exc: BaseException) -> dict[str, Any]:
     }
 
 
+async def _collect_named_url_evidence(user_message: str) -> dict[str, Any] | None:
+    """Read the document the person addressed, when they named one.
+
+    LIVE, 2026-08-22: "I'm reading <a PubMed Central URL> ... what was the
+    primary endpoint" came back as "I won't have direct access to the paper's
+    content", having fetched nothing. The grounding taken was "file you were
+    asked about" — the address was handed to the filesystem reader.
+
+    The fetch exists; it is wired into the kernel pipeline, and chat is served
+    by the legacy one. On this lane a named URL only suppressed the search, so
+    naming an address bought neither a search nor a read.
+    """
+    try:
+        from core.intent.opaque_spans import first_named_url
+
+        url = first_named_url(user_message)
+    except _CHAT_RECOVERABLE_ERRORS:
+        url = ""
+    if not url:
+        return None
+    try:
+        result = await asyncio.wait_for(
+            _chat_capability_inventory._execute_governed_live_skill(
+                "http_request",
+                {"url": url, "method": "GET"},
+                objective=user_message,
+                extra_context={
+                    "route": "chat.named_url_evidence",
+                    "origin": "desktop_ui",
+                    "source": "desktop_ui",
+                    "effect_scope": "read_only",
+                    "risk_level": "low",
+                    "foreground_request": True,
+                    "user_requested_action": True,
+                },
+            ),
+            timeout=35.0,
+        )
+    except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        record_degradation(
+            "chat.named_url_evidence",
+            exc,
+            severity="warning",
+            action="could not read the address the person named",
+            enforce_failure_policy=False,
+        )
+        return {"ok": False, "url": url, "error": str(exc) or exc.__class__.__name__}
+    if not isinstance(result, dict) or not result.get("ok"):
+        return {
+            "ok": False,
+            "url": url,
+            "error": str((result or {}).get("error") or "the address could not be read"),
+        }
+    payload = result.get("result") if isinstance(result.get("result"), dict) else result
+    body = str(
+        payload.get("text") or payload.get("body") or payload.get("content") or ""
+    ).strip()
+    if not body:
+        return {"ok": False, "url": url, "error": "the address returned nothing readable"}
+    logger.info("🌐 Read the address the person named: %s (%d chars).", url[:90], len(body))
+    return {
+        "ok": True,
+        "url": url,
+        "title": str(payload.get("title") or "").strip(),
+        "text": body[:20000],
+        "chars": len(body),
+    }
+
+
 async def _collect_desktop_required_search_evidence(
     user_message: str,
     *,
@@ -20881,6 +20950,29 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "Use this canonical memory/state result as evidence, but produce the visible answer "
                 "through CognitiveEngine in Aura's normal desktop voice."
             )
+        # The address the person named, read before anything else is decided.
+        named_url_evidence = await _collect_named_url_evidence(_semantic_user_message)
+        if named_url_evidence and named_url_evidence.get("ok"):
+            effective_user_message = (
+                f"{effective_user_message}\n\n"
+                "[PAGE THE USER NAMED]\n"
+                f"url: {named_url_evidence.get('url')}\n"
+                f"title: {named_url_evidence.get('title')}\n"
+                f"{named_url_evidence.get('text')}\n"
+                "[END PAGE THE USER NAMED]\n"
+                "This is the document they addressed. Answer from it, and say so "
+                "plainly if it does not contain what they asked for."
+            )
+        elif named_url_evidence:
+            effective_user_message = (
+                f"{effective_user_message}\n\n"
+                "[PAGE THE USER NAMED]\n"
+                f"url: {named_url_evidence.get('url')}\n"
+                f"could not be read: {named_url_evidence.get('error')}\n"
+                "[END PAGE THE USER NAMED]\n"
+                "Say that the address could not be read, and what was tried."
+            )
+
         desktop_required_search_evidence = None
         if (
             not is_benchmark
