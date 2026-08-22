@@ -17,24 +17,24 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
 import time
 from collections.abc import Iterable
 from typing import Any
 
 from core.health.read_model import HealthReadModelConfig, HealthSnapshotReadModel
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.IntegrityAudit")
 
 _last_run = 0.0
 _last_report: dict[str, Any] | None = None
-_lock = threading.Lock()
+_lock = checked_lock("core.runtime.integrity_audit")
 _PROCESS_STARTED_AT: float | None = None
-_SESSION_LOCK = threading.Lock()
+_SESSION_LOCK = checked_lock("core.runtime.integrity_audit.1")
 _SESSION_STARTED_AT: float | None = None
 _SESSION_ACTIVE = False
 _SESSION_GENERATION = 0
-_INCIDENT_LOCK = threading.Lock()
+_INCIDENT_LOCK = checked_lock("core.runtime.integrity_audit.2")
 _ACTIVE_CONCERN_COUNTS: dict[str, int] = {}
 _LAST_WARNED_CONCERN_COUNTS: dict[str, int] = {}
 

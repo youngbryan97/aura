@@ -64,10 +64,11 @@ put through the same governance an unchunked decision would face.
 from __future__ import annotations
 
 import math
-import threading
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Feature",
@@ -232,7 +233,7 @@ class ProceduralGeneralizer:
         max_episodes: int = 4096,
         max_rules: int = 512,
     ) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.cognition.procedural_generalization")
         self._criteria = criteria or PromotionCriteria()
         self._episodes: list[DecisionEpisode] = []
         self._rules: dict[tuple[frozenset[Feature], str], GeneralizedRule] = {}
@@ -405,7 +406,7 @@ class ProceduralGeneralizer:
 
 
 _generalizer: ProceduralGeneralizer | None = None
-_generalizer_lock = threading.Lock()
+_generalizer_lock = checked_lock("core.cognition.procedural_generalization.1")
 
 
 def get_procedural_generalizer() -> ProceduralGeneralizer:

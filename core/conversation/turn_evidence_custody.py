@@ -35,6 +35,7 @@ from core.conversation.session_scope import (
     normalize_conversation_id,
     normalize_conversation_turn_id,
 )
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "EvidenceParticipantLease",
@@ -84,7 +85,7 @@ class TurnEvidenceCustody:
         self.session_id = session
         self.turn_id = turn
         self.started_at = time.time()
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.conversation.turn_evidence_custody", reentrant=True)
         self._owner = _execution_identity()
         self._participants: set[tuple[int, int]] = {self._owner}
         self._leases: dict[str, EvidenceParticipantLease] = {}

@@ -197,3 +197,120 @@ def test_a_range_that_starts_inside_a_statement_is_refused(tmp_path):
         module, "serve", 7, 11, "_partial", is_async=False, apply=False
     )
     assert code == 2
+
+
+# ─────────────────────────────────────────────── blocks that return early
+
+EARLY_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag, text, status):
+    text = text.strip()
+    if flag:
+        status = "refused"
+        return status, text
+    text = text.upper()
+    status = "served"
+    return status, text
+'''
+
+
+def test_a_block_that_returns_early_is_moved_into_a_nested_function(tmp_path):
+    """The transform that unlocks the rest of the debt.
+
+    A block that returns out of its middle cannot become the tail of a
+    function: the caller has to tell "the block returned this" from "the block
+    finished". A nested function makes its own `return` the signal and leaves
+    the block text untouched.
+    """
+    module = tmp_path / "sample_early.py"
+    module.write_text(EARLY_SAMPLE, encoding="utf-8")
+
+    before = _load(module, "_aura_early_before")
+    expected = [
+        before.serve(True, " ab ", "start"),
+        before.serve(False, " ab ", "start"),
+    ]
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 8, 10, "_refusal", is_async=False, apply=True
+    )
+    assert code == 0, "the tool refused a cut it can make safely"
+
+    del sys.modules["_aura_early_before"]
+    after = _load(module, "_aura_early_after")
+    assert [
+        after.serve(True, " ab ", "start"),
+        after.serve(False, " ab ", "start"),
+    ] == expected
+
+    body = module.read_text("utf-8")
+    assert "_SEAM_FELL_THROUGH = object()" in body
+    assert "nonlocal" in body
+
+
+ESCAPING_EARLY_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag):
+    if flag:
+        note = "seen"
+        return note
+    note = "unseen"
+    return note
+'''
+
+
+def test_an_early_return_whose_escape_is_not_an_input_is_refused(tmp_path):
+    """`note` leaves the block without entering it.
+
+    On the early path the helper would hand back a name it never set, which is
+    the class of defect that put UnboundLocalError on the serving path.
+    """
+    module = tmp_path / "sample_escaping.py"
+    module.write_text(ESCAPING_EARLY_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 7, 9, "_note", is_async=False, apply=False
+    )
+    assert code == 1
+
+
+CONDITIONAL_INPUT_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag):
+    if flag:
+        contract = {"ok": True}
+    if flag:
+        note = contract["ok"]
+        return note
+    return None
+'''
+
+
+def test_an_input_the_caller_may_not_hold_is_refused(tmp_path):
+    """The second regression, as a test.
+
+    `contract` is assigned inside one guard and read inside the next. The
+    block's read was safe because the guard was the same; as an argument it is
+    evaluated on every call, including the one that took neither branch. The
+    original raised nothing and the extracted version raised
+    UnboundLocalError before the helper body ran.
+    """
+    module = tmp_path / "sample_conditional_input.py"
+    module.write_text(CONDITIONAL_INPUT_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 9, 11, "_read_contract", is_async=False, apply=False
+    )
+    assert code == 1

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import re
-import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.lockdep import checked_lock
 
 _MATCHER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
@@ -81,7 +81,7 @@ class LanguageSubstrateStore:
         return target
 
 
-_STORE_LOCK = threading.Lock()
+_STORE_LOCK = checked_lock("core.language.substrate_store")
 _STORE: LanguageSubstrateStore | None = None
 
 

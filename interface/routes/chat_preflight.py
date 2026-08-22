@@ -62,6 +62,7 @@ from interface.routes.chat_common import (
     _INTERNAL_SURFACE_CONTEXT,
     _UNSET,
 )
+from core.runtime.lockdep import checked_lock
 
 
 _EXPRESSIVE_AFFORDANCES_FLAG = declare(
@@ -277,7 +278,7 @@ class _DurableConversationWrite:
 
 _DURABLE_CONVERSATION_WRITES: dict[str, _DurableConversationWrite] = {}
 
-_DURABLE_CONVERSATION_WRITES_LOCK = threading.RLock()
+_DURABLE_CONVERSATION_WRITES_LOCK = checked_lock("interface.routes.chat_preflight", reentrant=True)
 
 _DURABLE_CONVERSATION_SHUTDOWN_HANDLER = "chat.durable_conversation_writes"
 
@@ -1447,7 +1448,7 @@ _CONVERSATION_BOOT_ID = uuid.uuid4().hex[:8]
 
 _conversation_epochs: dict[str, tuple[str, float]] = {}
 
-_conversation_epoch_lock = threading.Lock()
+_conversation_epoch_lock = checked_lock("interface.routes.chat_preflight.1")
 
 
 def _conversation_session_id(host: str, *, now: float | None = None) -> str:

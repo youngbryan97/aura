@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import threading
 from pathlib import Path
 from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["HISTORY_SCHEMA", "ResearchHistory"]
 
@@ -35,7 +35,7 @@ class ResearchHistory:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.chain_head: str = ""
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.autonomy.research_history")
 
     def append(self, payload: dict[str, Any]) -> str:
         """Write one record chained to the last. Returns its digest."""

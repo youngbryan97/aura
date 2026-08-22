@@ -1,7 +1,7 @@
 {
   "checks": [
     {
-      "duration_s": 0.14,
+      "duration_s": 0.26,
       "exit_code": 0,
       "name": "compile",
       "purpose": "every Python file parses (core + tests)",
@@ -9,7 +9,7 @@
       "tail": ""
     },
     {
-      "duration_s": 0.13,
+      "duration_s": 0.26,
       "exit_code": 0,
       "name": "lint",
       "purpose": "ruff three-pass (surface E9, critical F-codes, curated files)",
@@ -17,7 +17,7 @@
       "tail": ""
     },
     {
-      "duration_s": 47.94,
+      "duration_s": 16.32,
       "exit_code": 0,
       "name": "smoke",
       "purpose": "~100 contract tests, the fast behavioral floor",
@@ -25,7 +25,7 @@
       "tail": ""
     },
     {
-      "duration_s": 5.94,
+      "duration_s": 33.0,
       "exit_code": 0,
       "name": "governance_lint",
       "purpose": "no ungoverned consequential calls; effect-ownership baseline holds",
@@ -33,7 +33,7 @@
       "tail": ""
     },
     {
-      "duration_s": 4.65,
+      "duration_s": 18.54,
       "exit_code": 0,
       "name": "security_scan",
       "purpose": "local security scan",
@@ -41,7 +41,7 @@
       "tail": ""
     },
     {
-      "duration_s": 21.58,
+      "duration_s": 53.86,
       "exit_code": 0,
       "name": "enterprise_gate",
       "purpose": "static ratchets (placeholders, silent excepts, subprocess allowlist\u2026)",
@@ -49,7 +49,7 @@
       "tail": ""
     },
     {
-      "duration_s": 9.4,
+      "duration_s": 24.83,
       "exit_code": 0,
       "name": "production_gate",
       "purpose": "production readiness contract",
@@ -57,12 +57,28 @@
       "tail": ""
     },
     {
-      "duration_s": 0.12,
+      "duration_s": 0.09,
       "exit_code": 0,
       "name": "fresh_hard_deaths",
       "purpose": "crash triage: no hard deaths in the last 24h (exit honored, no '|| true')",
       "status": "pass",
       "tail": ""
+    },
+    {
+      "duration_s": 25.76,
+      "exit_code": 1,
+      "name": "reqproof_structural",
+      "purpose": "requirement registry matches the tracker, closure graph sound, corpus coverage zero-unmapped, defect ratchet holds",
+      "status": "fail",
+      "tail": "      \"withdrawn\": 1\n    },\n    \"tracker_extraction_sha256\": \"c6d386a043d45166fea0e0fc8b8713581e5cf17f73fab0f4d9c38cf9def55721\"\n  },\n  \"verdict\": \"fail\"\n}"
+    },
+    {
+      "duration_s": 0.0,
+      "exit_code": null,
+      "name": "reqproof_progress",
+      "purpose": "recompute acceptance-granular certified completion and the total pushed-checkpoint forecast without tracker-prose credit",
+      "status": "skipped",
+      "tail": "skipped: earlier check failed (fail-fast)"
     }
   ],
   "deferred_gates": {
@@ -70,9 +86,9 @@
     "full_suite_6_chunks": "certification step \u2014 ~7,400 tests, run via tools/run_test_chunks.py",
     "startup_budget_probe": "needs a live boot \u2014 release-train step (tools/live_surface_probe.py)"
   },
-  "duration_s": 89.89,
-  "finished_at": 1783968198.045871,
+  "duration_s": 172.94,
+  "finished_at": 1787369090.321376,
   "schema": "aura.preflight.v1",
-  "started_at": 1783968108.1566908,
-  "verdict": "PASS"
+  "started_at": 1787368917.38542,
+  "verdict": "FAIL"
 }

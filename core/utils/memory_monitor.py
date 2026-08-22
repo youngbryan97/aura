@@ -3,13 +3,13 @@ import contextlib
 import logging
 import os
 import sys
-import threading
 import time
 from dataclasses import asdict, dataclass
 
 import psutil
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 from core.runtime.process_footprint import (
     DarwinRUsageInfoV4,
     current_darwin_footprint_bytes,
@@ -35,7 +35,7 @@ _KERNEL_PRESSURE_LEVELS = {
 }
 _KERNEL_PRESSURE_CACHE: tuple[float, str] = (0.0, MEMORY_PRESSURE_UNKNOWN)
 _KERNEL_PRESSURE_TTL_S = 2.0
-_KERNEL_PRESSURE_LOCK = threading.Lock()
+_KERNEL_PRESSURE_LOCK = checked_lock("core.utils.memory_monitor")
 
 _MEMORY_MONITOR_RECOVERABLE_ERRORS = (
     AttributeError,
@@ -54,7 +54,7 @@ _current_darwin_footprint_bytes = current_darwin_footprint_bytes
 _darwin_phys_footprint_bytes = darwin_phys_footprint_bytes
 
 
-_SNAPSHOT_CACHE_LOCK = threading.Lock()
+_SNAPSHOT_CACHE_LOCK = checked_lock("core.utils.memory_monitor.1")
 _SNAPSHOT_CACHE: tuple[float, tuple[int, str, str], "MemoryPressureSnapshot"] | None = None
 
 

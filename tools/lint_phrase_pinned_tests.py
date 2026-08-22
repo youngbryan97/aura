@@ -27,6 +27,7 @@ in ``config/phrase_pinned_test_baseline.json`` may only fall. A new test
 that pins a phrase has to earn it by replacing an old one.
 
 Run: ``python tools/lint_phrase_pinned_tests.py`` / ``--write-baseline``
+(the refresh refuses to record growth without ``--accept-growth --reason``)
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
+from typing import Any, TypedDict
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "config" / "phrase_pinned_test_baseline.json"
@@ -162,7 +164,15 @@ def _phrase_pins(source: str) -> int:
 _SELF_TEST = "tests/test_phrase_pin_classifier.py"
 
 
-def measure() -> dict[str, object]:
+class Measurement(TypedDict):
+    """What one run of this gate measured."""
+
+    total: int
+    files: int
+    by_file: dict[str, int]
+
+
+def measure() -> Measurement:
     by_file: dict[str, int] = {}
     for path in sorted((ROOT / "tests").rglob("test_*.py")):
         relative = str(path.relative_to(ROOT))
@@ -178,6 +188,13 @@ def measure() -> dict[str, object]:
     return {"total": sum(by_file.values()), "files": len(by_file), "by_file": by_file}
 
 
+def _assertion_counts(payload: dict[str, Any]) -> dict[str, int]:
+    by_file = payload.get("by_file")
+    if not isinstance(by_file, dict):
+        return {}
+    return {str(name): int(count) for name, count in by_file.items()}
+
+
 def main(argv: list[str]) -> int:
     current = measure()
     total = int(current["total"])
@@ -187,14 +204,21 @@ def main(argv: list[str]) -> int:
     )
 
     if "--write-baseline" in argv:
-        BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        print(f"baseline written: {BASELINE.relative_to(ROOT)}")
-        return 0
+        from tools.ratchet_baseline import guard_growth, load
+
+        written: int = guard_growth(
+            dict(current),
+            load(BASELINE),
+            BASELINE,
+            argv,
+            counts=_assertion_counts,
+            tool="tools/lint_phrase_pinned_tests.py",
+        )
+        return written
 
     if "--list" in argv:
         for name, count in sorted(
-            current["by_file"].items(), key=lambda kv: -kv[1]  # type: ignore[union-attr]
+            current["by_file"].items(), key=lambda kv: -kv[1]
         )[:30]:
             print(f"  {count:3d}  {name}")
         return 0
@@ -208,7 +232,7 @@ def main(argv: list[str]) -> int:
     if total > allowed:
         print(f"❌ phrase-pinned assertions rose: {allowed} -> {total}")
         previous = baseline.get("by_file") or {}
-        for name, count in sorted(current["by_file"].items()):  # type: ignore[union-attr]
+        for name, count in sorted(current["by_file"].items()):
             was = int(previous.get(name, 0))
             if count > was:
                 print(f"    {name}: {was} -> {count}")

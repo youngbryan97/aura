@@ -178,10 +178,49 @@ def render(source: SourceLock, names: list[str], *, requirements: Path, out: Pat
     return "\n".join(header) + "\n".join(body)
 
 
+def render_constraints(source: SourceLock, *, out: Path) -> str:
+    """The same pins, in the shape pip accepts as a constraint file.
+
+    A constraint file may not carry extras and may not mix hashes with
+    unhashed requirements. ``requirements_lock.txt`` has both — it pins
+    ``uvicorn[standard]==0.46.0`` and every distribution hash — so handing it
+    to ``pip install --constraint`` fails with "Constraints cannot have
+    extras" before a single package is fetched. The container build did
+    exactly that.
+
+    A constraint says only "if you install this, install this version". The
+    extras and the hashes belong to the install list, which is what the
+    lockfile is for.
+    """
+    source_digest = hashlib.sha256(source.path.read_bytes()).hexdigest()
+    lines = [
+        "#",
+        f"# Derived by tools/derive_lockfile.py --constraints from "
+        f"{_repo_relative(source.path)}.",
+        "# Do not edit by hand: run `make lockfiles`.",
+        "#",
+        f"#   source-lock: {_repo_relative(source.path)}",
+        f"#   source-lock-sha256: {source_digest}",
+        "#",
+        "# Versions only. A constraint file may carry neither extras nor hashes,",
+        "# which is why this is not the lockfile itself.",
+        "#",
+        "",
+    ]
+    for name in sorted(source.versions):
+        lines.append(f"{name}=={source.versions[name]}")
+    return "\n".join(lines) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True)
-    parser.add_argument("--requirements", required=True)
+    parser.add_argument("--requirements", default="")
+    parser.add_argument(
+        "--constraints",
+        action="store_true",
+        help="emit versions only, in the shape pip accepts as --constraint",
+    )
     parser.add_argument("--out", required=True)
     parser.add_argument(
         "--check",
@@ -191,6 +230,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     source = SourceLock(ROOT / args.source)
+
+    if args.constraints:
+        out = ROOT / args.out
+        rendered = render_constraints(source, out=out)
+        if args.check:
+            if not out.exists() or out.read_text("utf-8") != rendered:
+                print(
+                    f"error: {args.out} is stale or missing; run `make lockfiles`",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"ok: {args.out} matches ({len(source.versions)} pinned)")
+            return 0
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(rendered, encoding="utf-8")
+        print(f"wrote {args.out}: {len(source.versions)} constrained versions")
+        return 0
+
+    if not args.requirements:
+        print("error: --requirements is required unless --constraints", file=sys.stderr)
+        return 2
     requirements = ROOT / args.requirements
     roots = requirement_roots(requirements)
     names, missing = source.closure(roots)

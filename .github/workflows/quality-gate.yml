@@ -59,11 +59,19 @@ jobs:
           python -m ruff check core interface llm security senses skills executors \
             infrastructure aura_main.py --select F821,F822,F823,F601
 
-      - name: Strict lint surface (ratchet: only grows)
+      - name: "Strict lint surface (ratchet: only grows)"
         run: python tools/ruff_strict_files.py --check
 
       - name: Dependency contract
         run: python tools/check_dependency_contract.py
+
+      # The advisory database is a network call, and a gate that turns red
+      # because a runner could not reach it teaches people to ignore it. The
+      # scan is authoritative in `Dependency Vulnerability Scan`; this is the
+      # early one, and it declines rather than guesses.
+      - name: Lockfile advisories
+        continue-on-error: true
+        run: python tools/check_lock_advisories.py
 
       - name: Review policy
         run: python tools/check_review_policy.py

@@ -1,22 +1,27 @@
 {
-  "total_patterns": 181,
-  "total_lines": 9176,
+  "total_patterns": 197,
+  "total_lines": 10240,
   "by_file": {
     "core/conversation/response_reliability.py": {
-      "compiled_patterns": 159,
-      "lines": 8248
+      "compiled_patterns": 172,
+      "lines": 9157
     },
     "core/conversation/ontology_grounding.py": {
-      "compiled_patterns": 11,
-      "lines": 308
+      "compiled_patterns": 12,
+      "lines": 340
     },
     "core/dialogue/shared_history.py": {
-      "compiled_patterns": 7,
-      "lines": 242
+      "compiled_patterns": 9,
+      "lines": 365
     },
     "core/dialogue/referents.py": {
       "compiled_patterns": 4,
       "lines": 378
     }
+  },
+  "growth_notes": {
+    "core/conversation/ontology_grounding.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it.",
+    "core/conversation/response_reliability.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it.",
+    "core/dialogue/shared_history.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it."
   }
 }

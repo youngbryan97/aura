@@ -57,6 +57,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.context.condenser import Condensation, ContextEvent, View, estimate_tokens
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.ConversationLog")
 
@@ -457,7 +458,7 @@ class ConversationLog:
 
 
 _log: ConversationLog | None = None
-_log_lock = threading.Lock()
+_log_lock = checked_lock("core.context.conversation_log")
 
 
 def get_conversation_log() -> ConversationLog:

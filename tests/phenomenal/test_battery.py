@@ -286,7 +286,16 @@ class TestBlindsightDissociation:
         assert winner.source == "conscious_task", (
             f"Conscious task should win broadcast, got {winner.source}"
         )
-        # Subliminal should be in the losers / inhibited
+        # Losing is the dissociation, not being banned afterwards.
+        #
+        # This asserted `subliminal_perceptual in snapshot["inhibited_sources"]`
+        # and had been failing since 259cb2aec replaced the cooldown model: a
+        # loser is no longer barred from bidding, because banning whoever came
+        # second is arrival order wearing a policy's clothes. GlobalWorkspace's
+        # own docstring records that three tests were left asserting against an
+        # always-empty dict; this is one of them. What blindsight actually
+        # claims is that the subliminal channel influenced the competition and
+        # did not reach broadcast, which is what is checked now.
         snapshot = gw.get_snapshot()
 
         receipt_log.record(Receipt(
@@ -297,16 +306,21 @@ class TestBlindsightDissociation:
                 "task": "Submit subliminal + conscious candidates to workspace",
                 "question": "Which wins broadcast? Is subliminal reportable?",
                 "winner": winner.source,
-                "subliminal_inhibited": "subliminal_perceptual" in snapshot.get("inhibited_sources", []),
+                "subliminal_broadcast": winner.source == "subliminal_perceptual",
                 "workspace_snapshot": snapshot,
                 "behavioral_influence": True,  # subliminal was processed
                 "reportability": False,  # subliminal lost broadcast
             },
         ))
 
-        assert "subliminal_perceptual" in snapshot.get("inhibited_sources", []), (
-            "Subliminal source must be inhibited after losing broadcast"
+        assert winner.source != "subliminal_perceptual", (
+            "the subliminal channel reached broadcast, so there is no dissociation"
         )
+        assert snapshot.get("ignited") is True, (
+            "the conscious channel did not ignite the workspace"
+        )
+        # It competed: the workspace saw it and settled the contest.
+        assert snapshot.get("broadcast_history_len", 0) >= 1
 
     def test_global_broadcast_enables_reportability(self, receipt_log):
         """When the same stimulus is broadcast globally (high priority),

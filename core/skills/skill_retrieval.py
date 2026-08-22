@@ -62,6 +62,8 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
+from core.runtime.lockdep import checked_lock
+
 logger = logging.getLogger("Aura.SkillRetrieval")
 
 __all__ = [
@@ -228,15 +230,15 @@ class SkillRetriever:
     an index go stale.
     """
 
-    _providers: dict[str, "callable[[], Iterable[SkillDocument]]"] = field(default_factory=dict)
+    _providers: dict[str, callable[[], Iterable[SkillDocument]]] = field(default_factory=dict)
     _index: LexicalIndex = field(default_factory=LexicalIndex)
     _signature: tuple[str, ...] = ()
     _lock: threading.Lock = field(default_factory=threading.Lock)
-    _encoder: "callable[[Sequence[str]], Sequence[Sequence[float]]] | None" = None
+    _encoder: callable[[Sequence[str]], Sequence[Sequence[float]]] | None = None
     _embeddings: list[list[float]] = field(default_factory=list)
 
     def install_encoder(
-        self, encoder: "callable[[Sequence[str]], Sequence[Sequence[float]]] | None"
+        self, encoder: callable[[Sequence[str]], Sequence[Sequence[float]]] | None
     ) -> None:
         """Install (or clear with ``None``) the semantic backend.
 
@@ -250,7 +252,7 @@ class SkillRetriever:
             self._signature = ()
 
     def register_provider(
-        self, name: str, provider: "callable[[], Iterable[SkillDocument]]"
+        self, name: str, provider: callable[[], Iterable[SkillDocument]]
     ) -> None:
         with self._lock:
             self._providers[str(name)] = provider
@@ -375,7 +377,7 @@ class SkillRetriever:
 
 
 _retriever: SkillRetriever | None = None
-_retriever_lock = threading.Lock()
+_retriever_lock = checked_lock("core.skills.skill_retrieval")
 
 
 def get_skill_retriever() -> SkillRetriever:

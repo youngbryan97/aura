@@ -44,8 +44,8 @@ background task cannot inject context into a live user's turn.
 """
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import threading
 import time
 from collections.abc import Iterator, Sequence
@@ -54,6 +54,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Conversation.FailureContext")
 
@@ -127,7 +128,7 @@ class FailureLedger:
 
     def __init__(self) -> None:
         self._records: list[CapabilityFailure] = []
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.conversation.failure_context", reentrant=True)
         self._owner = _execution_identity()
         self._closed = False
 

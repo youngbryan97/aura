@@ -22,6 +22,7 @@ one, which forces "what actually produced this output?" at exactly the
 moment it is most tempting to skip.
 
 Run: ``python tools/lint_lexical_debt.py`` / ``--write-baseline``
+(the refresh refuses to record growth without ``--accept-growth --reason``)
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ import ast
 import json
 import sys
 from pathlib import Path
+from typing import Any, TypedDict
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "config" / "lexical_debt_baseline.json"
@@ -59,7 +61,19 @@ def _compiled_patterns(path: Path) -> int:
     return count
 
 
-def measure() -> dict[str, object]:
+class Measurement(TypedDict):
+    """What one run of this gate measured.
+
+    `dict[str, object]` forced every reader to cast, and the casts were the
+    only reason this file carried `type: ignore` comments at all.
+    """
+
+    total_patterns: int
+    total_lines: int
+    by_file: dict[str, dict[str, int]]
+
+
+def measure() -> Measurement:
     by_file: dict[str, dict[str, int]] = {}
     for relative in WATCHED:
         path = ROOT / relative
@@ -76,19 +90,37 @@ def measure() -> dict[str, object]:
     }
 
 
+def _pattern_counts(payload: dict[str, Any]) -> dict[str, int]:
+    by_file = payload.get("by_file")
+    if not isinstance(by_file, dict):
+        return {}
+    return {
+        str(name): int(stats["compiled_patterns"])
+        for name, stats in by_file.items()
+        if isinstance(stats, dict)
+    }
+
+
 def main(argv: list[str]) -> int:
     current = measure()
-    patterns = int(current["total_patterns"])
-    lines = int(current["total_lines"])
+    patterns = current["total_patterns"]
+    lines = current["total_lines"]
     print(f"output-filter patterns: {patterns} across {lines} lines")
-    for name, stats in current["by_file"].items():  # type: ignore[union-attr]
+    for name, stats in current["by_file"].items():
         print(f"    {stats['compiled_patterns']:4d} patterns  {stats['lines']:6d} lines  {name}")
 
     if "--write-baseline" in argv:
-        BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        print(f"baseline written: {BASELINE.relative_to(ROOT)}")
-        return 0
+        from tools.ratchet_baseline import guard_growth, load
+
+        written: int = guard_growth(
+            dict(current),
+            load(BASELINE),
+            BASELINE,
+            argv,
+            counts=_pattern_counts,
+            tool="tools/lint_lexical_debt.py",
+        )
+        return written
 
     if not BASELINE.is_file():
         print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
@@ -99,7 +131,7 @@ def main(argv: list[str]) -> int:
     if patterns > allowed:
         print(f"\n❌ output-filter patterns rose: {allowed} -> {patterns}")
         previous = baseline.get("by_file") or {}
-        for name, stats in current["by_file"].items():  # type: ignore[union-attr]
+        for name, stats in current["by_file"].items():
             was = int((previous.get(name) or {}).get("compiled_patterns", 0))
             if stats["compiled_patterns"] > was:
                 print(f"    {name}: {was} -> {stats['compiled_patterns']}")

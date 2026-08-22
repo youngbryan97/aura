@@ -47,6 +47,7 @@ from core.language.substrate_store import (
     get_language_substrate_store,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Boundary",
@@ -109,7 +110,7 @@ def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
 #: Every surface a live turn has asked. Warming reads this, so a surface
 #: cannot be consulted without also being maintained.
 _SURFACES: list[LearnedMatcher] = []
-_SURFACES_LOCK = threading.Lock()
+_SURFACES_LOCK = checked_lock("core.language.learned_matcher")
 
 
 def _register(surface: LearnedMatcher) -> None:

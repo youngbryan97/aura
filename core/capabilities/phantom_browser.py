@@ -23,23 +23,24 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.capabilities.browser_authority import (
+    BrowserAction,
+    authorize_browser_action,
+)
 from core.runtime.errors import (
     DependencyUnavailable,
     FallbackClassification,
     Severity,
     record_degradation,
 )
-from core.capabilities.browser_authority import (
-    BrowserAction,
-    authorize_browser_action,
-)
+from core.runtime.lockdep import checked_async_lock
 from core.runtime.runtime_hygiene import get_runtime_hygiene
 from core.utils.exceptions import capture_and_log
 
 try:
     from playwright.async_api import Error as PlaywrightError
-    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
     from playwright.async_api import Page, async_playwright
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PlaywrightError = RuntimeError
@@ -216,7 +217,7 @@ class PhantomBrowser:
         # One owner for start / rotate / close. Without it two callers
         # could each launch a browser and one could close what the other
         # just created (CP126 ``d9990559``).
-        self._lifecycle_lock = asyncio.Lock()
+        self._lifecycle_lock = checked_async_lock("core.capabilities.phantom_browser")
         self._generation = 0
         #: Resources this close could not confirm. Reported rather than
         #: hidden behind an unconditional 'Browser closed'.

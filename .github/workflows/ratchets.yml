@@ -107,3 +107,11 @@ jobs:
           python-version: '3.12'
       - name: Outsized functions (known debt — reports, does not block)
         run: python tools/lint_method_size.py
+
+      # 21 classes and files grew past their baseline between 2026-08-13 and
+      # 2026-08-22, +9,641 lines against the oversize budget. The refresh
+      # command clamps rather than records, by design, so this stays red until
+      # the growth is undone. Reported here so the number is visible on every
+      # push rather than only to whoever runs `make quality`.
+      - name: Module and class size (known debt — reports, does not block)
+        run: python tools/lint_module_size.py

@@ -54,6 +54,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.runtime.lockdep import checked_lock
+
 __all__ = [
     "VERIFIED_REGION_MARKER",
     "ADAPTER_TEMPLATE",
@@ -283,7 +285,7 @@ class LedgerEntry:
         }
 
     @staticmethod
-    def from_dict(raw: object) -> "LedgerEntry":
+    def from_dict(raw: object) -> LedgerEntry:
         if not isinstance(raw, dict):
             raise ArtifactError("ledger entry is not an object")
         name = str(raw.get("skill_name") or "").strip()
@@ -335,14 +337,13 @@ class ForgeLedger:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        import threading
 
         if path is None:
             from core.config import config
 
             path = Path(config.paths.data_dir) / "forge" / "verified_skills.json"
         self._path = Path(path)
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.skill_management.forged_artifact")
         self._entries: dict[str, LedgerEntry] = {}
         self._loaded = False
 

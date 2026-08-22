@@ -29,20 +29,25 @@ WORKDIR /app
 
 # ── Python dependencies (fail-closed: no fallback installs) ──────────────
 COPY requirements/core.txt requirements/core.txt
-COPY requirements_lock.txt requirements_lock.txt
+COPY requirements/lock/container-constraints.txt requirements/lock/container-constraints.txt
 
-# The lockfile is a constraint, not the install list, and the difference is
-# recorded rather than papered over. requirements_lock.txt was compiled from
-# requirements.txt on macOS: it carries mlx and pyobjc with no environment
-# markers, so it cannot install here, and it has never resolved seven of the
-# distributions requirements/core.txt names. As a constraint it still pins
-# every package the two sets share to the version the release lane ships.
+# The release lock constrains this install; it is not the install list, and
+# the difference is recorded rather than papered over. requirements_lock.txt
+# was compiled from requirements.txt on macOS: it carries mlx and pyobjc with
+# no environment markers, so it cannot install here, and it has never resolved
+# seven of the distributions requirements/core.txt names.
+#
+# The constraint file is derived from it rather than being it, because a pip
+# constraint may carry neither extras nor hashes and the lock has both —
+# handing pip the lock itself fails with "Constraints cannot have extras"
+# before a package is fetched, which is exactly how this line broke once.
 #
 # config/dependency_contract.json records this as the one pending lock, with
 # the pip-compile invocation that closes it; tools/check_dependency_contract.py
 # fails if this line stops matching the contract.
 RUN pip install --no-cache-dir --upgrade pip wheel && \
-    pip install --no-cache-dir --constraint requirements_lock.txt \
+    pip install --no-cache-dir \
+        --constraint requirements/lock/container-constraints.txt \
         -r requirements/core.txt
 
 # ── Copy source ──────────────────────────────────────────────────────────

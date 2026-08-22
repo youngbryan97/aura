@@ -34,13 +34,13 @@ the life of the process.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "RatioSource",
@@ -95,7 +95,7 @@ class CharsPerToken:
         return max(0, int(float(tokens) * self.ratio))
 
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.brain.llm.token_budget_evidence")
 _TOTAL_CHARS = 0
 _TOTAL_TOKENS = 0
 _OBSERVATIONS = 0

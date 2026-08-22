@@ -16,14 +16,13 @@ happened rather than things somebody imagined.
 
 from __future__ import annotations
 
-import threading
-
 from core.language.learned_matcher import LearnedMatcher, embed_sentences
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["actuation_surface"]
 
 _SURFACE: LearnedMatcher | None = None
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.language.desktop_actuation")
 
 
 def actuation_surface() -> LearnedMatcher:

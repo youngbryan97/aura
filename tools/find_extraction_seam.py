@@ -301,9 +301,19 @@ class _FlowScan:
             self.body(node.body)
             for handler in node.handlers:
                 self.load(handler.type)
+                # `except E as exc` binds `exc` for the handler body and
+                # DELETES it on the way out — the interpreter compiles an
+                # implicit `finally: exc = None; del exc`. Recording it as
+                # bound by the block made it look like a name that escapes,
+                # so a seam whose only "output" was a caught exception was
+                # refused for handing back something Python had already
+                # removed.
+                had_it = handler.name in self.bound if handler.name else False
                 if handler.name:
                     self.bound.add(handler.name)
                 self.body(handler.body)
+                if handler.name and not had_it:
+                    self.bound.discard(handler.name)
             self.body(node.orelse)
             self.body(node.finalbody)
             return
@@ -409,9 +419,11 @@ def _must_bind_statement(node: ast.stmt) -> "tuple[set[str], bool]":
         return then_names & else_names, False
     if isinstance(node, ast.Try):
         # The body can stop at any statement, and a handler may not run. Only
-        # `finally` is guaranteed.
+        # `finally` is guaranteed, and a handler's `as` name is deleted on the
+        # way out so it is never bound afterwards.
         final_names, final_aborts = _must_bind(node.finalbody) if node.finalbody else (set(), False)
-        return final_names, final_aborts
+        handler_names = {h.name for h in node.handlers if h.name}
+        return final_names - handler_names, final_aborts
     if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
         return set(), False
     return set(), False
@@ -530,6 +542,14 @@ def analyse(
         raise SystemExit(f"no function named {function!r} in {path}")
 
     module_scope = _module_scope(tree)
+    parameter_names: set[str] = set()
+    arguments = getattr(fn, "args", None)
+    if arguments is not None:
+        for group in (arguments.posonlyargs, arguments.args, arguments.kwonlyargs):
+            parameter_names |= {a.arg for a in group}
+        for special in (arguments.vararg, arguments.kwarg):
+            if special is not None:
+                parameter_names.add(special.arg)
     seams: list[Seam] = []
 
     candidates = (
@@ -557,17 +577,25 @@ def analyse(
 
         # Names bound before the seam are carried through; names bound only
         # inside it and read afterwards are the sentinel cases.
-        before: set[str] = set()
-        for other in before_statements:
-            before |= _bound_in(other)
-
         escapes = sorted(bound & after)
-        # An escape is safe when the block binds it on every path, or when it
-        # was already an input (so the helper receives a value and returns it).
-        # "Bound somewhere earlier in the function" is not the same question:
-        # earlier code may sit in a branch that did not run.
-        guaranteed = must_bind([stmt]) | reads
+        # An escape is safe when the block binds it on every path, when it was
+        # already an input, or when the caller is certain to hold a value for
+        # it where the call will sit. "Bound somewhere earlier in the function"
+        # is none of those: earlier code may sit in a branch that did not run,
+        # and reporting a seam on that basis is what produced an extraction
+        # that raised UnboundLocalError on the live serving path.
+        # A block that returns early leaves before its own assignments, so
+        # "the block binds it on every path" stops counting for it: only what
+        # the caller already holds survives the early path.
+        returns_early = any(isinstance(n, ast.Return) for n in ast.walk(stmt))
+        held_by_caller = parameter_names | must_bind(before_statements)
+        from_caller = reads | held_by_caller
+        guaranteed = from_caller if returns_early else (must_bind([stmt]) | from_caller)
         conditional = sorted(n for n in escapes if n not in guaranteed)
+        # An input is read at the call whether the block would have reached it
+        # or not, so an input the caller may not hold is a seam that cannot be
+        # cut here.
+        conditional += sorted(n for n in reads if n not in held_by_caller)
 
         seams.append(
             Seam(

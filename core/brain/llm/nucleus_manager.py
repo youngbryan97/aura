@@ -27,13 +27,15 @@ def _bounded_max_tokens(value: Any, default: int) -> int:
         return default
     return min(_MAX_GENERATION_TOKENS, tokens)
 
+import os
+
 from core.runtime.errors import Severity, record_degradation
+from core.runtime.lockdep import checked_async_lock, checked_lock
 from core.runtime.task_ownership import fire_and_forget
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
 from .provider import LLMProvider
-import os
 
 logger = logging.getLogger("LLM.Nucleus")
 
@@ -351,7 +353,7 @@ class NucleusManager(LLMProvider):
         
         self.models = {name: _empty_model_entry() for name in _NUCLEUS_MODEL_TYPES}
         self._model_lifecycle_locks = {
-            name: threading.Lock() for name in _NUCLEUS_MODEL_TYPES
+            name: checked_lock("core.brain.llm.nucleus_manager") for name in _NUCLEUS_MODEL_TYPES
         }
         self._anchor_text = None 
         self._refresh_threshold = 2048 
@@ -362,7 +364,7 @@ class NucleusManager(LLMProvider):
         #: calls could both observe None and both create a subscription, so the
         #: bus had two readers for one manager and the second task was
         #: unreachable — nothing held a handle to it.
-        self._listener_lock = asyncio.Lock()
+        self._listener_lock = checked_async_lock("core.brain.llm.nucleus_manager.1")
         self._listener_subscription = None
         # Defer event subscription to avoid create_task in __init__
         try:
@@ -613,7 +615,7 @@ class NucleusManager(LLMProvider):
 
     @contextlib.asynccontextmanager
     async def _model_lifecycle_context(self, name: str) -> AsyncIterator[None]:
-        lock = self._model_lifecycle_locks.setdefault(name, threading.Lock())
+        lock = self._model_lifecycle_locks.setdefault(name, checked_lock("core.brain.llm.nucleus_manager.2"))
         while not lock.acquire(blocking=False):  # noqa: ASYNC110
             await asyncio.sleep(0.01)
         try:
@@ -625,7 +627,7 @@ class NucleusManager(LLMProvider):
     def _model_thread_context(self, name: str):
         """Pin one loaded model and its lane for a complete worker operation."""
 
-        lock = self._model_lifecycle_locks.setdefault(name, threading.Lock())
+        lock = self._model_lifecycle_locks.setdefault(name, checked_lock("core.brain.llm.nucleus_manager.3"))
         lock.acquire()
         try:
             entry = self._ensure_model_entry(name)

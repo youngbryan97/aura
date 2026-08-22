@@ -28,11 +28,12 @@ Deliberately refcounted and expiring:
 """
 from __future__ import annotations
 
-import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+
+from core.runtime.lockdep import checked_lock
 
 #: How long a single unreleased claim stays believable. Long enough for a slow
 #: step to finish, short enough that a crashed task cannot hold the cameras on
@@ -50,7 +51,7 @@ class PerceptionClaim:
     expires_at: float
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.runtime.perception_demand")
 _claims: dict[int, PerceptionClaim] = {}
 _next_id = 0
 

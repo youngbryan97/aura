@@ -80,9 +80,27 @@ published artifact is grounds for an out-of-cycle stable tag.
 
 Reporting: [SECURITY.md](../SECURITY.md).
 
+## What can be exercised without a tag
+
+`make release-dry-run` runs everything in the release lane that does not need
+an Apple account: the readiness gate, the pinned preflight, the SBOM and the
+provenance record. It ends by naming the three steps it did not run —
+signing, notarization, stapling — so a green dry run is never mistaken for a
+release.
+
+That is the honest half. It proves the lane is wired and its inputs exist. It
+does not prove the artifact installs, because no artifact has been built from
+it.
+
 ## What has not happened
 
-- No release has been published. Nothing here has been exercised end to end.
+- No release has been published. The signing and notarization steps have never
+  run outside this document.
 - No artifact has been installed by anyone other than the author.
 - The upgrade path between two stable releases has never been run, because
   there has never been one stable release, let alone two.
+- Nobody outside this repository depends on a version of it.
+
+Those four are what separate this from Letta, OpenHands and Salt, and no
+amount of gate coverage closes them. They close by shipping something and
+someone else running it.

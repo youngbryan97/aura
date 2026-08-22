@@ -29,10 +29,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import threading
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Learning.SealedAdmission")
 
@@ -55,7 +56,7 @@ _SEALED_ARTIFACTS: tuple[tuple[str, str, str], ...] = (
 # continues through ``artifact_admission_status`` below and never consults this
 # memo.  ``ctime_ns`` is included so preserving a file's mtime cannot conceal a
 # rewrite on the local filesystem.
-_HEALTH_ADMISSION_LOCK = threading.Lock()
+_HEALTH_ADMISSION_LOCK = checked_lock("core.learning.sealed_artifact_admission")
 _HEALTH_ADMISSION_CACHE: dict[
     tuple[str, str, str], tuple[tuple[Any, ...], dict[str, Any]]
 ] = {}

@@ -60,10 +60,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Reasoning.ActionValue")
 
@@ -141,7 +142,7 @@ class ActionValueModel:
         stats: Mapping[str, Mapping[str, float]] | None = None,
         contextual: Mapping[str, Mapping[str, float]] | None = None,
     ) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.reasoning.action_value")
         self._stats: dict[str, dict[str, float]] = {}
         self._contextual: dict[str, dict[str, float]] = {}
         self._global_mean: float | None = None
@@ -489,7 +490,7 @@ def on_outcome_resolved(receipt: Any) -> None:
 
 
 _model: ActionValueModel | None = None
-_model_lock = threading.Lock()
+_model_lock = checked_lock("core.reasoning.action_value.1")
 _observers_installed = False
 
 

@@ -22,9 +22,10 @@ exactly that shape.
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Runtime.HealthFragments")
 
@@ -39,7 +40,7 @@ EXPECTED_FRAGMENTS: tuple[str, ...] = (
     "sealed_artifacts",
 )
 
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.runtime.health_fragments", reentrant=True)
 _PROVIDERS: dict[str, Callable[[], dict[str, Any]]] = {}
 
 

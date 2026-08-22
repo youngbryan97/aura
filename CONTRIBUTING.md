@@ -95,6 +95,44 @@ formats appear together when a checkpoint is also a fix:
 
     fix(inference_gate): CP126 — a viability block that later modifiers undid
 
+## How a change lands
+
+`main` is protected. A direct push is rejected, including from an admin, and
+including from whoever wrote the change. Every commit arrives through a pull
+request whose required checks have passed.
+
+```bash
+git switch -c the-thing-you-are-fixing
+# ... work, and run `make smoke` after every change ...
+git push -u origin HEAD
+gh pr create --fill
+gh pr checks --watch      # sixteen required jobs
+gh pr merge --squash      # only once they are green
+```
+
+What the branch refuses, and why each one is there:
+
+| Refused | Because |
+| --- | --- |
+| a direct push to `main` | every landing has a diff somebody can read |
+| a merge with a failing or missing required check | a gate nothing requires is a notification |
+| a force push or a branch deletion | history is evidence |
+| a merge commit | `git log` on a linear history is a record, not a puzzle |
+| a merge with an unresolved conversation | a comment nobody answered is not review |
+
+The exact settings live in `config/branch_protection_policy.json`;
+`make branch-protection` compares them with what GitHub actually has, and
+`make branch-protection-policy` checks the policy against the workflows
+without needing the network.
+
+**No approving review is required, and that is a limitation rather than a
+choice.** GitHub does not let the author of a pull request approve it, so with
+one maintainer and `enforce_admins` on, requiring an approval means nothing
+can ever merge. The checks are what hold the branch today. The count goes to
+one, with code-owner review on, the day a second person can approve;
+[.github/CODEOWNERS](.github/CODEOWNERS) already names who that would be for
+each path.
+
 ## Commits
 
 ```

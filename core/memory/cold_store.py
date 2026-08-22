@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 _MAX_CONTENT_BYTES = 2 * 1024 * 1024
 _MAX_METADATA_BYTES = 256 * 1024
@@ -30,7 +31,7 @@ class ColdMemoryStore:
 
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path).expanduser()
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.memory.cold_store", reentrant=True)
         self._ready = False
         self._initialize()
 

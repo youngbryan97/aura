@@ -30,8 +30,8 @@
       "lockfile": "requirements/lock/container-runtime.txt",
       "lock_status": "pending",
       "require_hashes": false,
-      "constraint": "requirements_lock.txt",
-      "pending_reason": "requirements/core.txt names seven distributions requirements_lock.txt has never resolved (aiofiles, orjson, ollama, backoff, colorlog, celery, redis), so the lock cannot be derived from it. Until a linux resolution exists the image installs core.txt constrained by the release lock, which pins every package the two sets share.",
+      "constraint": "requirements/lock/container-constraints.txt",
+      "pending_reason": "requirements/core.txt names seven distributions requirements_lock.txt has never resolved (aiofiles, orjson, ollama, backoff, colorlog, celery, redis), so the lock cannot be derived from it. Until a linux resolution exists the image installs core.txt constrained by requirements/lock/container-constraints.txt, which pins every package the two sets share to the version the release lane ships. The constraint file is derived from the lock rather than being it, because pip refuses a constraint carrying extras or hashes.",
       "closed_by": "pip-compile --allow-unsafe --generate-hashes --output-file=requirements/lock/container-runtime.txt requirements/core.txt (run on linux/amd64 with cpython 3.12)",
       "platform": "linux/amd64, cpython-3.12",
       "installed_by": [

@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4077 files.
+# 4086 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -391,6 +391,7 @@ core/bus/shared_mem_bus.py
 core/capabilities/browser_controller.py
 core/capabilities/host_automation.py
 core/capabilities/mcp_connectors.py
+core/capabilities/phantom_browser.py
 core/capabilities/web_asset_handler.py
 core/capability_engine.py
 core/cognition/actr_activation.py
@@ -405,6 +406,7 @@ core/cognition/expressive_affordances.py
 core/cognition/impasse.py
 core/cognition/knowledge_enrichment.py
 core/cognition/pre_linguistic.py
+core/cognition/procedural_generalization.py
 core/cognitive/autopoiesis.py
 core/cognitive/sentiment_tracker.py
 core/cognitive/spiking_active_inference.py
@@ -490,6 +492,7 @@ core/conversation/durable_turns.py
 core/conversation/engine.py
 core/conversation/external_chat.py
 core/conversation/external_chat_ipc.py
+core/conversation/failure_context.py
 core/conversation/grounded_claim_guard.py
 core/conversation/grounded_recall.py
 core/conversation/hierarchical_memory_orchestrator.py
@@ -984,6 +987,7 @@ core/phases/memory_retrieval.py
 core/phases/response_contract.py
 core/phases/response_generation.py
 core/phases/response_generation_unitary.py
+core/phenomenal_substrate/maths.py
 core/planning/mission_state.py
 core/planning/task_decomposer.py
 core/planning/task_graph.py
@@ -1288,6 +1292,7 @@ core/sensors/sensor_registry.py
 core/service_names.py
 core/service_registration.py
 core/services/metabolism.py
+core/skill_management/forged_artifact.py
 core/skill_management/hephaestus.py
 core/skills/_self_repair_legacy.py
 core/skills/action_gateway.py
@@ -3033,6 +3038,7 @@ tests/test_recurrent_answer_emission.py
 tests/test_recurrent_checkpoint_admission.py
 tests/test_recurrent_checkpoint_evidence.py
 tests/test_recurrent_checkpoint_promotion.py
+tests/test_recurrent_depth.py
 tests/test_recurrent_depth_lane_separation.py
 tests/test_recurrent_grpo.py
 tests/test_recurrent_grpo_adapter_identity.py
@@ -3475,6 +3481,7 @@ tests/test_substrate_divergence_recovery.py
 tests/test_substrate_measurement.py
 tests/test_substrate_primary_architecture.py
 tests/test_substrate_readout_is_not_language.py
+tests/test_substrate_survives_a_non_finite_value.py
 tests/test_subsystem_hardening_checkpoint.py
 tests/test_subsystem_routes_runtime_contract.py
 tests/test_surface_disposition_is_shared.py
@@ -3795,6 +3802,7 @@ tools/capability_ablation_mlx.py
 tools/check_branch_protection.py
 tools/check_claim_lexicon.py
 tools/check_layering.py
+tools/check_lock_advisories.py
 tools/check_product_facts.py
 tools/check_raw_skill_execute.py
 tools/check_release_ready.py
@@ -3948,6 +3956,7 @@ tools/proof_fabrication_guard.py
 tools/proof_integrity_lint.py
 tools/provision_resident_campaign_trust.py
 tools/python_source_closure.py
+tools/ratchet_baseline.py
 tools/reality_reach/manage_acceptance_preregistration.py
 tools/reality_reach/manage_acceptance_transparency.py
 tools/reality_reach/manage_acceptance_witness.py

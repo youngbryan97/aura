@@ -73,8 +73,38 @@ def workflow_jobs_on_pull_request() -> dict[str, str]:
     return found
 
 
-def check_offline(policy: dict) -> list[str]:
+def _workflows_parse() -> list[str]:
+    """A workflow GitHub cannot parse never runs, and never reports.
+
+    `quality-gate.yml` had an unquoted colon in a step name. GitHub answered
+    "This run likely failed because of a workflow file issue" and produced no
+    job at all — so a required check that names that job would wait forever,
+    and a branch protected on it could never merge anything. The structural
+    parse below is the same one `workflow_jobs_on_pull_request` relies on, so
+    it also refuses a file that parses as YAML but has no jobs.
+    """
     problems: list[str] = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        text = path.read_text("utf-8")
+        for number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped.startswith("- name:") and not stripped.startswith("name:"):
+                continue
+            value = stripped.split(":", 1)[1].strip()
+            if not value or value[0] in "\"'":
+                continue
+            if ":" in value:
+                problems.append(
+                    f"{path.name}:{number}: a step name containing ':' must be "
+                    f"quoted, or the file does not parse: {value!r}"
+                )
+        if not re.search(r"^jobs:\s*$", text, re.MULTILINE):
+            problems.append(f"{path.name} declares no jobs")
+    return problems
+
+
+def check_offline(policy: dict) -> list[str]:
+    problems: list[str] = _workflows_parse()
     required = list(policy.get("required_checks", []))
     if not required:
         problems.append("the policy requires no checks at all")
@@ -82,17 +112,32 @@ def check_offline(policy: dict) -> list[str]:
     if duplicates:
         problems.append(f"required_checks lists {sorted(duplicates)} more than once")
 
+    pending = dict(policy.get("pending_checks") or {})
     jobs = workflow_jobs_on_pull_request()
     for name in required:
         if name not in jobs:
             problems.append(
                 f"required check {name!r} is not a job that runs on a pull request"
             )
+    for name, reason in sorted(pending.items()):
+        if name not in jobs:
+            problems.append(
+                f"pending check {name!r} is not a job that runs on a pull request; "
+                "delete the entry rather than leaving it as a promise"
+            )
+        if name in required:
+            problems.append(f"{name!r} is both required and pending")
+        if len(reason.strip()) < 40:
+            # A one-word reason is how a pending list becomes a permanent one.
+            problems.append(
+                f"pending check {name!r} records no real reason for not blocking"
+            )
     for job, workflow in sorted(jobs.items()):
-        if job not in required:
+        if job not in required and job not in pending:
             problems.append(
                 f"{workflow} runs job {job!r} on pull requests and no branch "
-                "protection rule requires it, so it cannot block anything"
+                "protection rule requires it, so it cannot block anything. "
+                "Require it, or list it in pending_checks with the reason."
             )
 
     if not policy.get("enforced"):
@@ -101,6 +146,15 @@ def check_offline(policy: dict) -> list[str]:
                 "the policy is not enforced and records neither the reason nor "
                 "the command that enforces it"
             )
+    elif policy["settings"].get("required_approving_review_count", 0) == 0 and not policy.get(
+        "why_zero_approvals"
+    ):
+        # Zero approvals is a defensible setting for a single maintainer and an
+        # indefensible one to arrive at by accident, so it has to say which.
+        problems.append(
+            "the policy requires no approving review and records no reason; "
+            "say why, and what would raise it"
+        )
     return problems
 
 
@@ -150,7 +204,7 @@ def compare_live(policy: dict, live: dict | None) -> list[str]:
     elif reviews:
         if reviews.get("required_approving_review_count", 0) < settings[
             "required_approving_review_count"
-        ]:
+        ]:  # noqa: SIM102 - the message below explains the specific shortfall
             problems.append(
                 "fewer approving reviews are required than the policy states"
             )

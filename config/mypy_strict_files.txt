@@ -104,3 +104,23 @@ core/runtime/memory_consent.py
 # Adopted by tools/typecheck_changed.py
 core/db/migrations.py
 core/orchestrator/initializers/core_baseline.py
+
+# Adopted by tools/typecheck_changed.py
+core/cognition/impasse.py
+core/cognition/procedural_generalization.py
+core/context/conversation_log.py
+core/language/desktop_actuation.py
+core/language/substrate_store.py
+core/learning/sealed_artifact_admission.py
+core/memory/cold_store.py
+core/reasoning/action_value.py
+core/runtime/health_fragments.py
+core/runtime/perception_demand.py
+core/skill_management/forged_artifact.py
+tools/derive_lockfile.py
+
+# Adopted by tools/typecheck_changed.py
+tools/extract_seam.py
+tools/lint_lexical_debt.py
+tools/lint_phrase_pinned_tests.py
+tools/typecheck_changed.py

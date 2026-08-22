@@ -1,4 +1,4 @@
-.PHONY: release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
+.PHONY: lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
 
 
 PYTHON ?= python
@@ -209,6 +209,10 @@ raw-skill-execute-baseline:
 	@echo "🛡  Rewriting the raw skill execute ratchet (shrink only)..."
 	@$(PYTHON) tools/check_raw_skill_execute.py --baseline
 
+lock-advisories:
+	@echo "🛡  Asking OSV about every pinned version, before CI does..."
+	@$(PYTHON) tools/check_lock_advisories.py
+
 deps-gate:
 	@echo "📦 Checking that every build installs what the contract declares..."
 	@$(PYTHON) tools/check_dependency_contract.py
@@ -218,6 +222,8 @@ lockfiles:
 	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
 		--requirements requirements/sandbox.txt \
 		--out requirements/lock/code-sandbox.txt
+	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
+		--constraints --out requirements/lock/container-constraints.txt
 	@echo "   The container-runtime lock is not derivable; see"
 	@echo "   config/dependency_contract.json for the pip-compile that closes it."
 
@@ -226,6 +232,8 @@ lockfiles-check:
 	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
 		--requirements requirements/sandbox.txt \
 		--out requirements/lock/code-sandbox.txt --check
+	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
+		--constraints --out requirements/lock/container-constraints.txt --check
 
 review-policy:
 	@echo "👥 Checking ownership, templates, and that every gate is required..."
@@ -254,6 +262,16 @@ typecheck-changed:
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
 	@$(PYTHON) tools/check_layering.py
+
+release-dry-run: release-ready release-preflight
+	@echo "🚢 Generating the provenance and SBOM the release lane emits..."
+	@$(PYTHON) tools/build_provenance.py --output-dir artifacts/provenance
+	@echo ""
+	@echo "✅ Dry run complete. NOT run, because they need an Apple account:"
+	@echo "   codesign --options runtime"
+	@echo "   xcrun notarytool submit"
+	@echo "   xcrun stapler staple"
+	@echo "   A green dry run is not a release."
 
 release-ready:
 	@echo "🚢 Checking the release lane is fail-closed before a tag..."

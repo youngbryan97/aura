@@ -8920,6 +8920,10 @@ from interface.routes.chat_quality import (  # noqa: E402
     assess_post_response_confidence,
 )
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 # ── Conversation Lane Helpers ─────────────────────────────────
 
 
@@ -9364,7 +9368,11 @@ def _fallback_ladder_identity() -> str:
     """
 
     try:
-        from core.identity import CORE_DIR
+        # From the module that owns the path, not from core.identity, which
+        # only re-exports it as a side effect of its own import. The guarded-
+        # imports gate reads names a module defines, and this one resolved at
+        # runtime while reading as dead to every static check.
+        from core.utils.paths import CORE_DIR
 
         base = (CORE_DIR / "identity_base.txt").read_text(encoding="utf-8")
     except (ImportError, AttributeError, OSError, ValueError):
@@ -17336,6 +17344,1106 @@ async def _record_desktop_evidence_on_the_trace(
     )
 
 
+async def _await_the_sovereign_kernel_reply(
+    *,
+    _attempt_protected_foreground_reply: Any,
+    _cancel_kernel_task_if_pending: Any,
+    _finalize_fastpath: Any,
+    _remaining_foreground_budget: Any,
+    chat_origin: Any,
+    effective_user_message: Any,
+    is_benchmark: Any,
+    kernel_timed_out: Any,
+    ki: Any,
+    reply_text: Any,
+) -> tuple[Any, Any, Any]:
+    """Wait for the Sovereign Kernel's reply inside the turn's remaining budget.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 10 name(s) and hands back
+    2.
+    """
+    async def _block() -> Any:
+        nonlocal kernel_timed_out, reply_text
+        if not reply_text and ki.is_ready():
+            logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
+            try:
+                kernel_timeout = _remaining_foreground_budget()
+                from core.conversation.turn_evidence_custody import (
+                    run_as_turn_evidence_participant,
+                )
+
+                kernel_task = get_task_tracker().create_task(
+                    run_as_turn_evidence_participant(
+                        ki.process(effective_user_message, origin=chat_origin, priority=True),
+                        purpose="foreground sovereign kernel",
+                    ),
+                    name="Aura.Server.Chat.kernel_foreground",
+                )
+                # [STABILITY v53] Two-phase timeout:
+                # Phase 1 (soft): Give kernel its full SLA. Don't fire competing
+                #   requests during this window — resource contention makes both slower.
+                # Phase 2 (hard): If kernel misses soft deadline, try protected foreground
+                #   OR wait for kernel with remaining budget, whichever finishes first.
+                soft_deadline = min(
+                    _KERNEL_SOFT_REPLY_SLA_SECONDS,
+                    max(8.0, kernel_timeout - 20.0),
+                )
+                try:
+                    reply_text = await asyncio.wait_for(
+                        asyncio.shield(kernel_task),
+                        timeout=soft_deadline,
+                    )
+                except TimeoutError:
+                    # Soft deadline missed.
+                    # [STABILITY v55] ROOT CAUSE FIX: DO NOT fire a competing
+                    # protected foreground request if the cortex is alive and
+                    # actively generating for the kernel task. The previous
+                    # design fired _attempt_protected_foreground_reply here,
+                    # which tried to acquire the same foreground owner the
+                    # kernel was using — creating a resource contention spiral
+                    # where BOTH requests stall. Only compete if the cortex
+                    # is genuinely dead/stuck.
+                    hard_budget = max(2.0, _remaining_foreground_budget())
+                    cortex_alive = False
+                    try:
+                        gate = ServiceContainer.get("inference_gate", default=None)
+                        if gate and hasattr(gate, "is_alive"):
+                            cortex_alive = gate.is_alive()
+                    except _CHAT_RECOVERABLE_ERRORS as exc:
+                        record_degradation("chat", exc)
+                        logger.debug("Inference gate liveness check failed: %s", exc)
+                    if cortex_alive:
+                        # Cortex is alive — it's just slow. Wait for kernel
+                        # to finish instead of competing for the same LLM.
+                        logger.info(
+                            "⏳ Kernel soft deadline missed but cortex is alive and generating. "
+                            "Waiting %.0fs for kernel to finish (no competing request).",
+                            hard_budget,
+                        )
+                        reply_text = await asyncio.wait_for(
+                            asyncio.shield(kernel_task),
+                            timeout=hard_budget,
+                        )
+                    elif is_benchmark:
+                        logger.warning(
+                            "Benchmark kernel soft deadline missed and cortex liveness was not confirmed. "
+                            "Continuing to wait on the canonical kernel task instead of switching lanes."
+                        )
+                        reply_text = await asyncio.wait_for(
+                            asyncio.shield(kernel_task),
+                            timeout=max(2.0, _remaining_foreground_budget()),
+                        )
+                    else:
+                        # Cortex missed its deadline; try the protected local foreground lane.
+                        protected_reply = await _attempt_protected_foreground_reply(
+                            "kernel_soft_deadline"
+                        )
+                        if protected_reply:
+                            await _cancel_kernel_task_if_pending(
+                                "kernel_soft_deadline_protected_reply"
+                            )
+                            return await _finalize_fastpath(
+                                protected_reply,
+                                status="protected_foreground",
+                            )
+                        # Protected foreground also failed — give kernel remaining time
+                        reply_text = await asyncio.wait_for(
+                            asyncio.shield(kernel_task),
+                            timeout=max(2.0, _remaining_foreground_budget()),
+                        )
+            except TimeoutError as e:
+                kernel_timed_out = True
+                await _cancel_kernel_task_if_pending("kernel_timeout")
+                # A timeout is a control-flow outcome, not a crash. Dumping a
+                # full asyncio traceback for every slow turn buries the real
+                # ones: the 2026-07-25 capability run printed CancelledError
+                # chains into the operator's terminal for turns that simply
+                # took too long and were handled exactly as designed.
+                logger.warning(
+                    "KernelInterface chat timed out after its budget; the "
+                    "fallback ladder takes this turn (%s).",
+                    type(e).__name__,
+                )
+            except _CHAT_RECOVERABLE_ERRORS as e:
+                record_degradation("chat", e)
+                logger.error(
+                    "KernelInterface chat failed natively; legacy fallback policy will decide: %s (%s)",
+                    type(e).__name__,
+                    e,
+                    exc_info=True,
+                )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, kernel_timed_out, reply_text
+
+
+async def _recheck_a_degraded_reply(
+    *,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    desktop_memory_state_evidence: Any,
+    desktop_requires_cognitive_engine: Any,
+    hard_final_quality_failed: Any,
+    lane: Any,
+    reply_text: Any,
+    response_confidence: Any,
+) -> tuple[Any, Any, Any]:
+    """Re-check a degraded reply against the memory evidence the turn gathered.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 7 name(s) from the turn and hands back
+    3.
+    """
+    if (
+        desktop_requires_cognitive_engine
+        and response_confidence == "degraded"
+        and desktop_memory_state_evidence
+        and bool(_live_turn_trace.get("engine_think_invoked"))
+        and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
+        and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
+        and not bool(_live_turn_trace.get("bounded_contract_used"))
+        and not bool(_live_turn_trace.get("legacy_fallback_used"))
+    ):
+        canonical_evidence = _canonical_memory_state_evidence_from_tuple(
+            desktop_memory_state_evidence
+        )
+        rebound_live_mind_context = await _collect_live_mind_context_payload(
+            user_message=_semantic_user_message,
+            lane=lane,
+            require_engine=True,
+        )
+        grounded_memory_reply = _canonical_memory_state_grounding_reply(
+            _semantic_user_message,
+            canonical_evidence,
+            live_mind_context=rebound_live_mind_context,
+        )
+        if grounded_memory_reply and not _memory_state_evidence_is_missing_from_reply(
+            _semantic_user_message,
+            grounded_memory_reply,
+            desktop_memory_state_evidence,
+        ):
+            # Replace, or add?
+            #
+            # This rebound exists so a "what did I pin?" turn cannot drift
+            # off the canonical record. It fires whenever the reply does
+            # not repeat the pinned phrase — which, on a turn that pins a
+            # fact AND asks something real, is simply what a good answer
+            # looks like. Live 2026-07-27: "Remember this: my project
+            # codename is HELIOTROPE... Separately — do you think a system
+            # like you can actually prefer one thing over another?" came
+            # back as the pin confirmation alone, degraded with an EMPTY
+            # assessment and an EMPTY reason. Nothing was wrong with the
+            # answer. It just didn't recite the codename, so it was thrown
+            # away and the template took the turn.
+            #
+            # A person told "remember X, and also what do you think about
+            # Y" says both. So: when the turn is only the memory request,
+            # the canonical reply stands in. When there is more to it, the
+            # confirmation joins the answer instead of erasing it.
+            _pre_memory_grounding_reply = reply_text
+            if (
+                _chat_memory_state._turn_has_substance_beyond_memory_request(
+                    _semantic_user_message
+                )
+                and str(reply_text or "").strip()
+            ):
+                # The whole canonical reply, not just its first sentence:
+                # it is short, it is grounded, and its later sentences
+                # carry real content ("right now I am keeping attention
+                # on this live desktop thread") that answers the state
+                # half of turns like "remember X, and tell me what you
+                # are attending to".
+                confirmation = str(grounded_memory_reply or "").strip()
+                logger.info(
+                    "Memory/state evidence joined the CognitiveEngine answer "
+                    "instead of replacing it: the turn asked for more than "
+                    "the canonical record."
+                )
+                reply_text = f"{confirmation}\n\n{str(reply_text).strip()}"
+            else:
+                logger.warning(
+                    "Final desktop quality gate rebound reply to canonical "
+                    "memory/state evidence after CognitiveEngine invocation."
+                )
+                reply_text = grounded_memory_reply
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.final_memory_state_grounding",
+                method="deterministic_canonical_grounding",
+                reasons=["memory_state_evidence_grounding"],
+                before=_pre_memory_grounding_reply,
+                after=reply_text,
+                deterministic=True,
+                authorship_effect=(
+                    "augmented_by_runtime"
+                    if _chat_memory_state._turn_has_substance_beyond_memory_request(
+                        _semantic_user_message
+                    )
+                    and str(_pre_memory_grounding_reply or "").strip()
+                    else "replaced_by_runtime"
+                ),
+            )
+            response_confidence = "high"
+            hard_final_quality_failed = False
+            _set_conversation_degradation_streak(0)
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": True,
+                    "cognitive_engine_reply_failed": False,
+                    "bounded_contract_used": False,
+                    "legacy_fallback_used": False,
+                    "response_path": "cognitive_engine_memory_state_grounding",
+                }
+            )
+    return hard_final_quality_failed, reply_text, response_confidence
+
+
+async def _answer_from_grounded_introspection(
+    *,
+    _finalize_fastpath: Any,
+    _semantic_user_message: Any,
+    asks_authority: Any,
+    grounded_introspection: Any,
+) -> Any:
+    """Answer straight from grounded introspection when that is what was asked.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 4 name(s) and hands back
+    0.
+    """
+    async def _block() -> Any:
+        nonlocal grounded_introspection
+        if grounded_introspection:
+            # Substrate authority gate: introspection responses are RESPONSE category
+            _gi_receipt_id = None
+            _gi_effect_source = (
+                "grounded_authority_report" if asks_authority else "grounded_introspection"
+            )
+            _gi_status = "grounded_authority" if asks_authority else "grounded_introspection"
+            try:
+                from core.container import ServiceContainer as _SC_gi
+
+                _sa = _SC_gi.get("substrate_authority", default=None)
+                if _sa:
+                    from core.consciousness.substrate_authority import (
+                        ActionCategory,
+                        AuthorizationDecision,
+                    )
+
+                    _gv = _sa.authorize(
+                        content=_semantic_user_message[:80],
+                        source=_gi_effect_source,
+                        category=ActionCategory.RESPONSE,
+                        priority=0.6 if asks_authority else 0.4,
+                        is_critical=asks_authority,
+                    )
+                    _gi_receipt_id = _gv.receipt_id
+                    if asks_authority:
+                        grounded_introspection = _chat_conversation_repair._build_grounded_introspection_reply(
+                            _semantic_user_message,
+                            authority_observability_note=(
+                                "This governance report is being emitted under an observability override, "
+                                "so the authority state stays inspectable even when normal output is constrained."
+                                if _gv.decision == AuthorizationDecision.CRITICAL_PASS
+                                else None
+                            ),
+                        )
+                    elif _gv.decision == AuthorizationDecision.BLOCK:
+                        logger.debug(
+                            "Grounded introspection blocked by substrate — falling through to kernel"
+                        )
+                        grounded_introspection = None  # fall through to full cognitive path
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat", exc)
+                logger.warning(
+                    "Grounded introspection authority gate unavailable; falling through to kernel path: %s",
+                    exc,
+                )
+                grounded_introspection = None
+
+            if grounded_introspection:
+                # Record effect with exact receipt_id for provenance matching
+                try:
+                    from core.consciousness.authority_audit import get_audit
+
+                    get_audit().record_effect(
+                        "response",
+                        _gi_effect_source,
+                        _semantic_user_message[:80],
+                        receipt_id=_gi_receipt_id,
+                    )
+                except _CHAT_RECOVERABLE_ERRORS as exc:
+                    record_degradation("chat", exc)
+                    logger.debug("Authority audit effect recording failed: %s", exc)
+                return await _finalize_fastpath(grounded_introspection, status=_gi_status)
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response
+
+
+def _repair_a_degraded_identity_reply(
+    *,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    desktop_requires_cognitive_engine: Any,
+    hard_final_quality_failed: Any,
+    reply_source: Any,
+    reply_text: Any,
+    response_confidence: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Repair a degraded reply to an identity question from the record.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    4.
+    """
+    if (
+        desktop_requires_cognitive_engine
+        and response_confidence == "degraded"
+        and (
+            _chat_desktop_repair._is_identity_request(_semantic_user_message)
+            or _chat_desktop_repair._identity_request_asks_future_memory(_semantic_user_message)
+        )
+        and bool(_live_turn_trace.get("engine_think_invoked"))
+        and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
+        and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
+        and not bool(_live_turn_trace.get("bounded_contract_used"))
+        and not bool(_live_turn_trace.get("legacy_fallback_used"))
+    ):
+        grounded_identity_reply = _chat_desktop_repair._build_identity_reply(
+            _semantic_user_message
+        )
+        try:
+            from core.conversation.response_reliability import assess_user_facing_reply
+
+            identity_assessment = assess_user_facing_reply(
+                _semantic_user_message,
+                grounded_identity_reply,
+            )
+        except _CHAT_RECOVERABLE_ERRORS as identity_assess_exc:
+            record_degradation("chat", identity_assess_exc)
+            logger.debug(
+                "Canonical identity/continuity grounding assessment skipped: %s",
+                identity_assess_exc,
+            )
+            identity_assessment = None
+        if grounded_identity_reply and not _reply_assessment_requires_repair(
+            identity_assessment
+        ):
+            logger.warning(
+                "Final desktop quality gate rebound reply to canonical identity/continuity "
+                "grounding after CognitiveEngine invocation."
+            )
+            _pre_identity_grounding_reply = reply_text
+            reply_text = grounded_identity_reply
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.final_identity_grounding",
+                method="deterministic_canonical_grounding",
+                reasons=["identity_continuity_grounding"],
+                before=_pre_identity_grounding_reply,
+                after=reply_text,
+                deterministic=True,
+                authorship_effect="replaced_by_runtime",
+            )
+            reply_source = "cognitive_engine_identity_continuity_grounding"
+            response_confidence = "high"
+            hard_final_quality_failed = False
+            _set_conversation_degradation_streak(0)
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": True,
+                    "cognitive_engine_reply_failed": False,
+                    "bounded_contract_used": False,
+                    "legacy_fallback_used": False,
+                    "response_path": "cognitive_engine_identity_continuity_grounding",
+                }
+            )
+    return hard_final_quality_failed, reply_source, reply_text, response_confidence
+
+
+async def _refuse_an_empty_canonical_reply(
+    *,
+    _chat_session_id: Any,
+    _original_user_message: Any,
+    _semantic_user_message: Any,
+    is_benchmark: Any,
+    lane: Any,
+    pending_exchange_id: Any,
+    reply_text: Any,
+) -> tuple[Any, Any, Any]:
+    """Refuse the turn when the canonical path produced nothing to say.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    2.
+    """
+    async def _block() -> Any:
+        nonlocal lane, pending_exchange_id
+        if not str(reply_text or "").strip():
+            lane = _mark_conversation_lane_state(
+                "canonical_chat_no_reply",
+                state="failed",
+            )
+            # Human prose on the product surface; the machine identity lives
+            # in the `status` field where tooling reads it. The old text
+            # shipped 'canonical chat lane', 'implicit legacy fallback' and a
+            # raw 'status=' token straight to the user — internal vocabulary
+            # that explains nothing to the person waiting for an answer
+            # (2026-07-18 soak: 32 turns of it).
+            failure_reply = (
+                "I couldn't put together an answer I'd stand behind for that one, "
+                "and I won't hand you a thinner substitute and call it mine. "
+                "The full reasoning path didn't complete — worth retrying in a "
+                "moment, and the runtime logs carry the detail."
+            )
+            # Same reading as the other two refusal sites. "The runtime logs
+            # carry the detail" is the sharpest form of the defect: it tells the
+            # person their answer exists somewhere she declined to look.
+            evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
+                _semantic_user_message
+            )
+            if evidenced_reply:
+                failure_reply = evidenced_reply
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    failure_reply,
+                    record_experience=False,
+                )
+                pending_exchange_id = None
+            else:
+                await _chat_preflight._log_exchange(
+                    _original_user_message,
+                    failure_reply,
+                    record_experience=False,
+                    session_id=_chat_session_id,
+                )
+            await _emit_chat_output_receipt(
+                failure_reply,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "failed",
+                    "path": "canonical_chat",
+                    "status": "canonical_chat_no_reply",
+                    "reason": "implicit_legacy_orchestrator_fallback_refused",
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": failure_reply,
+                    "status": "canonical_chat_no_reply",
+                    "conversation_lane": lane,
+                    "response_confidence": "failed",
+                },
+                # In-band fail-closed delivery for real users.
+                status_code=503 if is_benchmark else 200,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, lane, pending_exchange_id
+
+
+def _fail_closed_on_an_unproven_full_mind_contract(
+    *,
+    _final_reply: Any,
+    _full_mind_unproven: Any,
+    _live_turn_contract: Any,
+    _live_turn_trace: Any,
+    final_live_turn_contract: Any,
+    is_benchmark: Any,
+    lane_status: Any,
+) -> tuple[Any, Any]:
+    """Refuse the turn when the required full-mind contract went unproven.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    1.
+    """
+    def _block() -> Any:
+        nonlocal final_live_turn_contract
+        if _full_mind_unproven:
+            logger.warning(
+                "⚠️ Required desktop full-mind contract was not proven; failing "
+                "closed instead of serving partial/raw speech (path=%s, missing=%s).",
+                final_live_turn_contract.get("response_path") or "",
+                # WHICH proof failed is the whole diagnosis. Without it this
+                # says only that something did, and the person gets "I couldn't
+                # get my full attention onto that one" with no way to find out
+                # why — which cost several rounds of guessing.
+                ",".join(
+                    str(item)
+                    for item in (
+                        final_live_turn_contract.get("full_mind_missing_proofs") or ()
+                    )
+                )
+                or "unrecorded",
+            )
+            fail_closed_reply = (
+                "I couldn't get my full attention onto that one, and I'd rather "
+                "tell you that than answer from half of it. Try me again in a "
+                "moment."
+            )
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.full_mind_contract_fail_closed",
+                method="deterministic_contract_failure_replacement",
+                reasons=["desktop_full_mind_contract_not_proven"],
+                before=_final_reply,
+                after=fail_closed_reply,
+                deterministic=True,
+                authorship_effect="replaced_by_runtime",
+            )
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": False,
+                    "cognitive_engine_reply_failed": True,
+                    "response_path": "desktop_full_mind_contract_not_proven",
+                }
+            )
+            final_live_turn_contract = _live_turn_contract(
+                lane_status=lane_status,
+                response_confidence="failed_closed",
+                status="desktop_full_mind_contract_not_proven",
+                reply_source="desktop_full_mind_contract_not_proven",
+            )
+            return JSONResponse(
+                {
+                    "response": fail_closed_reply,
+                    "status": "desktop_full_mind_contract_not_proven",
+                    "reason": "desktop_full_mind_contract_not_proven",
+                    "conversation_lane": lane_status,
+                    "response_confidence": "failed_closed",
+                    "live_turn_contract": final_live_turn_contract,
+                },
+                # In-band fail-closed delivery for real users.
+                status_code=503 if is_benchmark else 200,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response, final_live_turn_contract
+
+
+async def _serve_the_bounded_repair(
+    *,
+    _live_turn_contract: Any,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    bounded_repair: Any,
+    lane: Any,
+    pending_exchange_id: Any,
+) -> tuple[Any, Any, Any]:
+    """Serve the bounded repair when the cognitive engine could not answer.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    2.
+    """
+    async def _block() -> Any:
+        nonlocal lane, pending_exchange_id
+        if bounded_repair:
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": False,
+                    "cognitive_engine_reply_failed": True,
+                    "bounded_contract_used": True,
+                    "legacy_fallback_used": False,
+                    "post_generation_repair_applied": True,
+                    "deterministic_repair_applied": True,
+                    "response_path": "cognitive_engine_self_process_grounding",
+                    "canonical_grounding_used": True,
+                }
+            )
+            lane = _mark_conversation_lane_state(
+                "cognitive_engine_self_process_grounding",
+                state="recovering",
+            )
+            logger.warning(
+                "Desktop CognitiveEngine produced no acceptable reply; serving canonical "
+                "self-process grounding from live context instead of legacy fallback."
+            )
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    bounded_repair,
+                    record_experience=True,
+                )
+                pending_exchange_id = None
+            await _emit_chat_output_receipt(
+                bounded_repair,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "bounded",
+                    "path": "cognitive_engine_self_process_grounding",
+                    "status": "cognitive_engine_self_process_grounding",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": bounded_repair,
+                    "status": "cognitive_engine_self_process_grounding",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                    "conversation_lane": lane,
+                    "response_confidence": "bounded",
+                    "live_turn_contract": _live_turn_contract(
+                        lane_status=lane,
+                        response_confidence="bounded",
+                        status="cognitive_engine_self_process_grounding",
+                        reply_source="cognitive_engine_self_process_grounding",
+                    ),
+                }
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, lane, pending_exchange_id
+
+
+def _repair_a_degraded_affect_reply(
+    *,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    desktop_requires_cognitive_engine: Any,
+    hard_final_quality_failed: Any,
+    reply_source: Any,
+    reply_text: Any,
+    response_confidence: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Repair a degraded reply to a plain question about how she feels.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    4.
+    """
+    if (
+        desktop_requires_cognitive_engine
+        and response_confidence == "degraded"
+        and _is_simple_affect_check_request(_semantic_user_message)
+        and bool(_live_turn_trace.get("engine_think_invoked"))
+        and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
+        and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
+        and not bool(_live_turn_trace.get("legacy_fallback_used"))
+    ):
+        grounded_condition_reply = _build_grounded_self_condition_reply(_semantic_user_message)
+        try:
+            from core.conversation.response_reliability import assess_user_facing_reply
+
+            condition_assessment = assess_user_facing_reply(
+                _semantic_user_message,
+                grounded_condition_reply,
+            )
+        except _CHAT_RECOVERABLE_ERRORS as condition_assess_exc:
+            record_degradation("chat.self_condition", condition_assess_exc)
+            condition_assessment = None
+        if grounded_condition_reply and not _reply_assessment_requires_repair(
+            condition_assessment
+        ):
+            logger.warning(
+                "Final desktop quality gate rebound reply to canonical self-condition "
+                "evidence after CognitiveEngine invocation."
+            )
+            _pre_condition_grounding_reply = reply_text
+            reply_text = grounded_condition_reply
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.final_self_condition_grounding",
+                method="deterministic_canonical_grounding",
+                reasons=["self_condition_evidence_grounding"],
+                before=_pre_condition_grounding_reply,
+                after=reply_text,
+                deterministic=True,
+                authorship_effect="replaced_by_runtime",
+            )
+            reply_source = "cognitive_engine_self_condition_grounding"
+            response_confidence = "high"
+            hard_final_quality_failed = False
+            _set_conversation_degradation_streak(0)
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": True,
+                    "cognitive_engine_reply_failed": False,
+                    "bounded_contract_used": False,
+                    "legacy_fallback_used": False,
+                    "response_path": "cognitive_engine_self_condition_grounding",
+                    "self_condition_contract": True,
+                }
+            )
+    return hard_final_quality_failed, reply_source, reply_text, response_confidence
+
+
+async def _serve_the_identity_repair(
+    *,
+    _live_turn_contract: Any,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    identity_repair: Any,
+    lane: Any,
+    pending_exchange_id: Any,
+) -> tuple[Any, Any, Any]:
+    """Serve the identity repair when the engine failed on an identity question.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    2.
+    """
+    async def _block() -> Any:
+        nonlocal lane, pending_exchange_id
+        if identity_repair:
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": False,
+                    "cognitive_engine_reply_failed": True,
+                    "bounded_contract_used": True,
+                    "legacy_fallback_used": False,
+                    "response_path": "cognitive_engine_identity_continuity_grounding",
+                    "canonical_grounding_used": True,
+                }
+            )
+            lane = _mark_conversation_lane_state(
+                "cognitive_engine_identity_continuity_grounding",
+                state="recovering",
+            )
+            logger.warning(
+                "Desktop CognitiveEngine produced no acceptable reply for an identity "
+                "turn; serving canonical identity/continuity grounding instead of legacy fallback."
+            )
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    identity_repair,
+                    record_experience=True,
+                )
+                pending_exchange_id = None
+            await _emit_chat_output_receipt(
+                identity_repair,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "bounded",
+                    "path": "cognitive_engine_identity_continuity_grounding",
+                    "status": "cognitive_engine_identity_continuity_grounding",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": identity_repair,
+                    "status": "cognitive_engine_identity_continuity_grounding",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                    "conversation_lane": lane,
+                    "response_confidence": "bounded",
+                    "live_turn_contract": _live_turn_contract(
+                        lane_status=lane,
+                        response_confidence="bounded",
+                        status="cognitive_engine_identity_continuity_grounding",
+                        reply_source="cognitive_engine_identity_continuity_grounding",
+                    ),
+                }
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, lane, pending_exchange_id
+
+
+async def _serve_the_capability_inventory(
+    *,
+    _live_turn_contract: Any,
+    _live_turn_trace: Any,
+    _semantic_user_message: Any,
+    capability_inventory: Any,
+    lane: Any,
+    pending_exchange_id: Any,
+) -> tuple[Any, Any, Any]:
+    """Serve the capability inventory when that is what the turn asked for.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    2.
+    """
+    async def _block() -> Any:
+        nonlocal lane, pending_exchange_id
+        if capability_inventory:
+            _live_turn_trace.update(
+                {
+                    "bounded_contract_used": True,
+                    "response_path": "desktop_cognitive_engine_capability_inventory",
+                }
+            )
+            lane = _mark_conversation_lane_state(
+                "desktop_cognitive_engine_capability_inventory",
+                state="recovering",
+            )
+            logger.warning(
+                "Desktop CognitiveEngine produced no acceptable reply for a capability "
+                "inventory turn; serving grounded governed-tool inventory instead of "
+                "self-process repair or legacy fallback."
+            )
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    capability_inventory,
+                    record_experience=True,
+                )
+                pending_exchange_id = None
+            await _emit_chat_output_receipt(
+                capability_inventory,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "bounded",
+                    "path": "desktop_cognitive_engine_capability_inventory",
+                    "status": "desktop_cognitive_engine_capability_inventory",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": capability_inventory,
+                    "status": "desktop_cognitive_engine_capability_inventory",
+                    "reason": "desktop_cognitive_engine_required_no_reply",
+                    "conversation_lane": lane,
+                    "response_confidence": "bounded",
+                    "live_turn_contract": _live_turn_contract(
+                        lane_status=lane,
+                        response_confidence="bounded",
+                        status="desktop_cognitive_engine_capability_inventory",
+                        reply_source="desktop_cognitive_engine_capability_inventory",
+                    ),
+                }
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, lane, pending_exchange_id
+
+
+def _fail_closed_on_an_unproven_output_contract(
+    *,
+    _final_reply: Any,
+    _live_turn_contract: Any,
+    _live_turn_trace: Any,
+    final_live_turn_contract: Any,
+    lane_status: Any,
+) -> Any:
+    """Refuse the turn when the requested-output contract went unproven.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 5 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if not bool(final_live_turn_contract.get("final_requested_output_contract_proven")):
+            logger.error(
+                "Final requested-output contract is unproven; failing closed (kind=%s reasons=%s).",
+                final_live_turn_contract.get("final_requested_output_contract_kind") or "unknown",
+                ",".join(
+                    final_live_turn_contract.get("final_requested_output_contract_reasons") or []
+                )
+                or "unknown",
+            )
+            fail_closed_reply = (
+                "I couldn't confirm that my answer matched the exact form you asked "
+                "for, so I'd rather not send it than send something that only looks "
+                "right. Ask again and I'll have another go."
+            )
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.final_requested_output_contract_fail_closed",
+                method="deterministic_contract_failure_replacement",
+                reasons=["final_requested_output_contract_unproven"],
+                before=_final_reply,
+                after=fail_closed_reply,
+                deterministic=True,
+                authorship_effect="replaced_by_runtime",
+            )
+            _live_turn_trace.update(
+                {
+                    "cognitive_engine_reply_accepted": False,
+                    "cognitive_engine_reply_failed": True,
+                    "response_path": "requested_output_contract_not_proven",
+                }
+            )
+            failed_contract = _live_turn_contract(
+                lane_status=lane_status,
+                response_confidence="failed_closed",
+                status="requested_output_contract_not_proven",
+                reply_source="requested_output_contract_not_proven",
+            )
+            return JSONResponse(
+                {
+                    "response": fail_closed_reply,
+                    "status": "requested_output_contract_not_proven",
+                    "reason": "requested_output_contract_not_proven",
+                    "conversation_lane": lane_status,
+                    "response_confidence": "failed_closed",
+                    "live_turn_contract": failed_contract,
+                },
+                status_code=503,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+async def _refuse_an_unmet_benchmark_contract(
+    *,
+    _chat_session_id: Any,
+    _original_user_message: Any,
+    _semantic_user_message: Any,
+    contract_reason: Any,
+    final_benchmark_text: Any,
+    pending_exchange_id: Any,
+) -> tuple[Any, Any]:
+    """Refuse a benchmark turn whose artifact contract was not met.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    1.
+    """
+    async def _block() -> Any:
+        nonlocal pending_exchange_id
+        if contract_reason:
+            logger.warning(
+                "Benchmark artifact contract unmet (%s): prompt_len=%d response_len=%d",
+                contract_reason,
+                len(_semantic_user_message),
+                len(final_benchmark_text),
+            )
+            failed_reply = (
+                "Benchmark request failed closed because the canonical kernel response "
+                f"did not satisfy the requested artifact contract: {contract_reason}."
+            )
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    failed_reply,
+                    record_experience=False,
+                )
+                pending_exchange_id = None
+            else:
+                await _chat_preflight._log_exchange(
+                    _original_user_message,
+                    failed_reply,
+                    record_experience=False,
+                    session_id=_chat_session_id,
+                )
+            await _emit_chat_output_receipt(
+                failed_reply,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "failed",
+                    "path": "kernel_benchmark",
+                    "status": "benchmark_artifact_contract_unmet",
+                    "reason": contract_reason,
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": failed_reply,
+                    "status": "benchmark_artifact_contract_unmet",
+                    "reason": contract_reason,
+                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
+                    "response_confidence": "failed",
+                },
+                status_code=502,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, pending_exchange_id
+
+
+async def _refuse_an_empty_benchmark_reply(
+    *,
+    _chat_session_id: Any,
+    _original_user_message: Any,
+    _semantic_user_message: Any,
+    final_benchmark_text: Any,
+    pending_exchange_id: Any,
+) -> tuple[Any, Any]:
+    """Refuse a benchmark turn that produced no canonical response.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 5 name(s) and hands back
+    1.
+    """
+    async def _block() -> Any:
+        nonlocal pending_exchange_id
+        if not final_benchmark_text:
+            empty_reply = "Benchmark request produced no canonical kernel response."
+            if pending_exchange_id:
+                await _chat_preflight._complete_logged_exchange(
+                    pending_exchange_id,
+                    _semantic_user_message,
+                    empty_reply,
+                    record_experience=False,
+                )
+                pending_exchange_id = None
+            else:
+                await _chat_preflight._log_exchange(
+                    _original_user_message,
+                    empty_reply,
+                    record_experience=False,
+                    session_id=_chat_session_id,
+                )
+            await _emit_chat_output_receipt(
+                empty_reply,
+                cause="chat_response",
+                metadata={
+                    "response_confidence": "failed",
+                    "path": "kernel_benchmark",
+                    "status": "benchmark_no_response",
+                },
+            )
+            return JSONResponse(
+                {
+                    "response": empty_reply,
+                    "status": "benchmark_no_response",
+                    "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
+                    "response_confidence": "failed",
+                },
+                status_code=502,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, pending_exchange_id
+
+
 async def _api_chat_turn(body: ChatRequest, request: Request):
     request_started_at = time.monotonic()
     request_wall_started_at = time.time()
@@ -19293,69 +20401,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if allow_chat_fastpaths
             else None
         )
-        if grounded_introspection:
-            # Substrate authority gate: introspection responses are RESPONSE category
-            _gi_receipt_id = None
-            _gi_effect_source = (
-                "grounded_authority_report" if asks_authority else "grounded_introspection"
-            )
-            _gi_status = "grounded_authority" if asks_authority else "grounded_introspection"
-            try:
-                from core.container import ServiceContainer as _SC_gi
-
-                _sa = _SC_gi.get("substrate_authority", default=None)
-                if _sa:
-                    from core.consciousness.substrate_authority import (
-                        ActionCategory,
-                        AuthorizationDecision,
-                    )
-
-                    _gv = _sa.authorize(
-                        content=_semantic_user_message[:80],
-                        source=_gi_effect_source,
-                        category=ActionCategory.RESPONSE,
-                        priority=0.6 if asks_authority else 0.4,
-                        is_critical=asks_authority,
-                    )
-                    _gi_receipt_id = _gv.receipt_id
-                    if asks_authority:
-                        grounded_introspection = _chat_conversation_repair._build_grounded_introspection_reply(
-                            _semantic_user_message,
-                            authority_observability_note=(
-                                "This governance report is being emitted under an observability override, "
-                                "so the authority state stays inspectable even when normal output is constrained."
-                                if _gv.decision == AuthorizationDecision.CRITICAL_PASS
-                                else None
-                            ),
-                        )
-                    elif _gv.decision == AuthorizationDecision.BLOCK:
-                        logger.debug(
-                            "Grounded introspection blocked by substrate — falling through to kernel"
-                        )
-                        grounded_introspection = None  # fall through to full cognitive path
-            except _CHAT_RECOVERABLE_ERRORS as exc:
-                record_degradation("chat", exc)
-                logger.warning(
-                    "Grounded introspection authority gate unavailable; falling through to kernel path: %s",
-                    exc,
-                )
-                grounded_introspection = None
-
-            if grounded_introspection:
-                # Record effect with exact receipt_id for provenance matching
-                try:
-                    from core.consciousness.authority_audit import get_audit
-
-                    get_audit().record_effect(
-                        "response",
-                        _gi_effect_source,
-                        _semantic_user_message[:80],
-                        receipt_id=_gi_receipt_id,
-                    )
-                except _CHAT_RECOVERABLE_ERRORS as exc:
-                    record_degradation("chat", exc)
-                    logger.debug("Authority audit effect recording failed: %s", exc)
-                return await _finalize_fastpath(grounded_introspection, status=_gi_status)
+        _seam_early_response = await _answer_from_grounded_introspection(
+            _finalize_fastpath=_finalize_fastpath,
+            _semantic_user_message=_semantic_user_message,
+            asks_authority=asks_authority,
+            grounded_introspection=grounded_introspection,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         if allow_chat_fastpaths and _chat_desktop_repair._is_identity_request(
             _semantic_user_message
@@ -19981,58 +21034,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 if not identity_contract_proven:
                     identity_repair = ""
-            if identity_repair:
-                _live_turn_trace.update(
-                    {
-                        "cognitive_engine_reply_accepted": False,
-                        "cognitive_engine_reply_failed": True,
-                        "bounded_contract_used": True,
-                        "legacy_fallback_used": False,
-                        "response_path": "cognitive_engine_identity_continuity_grounding",
-                        "canonical_grounding_used": True,
-                    }
-                )
-                lane = _mark_conversation_lane_state(
-                    "cognitive_engine_identity_continuity_grounding",
-                    state="recovering",
-                )
-                logger.warning(
-                    "Desktop CognitiveEngine produced no acceptable reply for an identity "
-                    "turn; serving canonical identity/continuity grounding instead of legacy fallback."
-                )
-                if pending_exchange_id:
-                    await _chat_preflight._complete_logged_exchange(
-                        pending_exchange_id,
-                        _semantic_user_message,
-                        identity_repair,
-                        record_experience=True,
-                    )
-                    pending_exchange_id = None
-                await _emit_chat_output_receipt(
-                    identity_repair,
-                    cause="chat_response",
-                    metadata={
-                        "response_confidence": "bounded",
-                        "path": "cognitive_engine_identity_continuity_grounding",
-                        "status": "cognitive_engine_identity_continuity_grounding",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                    },
-                )
-                return JSONResponse(
-                    {
-                        "response": identity_repair,
-                        "status": "cognitive_engine_identity_continuity_grounding",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                        "conversation_lane": lane,
-                        "response_confidence": "bounded",
-                        "live_turn_contract": _live_turn_contract(
-                            lane_status=lane,
-                            response_confidence="bounded",
-                            status="cognitive_engine_identity_continuity_grounding",
-                            reply_source="cognitive_engine_identity_continuity_grounding",
-                        ),
-                    }
-                )
+            _seam_early_response, lane, pending_exchange_id = await _serve_the_identity_repair(
+                _live_turn_contract=_live_turn_contract,
+                _live_turn_trace=_live_turn_trace,
+                _semantic_user_message=_semantic_user_message,
+                identity_repair=identity_repair,
+                lane=lane,
+                pending_exchange_id=pending_exchange_id,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
 
             capability_inventory = (
                 _chat_desktop_repair._build_bounded_capability_inventory_repair_reply(
@@ -20055,55 +21066,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 if not capability_contract_proven:
                     capability_inventory = ""
-            if capability_inventory:
-                _live_turn_trace.update(
-                    {
-                        "bounded_contract_used": True,
-                        "response_path": "desktop_cognitive_engine_capability_inventory",
-                    }
-                )
-                lane = _mark_conversation_lane_state(
-                    "desktop_cognitive_engine_capability_inventory",
-                    state="recovering",
-                )
-                logger.warning(
-                    "Desktop CognitiveEngine produced no acceptable reply for a capability "
-                    "inventory turn; serving grounded governed-tool inventory instead of "
-                    "self-process repair or legacy fallback."
-                )
-                if pending_exchange_id:
-                    await _chat_preflight._complete_logged_exchange(
-                        pending_exchange_id,
-                        _semantic_user_message,
-                        capability_inventory,
-                        record_experience=True,
-                    )
-                    pending_exchange_id = None
-                await _emit_chat_output_receipt(
-                    capability_inventory,
-                    cause="chat_response",
-                    metadata={
-                        "response_confidence": "bounded",
-                        "path": "desktop_cognitive_engine_capability_inventory",
-                        "status": "desktop_cognitive_engine_capability_inventory",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                    },
-                )
-                return JSONResponse(
-                    {
-                        "response": capability_inventory,
-                        "status": "desktop_cognitive_engine_capability_inventory",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                        "conversation_lane": lane,
-                        "response_confidence": "bounded",
-                        "live_turn_contract": _live_turn_contract(
-                            lane_status=lane,
-                            response_confidence="bounded",
-                            status="desktop_cognitive_engine_capability_inventory",
-                            reply_source="desktop_cognitive_engine_capability_inventory",
-                        ),
-                    }
-                )
+            _seam_early_response, lane, pending_exchange_id = await _serve_the_capability_inventory(
+                _live_turn_contract=_live_turn_contract,
+                _live_turn_trace=_live_turn_trace,
+                _semantic_user_message=_semantic_user_message,
+                capability_inventory=capability_inventory,
+                lane=lane,
+                pending_exchange_id=pending_exchange_id,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
 
             skip_bounded_desktop_repair = (
                 _chat_preflight._is_explicit_capability_inventory_request(_semantic_user_message)
@@ -20166,60 +21138,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 if not bounded_contract_proven:
                     bounded_repair = ""
-            if bounded_repair:
-                _live_turn_trace.update(
-                    {
-                        "cognitive_engine_reply_accepted": False,
-                        "cognitive_engine_reply_failed": True,
-                        "bounded_contract_used": True,
-                        "legacy_fallback_used": False,
-                        "post_generation_repair_applied": True,
-                        "deterministic_repair_applied": True,
-                        "response_path": "cognitive_engine_self_process_grounding",
-                        "canonical_grounding_used": True,
-                    }
-                )
-                lane = _mark_conversation_lane_state(
-                    "cognitive_engine_self_process_grounding",
-                    state="recovering",
-                )
-                logger.warning(
-                    "Desktop CognitiveEngine produced no acceptable reply; serving canonical "
-                    "self-process grounding from live context instead of legacy fallback."
-                )
-                if pending_exchange_id:
-                    await _chat_preflight._complete_logged_exchange(
-                        pending_exchange_id,
-                        _semantic_user_message,
-                        bounded_repair,
-                        record_experience=True,
-                    )
-                    pending_exchange_id = None
-                await _emit_chat_output_receipt(
-                    bounded_repair,
-                    cause="chat_response",
-                    metadata={
-                        "response_confidence": "bounded",
-                        "path": "cognitive_engine_self_process_grounding",
-                        "status": "cognitive_engine_self_process_grounding",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                    },
-                )
-                return JSONResponse(
-                    {
-                        "response": bounded_repair,
-                        "status": "cognitive_engine_self_process_grounding",
-                        "reason": "desktop_cognitive_engine_required_no_reply",
-                        "conversation_lane": lane,
-                        "response_confidence": "bounded",
-                        "live_turn_contract": _live_turn_contract(
-                            lane_status=lane,
-                            response_confidence="bounded",
-                            status="cognitive_engine_self_process_grounding",
-                            reply_source="cognitive_engine_self_process_grounding",
-                        ),
-                    }
-                )
+            _seam_early_response, lane, pending_exchange_id = await _serve_the_bounded_repair(
+                _live_turn_contract=_live_turn_contract,
+                _live_turn_trace=_live_turn_trace,
+                _semantic_user_message=_semantic_user_message,
+                bounded_repair=bounded_repair,
+                lane=lane,
+                pending_exchange_id=pending_exchange_id,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
 
             # Same contract as the other refusal site: a draft the layers
             # below judged servable is served rather than traded for an
@@ -20503,114 +21431,20 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         ki = KernelInterface.get_instance()
         kernel_timed_out = False
 
-        if not reply_text and ki.is_ready():
-            logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
-            try:
-                kernel_timeout = _remaining_foreground_budget()
-                from core.conversation.turn_evidence_custody import (
-                    run_as_turn_evidence_participant,
-                )
-
-                kernel_task = get_task_tracker().create_task(
-                    run_as_turn_evidence_participant(
-                        ki.process(effective_user_message, origin=chat_origin, priority=True),
-                        purpose="foreground sovereign kernel",
-                    ),
-                    name="Aura.Server.Chat.kernel_foreground",
-                )
-                # [STABILITY v53] Two-phase timeout:
-                # Phase 1 (soft): Give kernel its full SLA. Don't fire competing
-                #   requests during this window — resource contention makes both slower.
-                # Phase 2 (hard): If kernel misses soft deadline, try protected foreground
-                #   OR wait for kernel with remaining budget, whichever finishes first.
-                soft_deadline = min(
-                    _KERNEL_SOFT_REPLY_SLA_SECONDS,
-                    max(8.0, kernel_timeout - 20.0),
-                )
-                try:
-                    reply_text = await asyncio.wait_for(
-                        asyncio.shield(kernel_task),
-                        timeout=soft_deadline,
-                    )
-                except TimeoutError:
-                    # Soft deadline missed.
-                    # [STABILITY v55] ROOT CAUSE FIX: DO NOT fire a competing
-                    # protected foreground request if the cortex is alive and
-                    # actively generating for the kernel task. The previous
-                    # design fired _attempt_protected_foreground_reply here,
-                    # which tried to acquire the same foreground owner the
-                    # kernel was using — creating a resource contention spiral
-                    # where BOTH requests stall. Only compete if the cortex
-                    # is genuinely dead/stuck.
-                    hard_budget = max(2.0, _remaining_foreground_budget())
-                    cortex_alive = False
-                    try:
-                        gate = ServiceContainer.get("inference_gate", default=None)
-                        if gate and hasattr(gate, "is_alive"):
-                            cortex_alive = gate.is_alive()
-                    except _CHAT_RECOVERABLE_ERRORS as exc:
-                        record_degradation("chat", exc)
-                        logger.debug("Inference gate liveness check failed: %s", exc)
-                    if cortex_alive:
-                        # Cortex is alive — it's just slow. Wait for kernel
-                        # to finish instead of competing for the same LLM.
-                        logger.info(
-                            "⏳ Kernel soft deadline missed but cortex is alive and generating. "
-                            "Waiting %.0fs for kernel to finish (no competing request).",
-                            hard_budget,
-                        )
-                        reply_text = await asyncio.wait_for(
-                            asyncio.shield(kernel_task),
-                            timeout=hard_budget,
-                        )
-                    elif is_benchmark:
-                        logger.warning(
-                            "Benchmark kernel soft deadline missed and cortex liveness was not confirmed. "
-                            "Continuing to wait on the canonical kernel task instead of switching lanes."
-                        )
-                        reply_text = await asyncio.wait_for(
-                            asyncio.shield(kernel_task),
-                            timeout=max(2.0, _remaining_foreground_budget()),
-                        )
-                    else:
-                        # Cortex missed its deadline; try the protected local foreground lane.
-                        protected_reply = await _attempt_protected_foreground_reply(
-                            "kernel_soft_deadline"
-                        )
-                        if protected_reply:
-                            await _cancel_kernel_task_if_pending(
-                                "kernel_soft_deadline_protected_reply"
-                            )
-                            return await _finalize_fastpath(
-                                protected_reply,
-                                status="protected_foreground",
-                            )
-                        # Protected foreground also failed — give kernel remaining time
-                        reply_text = await asyncio.wait_for(
-                            asyncio.shield(kernel_task),
-                            timeout=max(2.0, _remaining_foreground_budget()),
-                        )
-            except TimeoutError as e:
-                kernel_timed_out = True
-                await _cancel_kernel_task_if_pending("kernel_timeout")
-                # A timeout is a control-flow outcome, not a crash. Dumping a
-                # full asyncio traceback for every slow turn buries the real
-                # ones: the 2026-07-25 capability run printed CancelledError
-                # chains into the operator's terminal for turns that simply
-                # took too long and were handled exactly as designed.
-                logger.warning(
-                    "KernelInterface chat timed out after its budget; the "
-                    "fallback ladder takes this turn (%s).",
-                    type(e).__name__,
-                )
-            except _CHAT_RECOVERABLE_ERRORS as e:
-                record_degradation("chat", e)
-                logger.error(
-                    "KernelInterface chat failed natively; legacy fallback policy will decide: %s (%s)",
-                    type(e).__name__,
-                    e,
-                    exc_info=True,
-                )
+        _seam_early_response, kernel_timed_out, reply_text = await _await_the_sovereign_kernel_reply(
+            _attempt_protected_foreground_reply=_attempt_protected_foreground_reply,
+            _cancel_kernel_task_if_pending=_cancel_kernel_task_if_pending,
+            _finalize_fastpath=_finalize_fastpath,
+            _remaining_foreground_budget=_remaining_foreground_budget,
+            chat_origin=chat_origin,
+            effective_user_message=effective_user_message,
+            is_benchmark=is_benchmark,
+            kernel_timed_out=kernel_timed_out,
+            ki=ki,
+            reply_text=reply_text,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
         if reply_text and not reply_source:
             reply_source = "kernel_interface"
 
@@ -20709,91 +21543,29 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         if is_benchmark:
             final_benchmark_text = str(reply_text or "").strip()
-            if not final_benchmark_text:
-                empty_reply = "Benchmark request produced no canonical kernel response."
-                if pending_exchange_id:
-                    await _chat_preflight._complete_logged_exchange(
-                        pending_exchange_id,
-                        _semantic_user_message,
-                        empty_reply,
-                        record_experience=False,
-                    )
-                    pending_exchange_id = None
-                else:
-                    await _chat_preflight._log_exchange(
-                        _original_user_message,
-                        empty_reply,
-                        record_experience=False,
-                        session_id=_chat_session_id,
-                    )
-                await _emit_chat_output_receipt(
-                    empty_reply,
-                    cause="chat_response",
-                    metadata={
-                        "response_confidence": "failed",
-                        "path": "kernel_benchmark",
-                        "status": "benchmark_no_response",
-                    },
-                )
-                return JSONResponse(
-                    {
-                        "response": empty_reply,
-                        "status": "benchmark_no_response",
-                        "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                        "response_confidence": "failed",
-                    },
-                    status_code=502,
-                )
+            _seam_early_response, pending_exchange_id = await _refuse_an_empty_benchmark_reply(
+                _chat_session_id=_chat_session_id,
+                _original_user_message=_original_user_message,
+                _semantic_user_message=_semantic_user_message,
+                final_benchmark_text=final_benchmark_text,
+                pending_exchange_id=pending_exchange_id,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
             contract_reason = _benchmark_reply_contract_unmet(
                 _semantic_user_message,
                 final_benchmark_text,
             )
-            if contract_reason:
-                logger.warning(
-                    "Benchmark artifact contract unmet (%s): prompt_len=%d response_len=%d",
-                    contract_reason,
-                    len(_semantic_user_message),
-                    len(final_benchmark_text),
-                )
-                failed_reply = (
-                    "Benchmark request failed closed because the canonical kernel response "
-                    f"did not satisfy the requested artifact contract: {contract_reason}."
-                )
-                if pending_exchange_id:
-                    await _chat_preflight._complete_logged_exchange(
-                        pending_exchange_id,
-                        _semantic_user_message,
-                        failed_reply,
-                        record_experience=False,
-                    )
-                    pending_exchange_id = None
-                else:
-                    await _chat_preflight._log_exchange(
-                        _original_user_message,
-                        failed_reply,
-                        record_experience=False,
-                        session_id=_chat_session_id,
-                    )
-                await _emit_chat_output_receipt(
-                    failed_reply,
-                    cause="chat_response",
-                    metadata={
-                        "response_confidence": "failed",
-                        "path": "kernel_benchmark",
-                        "status": "benchmark_artifact_contract_unmet",
-                        "reason": contract_reason,
-                    },
-                )
-                return JSONResponse(
-                    {
-                        "response": failed_reply,
-                        "status": "benchmark_artifact_contract_unmet",
-                        "reason": contract_reason,
-                        "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                        "response_confidence": "failed",
-                    },
-                    status_code=502,
-                )
+            _seam_early_response, pending_exchange_id = await _refuse_an_unmet_benchmark_contract(
+                _chat_session_id=_chat_session_id,
+                _original_user_message=_original_user_message,
+                _semantic_user_message=_semantic_user_message,
+                contract_reason=contract_reason,
+                final_benchmark_text=final_benchmark_text,
+                pending_exchange_id=pending_exchange_id,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
 
             # Preserve benchmark formatting while still requiring the canonical
             # KernelInterface/AuraKernel path above. This is raw-output mode,
@@ -20829,66 +21601,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             return JSONResponse(response_data)
 
-        if not str(reply_text or "").strip():
-            lane = _mark_conversation_lane_state(
-                "canonical_chat_no_reply",
-                state="failed",
-            )
-            # Human prose on the product surface; the machine identity lives
-            # in the `status` field where tooling reads it. The old text
-            # shipped 'canonical chat lane', 'implicit legacy fallback' and a
-            # raw 'status=' token straight to the user — internal vocabulary
-            # that explains nothing to the person waiting for an answer
-            # (2026-07-18 soak: 32 turns of it).
-            failure_reply = (
-                "I couldn't put together an answer I'd stand behind for that one, "
-                "and I won't hand you a thinner substitute and call it mine. "
-                "The full reasoning path didn't complete — worth retrying in a "
-                "moment, and the runtime logs carry the detail."
-            )
-            # Same reading as the other two refusal sites. "The runtime logs
-            # carry the detail" is the sharpest form of the defect: it tells the
-            # person their answer exists somewhere she declined to look.
-            evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
-                _semantic_user_message
-            )
-            if evidenced_reply:
-                failure_reply = evidenced_reply
-            if pending_exchange_id:
-                await _chat_preflight._complete_logged_exchange(
-                    pending_exchange_id,
-                    _semantic_user_message,
-                    failure_reply,
-                    record_experience=False,
-                )
-                pending_exchange_id = None
-            else:
-                await _chat_preflight._log_exchange(
-                    _original_user_message,
-                    failure_reply,
-                    record_experience=False,
-                    session_id=_chat_session_id,
-                )
-            await _emit_chat_output_receipt(
-                failure_reply,
-                cause="chat_response",
-                metadata={
-                    "response_confidence": "failed",
-                    "path": "canonical_chat",
-                    "status": "canonical_chat_no_reply",
-                    "reason": "implicit_legacy_orchestrator_fallback_refused",
-                },
-            )
-            return JSONResponse(
-                {
-                    "response": failure_reply,
-                    "status": "canonical_chat_no_reply",
-                    "conversation_lane": lane,
-                    "response_confidence": "failed",
-                },
-                # In-band fail-closed delivery for real users.
-                status_code=503 if is_benchmark else 200,
-            )
+        _seam_early_response, lane, pending_exchange_id = await _refuse_an_empty_canonical_reply(
+            _chat_session_id=_chat_session_id,
+            _original_user_message=_original_user_message,
+            _semantic_user_message=_semantic_user_message,
+            is_benchmark=is_benchmark,
+            lane=lane,
+            pending_exchange_id=pending_exchange_id,
+            reply_text=reply_text,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         _delivery_stage_started_at = time.monotonic()
         if _cognitive_reply_returned_at > 0.0:
@@ -21243,224 +21966,36 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 else:
                     response_confidence = "degraded"
 
-        if (
-            desktop_requires_cognitive_engine
-            and response_confidence == "degraded"
-            and _is_simple_affect_check_request(_semantic_user_message)
-            and bool(_live_turn_trace.get("engine_think_invoked"))
-            and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
-            and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
-            and not bool(_live_turn_trace.get("legacy_fallback_used"))
-        ):
-            grounded_condition_reply = _build_grounded_self_condition_reply(_semantic_user_message)
-            try:
-                from core.conversation.response_reliability import assess_user_facing_reply
+        hard_final_quality_failed, reply_source, reply_text, response_confidence = _repair_a_degraded_affect_reply(
+            _live_turn_trace=_live_turn_trace,
+            _semantic_user_message=_semantic_user_message,
+            desktop_requires_cognitive_engine=desktop_requires_cognitive_engine,
+            hard_final_quality_failed=hard_final_quality_failed,
+            reply_source=reply_source,
+            reply_text=reply_text,
+            response_confidence=response_confidence,
+        )
 
-                condition_assessment = assess_user_facing_reply(
-                    _semantic_user_message,
-                    grounded_condition_reply,
-                )
-            except _CHAT_RECOVERABLE_ERRORS as condition_assess_exc:
-                record_degradation("chat.self_condition", condition_assess_exc)
-                condition_assessment = None
-            if grounded_condition_reply and not _reply_assessment_requires_repair(
-                condition_assessment
-            ):
-                logger.warning(
-                    "Final desktop quality gate rebound reply to canonical self-condition "
-                    "evidence after CognitiveEngine invocation."
-                )
-                _pre_condition_grounding_reply = reply_text
-                reply_text = grounded_condition_reply
-                _append_turn_text_mutation(
-                    _live_turn_trace,
-                    stage="chat.final_self_condition_grounding",
-                    method="deterministic_canonical_grounding",
-                    reasons=["self_condition_evidence_grounding"],
-                    before=_pre_condition_grounding_reply,
-                    after=reply_text,
-                    deterministic=True,
-                    authorship_effect="replaced_by_runtime",
-                )
-                reply_source = "cognitive_engine_self_condition_grounding"
-                response_confidence = "high"
-                hard_final_quality_failed = False
-                _set_conversation_degradation_streak(0)
-                _live_turn_trace.update(
-                    {
-                        "cognitive_engine_reply_accepted": True,
-                        "cognitive_engine_reply_failed": False,
-                        "bounded_contract_used": False,
-                        "legacy_fallback_used": False,
-                        "response_path": "cognitive_engine_self_condition_grounding",
-                        "self_condition_contract": True,
-                    }
-                )
+        hard_final_quality_failed, reply_source, reply_text, response_confidence = _repair_a_degraded_identity_reply(
+            _live_turn_trace=_live_turn_trace,
+            _semantic_user_message=_semantic_user_message,
+            desktop_requires_cognitive_engine=desktop_requires_cognitive_engine,
+            hard_final_quality_failed=hard_final_quality_failed,
+            reply_source=reply_source,
+            reply_text=reply_text,
+            response_confidence=response_confidence,
+        )
 
-        if (
-            desktop_requires_cognitive_engine
-            and response_confidence == "degraded"
-            and (
-                _chat_desktop_repair._is_identity_request(_semantic_user_message)
-                or _chat_desktop_repair._identity_request_asks_future_memory(_semantic_user_message)
-            )
-            and bool(_live_turn_trace.get("engine_think_invoked"))
-            and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
-            and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
-            and not bool(_live_turn_trace.get("bounded_contract_used"))
-            and not bool(_live_turn_trace.get("legacy_fallback_used"))
-        ):
-            grounded_identity_reply = _chat_desktop_repair._build_identity_reply(
-                _semantic_user_message
-            )
-            try:
-                from core.conversation.response_reliability import assess_user_facing_reply
-
-                identity_assessment = assess_user_facing_reply(
-                    _semantic_user_message,
-                    grounded_identity_reply,
-                )
-            except _CHAT_RECOVERABLE_ERRORS as identity_assess_exc:
-                record_degradation("chat", identity_assess_exc)
-                logger.debug(
-                    "Canonical identity/continuity grounding assessment skipped: %s",
-                    identity_assess_exc,
-                )
-                identity_assessment = None
-            if grounded_identity_reply and not _reply_assessment_requires_repair(
-                identity_assessment
-            ):
-                logger.warning(
-                    "Final desktop quality gate rebound reply to canonical identity/continuity "
-                    "grounding after CognitiveEngine invocation."
-                )
-                _pre_identity_grounding_reply = reply_text
-                reply_text = grounded_identity_reply
-                _append_turn_text_mutation(
-                    _live_turn_trace,
-                    stage="chat.final_identity_grounding",
-                    method="deterministic_canonical_grounding",
-                    reasons=["identity_continuity_grounding"],
-                    before=_pre_identity_grounding_reply,
-                    after=reply_text,
-                    deterministic=True,
-                    authorship_effect="replaced_by_runtime",
-                )
-                reply_source = "cognitive_engine_identity_continuity_grounding"
-                response_confidence = "high"
-                hard_final_quality_failed = False
-                _set_conversation_degradation_streak(0)
-                _live_turn_trace.update(
-                    {
-                        "cognitive_engine_reply_accepted": True,
-                        "cognitive_engine_reply_failed": False,
-                        "bounded_contract_used": False,
-                        "legacy_fallback_used": False,
-                        "response_path": "cognitive_engine_identity_continuity_grounding",
-                    }
-                )
-
-        if (
-            desktop_requires_cognitive_engine
-            and response_confidence == "degraded"
-            and desktop_memory_state_evidence
-            and bool(_live_turn_trace.get("engine_think_invoked"))
-            and bool(_live_turn_trace.get("cognitive_engine_reply_accepted"))
-            and not bool(_live_turn_trace.get("cognitive_engine_reply_failed"))
-            and not bool(_live_turn_trace.get("bounded_contract_used"))
-            and not bool(_live_turn_trace.get("legacy_fallback_used"))
-        ):
-            canonical_evidence = _canonical_memory_state_evidence_from_tuple(
-                desktop_memory_state_evidence
-            )
-            rebound_live_mind_context = await _collect_live_mind_context_payload(
-                user_message=_semantic_user_message,
-                lane=lane,
-                require_engine=True,
-            )
-            grounded_memory_reply = _canonical_memory_state_grounding_reply(
-                _semantic_user_message,
-                canonical_evidence,
-                live_mind_context=rebound_live_mind_context,
-            )
-            if grounded_memory_reply and not _memory_state_evidence_is_missing_from_reply(
-                _semantic_user_message,
-                grounded_memory_reply,
-                desktop_memory_state_evidence,
-            ):
-                # Replace, or add?
-                #
-                # This rebound exists so a "what did I pin?" turn cannot drift
-                # off the canonical record. It fires whenever the reply does
-                # not repeat the pinned phrase — which, on a turn that pins a
-                # fact AND asks something real, is simply what a good answer
-                # looks like. Live 2026-07-27: "Remember this: my project
-                # codename is HELIOTROPE... Separately — do you think a system
-                # like you can actually prefer one thing over another?" came
-                # back as the pin confirmation alone, degraded with an EMPTY
-                # assessment and an EMPTY reason. Nothing was wrong with the
-                # answer. It just didn't recite the codename, so it was thrown
-                # away and the template took the turn.
-                #
-                # A person told "remember X, and also what do you think about
-                # Y" says both. So: when the turn is only the memory request,
-                # the canonical reply stands in. When there is more to it, the
-                # confirmation joins the answer instead of erasing it.
-                _pre_memory_grounding_reply = reply_text
-                if (
-                    _chat_memory_state._turn_has_substance_beyond_memory_request(
-                        _semantic_user_message
-                    )
-                    and str(reply_text or "").strip()
-                ):
-                    # The whole canonical reply, not just its first sentence:
-                    # it is short, it is grounded, and its later sentences
-                    # carry real content ("right now I am keeping attention
-                    # on this live desktop thread") that answers the state
-                    # half of turns like "remember X, and tell me what you
-                    # are attending to".
-                    confirmation = str(grounded_memory_reply or "").strip()
-                    logger.info(
-                        "Memory/state evidence joined the CognitiveEngine answer "
-                        "instead of replacing it: the turn asked for more than "
-                        "the canonical record."
-                    )
-                    reply_text = f"{confirmation}\n\n{str(reply_text).strip()}"
-                else:
-                    logger.warning(
-                        "Final desktop quality gate rebound reply to canonical "
-                        "memory/state evidence after CognitiveEngine invocation."
-                    )
-                    reply_text = grounded_memory_reply
-                _append_turn_text_mutation(
-                    _live_turn_trace,
-                    stage="chat.final_memory_state_grounding",
-                    method="deterministic_canonical_grounding",
-                    reasons=["memory_state_evidence_grounding"],
-                    before=_pre_memory_grounding_reply,
-                    after=reply_text,
-                    deterministic=True,
-                    authorship_effect=(
-                        "augmented_by_runtime"
-                        if _chat_memory_state._turn_has_substance_beyond_memory_request(
-                            _semantic_user_message
-                        )
-                        and str(_pre_memory_grounding_reply or "").strip()
-                        else "replaced_by_runtime"
-                    ),
-                )
-                response_confidence = "high"
-                hard_final_quality_failed = False
-                _set_conversation_degradation_streak(0)
-                _live_turn_trace.update(
-                    {
-                        "cognitive_engine_reply_accepted": True,
-                        "cognitive_engine_reply_failed": False,
-                        "bounded_contract_used": False,
-                        "legacy_fallback_used": False,
-                        "response_path": "cognitive_engine_memory_state_grounding",
-                    }
-                )
+        hard_final_quality_failed, reply_text, response_confidence = await _recheck_a_degraded_reply(
+            _live_turn_trace=_live_turn_trace,
+            _semantic_user_message=_semantic_user_message,
+            desktop_memory_state_evidence=desktop_memory_state_evidence,
+            desktop_requires_cognitive_engine=desktop_requires_cognitive_engine,
+            hard_final_quality_failed=hard_final_quality_failed,
+            lane=lane,
+            reply_text=reply_text,
+            response_confidence=response_confidence,
+        )
 
         if (
             desktop_requires_cognitive_engine
@@ -21765,54 +22300,15 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             status=_final_status,
             reply_source=reply_source,
         )
-        if not bool(final_live_turn_contract.get("final_requested_output_contract_proven")):
-            logger.error(
-                "Final requested-output contract is unproven; failing closed (kind=%s reasons=%s).",
-                final_live_turn_contract.get("final_requested_output_contract_kind") or "unknown",
-                ",".join(
-                    final_live_turn_contract.get("final_requested_output_contract_reasons") or []
-                )
-                or "unknown",
-            )
-            fail_closed_reply = (
-                "I couldn't confirm that my answer matched the exact form you asked "
-                "for, so I'd rather not send it than send something that only looks "
-                "right. Ask again and I'll have another go."
-            )
-            _append_turn_text_mutation(
-                _live_turn_trace,
-                stage="chat.final_requested_output_contract_fail_closed",
-                method="deterministic_contract_failure_replacement",
-                reasons=["final_requested_output_contract_unproven"],
-                before=_final_reply,
-                after=fail_closed_reply,
-                deterministic=True,
-                authorship_effect="replaced_by_runtime",
-            )
-            _live_turn_trace.update(
-                {
-                    "cognitive_engine_reply_accepted": False,
-                    "cognitive_engine_reply_failed": True,
-                    "response_path": "requested_output_contract_not_proven",
-                }
-            )
-            failed_contract = _live_turn_contract(
-                lane_status=lane_status,
-                response_confidence="failed_closed",
-                status="requested_output_contract_not_proven",
-                reply_source="requested_output_contract_not_proven",
-            )
-            return JSONResponse(
-                {
-                    "response": fail_closed_reply,
-                    "status": "requested_output_contract_not_proven",
-                    "reason": "requested_output_contract_not_proven",
-                    "conversation_lane": lane_status,
-                    "response_confidence": "failed_closed",
-                    "live_turn_contract": failed_contract,
-                },
-                status_code=503,
-            )
+        _seam_early_response = _fail_closed_on_an_unproven_output_contract(
+            _final_reply=_final_reply,
+            _live_turn_contract=_live_turn_contract,
+            _live_turn_trace=_live_turn_trace,
+            final_live_turn_contract=final_live_turn_contract,
+            lane_status=lane_status,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
         _full_mind_unproven = desktop_requires_cognitive_engine and not bool(
             final_live_turn_contract.get("full_mind_path")
         )
@@ -21857,63 +22353,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 reply_source=reply_source,
             )
             _full_mind_unproven = False
-        if _full_mind_unproven:
-            logger.warning(
-                "⚠️ Required desktop full-mind contract was not proven; failing "
-                "closed instead of serving partial/raw speech (path=%s, missing=%s).",
-                final_live_turn_contract.get("response_path") or "",
-                # WHICH proof failed is the whole diagnosis. Without it this
-                # says only that something did, and the person gets "I couldn't
-                # get my full attention onto that one" with no way to find out
-                # why — which cost several rounds of guessing.
-                ",".join(
-                    str(item)
-                    for item in (
-                        final_live_turn_contract.get("full_mind_missing_proofs") or ()
-                    )
-                )
-                or "unrecorded",
-            )
-            fail_closed_reply = (
-                "I couldn't get my full attention onto that one, and I'd rather "
-                "tell you that than answer from half of it. Try me again in a "
-                "moment."
-            )
-            _append_turn_text_mutation(
-                _live_turn_trace,
-                stage="chat.full_mind_contract_fail_closed",
-                method="deterministic_contract_failure_replacement",
-                reasons=["desktop_full_mind_contract_not_proven"],
-                before=_final_reply,
-                after=fail_closed_reply,
-                deterministic=True,
-                authorship_effect="replaced_by_runtime",
-            )
-            _live_turn_trace.update(
-                {
-                    "cognitive_engine_reply_accepted": False,
-                    "cognitive_engine_reply_failed": True,
-                    "response_path": "desktop_full_mind_contract_not_proven",
-                }
-            )
-            final_live_turn_contract = _live_turn_contract(
-                lane_status=lane_status,
-                response_confidence="failed_closed",
-                status="desktop_full_mind_contract_not_proven",
-                reply_source="desktop_full_mind_contract_not_proven",
-            )
-            return JSONResponse(
-                {
-                    "response": fail_closed_reply,
-                    "status": "desktop_full_mind_contract_not_proven",
-                    "reason": "desktop_full_mind_contract_not_proven",
-                    "conversation_lane": lane_status,
-                    "response_confidence": "failed_closed",
-                    "live_turn_contract": final_live_turn_contract,
-                },
-                # In-band fail-closed delivery for real users.
-                status_code=503 if is_benchmark else 200,
-            )
+        _seam_early_response, final_live_turn_contract = _fail_closed_on_an_unproven_full_mind_contract(
+            _final_reply=_final_reply,
+            _full_mind_unproven=_full_mind_unproven,
+            _live_turn_contract=_live_turn_contract,
+            _live_turn_trace=_live_turn_trace,
+            final_live_turn_contract=final_live_turn_contract,
+            is_benchmark=is_benchmark,
+            lane_status=lane_status,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         response_data = {
             "response": _final_reply,

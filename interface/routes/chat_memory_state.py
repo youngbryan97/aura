@@ -49,10 +49,11 @@ from interface.routes.chat_common import (
     _locks,
     logger,
 )
+from core.runtime.lockdep import checked_async_lock
 
 
 def _get_convo_lock():
-    return _locks.setdefault("convo", asyncio.Lock())
+    return _locks.setdefault("convo", checked_async_lock("interface.routes.chat_memory_state"))
 
 
 _session_memory_pins: list[dict] = []

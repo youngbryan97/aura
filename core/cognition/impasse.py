@@ -53,6 +53,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from core.runtime.lockdep import checked_lock
+
 __all__ = [
     "ImpasseType",
     "Impasse",
@@ -409,9 +411,8 @@ class ImpasseLearner:
     """
 
     def __init__(self, store: ChunkStore | None = None) -> None:
-        import threading
 
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.cognition.impasse")
         self._store = store or ChunkStore()
         self._since_prune = 0
         self._hits = 0

@@ -33,6 +33,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "config" / "lock_coverage_baseline.json"
 SCAN_ROOTS = ("core", "interface", "skills")
+
+#: Files whose bytes are bound to a proof and may not be edited to satisfy a
+#: ratchet. `core/brain/llm/qualified_recurrent_ingress.py` is one of twenty
+#: sealed into the bounded-WOW activation record; converting its raw lock to a
+#: checked one turned the whole surface off with
+#: `semantic_neural_activation_invalid:source_drift`, and the failure message
+#: says outright not to re-seal to go green. The lock there is real debt that
+#: has to wait for a re-qualification, so it stays counted and stays here.
+SEALED_SOURCES: frozenset[str] = frozenset(
+    {"core/brain/llm/qualified_recurrent_ingress.py"}
+)
 SKIP_DIR_PARTS = {
     ".git",
     ".venv",

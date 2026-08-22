@@ -14,12 +14,12 @@ outlives the turn that produced it, which is the whole reason to write one.
 
 from __future__ import annotations
 
-import threading
 import time
 from collections import deque
 from dataclasses import dataclass
 
 from core.conversation.word_markers import names_any
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "ComputationReceipt",
@@ -47,7 +47,7 @@ class ComputationReceipt:
 
 
 _RECEIPTS: deque[ComputationReceipt] = deque(maxlen=_MAX_RECEIPTS)
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.conversation.computation_receipts")
 
 
 def record_computation(question: str, value: object, provenance: str) -> None:

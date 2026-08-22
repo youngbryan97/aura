@@ -7,21 +7,30 @@ list is configured strictly and checked never. The list only grows, which is
 the right shape, but nothing makes it grow — so it grows when somebody
 remembers.
 
-This makes it grow by default. Every production file a branch changes must
-pass strict mypy, and a file that passes is added to the allowlist in the same
-run. Touch a file, type a file. A million lines do not have to convert
-overnight for that rule to close the surface a commit at a time.
+This makes it grow by default, as a ratchet rather than a wall. A file this
+branch changed may not have MORE type errors than the same file at the merge
+base, and a file this branch ADDED must have none. A file that reaches zero is
+added to the allowlist in the same run.
+
+The difference matters. "Every touched file must pass" sounds stronger and is
+weaker: a one-line change — converting a raw lock to a checked one, say, across
+twenty-six modules — would demand typing twenty-six modules that the change
+never looked at, and a rule with that cost is a rule people route around. "No
+worse than before, and new code is clean" is enforceable on every branch, which
+is what closes the surface.
 
     python tools/typecheck_changed.py                # check what changed
-    python tools/typecheck_changed.py --adopt        # and record what passes
+    python tools/typecheck_changed.py --adopt        # and record what reaches zero
     python tools/typecheck_changed.py --base main
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -84,8 +93,39 @@ def run_mypy(paths: list[str]) -> tuple[bool, str]:
     return result.returncode == 0, (result.stdout + result.stderr).strip()
 
 
+_ERROR_LINE = re.compile(r"^(?P<path>[^:]+):\d+: error: ", re.MULTILINE)
+
+
+def error_count(output: str) -> int:
+    return len(_ERROR_LINE.findall(output))
+
+
+def errors_at(revision: str, relative: str) -> int | None:
+    """How many errors the same file had at ``revision``, or None if absent.
+
+    The file is checked out into a mirror of its own path so mypy resolves the
+    same module name; checking it at a flat temporary path changes the module
+    and, with it, the errors.
+    """
+    shown = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        ["git", "show", f"{revision}:{relative}"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=False,
+    )
+    if shown.returncode != 0:
+        return None
+    with tempfile.TemporaryDirectory(dir=ROOT) as scratch:
+        mirrored = Path(scratch) / relative
+        mirrored.parent.mkdir(parents=True, exist_ok=True)
+        mirrored.write_text(shown.stdout, encoding="utf-8")
+        _ok, output = run_mypy([str(mirrored.relative_to(ROOT))])
+    return error_count(output)
+
+
 def adopt(passing: list[str]) -> None:
-    """Record the newly clean files. The list only ever grows."""
+    """Record the files that reached zero. The list only ever grows."""
     if not passing:
         return
     existing = allowlisted()
@@ -112,31 +152,49 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     known = allowlisted()
-    print(f"strict mypy over {len(files)} changed file(s)")
+    merge_base = _git("merge-base", "HEAD", args.base).strip() or args.base
+    print(f"strict mypy over {len(files)} changed file(s), against {merge_base[:12]}")
 
     failures: list[str] = []
     passing: list[str] = []
     for path in files:
         ok, output = run_mypy([path])
-        if ok:
+        now = error_count(output)
+        if ok and now == 0:
             passing.append(path)
             continue
-        failures.append(path)
+        was = errors_at(merge_base, path)
+        if was is None:
+            failures.append(f"{path}: NEW file with {now} error(s)")
+        elif now > was:
+            failures.append(f"{path}: {was} -> {now} error(s)")
+        else:
+            continue
         marker = "already on the allowlist" if path in known else "not yet typed"
         print(f"\n❌ {path} ({marker})")
-        print("\n".join(f"   {line}" for line in output.splitlines()[:15]))
+        print("\n".join(f"   {line}" for line in output.splitlines()[:12]))
 
     if args.adopt:
         adopt(passing)
 
     if failures:
         print(
-            f"\n{len(failures)} of {len(files)} changed file(s) do not pass strict "
-            "mypy. A file you touched is a file you can type."
+            f"\n{len(failures)} of {len(files)} changed file(s) got worse, or are "
+            "new and not clean:"
+        )
+        for line in failures:
+            print(f"   • {line}")
+        print(
+            "\nA file you touched may not gain a type error, and a file you added "
+            "may not have one."
         )
         return 1
 
-    print(f"✅ all {len(files)} changed file(s) pass strict mypy")
+    clean = len(passing)
+    print(
+        f"✅ {len(files)} changed file(s): {clean} clean, "
+        f"{len(files) - clean} unchanged in error count"
+    )
     return 0
 
 

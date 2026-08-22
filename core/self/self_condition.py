@@ -12,7 +12,6 @@ import json
 import logging
 import math
 import re
-import threading
 import time
 from collections import OrderedDict, deque
 from collections.abc import Iterable, Mapping
@@ -22,14 +21,15 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger(__name__)
 
 SELF_CONDITION_FRESH_MAX_AGE_S = 30.0
 _SELF_CONDITION_HISTORY_MAX_SESSIONS = 128
 _SELF_CONDITION_HISTORY_SAMPLES = 8
-_SELF_CONDITION_HISTORY_LOCK = threading.RLock()
-_SELF_CONDITION_HISTORY: OrderedDict[str, deque["SelfConditionProjection"]] = OrderedDict()
+_SELF_CONDITION_HISTORY_LOCK = checked_lock("core.self.self_condition", reentrant=True)
+_SELF_CONDITION_HISTORY: OrderedDict[str, deque[SelfConditionProjection]] = OrderedDict()
 
 
 def _finite(value: Any, default: float | None = None) -> float | None:
