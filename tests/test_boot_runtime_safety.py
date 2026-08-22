@@ -522,7 +522,19 @@ def test_compute_process_rss_limit_uses_desktop_safe_guard_ceiling(monkeypatch):
     total = 64 * 1024 ** 3
     limit = compute_process_rss_limit(total)
 
-    assert limit == int(total * 0.62)
+    assert limit == int(total * 0.81)
+
+
+def test_desktop_process_limit_preserves_host_reserve_for_resident_32b(monkeypatch):
+    monkeypatch.setenv("AURA_SAFE_BOOT_DESKTOP", "1")
+    monkeypatch.delenv("AURA_PROCESS_RSS_LIMIT_GB", raising=False)
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_MEMORY_LIMITS", raising=False)
+
+    total = 64 * 1024**3
+    limit = compute_process_rss_limit(total)
+
+    assert 51 * 1024**3 < limit < 52 * 1024**3
+    assert total - limit > 12 * 1024**3
 
 
 def test_desktop_safe_boot_clamps_unsafe_inherited_model_limits(monkeypatch):
@@ -534,7 +546,7 @@ def test_desktop_safe_boot_clamps_unsafe_inherited_model_limits(monkeypatch):
     total = 64 * 1024 ** 3
 
     assert compute_mlx_memory_limit(total) == 34 * 1024 ** 3
-    assert compute_process_rss_limit(total) == 40 * 1024 ** 3
+    assert compute_process_rss_limit(total) == int(total * 0.81)
 
 
 def test_desktop_safe_boot_allows_explicit_unsafe_memory_override(monkeypatch):
@@ -560,7 +572,7 @@ def test_desktop_safe_boot_clamps_stale_floor_overrides(monkeypatch):
 
     assert compute_mlx_cache_limit(total) == 10 * 1024 ** 3
     assert compute_mlx_memory_limit(total) == 34 * 1024 ** 3
-    assert compute_process_rss_limit(total) == 40 * 1024 ** 3
+    assert compute_process_rss_limit(total) == int(total * 0.81)
 
 
 def test_live_boot_proof_inherits_safe_desktop_mlx_limits(resource_observer):
@@ -584,14 +596,14 @@ def test_live_boot_proof_inherits_safe_desktop_mlx_limits(resource_observer):
     assert env["AURA_DESKTOP_METAL_CACHE_CAP_GB"] == "10"
     assert env["AURA_FOREGROUND_CHAT_MAX_TOKENS"] == "2048"
     assert env["AURA_MLX_MEMORY_LIMIT_GB"] == "34"
-    assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "40"
-    assert env["AURA_MEMWATCH_SOFT_MB"] == "37888"
-    assert env["AURA_MEMWATCH_HARD_MB"] == "41984"
-    assert env["AURA_MEMWATCH_LETHAL_MB"] == "43008"
+    assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "52"
+    assert env["AURA_MEMWATCH_SOFT_MB"] == "46714"
+    assert env["AURA_MEMWATCH_HARD_MB"] == "53084"
+    assert env["AURA_MEMWATCH_LETHAL_MB"] == "57180"
     assert env["AURA_MEMORY_SENTINEL_INTERVAL_S"] == "0.5"
-    assert env["AURA_GOVERNOR_PRUNE_MB"] == "37888"
-    assert env["AURA_GOVERNOR_UNLOAD_MB"] == "39936"
-    assert env["AURA_GOVERNOR_CRITICAL_MB"] == "40960"
+    assert env["AURA_GOVERNOR_PRUNE_MB"] == "46714"
+    assert env["AURA_GOVERNOR_UNLOAD_MB"] == "49368"
+    assert env["AURA_GOVERNOR_CRITICAL_MB"] == "51492"
     assert [
         int(env["AURA_GOVERNOR_PRUNE_MB"]),
         int(env["AURA_MEMWATCH_SOFT_MB"]),
@@ -599,13 +611,13 @@ def test_live_boot_proof_inherits_safe_desktop_mlx_limits(resource_observer):
         int(env["AURA_GOVERNOR_CRITICAL_MB"]),
         int(env["AURA_MEMWATCH_HARD_MB"]),
         int(env["AURA_MEMWATCH_LETHAL_MB"]),
-    ] == [37888, 37888, 39936, 40960, 41984, 43008]
+    ] == [46714, 46714, 49368, 51492, 53084, 57180]
     assert env["AURA_ENABLE_LOCAL_DEEP_SOLVER"] == "0"
     assert env["AURA_MLX_32B_PROJECTED_FOOTPRINT_GB"] == "auto"
     assert env["AURA_MLX_32B_PROCESS_RESERVE_GB"] == "3"
     assert env["AURA_MLX_72B_PROJECTED_FOOTPRINT_GB"] == "auto"
     assert env["AURA_MLX_72B_PROCESS_RESERVE_GB"] == "5"
-    assert live_proof_rss_abort_mb(env) == 42_000.0
+    assert live_proof_rss_abort_mb(env) == 57_344.0
 
 
 def test_live_boot_proof_desktop_mode_does_not_impersonate_packaged_launcher(resource_observer):
@@ -661,8 +673,8 @@ def test_live_boot_proof_clamps_unsafe_parent_memory_limits(resource_observer):
     )
 
     assert env["AURA_MLX_MEMORY_LIMIT_GB"] == "34"
-    assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "40"
-    assert live_proof_rss_abort_mb(env) == 42_000.0
+    assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "52"
+    assert live_proof_rss_abort_mb(env) == 57_344.0
 
 
 def test_live_boot_proof_uses_readiness_heartbeat_contract():

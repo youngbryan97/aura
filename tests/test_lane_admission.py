@@ -66,6 +66,20 @@ class TestBudget:
         # clamped to 0.30 of host — never a sliver budget
         assert lane_budget_gb() > 0.0
 
+    def test_desktop_lane_budget_matches_the_process_envelope(self, monkeypatch):
+        from core.brain import lane_admission
+
+        monkeypatch.delenv("AURA_LANE_BUDGET_GB", raising=False)
+        monkeypatch.setenv("AURA_DESKTOP_RESOURCE_GUARD", "1")
+        monkeypatch.setenv("AURA_PROCESS_RSS_LIMIT_GB", "auto")
+        monkeypatch.setattr(
+            lane_admission,
+            "_host_total_gb",
+            lambda _observer=None: (64.0, True),
+        )
+
+        assert lane_budget_gb() == pytest.approx(51.84)
+
 
 class TestAdmissionArithmetic:
     def test_fits_admits_cleanly(self, controller, budget_46):
@@ -243,6 +257,18 @@ class TestSpawnSeam:
         )
         lanes = mc._observed_active_lanes(exclude_client=me)
         assert [lane.lane for lane in lanes] == ["brainstem"]
+
+    def test_runtime_overhead_excludes_observed_model_worker_memory(self, monkeypatch):
+        from core.brain.llm import mlx_client as mc
+
+        owner = SimpleNamespace(observed_gb=9.0)
+        monkeypatch.setattr(
+            mc,
+            "get_memory_pressure_snapshot",
+            lambda: SimpleNamespace(process_rss_gb=31.7),
+        )
+
+        assert mc._transient_runtime_footprint_gb([owner]) == pytest.approx(22.7)
 
     @pytest.mark.asyncio
     async def test_model_load_context_holds_and_releases_canonical_lease(

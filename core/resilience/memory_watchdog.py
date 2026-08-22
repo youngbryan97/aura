@@ -160,16 +160,25 @@ class _Thresholds:
 
     @classmethod
     def from_environment(cls, total_ram_gb: float) -> _Thresholds:
-        # Daily-use defaults for the 64 GB desktop path. The previous 48/56 GB
-        # hard/lethal tiers were too late once Chrome, Safari, the UI, and
-        # compressed MLX pages were present; macOS could cross into global
-        # application-memory failure before Aura reclaimed. Scale down on
-        # smaller machines while preserving explicit operator overrides.
+        # Daily-use defaults come from the same host-reserve contract as model
+        # admission and the governor. Explicit lower operator limits remain
+        # valid recovery policy.
         total_mb = max(8192.0, total_ram_gb * 1024.0)
+        try:
+            from core.runtime.desktop_boot_safety import compute_desktop_memory_envelope
+
+            envelope = compute_desktop_memory_envelope(int(total_mb * 1024 * 1024))
+            soft_default = envelope.watchdog_soft_mb
+            hard_default = envelope.watchdog_hard_mb
+            lethal_default = envelope.watchdog_lethal_mb
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            soft_default = min(32768.0, total_mb * 0.50)
+            hard_default = min(40960.0, total_mb * 0.62)
+            lethal_default = min(46080.0, total_mb * 0.70)
         return cls(
-            soft_mb=_env_float("AURA_MEMWATCH_SOFT_MB", min(32768.0, total_mb * 0.50)),
-            hard_mb=_env_float("AURA_MEMWATCH_HARD_MB", min(40960.0, total_mb * 0.62)),
-            lethal_mb=_env_float("AURA_MEMWATCH_LETHAL_MB", min(46080.0, total_mb * 0.70)),
+            soft_mb=_env_float("AURA_MEMWATCH_SOFT_MB", soft_default),
+            hard_mb=_env_float("AURA_MEMWATCH_HARD_MB", hard_default),
+            lethal_mb=_env_float("AURA_MEMWATCH_LETHAL_MB", lethal_default),
             swap_hard_gb=_env_float(
                 "AURA_MEMWATCH_SWAP_HARD_GB",
                 min(8.0, max(2.0, total_ram_gb * 0.12)),
@@ -711,7 +720,13 @@ class MemoryWatchdog(threading.Thread):
         managed = sample.managed_rss_mb
         t = self.thresholds
 
-        swap_escalation = _swap_is_exhausted(sample, t) and managed >= t.soft_mb
+        # A resident model can legitimately sit below the host-derived soft
+        # rung while still owning most of the machine. If both RAM and swap are
+        # genuinely exhausted, do not wait for an arbitrary process threshold;
+        # require a substantial Aura footprint so another application's
+        # pressure still cannot make us kill an idle runtime.
+        emergency_managed_floor = min(t.soft_mb, sample.total_ram_gb * 1024.0 * 0.65)
+        swap_escalation = _swap_is_exhausted(sample, t) and managed >= emergency_managed_floor
 
         if managed >= t.lethal_mb:
             return self._handle_lethal(sample, now)

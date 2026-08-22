@@ -51564,3 +51564,46 @@ confirmation remains the next bounded gate: launch the exact pushed revision,
 prove one runtime and one model worker, exercise a long recurrent turn, and
 observe chunked prefill without cache-shape, phantom-worker or false-stall
 faults.
+
+## Checkpoint 2026-08-21-896: Make Resident Memory One Host-Aware Contract
+
+The CP895 installed-app exercise reached the resident 32B but the watchdog
+terminated its healthy worker at 42,872 MB. Four launch surfaces still imposed
+an unrelated 40 GB process ceiling even though the checkpoint, parent runtime
+and required load reserve needed a larger steady-state envelope. The fallback
+then loaded successfully, but durable model-lane arbitration counted only model
+workers while physical spawn admission counted Aura's whole process tree. It
+therefore declared a replacement 32B compatible and immediately refused the
+same load, leaving the lower lane able to strand the primary indefinitely.
+
+Desktop boot, the Swift launcher, shell launcher, live proof, model admission,
+governor and watchdog now derive one ordered envelope from observed host RAM,
+an explicit macOS/application reserve and a bounded absolute cap. On the 64 GB
+host, the resident footprint remains below the 46.7 GB pruning rung, the hard
+process ceiling is 51.84 GB and the out-of-process lethal rung remains 55.84 GB.
+The same policy scales down on smaller hosts and preserves explicit lower
+recovery limits.
+
+Model-lane reservations now include measured non-model Aura memory as a
+transient capacity cost. A guaranteed primary can fence and reclaim an idle
+fallback when whole-process headroom requires it; the transient cost disappears
+at commit, so future admissions do not double-count the base runtime. Active
+work and exact process identity remain protected by the CP894 owner contract.
+
+Deterministic coverage reproduces the observed 42.872 GB footprint as healthy,
+retains reclamation when only 3 GB of host reserve remains, proves an exact
+32B admission on the host-derived envelope, forces fallback eviction when base
+runtime cost makes the replacement exceed capacity, and proves only the model
+declaration becomes durable. The complete affected set passes `318/318`;
+canonical smoke passes `120/120` with one environment-dependent skip;
+compilation, Ruff, governance ownership, layering and diff hygiene pass.
+Installed-app resident validation remains the next bounded gate.
+
+### Open follow-up: evidence-based local model portfolio
+
+Audit every active inference, embedding, vision, speech, verifier and repair
+lane against its actual role, checkpoint identity, local licensing, quality,
+latency, memory footprint and fallback behavior. Replace or retire outdated
+selections only with measured task-specific evidence, preserve local operation,
+and prove routing, degradation and resident-memory behavior after each change.
+This follows the resident CP896 live gate and does not displace it.

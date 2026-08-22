@@ -163,8 +163,8 @@ def _bounded_memory_ceiling_mb(
     total_mb: float,
     requested_mb: Any | None = None,
     *,
-    absolute_ceiling_mb: float = 46080.0,
-    ceiling_fraction: float = 0.70,
+    absolute_ceiling_mb: float = 57344.0,
+    ceiling_fraction: float = 0.875,
     floor_mb: float = 8192.0,
 ) -> float:
     """Return a host-safe memory kill ceiling.
@@ -1786,8 +1786,10 @@ def _install_systemwide_memory_protection() -> None:
     # (platform_root defers exactly to protect spawn children) and is
     # the prime suspect in a silent native death mid-generation during
     # live proof round 5. Workers apply the limit on their side.
+    compute_desktop_memory_envelope = None
     try:
         from core.runtime.desktop_boot_safety import (
+            compute_desktop_memory_envelope,
             compute_mlx_memory_limit,
             compute_process_rss_limit,
             desktop_resource_guard_enabled,
@@ -1834,6 +1836,15 @@ def _install_systemwide_memory_protection() -> None:
         os.environ["AURA_PROCESS_RSS_LIMIT_GB"] = process_rss_gb
     else:
         os.environ.setdefault("AURA_PROCESS_RSS_LIMIT_GB", process_rss_gb)
+
+    if safe_desktop_memory_limits and compute_desktop_memory_envelope is not None:
+        envelope = compute_desktop_memory_envelope(int(total_mb * 1024 * 1024), os.environ)
+        os.environ["AURA_GOVERNOR_PRUNE_MB"] = f"{envelope.governor_prune_mb:.0f}"
+        os.environ["AURA_GOVERNOR_UNLOAD_MB"] = f"{envelope.governor_unload_mb:.0f}"
+        os.environ["AURA_GOVERNOR_CRITICAL_MB"] = f"{envelope.governor_critical_mb:.0f}"
+        os.environ["AURA_MEMWATCH_SOFT_MB"] = f"{envelope.watchdog_soft_mb:.0f}"
+        os.environ["AURA_MEMWATCH_HARD_MB"] = f"{envelope.watchdog_hard_mb:.0f}"
+        os.environ["AURA_MEMWATCH_LETHAL_MB"] = f"{envelope.watchdog_lethal_mb:.0f}"
 
     sentinel_enabled = str(os.environ.get("AURA_MEMORY_SENTINEL", "1")).strip().lower() not in {"0", "false", "no", "off"}
     if sentinel_enabled:
@@ -4275,26 +4286,24 @@ def main():
         # Give the resident model enough room for the 32B lane, but keep the
         # process tree well below host-collapse territory.
         if os.environ.get("AURA_LOCAL_BACKEND", "").strip().lower() == "mlx":
-            os.environ.setdefault("AURA_PROCESS_RSS_LIMIT_GB", "40")
-            os.environ.setdefault("AURA_DESKTOP_PROCESS_RSS_CAP_GB", "40")
+            os.environ.setdefault("AURA_PROCESS_RSS_LIMIT_GB", "auto")
+            os.environ.setdefault("AURA_DESKTOP_PROCESS_RSS_RATIO", "0.81")
+            os.environ.setdefault("AURA_DESKTOP_PROCESS_RSS_CAP_GB", "56")
+            os.environ.setdefault("AURA_DESKTOP_HOST_RESERVE_RATIO", "0.18")
+            os.environ.setdefault("AURA_DESKTOP_HOST_RESERVE_FLOOR_GB", "8")
             os.environ.setdefault("AURA_DESKTOP_MLX_MEMORY_CAP_GB", "34")
-            os.environ.setdefault("AURA_MEMWATCH_SOFT_MB", "37888")
-            os.environ.setdefault("AURA_MEMWATCH_HARD_MB", "41984")
-            os.environ.setdefault("AURA_MEMWATCH_LETHAL_MB", "43008")
+            os.environ.setdefault("AURA_MEMWATCH_SOFT_MB", "auto")
+            os.environ.setdefault("AURA_MEMWATCH_HARD_MB", "auto")
+            os.environ.setdefault("AURA_MEMWATCH_LETHAL_MB", "auto")
             os.environ.setdefault("AURA_MEMORY_SENTINEL_INTERVAL_S", "0.5")
-            # The Memory Governor's prune/unload/critical thresholds are capped at
-            # 28/34/40GB even on a 64GB host. The in-process MLX 32B footprint
-            # (~35GB, AURA_MLX_32B_PROJECTED_FOOTPRINT_GB) sits ABOVE the 34GB
-            # unload line, so the governor continuously UNLOADS her own Cortex →
-            # the worker dies → conversation lane goes cold (worker_not_alive) →
-            # Degraded, even mid-conversation. Raise the thresholds so the
-            # resident model is normal, not an emergency, leaving real OS headroom
-            # on 64GB. Keep unload below the process RSS limit and critical cleanup
-            # below the external sentinel so graceful pruning runs before any hard
-            # kill, while still leaving the ~35GB resident model under the prune line.
-            os.environ.setdefault("AURA_GOVERNOR_PRUNE_MB", "37888")
-            os.environ.setdefault("AURA_GOVERNOR_UNLOAD_MB", "39936")
-            os.environ.setdefault("AURA_GOVERNOR_CRITICAL_MB", "40960")
+            # One host-derived envelope orders cache pruning, optional-lane
+            # unload, hard admission, and the external sentinel. This keeps the
+            # resident model a normal steady state while preserving an explicit
+            # macOS/application reserve instead of maintaining four unrelated
+            # fixed thresholds that disagree as checkpoints and hosts change.
+            os.environ.setdefault("AURA_GOVERNOR_PRUNE_MB", "auto")
+            os.environ.setdefault("AURA_GOVERNOR_UNLOAD_MB", "auto")
+            os.environ.setdefault("AURA_GOVERNOR_CRITICAL_MB", "auto")
             os.environ.setdefault("AURA_MLX_32B_PROJECTED_FOOTPRINT_GB", "auto")
             os.environ.setdefault("AURA_MLX_32B_PROCESS_RESERVE_GB", "3")
             os.environ.setdefault("AURA_MLX_72B_PROJECTED_FOOTPRINT_GB", "auto")

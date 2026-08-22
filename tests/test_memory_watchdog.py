@@ -28,6 +28,8 @@ def _sample(
     child_mb: float = 0.0,
     swap_gb: float = 0.0,
     sys_pct: float = 50.0,
+    available_gb: float = 0.0,
+    swap_free_gb: float = 0.0,
 ) -> MemorySample:
     return MemorySample(
         core_rss_mb=core_mb,
@@ -36,6 +38,8 @@ def _sample(
         system_percent=sys_pct,
         total_ram_gb=64.0,
         sampled_at=0.0,
+        available_gb=available_gb,
+        swap_free_gb=swap_free_gb,
     )
 
 
@@ -78,6 +82,78 @@ class _Harness:
 
 
 class TestEscalationLadder(unittest.TestCase):
+    def test_live_resident_32b_footprint_is_below_host_derived_soft_rung(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "AURA_DESKTOP_RESOURCE_GUARD": "1",
+                "AURA_PROCESS_RSS_LIMIT_GB": "auto",
+                "AURA_MEMWATCH_SOFT_MB": "",
+                "AURA_MEMWATCH_HARD_MB": "",
+                "AURA_MEMWATCH_LETHAL_MB": "",
+            },
+            clear=False,
+        ):
+            thresholds = _Thresholds.from_environment(64.0)
+        dog = MemoryWatchdog(
+            thresholds=thresholds,
+            sampler=lambda: _sample(),
+            worker_terminator=lambda: 1,
+            gc_collect=lambda: 0,
+        )
+        dog._started_at = -10_000.0
+
+        tier = dog._evaluate(
+            _sample(
+                core_mb=1_500.0,
+                child_mb=41_372.0,
+                swap_gb=11.6,
+                sys_pct=88.8,
+                available_gb=7.2,
+            ),
+            now=100.0,
+        )
+
+        self.assertEqual(tier, "none")
+        self.assertGreater(thresholds.soft_mb, 42_872.0)
+
+    def test_resident_lane_is_reclaimed_when_real_host_reserve_is_gone(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "AURA_DESKTOP_RESOURCE_GUARD": "1",
+                "AURA_PROCESS_RSS_LIMIT_GB": "auto",
+                "AURA_MEMWATCH_SOFT_MB": "",
+                "AURA_MEMWATCH_HARD_MB": "",
+                "AURA_MEMWATCH_LETHAL_MB": "",
+            },
+            clear=False,
+        ):
+            thresholds = _Thresholds.from_environment(64.0)
+        killed: list[bool] = []
+        dog = MemoryWatchdog(
+            thresholds=thresholds,
+            sampler=lambda: _sample(),
+            worker_terminator=lambda: killed.append(True) or 1,
+            gc_collect=lambda: 0,
+        )
+        dog._started_at = -10_000.0
+
+        tier = dog._evaluate(
+            _sample(
+                core_mb=1_500.0,
+                child_mb=41_372.0,
+                swap_gb=11.6,
+                sys_pct=95.0,
+                available_gb=3.0,
+                swap_free_gb=0.2,
+            ),
+            now=100.0,
+        )
+
+        self.assertEqual(tier, "hard")
+        self.assertEqual(killed, [True])
+
     def test_below_all_ceilings_takes_no_action(self):
         h = _Harness()
         tier = h.dog._evaluate(_sample(core_mb=5_000.0), now=100.0)
@@ -430,6 +506,8 @@ class TestRuntimeSurface(unittest.TestCase):
         self.assertAlmostEqual(snap["last_sample"]["core_rss_mb"], 25_000.0)
 
     def test_default_thresholds_scale_with_ram(self):
+        from core.runtime.desktop_boot_safety import compute_desktop_memory_envelope
+
         with patch.dict(
             "os.environ",
             {
@@ -442,12 +520,15 @@ class TestRuntimeSurface(unittest.TestCase):
         ):
             full = _Thresholds.from_environment(64.0)
             half = _Thresholds.from_environment(32.0)
-        self.assertAlmostEqual(full.soft_mb, 32768.0, delta=1.0)
-        self.assertAlmostEqual(full.hard_mb, 64.0 * 1024.0 * 0.62, delta=1.0)
-        self.assertAlmostEqual(full.lethal_mb, 64.0 * 1024.0 * 0.70, delta=1.0)
+        full_envelope = compute_desktop_memory_envelope(64 * 1024**3)
+        half_envelope = compute_desktop_memory_envelope(32 * 1024**3)
+        self.assertAlmostEqual(full.soft_mb, full_envelope.watchdog_soft_mb, delta=1.0)
+        self.assertAlmostEqual(full.hard_mb, full_envelope.watchdog_hard_mb, delta=1.0)
+        self.assertAlmostEqual(full.lethal_mb, full_envelope.watchdog_lethal_mb, delta=1.0)
         self.assertAlmostEqual(full.swap_hard_gb, 7.68, delta=0.1)
-        self.assertAlmostEqual(half.soft_mb, full.soft_mb / 2.0, delta=1.0)
-        self.assertAlmostEqual(half.lethal_mb, full.lethal_mb / 2.0, delta=1.0)
+        self.assertAlmostEqual(half.soft_mb, half_envelope.watchdog_soft_mb, delta=1.0)
+        self.assertAlmostEqual(half.lethal_mb, half_envelope.watchdog_lethal_mb, delta=1.0)
+        self.assertLess(half.hard_mb, full.hard_mb)
 
     def test_memory_governor_daily_use_thresholds_align_with_watchdog(self):
         from types import SimpleNamespace

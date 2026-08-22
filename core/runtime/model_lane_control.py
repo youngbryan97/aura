@@ -275,6 +275,7 @@ class LaneClaim:
     owner_id: str
     model_path: str
     request_gb: float
+    transient_runtime_gb: float = 0.0
     purpose: str = "serve"
     priority: int = 50
     preemptible: bool = True
@@ -293,10 +294,13 @@ class LaneClaim:
         if not str(self.model_path).strip():
             raise ValueError("lane claim model_path must be non-empty")
         request_gb = float(self.request_gb)
+        transient_runtime_gb = float(self.transient_runtime_gb)
         reservation_ttl_s = float(self.reservation_ttl_s)
         owner_lease_ttl_s = float(self.owner_lease_ttl_s)
         if not math.isfinite(request_gb) or request_gb <= 0.0:
             raise ValueError("lane claim request_gb must be positive")
+        if not math.isfinite(transient_runtime_gb) or transient_runtime_gb < 0.0:
+            raise ValueError("lane claim transient_runtime_gb must be finite and non-negative")
         if not math.isfinite(reservation_ttl_s) or reservation_ttl_s < 0.0:
             raise ValueError("lane claim reservation_ttl_s must be finite and non-negative")
         if not math.isfinite(owner_lease_ttl_s) or owner_lease_ttl_s < 0.0:
@@ -1710,6 +1714,8 @@ class ModelLaneController:
             and str(record.get("model_path") or "") == claim.model_path
             and str(record.get("purpose") or "serve") == claim.purpose
             and float(record.get("request_gb") or 0.0) == float(claim.request_gb)
+            and float(record.get("transient_runtime_gb") or 0.0)
+            == float(claim.transient_runtime_gb)
             and int(record.get("priority") or 0) == int(claim.priority)
             and bool(record.get("preemptible", True)) is bool(claim.preemptible)
             and bool(record.get("foreground", False)) is bool(claim.foreground)
@@ -1750,7 +1756,7 @@ class ModelLaneController:
             for record in dict(state.get("owners") or {}).values()
         )
         reserved = sum(
-            float(record.get("request_gb") or 0.0)
+            float(record.get("capacity_request_gb") or record.get("request_gb") or 0.0)
             for request_id, record in dict(state.get("reservations") or {}).items()
             if request_id != exclude_request_id
             and str(record.get("state") or "") in _ACTIVE_RESERVATION_STATES
@@ -2280,9 +2286,10 @@ class ModelLaneController:
                             model_path="__fenced_reservations__",
                         )
                     )
+                capacity_request_gb = float(claim.request_gb) + float(claim.transient_runtime_gb)
                 arithmetic = self._policy.admit(
                     model_path=claim.model_path,
-                    request_gb=claim.request_gb,
+                    request_gb=capacity_request_gb,
                     active=active,
                     purpose=claim.purpose,
                     allow_disruptive_eviction=claim.allow_disruptive_eviction,
@@ -2388,6 +2395,8 @@ class ModelLaneController:
                         claim.owner_lease_ttl_s or 0.0
                     ),
                     "request_gb": float(claim.request_gb),
+                    "transient_runtime_gb": float(claim.transient_runtime_gb),
+                    "capacity_request_gb": capacity_request_gb,
                     "committed_gb": committed,
                     "reserved_gb": reserved,
                     "budget_gb": arithmetic.budget_gb,
@@ -2720,7 +2729,8 @@ class ModelLaneController:
             observer = self.resource_observer
             budget_gb = lane_budget_gb(observer=observer)
             provenance = observer.provenance
-            if committed + reserved + decision.request_gb > budget_gb:
+            capacity_request_gb = float(record.get("capacity_request_gb") or decision.request_gb)
+            if committed + reserved + capacity_request_gb > budget_gb:
                 over_budget = True
             else:
                 over_budget = False
@@ -2786,6 +2796,7 @@ class ModelLaneController:
             owner_id=str(record.get("owner_id") or ""),
             model_path=str(record.get("model_path") or ""),
             request_gb=float(record.get("request_gb") or 0.0),
+            transient_runtime_gb=float(record.get("transient_runtime_gb") or 0.0),
             purpose=str(record.get("purpose") or "serve"),
             priority=int(record.get("priority") or 0),
             preemptible=bool(record.get("preemptible", True)),

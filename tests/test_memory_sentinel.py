@@ -567,7 +567,7 @@ def test_memory_sentinel_default_ceiling_is_host_safe_on_64gb_node(monkeypatch):
 
     ceiling = aura_main._bounded_memory_ceiling_mb(64 * 1024.0)
 
-    assert ceiling == 45_875.2
+    assert ceiling == 57_344.0
 
 
 def test_memory_sentinel_clamps_excessive_env_override(monkeypatch):
@@ -575,7 +575,7 @@ def test_memory_sentinel_clamps_excessive_env_override(monkeypatch):
 
     ceiling = aura_main._bounded_memory_ceiling_mb(64 * 1024.0, "120000")
 
-    assert ceiling == 45_875.2
+    assert ceiling == 57_344.0
 
 
 def test_memory_sentinel_allows_explicit_unsafe_override_only_when_opted_in(monkeypatch):
@@ -591,7 +591,7 @@ def test_memory_sentinel_malformed_override_falls_back_to_safe_ceiling(monkeypat
 
     ceiling = aura_main._bounded_memory_ceiling_mb(64 * 1024.0, "not-a-number")
 
-    assert ceiling == 45_875.2
+    assert ceiling == 57_344.0
 
 
 def test_desktop_boot_memory_protection_registers_armed_external_sentinel(monkeypatch):
@@ -623,13 +623,13 @@ def test_desktop_boot_memory_protection_registers_armed_external_sentinel(monkey
     sentinel = ServiceContainer.get("external_memory_sentinel")
     assert sentinel.is_armed() is True
     assert sentinel.get_status()["armed"] is True
-    assert sentinel.get_status()["lethal_mb"] == pytest.approx(45_875.2)
+    assert sentinel.get_status()["lethal_mb"] == pytest.approx(46_080.0)
     assert popen_calls
     assert "memory_sentinel.py" in " ".join(popen_calls[0])
     assert "--pid" in popen_calls[0]
     assert str(os.getpid()) in popen_calls[0]
     assert "--lethal-mb" in popen_calls[0]
-    assert str(45_875.2) in popen_calls[0]
+    assert str(46_080.0) in popen_calls[0]
 
 
 def test_disabled_external_memory_sentinel_is_never_reported_armed(monkeypatch):

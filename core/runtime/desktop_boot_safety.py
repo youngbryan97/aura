@@ -12,11 +12,15 @@ import os
 import platform
 import threading
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 _GIB = 1024**3
 SAFE_BOOT_MLX_MEMORY_CAP_GB = 34.0
-SAFE_BOOT_PROCESS_RSS_CAP_GB = 40.0
+SAFE_BOOT_PROCESS_RSS_CAP_GB = 56.0
+DESKTOP_PROCESS_RSS_RATIO = 0.81
+DESKTOP_HOST_RESERVE_RATIO = 0.18
+DESKTOP_HOST_RESERVE_FLOOR_GB = 8.0
 _INPROCESS_MLX_LOCK = threading.Lock()
 _INPROCESS_MLX_STATE: dict[str, Any] = {
     "configured": False,
@@ -179,6 +183,50 @@ def compute_process_rss_limit(total_ram_bytes: int, env: Mapping[str, str] | Non
     total_ram_bytes = max(int(total_ram_bytes), 8 * _GIB)
     resource_guard = desktop_resource_guard_enabled(env)
     unsafe_allowed = _unsafe_memory_limits_allowed(env)
+    ratio = _resource_env_float(
+        env,
+        "AURA_DESKTOP_PROCESS_RSS_RATIO",
+        "AURA_SAFE_BOOT_PROCESS_RSS_RATIO",
+        DESKTOP_PROCESS_RSS_RATIO,
+    )
+    hard_cap_gb = min(
+        _resource_env_float(
+            env,
+            "AURA_DESKTOP_PROCESS_RSS_CAP_GB",
+            "AURA_SAFE_BOOT_PROCESS_RSS_CAP_GB",
+            SAFE_BOOT_PROCESS_RSS_CAP_GB,
+        ),
+        SAFE_BOOT_PROCESS_RSS_CAP_GB,
+    )
+    reserve_ratio = _resource_env_float(
+        env,
+        "AURA_DESKTOP_HOST_RESERVE_RATIO",
+        "AURA_SAFE_BOOT_HOST_RESERVE_RATIO",
+        DESKTOP_HOST_RESERVE_RATIO,
+    )
+    reserve_floor_gb = _resource_env_float(
+        env,
+        "AURA_DESKTOP_HOST_RESERVE_FLOOR_GB",
+        "AURA_SAFE_BOOT_HOST_RESERVE_FLOOR_GB",
+        DESKTOP_HOST_RESERVE_FLOOR_GB,
+    )
+    reserve_bytes = max(int(reserve_floor_gb * _GIB), int(total_ram_bytes * reserve_ratio))
+    host_safe_cap = max(4 * _GIB, total_ram_bytes - reserve_bytes)
+    floor_gb = _resource_env_float(
+        env,
+        "AURA_DESKTOP_PROCESS_RSS_FLOOR_GB",
+        "AURA_SAFE_BOOT_PROCESS_RSS_FLOOR_GB",
+        24.0,
+    )
+    if resource_guard and not unsafe_allowed:
+        floor_gb = min(floor_gb, 24.0)
+    canonical_limit = min(
+        int(total_ram_bytes * ratio),
+        int(hard_cap_gb * _GIB),
+        host_safe_cap,
+    )
+    canonical_limit = max(min(int(floor_gb * _GIB), host_safe_cap), canonical_limit)
+
     configured = str(env.get("AURA_PROCESS_RSS_LIMIT_GB", "") or "").strip()
     if configured:
         try:
@@ -188,42 +236,63 @@ def compute_process_rss_limit(total_ram_bytes: int, env: Mapping[str, str] | Non
         if configured_gb > 0.0:
             configured_limit = int(configured_gb * _GIB)
             if resource_guard and not unsafe_allowed:
-                safe_cap_gb = min(
-                    _resource_env_float(
-                        env,
-                        "AURA_DESKTOP_PROCESS_RSS_CAP_GB",
-                        "AURA_SAFE_BOOT_PROCESS_RSS_CAP_GB",
-                        SAFE_BOOT_PROCESS_RSS_CAP_GB,
-                    ),
-                    SAFE_BOOT_PROCESS_RSS_CAP_GB,
-                )
-                return min(configured_limit, int(safe_cap_gb * _GIB))
+                return min(configured_limit, canonical_limit)
             return configured_limit
 
     if resource_guard:
-        ratio = _resource_env_float(
-            env, "AURA_DESKTOP_PROCESS_RSS_RATIO", "AURA_SAFE_BOOT_PROCESS_RSS_RATIO", 0.62
-        )
-        hard_cap_gb = _resource_env_float(
-            env,
-            "AURA_DESKTOP_PROCESS_RSS_CAP_GB",
-            "AURA_SAFE_BOOT_PROCESS_RSS_CAP_GB",
-            SAFE_BOOT_PROCESS_RSS_CAP_GB,
-        )
-        floor_gb = _resource_env_float(
-            env, "AURA_DESKTOP_PROCESS_RSS_FLOOR_GB", "AURA_SAFE_BOOT_PROCESS_RSS_FLOOR_GB", 24.0
-        )
-        limit = min(int(total_ram_bytes * ratio), int(hard_cap_gb * _GIB))
-        limit = max(int(floor_gb * _GIB), limit)
-        if not unsafe_allowed:
-            limit = min(limit, int(SAFE_BOOT_PROCESS_RSS_CAP_GB * _GIB))
-        return limit
+        return canonical_limit
 
     ratio = _env_float(env, "AURA_PROCESS_RSS_RATIO", 0.56)
     hard_cap_gb = _env_float(env, "AURA_PROCESS_RSS_CAP_GB", 38.0)
     floor_gb = _env_float(env, "AURA_PROCESS_RSS_FLOOR_GB", 30.0)
     limit = min(int(total_ram_bytes * ratio), int(hard_cap_gb * _GIB))
     return max(int(floor_gb * _GIB), limit)
+
+
+@dataclass(frozen=True)
+class DesktopMemoryEnvelope:
+    """One ordered memory policy shared by admission, governors, and sentinels."""
+
+    process_limit_mb: float
+    governor_prune_mb: float
+    governor_unload_mb: float
+    governor_critical_mb: float
+    watchdog_soft_mb: float
+    watchdog_hard_mb: float
+    watchdog_lethal_mb: float
+
+
+def compute_desktop_memory_envelope(
+    total_ram_bytes: int,
+    env: Mapping[str, str] | None = None,
+) -> DesktopMemoryEnvelope:
+    """Derive an ordered envelope that admits the 32B lane and protects the host.
+
+    The process limit is the canonical admission ceiling. Lower rungs shed
+    caches and optional workers before it; the lethal rung retains an external
+    margin while preserving at least an eighth of host RAM for macOS and other
+    applications. Explicit lower process limits remain valid recovery policy.
+    """
+
+    env = env or os.environ
+    total_ram_bytes = max(int(total_ram_bytes), 8 * _GIB)
+    process_limit_mb = compute_process_rss_limit(total_ram_bytes, env) / float(1024**2)
+    total_mb = total_ram_bytes / float(1024**2)
+    prune_mb = process_limit_mb * 0.88
+    unload_mb = process_limit_mb * 0.93
+    critical_mb = process_limit_mb * 0.97
+    lethal_host_cap_mb = total_mb - max(6 * 1024.0, total_mb * 0.125)
+    lethal_mb = min(lethal_host_cap_mb, process_limit_mb + 4 * 1024.0)
+    lethal_mb = max(process_limit_mb + 1024.0, lethal_mb)
+    return DesktopMemoryEnvelope(
+        process_limit_mb=process_limit_mb,
+        governor_prune_mb=prune_mb,
+        governor_unload_mb=unload_mb,
+        governor_critical_mb=critical_mb,
+        watchdog_soft_mb=prune_mb,
+        watchdog_hard_mb=process_limit_mb,
+        watchdog_lethal_mb=lethal_mb,
+    )
 
 
 def _truthy(value: str | None) -> bool:

@@ -417,6 +417,54 @@ def test_mlx_worker_spawn_blocks_projected_32b_overcommit(monkeypatch):
     assert "projected_process_tree_rss:8.0GB+35.0GB+reserve3.0GB=46.0GB" in reason
 
 
+def test_resident_32b_declared_peak_fits_host_derived_desktop_envelope(monkeypatch):
+    """A 64GB desktop must be able to admit its declared resident cortex."""
+    from core.brain.llm import mlx_client
+    from core.runtime.desktop_boot_safety import compute_process_rss_limit
+
+    gib = 1024**3
+    monkeypatch.setenv("AURA_DESKTOP_RESOURCE_GUARD", "1")
+    monkeypatch.delenv("AURA_PROCESS_RSS_LIMIT_GB", raising=False)
+    monkeypatch.delenv("AURA_ALLOW_UNSAFE_MEMORY_LIMITS", raising=False)
+    monkeypatch.setattr(
+        mlx_client,
+        "get_memory_pressure_snapshot",
+        lambda: SimpleNamespace(
+            refuse_heavy_local_generation=False,
+            available_gb=28.0,
+            process_rss_gb=25.6,
+            process_rss_limit_gb=compute_process_rss_limit(64 * gib) / gib,
+            reason="",
+        ),
+    )
+    monkeypatch.setattr(mlx_client, "_model_load_min_available_gb", lambda _path: 16.0)
+    monkeypatch.setattr(mlx_client, "_declared_mlx_worker_footprint_gb", lambda _path: 25.3)
+    monkeypatch.setattr(mlx_client, "_model_process_reserve_gb", lambda _path: 3.0)
+
+    assert mlx_client._memory_pressure_blocks_worker_spawn("Aura-32B") is None
+
+
+def test_resident_32b_admission_still_rejects_when_host_reserve_is_gone(monkeypatch):
+    from core.brain.llm import mlx_client
+
+    monkeypatch.setattr(
+        mlx_client,
+        "get_memory_pressure_snapshot",
+        lambda: SimpleNamespace(
+            refuse_heavy_local_generation=True,
+            available_gb=3.0,
+            process_rss_gb=42.0,
+            process_rss_limit_gb=51.8,
+            reason="memory_pressure:95.0%/3.0GB",
+        ),
+    )
+    monkeypatch.setattr(mlx_client, "_model_load_min_available_gb", lambda _path: 16.0)
+
+    assert (
+        mlx_client._memory_pressure_blocks_worker_spawn("Aura-32B") == "memory_pressure:95.0%/3.0GB"
+    )
+
+
 def test_mlx_worker_spawn_blocks_when_unified_guard_refuses(monkeypatch):
     from core.brain.llm import mlx_client
 

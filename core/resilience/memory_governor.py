@@ -11,10 +11,10 @@ from core.memory.physics import hawking_decay
 from core.resilience.runaway_budget import RunawayPolicy, get_runaway_budget
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.sqlite_support import connecting
 from core.utils.exceptions import capture_and_log
 from core.utils.memory_monitor import get_memory_pressure_snapshot, process_memory_bytes
 from core.utils.task_tracker import get_task_tracker
-from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger("Aura.Resilience.MemoryGovernor")
 
@@ -66,10 +66,8 @@ def _env_float(name: str, default: float) -> float:
 class MemoryGovernor:
     """Monitors system memory and enforces pruning/unloading thresholds.
     
-    Daily-use thresholds on a 64GB desktop:
-    - 28GB: Trigger VectorMemory pruning.
-    - 34GB: Trigger local model unloading.
-    - 40GB: Emergency cleanup and metabolic slowdown.
+    Daily-use thresholds are ordered rungs of the same host-derived envelope
+    used by worker admission and the external watchdog.
     """
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
@@ -83,15 +81,20 @@ class MemoryGovernor:
             total_mb = psutil.virtual_memory().total / (1024 * 1024)
         except _RSS_SAMPLE_ERRORS:
             total_mb = 65536.0
-        self.threshold_prune = int(
-            _env_float("AURA_GOVERNOR_PRUNE_MB", min(28672.0, total_mb * 0.44))
-        )
-        self.threshold_unload = int(
-            _env_float("AURA_GOVERNOR_UNLOAD_MB", min(34816.0, total_mb * 0.53))
-        )
-        self.threshold_critical = int(
-            _env_float("AURA_GOVERNOR_CRITICAL_MB", min(40960.0, total_mb * 0.62))
-        )
+        try:
+            from core.runtime.desktop_boot_safety import compute_desktop_memory_envelope
+
+            envelope = compute_desktop_memory_envelope(int(total_mb * 1024 * 1024))
+            prune_default = envelope.governor_prune_mb
+            unload_default = envelope.governor_unload_mb
+            critical_default = envelope.governor_critical_mb
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            prune_default = min(28672.0, total_mb * 0.44)
+            unload_default = min(34816.0, total_mb * 0.53)
+            critical_default = min(40960.0, total_mb * 0.62)
+        self.threshold_prune = int(_env_float("AURA_GOVERNOR_PRUNE_MB", prune_default))
+        self.threshold_unload = int(_env_float("AURA_GOVERNOR_UNLOAD_MB", unload_default))
+        self.threshold_critical = int(_env_float("AURA_GOVERNOR_CRITICAL_MB", critical_default))
 
         self.check_interval = 60.0  # Seconds
         self._last_vacuum_time = time.monotonic()

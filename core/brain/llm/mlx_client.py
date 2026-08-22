@@ -1698,6 +1698,27 @@ def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
     return owners
 
 
+def _transient_runtime_footprint_gb(owners: list[Any]) -> float:
+    """Measure Aura process-tree memory not owned by model workers.
+
+    Lane arbitration historically counted checkpoint workers while spawn
+    admission counted the complete Aura tree. During primary recovery that
+    disagreement let an idle fallback look compatible, then made the physical
+    spawn gate reject the 32B. This cost is reservation-only so Aura's base
+    runtime is not permanently double-counted on committed model owners.
+    """
+
+    try:
+        snapshot = get_memory_pressure_snapshot()
+        process_rss_gb = max(0.0, float(snapshot.process_rss_gb or 0.0))
+        observed_worker_gb = sum(
+            max(0.0, float(getattr(owner, "observed_gb", 0.0) or 0.0)) for owner in owners
+        )
+    except (OSError, AttributeError, RuntimeError, TypeError, ValueError):
+        return 0.0
+    return max(0.0, process_rss_gb - observed_worker_gb)
+
+
 #: How long an eviction waits to fence a lane before giving up. Short on
 #: purpose: a lane that will not go quiet quickly is a lane doing work, and
 #: the answer to that is to refuse the eviction, not to outwait it. Must
@@ -2178,10 +2199,13 @@ async def _model_load_admission_context(
         and callable(getattr(client, "_is_deep_solver_lane", None))
         and client._is_deep_solver_lane()
     )
+    observed_owners = _observed_model_lane_owners(exclude_client=client)
+    transient_runtime_gb = _transient_runtime_footprint_gb(observed_owners)
     lane_claim = LaneClaim(
         owner_id=_model_lane_owner_id(client),
         model_path=str(client.model_path),
         request_gb=request_gb,
+        transient_runtime_gb=transient_runtime_gb,
         priority=(
             int(AdmissionPriority.FOREGROUND)
             if (foreground_request or is_primary_cortex)
@@ -2189,7 +2213,7 @@ async def _model_load_admission_context(
         ),
         foreground=foreground_request,
         allow_disruptive_eviction=disruptive_deep_handoff,
-        allow_last_warm_eviction=disruptive_deep_handoff,
+        allow_last_warm_eviction=is_primary_cortex or disruptive_deep_handoff,
         reservation_ttl_s=model_load_lease_ttl_s,
         request_id=f"model-lane-{request.request_id}",
         metadata={
@@ -2199,6 +2223,7 @@ async def _model_load_admission_context(
             "lane_qos": str(qos),
             "foreground_request": bool(foreground_request),
             "disruptive_deep_handoff": disruptive_deep_handoff,
+            "transient_runtime_gb": transient_runtime_gb,
             "compensation_strategy": "mlx_warmup_exact_owner",
         },
     )
@@ -2206,7 +2231,7 @@ async def _model_load_admission_context(
     try:
         lane_decision = await lane_controller.reserve(
             lane_claim,
-            observations=_observed_model_lane_owners(exclude_client=client),
+            observations=observed_owners,
         )
         if not lane_decision.admitted:
             await _release_schedule_lease("model_lane_reservation_refused")

@@ -55,7 +55,7 @@ PROOF_DIR = ROOT / "artifacts" / "live_proof"
 # Abort the whole proof if Aura's process tree exceeds this. The runtime should
 # refuse/recycle before this external guard fires; the guard exists to protect
 # the host if local inference leaks past the in-process policy.
-DEFAULT_RSS_ABORT_MB = 42_000.0
+DEFAULT_RSS_ABORT_MB = 56.0 * 1024.0
 LIVE_FALLBACK_RE = re.compile(
     r"(say that again|try (?:again|me again|that again)|ask me again|"
     r"give me a moment|i'?m with you|could you repeat|repeat your question|"
@@ -148,7 +148,7 @@ def live_proof_rss_abort_mb(env: dict[str, str] | None = None) -> float:
     process_limit_gb = _env_float(env, "AURA_PROCESS_RSS_LIMIT_GB", 0.0)
     derived = DEFAULT_RSS_ABORT_MB
     if process_limit_gb > 0.0:
-        derived = min(DEFAULT_RSS_ABORT_MB, (process_limit_gb * 1024.0) + 2048.0)
+        derived = min(DEFAULT_RSS_ABORT_MB, (process_limit_gb * 1024.0) + 4096.0)
 
     configured = _env_float(env, "AURA_LIVE_PROOF_RSS_ABORT_MB", 0.0)
     if configured > 0.0:
@@ -205,16 +205,18 @@ def build_safe_boot_env(
     env.setdefault("AURA_DESKTOP_MLX_MEMORY_RATIO", "0.54")
     env.setdefault("AURA_DESKTOP_MLX_MEMORY_CAP_GB", "34")
     env.setdefault("AURA_DESKTOP_MLX_MEMORY_FLOOR_GB", "18")
-    env.setdefault("AURA_DESKTOP_PROCESS_RSS_RATIO", "0.62")
-    env.setdefault("AURA_DESKTOP_PROCESS_RSS_CAP_GB", "40")
+    env.setdefault("AURA_DESKTOP_PROCESS_RSS_RATIO", "0.81")
+    env.setdefault("AURA_DESKTOP_PROCESS_RSS_CAP_GB", "56")
+    env.setdefault("AURA_DESKTOP_HOST_RESERVE_RATIO", "0.18")
+    env.setdefault("AURA_DESKTOP_HOST_RESERVE_FLOOR_GB", "8")
     env.setdefault("AURA_DESKTOP_PROCESS_RSS_FLOOR_GB", "24")
-    env.setdefault("AURA_MEMWATCH_SOFT_MB", "37888")
-    env.setdefault("AURA_MEMWATCH_HARD_MB", "41984")
-    env.setdefault("AURA_MEMWATCH_LETHAL_MB", "43008")
+    env.setdefault("AURA_MEMWATCH_SOFT_MB", "auto")
+    env.setdefault("AURA_MEMWATCH_HARD_MB", "auto")
+    env.setdefault("AURA_MEMWATCH_LETHAL_MB", "auto")
     env.setdefault("AURA_MEMORY_SENTINEL_INTERVAL_S", "0.5")
-    env.setdefault("AURA_GOVERNOR_PRUNE_MB", "37888")
-    env.setdefault("AURA_GOVERNOR_UNLOAD_MB", "39936")
-    env.setdefault("AURA_GOVERNOR_CRITICAL_MB", "40960")
+    env.setdefault("AURA_GOVERNOR_PRUNE_MB", "auto")
+    env.setdefault("AURA_GOVERNOR_UNLOAD_MB", "auto")
+    env.setdefault("AURA_GOVERNOR_CRITICAL_MB", "auto")
     env.setdefault("AURA_ENABLE_LOCAL_DEEP_SOLVER", "0")
     env.setdefault("AURA_MLX_32B_PROJECTED_FOOTPRINT_GB", "auto")
     env.setdefault("AURA_MLX_32B_PROCESS_RESERVE_GB", "3")
@@ -224,6 +226,8 @@ def build_safe_boot_env(
     env.setdefault("AURA_WATCHDOG_BOOT_GRACE_S", "240")
     observer = observer or get_resource_observer()
 
+    envelope_factory = None
+    memory_total_bytes = 0
     try:
         from core.runtime.desktop_boot_safety import compute_mlx_memory_limit
 
@@ -237,16 +241,29 @@ def build_safe_boot_env(
     env["AURA_MLX_MEMORY_LIMIT_GB"] = f"{limit_gb:.0f}"
 
     try:
-        from core.runtime.desktop_boot_safety import compute_process_rss_limit
+        from core.runtime.desktop_boot_safety import (
+            compute_desktop_memory_envelope,
+            compute_process_rss_limit,
+        )
 
         memory = observer.memory()
         if not memory.available or memory.total_bytes <= 0:
             raise RuntimeError(f"memory observation unavailable: {memory.error}")
         limit_bytes = compute_process_rss_limit(memory.total_bytes, env)
-        limit_gb = max(1.0, min(40.0, limit_bytes / float(1024 ** 3)))
+        limit_gb = max(1.0, limit_bytes / float(1024 ** 3))
+        envelope_factory = compute_desktop_memory_envelope
+        memory_total_bytes = memory.total_bytes
     except (ImportError, RuntimeError, TypeError, ValueError, OSError):
-        limit_gb = min(40.0, max(1.0, _env_float(env, "AURA_PROCESS_RSS_LIMIT_GB", 40.0)))
+        limit_gb = max(1.0, _env_float(env, "AURA_PROCESS_RSS_LIMIT_GB", 52.0))
     env["AURA_PROCESS_RSS_LIMIT_GB"] = f"{limit_gb:.0f}"
+    if envelope_factory is not None and memory_total_bytes > 0:
+        envelope = envelope_factory(memory_total_bytes, env)
+        env["AURA_GOVERNOR_PRUNE_MB"] = f"{envelope.governor_prune_mb:.0f}"
+        env["AURA_GOVERNOR_UNLOAD_MB"] = f"{envelope.governor_unload_mb:.0f}"
+        env["AURA_GOVERNOR_CRITICAL_MB"] = f"{envelope.governor_critical_mb:.0f}"
+        env["AURA_MEMWATCH_SOFT_MB"] = f"{envelope.watchdog_soft_mb:.0f}"
+        env["AURA_MEMWATCH_HARD_MB"] = f"{envelope.watchdog_hard_mb:.0f}"
+        env["AURA_MEMWATCH_LETHAL_MB"] = f"{envelope.watchdog_lethal_mb:.0f}"
     return env
 
 

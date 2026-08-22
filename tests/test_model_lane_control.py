@@ -500,6 +500,59 @@ async def test_required_eviction_completes_before_reservation_becomes_ready(tmp_
 
 
 @pytest.mark.asyncio
+async def test_transient_runtime_cost_evicts_fallback_without_becoming_owner_memory(
+    tmp_path: Path,
+) -> None:
+    alive = AliveTable(311, 312)
+    controller = _controller(tmp_path, alive)
+    observations = [_owner("mlx:fallback", "/m/qwen-7b", 10.0, 311)]
+    claim = LaneClaim(
+        owner_id="mlx:primary",
+        model_path="/m/Aura-32B-cortex",
+        request_gb=25.0,
+        transient_runtime_gb=18.0,
+        allow_last_warm_eviction=True,
+        request_id="primary-over-runtime",
+    )
+
+    decision = await controller.reserve(claim, observations=observations)
+    assert decision.state is LaneTransactionState.EVICTING
+    assert decision.evict_owner_ids == ("mlx:fallback",)
+
+    async def evict(owner: LaneOwnerObservation, _reason: str) -> bool:
+        alive.alive.remove(owner.process.pid)
+        observations.clear()
+        return True
+
+    ready = await controller.prepare(
+        decision,
+        evict=evict,
+        observe=lambda: list(observations),
+        reclaim=lambda _claim: True,
+    )
+    committed = controller.commit_sync(
+        ready,
+        process=ProcessIdentity(312, 312.0),
+        observed_gb=22.0,
+    )
+
+    assert committed.state is LaneTransactionState.COMMITTED
+    snapshot = controller.snapshot()
+    assert snapshot["committed_gb"] == pytest.approx(25.0)
+    assert snapshot["owners"][0]["declared_gb"] == pytest.approx(25.0)
+
+
+def test_transient_runtime_cost_must_be_finite_and_non_negative() -> None:
+    with pytest.raises(ValueError, match="transient_runtime_gb"):
+        LaneClaim(
+            owner_id="mlx:primary",
+            model_path="/m/Aura-32B-cortex",
+            request_gb=25.0,
+            transient_runtime_gb=-1.0,
+        )
+
+
+@pytest.mark.asyncio
 async def test_failed_required_eviction_cancels_candidate_and_receipts_failure(tmp_path: Path) -> None:
     alive = AliveTable(401, 402)
     controller = _controller(tmp_path, alive)

@@ -231,6 +231,16 @@ def _budget_for_total_gb(host_total_gb: float) -> float:
     absolute = float(_BUDGET_GB_FLAG.value())
     if absolute > 0.0:
         return absolute
+    try:
+        from core.runtime.desktop_boot_safety import (
+            compute_process_rss_limit,
+            desktop_resource_guard_enabled,
+        )
+
+        if desktop_resource_guard_enabled():
+            return compute_process_rss_limit(int(host_total_gb * 1024**3)) / float(1024**3)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass
     fraction = max(0.30, min(0.95, float(_BUDGET_FRACTION_FLAG.value())))
     return host_total_gb * fraction
 
