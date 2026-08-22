@@ -146,3 +146,16 @@ def test_ordinary_sentences_are_not_live_check_claims():
 
     for text in ("I read the file.", "The web page was long.", "I checked the log."):
         assert not _claims_a_live_check(text), text
+
+
+def test_entities_do_not_reach_the_screen():
+    """LIVE, 2026-08-22: a sourced answer read "the world&#x27;s largest
+    open-source AI platform". The snippet carried the entity, the reply
+    carried it, and the page escaped it again."""
+    from interface.routes.chat import _clean_search_fact_text
+
+    assert (
+        _clean_search_fact_text("the world&#x27;s largest platform &amp; more")
+        == "the world's largest platform & more"
+    )
+    assert _clean_search_fact_text("plain prose stays as it is") == "plain prose stays as it is"

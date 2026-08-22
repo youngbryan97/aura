@@ -13811,7 +13811,16 @@ def _best_search_result_entry(result: dict[str, Any]) -> dict[str, str]:
 
 
 def _clean_search_fact_text(raw: Any) -> str:
-    text = " ".join(str(raw or "").strip().split())
+    # Entities that survived the fetch.
+    #
+    # LIVE, 2026-08-22: a sourced answer reached the screen reading "the
+    # world&#x27;s largest open-source AI platform". The snippet carried the
+    # entity, the reply carried it, and the page escaped it again — so the
+    # reader saw the escape rather than the apostrophe. Unescaping twice is
+    # harmless here: the text is prose by this point, never markup.
+    import html as _html
+
+    text = " ".join(_html.unescape(str(raw or "")).strip().split())
     text = re.sub(r"^[-–—>\\s]+", "", text)
     text = _SEARCH_SNIPPET_BOILERPLATE_RE.sub(" ", text)
     text = " ".join(text.split())
