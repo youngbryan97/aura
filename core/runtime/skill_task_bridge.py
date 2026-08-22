@@ -32,6 +32,40 @@ _ACTION_VERBS = (
     "return",
     "come back",
     "use",
+    # Changing something is an action, and so is being told not to.
+    #
+    # LIVE, 2026-08-22: "...tell me what's actually wrong? don't just make the
+    # test pass." routed to the desktop actuation lane, which spent
+    # thirty-seven seconds failing to compile AppleScript for a Python
+    # question. The mutation detector reads `make` as a change; this list,
+    # which decides whether a change was NEGATED, did not have it — nor fix,
+    # change, edit, patch or modify. So a prohibition read as an instruction,
+    # and the one sentence telling her not to touch the code was the sentence
+    # that sent her to the lane that touches things.
+    #
+    # Two vocabularies answering "is this an action" and "was it negated" will
+    # always drift apart. Everything the mutation detectors recognise belongs
+    # here.
+    "make",
+    "fix",
+    "change",
+    "edit",
+    "modify",
+    "patch",
+    "update",
+    "create",
+    "delete",
+    "remove",
+    "rename",
+    "move",
+    "copy",
+    "append",
+    "install",
+    "send",
+    "post",
+    "submit",
+    "buy",
+    "book",
 )
 
 _ACTION_RE = re.compile(
