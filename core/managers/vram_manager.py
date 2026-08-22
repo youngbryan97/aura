@@ -1,7 +1,8 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import gc
 import logging
+
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 try:
@@ -90,7 +91,15 @@ class VRAMManager:
         gc.collect()
         if MLX_AVAILABLE:
             try:
-                from core.utils.gpu_sentinel import get_gpu_sentinel, GPUPriority
+                from core.runtime.desktop_boot_safety import mlx_process_uses_metal
+                from core.utils.gpu_sentinel import GPUPriority, get_gpu_sentinel
+
+                if not mlx_process_uses_metal():
+                    logger.debug(
+                        "VRAM purge skipped Metal cache mutation because this "
+                        "process does not own the Metal MLX lane."
+                    )
+                    return
                 sentinel = get_gpu_sentinel()
                 if sentinel.acquire(priority=GPUPriority.REFLEX, timeout=5.0):
                     try:

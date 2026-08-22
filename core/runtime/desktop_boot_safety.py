@@ -22,6 +22,7 @@ _INPROCESS_MLX_STATE: dict[str, Any] = {
     "configured": False,
     "device": "unknown",
     "reason": "uninitialized",
+    "verified": False,
 }
 
 
@@ -280,33 +281,68 @@ def configure_inprocess_mlx_runtime(
     )
 
     desired_device = "metal" if enabled else "cpu"
+    return configure_mlx_process_device(
+        desired_device,
+        reason=reason,
+        force=force,
+    )
+
+
+def configure_mlx_process_device(
+    device: str,
+    *,
+    reason: str,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Set and verify this process's MLX default device.
+
+    MLX defaults to Metal on Apple Silicon. Recording ``device='cpu'`` in
+    Aura's own state without calling ``mx.set_default_device`` therefore does
+    not move any work: the next parent-side array still allocates on Metal.
+    Device ownership is process-local, so the desktop parent and isolated
+    model worker both use this function and receive independently verified
+    contracts.
+    """
+
+    desired_device = str(device or "").strip().lower()
+    if desired_device == "gpu":
+        desired_device = "metal"
+    if desired_device not in {"cpu", "metal"}:
+        raise ValueError(f"unsupported MLX process device: {device!r}")
+
     with _INPROCESS_MLX_LOCK:
-        if (
-            not force
-            and _INPROCESS_MLX_STATE["configured"]
-            and _INPROCESS_MLX_STATE["device"] == desired_device
-            and _INPROCESS_MLX_STATE["reason"] == reason
-        ):
-            return dict(_INPROCESS_MLX_STATE)
-
-        if not enabled:
-            _INPROCESS_MLX_STATE.update(
-                {
-                    "configured": True,
-                    "device": "cpu",
-                    "reason": reason,
-                }
-            )
-            return dict(_INPROCESS_MLX_STATE)
-
         try:
-            importlib.import_module("mlx.core")
-        except (ImportError, AttributeError, RuntimeError):
+            mx = importlib.import_module("mlx.core")
+        except (ImportError, AttributeError, RuntimeError) as exc:
             _INPROCESS_MLX_STATE.update(
                 {
                     "configured": True,
                     "device": "unavailable",
-                    "reason": f"{reason}:mlx_unavailable",
+                    "reason": f"{reason}:mlx_unavailable:{type(exc).__name__}",
+                    "verified": False,
+                }
+            )
+            return dict(_INPROCESS_MLX_STATE)
+
+        target = mx.cpu if desired_device == "cpu" else mx.gpu
+        try:
+            current = mx.default_device()
+            if force or current != target:
+                mx.set_default_device(target)
+            actual = mx.default_device()
+            if actual != target:
+                raise RuntimeError(
+                    f"MLX default device remained {actual!s}; expected {target!s}"
+                )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _INPROCESS_MLX_STATE.update(
+                {
+                    "configured": True,
+                    "device": "unavailable",
+                    "reason": (
+                        f"{reason}:device_configuration_failed:{type(exc).__name__}"
+                    ),
+                    "verified": False,
                 }
             )
             return dict(_INPROCESS_MLX_STATE)
@@ -314,8 +350,23 @@ def configure_inprocess_mlx_runtime(
         _INPROCESS_MLX_STATE.update(
             {
                 "configured": True,
-                "device": "metal",
+                "device": desired_device,
                 "reason": reason,
+                "verified": True,
             }
         )
         return dict(_INPROCESS_MLX_STATE)
+
+
+def mlx_process_runtime_status() -> dict[str, Any]:
+    """Return this process's last verified MLX device contract."""
+
+    with _INPROCESS_MLX_LOCK:
+        return dict(_INPROCESS_MLX_STATE)
+
+
+def mlx_process_uses_metal() -> bool:
+    """Whether this process owns a verified Metal MLX default device."""
+
+    status = mlx_process_runtime_status()
+    return bool(status.get("verified") and status.get("device") == "metal")

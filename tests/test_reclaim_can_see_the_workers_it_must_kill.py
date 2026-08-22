@@ -5,18 +5,17 @@
     🚨 [MEMWATCH] LETHAL ceiling: managed RSS 48237MB ≥ 43008MB.
        Reclaimed (killed=0). Next confirmation aborts.
 
-Nothing was killed, and the process exited. Underneath it sat 18.3GB, 5.0GB
-and 1.6GB of respawnable child. terminate_heavy_child_workers matched command
-lines against ("mlx_worker.py", "MTLCompilerService"), but the resident 32B is
-started through multiprocessing, so its command line is the generic spawn_main
-bootstrap and no marker could ever appear in it.
+Nothing was killed, and the process exited. Underneath it sat model workers and
+other organs sharing the same generic ``spawn_main`` command line. Matching
+that command line first missed the workers; treating every match as killable
+then killed stateful non-model children. The gateway role is the authority.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
-import psutil  # noqa: F401 - fixture patches mw.psutil
 import pytest
 
 from core.resilience import memory_watchdog as mw
@@ -38,11 +37,22 @@ _SENTINEL_CMD = (
 
 
 class _FakeChild:
-    def __init__(self, pid: int, rss_gb: float, cmd: str) -> None:
+    def __init__(self, pid: int, rss_gb: float, cmd: str, *, role: str | None) -> None:
         self.pid = pid
         self._rss = int(rss_gb * (1024**3))
         self._cmd = cmd
+        self.name = f"child-{pid}"
+        self._alive = True
         self.terminated = False
+        if role is not None:
+            self._aura_python_process_contract = {
+                "source": f"test.{role}",
+                "name": self.name,
+                "role": role,
+                "requested_privileges": (),
+                "accelerator_capability": "model" if role == "model_worker" else "none",
+                "start_method": "spawn",
+            }
 
     def cmdline(self):
         return self._cmd.split(" ")
@@ -52,28 +62,46 @@ class _FakeChild:
 
     def terminate(self):
         self.terminated = True
+        self._alive = False
 
     def kill(self):
         self.terminated = True
+        self._alive = False
+
+    def is_alive(self):
+        return self._alive
+
+    def join(self, timeout=None):
+        return None
 
 
 @pytest.fixture
 def live_tree(monkeypatch):
     children = [
-        _FakeChild(31863, 18.3, _REAL_WORKER_CMD),
-        _FakeChild(32308, 5.0, _REAL_WORKER_CMD),
-        _FakeChild(32604, 1.6, _REAL_WORKER_CMD),
-        _FakeChild(24822, 0.03, _SENTINEL_CMD),
+        _FakeChild(31863, 18.3, _REAL_WORKER_CMD, role="model_worker"),
+        _FakeChild(32308, 5.0, _REAL_WORKER_CMD, role="model_worker"),
+        _FakeChild(32604, 1.6, _REAL_WORKER_CMD, role="coordinator"),
+        _FakeChild(24822, 0.03, _SENTINEL_CMD, role=None),
     ]
-    monkeypatch.setattr(mw, "_child_processes", lambda *a, **k: children)
-    # memory_watchdog uses the repo's wrapped psutil, not the bare module.
+    monkeypatch.setattr(mw.mp, "active_children", lambda: children)
     monkeypatch.setattr(
-        mw.psutil, "wait_procs", lambda procs, timeout=0: (list(procs), [])
+        mw,
+        "_phys_footprint_mb",
+        lambda pid: next(child._rss for child in children if child.pid == pid) / (1024**2),
     )
+    monkeypatch.setattr(
+        mw,
+        "capture_identity",
+        lambda process, **_kwargs: SimpleNamespace(
+            bound=True,
+            describe=lambda: f"pid={process.pid}",
+        ),
+    )
+    monkeypatch.setattr(mw, "assert_owned", lambda *_args, **_kwargs: True)
     return children
 
 
-def test_a_multiprocessing_worker_is_recognised_as_killable(live_tree) -> None:
+def test_a_declared_model_worker_is_recognised_as_killable(live_tree) -> None:
     """The regression itself: killed=0 against a tree full of workers."""
     killed = mw.terminate_heavy_child_workers()
     assert killed >= 1, (
@@ -98,6 +126,23 @@ def test_reclaim_stops_once_the_shortfall_is_covered(live_tree) -> None:
     biggest = next(c for c in live_tree if c.pid == 31863)
     assert biggest.terminated, "largest-first: the 18.3GB worker goes first"
     assert not any(c.terminated for c in live_tree if c.pid in (32308, 32604))
+
+
+def test_a_generic_spawned_coordinator_is_never_a_model_reclaim_candidate(live_tree) -> None:
+    mw.terminate_heavy_child_workers()
+
+    coordinator = next(child for child in live_tree if child.pid == 32604)
+    assert "multiprocessing.spawn" in coordinator._cmd
+    assert not coordinator.terminated
+
+
+def test_pid_identity_is_revalidated_at_the_moment_of_termination(
+    live_tree, monkeypatch
+) -> None:
+    monkeypatch.setattr(mw, "assert_owned", lambda *_args, **_kwargs: False)
+
+    assert mw.terminate_heavy_child_workers() == 0
+    assert not any(child.terminated for child in live_tree)
 
 
 def test_watchdog_asks_for_exactly_its_shortfall(monkeypatch) -> None:

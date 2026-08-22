@@ -31,6 +31,7 @@ from __future__ import annotations
 import ctypes
 import gc
 import logging
+import multiprocessing as mp
 import os
 import sys
 import threading
@@ -42,6 +43,7 @@ from typing import Any
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.process_identity import assert_owned, capture_identity
 from core.runtime.resource_observation import (
     ObservationSource,
     ResourceObserver,
@@ -64,26 +66,27 @@ _WATCHDOG_RECOVERABLE_ERRORS = (
 # EX_SOFTWARE (70) — "internal software error" — categorized OOM abort.
 MEMORY_ABORT_EXIT_CODE = 70
 
-# Child workers the hard tier is allowed to terminate out-of-band. These
-# are inference/runtime workers that the lane clients know how to respawn;
-# killing them loses no durable state.
-_HEAVY_WORKER_MARKERS = ("mlx_worker.py", "MTLCompilerService")
+def _active_model_worker_handles() -> list[Any]:
+    """Parent-owned model-worker handles, selected by gateway role.
 
-#: How a multiprocessing child announces itself. The heavy inference workers
-#: are started this way, so their command line carries no name of their own —
-#: this is the only thing that identifies them as ours and respawnable.
-_SPAWNED_WORKER_MARKERS = ("multiprocessing.spawn", "multiprocessing.forkserver")
+    Every multiprocessing child has the same generic command line. Selecting
+    by ``spawn_main`` therefore turns state vaults, sensory gates and runtime
+    coordinators into collateral damage. Only the role contract attached by
+    :class:`SubprocessGateway` authorizes emergency model reclamation.
+    """
 
-#: Children that are NOT respawnable inference workers and must survive a
-#: reclaim: the out-of-process guard that would otherwise die with the thing
-#: it guards.
-_PROTECTED_CHILD_MARKERS = ("memory_sentinel.py",)
+    try:
+        from core.runtime.process_privilege import ProcessRole
+        from core.runtime.subprocess_gateway import python_process_role
 
-
-def _is_spawned_worker(cmd: str) -> bool:
-    if any(marker in cmd for marker in _PROTECTED_CHILD_MARKERS):
-        return False
-    return any(marker in cmd for marker in _SPAWNED_WORKER_MARKERS)
+        children = mp.active_children()
+    except (ImportError, AssertionError, OSError, RuntimeError, TypeError, ValueError):
+        return []
+    return [
+        process
+        for process in children
+        if python_process_role(process) is ProcessRole.MODEL_WORKER
+    ]
 
 def _tombstone_dir() -> Path:
     """Resolved per call, not at import.
@@ -380,68 +383,86 @@ def terminate_heavy_child_workers(
 ) -> int:
     """Terminate inference child workers out-of-band. Returns count killed.
 
-    A WORKER IS FOUND BY ITS FOOTPRINT, NOT BY ITS COMMAND LINE.
+    A WORKER IS IDENTIFIED BY ITS DECLARED ROLE AND SIZED BY ITS FOOTPRINT.
 
-    This matched cmdline against ("mlx_worker.py", "MTLCompilerService"), but
-    the resident 32B is started through multiprocessing, so its command line
-    is the generic ``-c from multiprocessing.spawn import spawn_main; ...``
-    and no marker can ever appear in it. On 2026-07-29 that made the last rung
-    before the process killed itself a no-op: the log read "LETHAL ceiling ...
-    Reclaimed (killed=0)" while 18.3GB, 5.0GB and 1.6GB of respawnable child
-    sat directly underneath, and the runtime exited rather than drop any of it.
+    Command-line matching first missed the resident worker because it appeared
+    only as ``multiprocessing.spawn``. Broadening that marker then made every
+    spawned organ killable. The gateway's parent-owned process handle carries
+    the exact role declared before start; physical footprint captures Metal and
+    compressed allocations that ordinary RSS omits.
 
     ``free_at_least_bytes`` kills largest-first and stops as soon as that much
     has been given back, so getting under the ceiling costs the fewest workers
     it can — a reload of one model instead of every child in the tree.
     """
-    try:
-        children = _child_processes(os.getpid(), recursive=True)
-    except _WATCHDOG_RECOVERABLE_ERRORS as exc:
-        logger.debug("MemoryWatchdog: child scan failed: %s", exc)
-        return 0
-
-    candidates: list[tuple[int, Any, str]] = []
-    for child in children:
+    candidates: list[tuple[int, Any, Any, str]] = []
+    for process in _active_model_worker_handles():
         try:
-            cmd = " ".join(child.cmdline())
-            rss = int(getattr(child.memory_info(), "rss", 0) or 0)
-        except _WATCHDOG_RECOVERABLE_ERRORS:
+            pid = int(process.pid)
+            alive = bool(process.is_alive())
+            name = str(getattr(process, "name", "model_worker") or "model_worker")
+        except (AssertionError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             continue
-        if not (
-            any(marker in cmd for marker in _HEAVY_WORKER_MARKERS)
-            or _is_spawned_worker(cmd)
-        ):
+        if pid <= 0 or not alive:
             continue
-        candidates.append((rss, child, cmd))
+        identity = capture_identity(process, label=name)
+        if identity is None or not identity.bound:
+            logger.warning(
+                "🛡️ [MEMWATCH] Refused unbound model-worker reclaim pid=%s name=%s",
+                pid,
+                name,
+            )
+            continue
+        footprint = max(0, int(_phys_footprint_mb(pid) * 1024 * 1024))
+        candidates.append((footprint, process, identity, name))
 
     candidates.sort(key=lambda item: item[0], reverse=True)
 
     killed = 0
     freed = 0
-    doomed: list[Any] = []
-    for rss, child, cmd in candidates:
+    doomed: list[tuple[Any, Any, str]] = []
+    for footprint, process, identity, name in candidates:
         if free_at_least_bytes is not None and freed >= free_at_least_bytes:
             break
-        try:
-            child.terminate()
-        except _WATCHDOG_RECOVERABLE_ERRORS:
+        if not assert_owned(
+            identity,
+            process,
+            action="terminate model worker",
+            subsystem="memory_watchdog",
+        ):
             continue
-        doomed.append(child)
+        try:
+            process.terminate()
+        except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
+            continue
+        doomed.append((process, identity, name))
         killed += 1
-        freed += rss
+        freed += footprint
         logger.warning(
-            "🛑 [MEMWATCH] Terminated heavy worker pid=%s rss=%dMB cmd=%s",
-            child.pid,
-            rss >> 20,
-            cmd[:160],
+            "🛑 [MEMWATCH] Terminated declared model worker pid=%s "
+            "footprint=%dMB name=%s",
+            process.pid,
+            footprint >> 20,
+            name,
         )
-    if doomed:
-        _, alive = psutil.wait_procs(doomed, timeout=grace_s)
-        for child in alive:
-            try:
-                child.kill()
-            except _WATCHDOG_RECOVERABLE_ERRORS:
-                continue
+    for process, identity, _name in doomed:
+        try:
+            process.join(timeout=max(0.0, float(grace_s)))
+            alive = bool(process.is_alive())
+        except (AssertionError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            alive = True
+        if not alive or not assert_owned(
+            identity,
+            process,
+            action="kill model worker after terminate timeout",
+            subsystem="memory_watchdog",
+        ):
+            continue
+        try:
+            process.kill()
+            process.join(timeout=max(0.0, min(float(grace_s), 1.0)))
+        except (AssertionError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            continue
     return killed
 
 

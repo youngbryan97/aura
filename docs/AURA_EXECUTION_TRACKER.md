@@ -51480,3 +51480,42 @@ council and governance suite passes `47/47` with four environment-dependent
 skips; canonical smoke passes `120/120` with one environment-dependent skip;
 Ruff, compilation and diff hygiene pass. The currently running desktop process
 predates this source and is not live evidence for it.
+
+## Checkpoint 2026-08-21-894: Give Metal and Model-Worker Reclamation One Owner
+
+The source-mismatched desktop run exposed an ownership failure beneath its
+memory pressure. Aura's boot guard recorded that the desktop parent was pinned
+to CPU without ever calling MLX's device setter. The model worker did not
+re-establish Metal ownership before importing the model stack. When pressure
+rose, the memory watchdog classified every generic ``multiprocessing.spawn``
+child as a disposable model worker and terminated state vault, sensory and
+coordinator processes together with the model. The parent then retained a
+large Metal footprint and subsequent worker admission could not recover.
+
+MLX device ownership is now a verified process-local contract. The desktop
+parent sets and reads back the CPU default; an isolated model worker sets and
+reads back Metal before importing ``mlx_lm``. Parent-side autonomic and VRAM
+cleanup may clear a Metal cache only when that process owns a verified Metal
+contract, so a CPU parent cannot mutate worker accelerator state. An
+unverified boot pin is reported as an error rather than described as safe.
+
+Emergency worker reclamation no longer infers identity from command-line text.
+The subprocess gateway exposes the immutable role contract attached to each
+parent-owned multiprocessing handle, and the watchdog selects only declared
+``MODEL_WORKER`` children. It sizes them by physical footprint, captures PID
+creation identity, revalidates ownership immediately before terminate and
+kill, and uses the original multiprocessing handle for lifecycle operations.
+Generic spawned coordinators and the external sentinel are structurally
+ineligible for model reclamation.
+
+Deterministic contracts prove the CPU pin actually takes, a worker can own an
+independent Metal default, failed device configuration is not claimed as
+verified, CPU-parent VRAM cleanup never clears Metal, model roles are readable
+from gateway contracts, generic spawned organs survive reclamation, largest
+verified model footprint is reclaimed first, and PID identity is checked at
+the action point. The focused boot, memory, gateway and identity suites pass
+`68/68`; canonical smoke passes `120/120` with one environment-dependent skip;
+Ruff, compilation, governance ownership, layering and diff hygiene pass. The
+running desktop process predates this checkpoint and remains intentionally
+untouched; live confirmation requires a source-matched controlled restart in a
+fresh agent session under the updated repository rule.

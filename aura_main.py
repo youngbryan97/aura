@@ -550,7 +550,13 @@ try:
     from core.runtime.desktop_boot_safety import configure_inprocess_mlx_runtime
 
     _mlx_runtime = configure_inprocess_mlx_runtime()
-    if _mlx_runtime.get("device") == "cpu":
+    if not _mlx_runtime.get("verified"):
+        logger.error(
+            "In-process MLX device ownership could not be verified (%s). "
+            "Resource admission must treat parent Metal ownership as unknown.",
+            _mlx_runtime.get("reason", "unknown"),
+        )
+    elif _mlx_runtime.get("device") == "cpu":
         logger.info(
             "🛡️ In-process MLX pinned to CPU (%s).",
             _mlx_runtime.get("reason", "guard"),

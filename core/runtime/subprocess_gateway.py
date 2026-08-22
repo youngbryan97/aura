@@ -97,6 +97,7 @@ _INHERITED_MODEL_LANE_ENV_KEYS = (
     "AURA_MODEL_LANE_DELEGATION_TOKEN",
 )
 logger = logging.getLogger("Aura.SubprocessGateway")
+_PROCESS_CONTRACT_ATTRIBUTE = "_aura_python_process_contract"
 
 
 class AcceleratorCapability(StrEnum):
@@ -126,6 +127,45 @@ class PythonProcessSpec:
 
 class PythonProcessOwnershipError(RuntimeError):
     """A Python child could not satisfy the gateway ownership contract."""
+
+
+def python_process_contract(process: Any) -> dict[str, Any] | None:
+    """Return the gateway-authored contract attached to a process handle.
+
+    Command lines cannot distinguish multiprocessing children: model workers,
+    coordinators and state organs all execute the same ``spawn_main`` bootstrap.
+    The parent-owned handle is the authoritative identity surface because the
+    gateway attaches this contract before ``start()`` and retains the handle for
+    lifecycle operations.
+    """
+
+    raw = getattr(process, _PROCESS_CONTRACT_ATTRIBUTE, None)
+    if not isinstance(raw, Mapping):
+        return None
+    required = {
+        "source",
+        "name",
+        "role",
+        "requested_privileges",
+        "accelerator_capability",
+        "start_method",
+    }
+    if not required.issubset(raw):
+        return None
+    return {str(key): value for key, value in raw.items()}
+
+
+def python_process_role(process: Any) -> ProcessRole | None:
+    """Resolve the declared role of one gateway-owned process handle."""
+
+    contract = python_process_contract(process)
+    if contract is None:
+        return None
+    role = str(contract.get("role") or "").strip().upper()
+    try:
+        return ProcessRole[role]
+    except KeyError:
+        return None
 
 
 _ACCELERATOR_IMPORT_ROOTS = frozenset(
@@ -840,7 +880,7 @@ def _require_not_shutting_down(
 class SubprocessGateway:
     """Single owner for subprocess execution and spawning."""
 
-    _PYTHON_PROCESS_CONTRACT_ATTRIBUTE = "_aura_python_process_contract"
+    _PYTHON_PROCESS_CONTRACT_ATTRIBUTE = _PROCESS_CONTRACT_ATTRIBUTE
 
     def spawn_python_process(
         self,

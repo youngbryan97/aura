@@ -13,6 +13,8 @@ from core.runtime.subprocess_gateway import (
     PythonProcessOwnershipError,
     PythonProcessSpec,
     SubprocessGateway,
+    python_process_contract,
+    python_process_role,
 )
 
 
@@ -102,6 +104,8 @@ def test_gateway_binds_role_and_registers_started_child(monkeypatch) -> None:
     assert contract["role"] == "untrusted_code"
     assert contract["requested_privileges"] == ()
     assert contract["accelerator_capability"] == "none"
+    assert python_process_contract(process) == contract
+    assert python_process_role(process) is ProcessRole.UNTRUSTED_CODE
 
 
 def test_gateway_rejects_privilege_escalation_before_factory() -> None:

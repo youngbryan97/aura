@@ -3,7 +3,7 @@ import gc
 import inspect
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
@@ -77,7 +77,7 @@ class AutonomicCore:
         # mutation and liveness could never prove the heartbeat had ended.
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=15.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError, TimeoutError):
+        except (asyncio.CancelledError, TimeoutError):
             pass
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('core_monitor', exc)
@@ -118,8 +118,6 @@ class AutonomicCore:
             )
 
             disk_percent = state_volume_percent()
-            now = time.time()
-
             # 1. Critical Existential Threat — auto-recovery (Zero-Touch)
             if mem.percent >= self.critical_ram_percent or disk_percent > DISK_RED_PERCENT:
                 logger.critical("Critical resource pressure (RAM: %s%%, Disk: %s%%). Auto-recovery.", mem.percent, disk_percent)
@@ -138,7 +136,9 @@ class AutonomicCore:
                 # was never released at the tier that promised it.
                 await self._unload_llm()
                 await self._auto_cognitive_recovery()
-                await self._emit_status("CRITICAL: Auto-recovery triggered at %.0f%% RAM" % mem.percent)
+                await self._emit_status(
+                    f"CRITICAL: Auto-recovery triggered at {mem.percent:.0f}% RAM"
+                )
 
             # 2. Hard Cleanup Needed
             elif mem.percent >= self.cleanup_ram_percent:
@@ -182,9 +182,21 @@ class AutonomicCore:
             # 1. Clear MLX metal cache (free GPU-side allocations)
             try:
                 import mlx.core as mx
-                if hasattr(mx, 'metal') and hasattr(mx.metal, 'clear_cache'):
+
+                from core.runtime.desktop_boot_safety import mlx_process_uses_metal
+
+                if (
+                    mlx_process_uses_metal()
+                    and hasattr(mx, "metal")
+                    and hasattr(mx.metal, "clear_cache")
+                ):
                     mx.metal.clear_cache()
                     logger.info("Substrate Defrag: MLX metal cache cleared.")
+                else:
+                    logger.debug(
+                        "Substrate Defrag: this process does not own Metal; "
+                        "worker-side cache reclamation remains authoritative."
+                    )
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('core_monitor', e)
                 logger.debug("Substrate Defrag: MLX cache clear skipped: %s", e)
@@ -298,9 +310,9 @@ class AutonomicCore:
                 return
 
             idle_seconds = time.time() - last_user
-            IDLE_THRESHOLD = 300.0  # 5 minutes
+            idle_threshold = 300.0  # 5 minutes
 
-            if idle_seconds < IDLE_THRESHOLD:
+            if idle_seconds < idle_threshold:
                 return
 
             # Only swap if the 32B is actually loaded.
@@ -451,7 +463,7 @@ class AutonomicCore:
             record_degradation('core_monitor', e)
             logger.debug("Survival check error: %s", e)
 
-    def get_survival_report(self) -> Dict[str, Any]:
+    def get_survival_report(self) -> dict[str, Any]:
         """Provides the latest survival metrics (a copy).
 
         The live dictionary was returned by reference, so any consumer

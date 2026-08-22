@@ -5979,7 +5979,30 @@ def _mlx_worker_loop(
 
     try:
         import mlx.core as mx
+
+        from core.runtime.desktop_boot_safety import configure_mlx_process_device
+
+        requested_device = "cpu" if str(device).lower() == "cpu" else "metal"
+        device_contract = configure_mlx_process_device(
+            requested_device,
+            reason="model_worker",
+            force=True,
+        )
+        if not device_contract.get("verified"):
+            raise RuntimeError(
+                "model_worker_mlx_device_unverified:"
+                f"{device_contract.get('reason', 'unknown')}"
+            )
+        device = "cpu" if requested_device == "cpu" else "gpu"
+        logger.info(
+            "MLX worker default device verified as %s.",
+            device_contract["device"],
+        )
+        # Import the model stack only after the process-local device contract
+        # is established. Import-time tensors must never inherit the desktop
+        # parent's CPU ownership.
         from mlx_lm import load
+
         try:
             from mlx_lm.sample_utils import make_sampler
         except ImportError:
