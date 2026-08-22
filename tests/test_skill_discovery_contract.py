@@ -260,11 +260,12 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     assert catalog.backend == "rust-filesystem+python-parity"
     assert catalog.parity_status == "matched"
     # 77 shipped skills, plus `reminder` (2026-08-19, because she said she had
-    # set one when nothing was stored) and `diagnose_repo` (2026-08-22,
-    # because a question about a failing project routed to os_automation and
-    # timed out). A count that moves when a capability is added is the point
-    # of the assertion.
-    assert len(catalog.accepted) == 80
+    # set one when nothing was stored), `diagnose_repo` (2026-08-22, because a
+    # question about a failing project routed to os_automation and timed out)
+    # and `build_document` (2026-08-22, because she tried to call a tool named
+    # create_slides that did not exist and wrote two slides of six). A count
+    # that moves when a capability is added is the point of the assertion.
+    assert len(catalog.accepted) == 81
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"

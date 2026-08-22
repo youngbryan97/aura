@@ -2617,6 +2617,43 @@ def _requested_line_count(user_message: Any) -> int | None:
     return max(candidates, key=lambda item: (item[0], item[1]))[2]
 
 
+def requested_count(user_message: Any, *units: str) -> int | None:
+    """How many of a named thing the turn asked for, or None.
+
+    The counted units in this module each carry their own pattern — lines,
+    sentences, paragraphs, bullets, facts — and every one of them is the same
+    shape: a count token followed by the unit. A sixth unit should not need a
+    sixth regex, and on 2026-08-22 it got one: a deck builder arrived with its
+    own copy of the number words beside this one.
+
+    Takes the units so a caller can ask about slides, steps, examples or
+    anything else without this module knowing what those are.
+    """
+    text = str(user_message or "")
+    if not text.strip() or not units:
+        return None
+    spellings = "|".join(
+        re.escape(unit.strip().lower()) for unit in units if str(unit or "").strip()
+    )
+    if not spellings:
+        return None
+    pattern = re.compile(
+        rf"\b{_COUNT_TOKEN_RE}[\s-]*(?:concise\s+|short\s+|brief\s+|clear\s+)?"
+        rf"(?:{spellings})s?\b",
+        re.IGNORECASE,
+    )
+    candidates: list[tuple[int, int]] = []
+    for match in pattern.finditer(text):
+        if not _constraint_match_is_actionable(text, match):
+            continue
+        found = _count_token_to_int(match.groupdict().get("count"))
+        if found is not None:
+            candidates.append((match.start(), found))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]
+
+
 def requested_line_count(user_message: Any) -> int | None:
     """Return the explicit line-count contract requested by the user."""
 

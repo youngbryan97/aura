@@ -54,6 +54,11 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "browser_action": "external_io",
     "build_app": "read_write_artifacts",
     "clock": "status",
+    # Writes one self-contained file. LIVE 2026-08-22: the model tried to call
+    # a tool named create_slides when there was no such thing, and wrote two
+    # slides of six. A deck and a report are the same document, so the form is
+    # a parameter and this is one capability rather than one per format.
+    "build_document": "read_write_artifacts",
     "code_repl": "sandboxed_compute",
     # Running a project's own tests reads its tree and writes only the
     # runner's scratch. It is not a desktop action, which is where a request
