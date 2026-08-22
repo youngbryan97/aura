@@ -2937,6 +2937,13 @@ function queueThought(data) {
     item.repeatCount = Math.max(1, Number(item.repeatCount || 1));
     item.fingerprint = buildThoughtFingerprint(item);
     if (coalesceThoughtQueueItem(item)) return;
+    // A card already on screen is still the same card.
+    //
+    // LIVE, 2026-08-22: 12 of 80 cards in the feed were exact duplicates,
+    // same text and same timestamp. Coalescing searched the PENDING queue
+    // only, so a repeat that arrived after its twin had been drawn could
+    // never find it and was drawn again beside it.
+    if (coalesceRenderedThought(item)) return;
 
     if (state.thoughtQueue.length >= THOUGHT_QUEUE_MAX) {
         state.thoughtQueue.splice(0, state.thoughtQueue.length - THOUGHT_QUEUE_MAX + 1);
@@ -3198,12 +3205,73 @@ function normalizeThoughtText(text) {
         .toLowerCase();
 }
 
+//: Severity as the feed shows it. A fault and a routine note with the same
+//: words are different cards; two spellings of "info" are not.
+function thoughtSeverityClass(level) {
+    const name = String(level || '').toLowerCase();
+    if (name === 'error' || name === 'critical') return 'fault';
+    if (name === 'warning') return 'warning';
+    return 'ordinary';
+}
+
 function buildThoughtFingerprint(data) {
-    return [
-        String(data.name || 'SYS').toLowerCase(),
-        String(data.level || '').toLowerCase(),
-        normalizeThoughtText(data.fullMessage || data.message || data.content || ''),
-    ].join('|');
+    // Keyed on what the reader sees, not on how it arrived.
+    //
+    // LIVE, 2026-08-22: 11 of 80 cards in the feed were exact duplicates —
+    // same words, same second. One occurrence is published on three paths:
+    // the thought stream (ISO timestamp, level "info"), the logging handler
+    // that mirrors every record (epoch timestamp), and a legacy HUD bridge.
+    // The key included the logger name and the raw level, which differ
+    // between those paths, so two copies of one thought could never match.
+    // The rendered line, derived exactly as the card derives it. The raw
+    // payloads differ between paths — one health pulse arrives as SYS without
+    // its emoji and again as Aura.Core.Orchestrator with it — while the line
+    // a reader sees is the same sentence both times.
+    const raw = data.message || data.content || '';
+    const ts = formatEventTimestamp(data.timestamp);
+    const shown = toPlainEnglish(cleanThoughtText(raw, ts, data.name || 'SYS'));
+    return [thoughtSeverityClass(data.level), normalizeThoughtText(shown)].join('|');
+}
+
+//: Fingerprints of cards currently on screen, newest last. Bounded by the
+//: same window that bounds queue coalescing, so it cannot grow without end.
+const renderedThoughts = new Map();
+
+function rememberRenderedThought(fingerprint, card, seenMs, repeatCount) {
+    if (!fingerprint || !card) return;
+    const cutoff = seenMs - THOUGHT_COALESCE_WINDOW_MS;
+    for (const [key, entry] of renderedThoughts) {
+        if (entry.seenMs < cutoff || !entry.card.isConnected) renderedThoughts.delete(key);
+    }
+    renderedThoughts.set(fingerprint, { card, seenMs, repeatCount });
+}
+
+function coalesceRenderedThought(item) {
+    const entry = renderedThoughts.get(item.fingerprint);
+    if (!entry || !entry.card.isConnected) {
+        if (entry) renderedThoughts.delete(item.fingerprint);
+        return false;
+    }
+    const seenMs = normalizeThoughtTimestamp(item.lastSeenAt || item.timestamp) * 1000;
+    if (Math.abs(seenMs - entry.seenMs) > THOUGHT_COALESCE_WINDOW_MS) {
+        renderedThoughts.delete(item.fingerprint);
+        return false;
+    }
+    entry.repeatCount = Math.max(1, Number(entry.repeatCount || 1)) + item.repeatCount;
+    entry.seenMs = seenMs;
+    const head = entry.card.querySelector('.thought-card-head');
+    let badge = entry.card.querySelector('.thought-repeat');
+    if (!badge && head) {
+        badge = document.createElement('span');
+        badge.className = 'thought-repeat';
+        const sev = head.querySelector('.thought-sev');
+        head.insertBefore(badge, sev ? sev.nextSibling : head.querySelector('.thought-card-tail'));
+    }
+    if (badge) {
+        badge.textContent = `×${entry.repeatCount}`;
+        badge.title = `Seen ${entry.repeatCount} times in quick succession`;
+    }
+    return true;
 }
 
 function coalesceThoughtQueueItem(item) {
@@ -3979,6 +4047,14 @@ function addThoughtCard(data) {
     const neuralFeed = DOM.neuralFeed || $('neural-feed');
     if (!neuralFeed) return;
     neuralFeed.prepend(card);
+    // Register it so a repeat arriving after this one is drawn can find it
+    // and bump the count in place instead of stacking beside it.
+    rememberRenderedThought(
+        data.fingerprint || buildThoughtFingerprint(data),
+        card,
+        normalizeThoughtTimestamp(data.lastSeenAt || data.timestamp) * 1000,
+        repeatCount
+    );
     if (neuralFeed.children.length > 80) neuralFeed.lastChild.remove();
 
     // Animate the neural bar
