@@ -544,6 +544,19 @@ class ResearchSearchPipeline:
             1,
         )
 
+        # Record what is in hand BEFORE the summary is attempted.
+        #
+        # LIVE, 2026-08-22: five pages were fetched, the synthesis ran past the
+        # caller's 35-second budget, and asyncio.wait_for cancelled the task —
+        # taking the five pages with it. The turn ended in "I couldn't get to
+        # an answer I'd stand behind" while the sources sat in memory.
+        try:
+            from core.search.gathered_sources import record_gathered
+
+            record_gathered(cleaned_query, pages or hits[:max_pages])
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
+
         if pages:
             emitter.emit("🧠 Synthesizing", f"Cross-referencing {len(pages)} sources to synthesize an accurate answer...", category="Research")
         else:

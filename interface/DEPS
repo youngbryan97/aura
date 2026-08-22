@@ -5,7 +5,7 @@
 # or runtime internal is an edit to this file. Regenerate with
 # `make deps-generate`.
 #
-# 68 core packages reached when this was generated.
+# 69 core packages reached when this was generated.
 
 description = "interface: may import only the core packages it already imports."
 
@@ -61,6 +61,7 @@ include_rules = [
     "+core.runtime",
     "+core.scheduler",
     "+core.schemas",
+    "+core.search",
     "+core.security",
     "+core.self",
     "+core.senses",

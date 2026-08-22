@@ -13928,6 +13928,51 @@ async def _store_desktop_required_search_memory(
         return False
 
 
+def _recovered_search_result(query: str, exc: BaseException) -> dict[str, Any]:
+    """Whatever the cancelled search had already fetched, as a usable result."""
+    try:
+        from core.search.gathered_sources import take_gathered
+    except ImportError:
+        take_gathered = None  # type: ignore[assignment]
+    held = take_gathered() if take_gathered is not None else None
+    if held is None or not held.sources:
+        return {
+            "ok": False,
+            "status": "required_search_failed",
+            "error": str(exc) or exc.__class__.__name__,
+        }
+    sources = list(held.sources)
+    logger.info(
+        "🔍 Search summary ran out of time; answering from the %d source(s) already fetched.",
+        len(sources),
+    )
+    return {
+        "ok": True,
+        "status": "required_search_partial",
+        "partial": True,
+        "query": query,
+        "error": "",
+        "note": (
+            f"The summary step ran out of time; these {len(sources)} source(s) "
+            "were fetched and are quoted as found."
+        ),
+        "count": len(sources),
+        "results": [
+            {"title": item.title, "url": item.url, "snippet": item.snippet or item.text[:400]}
+            for item in sources
+        ],
+        "citations": [
+            {"title": item.title, "url": item.url} for item in sources if item.url
+        ],
+        "content": "\n\n".join(
+            f"{item.title or item.url}\n{(item.text or item.snippet)[:1200]}" for item in sources
+        ),
+        "result": "\n\n".join(
+            f"{item.title or item.url} — {(item.snippet or item.text)[:300]}" for item in sources
+        ),
+    }
+
+
 async def _collect_desktop_required_search_evidence(
     user_message: str,
     *,
@@ -13966,11 +14011,14 @@ async def _collect_desktop_required_search_evidence(
         )
     except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
         record_degradation("chat.required_search_evidence", exc)
-        result = {
-            "ok": False,
-            "status": "required_search_failed",
-            "error": str(exc) or exc.__class__.__name__,
-        }
+        # The deadline covers gathering AND summarising, and cancelling the
+        # task threw away pages that had already been fetched.
+        #
+        # LIVE, 2026-08-22: five sources were in hand when the summary ran
+        # long. The turn reported REPLY PATH BLOCKED and served the canned
+        # apology. Gathering and summarising fail differently, and what was
+        # gathered is still evidence.
+        result = _recovered_search_result(tool_query or query or user_message, exc)
     if not isinstance(result, dict):
         result = {"ok": bool(result), "result": result}
     result.setdefault("skill", "web_search")
