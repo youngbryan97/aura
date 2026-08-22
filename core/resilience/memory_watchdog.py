@@ -88,6 +88,46 @@ def _active_model_worker_handles() -> list[Any]:
         if python_process_role(process) is ProcessRole.MODEL_WORKER
     ]
 
+
+def _model_worker_reclaim_order(process: Any) -> tuple[int, int]:
+    """Return (QoS rank, activity rank) for emergency model reclamation.
+
+    The watchdog previously killed largest-first. On a mixed 32B + background
+    9B tree that selects the guaranteed conversation lane even when shedding
+    the smaller burstable worker covers the shortfall. The parent-owned MLX
+    registry is the freshest authority for both model role and active work.
+    Unknown model workers remain reclaimable between burstable and guaranteed
+    instead of being treated as either sacred or disposable by accident.
+    """
+
+    try:
+        from core.brain.lane_admission import QoSClass, classify_lane
+        from core.brain.llm.mlx_client import clients_snapshot
+
+        process_pid = int(getattr(process, "pid", 0) or 0)
+        for model_path, client in clients_snapshot():
+            candidate = getattr(client, "_process", None)
+            candidate_pid = int(getattr(candidate, "pid", 0) or 0)
+            if candidate is not process and (process_pid <= 0 or candidate_pid != process_pid):
+                continue
+            _lane, qos = classify_lane(str(model_path))
+            qos_rank = {
+                QoSClass.BEST_EFFORT: 0,
+                QoSClass.BURSTABLE: 1,
+                QoSClass.GUARANTEED: 3,
+            }[qos]
+            active = bool(
+                int(getattr(client, "_active_generations", 0) or 0) > 0
+                or (
+                    getattr(client, "_current_gen_future", None) is not None
+                    and not client._current_gen_future.done()
+                )
+            )
+            return qos_rank, 1 if active else 0
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return 2, 0
+
 def _tombstone_dir() -> Path:
     """Resolved per call, not at import.
 
@@ -404,7 +444,7 @@ def terminate_heavy_child_workers(
     has been given back, so getting under the ceiling costs the fewest workers
     it can — a reload of one model instead of every child in the tree.
     """
-    candidates: list[tuple[int, Any, Any, str]] = []
+    candidates: list[tuple[int, int, int, Any, Any, str]] = []
     for process in _active_model_worker_handles():
         try:
             pid = int(process.pid)
@@ -423,14 +463,18 @@ def terminate_heavy_child_workers(
             )
             continue
         footprint = max(0, int(_phys_footprint_mb(pid) * 1024 * 1024))
-        candidates.append((footprint, process, identity, name))
+        qos_rank, activity_rank = _model_worker_reclaim_order(process)
+        candidates.append((qos_rank, activity_rank, -footprint, process, identity, name))
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
+    # Lower-QoS idle workers yield first. Within an equal policy class, use the
+    # largest footprint so the requested shortfall costs the fewest reloads.
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
 
     killed = 0
     freed = 0
     doomed: list[tuple[Any, Any, str]] = []
-    for footprint, process, identity, name in candidates:
+    for qos_rank, activity_rank, negative_footprint, process, identity, name in candidates:
+        footprint = -negative_footprint
         if free_at_least_bytes is not None and freed >= free_at_least_bytes:
             break
         if not assert_owned(
@@ -449,10 +493,12 @@ def terminate_heavy_child_workers(
         freed += footprint
         logger.warning(
             "🛑 [MEMWATCH] Terminated declared model worker pid=%s "
-            "footprint=%dMB name=%s",
+            "footprint=%dMB name=%s qos_rank=%d active=%s",
             process.pid,
             footprint >> 20,
             name,
+            qos_rank,
+            bool(activity_rank),
         )
     for process, identity, _name in doomed:
         try:

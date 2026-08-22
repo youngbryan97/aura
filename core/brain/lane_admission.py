@@ -153,7 +153,7 @@ def classify_lane(
         return "solver", QoSClass.BURSTABLE
     if any(token in lowered for token in ("32b", "cortex", "zenith")):
         return "cortex", QoSClass.GUARANTEED
-    if any(token in lowered for token in ("14b", "7b", "brainstem")):
+    if any(token in lowered for token in ("14b", "9b", "7b", "brainstem")):
         return "brainstem", QoSClass.BURSTABLE
     if any(token in lowered for token in ("1.5b", "1p5b", "0.5b", "reflex")):
         return "reflex", QoSClass.BURSTABLE

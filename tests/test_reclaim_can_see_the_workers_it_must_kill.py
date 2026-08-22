@@ -128,6 +128,53 @@ def test_reclaim_stops_once_the_shortfall_is_covered(live_tree) -> None:
     assert not any(c.terminated for c in live_tree if c.pid in (32308, 32604))
 
 
+def test_reclaim_sheds_burstable_worker_before_larger_guaranteed_cortex(
+    live_tree, monkeypatch
+) -> None:
+    """The exact live incident: a 9B background lane must yield before 32B."""
+
+    monkeypatch.setattr(
+        mw,
+        "_model_worker_reclaim_order",
+        lambda process: (3, 0) if process.pid == 31863 else (1, 0),
+    )
+
+    killed = mw.terminate_heavy_child_workers(
+        free_at_least_bytes=int(4 * (1024**3))
+    )
+
+    assert killed == 1
+    cortex = next(c for c in live_tree if c.pid == 31863)
+    brainstem = next(c for c in live_tree if c.pid == 32308)
+    assert not cortex.terminated
+    assert brainstem.terminated
+
+
+def test_reclaim_policy_reads_live_mlx_client_role_and_activity(
+    live_tree, monkeypatch
+) -> None:
+    import core.brain.llm.mlx_client as mlx_client
+
+    cortex = live_tree[0]
+    brainstem = live_tree[1]
+    clients = {
+        "/models/Aura-32B-fused": SimpleNamespace(
+            _process=cortex,
+            _active_generations=1,
+            _current_gen_future=None,
+        ),
+        "/models/Qwen3.5-9B-4bit": SimpleNamespace(
+            _process=brainstem,
+            _active_generations=0,
+            _current_gen_future=None,
+        ),
+    }
+    monkeypatch.setattr(mlx_client, "_CLIENTS", clients)
+
+    assert mw._model_worker_reclaim_order(cortex) == (3, 1)
+    assert mw._model_worker_reclaim_order(brainstem) == (1, 0)
+
+
 def test_a_generic_spawned_coordinator_is_never_a_model_reclaim_candidate(live_tree) -> None:
     mw.terminate_heavy_child_workers()
 

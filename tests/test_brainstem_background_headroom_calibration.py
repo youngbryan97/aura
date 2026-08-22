@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pytest
-
 from core.brain.llm_health_router import BRAINSTEM_ENDPOINT, EndpointHealth, HealthAwareLLMRouter
 
 
@@ -35,6 +33,9 @@ def _reason(monkeypatch, snap: _Snap) -> str | None:
     monkeypatch.setattr(
         "core.utils.memory_monitor.get_memory_pressure_snapshot", lambda: snap
     )
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.kernel_memory_pressure_level", lambda: "normal"
+    )
     return HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(_brainstem_ep())
 
 
@@ -49,7 +50,7 @@ def test_still_defers_when_memory_is_genuinely_tight(monkeypatch):
 
 
 def test_defers_when_available_below_floor(monkeypatch):
-    # Below the 22GB available floor, even at moderate pressure -> defer.
+    # Kernel-normal cannot erase the absolute 22GB allocation floor.
     assert _reason(monkeypatch, _Snap(pressure_pct=50.0, available_gb=18.0)) is not None
 
 

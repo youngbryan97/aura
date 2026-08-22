@@ -748,12 +748,26 @@ def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkey
     assert reason is not None
     assert reason.startswith("desktop_background_headroom:Brainstem:")
 
-    # And the escape itself: same numbers, kernel reporting no pressure, so the
-    # derived percentage must NOT keep the small models out.
+    # The kernel-normal escape only overrides the noisy percentage. It cannot
+    # override the absolute post-admission floor: these numbers do not safely
+    # hold the resident Cortex plus a new Brainstem worker.
     monkeypatch.setattr(
         "core.utils.memory_monitor.kernel_memory_pressure_level", lambda: "normal"
     )
 
+    assert HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(ep) is not None
+
+    # With real absolute headroom the same kernel-normal escape remains useful:
+    # psutil's derived percentage alone must not make the fallback unreachable.
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.get_memory_pressure_snapshot",
+        lambda: SimpleNamespace(
+            pressure_pct=68.0,
+            available_gb=28.0,
+            process_rss_gb=20.0,
+            process_rss_limit_gb=40.0,
+        ),
+    )
     assert HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(ep) is None
 
 

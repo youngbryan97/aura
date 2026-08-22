@@ -2887,7 +2887,7 @@ class HealthAwareLLMRouter:
         """Protect live desktop Aura from background local-model memory spikes.
 
         Background cognition should stay active, but on a 64GB-class desktop it
-        cannot freely wake extra 7B/1.5B MLX workers beside the 32B Cortex lane.
+        cannot freely wake extra 9B/1.5B MLX workers beside the 32B Cortex lane.
         That pattern is what showed up in the live neural stream as a large
         footprint spike followed by forced shedding.  Admission is endpoint
         specific: Reflex is light enough to run with moderate headroom, while
@@ -2928,7 +2928,7 @@ class HealthAwareLLMRouter:
             return value if math.isfinite(value) else default
 
         if name == BRAINSTEM_ENDPOINT:
-            # Brainstem is the 7B (~5GB @ 4-bit) background lane. The old
+            # Brainstem is the 9B (~6GB @ 4-bit) background lane. The old
             # 48% / 34GB-free gate was UNMEETABLE on a desktop whose whole job
             # is holding the ~16-20GB 32B Cortex: steady state is ~56% / ~28GB
             # available, so background cognition could NEVER admit → mind_tick
@@ -2954,8 +2954,12 @@ class HealthAwareLLMRouter:
         # the cortex could not take was answered by nobody.
         #
         # When the OS itself says there is no pressure, the derived percentage
-        # does not get to veto the small models. The absolute floor still
-        # binds, and a kernel WARN or CRITICAL still defers.
+        # does not get to veto the small models. The absolute allocation floor
+        # still binds. It represents memory the new worker and the already
+        # resident foreground lane need after admission; kernel pressure says
+        # whether pages are currently contested, not whether two model peaks
+        # fit together. Lowering this floor to 4GB admitted a 9B beside the 32B
+        # at 67% host use, then the emergency reclaimer killed the Cortex.
         try:
             from core.utils.memory_monitor import kernel_memory_pressure_level
 
@@ -2964,10 +2968,6 @@ class HealthAwareLLMRouter:
             kernel_level = "unknown"
         if kernel_level == "normal":
             max_pressure = max(max_pressure, 100.0)
-            min_available = min(
-                min_available,
-                _threshold(f"AURA_BACKGROUND_{name.upper()}_KERNEL_NORMAL_MIN_GB", 4.0),
-            )
         elif kernel_level == "critical":
             max_pressure = min(max_pressure, 0.0)
         if pressure_pct >= max_pressure or available_gb < min_available:
