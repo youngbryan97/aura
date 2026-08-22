@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -160,7 +161,176 @@ def measure() -> dict[str, object]:
     }
 
 
+def _write_baseline(current: dict[str, object], argv: list[str]) -> int:
+    """Record the measurement, and refuse to record growth.
+
+    This used to write whatever it measured. A ratchet whose refresh command
+    accepts any number is not a ratchet — it is a record of the last time
+    somebody ran the refresh, and this repository has already had one refresh
+    re-record 37 grown entries as the new normal.
+
+    Growth is sometimes real and unavoidable. It is never silent: it needs
+    ``--accept-growth --reason "..."``, and the reason is written into the
+    baseline next to the function it excuses, where the next reader sees it.
+    """
+    functions: dict[str, dict[str, int]] = current["functions"]  # type: ignore[assignment]
+    previous: dict[str, dict[str, int]] = {}
+    notes: dict[str, str] = {}
+    if BASELINE.is_file():
+        recorded = json.loads(BASELINE.read_text(encoding="utf-8"))
+        previous = recorded.get("functions") or {}
+        notes = dict(recorded.get("growth_notes") or {})
+
+    grew = {
+        name: (previous[name]["lines"], stats["lines"])
+        for name, stats in functions.items()
+        if name in previous and stats["lines"] > previous[name]["lines"]
+    }
+    accept = "--accept-growth" in argv
+    reason = ""
+    if "--reason" in argv:
+        index = argv.index("--reason")
+        if index + 1 < len(argv):
+            reason = argv[index + 1].strip()
+
+    if grew and not accept:
+        print(
+            f"❌ refusing to write a baseline that records growth in "
+            f"{len(grew)} function(s):"
+        )
+        for name, (was, now) in sorted(grew.items(), key=lambda kv: kv[1][0] - kv[1][1])[:15]:
+            print(f"    {name}: {was} -> {now}")
+        print(
+            "\nShrink them, or record the growth deliberately with "
+            '--accept-growth --reason "why this had to grow".'
+        )
+        return 1
+    if grew and accept and not reason:
+        print("❌ --accept-growth needs --reason; an unexplained ratchet reset is a reset")
+        return 1
+
+    for name in grew:
+        notes[name] = reason
+    for name in list(notes):
+        if name not in functions:
+            del notes[name]
+
+    payload = dict(current)
+    if notes:
+        payload["growth_notes"] = dict(sorted(notes.items()))
+    BASELINE.parent.mkdir(parents=True, exist_ok=True)
+    BASELINE.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(f"baseline written: {BASELINE.relative_to(ROOT)}")
+    if grew:
+        print(f"   {len(grew)} function(s) recorded as grown, reason: {reason}")
+    return 0
+
+
+def _measure_source(source: str, relative: str) -> dict[str, dict[str, int]]:
+    """Measure one file's oversized functions from a source string."""
+    out: dict[str, dict[str, int]] = {}
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, UnicodeDecodeError):
+        return out
+    for qualname, node in _qualified_names(tree):
+        lines = (node.end_lineno or node.lineno) - node.lineno + 1
+        if lines < TRACK_THRESHOLD_LINES:
+            continue
+        out[f"{relative}::{qualname}"] = {
+            "lines": lines,
+            "complexity": _complexity(node),
+            "returns": sum(1 for c in ast.walk(node) if isinstance(c, ast.Return)),
+        }
+    return out
+
+
+def _changed_files(base: str) -> list[str]:
+    def git(*args: str) -> str:
+        result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", *args], capture_output=True, text=True, cwd=ROOT, check=False
+        )
+        return result.stdout if result.returncode == 0 else ""
+
+    merge_base = git("merge-base", "HEAD", base).strip() or base
+    names = set()
+    for diff in (
+        git("diff", "--name-only", "--diff-filter=ACMR", merge_base, "HEAD"),
+        git("diff", "--name-only", "--diff-filter=ACMR"),
+        git("diff", "--name-only", "--diff-filter=ACMR", "--cached"),
+    ):
+        names |= {n for n in diff.splitlines() if n.endswith(".py")}
+    return sorted(
+        n for n in names if n.startswith(SCAN_ROOTS) and (ROOT / n).is_file()
+    ), merge_base
+
+
+def _check_changed(argv: list[str]) -> int:
+    """No function you touched may get bigger.
+
+    The whole-tree ratchet is red and will stay red until roughly twelve
+    thousand lines of extraction land, which makes it a report rather than a
+    gate — a job red on every push is a job everyone learns to ignore. This is
+    the part that can block today and is the part that matters: the regression
+    happens one edit at a time, in the file somebody is already changing.
+    """
+    base = "origin/main"
+    if "--base" in argv:
+        index = argv.index("--base")
+        if index + 1 < len(argv):
+            base = argv[index + 1]
+
+    changed, merge_base = _changed_files(base)
+    if not changed:
+        print("✅ no production Python files changed")
+        return 0
+
+    grew: list[str] = []
+    appeared: list[str] = []
+    shrank: list[str] = []
+    for relative in changed:
+        after = _measure_source((ROOT / relative).read_text("utf-8", errors="ignore"), relative)
+        before_source = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", "show", f"{merge_base}:{relative}"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            check=False,
+        )
+        before = (
+            _measure_source(before_source.stdout, relative)
+            if before_source.returncode == 0
+            else {}
+        )
+        for name, stats in after.items():
+            was = before.get(name)
+            if was is None:
+                if before_source.returncode == 0:
+                    appeared.append(f"{name}: NEW at {stats['lines']} lines")
+            elif stats["lines"] > was["lines"]:
+                grew.append(f"{name}: {was['lines']} -> {stats['lines']} lines")
+            elif stats["lines"] < was["lines"]:
+                shrank.append(f"{name}: {was['lines']} -> {stats['lines']} lines")
+
+    for line in shrank:
+        print(f"  ⬇️  {line}")
+    if grew or appeared:
+        print(f"\n❌ this branch grew {len(grew) + len(appeared)} oversized function(s):")
+        for line in grew + appeared:
+            print(f"    {line}")
+        print(
+            "\nThe function you came to change is the one you have the context "
+            "to split. Extract the part you touched."
+        )
+        return 1
+    print(f"✅ no function grew across {len(changed)} changed file(s)")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--changed" in argv:
+        return _check_changed(argv)
+
     current = measure()
     functions: dict[str, dict[str, int]] = current["functions"]  # type: ignore[assignment]
     print(
@@ -178,10 +348,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if "--write-baseline" in argv:
-        BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        print(f"baseline written: {BASELINE.relative_to(ROOT)}")
-        return 0
+        return _write_baseline(current, argv)
 
     if not BASELINE.is_file():
         print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")

@@ -16,6 +16,8 @@ protecting it was for.
 """
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 from core.consciousness.executive_authority import (
@@ -23,6 +25,10 @@ from core.consciousness.executive_authority import (
     get_executive_authority,
 )
 from core.container import ServiceContainer
+
+#: What a registry teardown is allowed to fail with. Anything else is a
+#: defect in the container and should surface.
+_TEARDOWN_ERRORS = (AttributeError, KeyError, RuntimeError, TypeError, ValueError)
 
 
 @pytest.fixture(autouse=True)
@@ -32,8 +38,15 @@ def _clean_registry():
         ServiceContainer.register_instance(
             "executive_authority", None, required=False
         )
-    except Exception:  # noqa: BLE001 — teardown must not mask a test failure
-        pass
+    except _TEARDOWN_ERRORS as teardown_exc:
+        # Teardown must not mask a test failure, so this does not raise. It
+        # does report, because a clean-up that has silently stopped working
+        # leaks a registered singleton into every test that follows.
+        warnings.warn(
+            f"registry teardown did not clear executive_authority: {teardown_exc!r}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 
 def test_the_container_instance_wins_when_registration_is_refused(monkeypatch):

@@ -12,25 +12,17 @@ The guard for this already existed, fitted only to strict contracts.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import pytest
+from fixtures.source_loading import load_function, load_functions
 
 WORKER = Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_worker.py"
 
 
 def _suppression_ids():
     """Load the id builder without importing the worker's mlx dependencies."""
-    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "_first_token_suppression_ids"
-    )
-    namespace: dict[str, object] = {"Any": object}
-    exec(compile(ast.Module(body=[function], type_ignores=[]), "<worker>", "exec"), namespace)
-    return namespace["_first_token_suppression_ids"]
+    return load_function(WORKER, "_first_token_suppression_ids")
 
 
 class _Tokenizer:
@@ -97,16 +89,10 @@ def test_the_guard_only_constrains_the_opening_positions() -> None:
 
 def _build_guard():
     """The real processor, built without importing the worker's job loop."""
-    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
-    wanted = {"_first_token_suppression_ids", "build_nonempty_start_processor"}
-    body = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in wanted
-    ]
-    namespace: dict[str, object] = {"Any": object}
-    exec(compile(ast.Module(body=body, type_ignores=[]), "<worker>", "exec"), namespace)
-    return namespace["build_nonempty_start_processor"](_Tokenizer())
+    loaded = load_functions(
+        WORKER, {"_first_token_suppression_ids", "build_nonempty_start_processor"}
+    )
+    return loaded["build_nonempty_start_processor"](_Tokenizer())
 
 
 def test_the_mask_reaches_the_vocabulary_on_either_logits_shape() -> None:
@@ -153,22 +139,12 @@ def test_the_guard_resets_at_the_prompt_boundary_for_a_replacement_attempt() -> 
 
 
 def _build_semantic_guard(job):
-    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
-    wanted = {
-        "_first_token_suppression_ids",
-        "build_semantic_completion_terminal_guard",
-    }
-    body = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in wanted
-    ]
-    namespace: dict[str, object] = {
-        "Any": object,
-        "_semantic_surface_stop_ready": lambda *_args, **_kwargs: False,
-    }
-    exec(compile(ast.Module(body=body, type_ignores=[]), "<worker>", "exec"), namespace)
-    return namespace["build_semantic_completion_terminal_guard"](_Tokenizer(), job)
+    loaded = load_functions(
+        WORKER,
+        {"_first_token_suppression_ids", "build_semantic_completion_terminal_guard"},
+        namespace={"_semantic_surface_stop_ready": lambda *_a, **_k: False},
+    )
+    return loaded["build_semantic_completion_terminal_guard"](_Tokenizer(), job)
 
 
 def test_simple_initial_semantic_contract_keeps_natural_eos() -> None:

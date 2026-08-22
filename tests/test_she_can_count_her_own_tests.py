@@ -18,7 +18,6 @@ qualifier rule and answering something else.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -99,14 +98,17 @@ def test_an_unrecognised_qualifier_is_still_refused():
     assert requested_filesystem_count("how many config files are in core") is None
 
 
-def test_the_counts_match_the_shell():
-    """Against `ls`, so the number is checked outside this module's own logic."""
+def test_the_counts_match_the_directory():
+    """Counted again outside this module's own logic.
+
+    This used `ls | wc -l` through a shell. The independence is in not reusing
+    the module's counting code; the shell added nothing but a `shell=True` the
+    repository's own security gate refuses.
+    """
     counted = requested_filesystem_count("how many test files do you have")
-    shell = subprocess.run(
-        "ls tests/*.py | wc -l", shell=True, cwd=ROOT, capture_output=True, text=True, timeout=60
-    )
+    on_disk = len(list((Path(ROOT) / "tests").glob("*.py")))
     assert counted is not None
-    assert counted.count == int(shell.stdout.strip())
+    assert counted.count == on_disk
 
 
 # ── a question can ask for more than one count ───────────────────────────

@@ -17056,6 +17056,286 @@ def _json_safe_payload(value: Any, *, _depth: int = 0) -> Any:
     return str(value)[:500]
 
 
+async def _admit_to_foreground_lane(
+    *,
+    _remaining_foreground_budget: Any,
+    gate: Any,
+    lane: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Wait for the resident lane, or say why this turn cannot have it.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    4.
+    """
+    admission_reason = ""
+    admission_override = "warming_failed"
+    hard_lane_failure = False
+    if gate is None or not hasattr(gate, "ensure_foreground_ready"):
+        admission_reason = "foreground_lane_unavailable"
+        hard_lane_failure = True
+    else:
+        admission_budget = min(
+            180.0,
+            _remaining_foreground_budget(
+                reserve=(
+                    _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                    if _cortex_is_cold_loading(lane)
+                    else _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
+                    + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                )
+            ),
+        )
+        try:
+            lane = dict(
+                await gate.ensure_foreground_ready(timeout=max(1.0, admission_budget)) or {}
+            )
+        except TimeoutError:
+            admission_reason = "foreground_warmup_timeout"
+            admission_override = "warming_timeout"
+            lane = _mark_conversation_lane_state(
+                admission_reason,
+                state="warming",
+            )
+        except _CHAT_RECOVERABLE_ERRORS as admission_exc:
+            # Memory pressure is a "not yet", not a "no".
+            #
+            # Live 2026-07-27, mid-conversation:
+            #   foreground_warmup_deferred:memory_pressure:70.2%/19.1GB
+            #   (need <72.0% and >=20.0GB)
+            # — short by under a gigabyte because another process on
+            # the host was holding memory. The turn was refused in one
+            # second, with the whole admission budget unspent.
+            #
+            # Same rule as the boot wait above: a condition that clears
+            # on its own is worth waiting out. Retry inside the budget
+            # already reserved for admission, and only report the
+            # deferral if it is still true when that budget is gone.
+            if _lane_warmup_is_deliberately_deferred(
+                {"last_failure_reason": str(admission_exc or "")}
+            ):
+                retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
+                logger.info(
+                    "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
+                    "for it to clear rather than refusing the turn.",
+                    str(admission_exc)[:120],
+                    max(0.0, admission_budget - 2.0),
+                )
+                while time.monotonic() < retry_deadline:
+                    await asyncio.sleep(2.0)
+                    try:
+                        lane = dict(
+                            await gate.ensure_foreground_ready(
+                                timeout=max(1.0, retry_deadline - time.monotonic())
+                            )
+                            or {}
+                        )
+                    except _CHAT_RECOVERABLE_ERRORS as retry_exc:
+                        admission_exc = retry_exc
+                        continue
+                    except TimeoutError:
+                        break
+                    if bool(lane.get("conversation_ready", False)):
+                        logger.info(
+                            "✅ Foreground lane cleared its deferral mid-turn; "
+                            "the turn proceeds normally."
+                        )
+                        admission_exc = None
+                        break
+                if admission_exc is None:
+                    admission_reason = ""
+                    hard_lane_failure = False
+            if admission_exc is not None:
+                record_degradation("chat.conversation_lane_admission", admission_exc)
+                admission_reason = str(admission_exc or "foreground_warmup_failed")
+                hard_lane_failure = admission_reason.startswith(
+                    ("mlx_runtime_unavailable:", "local_runtime_unavailable:")
+                ) or admission_reason in {
+                    "foreground_lane_unavailable",
+                    "runtime_shutdown",
+                }
+                lane = _mark_conversation_lane_state(
+                    admission_reason,
+                    state="failed" if hard_lane_failure else "recovering",
+                )
+    return admission_override, admission_reason, hard_lane_failure, lane
+
+
+def _hold_a_reasoning_answer_to_its_contract(
+    *,
+    _semantic_user_message: Any,
+    final_text: Any,
+    status: Any,
+) -> tuple[Any, Any]:
+    """Hold a reasoning-lane answer to the contract its question set.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    2.
+    """
+    try:
+        from core.conversation.response_reliability import (
+            _arithmetic_answer_missing,
+            numeric_answer_missing,
+            requires_reasoning_lane,
+        )
+
+        if numeric_answer_missing(_semantic_user_message, final_text):
+            # The deterministic verdict below only speaks when this
+            # runtime can compute the expected result, so word-form and
+            # chained arithmetic went completely unguarded. Live
+            # 2026-07-26, "What is 17 minus 8, and then times 3?" was
+            # answered with "...ätze! I got chocolate on my shirt." and
+            # every gate passed it: surface_quality_gate_passed=true,
+            # assess_user_facing_reply ok=true, confidence "high".
+            #
+            # Knowing the right answer is not required to know that a
+            # reply containing no number at all is not one.
+            logger.warning(
+                "🔢 Refusing a reply with no number to a question that "
+                "can only be answered with one (status=%s, %d chars).",
+                status,
+                len(final_text),
+            )
+            final_text = (
+                "I didn't actually work that out — what I had wasn't an "
+                "answer, and I won't dress it up as one. Ask me again and "
+                "I'll do the arithmetic properly."
+            )
+            status = "numeric_answer_missing"
+        elif _arithmetic_answer_missing(_semantic_user_message, final_text):
+            logger.warning(
+                "🔢 Refusing an arithmetic answer that does not contain "
+                "the correct result (status=%s, %d chars).",
+                status,
+                len(final_text),
+            )
+            final_text = (
+                "I worked that out and didn't get an answer I trust, so "
+                "I won't hand you a number that might be wrong. Ask me "
+                "again and I'll take another run at it."
+            )
+            status = "arithmetic_answer_unverified"
+        elif requires_reasoning_lane(_semantic_user_message):
+            # One right answer, and NOT one this runtime can check for
+            # itself. Those need a lane that can actually reason, so
+            # serving the smallest lane's guess is the worst option
+            # available: confidently wrong beats nothing only when
+            # nothing was possible.
+            #
+            # Run 7 asked five of these — pages-per-day, train catch-up,
+            # reverse-percentage — and scored reasoning 1/5, with the
+            # wrong answers coming from below the cortex.
+            #
+            # The distinction is falsifiability, not difficulty. For an
+            # opinion or a chat turn a weaker lane beats silence and
+            # this does not fire at all.
+            _reasoning_lane = _chat_preflight._collect_conversation_lane_status()
+            _lane_state = str(_reasoning_lane.get("state") or "").lower()
+            if _lane_state not in {"ready", "serving", "warm"}:
+                logger.warning(
+                    "🧮 Refusing a single-answer reasoning turn served "
+                    "from below the primary lane (state=%s).",
+                    _lane_state or "unknown",
+                )
+                final_text = (
+                    "That one has a single right answer and I'd have to "
+                    "guess at it right now — my main reasoning path "
+                    "isn't up. I'd rather tell you that than hand you a "
+                    "confident wrong number. Ask again shortly."
+                )
+                status = "reasoning_lane_unavailable"
+    except (ImportError, RuntimeError, TypeError, ValueError) as _arith_exc:
+        record_degradation(
+            "chat",
+            _arith_exc,
+            severity="warning",
+            action="served a reply without the arithmetic verification pass",
+        )
+    return final_text, status
+
+
+async def _record_desktop_evidence_on_the_trace(
+    *,
+    _live_turn_trace: Any,
+    generation_consumed: Any,
+    generation_controls: Any,
+    generation_metadata: Any,
+    protected_generation_proven: Any,
+    protected_output_sha256: Any,
+    receipt: Any,
+    semantic_completion_expected: Any,
+    transaction_id: Any,
+) -> None:
+    """Record what the desktop lane gathered, on the turn's trace.
+
+    Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 9 name(s) from the turn and hands back
+    0.
+    """
+    _live_turn_trace.update(
+        {
+            "response_path": "protected_foreground",
+            "protected_foreground_generation_proven": (
+                protected_generation_proven
+            ),
+            "foreground_model_generation_consumed": generation_consumed,
+            "foreground_model_generation_count": 1 if generation_consumed else 0,
+            "foreground_model_generation_segment_count": (
+                1 if generation_consumed else 0
+            ),
+            "foreground_model_generation_transaction_count": (
+                1 if generation_consumed else 0
+            ),
+            "foreground_model_generation_transaction_id": (
+                transaction_id if generation_consumed else ""
+            ),
+            "foreground_model_generation_output_sha256": (
+                protected_output_sha256 if generation_consumed else ""
+            ),
+            "live_mind_generation_required": True,
+            "live_mind_controls_bound": bool(
+                receipt.get("live_mind_controls_bound")
+            ),
+            "live_mind_generation_controls": generation_controls,
+            "live_mind_surface_control_receipt": receipt,
+            "live_mind_controls_worker_applied": bool(
+                receipt.get("live_mind_controls_bound")
+                and receipt.get("applied")
+            ),
+            "semantic_completion_contract_expected": (
+                semantic_completion_expected
+            ),
+            "semantic_completion_receipt_present": all(
+                field in receipt
+                for field in (
+                    "semantic_completion_contract",
+                    "semantic_completion_satisfied",
+                    "semantic_completion_incomplete",
+                )
+            ),
+            "semantic_completion_contract": bool(
+                receipt.get("semantic_completion_contract", False)
+            ),
+            "semantic_completion_satisfied": bool(
+                receipt.get("semantic_completion_satisfied", False)
+            ),
+            "semantic_completion_incomplete": bool(
+                receipt.get("semantic_completion_incomplete", False)
+            ),
+            "reply_generation_incomplete": bool(
+                generation_metadata.get("reply_generation_incomplete", False)
+            ),
+            "bounded_contract_used": False,
+            "legacy_fallback_used": False,
+            "cognitive_engine_reply_failed": False,
+        }
+    )
+
+
 async def _api_chat_turn(body: ChatRequest, request: Request):
     request_started_at = time.monotonic()
     request_wall_started_at = time.time()
@@ -18152,85 +18432,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # each of them. Only the deterministic arithmetic verdict is used:
             # it is the one judgement that is right or wrong rather than a
             # matter of style, so it can be applied to every path safely.
-            try:
-                from core.conversation.response_reliability import (
-                    _arithmetic_answer_missing,
-                    numeric_answer_missing,
-                    requires_reasoning_lane,
-                )
-
-                if numeric_answer_missing(_semantic_user_message, final_text):
-                    # The deterministic verdict below only speaks when this
-                    # runtime can compute the expected result, so word-form and
-                    # chained arithmetic went completely unguarded. Live
-                    # 2026-07-26, "What is 17 minus 8, and then times 3?" was
-                    # answered with "...ätze! I got chocolate on my shirt." and
-                    # every gate passed it: surface_quality_gate_passed=true,
-                    # assess_user_facing_reply ok=true, confidence "high".
-                    #
-                    # Knowing the right answer is not required to know that a
-                    # reply containing no number at all is not one.
-                    logger.warning(
-                        "🔢 Refusing a reply with no number to a question that "
-                        "can only be answered with one (status=%s, %d chars).",
-                        status,
-                        len(final_text),
-                    )
-                    final_text = (
-                        "I didn't actually work that out — what I had wasn't an "
-                        "answer, and I won't dress it up as one. Ask me again and "
-                        "I'll do the arithmetic properly."
-                    )
-                    status = "numeric_answer_missing"
-                elif _arithmetic_answer_missing(_semantic_user_message, final_text):
-                    logger.warning(
-                        "🔢 Refusing an arithmetic answer that does not contain "
-                        "the correct result (status=%s, %d chars).",
-                        status,
-                        len(final_text),
-                    )
-                    final_text = (
-                        "I worked that out and didn't get an answer I trust, so "
-                        "I won't hand you a number that might be wrong. Ask me "
-                        "again and I'll take another run at it."
-                    )
-                    status = "arithmetic_answer_unverified"
-                elif requires_reasoning_lane(_semantic_user_message):
-                    # One right answer, and NOT one this runtime can check for
-                    # itself. Those need a lane that can actually reason, so
-                    # serving the smallest lane's guess is the worst option
-                    # available: confidently wrong beats nothing only when
-                    # nothing was possible.
-                    #
-                    # Run 7 asked five of these — pages-per-day, train catch-up,
-                    # reverse-percentage — and scored reasoning 1/5, with the
-                    # wrong answers coming from below the cortex.
-                    #
-                    # The distinction is falsifiability, not difficulty. For an
-                    # opinion or a chat turn a weaker lane beats silence and
-                    # this does not fire at all.
-                    _reasoning_lane = _chat_preflight._collect_conversation_lane_status()
-                    _lane_state = str(_reasoning_lane.get("state") or "").lower()
-                    if _lane_state not in {"ready", "serving", "warm"}:
-                        logger.warning(
-                            "🧮 Refusing a single-answer reasoning turn served "
-                            "from below the primary lane (state=%s).",
-                            _lane_state or "unknown",
-                        )
-                        final_text = (
-                            "That one has a single right answer and I'd have to "
-                            "guess at it right now — my main reasoning path "
-                            "isn't up. I'd rather tell you that than hand you a "
-                            "confident wrong number. Ask again shortly."
-                        )
-                        status = "reasoning_lane_unavailable"
-            except (ImportError, RuntimeError, TypeError, ValueError) as _arith_exc:
-                record_degradation(
-                    "chat",
-                    _arith_exc,
-                    severity="warning",
-                    action="served a reply without the arithmetic verification pass",
-                )
+            final_text, status = _hold_a_reasoning_answer_to_its_contract(
+                _semantic_user_message=_semantic_user_message,
+                final_text=final_text,
+                status=status,
+            )
             if _grounded_recall_context:
                 from core.conversation.grounded_recall import (
                     grounded_quote_from_context,
@@ -18655,63 +18861,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 if isinstance(raw_generation_controls, dict)
                 else {}
             )
-            _live_turn_trace.update(
-                {
-                    "response_path": "protected_foreground",
-                    "protected_foreground_generation_proven": (
-                        protected_generation_proven
-                    ),
-                    "foreground_model_generation_consumed": generation_consumed,
-                    "foreground_model_generation_count": 1 if generation_consumed else 0,
-                    "foreground_model_generation_segment_count": (
-                        1 if generation_consumed else 0
-                    ),
-                    "foreground_model_generation_transaction_count": (
-                        1 if generation_consumed else 0
-                    ),
-                    "foreground_model_generation_transaction_id": (
-                        transaction_id if generation_consumed else ""
-                    ),
-                    "foreground_model_generation_output_sha256": (
-                        protected_output_sha256 if generation_consumed else ""
-                    ),
-                    "live_mind_generation_required": True,
-                    "live_mind_controls_bound": bool(
-                        receipt.get("live_mind_controls_bound")
-                    ),
-                    "live_mind_generation_controls": generation_controls,
-                    "live_mind_surface_control_receipt": receipt,
-                    "live_mind_controls_worker_applied": bool(
-                        receipt.get("live_mind_controls_bound")
-                        and receipt.get("applied")
-                    ),
-                    "semantic_completion_contract_expected": (
-                        semantic_completion_expected
-                    ),
-                    "semantic_completion_receipt_present": all(
-                        field in receipt
-                        for field in (
-                            "semantic_completion_contract",
-                            "semantic_completion_satisfied",
-                            "semantic_completion_incomplete",
-                        )
-                    ),
-                    "semantic_completion_contract": bool(
-                        receipt.get("semantic_completion_contract", False)
-                    ),
-                    "semantic_completion_satisfied": bool(
-                        receipt.get("semantic_completion_satisfied", False)
-                    ),
-                    "semantic_completion_incomplete": bool(
-                        receipt.get("semantic_completion_incomplete", False)
-                    ),
-                    "reply_generation_incomplete": bool(
-                        generation_metadata.get("reply_generation_incomplete", False)
-                    ),
-                    "bounded_contract_used": False,
-                    "legacy_fallback_used": False,
-                    "cognitive_engine_reply_failed": False,
-                }
+            await _record_desktop_evidence_on_the_trace(
+                _live_turn_trace=_live_turn_trace,
+                generation_consumed=generation_consumed,
+                generation_controls=generation_controls,
+                generation_metadata=generation_metadata,
+                protected_generation_proven=protected_generation_proven,
+                protected_output_sha256=protected_output_sha256,
+                receipt=receipt,
+                semantic_completion_expected=semantic_completion_expected,
+                transaction_id=transaction_id,
             )
             if not protected_generation_proven:
                 logger.error(
@@ -19402,96 +19561,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     ),
                 )
             )
-            admission_reason = ""
-            admission_override = "warming_failed"
-            hard_lane_failure = False
-            if gate is None or not hasattr(gate, "ensure_foreground_ready"):
-                admission_reason = "foreground_lane_unavailable"
-                hard_lane_failure = True
-            else:
-                admission_budget = min(
-                    180.0,
-                    _remaining_foreground_budget(
-                        reserve=(
-                            _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
-                            if _cortex_is_cold_loading(lane)
-                            else _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
-                            + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
-                        )
-                    ),
-                )
-                try:
-                    lane = dict(
-                        await gate.ensure_foreground_ready(timeout=max(1.0, admission_budget)) or {}
-                    )
-                except TimeoutError:
-                    admission_reason = "foreground_warmup_timeout"
-                    admission_override = "warming_timeout"
-                    lane = _mark_conversation_lane_state(
-                        admission_reason,
-                        state="warming",
-                    )
-                except _CHAT_RECOVERABLE_ERRORS as admission_exc:
-                    # Memory pressure is a "not yet", not a "no".
-                    #
-                    # Live 2026-07-27, mid-conversation:
-                    #   foreground_warmup_deferred:memory_pressure:70.2%/19.1GB
-                    #   (need <72.0% and >=20.0GB)
-                    # — short by under a gigabyte because another process on
-                    # the host was holding memory. The turn was refused in one
-                    # second, with the whole admission budget unspent.
-                    #
-                    # Same rule as the boot wait above: a condition that clears
-                    # on its own is worth waiting out. Retry inside the budget
-                    # already reserved for admission, and only report the
-                    # deferral if it is still true when that budget is gone.
-                    if _lane_warmup_is_deliberately_deferred(
-                        {"last_failure_reason": str(admission_exc or "")}
-                    ):
-                        retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
-                        logger.info(
-                            "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
-                            "for it to clear rather than refusing the turn.",
-                            str(admission_exc)[:120],
-                            max(0.0, admission_budget - 2.0),
-                        )
-                        while time.monotonic() < retry_deadline:
-                            await asyncio.sleep(2.0)
-                            try:
-                                lane = dict(
-                                    await gate.ensure_foreground_ready(
-                                        timeout=max(1.0, retry_deadline - time.monotonic())
-                                    )
-                                    or {}
-                                )
-                            except _CHAT_RECOVERABLE_ERRORS as retry_exc:
-                                admission_exc = retry_exc
-                                continue
-                            except TimeoutError:
-                                break
-                            if bool(lane.get("conversation_ready", False)):
-                                logger.info(
-                                    "✅ Foreground lane cleared its deferral mid-turn; "
-                                    "the turn proceeds normally."
-                                )
-                                admission_exc = None
-                                break
-                        if admission_exc is None:
-                            admission_reason = ""
-                            hard_lane_failure = False
-                    if admission_exc is not None:
-                        record_degradation("chat.conversation_lane_admission", admission_exc)
-                        admission_reason = str(admission_exc or "foreground_warmup_failed")
-                        hard_lane_failure = admission_reason.startswith(
-                            ("mlx_runtime_unavailable:", "local_runtime_unavailable:")
-                        ) or admission_reason in {
-                            "foreground_lane_unavailable",
-                            "runtime_shutdown",
-                        }
-                        lane = _mark_conversation_lane_state(
-                            admission_reason,
-                            state="failed" if hard_lane_failure else "recovering",
-                        )
+            admission_override, admission_reason, hard_lane_failure, lane = await _admit_to_foreground_lane(
+                _remaining_foreground_budget=_remaining_foreground_budget,
+                gate=gate,
+                lane=lane,
+            )
 
             if admission_reason:
                 # The cortex cannot serve this turn. That is a reason to answer

@@ -1,11 +1,15 @@
-.PHONY: deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
+.PHONY: release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
 
 
 PYTHON ?= python
 RUFF_SURFACE_TARGETS ?= core interface llm security senses skills executors infrastructure aura_main.py tools tests
 RUFF_CRITICAL_TARGETS ?= core interface llm security senses skills executors infrastructure aura_main.py
 RUFF_CRITICAL_SELECT ?= F821,F822,F823,F601
-RUFF_TARGETS ?= core/conversation/apply_response_patches.py core/brain/llm/context_assembler.py core/brain/llm/context_limit.py core/cognition/cognitive_integration_layer.py core/runtime/safe_mode.py core/coordinators/metabolic_coordinator.py core/evolution/persona_evolver.py core/orchestrator/mixins/autonomy.py core/orchestrator/mixins/context_streaming.py core/orchestrator/mixins/learning_evolution.py core/resilience/dream_cycle.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_consciousness_patch_retirement.py
+# The whole configured rule set applies to every file in this list, and the
+# list only grows: tools/ruff_strict_files.py adds every file that is already
+# clean and never removes one. It was seventeen hand-picked files while 4,074
+# of the repository's files passed the same rules untouched.
+RUFF_TARGETS ?= $(shell grep -vE '^\s*(\#|$$)' config/ruff_strict_files.txt)
 # Strict-clean allowlist lives in config/mypy_strict_files.txt — an
 # only-grows ratchet enforced by tests/test_mypy_strict_ratchet.py.
 MYPY_TARGETS ?= $(shell grep -vE '^\s*(\#|$$)' config/mypy_strict_files.txt)
@@ -60,7 +64,7 @@ triage:
 	@echo "🩻 Categorizing the crash-forensics record into incident classes..."
 	@$(PYTHON) tools/crash_triage.py --window-days 7 --out artifacts/reliability/triage.json || true
 
-release-preflight:
+release-preflight: release-ready
 	@echo "🛫 Running the pinned release checklist..."
 	@$(PYTHON) tools/release_preflight.py
 
@@ -95,11 +99,22 @@ compile:
 	@echo "✅ All files compile"
 
 lint:
-	@echo "🧹 Running ruff..."
+	@echo "🧹 Running ruff — three passes, widest first..."
+	@echo "   1. syntax errors, everywhere"
 	@$(PYTHON) -m ruff check $(RUFF_SURFACE_TARGETS) --select E9
+	@echo "   2. undefined and unreachable names, all production code"
 	@$(PYTHON) -m ruff check $(RUFF_CRITICAL_TARGETS) --select $(RUFF_CRITICAL_SELECT)
+	@echo "   3. the whole configured rule set, on the files that pass it"
 	@$(PYTHON) -m ruff check $(RUFF_TARGETS)
 	@echo "✅ Ruff passed"
+
+lint-surface:
+	@echo "🧹 Checking the strict lint surface (ratchet: only grows)..."
+	@$(PYTHON) tools/ruff_strict_files.py --check
+
+lint-surface-grow:
+	@echo "🧹 Adding every newly clean file to the strict lint surface..."
+	@$(PYTHON) tools/ruff_strict_files.py --write
 
 source-hygiene:
 	@echo "🧼 Checking source snapshot hygiene..."
@@ -239,6 +254,26 @@ typecheck-changed:
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
 	@$(PYTHON) tools/check_layering.py
+
+release-ready:
+	@echo "🚢 Checking the release lane is fail-closed before a tag..."
+	@$(PYTHON) tools/check_release_ready.py
+
+product-facts:
+	@echo "📇 Checking the facts every file restates against the file that owns them..."
+	@$(PYTHON) tools/check_product_facts.py
+
+threat-model:
+	@echo "🎯 Checking every control in the threat model names a test that exists..."
+	@$(PYTHON) tools/check_threat_model.py
+
+red-team:
+	@echo "🎯 Running the attacks, from the attacker's side..."
+	@$(PYTHON) -m pytest tests/security -q
+
+method-size-changed:
+	@echo "📏 Checking no function this branch touched got bigger..."
+	@$(PYTHON) tools/lint_method_size.py --changed
 
 deps-generate:
 	@echo "🏛  Regenerating the per-package DEPS from the import graph..."
@@ -458,7 +493,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: deps-check deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
+quality: release-ready lint-surface product-facts threat-model deps-check deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
 	@echo "🏁 Quality gates passed"
 
 decisive:

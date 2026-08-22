@@ -320,6 +320,42 @@ SEARCH_SOURCES: tuple[tuple[str, str, Any], ...] = (
 )
 
 
+#: macOS browsers whose AppleScript dictionary this adapter can drive, by the
+#: substring that identifies them in a preference string.
+#:
+#: Every Chromium build ships Chrome's dictionary — `tabs of window`, `active
+#: tab index`, `title`, `URL` — so one script serves all of them once the
+#: application name is substituted. The branch used to test `"chrome" in
+#: browser` and hand everything else a refusal that read as unfinished work,
+#: which meant Brave, Edge and Vivaldi were refused for a dictionary they
+#: implement. Arc is deliberately absent: its dictionary is not Chrome's.
+_CHROMIUM_APPLICATIONS: tuple[tuple[str, str], ...] = (
+    ("chromium", "Chromium"),
+    ("chrome", "Google Chrome"),
+    ("brave", "Brave Browser"),
+    ("edge", "Microsoft Edge"),
+    ("vivaldi", "Vivaldi"),
+    ("opera", "Opera"),
+)
+_WEBKIT_APPLICATIONS: tuple[tuple[str, str], ...] = (("safari", "Safari"),)
+
+
+def _applescript_dialect(browser: str) -> tuple[str, str]:
+    """(family, application name) for a browser preference string.
+
+    Returns ``("", "")`` when nothing here can drive it, which is a statement
+    about the dictionary rather than about this adapter being unfinished.
+    """
+    name = (browser or "").lower()
+    for marker, application in _CHROMIUM_APPLICATIONS:
+        if marker in name:
+            return "chromium", application
+    for marker, application in _WEBKIT_APPLICATIONS:
+        if marker in name:
+            return "webkit", application
+    return "", ""
+
+
 class BrowserController:
     """General browser automation.
 
@@ -546,9 +582,10 @@ class BrowserController:
 
         browser = self._preferred_browser
         needle = wanted.lower().replace('"', "")
-        if "chrome" in browser.lower():
+        family, application = _applescript_dialect(browser)
+        if family == "chromium":
             script = f'''
-                tell application "Google Chrome"
+                tell application "{application}"
                     set found to false
                     repeat with w from 1 to count of windows
                         set tabCount to count of tabs of window w
@@ -572,9 +609,9 @@ class BrowserController:
                     end if
                 end tell
             '''
-        elif "safari" in browser.lower():
+        elif family == "webkit":
             script = f'''
-                tell application "Safari"
+                tell application "{application}"
                     set found to false
                     repeat with w from 1 to count of windows
                         repeat with t from 1 to count of tabs of window w
@@ -601,7 +638,10 @@ class BrowserController:
             return AutomationReceipt(
                 action="focus_tab", target=wanted[:200], adapter="applescript",
                 success=False,
-                error=f"focusing a tab is not implemented for {browser!r}",
+                error=(
+                    f"{browser!r} exposes no AppleScript tab dictionary this "
+                    "adapter can drive; Chromium-family browsers and Safari do"
+                ),
             )
 
         receipt = await AppleScriptRunner.run(script, timeout=12.0)

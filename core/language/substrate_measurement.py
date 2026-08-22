@@ -27,6 +27,19 @@ import json
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
+from core.runtime.errors import record_degradation
+
+#: What the substrate store is allowed to fail with. Anything else is a
+#: programming error and propagates to the caller.
+_MEASUREMENT_FILING_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
 __all__ = ["Measurement", "measure_separation", "roc_auc"]
 
 
@@ -248,8 +261,16 @@ def run_frozen_measurement() -> dict[str, object]:
         from core.language.substrate_store import get_language_substrate_store
 
         get_language_substrate_store().write_measurement(receipt)
-    except Exception:  # noqa: BLE001 - a measurement that cannot be filed is still a measurement
-        pass
+    except _MEASUREMENT_FILING_ERRORS as filing_exc:
+        # A measurement that cannot be filed is still a measurement, and the
+        # caller gets the receipt either way. What must not happen is the
+        # store failing silently every run while the receipts look filed.
+        record_degradation(
+            "language.substrate_measurement",
+            filing_exc,
+            severity="warning",
+            action="returned the receipt after the substrate store refused it",
+        )
     return receipt
 
 

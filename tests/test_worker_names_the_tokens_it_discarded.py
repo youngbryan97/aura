@@ -8,22 +8,21 @@ ended its turn immediately, and those need opposite fixes.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
+
+from fixtures.source_loading import load_function
 
 WORKER = Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_worker.py"
 
 
 def _load_helper():
-    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "_name_tokens"
-    )
-    namespace: dict[str, object] = {"Any": object}
-    exec(compile(ast.Module(body=[function], type_ignores=[]), "<worker>", "exec"), namespace)
-    return namespace["_name_tokens"]
+    """The worker's helper, without importing the worker.
+
+    Importing mlx_worker pulls in MLX and a Metal device. The shared loader in
+    tests/fixtures/source_loading.py compiles the one function out of the
+    file; it is the only reviewed exec in the test tree.
+    """
+    return load_function(WORKER, "_name_tokens")
 
 
 class _Tokenizer:

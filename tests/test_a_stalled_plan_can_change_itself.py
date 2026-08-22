@@ -48,17 +48,24 @@ class _Receipt:
 
 
 class _Store:
+    def __init__(self):
+        self.resolved = []
+        self.outcomes = []
+
     def record(self, episode):
         return "ep_1"
 
     def resolve(self, episode_id, outcome):
-        pass
+        # Recorded rather than dropped: a double at a decision point that
+        # forgets it was called cannot be asserted against, and a body of
+        # `pass` reads as unfinished work to anything that scans for it.
+        self.resolved.append((episode_id, outcome))
 
     def query_consequences(self, action, params=None):
         return []
 
     def record_outcome(self, action, context, outcome, success):
-        pass
+        self.outcomes.append((action, outcome, success))
 
 
 def _thinks(reply):

@@ -3,6 +3,11 @@
 
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="Aura Code Sandbox" \
+      org.opencontainers.image.description="Network-isolated environment for executing untrusted code" \
+      org.opencontainers.image.source="https://github.com/youngbryan97/aura" \
+      org.opencontainers.image.licenses="NONE"
+
 # Security: Run as non-privileged user
 RUN groupadd -r aura && useradd -r -g aura aura
 

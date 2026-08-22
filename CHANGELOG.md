@@ -24,6 +24,33 @@ without evidence to back a claim yet.
 ## 2026-08
 
 ### Added
+- **Ownership, review and a branch policy** (`.github/CODEOWNERS`,
+  `config/branch_protection_policy.json`, `tools/check_review_policy.py`,
+  `tools/check_branch_protection.py`) — `main` reported `protected: false`
+  with no required status checks, so sixteen CI jobs were advisory and two of
+  them were red on `main` while configured to run. The policy is declared and
+  applied with one command; the offline gate holds the required list against
+  the workflows so a new job cannot be green and required by nothing.
+- **A threat model with the attacks in it** (`docs/THREAT_MODEL.md`,
+  `SECURITY.md`, `tests/security/`, `tools/check_threat_model.py`) — fourteen
+  classes of attack, each with the control that answers it and a test that
+  runs it from the attacker's side. The document states, and the gate keeps it
+  stating, that no independent security engineer has attacked this system.
+- **A dependency contract** (`config/dependency_contract.json`,
+  `tools/check_dependency_contract.py`, `tools/derive_lockfile.py`) — one
+  declaration of what every build installs, and the gate that caught all five
+  contradictions between the declaration and the builds.
+- **A release lifecycle** (`docs/RELEASE_LIFECYCLE.md`,
+  `tools/check_release_ready.py`) — channels, supported platforms, upgrade
+  compatibility and what a tag must produce. No release has been published;
+  the document says so.
+- **Canonical product facts** (`config/product_facts.json`,
+  `tools/check_product_facts.py`) — the Python version, the license, the port
+  and the package version have one owner each, and every other file that
+  states them is checked against it.
+- **A seam extractor that proves its own move** (`tools/extract_seam.py`) —
+  refuses a cut that is not behaviour-preserving, and checks the helper body
+  against the original token for token before writing.
 - **A bounded resident-32B reasoning gain, replicated and lesion-dependent**
   (`core/brain/llm/semantic_neural_serving.py`) — on a frozen four-domain
   cohort of 60 typed tasks, the trained recurrent controller answered 60/60
@@ -121,7 +148,50 @@ without evidence to back a claim yet.
 - One shared bounded numeric guard for values accepted from outside the
   process, and one structural redaction primitive.
 
+### Changed
+- **Shell execution is isolated by default** (`skills/shell.py`,
+  `security/sandbox.py`) — `sandbox` defaulted to `False`, so the ordinary
+  path ran the caller's program on the host with the whole filesystem readable
+  and the network open. `SecurityLevel.CONFINED` keeps the seatbelt profile,
+  the rlimits, the stripped environment and explicit read and write scope
+  without a binary allowlist overruling the Will's decision. Host execution is
+  a separately authorized escape hatch.
+- **The layering rule covers the tree** (155 `DEPS` files, up from seven;
+  `tools/generate_deps.py`) — every core package and every tree that imports
+  core now has include rules, generated from the import graph, so a new
+  cross-package dependency is an edit to a DEPS file.
+- **One lint standard** (`config/ruff_strict_files.txt`) — the configured ruff
+  rule set applied to seventeen hand-picked files while 4,072 of the
+  repository's files passed it untouched. Black, isort and flake8 are gone
+  from pre-commit; ruff and mypy remain.
+- **Typing has a floor and a direction** (`tools/check_typed_surface.py`,
+  `tools/typecheck_changed.py`) — 1,703 of 2,799 production modules annotate
+  every parameter and return, and that number may not fall. A file a branch
+  touches must pass strict mypy and is adopted into the allowlist when it does.
+
 ### Fixed
+- **Path containment in the shell skill** — `rm` compared paths with
+  `startswith`, which admits `/allowed/project-evil` for a root of
+  `/allowed/project`. The workspace jail had the same defect in its
+  denied-path list.
+- **Three ungoverned execution surfaces** (`skills/shell.py`,
+  `core/cybernetics/omni_tool.py`, `core/body/terminal_motor.py`) — each ran a
+  caller-supplied command without asking the Will. The guard written to catch
+  exactly this scanned only `core/` and only one spawn function.
+- **The migration ledger checked nothing** (`core/db/migrations.py`) — the
+  checksum was written on every apply and read by nothing, so a migration
+  edited after it ran was skipped because the version number matched. An
+  interrupted migration now leaves `started` in the ledger instead of nothing.
+- **The release lane could not install its dependencies and continued anyway**
+  — `pip install -r requirements/runtime.txt || pip install -r
+  requirements.txt || true`, where the first file has never existed, before
+  signing and notarizing the result.
+- **The image claimed a licence the repository does not grant** — `MIT` in the
+  Docker label against a LICENSE reserving all rights.
+- **The method-size ratchet could launder its own debt** — `--write-baseline`
+  recorded whatever it measured, including growth.
+- **`make typecheck` was red** — three `no-any-return` errors from Any leaking
+  through `--follow-imports=skip` out of callees that do declare their types.
 - **Every vision call in the repository was failing, and the loudest way it
   failed was silently.** The worker's message carried no image part and the
   chat template was never told there was an image, so a call that succeeded

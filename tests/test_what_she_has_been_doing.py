@@ -12,11 +12,15 @@ its matcher returns False on a past-tense question.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.self.recent_activity import (
     ActivityWindow,
     describe_recent_activity,
+)
+from core.self.recent_activity import (
     looks_like_a_question_about_recent_activity as asks,
 )
 
@@ -94,7 +98,8 @@ def test_a_bare_address_is_not_a_description_of_work() -> None:
     from core.self.recent_activity import _readable
 
     assert _readable("https://api.open-meteo.com/v1/forecast?latitude=64.15") == ""
-    assert _readable("/Users/bryan/.aura/live-source/core/config.py") == ""
+    repository = Path(__file__).resolve().parents[1]
+    assert _readable(str(repository / "core" / "config.py")) == ""
     assert _readable("read https://api.open-meteo.com/v1/forecast for the temperature") != ""
 
 

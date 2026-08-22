@@ -1,3 +1,17 @@
+# One answer to "what must this code satisfy": ruff, then mypy.
+#
+# There were four tools here — black, isort, flake8 and mypy — and a Makefile
+# that ran ruff. Black and ruff format the same code to different rules, isort
+# and ruff's I rules sort the same imports, and flake8 and ruff's E/F rules
+# report the same errors with different codes. A contributor could satisfy the
+# hook and fail `make lint`, or the reverse, and the honest answer to what the
+# standard was ran to two paragraphs.
+#
+# Ruff replaces the first three, with the rule set in pyproject.toml —
+# the same one `make lint` enforces, over the same file list in
+# config/ruff_strict_files.txt. Mypy stays because it answers a question ruff
+# does not.
+
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -5,26 +19,29 @@ repos:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-yaml
+    -   id: check-json
+    -   id: check-merge-conflict
     -   id: check-added-large-files
 
--   repo: https://github.com/psf/black
-    rev: 23.12.1
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.4
     hooks:
-    -   id: black
+    -   id: ruff
+        name: ruff (the configured rule set)
+        args: [--fix]
+    -   id: ruff-format
 
--   repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+-   repo: local
     hooks:
-    -   id: isort
-
--   repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
-    hooks:
-    -   id: flake8
-        additional_dependencies: [flake8-docstrings]
-
--   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-    -   id: mypy
-        additional_dependencies: [pydantic, types-requests]
+    -   id: mypy-changed
+        name: strict mypy over the files this commit touches
+        entry: python tools/typecheck_changed.py
+        language: system
+        pass_filenames: false
+        types: [python]
+    -   id: method-size-changed
+        name: no function this commit touches gets bigger
+        entry: python tools/lint_method_size.py --changed
+        language: system
+        pass_filenames: false
+        types: [python]

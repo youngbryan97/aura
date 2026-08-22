@@ -23,7 +23,6 @@ nod.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -43,11 +42,14 @@ LIVE_TURN = (
 
 
 def _actual() -> int:
-    out = subprocess.run(
-        "ls core/agency/*.py | wc -l", shell=True, cwd=ROOT,
-        capture_output=True, text=True, timeout=60,
-    )
-    return int(out.stdout.strip())
+    """The count, taken outside the module under test.
+
+    This shelled out to `ls | wc -l` for its independence. The independence
+    came from not using the module's own logic, not from using a shell, and
+    `shell=True` in a repository whose gate forbids it is a habit worth not
+    having. Globbing the directory is the same answer without a shell.
+    """
+    return len(list((Path(ROOT) / "core" / "agency").glob("*.py")))
 
 
 def test_the_false_claim_is_detected():
@@ -94,7 +96,7 @@ def test_a_reply_that_repeats_the_false_number_is_replaced():
     # so the test is that the CONFIRMATION is gone, not the digits.
     assert "that's right" not in served.lower()
     assert "you can trust" not in served.lower()
-    assert f"not 61" in served
+    assert "not 61" in served
     assert str(_actual()) in served
     assert "counted the directory" in served
 

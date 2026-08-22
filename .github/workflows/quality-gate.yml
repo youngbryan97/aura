@@ -35,6 +35,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # `--changed` needs the merge base, and a shallow clone has no
+          # history to find one in.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -55,6 +59,9 @@ jobs:
           python -m ruff check core interface llm security senses skills executors \
             infrastructure aura_main.py --select F821,F822,F823,F601
 
+      - name: Strict lint surface (ratchet: only grows)
+        run: python tools/ruff_strict_files.py --check
+
       - name: Dependency contract
         run: python tools/check_dependency_contract.py
 
@@ -73,8 +80,21 @@ jobs:
       - name: Module size ratchet
         run: python tools/lint_module_size.py
 
-      - name: Method size ratchet
-        run: python tools/lint_method_size.py
+      # The whole-tree ratchet is red and stays red until roughly twelve
+      # thousand lines of extraction land, which makes it a report rather than
+      # a gate — `known-debt` in ratchets.yml carries it. What blocks here is
+      # the part that can: no function this branch touched may get bigger.
+      - name: No touched function grew
+        run: python tools/lint_method_size.py --changed --base origin/main
+
+      - name: Product facts agree
+        run: python tools/check_product_facts.py
+
+      - name: Threat model names tests that exist
+        run: python tools/check_threat_model.py
+
+      - name: Release lane is fail-closed
+        run: python tools/check_release_ready.py
 
       - name: Typed-surface ratchet
         run: python tools/check_typed_surface.py

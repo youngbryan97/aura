@@ -106,7 +106,10 @@ def test_a_model_invented_home_directory_cannot_escape() -> None:
     from core.runtime.payload_values import payload_path
 
     root = Path("/tmp/live_apps_root")
-    for invented in ("/Users/user/Desktop", "../../etc", "None", ""):
+    # An absolute path outside the root, a traversal, and two malformed
+    # values. Written as `Path.home()` rather than a literal so this is a
+    # real escape attempt on whatever machine runs it.
+    for invented in (str(Path.home() / "Desktop"), "../../etc", "None", ""):
         resolved = payload_path({"out_dir": invented}, "out_dir", root=root, default=root)
         assert str(resolved).startswith(str(root))
 

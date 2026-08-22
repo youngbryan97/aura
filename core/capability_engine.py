@@ -26,6 +26,17 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("core.capability_engine")
 
+#: What a skill's own availability probe is allowed to raise. Anything
+#: outside this set is a programming error in the skill and propagates.
+_CAPABILITY_PROBE_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
 #: The search family, which several call sites suppress together when the turn
 #: is asking ABOUT searching rather than asking to search.
 _SEARCH_SKILL_NAMES = frozenset({
@@ -4906,8 +4917,19 @@ class CapabilityEngine(AuraBaseModule):
                         skill_name,
                     )
                     return None
-            except Exception:  # noqa: BLE001 - a skill that cannot answer is offered
-                pass
+            except _CAPABILITY_PROBE_ERRORS as probe_exc:
+                # A skill that cannot answer whether it can run is offered
+                # anyway; refusing on a broken probe would hide a working
+                # skill behind its own health check. The failure is recorded
+                # rather than swallowed, because a probe that always raises is
+                # a defect somebody should see.
+                record_degradation(
+                    "capability_engine.available_here",
+                    probe_exc,
+                    severity="info",
+                    action="offered the skill despite a failing availability probe",
+                    extra={"skill": skill_name},
+                )
 
         cost = int(getattr(meta, "metabolic_cost", 1) or 1)
         is_core = bool(getattr(meta, "is_core_personality", False))

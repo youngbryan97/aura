@@ -82,9 +82,18 @@ class WorkspaceJail:
         except (OSError, ValueError) as e:
             return False, "", f"path_resolution_failed: {e}"
 
-        # Check absolute denied list
+        # Check absolute denied list.
+        #
+        # Ancestry, not `startswith`. `~/.ssh` is a denied directory and
+        # `~/.sshfoo` is an unrelated one that begins with the same characters;
+        # a prefix test refuses both. Over-denial fails safe and is still
+        # wrong, because a jail that refuses paths nobody asked it to refuse
+        # is a jail people route around. The allowed-root test below already
+        # compares with a separator for the same reason.
+        resolved_path = Path(resolved)
         for denied in _DENIED_PATHS:
-            if resolved.startswith(denied) or resolved == denied:
+            denied_path = Path(denied)
+            if resolved_path == denied_path or denied_path in resolved_path.parents:
                 logger.warning(
                     "🚫 WorkspaceJail DENIED (hardcoded): %s", raw_path
                 )

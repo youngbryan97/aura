@@ -1,244 +1,347 @@
 #!/usr/bin/env python3
-"""Move a seam out of an oversized function, and prove it was a move.
+"""Move a block out of an oversized function, mechanically and checkably.
 
-``find_extraction_seam.py`` says where to cut. This does the cutting, and the
-important half is the proof: it diffs the relocated body against the original
-and refuses to write if they are not the same code. 400 lines re-entered by
-hand is how a branch gets silently dropped, and the method-size gate's own
-docstring warns that a rewrite losing one is worse than the size it removed.
+Twelve thousand lines of this repository sit inside ten functions, and the
+reason none of it has moved is not that nobody knows where to cut. The seams
+are measured — ``tools/find_extraction_seam.py`` prints them with their
+inputs, their outputs and their blockers. The reason is that each cut is a
+hundred lines of careful hand-editing on a live serving path, and hand-editing
+is where a behaviour-preserving move stops being one.
 
-What it will not do
--------------------
-* More than one early return. That needs real control-flow surgery and a
-  sentinel cannot express it.
-* A seam whose conditional escapes were not declared. A name bound only inside
-  the block and read after it must come back through a sentinel, because
-  returning a default converts a path that raised ``UnboundLocalError`` into
-  one that quietly proceeds — a behaviour change wearing a refactor's clothes.
-* Anything it cannot verify byte-for-byte afterwards.
+So this does the edit. Given a function and a line range it:
 
-Run::
+* refuses the cut unless the block is separable — no ``return`` out of the
+  middle, no ``yield``, no ``break``/``continue`` targeting a loop outside it,
+  and no name that escapes while being bound only on some paths, because
+  giving such a name a default turns a possible ``UnboundLocalError`` into a
+  value and that is a behaviour CHANGE, not a move;
+* computes the block's free variables in EVALUATION order, so a multi-line
+  tuple assignment whose targets sit above the call that reads them is
+  correctly seen as reading them;
+* writes a helper whose body is the block, dedented and otherwise untouched;
+* replaces the block with a call and an unpacking;
+* re-parses both and asserts the helper's body is the original block, token
+  for token.
 
-    python tools/extract_seam.py core/kernel/aura_kernel.py::AuraKernel.tick \\
-        --lines 1119-1596 --name _tick_body --method \\
-        --params objective priority turn_origin
+The last step is the point. A refactoring tool that cannot prove it moved the
+code is a refactoring tool that has rewritten it.
 
-Dry by default; pass ``--write`` to apply.
+    python tools/extract_seam.py interface/routes/chat.py::_api_chat_turn \\
+        --range 21328-21428 --name _apply_final_quality_gate --async
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
-import difflib
+import importlib.util
+import io
 import sys
+import textwrap
+import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from tools.find_extraction_seam import analyse  # noqa: E402
 
 
-def _enclosing(path: Path, function: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return next(
-        n
-        for n in ast.walk(tree)
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and n.name == function.split(".")[-1]
+def _load_seam_tools():
+    spec = importlib.util.spec_from_file_location(
+        "_aura_seam_tools", ROOT / "tools" / "find_extraction_seam.py"
     )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["_aura_seam_tools"] = module
+    spec.loader.exec_module(module)
+    return module
 
 
-def _function_end(path: Path, function: str) -> int:
-    """Last line of the enclosing function, used to tell a tail seam from a mid one."""
-    node = _enclosing(path, function)
-    return node.end_lineno or node.lineno
+def _statements_in_range(fn: ast.AST, start: int, end: int) -> list[ast.stmt]:
+    """The statements whose lines are exactly the requested range.
 
-
-def _binding_kind(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
-    """"instance", "static", "class" or "function" — decides the receiver.
-
-    Guessed wrong once and it mattered: ``_receipt_contract_errors`` is a
-    ``@staticmethod``, so emitting ``self._helper(...)`` and a ``self``
-    parameter produced code referencing a name that does not exist there. The
-    caller should not have to know, and now does not.
+    A range that starts or ends inside a statement is not a block, and cutting
+    one would produce a helper that compiles and means something else.
     """
-    decorators = {
-        d.id if isinstance(d, ast.Name) else getattr(d, "attr", "")
-        for d in node.decorator_list
-    }
-    if "staticmethod" in decorators:
-        return "static"
-    if "classmethod" in decorators:
-        return "class"
-    first = node.args.args[0].arg if node.args.args else ""
-    if first == "self":
-        return "instance"
-    if first == "cls":
-        return "class"
-    return "function"
+    found: list[ast.stmt] = []
+
+    def visit(body: list[ast.stmt]) -> bool:
+        run: list[ast.stmt] = []
+        for statement in body:
+            first = statement.lineno
+            last = getattr(statement, "end_lineno", first) or first
+            if first >= start and last <= end:
+                run.append(statement)
+            elif first <= start and last >= end:
+                for field in ("body", "orelse", "finalbody"):
+                    nested = getattr(statement, field, None)
+                    if isinstance(nested, list) and nested and visit(nested):
+                        return True
+                for handler in getattr(statement, "handlers", []) or []:
+                    if visit(handler.body):
+                        return True
+        if run and run[0].lineno == start and (
+            getattr(run[-1], "end_lineno", run[-1].lineno) or run[-1].lineno
+        ) == end:
+            found.extend(run)
+            return True
+        return False
+
+    visit(list(getattr(fn, "body", [])))
+    return found
 
 
-def _verify_move(original: list[str], relocated: list[str]) -> tuple[float, list[str]]:
-    """How much of the moved body is literally the original body."""
-    a = [ln.strip() for ln in original if ln.strip()]
-    b = [ln.strip() for ln in relocated if ln.strip()]
-    ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    diff = [
-        d
-        for d in difflib.unified_diff(a, b, lineterm="", n=0)
-        if d.startswith(("+", "-")) and not d.startswith(("+++", "---"))
-    ]
-    return ratio, diff
+def _normalised_tokens(source: str) -> list[tuple[int, str]]:
+    """Tokens with layout removed, so two texts can be compared for meaning."""
+    out: list[tuple[int, str]] = []
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type in {
+            tokenize.NL,
+            tokenize.NEWLINE,
+            tokenize.INDENT,
+            tokenize.DEDENT,
+            tokenize.COMMENT,
+            tokenize.ENDMARKER,
+            tokenize.ENCODING,
+        }:
+            continue
+        out.append((token.type, token.string))
+    return out
+
+
+def _imports_any(source: str) -> bool:
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "typing":
+            if any(alias.name == "Any" for alias in node.names):
+                return True
+    return False
+
+
+def _add_any_import(source: str) -> str:
+    """Put `from typing import Any` after the last top-level import."""
+    lines = source.splitlines(keepends=True)
+    tree = ast.parse(source)
+    last = 0
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            last = max(last, getattr(node, "end_lineno", node.lineno) or node.lineno)
+    if last == 0:
+        # No imports at all: after the module docstring, if there is one.
+        first = tree.body[0] if tree.body else None
+        if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+            last = getattr(first, "end_lineno", first.lineno) or first.lineno
+    lines.insert(last, "\nfrom typing import Any\n")
+    return "".join(lines)
 
 
 def extract(
     path: Path,
     function: str,
+    start: int,
+    end: int,
+    name: str,
     *,
-    lo: int,
-    hi: int,
-    new_name: str,
-    params: list[str],
-    is_method: bool,
-    write: bool,
-    min_similarity: float = 0.97,
+    is_async: bool,
+    apply: bool,
+    doc: str = "",
 ) -> int:
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    block = lines[lo - 1 : hi]
+    tools = _load_seam_tools()
+    source = path.read_text("utf-8")
+    lines = source.splitlines(keepends=True)
+    tree = ast.parse(source)
 
-    seams = analyse(path, function, min_lines=1)
-    seam = next((s for s in seams if s.lineno == lo and s.end_lineno == hi), None)
-    if seam is None:
-        print(f"❌ no statement spans exactly {lo}-{hi}; a seam must be a whole statement")
-        return 1
-    if len(seam.returns) > 1:
-        print(f"❌ {len(seam.returns)} early returns — not a mechanical extraction")
-        return 1
-    if seam.yields:
-        print("❌ the block yields; it is a generator body")
-        return 1
-    if seam.conditional_escapes:
+    fn = next(
+        (
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name == function.split(".")[-1]
+        ),
+        None,
+    )
+    if fn is None:
+        print(f"error: no function named {function!r} in {path}", file=sys.stderr)
+        return 2
+
+    statements = _statements_in_range(fn, start, end)
+    if not statements:
         print(
-            "❌ conditional escapes not handled by this tool: "
-            f"{seam.conditional_escapes}. These need an explicit sentinel — "
-            "returning a default for a conditionally-bound name changes behaviour."
+            f"error: lines {start}-{end} are not a whole run of statements inside "
+            f"{function}",
+            file=sys.stderr,
         )
-        return 1
-    if seam.escapes:
-        print(f"❌ the block hands back {seam.escapes}; only pure-return seams here")
-        return 1
+        return 2
 
-    # The receiver comes from the enclosing function, not from a flag the
-    # caller had to get right.
-    kind = _binding_kind(_enclosing(path, function))
-    inside_class = kind in {"instance", "static", "class"}
-    indent = "    "
-    prefix = {"instance": ["self"], "class": ["cls"]}.get(kind, [])
-    signature_params = prefix + list(params)
-    decl = "async def" if seam.awaits else "def"
+    refusals: list[str] = []
+    returns = [n for s in statements for n in ast.walk(s) if isinstance(n, ast.Return)]
+    if returns:
+        refusals.append(f"{len(returns)} return(s) out of the middle of the block")
+    if any(
+        isinstance(n, (ast.Yield, ast.YieldFrom)) for s in statements for n in ast.walk(s)
+    ):
+        refusals.append("the block yields; it is a generator body")
+    jumps = sum(tools._jump_count(s) for s in statements)
+    if jumps:
+        refusals.append(f"{jumps} break/continue targeting a loop outside the block")
 
-    helper: list[str] = [
-        "\n",
-        f"{indent if inside_class else ''}@staticmethod\n" if kind == "static" else "",
-        f"{indent if inside_class else ''}{decl} {new_name}(",
-        ", ".join(signature_params),
-        "):\n",
-        f'{indent}{indent if inside_class else ""}"""Body lifted verbatim out of '
-        f'``{function}``.\n\n',
-        f"{indent}{indent if inside_class else ''}Moved by tools/extract_seam.py, which "
-        "refuses to write unless the\n",
-        f"{indent}{indent if inside_class else ''}relocated body diffs clean against the "
-        "original. The seam was\n",
-        f"{indent}{indent if inside_class else ''}{len(seam.reads)} names in, "
-        f"{len(seam.escapes)} out, {len(seam.returns)} early return(s), "
-        f"{seam.awaits} awaits.\n",
-        f'{indent}{indent if inside_class else ""}"""\n',
-    ]
-    helper.extend(block)
+    module_scope = tools._module_scope(tree)
+    free, bound = tools.free_variables(statements)
+    reads = sorted(free - module_scope - tools._BUILTINS)
 
-    call_indent = " " * (len(block[0]) - len(block[0].lstrip()))
-    await_kw = "await " if seam.awaits else ""
-    args = ", ".join(params)
-    receiver = {"instance": "self.", "class": "cls."}.get(kind, "")
-    if kind == "static":
-        # A staticmethod is reached through the class, and the enclosing
-        # function is one, so the call site is inside that class body.
-        receiver = f"{function.split('.')[0]}." if "." in function else ""
+    after: set[str] = set()
+    seen_end = False
+    for statement in ast.walk(fn):
+        if not isinstance(statement, ast.stmt):
+            continue
+        if statement.lineno > end:
+            after |= {
+                n.id
+                for n in ast.walk(statement)
+                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+            }
+            seen_end = True
+    escapes = sorted(bound & after)
 
-    # A seam at the tail of the function hands back its value; one in the
-    # middle does not. Emitting `return` for a mid-function block would skip
-    # everything after it — the single most destructive mistake this tool
-    # could make, and one a similarity check would not catch, because the
-    # moved body is byte-identical either way.
-    tail_seam = hi >= _function_end(path, function)
-    if tail_seam and seam.returns:
-        call = [f"{call_indent}return {await_kw}{receiver}{new_name}({args})\n"]
-    elif seam.returns:
-        print(
-            "❌ the seam has an early return but is not at the end of the "
-            "function; the caller would need a sentinel this tool does not emit"
+    # An escape is safe when the block binds it on EVERY path, or when it is
+    # already an input, so the helper receives a value and hands it back.
+    #
+    # The first version of this asked whether the name was bound anywhere
+    # earlier in the function. That is a different question and it produced a
+    # live crash: `hard_final_quality_failed` was assigned earlier inside a
+    # branch, so the tool called it safe, and the extracted helper reached its
+    # `return` with the name unassigned on the path where the branch did not
+    # fire — UnboundLocalError on the first turn that took it.
+    guaranteed = tools.must_bind(statements) | set(reads)
+    conditional = [n for n in escapes if n not in guaranteed]
+    if conditional:
+        refusals.append(
+            f"{conditional} escape the block without being bound on every path "
+            "through it; returning them would raise UnboundLocalError where the "
+            "original kept an earlier value"
         )
+
+    if refusals:
+        print(f"refusing to extract {start}-{end}:")
+        for refusal in refusals:
+            print(f"   • {refusal}")
         return 1
+
+    block = "".join(lines[start - 1 : end])
+    indent = len(block) - len(block.lstrip(" "))
+    body = textwrap.dedent(block)
+
+    signature = "".join(f"    {n}: Any,\n" for n in reads)
+    prefix = "async " if is_async else ""
+    awaited = "await " if is_async else ""
+    returns_one = len(escapes) == 1
+    if not escapes:
+        # A block that hands nothing back is the cleanest cut there is: it
+        # runs for its effects and the caller needs no unpacking.
+        annotation = "None"
+        returned = "None"
+    elif returns_one:
+        annotation = "Any"
+        returned = escapes[0]
     else:
-        # No returns and no escapes: the block acts by mutating what it was
-        # given. A plain call is correct and control continues past it.
-        call = [f"{call_indent}{await_kw}{receiver}{new_name}({args})\n"]
+        annotation = f"tuple[{', '.join('Any' for _ in escapes)}]"
+        returned = ", ".join(escapes)
+    summary = doc or f"Extracted from ``{function}``."
+    helper = (
+        f"{prefix}def {name}(\n"
+        "    *,\n"
+        f"{signature}"
+        f") -> {annotation}:\n"
+        f'    """{summary}\n'
+        "\n"
+        f"    Moved out of ``{function}`` by tools/extract_seam.py, which\n"
+        "    checks the body against the original token for token before\n"
+        f"    writing. It reads {len(reads)} name(s) from the turn and hands back\n"
+        f"    {len(escapes)}.\n"
+        '    """\n'
+        + textwrap.indent(body, "    ")
+        + ("" if not escapes else f"    return {returned}\n")
+    )
 
-    ratio, diff = _verify_move(block, helper[len(helper) - len(block) :])
-    print(f"seam        : {hi - lo + 1} lines, {lo}-{hi}")
-    print(f"contract    : in={seam.reads} out={seam.escapes} returns={seam.returns}")
-    print(f"similarity  : {ratio:.4f} ({len(diff)} differing non-blank lines)")
+    pad = " " * indent
+    call_arguments = "".join(f"{pad}    {n}={n},\n" for n in reads)
+    assignment = "" if not escapes else f"{', '.join(escapes)} = "
+    call = (
+        f"{pad}{assignment}{awaited}{name}(\n"
+        f"{call_arguments}"
+        f"{pad})\n"
+    )
 
-    if ratio < min_similarity:
-        print(f"❌ relocated body is only {ratio:.2%} identical; refusing to write")
-        for d in diff[:10]:
-            print("   ", d[:110])
-        return 1
+    # Proof: the helper's body is the block.
+    helper_tree = ast.parse(helper)
+    helper_fn = helper_tree.body[0]
+    helper_body = helper_fn.body[1:] if not escapes else helper_fn.body[1:-1]
+    original_tokens = _normalised_tokens(body)
+    moved = ast.unparse(ast.Module(body=list(helper_body), type_ignores=[]))
+    if _normalised_tokens(ast.unparse(ast.parse(body))) != _normalised_tokens(moved):
+        print("error: the helper body is not the original block", file=sys.stderr)
+        return 3
+    if not original_tokens:
+        print("error: the block is empty", file=sys.stderr)
+        return 3
 
-    if not write:
-        print("\ndry run — pass --write to apply")
+    print(f"seam {start}-{end} in {function}")
+    print(f"  reads   ({len(reads)}): {', '.join(reads)}")
+    print(f"  escapes ({len(escapes)}): {', '.join(escapes)}")
+    print(f"  {end - start + 1} lines out, {call.count(chr(10))} back")
+
+    if not apply:
+        print("\n--- helper ---")
+        print(helper)
+        print("--- call site ---")
+        print(call)
+        print("(dry run: pass --apply to write)")
         return 0
 
-    # Insert the helper immediately after the enclosing function so the reader
-    # meets it where it was used, then replace the block with the call.
-    tree = ast.parse("".join(lines))
-    enclosing = next(
-        n
-        for n in ast.walk(tree)
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and n.name == function.split(".")[-1]
-    )
-    tail = enclosing.end_lineno
+    rewritten = "".join(lines[: start - 1]) + call + "".join(lines[end:])
 
-    out = lines[: lo - 1] + call + lines[hi:tail] + helper + lines[tail:]
-    path.write_text("".join(out), encoding="utf-8")
+    # The insertion point is found in the REWRITTEN text, not the original.
+    # Computing it once against `source` and then adjusting by a character
+    # offset using a LINE number produced an index in the middle of a token
+    # and a file that began `asynasync def`.
+    marker = f"{'async ' if isinstance(fn, ast.AsyncFunctionDef) else ''}def {fn.name}("
+    insert_at = rewritten.index(marker)
+    head = rewritten[:insert_at]
+    decorator = head.rfind("\n@")
+    if decorator != -1 and head[decorator:].count("\n") < 10:
+        insert_at = decorator + 1
+    rewritten = rewritten[:insert_at] + helper + "\n\n" + rewritten[insert_at:]
+
+    # The generated signature annotates with `Any`. Most files this runs on
+    # already import it; one that does not would gain a helper that raises
+    # NameError at import, which a "behaviour-preserving move" must not do.
+    if not _imports_any(rewritten):
+        rewritten = _add_any_import(rewritten)
+
+    ast.parse(rewritten)
+    path.write_text(rewritten, encoding="utf-8")
     print(f"✅ wrote {path}")
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", help="path/to/file.py::Class.function")
-    parser.add_argument("--lines", required=True, help="LO-HI, inclusive")
-    parser.add_argument("--name", required=True, help="name for the extracted function")
-    parser.add_argument("--params", nargs="*", default=[], help="names to pass in")
-    parser.add_argument("--method", action="store_true", help="extract as a method")
-    parser.add_argument("--write", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("target", help="path/to/file.py::function_name")
+    parser.add_argument("--range", required=True, help="START-END, inclusive")
+    parser.add_argument("--name", required=True, help="the helper's name")
+    parser.add_argument("--async", dest="is_async", action="store_true")
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--doc", default="", help="the helper's one-line docstring")
+    args = parser.parse_args(argv)
 
-    rel, _, func = args.target.partition("::")
-    lo, _, hi = args.lines.partition("-")
+    rel, _, function = args.target.partition("::")
+    start, _, end = args.range.partition("-")
     return extract(
         ROOT / rel,
-        func,
-        lo=int(lo),
-        hi=int(hi),
-        new_name=args.name,
-        params=args.params,
-        is_method=args.method,
-        write=args.write,
+        function,
+        int(start),
+        int(end),
+        args.name,
+        is_async=args.is_async,
+        apply=args.apply,
+        doc=args.doc,
     )
 
 

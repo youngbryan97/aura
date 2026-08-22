@@ -25,12 +25,15 @@ file inside her roots.
 from __future__ import annotations
 
 import pathlib
+from pathlib import Path
 
 import pytest
 
 from core.conversation.filesystem_check import requested_file_read
 
-REPO = "/Users/bryan/.aura/live-source"
+# Derived, not written down. A checkout lives wherever it was cloned, and a
+# test that names one machine's path passes on that machine only.
+REPO = str(Path(__file__).resolve().parents[1])
 
 
 @pytest.mark.parametrize(

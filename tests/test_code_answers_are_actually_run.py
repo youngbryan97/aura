@@ -68,8 +68,12 @@ def test_code_that_contradicts_its_own_example_fails() -> None:
 def test_the_harness_finds_examples_under_exec_too() -> None:
     """testmod() would test the runner instead, and report zero examples."""
     with pytest.raises(AssertionError):
+        # Both calls carry the marker: the gate reads it per line, and the
+        # compile sits on its own line here.
         exec(  # noqa: S102 - exercising the harness is the test
-            compile(doctest_harness(_WRONG), "<candidate>", "exec"),
+            compile(  # noqa: S102 - the harness's own output, in a test
+                doctest_harness(_WRONG), "<candidate>", "exec"
+            ),
             {"__name__": "__main__"},
         )
 

@@ -1,0 +1,56 @@
+{
+  "description": "One canonical definition of the facts that documents, build files and CI all restate. tools/check_product_facts.py derives each one from the file that owns it and fails when any other file disagrees. Extending doc-drift from 'does this path exist' to 'do these claims agree' is what stops the Dockerfile saying MIT while LICENSE reserves all rights.",
+  "facts": {
+    "python.version": {
+      "value": "3.12",
+      "owner": "pyproject.toml [project] requires-python",
+      "restated_in": [
+        {"file": "pyproject.toml", "pattern": "requires-python\\s*=\\s*\"[^\"]*?(\\d+\\.\\d+)"},
+        {"file": "pyproject.toml", "pattern": "target-version\\s*=\\s*\"py(\\d)(\\d+)\""},
+        {"file": "pyproject.toml", "pattern": "python_version\\s*=\\s*\"(\\d+\\.\\d+)\""},
+        {"file": "Dockerfile", "pattern": "FROM python:(\\d+\\.\\d+)"},
+        {"file": "docker/Dockerfile", "pattern": "FROM python:(\\d+\\.\\d+)"},
+        {"glob": ".github/workflows/*.yml", "pattern": "python-version:\\s*['\"](\\d+\\.\\d+)['\"]"}
+      ]
+    },
+    "license.spdx": {
+      "value": "NONE",
+      "owner": "LICENSE",
+      "note": "Source-available with no grant. SPDX has no identifier for that; the OCI spec accepts any expression and NONE is the honest one.",
+      "restated_in": [
+        {"file": "Dockerfile", "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""},
+        {"file": "docker/Dockerfile", "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""}
+      ]
+    },
+    "runtime.default_port": {
+      "value": "8000",
+      "owner": "aura_main.py --port default",
+      "restated_in": [
+        {"file": "aura_main.py", "pattern": "add_argument\\(\"--port\", type=int, default=(\\d+)"},
+        {"file": "Dockerfile", "pattern": "EXPOSE (\\d+)"},
+        {"file": "Dockerfile", "pattern": "urlopen\\('http://localhost:(\\d+)/"}
+      ]
+    },
+    "package.version": {
+      "value": "2026.4.20",
+      "owner": "pyproject.toml [project] version",
+      "restated_in": [
+        {"file": "pyproject.toml", "pattern": "^version = \"([^\"]+)\""}
+      ]
+    },
+    "package.name": {
+      "value": "aura-zenith",
+      "owner": "pyproject.toml [project] name",
+      "restated_in": [
+        {"file": "pyproject.toml", "pattern": "^name = \"([^\"]+)\""}
+      ]
+    }
+  },
+  "platform": {
+    "primary": "macOS on Apple silicon",
+    "reason": "the resident model runs on MLX, which is Metal-only; core/brain/llm/mlx_client.py is the substrate and there is no second one",
+    "container": "linux/amd64, headless, without the model runtime",
+    "owner": "requirements.txt (mlx, mlx-lm, mlx-metal with no environment markers)",
+    "evidence_files": ["requirements.txt", "core/brain/llm/mlx_client.py"]
+  }
+}
