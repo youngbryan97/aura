@@ -102,6 +102,23 @@ def test_reddit_adapter_marks_authority_finalize_degraded(monkeypatch):
     asyncio.run(scenario())
 
 
+def test_reddit_adapter_construction_does_not_create_persistence_directory(tmp_path, monkeypatch):
+    from core.skills import reddit_adapter
+
+    storage = tmp_path / "not-created-during-discovery"
+    monkeypatch.setattr(reddit_adapter, "_STORAGE_DIR", storage)
+    monkeypatch.setattr(
+        reddit_adapter,
+        "_CONNECTION_STATE_FILE",
+        storage / "connection_state.json",
+    )
+
+    skill = RedditAdapterSkill()
+
+    assert skill.get_connection_status()["state"] == "public_only"
+    assert not storage.exists()
+
+
 def test_reddit_adapter_failure_finalizes_authority_false(monkeypatch):
     async def scenario():
         from core.being.welfare_transaction import WelfareTransaction

@@ -35,6 +35,7 @@ class BranchingFutureInput(BaseModel):
 class BranchingFuturesSkill(BaseSkill):
     name = "branching_futures"
     description = "Forks Aura's state into an isolated sandbox to test risky code refactoring or experimental reasoning without corrupting the main self."
+    effect_scope = "sandboxed_compute"
     input_model = BranchingFutureInput
     timeout_seconds = 1800.0  # Max 30 minutes
     metabolic_cost = 3

@@ -3736,113 +3736,138 @@ class CapabilityEngine(AuraBaseModule):
         constructor_invoked = False
         instance_reused = False
         source_revalidated = False
+        constructed_instance: Any | None = None
+        published_instance: Any | None = None
+        redundant_instance: Any | None = None
+        dependencies: dict[str, Any] = {}
+        schema: dict[str, Any] = {}
+        catalog_digest = ""
+        resolved_effect_scope = str(metadata.effect_scope or "unknown")
+        resolved_authority_class = str(metadata.authority_class or "unclassified")
         try:
-            with self._catalog_mutation_guard():
-                with self._catalog_guard():
-                    current = self._skills.get(skill_name)
-                    catalog_digest = str(
+            with self._catalog_guard():
+                current = self._skills.get(skill_name)
+                catalog_digest = str(
+                    getattr(self, "_catalog_digest", "")
+                    or f"runtime:{id(self._skills)}"
+                )
+                existing = self._instances.get(skill_name)
+                metadata_instance = metadata.instance
+            if current is not metadata:
+                raise RuntimeError("skill catalog generation changed during preflight")
+            if metadata.validation_state != "valid":
+                raise RuntimeError(
+                    f"catalog validation state is {metadata.validation_state!r}"
+                )
+
+            stage = "source_identity"
+            revalidated_digest = self._verify_catalog_source(metadata)
+            source_revalidated = bool(revalidated_digest)
+
+            stage = "implementation_import"
+            skill_class = metadata.skill_class
+            if skill_class is None:
+                module_path = metadata.module_path
+                class_name = metadata.class_name
+                if not module_path or not class_name:
+                    raise RuntimeError("catalog entry is missing its import identity")
+                module = importlib.import_module(module_path)
+                skill_class = getattr(module, class_name)
+
+            stage = "implementation_contract"
+            from core.skills.base_skill import BaseSkill
+
+            if not inspect.isclass(skill_class) or not issubclass(skill_class, BaseSkill):
+                raise TypeError("implementation does not satisfy canonical BaseSkill")
+            if str(getattr(skill_class, "name", "")) != skill_name:
+                raise ValueError("implementation name differs from the live catalog")
+            if not callable(getattr(skill_class, "execute", None)):
+                raise TypeError("implementation has no execute() contract")
+            if not callable(getattr(skill_class, "safe_execute", None)):
+                raise TypeError("implementation has no governed safe_execute() contract")
+            observed_scope = _declared_effect_scope(skill_name, skill_class)
+            if resolved_effect_scope in {"", "unknown"}:
+                resolved_effect_scope = observed_scope
+                policy = resolve_skill_policy(skill_name, observed_scope)
+                if policy is not None and resolved_authority_class == "unclassified":
+                    resolved_authority_class = policy.authority_class
+            elif observed_scope != resolved_effect_scope:
+                raise ValueError("implementation effect classification changed")
+
+            stage = "schema"
+            input_model = getattr(skill_class, "input_model", None)
+            schema = metadata.schema_def
+            if not isinstance(schema, dict) or schema.get("type") != "object":
+                raise TypeError("skill input schema must describe an object")
+            json.dumps(schema, sort_keys=True)
+
+            stage = "requirements"
+            requirements_ready, requirement_errors = metadata.requirements.check()
+            if not requirements_ready:
+                raise RuntimeError(
+                    "declared runtime requirements unavailable: "
+                    + "; ".join(str(item) for item in requirement_errors)
+                )
+
+            stage = "dependency_resolution"
+            dependencies = self._resolve_constructor_dependencies(metadata)
+
+            stage = "construction"
+            instance = existing if existing is not None else metadata_instance
+            if instance is None:
+                instance = self._construct_skill_instance(
+                    metadata,
+                    skill_class,
+                    dependencies=dependencies,
+                )
+                constructed_instance = instance
+                constructor_invoked = True
+            else:
+                instance_reused = True
+            if str(getattr(instance, "name", "")) != skill_name:
+                raise ValueError("constructed implementation changed its declared name")
+
+            stage = "publication"
+            with self._catalog_mutation_guard(), self._catalog_guard():
+                if (
+                    self._skills.get(skill_name) is not metadata
+                    or str(
                         getattr(self, "_catalog_digest", "")
                         or f"runtime:{id(self._skills)}"
                     )
-                    existing = self._instances.get(skill_name)
-                if current is not metadata:
-                    raise RuntimeError("skill catalog generation changed during preflight")
-                if metadata.validation_state != "valid":
-                    raise RuntimeError(
-                        f"catalog validation state is {metadata.validation_state!r}"
-                    )
+                    != catalog_digest
+                ):
+                    raise RuntimeError("skill catalog generation changed before publication")
 
-                stage = "source_identity"
-                revalidated_digest = self._verify_catalog_source(metadata)
-                source_revalidated = bool(revalidated_digest)
-
-                stage = "implementation_import"
-                skill_class = metadata.skill_class
-                if skill_class is None:
-                    module_path = metadata.module_path
-                    class_name = metadata.class_name
-                    if not module_path or not class_name:
-                        raise RuntimeError("catalog entry is missing its import identity")
-                    module = importlib.import_module(module_path)
-                    skill_class = getattr(module, class_name)
-
-                stage = "implementation_contract"
-                from core.skills.base_skill import BaseSkill
-
-                if not inspect.isclass(skill_class) or not issubclass(skill_class, BaseSkill):
-                    raise TypeError("implementation does not satisfy canonical BaseSkill")
-                if str(getattr(skill_class, "name", "")) != skill_name:
-                    raise ValueError("implementation name differs from the live catalog")
-                if not callable(getattr(skill_class, "execute", None)):
-                    raise TypeError("implementation has no execute() contract")
-                if not callable(getattr(skill_class, "safe_execute", None)):
-                    raise TypeError("implementation has no governed safe_execute() contract")
-                observed_scope = _declared_effect_scope(skill_name, skill_class)
-                if metadata.effect_scope in {"", "unknown"}:
-                    metadata.effect_scope = observed_scope
-                    policy = resolve_skill_policy(skill_name, observed_scope)
-                    if policy is not None and metadata.authority_class == "unclassified":
-                        metadata.authority_class = policy.authority_class
-                elif observed_scope != metadata.effect_scope:
-                    raise ValueError("implementation effect classification changed")
-
-                stage = "schema"
-                input_model = getattr(skill_class, "input_model", None)
-                schema = metadata.schema_def
-                if not isinstance(schema, dict) or schema.get("type") != "object":
-                    raise TypeError("skill input schema must describe an object")
-                json.dumps(schema, sort_keys=True)
-
-                stage = "requirements"
-                requirements_ready, requirement_errors = metadata.requirements.check()
-                if not requirements_ready:
-                    raise RuntimeError(
-                        "declared runtime requirements unavailable: "
-                        + "; ".join(str(item) for item in requirement_errors)
-                    )
-
-                stage = "dependency_resolution"
-                dependencies = self._resolve_constructor_dependencies(metadata)
-
-                stage = "construction"
-                instance = existing or metadata.instance
-                if instance is None:
-                    instance = self._construct_skill_instance(
-                        metadata,
-                        skill_class,
-                        dependencies=dependencies,
-                    )
-                    constructor_invoked = True
-                else:
+                authoritative_instance = self._instances.get(skill_name)
+                if authoritative_instance is not None and authoritative_instance is not existing:
+                    if constructed_instance is not None:
+                        redundant_instance = constructed_instance
+                    instance = authoritative_instance
                     instance_reused = True
-                if str(getattr(instance, "name", "")) != skill_name:
-                    raise ValueError("constructed implementation changed its declared name")
 
-                stage = "publication"
-                with self._catalog_guard():
-                    if (
-                        self._skills.get(skill_name) is not metadata
-                        or str(
-                            getattr(self, "_catalog_digest", "")
-                            or f"runtime:{id(self._skills)}"
-                        )
-                        != catalog_digest
-                    ):
-                        raise RuntimeError("skill catalog generation changed before publication")
-                    metadata.skill_class = skill_class
-                    # Only adopt a model the class actually declares. This was
-                    # unconditional, so a catalog entry carrying an input_model
-                    # the implementation did not repeat had it erased at
-                    # publication — and the skill then ran with NO input
-                    # validation at all, silently, having just passed preflight.
-                    # A validation gate that disappears during the check meant
-                    # to confirm it is the worst shape available.
-                    if input_model is not None:
-                        metadata.input_model = input_model
-                    metadata.source_sha256 = revalidated_digest or metadata.source_sha256
-                    metadata.dependency_ready = True
-                    metadata.dependency_errors = []
-                    self._instances[skill_name] = instance
+                metadata.skill_class = skill_class
+                # Only adopt a model the class actually declares. This was
+                # unconditional, so a catalog entry carrying an input_model
+                # the implementation did not repeat had it erased at
+                # publication — and the skill then ran with NO input
+                # validation at all, silently, having just passed preflight.
+                # A validation gate that disappears during the check meant
+                # to confirm it is the worst shape available.
+                if input_model is not None:
+                    metadata.input_model = input_model
+                metadata.effect_scope = resolved_effect_scope
+                metadata.authority_class = resolved_authority_class
+                metadata.source_sha256 = revalidated_digest or metadata.source_sha256
+                metadata.dependency_ready = True
+                metadata.dependency_errors = []
+                self._instances[skill_name] = instance
+                published_instance = instance
+
+            if redundant_instance is not None:
+                self._retire_superseded_instances(
+                    [(f"{skill_name}:redundant_preflight", redundant_instance)]
+                )
 
             receipt = {
                 "authority_class": metadata.authority_class,
@@ -3863,6 +3888,14 @@ class CapabilityEngine(AuraBaseModule):
             }
             return self._record_skill_preflight(receipt), instance
         except _SKILL_PREFLIGHT_ERRORS as exc:
+            if (
+                constructed_instance is not None
+                and constructed_instance is not published_instance
+                and constructed_instance is not redundant_instance
+            ):
+                self._retire_superseded_instances(
+                    [(f"{skill_name}:aborted_preflight", constructed_instance)]
+                )
             receipt = {
                 "authority_class": metadata.authority_class,
                 "catalog_id": metadata.catalog_id,

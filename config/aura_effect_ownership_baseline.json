@@ -4105,6 +4105,14 @@
       "scope": "<module>.MinorityReportStore.record_dissent"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/embodiment/world_bridge.py",
+      "scope": "<module>._shell_sandbox_handler"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -9353,22 +9361,6 @@
       "scope": "<module>.ResistanceSandbox._execute_default_action"
     },
     {
-      "callee": "_WORKSPACE_DIR.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/embodiment/world_bridge.py",
-      "scope": "<module>"
-    },
-    {
-      "callee": "_WORLD_DIR.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/embodiment/world_bridge.py",
-      "scope": "<module>"
-    },
-    {
       "callee": "os.replace",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -13225,14 +13217,6 @@
       "scope": "<module>.PluginManager.__init__"
     },
     {
-      "callee": "<pathlib.Path>.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/skills/reddit_adapter.py",
-      "scope": "<module>.RedditAdapterSkill.__init__"
-    },
-    {
       "callee": "path.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15762,6 +15746,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "efbd3ed3491fc08b19f9f9d807b55dfce9d806a0bc23d1cafafab154550c23bb",
+  "inventory_sha256": "375feeec666a1f34405ca5ad5d3098be6592769a0c91dbc26f7bd02d6ad5283e",
   "schema_version": 1
 }

@@ -234,7 +234,6 @@ class RedditAdapterSkill(BaseSkill):
 
     def __init__(self):
         super().__init__()
-        _STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         self._connection_state = self._load_connection_state()
         self._allow_reauthentication = False
 

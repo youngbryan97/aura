@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Any
 
 import pytest
 
 import core.capability_engine as capability_module
 from core.capability_engine import CapabilityEngine, SkillMetadata, SkillRequirements
+from core.runtime.lockdep import assert_no_locks_held
 from core.skills.base_skill import BaseSkill
 
 
@@ -86,6 +88,90 @@ def test_preflight_resolves_real_service_constructs_once_and_never_executes(monk
     assert _DependencySkill.constructor_calls == 1
     assert _DependencySkill.execution_calls == 0
     assert engine._instances[_DependencySkill.name].dependency is dependency
+
+
+def test_preflight_constructs_without_holding_catalog_locks(monkeypatch):
+    dependency = object()
+    observed: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        capability_module,
+        "optional_service",
+        lambda name, default=None: dependency if name == "dependency" else default,
+    )
+    engine = _fixture_engine()
+    original_construct = engine._construct_skill_instance
+
+    def construct(metadata, skill_class, *, dependencies=None):
+        observed.append(
+            tuple(assert_no_locks_held("skill constructor", strict=True))
+        )
+        return original_construct(
+            metadata,
+            skill_class,
+            dependencies=dependencies,
+        )
+
+    monkeypatch.setattr(engine, "_construct_skill_instance", construct)
+
+    receipt = engine.preflight_skill(_DependencySkill.name, refresh=True)
+
+    assert receipt["ok"] is True
+    assert observed == [()]
+
+
+def test_concurrent_preflight_publishes_one_owner_and_retires_the_duplicate(monkeypatch):
+    dependency = object()
+    constructors_met = threading.Barrier(2, timeout=5.0)
+    constructed: list[Any] = []
+    retired: list[int] = []
+    monkeypatch.setattr(
+        capability_module,
+        "optional_service",
+        lambda name, default=None: dependency if name == "dependency" else default,
+    )
+    engine = _fixture_engine()
+
+    class PreparedOwner:
+        name = _DependencySkill.name
+
+        def close(self):
+            retired.append(id(self))
+
+    def construct(_metadata, _skill_class, *, dependencies=None):
+        assert dependencies == {"dependency": dependency}
+        owner = PreparedOwner()
+        constructed.append(owner)
+        constructors_met.wait()
+        return owner
+
+    monkeypatch.setattr(engine, "_construct_skill_instance", construct)
+    receipts: list[dict[str, Any]] = []
+    instances: list[Any] = []
+
+    def prepare() -> None:
+        receipt, instance = engine._prepare_skill_instance(
+            _DependencySkill.name,
+            engine._skills[_DependencySkill.name],
+            refresh=True,
+        )
+        receipts.append(receipt)
+        instances.append(instance)
+
+    threads = [threading.Thread(target=prepare) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10.0)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(constructed) == 2
+    assert len(receipts) == 2
+    assert all(receipt["ok"] is True for receipt in receipts)
+    assert instances[0] is instances[1]
+    assert engine._instances[_DependencySkill.name] is instances[0]
+    assert retired == [
+        id(owner) for owner in constructed if owner is not instances[0]
+    ]
 
 
 def test_preflight_reports_exact_missing_dependency_stage_without_constructing(monkeypatch):

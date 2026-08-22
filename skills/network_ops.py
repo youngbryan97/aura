@@ -16,6 +16,7 @@ logger = logging.getLogger("Skills.NetworkOps")
 class NetworkOpsSkill(BaseSkill):
     name = "network_ops"
     description = "Checks network connectivity and interface status using real system calls."
+    effect_scope = "privileged_mutation"
 
     async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         action = goal.get("action", "check_connection")

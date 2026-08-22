@@ -16,6 +16,7 @@ from infrastructure import BaseSkill
 class NetworkReconSkill(BaseSkill):
     name = "network_recon"
     description = "Report local host network identity without scanning or probing devices."
+    effect_scope = "external_io"
 
     async def execute(
         self,

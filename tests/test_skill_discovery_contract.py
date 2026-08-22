@@ -274,6 +274,24 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     assert engine.dry_run_catalog()["ok"] is True
 
 
+def test_live_repo_source_catalog_matches_independent_rust_discovery():
+    """Keep the boot-critical source parity proof in the fast gate.
+
+    Full isolated construction of every skill is deliberately a larger test,
+    but source discovery itself is cheap. A policy-only scope edit previously
+    left class declarations and the Rust fallback stale, so every skill was
+    executable while CapabilityEngine remained permanently unready at boot.
+    """
+
+    catalog = build_skill_catalog(default_skill_roots())
+    python_catalog = build_skill_catalog(default_skill_roots(), try_rust=False)
+
+    assert catalog.ok is True
+    assert catalog.backend == "rust-filesystem+python-parity"
+    assert catalog.parity_status == "matched"
+    assert python_catalog.canonical_payload() == catalog.canonical_payload()
+
+
 def test_runtime_registration_rejects_metadata_only_skill_claims():
     engine = CapabilityEngine()
 

@@ -158,6 +158,7 @@ class ListenInput(BaseModel):
 class AudioListenerSkill(BaseSkill):
     name = "listen"
     description = "Listen to microphone input and transcribe speech to text using local Whisper."
+    effect_scope = "read_write_artifacts"
     input_model = ListenInput
 
     def __init__(self):

@@ -838,11 +838,8 @@ fn legacy_effect_scope(name: &str) -> Option<&'static str> {
         | "evolution_status"
         | "free_search"
         | "grounded_search"
-        | "listen"
         | "local_reference_search"
         | "malware_analysis"
-        | "network_ops"
-        | "network_recon"
         | "query_beliefs"
         | "query_visual_context"
         | "search_web"
@@ -851,10 +848,10 @@ fn legacy_effect_scope(name: &str) -> Option<&'static str> {
         | "stealth_ops"
         | "system_proprioception"
         | "web_search" => Some("read_only"),
-        "branching_futures" | "coding_skill" | "native_chat" | "propagation" | "render_bridge" => {
-            Some("pure_compute")
+        "coding_skill" | "native_chat" | "propagation" | "render_bridge" => Some("pure_compute"),
+        "branching_futures" | "code_repl" | "internal_sandbox" | "run_code" => {
+            Some("sandboxed_compute")
         }
-        "code_repl" | "internal_sandbox" | "run_code" => Some("sandboxed_compute"),
         "ManageAbilities"
         | "add_belief"
         | "cognitive_trainer"
@@ -879,6 +876,7 @@ fn legacy_effect_scope(name: &str) -> Option<&'static str> {
         | "mcp_client"
         | "messages"
         | "network_discovery"
+        | "network_recon"
         | "notify_user"
         | "reddit_adapter"
         | "social_lurker"
@@ -891,6 +889,7 @@ fn legacy_effect_scope(name: &str) -> Option<&'static str> {
         | "x_tools" => Some("external_io"),
         "build_app"
         | "image_gen"
+        | "listen"
         | "manifest_to_device"
         | "manim_renderer"
         | "program_dna_equivalence_battery"
@@ -901,10 +900,9 @@ fn legacy_effect_scope(name: &str) -> Option<&'static str> {
             Some("foreground_desktop_control")
         }
         "web_interlocutor" => Some("foreground_browser_dialogue"),
-        "auto_refactor" | "improve_own_code" | "install_package" | "self_evolution"
-        | "self_improvement" | "self_repair" | "shell" | "sovereign_terminal" | "train_self" => {
-            Some("privileged_mutation")
-        }
+        "auto_refactor" | "improve_own_code" | "install_package" | "network_ops"
+        | "self_evolution" | "self_improvement" | "self_repair" | "shell"
+        | "sovereign_terminal" | "train_self" => Some("privileged_mutation"),
         _ => None,
     }
 }
@@ -1744,9 +1742,9 @@ class PackageSkill(PackageBase):
         let payload: Value =
             serde_json::from_str(&discover_skill_candidates_json(&roots.to_string()).unwrap())
                 .unwrap();
-        assert_eq!(payload["source_file_count"], 131);
-        assert_eq!(payload["candidates"].as_array().unwrap().len(), 76);
-        assert_eq!(payload["accepted"].as_array().unwrap().len(), 76);
+        assert_eq!(payload["source_file_count"], 135);
+        assert_eq!(payload["candidates"].as_array().unwrap().len(), 79);
+        assert_eq!(payload["accepted"].as_array().unwrap().len(), 79);
         assert_eq!(payload["excluded"].as_array().unwrap().len(), 10);
         assert_eq!(payload["duplicates"], serde_json::json!([]));
         assert_eq!(payload["issues"], serde_json::json!([]));
@@ -1763,7 +1761,7 @@ class PackageSkill(PackageBase):
         assert_eq!(
             digest,
             // Python's identical canonical payload with ensure_ascii=False.
-            "45d718133eda5bcc2f846f37f2fa24d1a712e4ca1d0cafca02bbc4a014cbd659"
+            "7f54a30e9f954c36870fc758b9463db4d2afc5851527948f13e607b8b3a3dfe3"
         );
     }
 }

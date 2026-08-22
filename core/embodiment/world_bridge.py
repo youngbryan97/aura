@@ -52,6 +52,7 @@ from core.governance.will import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.atomic_writer import async_atomic_write_text, atomic_write_text
 from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.skill_contract import ActionExpectation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -60,10 +61,8 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.WorldBridge")
 
 _WORLD_DIR = state_root() / "data" / "world"
-_WORLD_DIR.mkdir(parents=True, exist_ok=True)
 _PERMS_PATH = _WORLD_DIR / "permissions.json"
 _WORKSPACE_DIR = _WORLD_DIR / "workspace"
-_WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Channel(StrEnum):
@@ -445,6 +444,10 @@ async def _shell_sandbox_handler(payload: dict[str, Any], *, capability_token: s
     forbidden = {";", "&&", "||", "|", ">", "<", "`", "$(", "rm", "mkfs", "dd"}
     if any(any(b in str(a) for b in forbidden) for a in cmd):
         raise PermissionError("forbidden_metachars")
+    await get_file_write_gateway().ensure_directory_async(
+        _WORKSPACE_DIR,
+        source="core.embodiment.world_bridge.shell_workspace",
+    )
     proc = await get_subprocess_gateway().spawn_async(
         cmd,
         cwd=str(_WORKSPACE_DIR),
