@@ -51335,3 +51335,30 @@ canonical smoke passes `120/120` with one environment-dependent skip. Ruff,
 compilation and diff hygiene pass. The running process remains on its original
 source and was intentionally not restarted; live confirmation belongs to the
 next normal installed-app restart.
+
+## Checkpoint 2026-08-21-890: Make the Black Hole Vault a Transactional Backend
+
+Live memory consolidation repeatedly failed because the native Black Hole Vault
+exposed itself through the legacy collection slot without implementing that
+backend's `count()` contract. The next consolidation cycle reached a deeper
+failure: vault persistence performed its durable file commit while both the
+memory-management transaction lock and vault mutation lock were held. Lockdep
+correctly tainted the run rather than accepting a successful write that could
+stall the control plane.
+
+The vault now owns all public collection mutations with one checked reentrant
+lock and exposes an authoritative `count()` operation. Persistence serializes
+and encrypts the exact locked snapshot, submits the immutable payload to Aura's
+bounded blocking-I/O executor, and waits for that durable commit before making
+the transaction clean. The worker performs the governed file write with no
+caller lock in its context. Clear and delete operations use the same durable
+transaction instead of removing or rewriting storage outside that ownership
+boundary.
+
+Deterministic coverage proves the persistence worker has a different thread
+identity and no held lock, verifies count across add, delete and clear, and
+retains consolidation rollback after a failed durable write. Memory,
+transaction and pruning contracts pass `63/63`; canonical smoke passes
+`120/120` with one environment-dependent skip. Ruff, compilation and diff
+hygiene pass. The running process still has the pre-checkpoint module loaded;
+live confirmation belongs to the next normal installed-app restart.

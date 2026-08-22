@@ -16,7 +16,9 @@ from core.memory.horcrux import HorcruxManager
 from core.memory.physics import bekenstein_check, hawking_decay
 from core.memory.retention_policy import MemoryRetentionPolicy, black_hole_retention_policy
 from core.runtime.errors import record_degradation
+from core.runtime.executors import submit_blocking_io
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.lockdep import checked_lock
 
 try:
     from core.memory.rag import compute_term_freq, retrieve_memories, tokenize
@@ -71,7 +73,7 @@ class BlackHoleVault:
         self._dirty = False
         self._fallback_mode = False
         self._collection = self  # Compatibility surface, not a Chroma collection.
-        self._mutation_lock = threading.RLock()
+        self._mutation_lock = checked_lock("black_hole_vault.mutation", reentrant=True)
         self._initialized = False
         self._init_error: Optional[str] = None
         self._ensure_ready()
@@ -180,12 +182,15 @@ class BlackHoleVault:
             logger.warning("Failed to quarantine unreadable vault file: %s", exc)
             return ""
             
-    def _save_vault(self):
-        self._ensure_ready()
-        if not self._dirty:
-            return
-        raw_json = json.dumps(self.memories)
-        encoded = encode_payload(raw_json, self.key)
+    def _mutation_guard(self):
+        """Return the one lock that owns the in-memory collection."""
+        lock = getattr(self, "_mutation_lock", None)
+        if lock is None:
+            lock = checked_lock("black_hole_vault.mutation", reentrant=True)
+            self._mutation_lock = lock
+        return lock
+
+    def _persist_encoded_vault(self, encoded_payload: str) -> None:
         with local_internal_governed_scope(
             "black_hole_vault.save_vault",
             domain="memory_write",
@@ -193,10 +198,25 @@ class BlackHoleVault:
         ):
             get_file_write_gateway().write_text(
                 self.memories_file,
-                encoded["encoded"],
+                encoded_payload,
                 source="black_hole_vault.save_vault",
             )
-        self._dirty = False
+
+    def _save_vault(self):
+        """Serialize one durable snapshot without running fsync under the lock."""
+        with self._mutation_guard():
+            self._ensure_ready()
+            if not self._dirty:
+                return
+            raw_json = json.dumps(self.memories)
+            encoded = encode_payload(raw_json, self.key)["encoded"]
+            write = submit_blocking_io(
+                self._persist_encoded_vault,
+                encoded,
+                label="black_hole_vault.save_vault",
+            )
+            write.result(timeout=30.0)
+            self._dirty = False
 
     @staticmethod
     def _memory_id(memory: Dict[str, Any]) -> str:
@@ -204,6 +224,10 @@ class BlackHoleVault:
 
     def _ensure_memory_ids(self, *, persist: bool = False) -> bool:
         """Migrate legacy timestamp identities to stable per-record identities."""
+        with self._mutation_guard():
+            return self._ensure_memory_ids_locked(persist=persist)
+
+    def _ensure_memory_ids_locked(self, *, persist: bool = False) -> bool:
         changed = False
         occupied = {
             str(memory.get("id"))
@@ -246,6 +270,15 @@ class BlackHoleVault:
         **kwargs,
     ):
         """Standard interface matching VectorMemory and legacy content= callers."""
+        with self._mutation_guard():
+            return self._add_memory_locked(text=text, metadata=metadata, **kwargs)
+
+    def _add_memory_locked(
+        self,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
         self._ensure_ready()
         if text is None:
             text = kwargs.pop("content", None)
@@ -456,6 +489,11 @@ class BlackHoleVault:
         """Alias for get() to support various component integrations."""
         return self.get(memory_id)
 
+    def count(self) -> int:
+        """Return the authoritative number of records in the event horizon."""
+        with self._mutation_guard():
+            return len(self.memories)
+
     @property
     def total_mass_kb(self) -> float:
         """Returns the current mass of the vault in KB."""
@@ -484,13 +522,21 @@ class BlackHoleVault:
 
     def clear(self):
         """Standard interface: Reset the vault."""
+        with self._mutation_guard():
+            return self._clear_locked()
+
+    def _clear_locked(self):
         self.memories = []
-        if os.path.exists(self.memories_file):
-            os.remove(self.memories_file)
+        self._dirty = True
+        self._save_vault()
         logger.info("BlackHoleVault: Event horizon cleared.")
 
     def delete(self, ids: List[str]):
         """Standard interface: Delete memories by ID."""
+        with self._mutation_guard():
+            return self._delete_locked(ids)
+
+    def _delete_locked(self, ids: List[str]):
         id_set = {str(memory_id) for memory_id in ids}
         self.memories = [
             m
@@ -509,6 +555,20 @@ class BlackHoleVault:
         **kwargs,
     ) -> int:
         """VectorMemory-compatible deletion shim used by episodic pruning."""
+        with self._mutation_guard():
+            return self._delete_memories_locked(
+                ids=ids,
+                filter_metadata=filter_metadata,
+                **kwargs,
+            )
+
+    def _delete_memories_locked(
+        self,
+        ids: Optional[List[str]] = None,
+        *,
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> int:
         id_set = {str(memory_id) for memory_id in (ids or []) if str(memory_id)}
         metadata_filters = dict(filter_metadata or {})
         if not id_set and not metadata_filters:
@@ -545,7 +605,7 @@ class BlackHoleVault:
     def get_stats(self) -> Dict[str, Any]:
         """Standard interface: Return collection statistics."""
         return {
-            "total_vectors": len(self.memories),
+            "total_vectors": self.count(),
             "total_mass_kb": self.total_mass_kb,
             "max_vectors": self._policy().max_items,
             "retention_policy": self._policy().to_dict(),

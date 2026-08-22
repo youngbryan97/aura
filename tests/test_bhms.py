@@ -3,9 +3,9 @@
 Note: These tests require the Horcrux subsystem to initialize correctly.
 If the environment lacks shard files, tests will be skipped gracefully.
 """
-import os
-import json
 import logging
+import os
+
 import pytest
 
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +37,21 @@ def test_memorize_and_search(vault):
     assert len(results) > 0
     contents = [r["content"] for r in results]
     assert any("Hawking" in c for c in contents)
+
+
+def test_count_tracks_the_authoritative_vault_lifecycle(vault):
+    assert vault.count() == 0
+
+    vault.add_memory("first", metadata={"type": "test"})
+    vault.add_memory("second", metadata={"type": "test"})
+    assert vault.count() == 2
+
+    first_id = vault.get(limit=2)["ids"][0]
+    vault.delete([first_id])
+    assert vault.count() == 1
+
+    vault.clear()
+    assert vault.count() == 0
 
 
 def test_vault_auto_healing(vault):

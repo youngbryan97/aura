@@ -125,6 +125,10 @@ class _BlackHoleMemory:
         self.fail_save_once = False
 
     _memory_id = staticmethod(BlackHoleVault._memory_id)
+    _ensure_memory_ids_locked = BlackHoleVault._ensure_memory_ids_locked
+
+    def _mutation_guard(self):
+        return self._mutation_lock
 
     def _ensure_memory_ids(self, *, persist=False):
         return BlackHoleVault._ensure_memory_ids(self, persist=persist)
@@ -423,6 +427,32 @@ async def test_black_hole_vault_merge_rolls_back_after_persistence_failure():
     assert report.transactions_rolled_back == 1
     assert memory.memories == records
     assert memory.saved[-1] == records
+
+
+def test_black_hole_vault_persists_without_carrying_the_mutation_lock(monkeypatch):
+    from core.memory.black_hole_vault import BlackHoleVault
+    from core.runtime.lockdep import checked_lock, get_validator
+
+    vault = BlackHoleVault.__new__(BlackHoleVault)
+    vault.memories = [_black_hole_record("a", "alpha")]
+    vault.key = "test-key"
+    vault._dirty = True
+    vault._mutation_lock = checked_lock("test.black_hole_vault", reentrant=True)
+    monkeypatch.setattr(vault, "_ensure_ready", lambda: None)
+    observed = []
+
+    def _persist(_payload):
+        observed.append((threading.get_ident(), get_validator().held_names()))
+
+    monkeypatch.setattr(vault, "_persist_encoded_vault", _persist)
+    caller_thread = threading.get_ident()
+
+    vault._save_vault()
+
+    assert observed
+    assert observed[0][0] != caller_thread
+    assert observed[0][1] == []
+    assert vault._dirty is False
 
 
 def test_collection_alias_without_complete_chroma_contract_is_unsupported():
