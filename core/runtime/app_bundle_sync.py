@@ -38,6 +38,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
@@ -249,15 +250,24 @@ def sync_app_bundle(
         else:
             environment.pop("AURA_INSTALL_PATH", None)
 
-        completed = get_subprocess_gateway().run(
-            [str(build_script)],
-            cwd=str(root_path),
-            timeout=BUILD_TIMEOUT_S,
-            capture_output=True,
-            env=environment,
-            source="runtime_app_bundle_sync.build",
-            accelerator_capability="none",
-        )
+        with local_internal_governed_scope(
+            "runtime_app_bundle_sync.build",
+            domain="self_modification",
+            constraints={
+                "root": str(root_path),
+                "bundle": str(bundle),
+                "install_requested": install_here,
+            },
+        ):
+            completed = get_subprocess_gateway().run(
+                [str(build_script)],
+                cwd=str(root_path),
+                timeout=BUILD_TIMEOUT_S,
+                capture_output=True,
+                env=environment,
+                source="runtime_app_bundle_sync.build",
+                accelerator_capability="none",
+            )
         receipt["build_returncode"] = completed.returncode
         if completed.returncode != 0:
             receipt["action"] = "failed"
@@ -324,7 +334,13 @@ async def keep_launcher_current(root: str | Path | None = None) -> dict[str, Any
         receipt["reason"] = "AURA_TESTING"
         return receipt
 
-    root_path = Path(root).expanduser().resolve() if root else Path(__file__).resolve().parents[2]
+    root_path = await asyncio.to_thread(
+        lambda: (
+            Path(root).expanduser().resolve()
+            if root
+            else Path(__file__).resolve().parents[2]
+        )
+    )
     try:
         # Cheap and read-only. Doing this first means the overwhelmingly
         # common case — the launcher is current — costs one hash and no
@@ -386,8 +402,18 @@ def install_staged_bundle(
         if bundle_is_running(bundle):
             receipt["reason"] = "resident app is running; not replacing it underneath"
             return receipt
-        shutil.rmtree(bundle)
-        shutil.copytree(staged, bundle, symlinks=True)
+        with local_internal_governed_scope(
+            "runtime_app_bundle_sync.install_staged",
+            domain="self_modification",
+            constraints={
+                "staged": str(staged),
+                "bundle": str(bundle),
+                "source_digest": staged_digest,
+                "replaced_digest": resident_digest,
+            },
+        ):
+            shutil.rmtree(bundle)
+            shutil.copytree(staged, bundle, symlinks=True)
         receipt["installed"] = True
         return receipt
     except _RECOVERABLE_ERRORS as exc:

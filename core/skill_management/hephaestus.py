@@ -26,10 +26,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from core.runtime.base_module import AuraBaseModule
 from core.config import config
 from core.container import ServiceContainer
 from core.resilience.resource_arbitrator import get_resource_arbitrator
+from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import record_degradation
 from core.skill_management.forged_artifact import (
     ArtifactError,
@@ -258,7 +258,7 @@ class HephaestusEngine(AuraBaseModule):
             await gateway.ensure_directory_async(
                 skill_file.parent, source="skill_management.hephaestus"
             )
-            if skill_file.exists():
+            if await asyncio.to_thread(skill_file.exists):
                 archive = next_version_path(skill_file)
                 previous = await asyncio.to_thread(skill_file.read_text, "utf-8")
                 await gateway.ensure_directory_async(
@@ -295,10 +295,23 @@ class HephaestusEngine(AuraBaseModule):
 
             brain = ServiceContainer.get("cognitive_engine", default=None)
 
-            # Read target file
-            file_path = Path(target_file)
-            if not await asyncio.to_thread(file_path.exists):
-                return {"ok": False, "error": f"Target file {target_file} not found."}
+            # Establish one repository-relative identity before reading, testing,
+            # or handing the candidate to the self-modification engine. Tracebacks
+            # and callers frequently provide absolute paths; retaining them in a
+            # CodeFix would let a later sandbox join discard its sandbox root.
+            from core.self_modification.code_repair import (
+                CodeFix,
+                _apply_fix_once,
+                _resolve_repair_target,
+            )
+
+            try:
+                relative_target, file_path = _resolve_repair_target(
+                    config.paths.project_root,
+                    target_file,
+                )
+            except (FileNotFoundError, ValueError) as exc:
+                return {"ok": False, "error": str(exc)}
             
             current_code = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
 
@@ -328,10 +341,19 @@ class HephaestusEngine(AuraBaseModule):
                 original_snippet = patch_data["original_snippet"]
                 replacement_snippet = patch_data["replacement_snippet"]
                 
-                if original_snippet not in current_code:
-                    return {"ok": False, "error": "Original snippet not found in target file. Patch rejected."}
-                
-                patched_code = current_code.replace(original_snippet, replacement_snippet, 1)
+                candidate = CodeFix(
+                    target_file=relative_target,
+                    target_line=0,  # SME resolves lines from the unique snippet.
+                    original_code=original_snippet,
+                    fixed_code=replacement_snippet,
+                    explanation=f"Deep Forge: {objective}",
+                    hypothesis=f"Targeted optimization: {objective}",
+                    confidence="high",
+                )
+                try:
+                    patched_code = _apply_fix_once(current_code, candidate)
+                except ValueError as exc:
+                    return {"ok": False, "error": f"Patch rejected: {exc}"}
                 
                 # ── Validation Gate: syntax parse + ASTGuard ──
                 try:
@@ -371,9 +393,9 @@ class HephaestusEngine(AuraBaseModule):
                 # ── Shadow Runtime soak test ──
                 try:
                     from core.self_modification.shadow_runtime import get_shadow_runtime
-                    shadow = get_shadow_runtime(str(file_path.parent.parent))
+                    shadow = get_shadow_runtime(str(config.paths.project_root))
                     shadow_result = await shadow.test_mutation(
-                        file_path=str(file_path.relative_to(shadow.code_base)),
+                        file_path=relative_target,
                         original_code=current_code,
                         patched_code=patched_code,
                         soak_seconds=15,
@@ -384,23 +406,11 @@ class HephaestusEngine(AuraBaseModule):
                     self.logger.info("🔮 Shadow test passed (%.1fs)", shadow_result.runtime_seconds)
                 except ImportError:
                     self.logger.debug("Shadow runtime not available — skipping soak test")
-                except (ImportError, AttributeError, RuntimeError) as shadow_err:
+                except (AttributeError, RuntimeError) as shadow_err:
                     record_degradation('hephaestus', shadow_err)
                     self.logger.warning("Shadow test error (non-blocking): %s", shadow_err)
                 
-                # Create a CodeFix compatible structure for SME
-                from core.self_modification.code_repair import CodeFix
-                fix = CodeFix(
-                    target_file=str(file_path),
-                    target_line=0, # SME will resolve lines from snippet
-                    original_code=original_snippet,
-                    fixed_code=replacement_snippet,
-                    explanation=f"Deep Forge: {objective}",
-                    hypothesis=f"Targeted optimization: {objective}",
-                    confidence="high"
-                )
-                
-                return {"ok": True, "fix": fix}
+                return {"ok": True, "fix": candidate}
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('hephaestus', e)
                 self.logger.error("Patch generation error: %s", e)

@@ -11,6 +11,7 @@ import json
 
 import pytest
 
+from core.governance_context import get_active_governance
 from core.runtime import app_bundle_sync as module
 
 
@@ -135,6 +136,52 @@ def test_a_stale_launcher_is_rebuilt_and_installed(tmp_path, monkeypatch, no_run
     assert calls[0]["env"]["AURA_INSTALL_PATH"] == str(bundle)
 
 
+def test_launcher_build_has_explicit_runtime_ownership(
+    tmp_path,
+    monkeypatch,
+    no_running_app,
+):
+    root = _root(tmp_path)
+    bundle = _bundle(tmp_path, launcher_sha="b" * 64)
+    observed = {}
+
+    class _Gateway:
+        def run(self, command, **kwargs):
+            token = get_active_governance()
+            assert token is not None and token.authorizes
+            observed.update(
+                {
+                    "domain": token.domain,
+                    "source": token.source,
+                    "constraints": dict(token.constraints),
+                    "accelerator_capability": kwargs["accelerator_capability"],
+                }
+            )
+            return type(
+                "Completed",
+                (),
+                {"returncode": 0, "stdout": "built", "stderr": ""},
+            )()
+
+    monkeypatch.setattr(module, "get_subprocess_gateway", lambda: _Gateway())
+
+    receipt = module.sync_app_bundle(root, resident=bundle)
+
+    assert receipt["action"] == "rebuilt_and_installed"
+    assert observed == {
+        "domain": "self_modification",
+        "source": "runtime_app_bundle_sync.build",
+        "constraints": {
+            "governance_origin": "local_internal",
+            "runtime_generated": True,
+            "root": str(root.resolve()),
+            "bundle": str(bundle),
+            "install_requested": True,
+        },
+        "accelerator_capability": "none",
+    }
+
+
 def test_a_running_bundle_is_never_replaced_underneath(tmp_path, monkeypatch):
     """The update is built, but takes effect at the next start."""
     root = _root(tmp_path)
@@ -212,6 +259,44 @@ def test_a_staged_build_is_installed_when_nothing_is_running(tmp_path, monkeypat
         (resident / "Contents" / "Resources" / "aura-launch-provenance.json").read_text()
     )
     assert manifest["launcher_source_sha256"].startswith("new")
+
+
+def test_staged_install_has_explicit_runtime_ownership(tmp_path, monkeypatch):
+    root = _root(tmp_path)
+    resident = _bundle(tmp_path, launcher_sha="old" + "0" * 61)
+    staged = root / "dist" / "Aura.app"
+    staged.parent.mkdir(parents=True)
+    import shutil
+
+    shutil.copytree(
+        _bundle(tmp_path / "staged_src", launcher_sha="new" + "0" * 61),
+        staged,
+    )
+    monkeypatch.setattr(module, "bundle_is_running", lambda _b: False)
+    real_rmtree = module.shutil.rmtree
+    observed = {}
+
+    def _owned_rmtree(path):
+        token = get_active_governance()
+        assert token is not None and token.authorizes
+        observed.update(
+            {
+                "domain": token.domain,
+                "source": token.source,
+                "constraints": dict(token.constraints),
+            }
+        )
+        return real_rmtree(path)
+
+    monkeypatch.setattr(module.shutil, "rmtree", _owned_rmtree)
+
+    receipt = module.install_staged_bundle(root, resident=resident)
+
+    assert receipt["installed"] is True
+    assert observed["domain"] == "self_modification"
+    assert observed["source"] == "runtime_app_bundle_sync.install_staged"
+    assert observed["constraints"]["staged"] == str(staged)
+    assert observed["constraints"]["bundle"] == str(resident)
 
 
 def test_a_staged_build_is_not_installed_over_a_running_app(tmp_path, monkeypatch):

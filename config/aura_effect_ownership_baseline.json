@@ -5649,6 +5649,14 @@
       "scope": "<module>.GhostBootValidator._create_minimal_boot_script"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/code_repair.py",
+      "scope": "<module>.AutonomousCodeRepair._generate_ruff_candidate"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -12889,14 +12897,6 @@
       "scope": "<module>.SandboxTester._setup_sandbox"
     },
     {
-      "callee": "file_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/code_repair.py",
-      "scope": "<module>.SandboxTester.run_custom_probe"
-    },
-    {
       "callee": "shutil.copy2",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15124,9 +15124,9 @@
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
-      "count": 1,
+      "count": 2,
       "path": "core/self_modification/code_repair.py",
-      "scope": "<module>.AutonomousCodeRepair.repair_bug"
+      "scope": "<module>.AutonomousCodeRepair._generate_ruff_candidate"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
@@ -15890,6 +15890,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8e95e7212d546bf30e2cef7f51dc0ccc63576a40b30cd1c32ed1d19de54d2d95",
+  "inventory_sha256": "c55f3a79ee2a3b433398203effa5d700e03f96e1f0c6fe4348da7772280bf3da",
   "schema_version": 1
 }

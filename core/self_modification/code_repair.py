@@ -8,18 +8,104 @@ import hashlib
 import logging
 import shutil
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 from .ast_analyzer import ASTAnalyzer
 
 logger = logging.getLogger("SelfModification.CodeRepair")
+
+
+def _resolve_repair_target(
+    code_base: str | Path,
+    file_path: str | Path,
+) -> tuple[str, Path]:
+    """Return one repo-relative repair path and its canonical absolute target.
+
+    Runtime tracebacks commonly carry absolute filenames. Joining one of those
+    to a sandbox root discards the sandbox root entirely, so every repair path
+    is reduced to a repository-relative identity before any preview or test is
+    allowed to touch it. Symlinks that resolve outside the repository are
+    rejected by the same boundary.
+    """
+
+    root = Path(code_base).expanduser().resolve()
+    supplied = Path(file_path).expanduser()
+    target = (
+        supplied.resolve(strict=False)
+        if supplied.is_absolute()
+        else (root / supplied).resolve(strict=False)
+    )
+    try:
+        relative = target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"repair target is outside code base: {file_path}") from exc
+    if relative == Path(".") or not target.is_file():
+        raise FileNotFoundError(f"repair target is not a regular file: {target}")
+    return relative.as_posix(), target
+
+
+def _sandbox_target(sandbox_root: str | Path, relative_path: str | Path) -> Path:
+    """Resolve a repo-relative path beneath a sandbox without path escape."""
+
+    root = Path(sandbox_root).resolve()
+    relative = Path(relative_path)
+    if relative.is_absolute():
+        raise ValueError(f"sandbox target must be relative: {relative_path}")
+    target = (root / relative).resolve(strict=False)
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"sandbox target escapes sandbox: {relative_path}") from exc
+    return target
+
+
+def _apply_fix_once(content: str, fix: "CodeFix") -> str:
+    """Apply a candidate only when its source anchor is unique and current."""
+
+    if not fix.original_code:
+        raise ValueError("repair candidate has an empty source anchor")
+    occurrences = content.count(fix.original_code)
+    if occurrences != 1:
+        raise ValueError(
+            "repair candidate source anchor must occur exactly once "
+            f"(observed={occurrences})"
+        )
+    return content.replace(fix.original_code, fix.fixed_code, 1)
+
+
+def _ruff_executable(code_base: str | Path) -> str:
+    """Resolve Ruff from the source environment rather than ambient ``PATH``.
+
+    Aura.app starts Python directly and does not activate the repository
+    virtualenv, so ``shutil.which('ruff')`` is normally empty in the exact live
+    process that performs autonomous repair. The source-bound virtualenv is the
+    canonical toolchain; the interpreter-adjacent and ambient candidates keep
+    isolated development environments usable without weakening that identity.
+    """
+
+    candidates = [
+        Path(code_base).expanduser().resolve() / ".venv" / "bin" / "ruff",
+        Path(sys.executable).parent / "ruff",
+    ]
+    ambient = shutil.which("ruff")
+    if ambient:
+        candidates.append(Path(ambient))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    raise FileNotFoundError(
+        f"Ruff executable unavailable for source environment {Path(code_base).resolve()}"
+    )
 
 
 def _record_code_repair_degradation(
@@ -477,14 +563,21 @@ class SandboxTester:
     
     def _setup_sandbox(self, sandbox_path: Path, fix: CodeFix) -> bool:
         """Copy necessary files to sandbox"""
-        target_file = self.code_base / fix.target_file
+        relative_path, target_file = _resolve_repair_target(
+            self.code_base,
+            fix.target_file,
+        )
+        if relative_path != fix.target_file:
+            raise ValueError(
+                f"repair candidate target is not canonical: {fix.target_file}"
+            )
         
         if not target_file.exists():
             logger.error("Target file not found: %s", target_file)
             return False
         
         # Copy file to sandbox
-        sandbox_file = sandbox_path / fix.target_file
+        sandbox_file = _sandbox_target(sandbox_path, fix.target_file)
         sandbox_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(target_file, sandbox_file)
         
@@ -509,10 +602,10 @@ class SandboxTester:
     
     async def _apply_fix_in_sandbox(self, sandbox_path: Path, fix: CodeFix):
         """Apply the fix to the sandboxed file (Async)."""
-        sandbox_file = sandbox_path / fix.target_file
+        sandbox_file = _sandbox_target(sandbox_path, fix.target_file)
         
         content = await asyncio.to_thread(sandbox_file.read_text, encoding='utf-8')
-        modified_content = content.replace(fix.original_code, fix.fixed_code)
+        modified_content = _apply_fix_once(content, fix)
         await asyncio.to_thread(sandbox_file.write_text, modified_content, encoding='utf-8')
     
     async def _run_tests_in_sandbox(self, sandbox_path: Path, fix: CodeFix) -> dict[str, Any]:
@@ -531,7 +624,7 @@ class SandboxTester:
             "errors": [],
         }
         
-        sandbox_file = sandbox_path / fix.target_file
+        sandbox_file = _sandbox_target(sandbox_path, fix.target_file)
         
         # Test 1: Syntax check (Static)
         try:
@@ -710,11 +803,15 @@ class SandboxTester:
             
             # 1. Setup sandbox (copy files)
             # Minimal setup: target file + its dir
-            target_abs = self.code_base / file_path
-            if not target_abs.exists():
+            try:
+                relative_path, target_abs = _resolve_repair_target(
+                    self.code_base,
+                    file_path,
+                )
+            except (OSError, ValueError):
                 return False, {"error": "Target file not found"}
             
-            sandbox_file = temp_path / file_path
+            sandbox_file = _sandbox_target(temp_path, relative_path)
             
             # Write the PATCHED version
             await async_atomic_write_text(sandbox_file, code_patch, encoding="utf-8")
@@ -722,7 +819,7 @@ class SandboxTester:
             # Copy siblings for imports
             for sibling in target_abs.parent.glob("*.py"):
                 if sibling.name != target_abs.name:
-                    shutil.copy2(sibling, temp_path / file_path.replace(target_abs.name, sibling.name))
+                    shutil.copy2(sibling, sandbox_file.parent / sibling.name)
 
             # 2. Write Probe
             probe_path = temp_path / "weakness_probe.py"
@@ -816,6 +913,101 @@ class AutonomousCodeRepair:
                 "module_path": file_path,
                 "metadata": metadata,
             }
+
+    async def _generate_ruff_candidate(
+        self,
+        file_path: str,
+        line_number: int,
+    ) -> CodeFix | None:
+        """Run Ruff against a disposable copy and return a clean candidate.
+
+        Ruff used to receive the live source path with ``--fix`` before the
+        repair pipeline had produced, tested, or admitted a candidate. An
+        absolute traceback path also caused ``sandbox / file_path`` to resolve
+        back to the live file. Mechanical repair now has the same transaction
+        shape as a generated repair: mutate a shadow, prove Ruff accepts the
+        result, then hand the byte change to the normal validators.
+        """
+
+        relative_path, target = _resolve_repair_target(
+            self.generator.code_base,
+            file_path,
+        )
+        original = await asyncio.to_thread(target.read_text, encoding="utf-8")
+        ruff_bin = _ruff_executable(self.generator.code_base)
+
+        with tempfile.TemporaryDirectory(prefix="aura-ruff-repair-") as temp_dir:
+            shadow_file = _sandbox_target(temp_dir, relative_path)
+            config_path = Path(self.generator.code_base) / "pyproject.toml"
+            config_args = (
+                ["--config", str(config_path)] if config_path.is_file() else []
+            )
+            source = "core.self_modification.code_repair.ruff_shadow"
+            constraints = {
+                "target": relative_path,
+                "shadow_only": True,
+                "accelerator_capability": "none",
+            }
+            with local_internal_governed_scope(
+                source,
+                domain="self_modification",
+                constraints=constraints,
+            ):
+                await get_file_write_gateway().write_text_async(
+                    shadow_file,
+                    original,
+                    encoding="utf-8",
+                    source=source,
+                )
+                await get_subprocess_gateway().run_async(
+                    [
+                        ruff_bin,
+                        "check",
+                        *config_args,
+                        "--fix",
+                        str(shadow_file),
+                    ],
+                    capture_output=True,
+                    cwd=self.generator.code_base,
+                    timeout=30,
+                    source=source,
+                    accelerator_capability="none",
+                )
+
+            fixed = await asyncio.to_thread(shadow_file.read_text, encoding="utf-8")
+            if fixed == original:
+                return None
+
+            with local_internal_governed_scope(
+                f"{source}.verify",
+                domain="self_modification",
+                constraints=constraints,
+            ):
+                verified = await get_subprocess_gateway().run_async(
+                    [ruff_bin, "check", *config_args, str(shadow_file)],
+                    capture_output=True,
+                    cwd=self.generator.code_base,
+                    timeout=30,
+                    source=f"{source}.verify",
+                    accelerator_capability="none",
+                )
+            if verified.returncode != 0:
+                logger.info(
+                    "Ruff changed %s but left unresolved diagnostics; retaining it "
+                    "as evidence and continuing with semantic repair",
+                    relative_path,
+                )
+                return None
+
+        return CodeFix(
+            target_file=relative_path,
+            target_line=line_number,
+            original_code=original,
+            fixed_code=fixed,
+            explanation="Ruff produced a clean mechanical repair in an isolated shadow copy.",
+            hypothesis="The observed defect has a deterministic Ruff repair.",
+            confidence="high",
+        )
     
     async def repair_bug(
         self,
@@ -834,27 +1026,33 @@ class AutonomousCodeRepair:
             (success, fix_object, test_results)
 
         """
-        # Step 1: Generate fix
-        
-        # v29.1: Mechanical Repair Layer (Ruff)
-        logger.info("🔧 [NEURO] Attempting mechanical repair with Ruff...")
         try:
-            # If it's a simple syntax or style issue, ruff might fix it
-            ruff_bin = shutil.which("ruff") or "ruff"
-            cmd = [ruff_bin, "check", "--fix", file_path]
-            await get_subprocess_gateway().run_async(
-                cmd,
-                capture_output=True,
-                cwd=self.generator.code_base,
-                timeout=30,
-                source="core.self_modification.code_repair.ruff_fix",
-                accelerator_capability="auto",
+            file_path, full_path = _resolve_repair_target(
+                self.generator.code_base,
+                file_path,
             )
-        except (subprocess.SubprocessError, OSError) as e:
+        except (OSError, ValueError) as exc:
+            _record_code_repair_degradation(
+                exc,
+                stage="target_custody",
+                action="rejected repair target outside the canonical code base",
+                severity="degraded",
+                extra={"target_file": str(file_path)},
+            )
+            return False, None, {"error": f"Invalid repair target: {exc}"}
+
+        # Step 1: Generate a candidate. Mechanical repair is attempted first,
+        # but only against a disposable shadow and never against live source.
+        logger.info("🔧 [NEURO] Attempting shadow mechanical repair with Ruff...")
+        fix: CodeFix | None = None
+        try:
+            fix = await self._generate_ruff_candidate(file_path, line_number)
+        except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as e:
             record_degradation('code_repair', e)
             logger.warning("Mechanical repair failed: %s", e)
 
-        fix = await self.generator.generate_fix(file_path, line_number, diagnosis)
+        if fix is None:
+            fix = await self.generator.generate_fix(file_path, line_number, diagnosis)
         if not fix:
             deep_repair = await self._deep_repair_after_patch_failure(
                 file_path,
@@ -869,11 +1067,25 @@ class AutonomousCodeRepair:
         
         # Step 2: Validate fix
         # Read original file
-        full_path = Path(self.generator.code_base) / file_path
         original_content = await asyncio.to_thread(full_path.read_text, encoding='utf-8')
-        
-        # Apply fix to get full new content
-        modified_content = original_content.replace(fix.original_code, fix.fixed_code)
+
+        # Apply exactly one source anchor. A stale or ambiguous candidate is
+        # rejected rather than changing every matching block in the file.
+        try:
+            modified_content = _apply_fix_once(original_content, fix)
+        except ValueError as exc:
+            deep_repair = await self._deep_repair_after_patch_failure(
+                file_path,
+                line_number,
+                diagnosis,
+                stage="candidate_source_binding",
+                detail=str(exc),
+                fix=fix,
+            )
+            return False, fix, {
+                "error": f"Candidate source binding failed: {exc}",
+                "deep_repair": deep_repair,
+            }
         
         valid, validation_msg = self.validator.validate_fix(fix, modified_content)
         if not valid:

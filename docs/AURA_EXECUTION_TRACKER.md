@@ -51398,3 +51398,49 @@ passes `86/86`; canonical smoke passes `120/120` with one environment-dependent
 skip; Ruff, compilation, governance ownership and layering all pass. The
 running process intentionally remains on its original source, so live
 confirmation belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-892: Make Autonomous Repair a Governed Shadow Transaction
+
+The live process exposed two critical ownership failures in one maintenance
+cycle. App-bundle synchronization invoked its build subprocess outside any
+governed effect context, while autonomous code repair asked the subprocess
+gateway to infer an accelerator capability for Ruff. Inspection found a deeper
+repair defect behind that error: Ruff received the live source filename with
+`--fix` before a candidate had been validated, absolute traceback filenames
+could discard a sandbox root during path composition, and the installed app
+does not activate the source virtualenv that owns Ruff.
+
+Repair targets now acquire one canonical repository-relative identity before
+any read, preview, sandbox handoff or test. Outside-root and symlink escapes are
+rejected. Mechanical repair resolves Ruff from the source-bound environment,
+writes the original bytes through the governed file gateway into a disposable
+shadow, runs fix and independent verification with explicit non-accelerator
+subprocess ownership, and returns a candidate without changing live source.
+Candidates bind to exactly one current source anchor; stale or ambiguous
+anchors enter the existing deep-repair path instead of replacing every match.
+Sandbox setup and custom probes use the same path-custody contract.
+
+Hephaestus now emits that canonical target identity, uses the repository root
+for its shadow runtime and applies the exact-once source binding before the
+shadow soak. Launcher build and staged installation carry explicit internal
+self-modification ownership, including the staged and resident digests that
+identify the replacement transaction. Touched async paths no longer perform
+their path inspection or archive existence checks on the event-loop thread.
+
+Deterministic contracts prove absolute traceback paths cannot mutate live
+source, outside-root and absolute sandbox targets are rejected before tool
+execution, the source-bound Ruff binary wins over ambient PATH, real Ruff emits
+a candidate while preserving source bytes, Hephaestus hands its shadow and
+self-modification engine the same relative identity, and app build/install
+effects observe an authorizing self-modification token. Focused ownership and
+gateway coverage passes `95/95`; the broader repair, persistence, recovery and
+validation surface passes `93/93`; canonical smoke passes `120/120` with one
+environment-dependent skip. Ruff, compilation, governance ownership, layering
+and diff hygiene pass.
+
+A user restart during this checkpoint loaded the launch checkout at
+`873107d1b`, not the pushed CP891 source at `5891a440f`, and reproduced the old
+ungoverned experience-consolidator shutdown failure. That run is evidence of
+source mismatch, not validation of CP891 or CP892. Live confirmation remains
+pending until the launch checkout is reconciled and a subsequent restart proves
+matching source identity.
