@@ -123,8 +123,10 @@ def set_user_question(text: object) -> None:
 #: An exact answer worked out before the model was asked. A dict for the same
 #: reason the evidence set is one: children get a copy of the context, so the
 #: container is shared and the child mutates it.
-_TURN_SOLVED: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
-    "aura_turn_solved", default={}
+#: None rather than {}: a mutable default is shared by every context that
+#: never set one, which is the bug this container exists to avoid.
+_TURN_SOLVED: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
+    "aura_turn_solved", default=None
 )
 
 

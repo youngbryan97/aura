@@ -14963,9 +14963,13 @@ async def _serve_solved_game(user_message: object, reply: object) -> object:
     was right by luck and the strategy loses. There are eight positions.
     """
     try:
+        from core.conversation.session_scope import solved_answers
         from core.reasoning.game_answer import solve_described_game
 
-        solved = await solve_described_game(user_message)
+        # Worked out in preflight on almost every turn; never plan it twice.
+        solved = solved_answers().get("finite_game", "") or await solve_described_game(
+            user_message
+        )
         if not solved:
             return reply
         from core.conversation.composed_answer import compose_measured

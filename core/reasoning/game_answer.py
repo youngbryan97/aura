@@ -50,15 +50,7 @@ async def solve_described_game(
     text = str(message or "")
     if not describes_a_game(text):
         return ""
-    # Already worked out earlier in this turn: never plan the same game twice.
-    try:
-        from core.conversation.session_scope import solved_answers
 
-        cached = solved_answers().get("finite_game", "")
-        if cached:
-            return cached
-    except ImportError:
-        pass
     import json
 
     request = (
