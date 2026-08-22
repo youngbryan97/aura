@@ -3960,6 +3960,7 @@ def acquire_synchronous_in_process_model_lane(
     model_path: str,
     purpose: str,
     request_gb: float | None = None,
+    transient_runtime_gb: float = 0.0,
     priority: int = 50,
     preemptible: bool = True,
     owner_lease_ttl_s: float = 180.0,
@@ -3980,6 +3981,7 @@ def acquire_synchronous_in_process_model_lane(
             if request_gb is not None
             else estimate_model_job_footprint_gb(model_path, purpose=purpose)
         ),
+        transient_runtime_gb=max(0.0, float(transient_runtime_gb)),
         purpose=purpose,
         priority=int(priority),
         preemptible=bool(preemptible),

@@ -50,8 +50,10 @@ are both float32. Nothing about their shape reveals that a cosine between
 them is noise. ``IDENTITY`` is stamped into the store so a generation change
 is detected instead of silently producing confident garbage.
 """
+
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 #: HF repo id. The short name (``all-MiniLM-L6-v2``) was resolvable only
@@ -66,6 +68,21 @@ VECTOR_DIM = 384
 #: 32,768; this is the number every chunker sizes against. It is NOT a guess:
 #: assert_window_matches_model() checks it against the loaded model.
 MAX_INPUT_TOKENS = 32_768
+
+# The checkpoint can accept 32K tokens, but that is not a safe serving budget
+# on this unified-memory host. A measured 13,891-token MPS encode reserved
+# 39.1 GB of driver memory, then retained 24.6 GB after completion. Keep model
+# capability separate from the amount of work one live operation may admit.
+# The source text is never truncated: operational_views() covers it with
+# overlapping views and EmbeddingEngine aggregates or retains those views.
+OPERATIONAL_INPUT_TOKENS = 1_024
+OPERATIONAL_PADDED_TOKEN_BUDGET = 2_048
+OPERATIONAL_MAX_BATCH_ITEMS = 16
+OPERATIONAL_OVERLAP_TOKENS = 64
+# Resident weights consume about 1.53 GB after cache release. The measured
+# operational microbatch peaked at 2.724 GB, so admission carries a bounded
+# 1.5 GB transient allowance in addition to the resident footprint.
+OPERATIONAL_TRANSIENT_GB = 1.5
 
 #: Chunkers work in words; tokenizers work in tokens. Measured on Aura's own
 #: prose (engineering English, heavy on identifiers) an 800-word chunk came to
@@ -113,13 +130,8 @@ TASK_INSTRUCTIONS: dict[str, str] = {
         "Given a question about a past conversation or event, retrieve the "
         "remembered moments that answer it"
     ),
-    "evidence": (
-        "Given a claim, retrieve passages that support or contradict it"
-    ),
-    "document": (
-        "Given a question, retrieve passages from the provided documents that "
-        "answer it"
-    ),
+    "evidence": ("Given a claim, retrieve passages that support or contradict it"),
+    "document": ("Given a question, retrieve passages from the provided documents that answer it"),
 }
 
 #: Used when a call site names no task. Deliberately the recall instruction
@@ -147,10 +159,177 @@ def query_prompt(task: str | None = None) -> str:
 def is_known_task(task: str | None) -> bool:
     return (task or "").strip().lower() in TASK_INSTRUCTIONS
 
+
 #: Approximate resident footprint, for model-lane admission. 0.6B params in
 #: bf16 plus activation headroom. The old value (0.5) was sized for a 22M
 #: model and would have under-declared this one by roughly 3x.
 FOOTPRINT_GB = 1.6
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddingView:
+    """One bounded encoder view over an immutable source string."""
+
+    text: str
+    token_count: int
+    source_start: int
+    source_end: int
+    novel_token_count: int
+
+
+def _tokenizer_ids(tokenizer: Any, text: str) -> list[int]:
+    encoded = tokenizer(
+        text,
+        add_special_tokens=False,
+        truncation=False,
+    )
+    values = encoded.get("input_ids", []) if hasattr(encoded, "get") else []
+    if values and isinstance(values[0], (list, tuple)):
+        values = values[0]
+    return [int(value) for value in values]
+
+
+def _special_token_count(tokenizer: Any) -> int:
+    method = getattr(tokenizer, "num_special_tokens_to_add", None)
+    if not callable(method):
+        return 0
+    try:
+        return max(0, int(method(pair=False)))
+    except (TypeError, ValueError, AttributeError):
+        return 0
+
+
+def operational_views(
+    text: str,
+    tokenizer: Any,
+    *,
+    prefix: str = "",
+) -> list[EmbeddingView]:
+    """Cover ``text`` with bounded, overlapping, exact-source views.
+
+    ``MAX_INPUT_TOKENS`` describes checkpoint capability. This function
+    enforces the smaller serving budget measured safe beside the resident
+    cortex. Offset mappings retain exact source slices; token decoding is a
+    compatibility fallback used only by tokenizers without offsets.
+    """
+
+    if not text:
+        return []
+    prefix_tokens = len(_tokenizer_ids(tokenizer, prefix)) if prefix else 0
+    special_tokens = _special_token_count(tokenizer)
+    content_budget = OPERATIONAL_INPUT_TOKENS - prefix_tokens - special_tokens
+    if content_budget <= 0:
+        raise ValueError("embedding prefix consumes the operational input-token budget")
+
+    try:
+        encoded = tokenizer(
+            text,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+            truncation=False,
+        )
+    except (TypeError, ValueError, NotImplementedError):
+        encoded = tokenizer(
+            text,
+            add_special_tokens=False,
+            truncation=False,
+        )
+    token_ids = encoded.get("input_ids", []) if hasattr(encoded, "get") else []
+    offsets = encoded.get("offset_mapping", []) if hasattr(encoded, "get") else []
+    if token_ids and isinstance(token_ids[0], (list, tuple)):
+        token_ids = token_ids[0]
+    if (
+        offsets
+        and isinstance(offsets[0], list)
+        and offsets[0]
+        and isinstance(offsets[0][0], (list, tuple))
+    ):
+        offsets = offsets[0]
+    token_ids = [int(value) for value in token_ids]
+    offsets = [tuple(int(part) for part in pair) for pair in offsets]
+    if not token_ids:
+        return [
+            EmbeddingView(
+                text=text,
+                token_count=prefix_tokens + special_tokens,
+                source_start=0,
+                source_end=len(text),
+                novel_token_count=0,
+            )
+        ]
+
+    overlap = min(OPERATIONAL_OVERLAP_TOKENS, max(0, content_budget // 8))
+    views: list[EmbeddingView] = []
+    start = 0
+    covered_until = 0
+    while start < len(token_ids):
+        end = min(len(token_ids), start + content_budget)
+        source_start = -1
+        source_end = -1
+        view_text = ""
+        if len(offsets) == len(token_ids):
+            source_start = max(0, offsets[start][0])
+            source_end = min(len(text), offsets[end - 1][1])
+            if source_end > source_start:
+                view_text = text[source_start:source_end]
+        if not view_text:
+            decode = getattr(tokenizer, "decode", None)
+            if not callable(decode):
+                raise ValueError("embedding tokenizer exposes neither offsets nor decode")
+            view_text = str(
+                decode(
+                    token_ids[start:end],
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                )
+            )
+
+        novel = max(0, end - max(start, covered_until))
+        views.append(
+            EmbeddingView(
+                text=view_text,
+                token_count=(end - start) + prefix_tokens + special_tokens,
+                source_start=source_start,
+                source_end=source_end,
+                novel_token_count=novel,
+            )
+        )
+        covered_until = max(covered_until, end)
+        if end >= len(token_ids):
+            break
+        start = max(start + 1, end - overlap)
+    return views
+
+
+def embedding_microbatches(
+    views: list[EmbeddingView],
+) -> list[list[EmbeddingView]]:
+    """Pack views without exceeding padded transformer work per call."""
+
+    batches: list[list[EmbeddingView]] = []
+    current: list[EmbeddingView] = []
+    current_max = 0
+    for view in views:
+        if view.token_count > OPERATIONAL_INPUT_TOKENS:
+            raise ValueError(
+                f"embedding view has {view.token_count} tokens; operational cap is "
+                f"{OPERATIONAL_INPUT_TOKENS}"
+            )
+        candidate_max = max(current_max, view.token_count)
+        candidate_count = len(current) + 1
+        candidate_work = candidate_count * candidate_max
+        if current and (
+            candidate_count > OPERATIONAL_MAX_BATCH_ITEMS
+            or candidate_work > OPERATIONAL_PADDED_TOKEN_BUDGET
+        ):
+            batches.append(current)
+            current = []
+            current_max = 0
+        current.append(view)
+        current_max = max(current_max, view.token_count)
+    if current:
+        batches.append(current)
+    return batches
 
 
 def max_chunk_words(safety: float = 0.9) -> int:
@@ -260,7 +439,7 @@ def chunk_for_embedding(text: str, *, overlap_ratio: float = 0.1) -> list[str]:
         return [text]
     overlap = max(1, int(ceiling * overlap_ratio))
     stride = max(1, ceiling - overlap)
-    return [" ".join(words[i:i + ceiling]) for i in range(0, len(words), stride)]
+    return [" ".join(words[i : i + ceiling]) for i in range(0, len(words), stride)]
 
 
 def encode_documents(model: Any, texts: list[str]) -> Any:

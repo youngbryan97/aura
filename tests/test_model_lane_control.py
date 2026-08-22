@@ -2013,18 +2013,31 @@ async def test_expired_partial_eviction_compensates_before_terminal_receipt(
     assert calls == [f"compensate_expired_candidate:{decision.transaction_id}"]
 
 
-def test_synchronous_in_process_lease_counts_until_release(tmp_path: Path) -> None:
+def test_synchronous_in_process_lease_counts_until_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     alive = AliveTable()
     controller = _controller(tmp_path, alive)
+    claims: list[LaneClaim] = []
+    reserve_sync = controller.reserve_sync
+
+    def _capture_claim(claim: LaneClaim):
+        claims.append(claim)
+        return reserve_sync(claim)
+
+    monkeypatch.setattr(controller, "reserve_sync", _capture_claim)
 
     lease = acquire_synchronous_in_process_model_lane(
         owner_id="embedding-model",
         model_path="sentence-transformers/all-MiniLM-L6-v2",
         purpose="serve",
         request_gb=0.25,
+        transient_runtime_gb=0.75,
         controller=controller,
     )
 
+    assert claims[0].transient_runtime_gb == pytest.approx(0.75)
     owner = controller.snapshot()["owners"][0]
     assert owner["declared_gb"] == pytest.approx(0.25)
     assert owner["metadata"]["synchronous_loader"] is True

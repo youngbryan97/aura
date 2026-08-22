@@ -22,6 +22,7 @@ logger = logging.getLogger("Aura.RAG")
 _SEMANTIC_CACHE: OrderedDict[str, Any] = OrderedDict()
 _SEMANTIC_CACHE_MAX = 4096
 _SEMANTIC_MAX_UNCACHED = 128
+_SEMANTIC_WARM_COHORT = 4
 _SEMANTIC_LOCK = threading.Lock()
 _EMBED_ENGINE: Any = None
 _EMBED_ENGINE_FAILED = False
@@ -137,9 +138,7 @@ def _get_embed_engine() -> Any:
         already_warming = _ENGINE_WARM_INFLIGHT
         _ENGINE_WARM_INFLIGHT = True
     if not already_warming:
-        logger.info(
-            "Semantic RAG engine warming off-loop; this query uses TF-IDF."
-        )
+        logger.info("Semantic RAG engine warming off-loop; this query uses TF-IDF.")
         threading.Thread(
             target=_build_embed_engine,
             name="rag-embed-engine-warm",
@@ -170,9 +169,43 @@ def _store_vectors(texts: list[str], vectors: Any) -> None:
             _SEMANTIC_CACHE.popitem(last=False)
 
 
+def _background_embedding_should_defer() -> bool:
+    try:
+        from core.runtime.backpressure import primary_inference_active
+
+        return bool(primary_inference_active())
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.info(
+            "Semantic cache warm yielded because foreground state could not be read: %s",
+            exc,
+        )
+        return True
+
+
+def _embed_document_views(
+    engine: Any,
+    texts: list[str],
+    *,
+    background: bool,
+) -> list[Any]:
+    method = getattr(engine, "embed_document_views", None)
+    if callable(method):
+        return list(method(texts, background=background))
+    vectors = engine.embed_batch(texts)
+    try:
+        import numpy as np
+
+        return [np.asarray([vector], dtype=np.float32) for vector in vectors]
+    except (ImportError, TypeError, ValueError):
+        return [[vector] for vector in vectors]
+
+
 def _warm_cache_in_background(texts: list[str]) -> None:
     """One background warm at a time; the NEXT query gets the semantic path."""
     global _WARM_INFLIGHT
+    if _background_embedding_should_defer():
+        logger.info("Semantic cache warm deferred before launch for foreground work.")
+        return
     with _SEMANTIC_LOCK:
         if _WARM_INFLIGHT:
             return
@@ -183,19 +216,35 @@ def _warm_cache_in_background(texts: list[str]) -> None:
         try:
             engine = _get_embed_engine()
             if engine is not None and texts:
-                vectors = engine.embed_batch(texts)
-                _store_vectors(texts, list(vectors))
+                unique = list(dict.fromkeys(texts))
+                for start in range(0, len(unique), _SEMANTIC_WARM_COHORT):
+                    if _background_embedding_should_defer():
+                        logger.info(
+                            "Semantic cache warm yielded to foreground after %d/%d texts.",
+                            start,
+                            len(unique),
+                        )
+                        break
+                    cohort = unique[start : start + _SEMANTIC_WARM_COHORT]
+                    views = _embed_document_views(
+                        engine,
+                        cohort,
+                        background=True,
+                    )
+                    _store_vectors(cohort, views)
         except (RuntimeError, AttributeError, ValueError, TypeError, OSError) as exc:
-            logger.debug("Semantic cache warm failed: %s", exc)
+            if "foreground_inference_active" in str(exc):
+                logger.info("Semantic cache warm yielded during a bounded encode.")
+            else:
+                logger.debug("Semantic cache warm failed: %s", exc)
         finally:
-            _WARM_INFLIGHT = False
+            with _SEMANTIC_LOCK:
+                _WARM_INFLIGHT = False
 
     threading.Thread(target=_warm, name="SemanticRagWarm", daemon=True).start()
 
 
-def _semantic_scores(
-    query: str, texts: list[str], task: str | None = None
-) -> list[float] | None:
+def _semantic_scores(query: str, texts: list[str], task: str | None = None) -> list[float] | None:
     """Dense cosine per text, or None when the semantic path must sit out.
 
     ``task`` selects the query-side instruction (see embedding_model). The
@@ -213,8 +262,8 @@ def _semantic_scores(
             _warm_cache_in_background(uncached)
             return None
         if uncached:
-            vectors = engine.embed_batch(uncached)
-            _store_vectors(uncached, list(vectors))
+            views = _embed_document_views(engine, uncached, background=False)
+            _store_vectors(uncached, views)
         # The query goes through the asymmetric path; the documents above do
         # not. Same width, different prompt — see EmbeddingEngine.embed_query.
         _embed_query = getattr(engine, "embed_query", None)
@@ -227,17 +276,37 @@ def _semantic_scores(
             return None
         scores: list[float] = []
         for text in texts:
-            vec = _cached_vector(text)
-            if vec is None:
+            document = _cached_vector(text)
+            if document is None:
                 scores.append(0.0)
                 continue
-            v = np.asarray(vec, dtype=np.float32)
-            vn = float(np.linalg.norm(v))
-            scores.append(float(np.dot(qvec, v) / (qn * vn)) if vn > 1e-8 else 0.0)
+            scores.append(_document_dense_score(qvec, document))
         return scores
     except (RuntimeError, AttributeError, ValueError, TypeError, OSError) as exc:
         logger.debug("Semantic scoring failed; TF-IDF only for this query: %s", exc)
         return None
+
+
+def _document_dense_score(query: Any, document: Any) -> float:
+    """Best semantic match across every bounded view of one source."""
+
+    import numpy as np
+
+    qvec = np.asarray(query, dtype=np.float32).reshape(-1)
+    qnorm = float(np.linalg.norm(qvec))
+    if qnorm <= 1e-8:
+        return 0.0
+    views = np.asarray(document, dtype=np.float32)
+    if views.ndim == 1:
+        views = views.reshape(1, -1)
+    if views.ndim != 2 or views.shape[1] != qvec.shape[0]:
+        return 0.0
+    norms = np.linalg.norm(views, axis=1)
+    valid = norms > 1e-8
+    if not bool(np.any(valid)):
+        return 0.0
+    scores = np.dot(views[valid], qvec) / (norms[valid] * qnorm)
+    return float(np.max(scores))
 
 
 def reset_semantic_state_for_test() -> None:
@@ -288,7 +357,7 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
     words = text.split()
     chunks: list[str] = []
     for i in range(0, len(words), chunk_size - overlap):
-        chunks.append(" ".join(words[i:i + chunk_size]))
+        chunks.append(" ".join(words[i : i + chunk_size]))
     return chunks
 
 
@@ -398,9 +467,7 @@ def retrieve_memories(
     dense = _semantic_scores(query, texts, task=task)
 
     scored: list[dict[str, Any]] = []
-    for position, (memory, tokens) in enumerate(
-        zip(memories, doc_tokens, strict=False)
-    ):
+    for position, (memory, tokens) in enumerate(zip(memories, doc_tokens, strict=False)):
         if not tokens:
             # An unreadable memory is not a weak match, it is not a match. The
             # dense layer will happily return a small positive cosine for the
@@ -427,9 +494,7 @@ def retrieve_memories(
     # Qwen3-Embedding, i.e. it never filtered anything. See
     # core/memory/retrieval_calibration.py for the null measurement.
     floor = float(threshold) if threshold and threshold > 0 else None
-    return list(
-        retrieval_calibration.select_above_chance(scored, top_k=top_k, floor=floor)
-    )
+    return list(retrieval_calibration.select_above_chance(scored, top_k=top_k, floor=floor))
 
 
 def retrieve_memories_v2(

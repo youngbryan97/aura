@@ -29,7 +29,7 @@ Architecture:
 Wire to orchestrator:
     Replace ServiceContainer.get("semantic_memory") usage with this.
     Register as "vector_memory_engine" in ServiceContainer.
-    
+
     # On every turn:
     await memory_engine.store(
         content=user_input,
@@ -43,7 +43,7 @@ Wire to orchestrator:
         source="self",
         importance=0.5
     )
-    
+
     # When building context:
     relevant = await memory_engine.recall(query=user_input, limit=5)
 """
@@ -106,19 +106,21 @@ def _metadata_matches_where(metadata: dict[str, Any], where: dict[str, Any] | No
 # Data Structures
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Memory:
     """A single stored memory with full metadata."""
+
     id: str
     content: str
-    memory_type: str                      # "episodic", "semantic", "insight", "dream"
+    memory_type: str  # "episodic", "semantic", "insight", "dream"
     timestamp: float
-    importance: float                     # 0.0–1.0
-    emotional_valence: float = 0.0        # -1.0 (negative) to 1.0 (positive)
-    emotional_arousal: float = 0.0        # 0.0 (calm) to 1.0 (intense)
-    source: str = "conversation"          # Who/what created this memory
+    importance: float  # 0.0–1.0
+    emotional_valence: float = 0.0  # -1.0 (negative) to 1.0 (positive)
+    emotional_arousal: float = 0.0  # 0.0 (calm) to 1.0 (intense)
+    source: str = "conversation"  # Who/what created this memory
     tags: list[str] = field(default_factory=list)
-    access_count: int = 0                 # How many times retrieved
+    access_count: int = 0  # How many times retrieved
     last_accessed: float = 0.0
     linked_ids: list[str] = field(default_factory=list)  # Connected memories
 
@@ -126,20 +128,26 @@ class Memory:
 @dataclass
 class RecalledMemory:
     """A retrieved memory with relevance score."""
+
     memory: Memory
-    relevance: float                      # Cosine similarity to query
-    recency_weight: float                 # How recent this memory is
-    combined_score: float                 # Final ranking score
+    relevance: float  # Cosine similarity to query
+    recency_weight: float  # How recent this memory is
+    combined_score: float  # Final ranking score
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Embedding Engine — Local, No API Required
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+class EmbeddingWorkDeferredError(RuntimeError):
+    """Low-priority embedding yielded before competing with foreground work."""
+
+
 class EmbeddingEngine:
     """
     Converts text to dense semantic vectors.
-    
+
     Uses sentence-transformers (local, runs on MPS/CPU).
     Model and width are declared in core/memory/embedding_model.py — that
     module is the single source of truth, because holding the model name here
@@ -233,6 +241,7 @@ class EmbeddingEngine:
                     model_path=self.PREFERRED_MODEL,
                     purpose="serve",
                     request_gb=embedding_model.FOOTPRINT_GB,
+                    transient_runtime_gb=embedding_model.OPERATIONAL_TRANSIENT_GB,
                     priority=40,
                     preemptible=False,
                     evict=self._evict_model_lane,
@@ -262,18 +271,21 @@ class EmbeddingEngine:
             # Move to Apple Silicon GPU if available
             try:
                 import torch
+
                 if torch.backends.mps.is_available():
                     self._model = self._model.to("mps")
                     logger.info("🧠 EmbeddingEngine: Using Apple Silicon GPU (MPS)")
             except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('vector_memory_engine', _e)
-                logger.debug('Ignored Exception in vector_memory_engine.py: %s', _e)
+                record_degradation("vector_memory_engine", _e)
+                logger.debug("Ignored Exception in vector_memory_engine.py: %s", _e)
             if not lane_lease.set_preemptible(True):
                 self._model = None
                 lane_lease.release(reason="embedding_model_activation_fence_lost")
                 raise RuntimeError("embedding_model_activation_fence_lost")
             self._lane_lease = lane_lease
-            logger.info("✅ EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL)
+            logger.info(
+                "✅ EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL
+            )
         except ImportError:
             logger.warning(
                 "⚠️ sentence-transformers not installed. "
@@ -293,12 +305,15 @@ class EmbeddingEngine:
         """Simple TF-IDF fallback when sentence-transformers unavailable."""
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer
+
             self._tfidf_fallback = TfidfVectorizer(max_features=512)
             self._tfidf_corpus = []
             logger.info("EmbeddingEngine: TF-IDF fallback initialized")
         except ImportError:
-            logger.error("Neither sentence-transformers nor sklearn available. "
-                        "Memory recall will be degraded.")
+            logger.error(
+                "Neither sentence-transformers nor sklearn available. "
+                "Memory recall will be degraded."
+            )
 
     def _checkout_model(self) -> Any:
         """Initialize if needed and take a reference for one inference.
@@ -327,22 +342,137 @@ class EmbeddingEngine:
         with self._lifecycle_lock:
             self._inflight = max(0, self._inflight - 1)
 
+    @staticmethod
+    def _release_mps_cache(model: Any) -> None:
+        """Return transient encoder allocations without unloading weights."""
+
+        if not str(getattr(model, "device", "")).lower().startswith("mps"):
+            return
+        try:
+            import torch
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Embedding MPS cache release failed: %s", exc)
+
+    @staticmethod
+    def _background_should_defer() -> bool:
+        try:
+            from core.runtime.backpressure import primary_inference_active
+
+            return bool(primary_inference_active())
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.info(
+                "Embedding background work yielded because foreground state could not be read: %s",
+                exc,
+            )
+            return True
+
+    @staticmethod
+    def _normalize_rows(vectors: Any) -> np.ndarray:
+        array = np.asarray(vectors, dtype=np.float32)
+        if array.ndim == 1:
+            array = array.reshape(1, -1)
+        norms = np.linalg.norm(array, axis=1, keepdims=True)
+        return np.divide(
+            array,
+            norms,
+            out=np.zeros_like(array),
+            where=norms > 1e-8,
+        )
+
+    def _encode_views_with_model(
+        self,
+        model: Any,
+        texts: list[str],
+        *,
+        background: bool,
+        query_task: str | None = None,
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
+        tokenizer = getattr(model, "tokenizer", None)
+        if tokenizer is None:
+            raise RuntimeError("embedding_model_tokenizer_unavailable")
+        prefix = embedding_model.query_prompt(query_task) if query_task is not None else ""
+        flat_views: list[embedding_model.EmbeddingView] = []
+        owners: list[int] = []
+        for owner, text in enumerate(texts):
+            views = embedding_model.operational_views(
+                str(text or ""),
+                tokenizer,
+                prefix=prefix,
+            )
+            if not views:
+                views = embedding_model.operational_views(" ", tokenizer, prefix=prefix)
+            flat_views.extend(views)
+            owners.extend([owner] * len(views))
+
+        vectors_by_owner: list[list[np.ndarray]] = [[] for _ in texts]
+        weights_by_owner: list[list[float]] = [[] for _ in texts]
+        batches = embedding_model.embedding_microbatches(flat_views)
+        cursor = 0
+        release_transients = len(flat_views) > len(texts) or any(
+            view.token_count >= embedding_model.OPERATIONAL_INPUT_TOKENS // 2 for view in flat_views
+        )
+        try:
+            for batch in batches:
+                if background and self._background_should_defer():
+                    raise EmbeddingWorkDeferredError("foreground_inference_active")
+                payload = [view.text for view in batch]
+                if query_task is None:
+                    encoded = model.encode(
+                        payload,
+                        normalize_embeddings=True,
+                        batch_size=len(payload),
+                        show_progress_bar=False,
+                    )
+                else:
+                    encoded = embedding_model.encode_query(
+                        model,
+                        payload,
+                        task=query_task,
+                    )
+                rows = self._normalize_rows(encoded)
+                if len(rows) != len(batch):
+                    raise RuntimeError(
+                        "embedding_batch_cardinality_mismatch:"
+                        f"expected={len(batch)}:actual={len(rows)}"
+                    )
+                for offset, (view, row) in enumerate(zip(batch, rows, strict=True)):
+                    owner = owners[cursor + offset]
+                    vectors_by_owner[owner].append(row)
+                    weights_by_owner[owner].append(float(max(1, view.novel_token_count)))
+                cursor += len(batch)
+        finally:
+            if release_transients:
+                self._release_mps_cache(model)
+
+        result: list[tuple[np.ndarray, np.ndarray]] = []
+        for owner_vectors, owner_weights in zip(
+            vectors_by_owner,
+            weights_by_owner,
+            strict=True,
+        ):
+            if not owner_vectors:
+                owner_vectors = [np.zeros(self.VECTOR_DIM, dtype=np.float32)]
+                owner_weights = [1.0]
+            result.append(
+                (
+                    np.asarray(owner_vectors, dtype=np.float32),
+                    np.asarray(owner_weights, dtype=np.float32),
+                )
+            )
+        return result
+
+    @staticmethod
+    def _aggregate_views(vectors: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        aggregate = np.average(vectors, axis=0, weights=weights)
+        norm = float(np.linalg.norm(aggregate))
+        return aggregate / norm if norm > 1e-8 else aggregate
+
     def embed(self, text: str) -> np.ndarray:
         """Convert text to a dense vector."""
-        model = self._checkout_model()
-        if model is not None:
-            try:
-                # show_progress_bar=False: a daemon's log is not a terminal.
-                # These tqdm bars were 3,377 of 4,650 lines (73%) of one live
-                # hour's stdout, which is how a real signal becomes unfindable.
-                return model.encode(
-                    text, normalize_embeddings=True, show_progress_bar=False
-                )
-            finally:
-                self._return_model()
-
-        # Fallback: character n-gram hash (fast, fixed-size, reliable)
-        return self._embed_hash(text)
+        return self.embed_batch([text])[0]
 
     def embed_query(self, text: str, task: str | None = None) -> np.ndarray:
         """Embed the QUERY side of a retrieval.
@@ -359,32 +489,74 @@ class EmbeddingEngine:
         model = self._checkout_model()
         if model is not None:
             try:
-                vec = embedding_model.encode_query(model, [text], task=task)
-                vec = np.asarray(vec, dtype=np.float32)[0]
-                norm = float(np.linalg.norm(vec))
-                return vec / norm if norm > 0 else vec
+                query_task = str(task or embedding_model.DEFAULT_TASK)
+                views = self._encode_views_with_model(
+                    model,
+                    [text],
+                    background=False,
+                    query_task=query_task,
+                )[0]
+                return self._aggregate_views(*views)
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("vector_memory_engine.embed_query", exc,
-                                   action="fell back to symmetric query encoding")
+                record_degradation(
+                    "vector_memory_engine.embed_query",
+                    exc,
+                    action="fell back to symmetric query encoding",
+                )
             finally:
                 self._return_model()
         return self.embed(text)
 
-    def embed_batch(self, texts: list[str]) -> np.ndarray:
-        """Batch embed for efficiency."""
+    def embed_document_views(
+        self,
+        texts: list[str],
+        *,
+        background: bool = False,
+    ) -> list[np.ndarray]:
+        """Return every bounded semantic view for each source document."""
+
+        if not texts:
+            return []
         model = self._checkout_model()
         if model is not None:
             try:
-                return model.encode(
+                encoded = self._encode_views_with_model(
+                    model,
                     texts,
-                    normalize_embeddings=True,
-                    batch_size=32,
-                    show_progress_bar=False,
+                    background=background,
+                )
+                return [vectors for vectors, _weights in encoded]
+            finally:
+                self._return_model()
+
+        return [np.asarray([self._embed_hash(text)], dtype=np.float32) for text in texts]
+
+    def embed_batch(
+        self,
+        texts: list[str],
+        *,
+        background: bool = False,
+    ) -> np.ndarray:
+        """Embed sources under bounded token work, preserving cardinality."""
+
+        if not texts:
+            return np.empty((0, self.VECTOR_DIM), dtype=np.float32)
+        model = self._checkout_model()
+        if model is not None:
+            try:
+                encoded = self._encode_views_with_model(
+                    model,
+                    texts,
+                    background=background,
+                )
+                return np.asarray(
+                    [self._aggregate_views(vectors, weights) for vectors, weights in encoded],
+                    dtype=np.float32,
                 )
             finally:
                 self._return_model()
 
-        return np.vstack([self.embed(t) for t in texts])
+        return np.vstack([self._embed_hash(text) for text in texts])
 
     def _embed_tfidf(self, text: str) -> np.ndarray:
         """TF-IDF embedding fallback."""
@@ -424,10 +596,11 @@ class EmbeddingEngine:
 # Memory Vault — ChromaDB Backend
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class MemoryVault:
     """
     ChromaDB-backed persistent vector store.
-    
+
     ChromaDB stores vectors on disk and supports fast ANN search.
     If ChromaDB is unavailable, falls back to local SQLite BLOB vectors.
     """
@@ -447,10 +620,10 @@ class MemoryVault:
         """Initialize ChromaDB or fallback."""
         try:
             import chromadb
+
             self._client = chromadb.PersistentClient(path=str(self.db_path))
             self._collection = self._client.get_or_create_collection(
-                name=self.collection_name,
-                metadata={"hnsw:space": "cosine"}
+                name=self.collection_name, metadata={"hnsw:space": "cosine"}
             )
             count = self._collection.count()
             logger.info("✅ MemoryVault: ChromaDB initialized with %d memories", count)
@@ -460,7 +633,7 @@ class MemoryVault:
                 "Using local SQLite vector fallback"
             )
         except (AttributeError, RuntimeError) as e:
-            record_degradation('vector_memory_engine', e)
+            record_degradation("vector_memory_engine", e)
             logger.error("ChromaDB init failed: %s. Using local SQLite vector fallback.", e)
         if self._collection is None:
             try:
@@ -474,10 +647,15 @@ class MemoryVault:
                     mem = self._memory_from_sqlite_record(record)
                     metadata = self._metadata_from_memory(mem)
                     self._fallback_store[mem.id] = {"memory": asdict(mem), "metadata": metadata}
-                logger.info("✅ MemoryVault: SQLite vector fallback initialized with %d memories", len(self._fallback_store))
+                logger.info(
+                    "✅ MemoryVault: SQLite vector fallback initialized with %d memories",
+                    len(self._fallback_store),
+                )
             except _VECTOR_SQLITE_ERRORS as exc:
-                record_degradation('vector_memory_engine', exc)
-                logger.error("SQLite vector fallback init failed: %s. Using process memory only.", exc)
+                record_degradation("vector_memory_engine", exc)
+                logger.error(
+                    "SQLite vector fallback init failed: %s. Using process memory only.", exc
+                )
 
     def __enter__(self) -> "MemoryVault":
         return self
@@ -522,7 +700,7 @@ class MemoryVault:
                 )
                 return
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('vector_memory_engine', e)
+                record_degradation("vector_memory_engine", e)
                 logger.error("ChromaDB store failed: %s", e)
 
         if self._sqlite_vectors is not None:
@@ -534,7 +712,7 @@ class MemoryVault:
                     metadata=metadata,
                 )
             except _VECTOR_SQLITE_ERRORS as e:
-                record_degradation('vector_memory_engine', e)
+                record_degradation("vector_memory_engine", e)
                 logger.error("SQLite vector store failed: %s", e)
 
         # Process fallback mirror for compatibility and immediate reads.
@@ -596,15 +774,17 @@ class MemoryVault:
 
                 output = []
                 for i, doc_id in enumerate(results["ids"][0]):
-                    output.append((
-                        doc_id,
-                        results["documents"][0][i],
-                        results["metadatas"][0][i],
-                        results["distances"][0][i],
-                    ))
+                    output.append(
+                        (
+                            doc_id,
+                            results["documents"][0][i],
+                            results["metadatas"][0][i],
+                            results["distances"][0][i],
+                        )
+                    )
                 return output
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('vector_memory_engine', e)
+                record_degradation("vector_memory_engine", e)
                 logger.error("ChromaDB query failed: %s", e)
 
         if self._sqlite_vectors is not None:
@@ -616,7 +796,7 @@ class MemoryVault:
                     if _metadata_matches_where(row.metadata, where)
                 ]
             except _VECTOR_SQLITE_ERRORS as e:
-                record_degradation('vector_memory_engine', e)
+                record_degradation("vector_memory_engine", e)
                 logger.error("SQLite vector query failed: %s", e)
 
         # Last-resort process mirror search.
@@ -629,7 +809,7 @@ class MemoryVault:
             scores.append((mem_id, sim))
 
         scores.sort(key=lambda x: x[1], reverse=True)
-        
+
         results = []
         for mem_id, sim in scores[:n_results]:
             stored = self._fallback_store.get(mem_id, {})
@@ -650,10 +830,11 @@ class MemoryVault:
 # Importance Scorer
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class ImportanceScorer:
     """
     Determines how important a memory is.
-    
+
     Important memories are kept longer and retrieved with higher priority.
     Unimportant memories fade (but aren't deleted immediately — they're
     deprioritized in retrieval first).
@@ -673,13 +854,13 @@ class ImportanceScorer:
 
         # Memory type weights
         type_weights = {
-            "insight":       0.8,
-            "dream":         0.5,
-            "semantic":      0.6,
-            "episodic":      0.4,
-            "self_play":     0.5,
-            "correction":    0.9,  # User corrections are extremely important
-            "conversation":  0.3,
+            "insight": 0.8,
+            "dream": 0.5,
+            "semantic": 0.6,
+            "episodic": 0.4,
+            "self_play": 0.5,
+            "correction": 0.9,  # User corrections are extremely important
+            "conversation": 0.3,
         }
         score = type_weights.get(memory_type, 0.3)
 
@@ -691,11 +872,22 @@ class ImportanceScorer:
         word_count = len(content.split())
         if word_count > 50:
             score += 0.1  # Substantive content
-        
+
         important_keywords = [
-            "remember", "important", "always", "never", "promise",
-            "my name", "i am", "i feel", "i want", "i believe",
-            "discovered", "realized", "understood", "solved"
+            "remember",
+            "important",
+            "always",
+            "never",
+            "promise",
+            "my name",
+            "i am",
+            "i feel",
+            "i want",
+            "i believe",
+            "discovered",
+            "realized",
+            "understood",
+            "solved",
         ]
         if any(k in content.lower() for k in important_keywords):
             score += 0.15
@@ -710,15 +902,16 @@ class ImportanceScorer:
 # Consolidation Engine — Memory Merging
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class ConsolidationEngine:
     """
     Periodically consolidates related memories.
-    
+
     Similar to how sleep consolidates human memory:
     - Groups semantically similar memories
     - Merges them into a richer, generalized representation
     - This is how "insights" emerge from repeated experience
-    
+
     Call consolidate() during Aura's sleep/idle cycle.
     """
 
@@ -747,8 +940,7 @@ class ConsolidationEngine:
             try:
                 # Get a sample of recent memories for consolidation
                 recent = self.vault._collection.get(
-                    limit=100,
-                    include=["documents", "metadatas", "embeddings"]
+                    limit=100, include=["documents", "metadatas", "embeddings"]
                 )
 
                 if not recent["ids"]:
@@ -764,18 +956,18 @@ class ConsolidationEngine:
                         sim = EmbeddingEngine.cosine_similarity(embeddings[i], embeddings[j])
                         if sim > self.SIMILARITY_THRESHOLD and consolidated < max_merges:
                             # Merge these two memories into an insight
-                            merged = await self._merge_memories(
-                                docs[i], docs[j], brain
-                            )
+                            merged = await self._merge_memories(docs[i], docs[j], brain)
                             if merged:
                                 consolidated += 1
                                 logger.debug(
                                     "Consolidated memories:\n  A: %s...\n  B: %s...\n  → %s...",
-                                    docs[i][:50], docs[j][:50], merged[:50]
+                                    docs[i][:50],
+                                    docs[j][:50],
+                                    merged[:50],
                                 )
 
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('vector_memory_engine', e)
+                record_degradation("vector_memory_engine", e)
                 logger.error("Consolidation failed: %s", e)
 
         logger.info("🌙 Consolidation complete: %d memories merged", consolidated)
@@ -797,8 +989,9 @@ Be concise (1-2 sentences). Extract the universal pattern."""
 
         try:
             from core.brain.cognitive_engine import ThinkingMode
+
             result = await brain.think(prompt, mode=ThinkingMode.FAST, max_tokens=150)
-            return result.content if hasattr(result, 'content') else str(result)
+            return result.content if hasattr(result, "content") else str(result)
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("vector_memory_engine", exc)
             logger.debug("Memory merge failed: %s", exc)
@@ -809,17 +1002,18 @@ Be concise (1-2 sentences). Extract the universal pattern."""
 # Vector Memory Engine — Unified Interface
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class VectorMemoryEngine:
     """
     The complete memory system. This is what gets wired to the orchestrator.
-    
+
     Usage:
         engine = VectorMemoryEngine()
-        
+
         # Store
-        await engine.store("User mentioned they love jazz music", 
+        await engine.store("User mentioned they love jazz music",
                           memory_type="episodic", importance=0.6)
-        
+
         # Recall
         memories = await engine.recall("music preferences", limit=5)
         for m in memories:
@@ -830,22 +1024,18 @@ class VectorMemoryEngine:
         from core.config import config
         from core.memory.embedding_runtime import acquire_shared_embedding_engine
 
-        self.db_path = str(
-            Path(db_path or config.paths.data_dir / "memory" / "vector_store")
-        )
-        self.embedder = acquire_shared_embedding_engine(
-            f"vector-memory-engine:{id(self)}"
-        )
+        self.db_path = str(Path(db_path or config.paths.data_dir / "memory" / "vector_store"))
+        self.embedder = acquire_shared_embedding_engine(f"vector-memory-engine:{id(self)}")
         self.vault = MemoryVault(self.db_path)
         self.scorer = ImportanceScorer()
         self.consolidator = ConsolidationEngine(self.vault, self.embedder)
         self._recent_memory_ids: list[str] = []  # For recency weighting
         self._closed = False
-        
+
         # --- SPATIAL MEMORY LAYER ---
         # Map: (level, x, y) -> list of feature descriptions
         self._spatial_registry: dict[tuple[int, int, int], list[str]] = {}
-        
+
         logger.info("✅ VectorMemoryEngine initialized. Memories: %d", self.vault.count())
 
     def __enter__(self) -> "VectorMemoryEngine":
@@ -917,7 +1107,7 @@ class VectorMemoryEngine:
                 return approved, decision
             return approved
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('vector_memory_engine', exc)
+            record_degradation("vector_memory_engine", exc)
             if self._constitutional_runtime_live():
                 record_degraded_event(
                     "vector_memory_engine",
@@ -976,9 +1166,7 @@ class VectorMemoryEngine:
         if not approved:
             return ""
 
-        memory_id = hashlib.sha256(
-            f"{content}{time.time()}".encode()
-        ).hexdigest()[:16]
+        memory_id = hashlib.sha256(f"{content}{time.time()}".encode()).hexdigest()[:16]
 
         memory = Memory(
             id=memory_id,
@@ -1018,16 +1206,16 @@ class VectorMemoryEngine:
         key = (level, x, y)
         if key not in self._spatial_registry:
             self._spatial_registry[key] = []
-        
+
         if feature not in self._spatial_registry[key]:
             self._spatial_registry[key].append(feature)
-            
+
         # Also store in episodic for semantic context
         await self.store(
             content=f"At level {level}, position ({x}, {y}), there is a {feature}.",
             memory_type="episodic",
             source="perception",
-            tags=["spatial", f"level_{level}"]
+            tags=["spatial", f"level_{level}"],
         )
 
     async def recall_spatial(self, level: int, x: int, y: int) -> list[str]:
@@ -1054,9 +1242,9 @@ class VectorMemoryEngine:
     ) -> list[RecalledMemory]:
         """
         Retrieve memories by semantic similarity.
-        
+
         Scoring = (relevance * 0.7) + (importance * 0.1) + (recency * recency_weight)
-        
+
         Args:
             query: What to search for (embedded and compared semantically)
             limit: Number of memories to return
@@ -1112,12 +1300,14 @@ class VectorMemoryEngine:
                 access_count=int(metadata.get("access_count", 0)),
             )
 
-            recalled.append(RecalledMemory(
-                memory=memory,
-                relevance=relevance,
-                recency_weight=recency,
-                combined_score=combined,
-            ))
+            recalled.append(
+                RecalledMemory(
+                    memory=memory,
+                    relevance=relevance,
+                    recency_weight=recency,
+                    combined_score=combined,
+                )
+            )
 
         # Sort by combined score
         recalled.sort(key=lambda r: r.combined_score, reverse=True)
@@ -1135,9 +1325,11 @@ class VectorMemoryEngine:
         lines = ["RELEVANT MEMORIES:"]
         for r in memories:
             age_s = time.time() - r.memory.timestamp
-            age_str = f"{int(age_s/3600)}h ago" if age_s < 86400 else f"{int(age_s/86400)}d ago"
-            lines.append(f"  [{r.memory.memory_type}, {age_str}, relevance={r.relevance:.2f}] "
-                        f"{r.memory.content[:150]}")
+            age_str = f"{int(age_s / 3600)}h ago" if age_s < 86400 else f"{int(age_s / 86400)}d ago"
+            lines.append(
+                f"  [{r.memory.memory_type}, {age_str}, relevance={r.relevance:.2f}] "
+                f"{r.memory.content[:150]}"
+            )
 
         return "\n".join(lines)
 
@@ -1157,22 +1349,23 @@ class VectorMemoryEngine:
 # Registration
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def register_vector_memory(orchestrator=None) -> VectorMemoryEngine:
     """
     Wire to orchestrator in _init_memory or equivalent.
-    
+
     Replaces:
         ServiceContainer.get("semantic_memory")
         ServiceContainer.get("vector_memory")
         ServiceContainer.get("episodic_memory")
-    
+
     All now point to this engine.
     """
     from core.container import ServiceContainer
 
     engine = VectorMemoryEngine()
     ServiceContainer.register_instance("vector_memory_engine", engine)
-    
+
     # Register legacy aliases so existing code doesn't break
     ServiceContainer.register_instance("semantic_memory", engine)
     ServiceContainer.register_instance("vector_memory", engine)
