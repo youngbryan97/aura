@@ -39,6 +39,41 @@ __all__ = ["DEFAULT_CAPABILITY_SET", "select_capabilities"]
 DEFAULT_CAPABILITY_SET = 5
 
 
+def _points_at_something_real(text: str) -> bool:
+    """Whether the request names an artifact the answer depends on.
+
+    A path that resolves on this disk, or an address. Both are already read
+    elsewhere for the same reason: the bytes are AT that place, so no amount
+    of prose substitutes for looking.
+    """
+    try:
+        from core.intent.opaque_spans import first_named_url
+
+        if first_named_url(text):
+            return True
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+    try:
+        from core.conversation.filesystem_check import requested_file_read
+
+        named = requested_file_read(text)
+        if named is not None and getattr(named, "exists", False):
+            return True
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+    # A directory named outright, which the file check does not claim.
+    import re
+    from pathlib import Path as _Path
+
+    for candidate in re.findall(r"(?<![\w])(~?/[\w.\-~/]+)", text):
+        try:
+            if _Path(candidate).expanduser().exists():
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
 def select_capabilities(
     objective: str,
     skills: Mapping[str, Any],
@@ -65,7 +100,19 @@ def select_capabilities(
     # unrelated tools after the resident model had already produced an answer.
     from core.runtime.skill_task_bridge import looks_like_inline_answer_request
 
-    if looks_like_inline_answer_request(text):
+    # ...unless the request points at something only looking can answer.
+    #
+    # LIVE, 2026-08-22: "there's a small python project at <path> — one of its
+    # tests fails and I can't see why. can you look at it and tell me what's
+    # actually wrong?" was read as a request for prose, so no capability was
+    # offered at all, and the turn fell through to the desktop lane, where
+    # os_automation spent thirty-seven seconds failing to compile AppleScript
+    # for a Python question.
+    #
+    # The grammar was right: it does ask to be told something. What it asks to
+    # be told is not knowable without running the project. A named address or
+    # a path on this disk is the difference between answering and looking.
+    if looks_like_inline_answer_request(text) and not _points_at_something_real(text):
         return []
 
     from core.intent.declared_capability import (
@@ -96,7 +143,12 @@ def select_capabilities(
     # from the request's objects, so compound tasks retain their working set.
     strongest = ranked[0][1] if ranked else 0.0
     ordered = [name for name, score in ranked if score == strongest]
-    if looks_like_a_request(text):
+    # A question that names something real is a request, whatever its mood.
+    #
+    # LIVE, 2026-08-22: "why is the test failing in <path>" is not imperative,
+    # so nothing foundational was offered and the turn was left with no way to
+    # look at the thing it was asked about.
+    if looks_like_a_request(text) or _points_at_something_real(text):
         domains = requested_foundational_domains(text)
         for name in foundational_capabilities(catalogue, domains):
             if name not in ordered:

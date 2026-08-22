@@ -621,7 +621,17 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
     entry) while requiring a causal reason before a tool enters the turn.
     """
     body = str(message or "").strip()
-    if not body or not looks_like_a_request(body):
+    if not body:
+        return ()
+    # An address is evidence whatever the mood of the sentence.
+    #
+    # LIVE, 2026-08-22: "why is the test failing in <path>" is a question, not
+    # an imperative, so this returned nothing and the turn was offered no way
+    # to look at the directory it was asked about. The docstring above already
+    # names concrete resource syntax as domain evidence; the mood gate ran
+    # first and never reached it.
+    names_a_resource = bool(_WEB_ADDRESS_RE.search(body) or _FILE_ADDRESS_RE.search(body))
+    if not looks_like_a_request(body) and not names_a_resource:
         return ()
 
     present = {_fold(word) for word in _words(body)}
