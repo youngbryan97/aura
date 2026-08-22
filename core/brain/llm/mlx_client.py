@@ -1024,6 +1024,12 @@ _FORCE_ABORT_LOCK_FORCE_AFTER = 3
 # close() is terminal, so it always completes — but it waits properly first
 # instead of racing a live lifecycle operation after one second.
 _CLOSE_LOCK_WAIT_S = 10.0
+# Worker teardown is a bounded escalation ladder. An orderly lifecycle owner
+# gives the request loop one chance to consume its shutdown sentinel; a wedged
+# job then receives SIGTERM, and SIGKILL remains the final containment step.
+_WORKER_COOPERATIVE_JOIN_S = 2.0
+_WORKER_TERMINATE_JOIN_S = 2.0
+_WORKER_KILL_JOIN_S = 2.0
 
 
 def _readiness_answer_accepted(text: Any) -> bool:
@@ -6969,6 +6975,7 @@ class MLXLocalClient:
                 # stale lane from remaining fenced forever.
                 if process is not None:
                     _note_lane_worker_death(self, "lane_state_stale_worker_absent")
+                    self._retire_worker_process_handle(process)
                 self._process = None
                 self._warmup_in_flight = False
                 self._set_lane_state("cold")
@@ -7035,8 +7042,26 @@ class MLXLocalClient:
                 severity="error",
             )
             _note_lane_worker_death(self, "lane_state_stale_reset")
-            self._process = None
-            self._release_worker_process(process, reason="lane_state_stale_reset")
+            termination_proven = self._release_worker_process(
+                process,
+                reason="lane_state_stale_reset",
+            )
+            if termination_proven:
+                if self._process is process:
+                    self._process = None
+                else:
+                    logger.info(
+                        "[MLX] Stale-lane target was replaced during termination; "
+                        "preserving replacement worker state."
+                    )
+                    return
+            else:
+                self._warmup_in_flight = False
+                self._set_lane_state(
+                    "recovering",
+                    "lane_state_stale_reset_worker_survived",
+                )
+                return
         self._warmup_in_flight = False
         self._set_lane_state("cold")
 
@@ -7105,7 +7130,8 @@ class MLXLocalClient:
             if survivors is None:
                 survivors = []
                 self._surviving_workers = survivors
-            survivors.append(process)
+            if not any(candidate is process for candidate in survivors):
+                survivors.append(process)
             logger.error(
                 "🧟 [MLX] Worker pid=%s survived kill during %s; keeping the handle "
                 "so it stays tracked instead of orphaned.",
@@ -7119,7 +7145,9 @@ class MLXLocalClient:
         survivors = getattr(self, "_surviving_workers", None) or []
         alive = []
         for process in survivors:
-            if not self._worker_exit_is_proven(process):
+            if self._worker_exit_is_proven(process):
+                self._retire_worker_process_handle(process)
+            else:
                 alive.append(process)
         self._surviving_workers = alive
         return len(alive)
@@ -7146,8 +7174,48 @@ class MLXLocalClient:
                 return False
         return False
 
-    def _kill_and_join_blocking(self, p: mp.Process) -> bool:
-        """Kill and join a worker, PROVING termination. Returns True when dead.
+    def _retire_worker_process_handle(self, process: Any) -> None:
+        """Release a proven-dead child handle without leaving a phantom owner."""
+        try:
+            from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+            get_runtime_hygiene().retire_process_handle(process)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            pass
+        close = getattr(process, "close", None)
+        if not callable(close):
+            return
+        try:
+            close()
+        except ValueError:
+            # ``Process.close`` is idempotent only by exception.
+            return
+        except (RuntimeError, AttributeError, TypeError, OSError) as exc:
+            _record_mlx_degradation(
+                exc,
+                action="worker exited but its multiprocessing handle could not be closed",
+                severity="warning",
+            )
+
+    @staticmethod
+    def _join_worker_handle(process: Any, timeout_s: float) -> BaseException | None:
+        join = getattr(process, "join", None)
+        if not callable(join):
+            return AttributeError("worker process handle has no join method")
+        try:
+            join(timeout=max(0.0, float(timeout_s)))
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            return exc
+        return None
+
+    def _kill_and_join_blocking(
+        self,
+        p: mp.Process,
+        *,
+        cooperative: bool = False,
+        retire_handle: bool = True,
+    ) -> bool:
+        """Stop and join a worker, proving termination before releasing it.
 
         The old helper swallowed failures and never re-checked ``is_alive``,
         so callers replaced queues and respawned while the accelerator-owning
@@ -7156,6 +7224,8 @@ class MLXLocalClient:
         if not p:
             return True
         if self._worker_exit_is_proven(p):
+            if retire_handle:
+                self._retire_worker_process_handle(p)
             return True
         try:
             initially_alive = bool(p.is_alive())
@@ -7167,35 +7237,58 @@ class MLXLocalClient:
             )
             return False
         if not initially_alive:
+            if retire_handle:
+                self._retire_worker_process_handle(p)
             return True
         identity = None
         try:
-            from multiprocessing.process import BaseProcess
+            from core.runtime.process_identity import capture_identity
 
-            if isinstance(p, BaseProcess):
-                from core.runtime.process_identity import capture_identity
-
-                identity = capture_identity(p, label="mlx_model_worker")
+            identity = capture_identity(p, label="mlx_model_worker")
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
             identity = None
 
         failures: list[BaseException] = []
-        for _attempt in range(2):
+        if cooperative and p is self._process and self._req_q is not None:
+            try:
+                self.soft_cancel_active_generation("worker_shutdown")
+                self._req_q.put(None, block=True, timeout=0.5)
+            except (queue.Full, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                failures.append(exc)
+            join_failure = self._join_worker_handle(p, _WORKER_COOPERATIVE_JOIN_S)
+            if join_failure is not None:
+                failures.append(join_failure)
             if self._worker_exit_is_proven(p, identity):
+                if retire_handle:
+                    self._retire_worker_process_handle(p)
                 return True
-            try:
-                p.kill()
-            except ProcessLookupError as exc:
-                # Another owner won the race. Joining below reconciles the
-                # multiprocessing handle and publishes its exit code.
-                failures.append(exc)
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
-                failures.append(exc)
-            try:
-                p.join(timeout=2.0)
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
-                failures.append(exc)
+
+        for action_name, wait_s in (
+            ("terminate", _WORKER_TERMINATE_JOIN_S),
+            ("kill", _WORKER_KILL_JOIN_S),
+            ("kill", _WORKER_KILL_JOIN_S),
+        ):
             if self._worker_exit_is_proven(p, identity):
+                if retire_handle:
+                    self._retire_worker_process_handle(p)
+                return True
+            action = getattr(p, action_name, None)
+            if not callable(action):
+                continue
+            try:
+                action()
+            except ProcessLookupError:
+                # Another owner won the race. The identity check after join
+                # distinguishes a dead PID from a stale multiprocessing handle.
+                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                failures.append(exc)
+            join_failure = self._join_worker_handle(p, wait_s)
+            if join_failure is not None:
+                failures.append(join_failure)
+            if self._worker_exit_is_proven(p, identity):
+                if retire_handle:
+                    self._retire_worker_process_handle(p)
                 return True
 
         for failure in failures:
@@ -10876,29 +10969,28 @@ class MLXLocalClient:
                 },
             )
 
-        killed_process_before_lock = False
+        termination_proven = process is None
         worker_survived = False
-        if process is not None and process.is_alive():
+        if process is not None:
             logger.error(
-                "🛑 [MLX] Killing worker immediately for forced abort before lifecycle lock cleanup (%s).",
+                "🛑 [MLX] Stopping worker immediately for forced abort before lifecycle lock cleanup (%s).",
                 reason,
             )
             _note_lane_worker_death(self, reason)
-            # Consume the lifetime anchor so no later seam double-counts
-            # this death (reboot_worker / the self-died respawn branch).
-            self._process_started_at = 0.0
-            # CP126 9a4f99da: the return value was discarded. The helper
-            # already proves death and reports a survivor; the abort ignored
-            # it, cleared the process handle, replaced the queues and returned
-            # success. A worker that outlived the kill then held the
-            # accelerator as an UNTRACKED process while the client believed
-            # the lane was cold and free to spawn into.
-            worker_survived = not self._kill_and_join_blocking(process)
-            killed_process_before_lock = not worker_survived
+            # Do not close the handle before lifecycle ownership is acquired:
+            # when the short lock attempt loses, the current owner still needs
+            # a valid handle to reconcile. The process is joined here; handle
+            # retirement happens below after pointer ownership is established.
+            termination_proven = self._kill_and_join_blocking(
+                process,
+                cooperative=False,
+                retire_handle=False,
+            )
+            worker_survived = not termination_proven
             if worker_survived:
                 logger.critical(
-                    "🚨 [MLX] Worker for %s SURVIVED the forced abort; keeping the "
-                    "handle and refusing to report a completed abort.",
+                    "🚨 [MLX] Worker for %s survived the forced-abort escalation; "
+                    "keeping its process and IPC ownership fenced.",
                     os.path.basename(self.model_path),
                 )
 
@@ -10945,7 +11037,7 @@ class MLXLocalClient:
                     severity="error",
                     foreground_request=True,
                 )
-                return True
+                return not worker_survived
             _record_mlx_degradation(
                 RuntimeError("force_abort_without_lifecycle_lock"),
                 action="force-abort mutated lifecycle state without the lifecycle lock",
@@ -10954,6 +11046,19 @@ class MLXLocalClient:
         else:
             self._force_abort_lock_failures = 0
         try:
+            # The kill runs before the lifecycle lock so a wedged generation
+            # can be interrupted promptly. A concurrent lifecycle owner may
+            # publish a replacement while we wait for that lock. In that
+            # case every client field and queue below belongs to the new
+            # worker, not the process this abort targeted.
+            if self._process is not process:
+                if termination_proven and process is not None:
+                    self._retire_worker_process_handle(process)
+                logger.info(
+                    "[MLX] Force-abort target was replaced before reconciliation; "
+                    "preserving replacement worker state and IPC ownership."
+                )
+                return not worker_survived
             self._force_abort_reconcile_pending = None
             self._pending_generations.clear()
             self._current_gen_future = None
@@ -10965,8 +11070,12 @@ class MLXLocalClient:
             # is the client saying "no worker of mine is running", and the next
             # spawn admission believes it — which is how a survivor becomes a
             # SECOND resident model rather than a tracked one to reap.
-            if not worker_survived:
-                self._process = None
+            owns_aborted_process = True
+            if termination_proven:
+                if owns_aborted_process:
+                    self._process = None
+                if process is not None:
+                    self._retire_worker_process_handle(process)
             self._last_heartbeat = 0.0
             self._last_progress_at = 0.0
             self._last_token_progress_at = 0.0
@@ -10984,16 +11093,12 @@ class MLXLocalClient:
                 self._listener_task = None
             self._cancel_lane_renewal_task()
 
-            if process is not None and process.is_alive() and not killed_process_before_lock:
-                _note_lane_worker_death(self, reason)
-                self._process_started_at = 0.0
-                if self._kill_and_join_blocking(process):
-                    worker_survived = False
-                    self._process = None
-                else:
-                    worker_survived = True
-
-            self._replace_ipc_queues()
+            # Replacing queues while a survivor remains disconnects the only
+            # IPC path that can still identify or stop it. Likewise, if another
+            # lifecycle owner already installed a replacement process, those
+            # queues belong to that replacement and must remain untouched.
+            if termination_proven and owns_aborted_process:
+                self._replace_ipc_queues()
             # Only release the request lock when it belongs to the generation
             # this abort just killed. Releasing it unconditionally admitted a
             # SECOND request into a critical section another caller was still
@@ -11208,9 +11313,15 @@ class MLXLocalClient:
                         getattr(stale, "pid", "unknown"),
                         memory_block,
                     )
-                    stale.kill()
-                    if hasattr(stale, "join"):
-                        stale.join(timeout=3.0)
+                    reclaimed = self._kill_and_join_blocking(
+                        stale,
+                        cooperative=False,
+                    )
+                    if not reclaimed:
+                        raise RuntimeError(
+                            "never_initialized_worker_reclamation_unproven:"
+                            f"pid={getattr(stale, 'pid', 'unknown')}"
+                        )
                     self._process = None
                     self._init_done = False
                     memory_block = _memory_pressure_blocks_worker_spawn(self.model_path)
@@ -15438,14 +15549,25 @@ class MLXLocalClient:
             self._force_abort_reconcile_pending = None
             self._force_abort_lock_failures = 0
             self._unbind_mycelial_worker()
-            if self._process is not None:
+            process = self._process
+            if process is not None:
                 # K4 accounting: the breaker classifies this death by reason
                 # (deliberate yields never count; young crashes do).
                 _note_lane_worker_death(self, reason)
-            if self._process and self._process.is_alive():
-                await asyncio.get_running_loop().run_in_executor(
-                    None, self._kill_and_join_blocking, self._process
+                termination_proven = await asyncio.to_thread(
+                    self._kill_and_join_blocking,
+                    process,
+                    cooperative=True,
                 )
+                if not termination_proven:
+                    self._set_lane_state(
+                        "recovering",
+                        f"reboot_worker_termination_unproven:{reason}",
+                    )
+                    raise RuntimeError(
+                        "mlx_worker_termination_unproven_before_reboot:"
+                        f"pid={getattr(process, 'pid', 'unknown')}"
+                    )
             self._process = None
             self._init_done = False
             self._expert_adapter_path = None  # adapters live in the worker process
@@ -15839,7 +15961,10 @@ class MLXLocalClient:
             self._cancel_lane_renewal_task()
             process = self._process
             if process is not None:
-                shutdown_proven = self._kill_and_join_blocking(process)
+                shutdown_proven = self._kill_and_join_blocking(
+                    process,
+                    cooperative=True,
+                )
             if shutdown_proven:
                 self._process = None
                 self._drain_queue()

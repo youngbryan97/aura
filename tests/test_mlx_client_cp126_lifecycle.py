@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import multiprocessing as mp
 import pathlib
 import time
 from types import SimpleNamespace
@@ -26,6 +27,12 @@ def _new_future():
 
 
 TEST_MODEL = "/models/Qwen2.5-7B-Instruct-4bit"
+
+
+def _wait_for_worker_shutdown(request_queue) -> None:
+    """Real child used to prove the cooperative queue-to-exit contract."""
+    while request_queue.get(timeout=10.0) is not None:
+        pass
 
 
 @pytest.fixture
@@ -163,7 +170,11 @@ class TestStaleLaneWorkerTerminationNeedsAPositiveVerdict:
         kills: list[object] = []
         verdict = SimpleNamespace(kill_justified=True)
         monkeypatch.setattr(client, "_classify_worker_liveness", lambda _now: verdict)
-        monkeypatch.setattr(client, "_kill_and_join_blocking", lambda item: kills.append(item))
+        monkeypatch.setattr(
+            client,
+            "_kill_and_join_blocking",
+            lambda item: not kills.append(item),
+        )
         monkeypatch.setattr(
             "core.brain.llm.mlx_client._note_lane_worker_death",
             lambda *_args, **_kwargs: None,
@@ -174,6 +185,53 @@ class TestStaleLaneWorkerTerminationNeedsAPositiveVerdict:
         assert kills == [process]
         assert client._process is None
         assert client._lane_state == "cold"
+
+    def test_positive_kill_verdict_retains_an_unproven_survivor(
+        self,
+        client: MLXLocalClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        process = SimpleNamespace(is_alive=lambda: True, pid=4321)
+        self._make_stale(client, process)
+        verdict = SimpleNamespace(kill_justified=True)
+        monkeypatch.setattr(client, "_classify_worker_liveness", lambda _now: verdict)
+        monkeypatch.setattr(client, "_kill_and_join_blocking", lambda _item: False)
+        monkeypatch.setattr(
+            "core.brain.llm.mlx_client._note_lane_worker_death",
+            lambda *_args, **_kwargs: None,
+        )
+
+        client._check_lane_state_staleness()
+
+        assert client._process is process
+        assert client._lane_state == "recovering"
+
+    def test_stale_reset_cannot_erase_a_concurrent_replacement(
+        self,
+        client: MLXLocalClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        process = SimpleNamespace(is_alive=lambda: True)
+        replacement = SimpleNamespace(is_alive=lambda: True)
+        self._make_stale(client, process)
+        verdict = SimpleNamespace(kill_justified=True)
+        monkeypatch.setattr(client, "_classify_worker_liveness", lambda _now: verdict)
+
+        def release_old(_process, *, reason):
+            assert reason == "lane_state_stale_reset"
+            client._process = replacement
+            return True
+
+        monkeypatch.setattr(client, "_release_worker_process", release_old)
+        monkeypatch.setattr(
+            "core.brain.llm.mlx_client._note_lane_worker_death",
+            lambda *_args, **_kwargs: None,
+        )
+
+        client._check_lane_state_staleness()
+
+        assert client._process is replacement
+        assert client._lane_state == "recovering"
 
     def test_unavailable_classifier_can_retire_a_proven_dead_process(
         self,
@@ -413,6 +471,32 @@ class TestForceAbortDoesNotClobberALifecycleOwner:
         # The owner is presumed wedged; the abort reconciles unsynchronized.
         assert client._process is None
         assert client._force_abort_reconcile_pending is None
+
+    def test_old_abort_cannot_reset_a_concurrently_published_replacement(
+        self, monkeypatch
+    ):
+        client = self._wedged_client()
+        old_process = SimpleNamespace(is_alive=lambda: True)
+        replacement = SimpleNamespace(is_alive=lambda: True)
+        original_request_queue = client._req_q
+        original_response_queue = client._res_q
+        client._process = old_process
+        client._active_generations = 1
+        client._current_request_started_at = time.time() - 500.0
+
+        def terminate_old(_process, **_kwargs):
+            client._process = replacement
+            return True
+
+        monkeypatch.setattr(client, "_kill_and_join_blocking", terminate_old)
+        monkeypatch.setattr(client, "_retire_worker_process_handle", lambda _process: None)
+
+        assert client.force_abort_active_generation("watchdog") is True
+        assert client._process is replacement
+        assert client._req_q is original_request_queue
+        assert client._res_q is original_response_queue
+        assert client._active_generations == 1
+        assert client._current_request_started_at > 0.0
 
     def test_the_request_lane_is_not_released_for_another_holder(self):
         client = self._wedged_client()
@@ -947,6 +1031,103 @@ class TestWorkerDeathIsProven:
         assert client._kill_and_join_blocking(_ExternallyKilled()) is True
         assert degradations == []
 
+    def test_an_external_kill_is_reconciled_from_pid_identity(self, client, monkeypatch):
+        import core.runtime.process_identity as identity_module
+
+        events: list[str] = []
+
+        class _StaleHandle:
+            pid = 9987
+            exitcode = None
+
+            def is_alive(self):
+                return True
+
+            def terminate(self):
+                raise ProcessLookupError("another owner already killed it")
+
+            def kill(self):
+                raise ProcessLookupError("another owner already killed it")
+
+            def join(self, timeout=None):
+                events.append("join")
+
+            def close(self):
+                events.append("close")
+
+        monkeypatch.setattr(
+            identity_module,
+            "capture_identity",
+            lambda *_args, **_kwargs: SimpleNamespace(bound=True),
+        )
+        monkeypatch.setattr(
+            identity_module,
+            "identity_still_current",
+            lambda *_args, **_kwargs: False,
+        )
+
+        assert client._kill_and_join_blocking(_StaleHandle()) is True
+        assert events[-1] == "close"
+
+    def test_orderly_shutdown_offers_the_worker_a_queue_sentinel_first(self, client):
+        events: list[str] = []
+
+        class _RequestQueue:
+            def put(self, item, block=True, timeout=None):
+                assert item is None
+                events.append("sentinel")
+
+        class _CooperativeWorker:
+            pid = 9986
+
+            def __init__(self):
+                self.exitcode = None
+
+            def is_alive(self):
+                return self.exitcode is None
+
+            def join(self, timeout=None):
+                events.append("join")
+                if "sentinel" in events:
+                    self.exitcode = 0
+
+            def terminate(self):
+                events.append("terminate")
+
+            def kill(self):
+                events.append("kill")
+
+            def close(self):
+                events.append("close")
+
+        process = _CooperativeWorker()
+        client._process = process
+        client._req_q = _RequestQueue()
+
+        assert client._kill_and_join_blocking(process, cooperative=True) is True
+        assert events == ["sentinel", "join", "close"]
+        client._process = None
+
+    def test_real_child_exits_and_its_process_handle_is_closed(self, client):
+        context = mp.get_context("spawn")
+        request_queue = context.Queue(maxsize=2)
+        process = context.Process(
+            target=_wait_for_worker_shutdown,
+            args=(request_queue,),
+            name="MLXWorker-lifecycle-test",
+        )
+        process.start()
+        client._process = process
+        client._req_q = request_queue
+        try:
+            assert client._kill_and_join_blocking(process, cooperative=True) is True
+            with pytest.raises(ValueError, match="process object is closed"):
+                process.is_alive()
+        finally:
+            client._process = None
+            request_queue.close()
+            request_queue.join_thread()
+
     def test_survivor_registry_retires_an_externally_reaped_handle(self, client):
         class _Reaped:
             pid = 9989
@@ -992,7 +1173,8 @@ class TestWorkerDeathIsProven:
 
     def test_a_forced_abort_that_leaves_a_survivor_reports_failure(self, client):
         client._record_degraded_event = lambda *a, **k: None
-        client._replace_ipc_queues = lambda *a, **k: None
+        queue_replacements: list[bool] = []
+        client._replace_ipc_queues = lambda *a, **k: queue_replacements.append(True)
         survivor = self._Immortal()
         client._process = survivor
         client._active_generations = 1
@@ -1002,6 +1184,7 @@ class TestWorkerDeathIsProven:
         # The handle is retained: a None handle tells the next spawn admission
         # that no worker of ours is running.
         assert client._process is survivor
+        assert queue_replacements == []
 
     def test_a_clean_abort_still_reports_success(self, client, monkeypatch):
         class _Mortal:

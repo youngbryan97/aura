@@ -5952,6 +5952,77 @@ def _attach_latent_bridge(model: Any, latent_readout_mem: Any) -> Any:
         return None
 
 
+def _shutdown_worker_runtime(
+    *,
+    ipc_writer: Any,
+    watchdog: Any,
+    heartbeat: Any,
+    memory_sentinel: Any,
+    latent_bridge: Any = None,
+    steering_engine: Any = None,
+    prompt_cache_lru: Any = None,
+    mx_module: Any = None,
+) -> None:
+    """Release worker-owned threads and caches before normal process exit."""
+
+    failures: list[BaseException] = []
+
+    def _call(resource: Any, method_name: str) -> None:
+        method = getattr(resource, method_name, None)
+        if not callable(method):
+            return
+        try:
+            method()
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            failures.append(exc)
+
+    _call(watchdog, "stop_job")
+    _call(latent_bridge, "stop")
+    _call(steering_engine, "stop")
+    _call(prompt_cache_lru, "clear")
+    if mx_module is not None:
+        synchronize = getattr(mx_module, "synchronize", None)
+        if callable(synchronize):
+            try:
+                synchronize()
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                failures.append(exc)
+        _clear_mlx_cache(mx_module)
+    gc.collect()
+
+    # Stop producers before the writer, then give the writer a short bounded
+    # chance to move any terminal frame to the multiprocessing queue.
+    for thread in (heartbeat, memory_sentinel, watchdog):
+        _call(thread, "stop")
+    local_queue = getattr(ipc_writer, "local_queue", None)
+    deadline = time.monotonic() + 0.5
+    while local_queue is not None and time.monotonic() < deadline:
+        try:
+            if local_queue.empty():
+                break
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            break
+        time.sleep(0.01)
+    _call(ipc_writer, "stop")
+
+    current = threading.current_thread()
+    for thread in (heartbeat, memory_sentinel, watchdog, ipc_writer):
+        join = getattr(thread, "join", None)
+        if not callable(join) or thread is current:
+            continue
+        try:
+            join(timeout=0.25)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            failures.append(exc)
+
+    for failure in failures:
+        _record_mlx_degradation(
+            failure,
+            action="continued model-worker exit after bounded resource cleanup failed",
+            severity="warning",
+        )
+
+
 def _mlx_worker_loop(
     model_path: str,
     request_queue: mp.Queue,
@@ -6046,6 +6117,11 @@ def _mlx_worker_loop(
     )
     memory_sentinel.start()
 
+    engine = None
+    latent_bridge = None
+    prompt_cache_lru = None
+    mx = None
+
     try:
         import mlx.core as mx
 
@@ -6085,6 +6161,16 @@ def _mlx_worker_loop(
     except ImportError:
         logger.error("mlx-lm not installed in worker environment.")
         ipc_writer.put({"status": "error", "message": "mlx-lm missing"})
+        _shutdown_worker_runtime(
+            ipc_writer=ipc_writer,
+            watchdog=watchdog,
+            heartbeat=heartbeat,
+            memory_sentinel=memory_sentinel,
+            latent_bridge=latent_bridge,
+            steering_engine=engine,
+            prompt_cache_lru=prompt_cache_lru,
+            mx_module=mx,
+        )
         return
 
     # VRAM Management
@@ -6204,7 +6290,7 @@ def _mlx_worker_loop(
             model, tokenizer, substrate_mem, phi_residual_mem, steering_active_flag
         )
         if engine is not None and getattr(engine, "_model_attached", False):
-            _attach_latent_bridge(model, latent_readout_mem)
+            latent_bridge = _attach_latent_bridge(model, latent_readout_mem)
 
         # Write steering liveness to shared state so parent can query it
         if substrate_mem is not None:
@@ -6422,6 +6508,16 @@ def _mlx_worker_loop(
                 "message": f"Init failed: {e}",
                 "detail": err_detail,
             }
+        )
+        _shutdown_worker_runtime(
+            ipc_writer=ipc_writer,
+            watchdog=watchdog,
+            heartbeat=heartbeat,
+            memory_sentinel=memory_sentinel,
+            latent_bridge=latent_bridge,
+            steering_engine=engine,
+            prompt_cache_lru=prompt_cache_lru,
+            mx_module=mx,
         )
         return
     # ZENITH: Prompt Cache LRU for massive speedup in multi-turn
@@ -9972,6 +10068,17 @@ def _mlx_worker_loop(
                     ),
                 }
             )
+
+    _shutdown_worker_runtime(
+        ipc_writer=ipc_writer,
+        watchdog=watchdog,
+        heartbeat=heartbeat,
+        memory_sentinel=memory_sentinel,
+        latent_bridge=latent_bridge,
+        steering_engine=engine,
+        prompt_cache_lru=prompt_cache_lru,
+        mx_module=mx,
+    )
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)

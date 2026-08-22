@@ -1472,6 +1472,33 @@ class RuntimeHygieneManager:
             for other in list(self._process_records.values())
         )
 
+    def retire_process_handle(self, proc: Any, *, exit_code: int | None = None) -> bool:
+        """Retire one exact process handle after its owner proved termination.
+
+        ``multiprocessing.Process.close()`` invalidates ``is_alive`` and
+        ``exitcode``. Runtime hygiene used to retain that closed handle and
+        probe it during every later audit, turning correct owner cleanup into
+        repeated liveness faults. The lifecycle owner now marks the exact
+        object finished before closing it; PID-only matches are deliberately
+        ignored because a reused PID may already belong to a replacement.
+        """
+
+        key = id(proc)
+        record = self._process_records.get(key)
+        if record is None or self._process_refs.get(key) is not proc:
+            return False
+        if exit_code is None:
+            try:
+                observed = getattr(proc, "exitcode", None)
+                exit_code = int(observed) if observed is not None else None
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+                exit_code = None
+        record.exit_code = exit_code
+        record.finished_at = record.finished_at or time.monotonic()
+        self._process_refs.pop(key, None)
+        self._evict_finished(self._process_records, self._process_refs)
+        return True
+
     def _register_multiprocessing_process(self, proc: mp.Process) -> None:
         self.register_process_handle(
             proc,

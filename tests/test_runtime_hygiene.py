@@ -367,6 +367,31 @@ def test_runtime_hygiene_marks_asyncio_subprocess_finished_from_returncode():
     assert summary["active_subprocesses"] == 0
 
 
+def test_runtime_hygiene_retires_an_owner_proven_dead_process_before_handle_close():
+    class _OwnedProc:
+        pid = 43214
+        name = "MLXWorker-retired"
+        exitcode = -9
+
+        def is_alive(self):
+            return False
+
+    hygiene = RuntimeHygieneManager()
+    proc = _OwnedProc()
+    hygiene.register_process_handle(
+        proc,
+        kind="multiprocessing",
+        name=proc.name,
+        source="test.worker_owner",
+    )
+
+    assert hygiene.retire_process_handle(proc) is True
+    assert hygiene.process_handle_is_registered(proc) is False
+    assert id(proc) not in hygiene._process_refs
+    assert hygiene._process_records[id(proc)].finished_at is not None
+    assert hygiene._process_records[id(proc)].exit_code == -9
+
+
 def test_runtime_hygiene_process_iter_system_error_is_nonfatal(monkeypatch):
     hygiene = RuntimeHygieneManager()
     hygiene._proc = SimpleNamespace(children=lambda recursive=True: [])

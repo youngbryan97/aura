@@ -889,7 +889,15 @@ def _install_worker_fakes(monkeypatch, mlx_worker, *, load_impl, steering_engine
             return None
 
     mlx_core = types.ModuleType("mlx.core")
+    mlx_core.cpu = object()
+    mlx_core.gpu = object()
+    mlx_core._default_device = mlx_core.cpu
+    mlx_core.default_device = lambda: mlx_core._default_device
+    mlx_core.set_default_device = lambda device: setattr(
+        mlx_core, "_default_device", device
+    )
     mlx_core.set_cache_limit = lambda *_args, **_kwargs: None
+    mlx_core.set_memory_limit = lambda *_args, **_kwargs: None
     mlx_core.clear_cache = lambda *_args, **_kwargs: None
     mlx_core.metal = types.SimpleNamespace(
         set_cache_limit=lambda *_args, **_kwargs: None,
@@ -948,6 +956,66 @@ def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
     assert recent
     assert recent[0].severity == "critical"
     assert recent[0].action == "reported initialization error and exited worker loop before accepting jobs"
+
+
+def test_worker_shutdown_releases_every_owned_resource(monkeypatch):
+    from core.brain.llm import mlx_worker
+
+    calls = []
+
+    class Resource:
+        def __init__(self, name):
+            self.name = name
+
+        def stop(self):
+            calls.append((self.name, "stop"))
+
+        def stop_job(self):
+            calls.append((self.name, "stop_job"))
+
+        def clear(self):
+            calls.append((self.name, "clear"))
+
+        def join(self, timeout=None):
+            calls.append((self.name, "join", timeout))
+
+    writer = Resource("writer")
+    writer.local_queue = types.SimpleNamespace(empty=lambda: True)
+    mx = types.SimpleNamespace(
+        synchronize=lambda: calls.append(("mlx", "synchronize")),
+        clear_cache=lambda: calls.append(("mlx", "clear_cache")),
+        metal=types.SimpleNamespace(
+            clear_cache=lambda: calls.append(("mlx.metal", "clear_cache"))
+        ),
+    )
+    monkeypatch.setattr(mlx_worker.gc, "collect", lambda: calls.append(("gc", "collect")))
+
+    mlx_worker._shutdown_worker_runtime(
+        ipc_writer=writer,
+        watchdog=Resource("watchdog"),
+        heartbeat=Resource("heartbeat"),
+        memory_sentinel=Resource("memory"),
+        latent_bridge=Resource("bridge"),
+        steering_engine=Resource("steering"),
+        prompt_cache_lru=Resource("cache"),
+        mx_module=mx,
+    )
+
+    assert ("watchdog", "stop_job") in calls
+    assert ("bridge", "stop") in calls
+    assert ("steering", "stop") in calls
+    assert ("cache", "clear") in calls
+    assert ("mlx", "synchronize") in calls
+    assert ("writer", "stop") in calls
+    assert ("heartbeat", "stop") in calls
+    assert ("memory", "stop") in calls
+    assert ("watchdog", "stop") in calls
+    assert {call[0] for call in calls if len(call) >= 2 and call[1] == "join"} == {
+        "heartbeat",
+        "memory",
+        "watchdog",
+        "writer",
+    }
 
 
 def test_optional_steering_cannot_gate_model_generation():
