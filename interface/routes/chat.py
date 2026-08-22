@@ -9742,6 +9742,17 @@ def _known_answer_for_this_turn() -> str:
         settled = solved.get("finite_game", "")
         if settled:
             return settled
+        # Anything else the runtime worked out this turn.
+        #
+        # This function is asked twice: before generating, where only a
+        # preflight result exists, and again at the point of giving up, where
+        # the comment beside the apology says to ask whether the runtime
+        # already HOLDS the answer. A diagnosis is produced by a tool during
+        # generation, so it can never skip generation — it can only stop the
+        # turn ending in an apology while the finding sits in hand.
+        for value in reversed(list(solved.values())):
+            if value.strip():
+                return value
 
         value = requested_arithmetic_result(question)
         if value is None:
