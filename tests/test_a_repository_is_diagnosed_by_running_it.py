@@ -132,3 +132,54 @@ def test_it_is_rated_for_what_it_actually_runs():
     assert (
         classify_execution_risk("run_code", {}, effect_scope="sandboxed_compute") == "critical"
     )
+
+
+def test_the_finding_becomes_the_turns_answer(tmp_path):
+    """LIVE, 2026-08-22: the skill ran in 428ms and returned the failing test,
+    the assertion, the line and the project's stated invariant — and the turn
+    served "I couldn't get to an answer I'd stand behind", because the model's
+    draft of that finding was rejected for missing the very numbers the
+    finding contains. The runtime had the answer and was asking the model to
+    reproduce it."""
+    import asyncio
+
+    from core.conversation.session_scope import set_user_question, solved_answers
+    from core.skills.diagnose_repo import DiagnoseRepoSkill
+
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "def test_broken():\n    assert 100.0 == 0.0\n"
+    )
+
+    async def run() -> str:
+        set_user_question("why does it fail?")
+        await DiagnoseRepoSkill().execute({"path": str(tmp_path)})
+        return solved_answers().get("repo_diagnosis", "")
+
+    recorded = asyncio.run(run())
+    assert "test_broken" in recorded
+    assert "100.0" in recorded
+
+
+def test_a_skill_running_beneath_the_turn_can_still_record(tmp_path):
+    """A ContextVar written in a child task is invisible to the parent, and a
+    skill runs beneath the turn that reads its answer. That trap cost three
+    separate mechanisms in one day."""
+    import asyncio
+
+    from core.conversation.session_scope import (
+        record_solved_answer,
+        set_user_question,
+        solved_answers,
+    )
+
+    async def run() -> dict:
+        set_user_question("anything")
+
+        async def beneath() -> None:
+            record_solved_answer("repo_diagnosis", "found it")
+
+        await asyncio.wait_for(asyncio.create_task(beneath()), timeout=5)
+        return solved_answers()
+
+    assert asyncio.run(run())["repo_diagnosis"] == "found it"

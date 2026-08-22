@@ -56,6 +56,21 @@ class DiagnoseRepoSkill(BaseSkill):
             diagnose_repository, params.path, argv=argv
         )
         described = describe_diagnosis(diagnosis)
+        # What was observed is the answer.
+        #
+        # LIVE, 2026-08-22: this skill ran in 428ms and returned the failing
+        # test, the assertion, the line and the project's stated invariant —
+        # and the turn served "I couldn't get to an answer I'd stand behind",
+        # because the model's draft of that finding was rejected for missing
+        # the very numbers the finding contains. The runtime had the answer
+        # and was asking the model to reproduce it.
+        try:
+            from core.conversation.session_scope import record_solved_answer
+
+            if described and not diagnosis.error:
+                record_solved_answer("repo_diagnosis", described)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         if diagnosis.error:
             return {
                 "ok": False,

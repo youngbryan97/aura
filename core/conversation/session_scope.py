@@ -117,17 +117,19 @@ def set_user_question(text: object) -> None:
     # A fresh container per turn, so evidence from the previous one cannot be
     # mistaken for evidence in hand now.
     _TURN_EVIDENCE.set(set())
-    _TURN_SOLVED.set({})
+    _TURN_SOLVED.clear()
 
 
 #: An exact answer worked out before the model was asked. A dict for the same
 #: reason the evidence set is one: children get a copy of the context, so the
 #: container is shared and the child mutates it.
-#: None rather than {}: a mutable default is shared by every context that
-#: never set one, which is the bug this container exists to avoid.
-_TURN_SOLVED: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    "aura_turn_solved", default=None
-)
+#: Held outside the context tree, and cleared per turn.
+#:
+#: A ContextVar written inside a child task is invisible to the parent, and a
+#: skill runs beneath the turn that reads its answer. That trap has cost three
+#: separate mechanisms today — the deferral registry, the gathered search
+#: pages, and this. The turn boundary below is what scopes it.
+_TURN_SOLVED: dict[str, str] = {}
 
 
 def record_solved_answer(name: object, answer: object) -> None:
@@ -143,14 +145,12 @@ def record_solved_answer(name: object, answer: object) -> None:
     body = str(answer or "").strip()
     if not label or not body:
         return
-    holder = _TURN_SOLVED.get()
-    if isinstance(holder, dict):
-        holder[label] = body
+    _TURN_SOLVED[label] = body
 
 
 def solved_answers() -> dict[str, str]:
     """Everything worked out exactly this turn, newest last."""
-    return dict(_TURN_SOLVED.get() or {})
+    return dict(_TURN_SOLVED)
 
 
 def record_evidence_delivered(name: object) -> None:
