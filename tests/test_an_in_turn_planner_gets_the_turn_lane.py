@@ -30,12 +30,28 @@ def test_the_flag_is_honoured_only_inside_a_turn(monkeypatch):
     assert seen["asked"]
 
 
-def test_the_gate_asks_the_orchestrator_rather_than_trusting_the_caller():
+def test_the_gate_asks_the_runtime_rather_than_trusting_the_caller():
     source = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
     block = source[source.index('explicit_foreground = bool(context.get("foreground_request"'):]
     block = block[: block.index("protected_foreground_lane = bool(")]
     assert 'context.get("serves_current_turn")' in block
-    assert "self._foreground_user_turn_active()" in block
+    assert "self._a_user_turn_is_in_flight()" in block
+
+
+def test_preflight_counts_as_being_in_a_turn(monkeypatch):
+    """The orchestrator reports a turn once its tick starts. Preflight runs
+    before that and is still part of the turn, so a planner that ran there was
+    refused on the orchestrator's account alone."""
+    from core.conversation.session_scope import set_user_question
+
+    monkeypatch.setattr(
+        InferenceGate, "_foreground_user_turn_active", staticmethod(lambda: False)
+    )
+    set_user_question("")
+    assert InferenceGate._a_user_turn_is_in_flight() is False
+    set_user_question("who wins this game?")
+    assert InferenceGate._a_user_turn_is_in_flight() is True
+    set_user_question("")
 
 
 def test_the_origin_allowlist_is_untouched():

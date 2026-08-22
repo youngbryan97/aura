@@ -244,11 +244,10 @@ _WARMING = {"asked": False}
 def semantic_routing_ready() -> bool:
     """Whether the embedding model is loaded ALREADY, loading nothing.
 
-    LIVE, 2026-08-21: a chat preflight logged sight at 234 seconds. The
-    routing question at the end of `sight_intent.classify` runs on every turn
-    that the cheap lexical rules do not settle, and answering it called
-    `semantic_routing_available`, which checks out the model — that is, loads
-    it. The first turn after a restart paid for the load, in the foreground,
+    The routing question at the end of `sight_intent.classify` runs on every
+    turn the cheap lexical rules do not settle, and answering it called
+    `semantic_routing_available`, which checks the model out — that is, loads
+    it. The first turn after a restart paid for that load in the foreground,
     before anything had been said back.
 
     A readiness question must not do the thing it is asking about.

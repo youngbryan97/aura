@@ -1,10 +1,13 @@
 """Deciding what a turn needs must not load a model to decide it.
 
-LIVE, 2026-08-21. A chat preflight logged sight at 234.321 seconds. Whether a
-turn needs a camera reading ends in a semantic routing question, and asking it
-called `semantic_routing_available`, which checks the model out — which loads
-it. The first turn after a restart paid for that load in the foreground before
-anything was said back.
+Whether a turn needs a camera reading ends in a semantic routing question, and
+asking it called `semantic_routing_available`, which checks the model out —
+which loads it. The first turn after a restart paid for that load in the
+foreground before anything was said back.
+
+(The preflight timings are milliseconds. An earlier note here read them as
+seconds and claimed a 234-second sight step; the cold load was real, the
+figure was not.)
 
 The readiness question now loads nothing, a cold turn falls to the lexical
 floor and asks for a warm in the background, and the warm happens on the

@@ -6156,6 +6156,27 @@ class InferenceGate:
         return any(normalized.startswith(f"{prefix}_") for prefix in _USER_FACING_ORIGINS)
 
     @staticmethod
+    def _a_user_turn_is_in_flight() -> bool:
+        """Whether a user turn is being served right now, by either account.
+
+        The orchestrator reports a turn once its tick starts. Preflight runs
+        before that and is still part of the turn — the request is open, the
+        lane is reserved, and the question has been recorded for the turn. A
+        planner that runs in preflight was refused on the orchestrator's
+        account alone, so both are consulted.
+
+        Both are runtime state. Neither can be asserted by a caller.
+        """
+        if InferenceGate._foreground_user_turn_active():
+            return True
+        try:
+            from core.conversation.session_scope import current_user_question
+
+            return bool(current_user_question())
+        except (ImportError, AttributeError, RuntimeError):
+            return False
+
+    @staticmethod
     def _foreground_user_turn_active() -> bool:
         try:
             from core.container import ServiceContainer
@@ -10759,7 +10780,7 @@ class InferenceGate:
         # foreground turn is actually running. Outside a turn it means
         # nothing and the request stays background.
         if not explicit_foreground and context.get("serves_current_turn"):
-            explicit_foreground = self._foreground_user_turn_active()
+            explicit_foreground = self._a_user_turn_is_in_flight()
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         deep_probe_request = False
         try:
