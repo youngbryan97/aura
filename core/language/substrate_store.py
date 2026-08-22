@@ -86,10 +86,29 @@ _STORE: LanguageSubstrateStore | None = None
 
 
 def get_language_substrate_store() -> LanguageSubstrateStore:
+    """The store, built at most once.
+
+    LIVE, 2026-08-22: lockdep reported "fsync attempted while holding
+    ['core.language.substrate_store']" and tainted the runtime. Building the
+    store reads configuration, and reading configuration can touch the disk,
+    so the first caller ran a blocking write inside the lock that every other
+    caller waits on. A blocking operation under a lock is how the runtime
+    freezes.
+
+    The lock now guards the assignment and nothing else. Two threads arriving
+    together may both build one; the second is discarded, which costs a little
+    work and no correctness.
+    """
     global _STORE
     with _STORE_LOCK:
+        if _STORE is not None:
+            return _STORE
+
+    built = LanguageSubstrateStore.configured()
+
+    with _STORE_LOCK:
         if _STORE is None:
-            _STORE = LanguageSubstrateStore.configured()
+            _STORE = built
         return _STORE
 
 

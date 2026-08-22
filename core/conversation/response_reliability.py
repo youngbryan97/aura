@@ -2299,8 +2299,11 @@ class RequestedOutputContract:
 
 
 def _normalize(text: Any) -> str:
-    normalized = " ".join(str(text or "").strip().lower().split())
-    normalized = normalized.replace("\u2018", "'").replace("\u2019", "'")
+    # Quotes were folded here already; dashes, ellipses and non-breaking
+    # spaces were not, and they come from the same keyboard.
+    from core.language.typography import fold_typography
+
+    normalized = " ".join(fold_typography(text).strip().lower().split())
     return re.sub(r"\bdont'?\b", "don't", normalized)
 
 
@@ -6321,6 +6324,13 @@ _ACTION_CLAIM_MATCHER = _LearnedMatcher(
 )
 
 
+#: An inverted auxiliary opens a question, whatever follows it.
+_ASKS_RATHER_THAN_ASSERTS = re.compile(
+    r"^(?:shall|should|would|could|can|may|might|do|does|did|will|want\s+me)\b",
+    re.IGNORECASE,
+)
+
+
 def _sentence_claims_an_action(clause: str) -> bool:
     """Whether this clause asserts something was done.
 
@@ -6328,6 +6338,19 @@ def _sentence_claims_an_action(clause: str) -> bool:
     and only to ADD — a phrasing nobody enumerated still reads as a claim once
     it has been seen once.
     """
+    # LIVE, 2026-08-22: this guard was blind to "I’ve set a reminder". The
+    # pattern says "I've" with an ASCII apostrophe and the model writes the
+    # typographic one, so the shape a fabricated completion claim actually
+    # arrives in walked past the check that exists to catch it.
+    from core.language.typography import fold_typography
+
+    clause = fold_typography(clause)
+    # An offer is not a completion. "Shall I put that on your calendar?"
+    # matched the pattern for "I put that on your calendar", and this guard
+    # destroys a reply rather than editing it — so a false positive here
+    # throws away a perfectly good offer to help.
+    if _ASKS_RATHER_THAN_ASSERTS.match(clause.strip()) or clause.strip().endswith("?"):
+        return False
     if _DESKTOP_ACTION_CLAIM_RE.search(clause):
         _ACTION_CLAIM_MATCHER.observe(clause, holds=True)
         return True
@@ -6369,7 +6392,9 @@ def _has_unfounded_tool_execution_claim(
     with them among the reasons that may destroy a reply rather than repair
     it: there is no honest edit of a false claim about what just happened.
     """
-    raw = str(reply_text or "").strip()
+    from core.language.typography import fold_typography
+
+    raw = fold_typography(reply_text).strip()
     if not raw:
         return False
 

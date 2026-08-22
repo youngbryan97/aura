@@ -203,7 +203,11 @@ def contradicts_uptime(reply: object) -> str | None:
 
     Returns None when there is no such claim, or when the claim agrees.
     """
-    text = str(reply or "")
+    # A model writes "I’ve", and the pattern below says "I've". LIVE
+    # 2026-08-22: the strike never fired for exactly that reason.
+    from core.language.typography import fold_typography
+
+    text = fold_typography(reply)
     if not text.strip():
         return None
     lifetime = read_lifetime()
@@ -229,13 +233,20 @@ def contradicts_uptime(reply: object) -> str | None:
 
 def strike_uptime_contradiction(reply: object) -> tuple[str, str | None]:
     """The reply with any refuted waking claim removed, and what was removed."""
+    from core.language.typography import fold_typography
+
     text = str(reply or "")
     wrong = contradicts_uptime(text)
     if not wrong:
         return text, None
+    # Split the text as written, test each sentence as folded, so what comes
+    # back keeps the author's punctuation.
     kept = [
         sentence
         for sentence in re.split(r"(?<=[.?!])\s+", text)
-        if not (_WOKE_AT.search(sentence) or _UP_FOR.search(sentence))
+        if not (
+            _WOKE_AT.search(fold_typography(sentence))
+            or _UP_FOR.search(fold_typography(sentence))
+        )
     ]
     return " ".join(part for part in kept if part.strip()).strip(), wrong
