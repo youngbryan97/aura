@@ -310,6 +310,25 @@ def extract(
         return 2
 
     refusals: list[str] = []
+
+    # A block inside a nested `def` lives in that function's scope, not the
+    # named one's. Analysing it against the outer function's parameters and
+    # prefix says a name is certain when it is a different variable entirely:
+    # `_original_handle_incoming_logic` binds `final_response` in its own body
+    # AND inside `_watchdog_wrapper`, and a block cut from the wrapper was
+    # cleared against the outer binding. Eleven orchestrator tests raised
+    # UnboundLocalError on the first run.
+    #
+    # Following the scope properly is possible and is a bigger analysis than
+    # this tool should carry; refusing is the honest answer, and the value of
+    # cutting a nested helper's body was small anyway.
+    inner = _nested_function_containing(fn, start, end)
+    if inner is not None:
+        refusals.append(
+            f"the block is inside the nested function {inner!r}, whose scope this "
+            "tool does not follow"
+        )
+
     returns = [n for s in statements for n in ast.walk(s) if isinstance(n, ast.Return)]
     if any(
         isinstance(n, (ast.Yield, ast.YieldFrom)) for s in statements for n in ast.walk(s)
@@ -544,6 +563,20 @@ def _name_is_taken(source: str, name: str) -> bool:
                 if isinstance(target, ast.Name) and target.id == name:
                     return True
     return False
+
+
+def _nested_function_containing(fn: ast.AST, start: int, end: int) -> str | None:
+    """The innermost `def` inside ``fn`` that holds this range, if any."""
+    found: str | None = None
+    for node in ast.walk(fn):
+        if node is fn or not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        first = node.lineno
+        last = getattr(node, "end_lineno", first) or first
+        if first < start and last >= end:
+            name = getattr(node, "name", "<lambda>")
+            found = name
+    return found
 
 
 def _local_imports_before(fn: ast.AST, start: int, names: set[str]) -> dict[str, str]:

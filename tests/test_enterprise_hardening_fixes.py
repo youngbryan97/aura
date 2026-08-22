@@ -26,10 +26,12 @@ import pytest
 #: because the runtime is absent, which is a different fact and one the gate
 #: was reporting as a regression on every push.
 #:
-#: `pytest.mark.model` is the repository's existing marker for "needs a local
-#: inference runtime". Skipping is honest here in a way it usually is not: the
-#: same tests run on the machine that has the runtime, and the CI job that
-#: cannot have one says so instead of going red.
+#: The explicit marker below covers the ones known by name. Two more appeared
+#: the moment import order shifted, which is why `tests/conftest.py` also
+#: converts a ModuleNotFoundError for a platform-only module into a skip: a
+#: transitive import is not something a hand-kept list can track. Skipping is
+#: honest here in a way it usually is not — the same tests run on the machine
+#: that has the runtime.
 def _mlx_present() -> bool:
     try:
         return importlib.util.find_spec("mlx") is not None

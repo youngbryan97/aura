@@ -44,6 +44,10 @@ from core.utils.injected_blocks import stamp_grounding
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 #: Enough of a rejected draft to judge the rejection by.
 _REJECTED_DRAFT_LOG_CHARS = 400
 
@@ -223,6 +227,102 @@ def _record_response_generation_degradation(
     severity: str = "warning",
 ) -> None:
     record_degradation("response_generation", error, severity=severity, action=action)
+
+
+def _judge_the_latent_quality(
+    *,
+    cleaned_response: Any,
+    final_latent_quality: Any,
+    latent_trace: Any,
+    objective: Any,
+    runtime_context: Any,
+    state: Any,
+) -> tuple[Any, Any]:
+    """Judge the latent pass's quality when it reported success.
+
+    Moved out of ``ResponseGenerationPhase.execute`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    1.
+    """
+    def _block() -> Any:
+        nonlocal final_latent_quality
+        if latent_trace.get("latent_cortex_succeeded") is True:
+            latent_receipt = latent_trace.get("latent_cortex_receipt")
+            latent_receipt = (
+                dict(latent_receipt)
+                if isinstance(latent_receipt, dict)
+                else {}
+            )
+            final_latent_quality = evaluate_latent_output(
+                cleaned_response,
+                generated_tokens=latent_receipt.get(
+                    "decode_generated_tokens"
+                ),
+                termination=latent_receipt.get("decode_termination"),
+                objective=(
+                    str(runtime_context.get("visible_user_message") or "").strip()
+                    or str(objective or "").strip()
+                ),
+            )
+            raw_quality = latent_receipt.get("output_quality")
+            raw_quality = (
+                dict(raw_quality) if isinstance(raw_quality, dict) else {}
+            )
+            latent_trace["latent_cortex_final_output_quality"] = dict(
+                final_latent_quality
+            )
+            latent_trace[
+                "latent_cortex_raw_final_quality_hash_match"
+            ] = bool(
+                raw_quality.get("text_sha256")
+                == final_latent_quality.get("text_sha256")
+            )
+            if final_latent_quality.get("passed") is not True:
+                failure_reasons = list(
+                    final_latent_quality.get("reasons") or ["unknown"]
+                )
+                failure_reason = (
+                    "final_output_quality_failed:" + ",".join(
+                        str(reason) for reason in failure_reasons
+                    )
+                )
+                latent_trace.update(
+                    {
+                        "latent_cortex_succeeded": False,
+                        "latent_cortex_fallback_used": True,
+                        "latent_cortex_failure_reason": failure_reason,
+                    }
+                )
+                state.response_modifiers.update(latent_trace)
+                state.response_modifiers.update(
+                    {
+                        "model_retry_suppressed": True,
+                        "generation_failure_class": failure_reason[:120],
+                        "response_path": (
+                            "cognitive_engine_latent_owner_exhausted"
+                        ),
+                    }
+                )
+                record_degradation(
+                    "latent_cortex.final_output_quality",
+                    RuntimeError(failure_reason),
+                    action=(
+                        "discarded transformed latent text and refused a second model owner"
+                    ),
+                    severity="degraded",
+                )
+                logger.error(
+                    "Recursive Latent Cortex final visible text failed its "
+                    "hash-bound quality contract (%s); no second generation.",
+                    ",".join(str(reason) for reason in failure_reasons),
+                )
+                return state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response, final_latent_quality
 
 
 class ResponseGenerationPhase(BasePhase):
@@ -3139,77 +3239,16 @@ class ResponseGenerationPhase(BasePhase):
                 return state
 
             final_latent_quality: dict[str, Any] = {}
-            if latent_trace.get("latent_cortex_succeeded") is True:
-                latent_receipt = latent_trace.get("latent_cortex_receipt")
-                latent_receipt = (
-                    dict(latent_receipt)
-                    if isinstance(latent_receipt, dict)
-                    else {}
-                )
-                final_latent_quality = evaluate_latent_output(
-                    cleaned_response,
-                    generated_tokens=latent_receipt.get(
-                        "decode_generated_tokens"
-                    ),
-                    termination=latent_receipt.get("decode_termination"),
-                    objective=(
-                        str(runtime_context.get("visible_user_message") or "").strip()
-                        or str(objective or "").strip()
-                    ),
-                )
-                raw_quality = latent_receipt.get("output_quality")
-                raw_quality = (
-                    dict(raw_quality) if isinstance(raw_quality, dict) else {}
-                )
-                latent_trace["latent_cortex_final_output_quality"] = dict(
-                    final_latent_quality
-                )
-                latent_trace[
-                    "latent_cortex_raw_final_quality_hash_match"
-                ] = bool(
-                    raw_quality.get("text_sha256")
-                    == final_latent_quality.get("text_sha256")
-                )
-                if final_latent_quality.get("passed") is not True:
-                    failure_reasons = list(
-                        final_latent_quality.get("reasons") or ["unknown"]
-                    )
-                    failure_reason = (
-                        "final_output_quality_failed:" + ",".join(
-                            str(reason) for reason in failure_reasons
-                        )
-                    )
-                    latent_trace.update(
-                        {
-                            "latent_cortex_succeeded": False,
-                            "latent_cortex_fallback_used": True,
-                            "latent_cortex_failure_reason": failure_reason,
-                        }
-                    )
-                    state.response_modifiers.update(latent_trace)
-                    state.response_modifiers.update(
-                        {
-                            "model_retry_suppressed": True,
-                            "generation_failure_class": failure_reason[:120],
-                            "response_path": (
-                                "cognitive_engine_latent_owner_exhausted"
-                            ),
-                        }
-                    )
-                    record_degradation(
-                        "latent_cortex.final_output_quality",
-                        RuntimeError(failure_reason),
-                        action=(
-                            "discarded transformed latent text and refused a second model owner"
-                        ),
-                        severity="degraded",
-                    )
-                    logger.error(
-                        "Recursive Latent Cortex final visible text failed its "
-                        "hash-bound quality contract (%s); no second generation.",
-                        ",".join(str(reason) for reason in failure_reasons),
-                    )
-                    return state
+            _seam_early_response, final_latent_quality = _judge_the_latent_quality(
+                cleaned_response=cleaned_response,
+                final_latent_quality=final_latent_quality,
+                latent_trace=latent_trace,
+                objective=objective,
+                runtime_context=runtime_context,
+                state=state,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
 
             surface_control_receipt: dict[str, Any] = {}
             candidate = generation_metadata.get("surface_control_receipt")

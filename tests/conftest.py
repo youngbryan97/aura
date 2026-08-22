@@ -64,6 +64,60 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+#: Modules that only exist on one platform. A test that dies importing one of
+#: these did not fail — the platform is absent, which is a different fact.
+#:
+#: MLX is Metal-only, and Quartz/AppKit come from pyobjc. Nineteen tests in
+#: tests/test_enterprise_hardening_fixes.py were reported as regressions on
+#: every CI push for exactly this, and the list grew by two the moment import
+#: order shifted, because a transitive import is not something a hand-kept
+#: list can track.
+#:
+#: The conversion is narrow on purpose: it fires only on ModuleNotFoundError,
+#: only for these names, and only when the module genuinely cannot be
+#: imported here. A missing ordinary dependency still fails, loudly.
+PLATFORM_ONLY_MODULES: frozenset[str] = frozenset(
+    {"mlx", "mlx_lm", "Quartz", "AppKit", "objc", "pyautogui", "pynput", "mss"}
+)
+
+
+def _absent_platform_module(exc: BaseException) -> str:
+    while exc is not None:
+        if isinstance(exc, ModuleNotFoundError) and exc.name:
+            root = str(exc.name).split(".", 1)[0]
+            if root in PLATFORM_ONLY_MODULES:
+                import importlib.util
+
+                try:
+                    if importlib.util.find_spec(root) is None:
+                        return root
+                except (ImportError, ValueError):
+                    return root
+        exc = exc.__cause__ or exc.__context__
+    return ""
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    """Turn "this platform has no MLX" into a skip rather than a failure.
+
+    `force_exception` rather than a bare `pytest.skip()`: raising inside a
+    hook wrapper after the yield is reported as an error in the hook, not as
+    the test's own outcome, so the conversion has to be handed back through
+    the Result.
+    """
+    outcome = yield
+    try:
+        outcome.get_result()
+    except BaseException as exc:  # noqa: BLE001 - re-raised unless it is the platform
+        absent = _absent_platform_module(exc)
+        if not absent:
+            return
+        outcome.force_exception(
+            pytest.skip.Exception(f"{absent} is not available on this platform")
+        )
+
+
 def pytest_collection_modifyitems(config, items):
     """Keep destructive resident-model gates opt-in without recording skips."""
     if os.environ.get("AURA_RUN_RLC_RESIDENT_1P5B_GATE") == "1":

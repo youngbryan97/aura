@@ -159,6 +159,133 @@ def _dispose_awaitable(result: Any) -> None:
         cancel()
 
 
+async def _start_the_background_organs(
+    *,
+    self: Any,
+) -> None:
+    """Start the background organs this run is configured for.
+
+    Moved out of ``RobustOrchestrator.start`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    0.
+    """
+    if (
+        not _foreground_only_runtime()
+        and hasattr(self, "mind_tick")
+        and self.mind_tick
+        and not config.skeletal_mode
+    ):
+        # [STABILITY FIX] mind_tick.start() is a continuous loop. Must run in background.
+        self._fire_and_forget(self.mind_tick.start(), name="orchestrator.mind_tick.start")
+        logger.info("🧠 Peer Mode: MindTick elevated as primary sovereign thread")
+
+        # Optional compatibility hook for a one-time boot deliberation.
+        # Normal desktop operation uses the resource-admitted recurring
+        # AutonomyConductor job instead of spawning model work at boot.
+        swarm_autostart = os.getenv("AURA_ENABLE_PERMANENT_SWARM", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if (
+            swarm_autostart
+            and self.sovereign_swarm is not None
+            and hasattr(self.sovereign_swarm, "start_permanent_debate")
+        ):
+            swarm_allowed = True
+            swarm_reason = "authority_unavailable"
+            try:
+                from core.constitution import get_constitutional_core
+
+                (
+                    swarm_allowed,
+                    swarm_reason,
+                    _authority_decision,
+                ) = await get_constitutional_core(self).approve_initiative(
+                    "peer_mode:permanent_swarm_debate",
+                    source="peer_mode",
+                    urgency=0.35,
+                )
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
+                _record_main_degradation(
+                    exec_err,
+                    action="left permanent swarm debate disabled because initiative authority was unavailable",
+                    severity="error",
+                )
+
+                logger.debug("Permanent swarm authority gate unavailable: %s", exec_err)
+
+            # [STABILITY] Run in background to avoid blocking orchestrator launch
+            # especially under memory pressure when model loading is slow.
+            if swarm_allowed:
+                self._fire_and_forget(
+                    self.sovereign_swarm.start_permanent_debate(
+                        roles=["philosopher", "critic", "explorer", "ethicist"],
+                        topic_source="liquid_state",
+                    ),
+                    name="orchestrator.swarm.start_permanent_debate",
+                )
+                logger.info("🗣️ Peer Mode: One boot-time internal deliberation scheduled")
+            else:
+                logger.info(
+                    "🗣️ Peer Mode: Permanent swarm debate suppressed by Executive: %s",
+                    swarm_reason,
+                )
+        elif self.sovereign_swarm is not None and not swarm_autostart:
+            logger.info(
+                "🗣️ Peer Mode: Boot-time swarm disabled; conductor-managed deliberation remains scheduled."
+            )
+        elif self.sovereign_swarm is not None:
+            logger.warning(
+                "🗣️ Peer Mode: sovereign_swarm missing 'start_permanent_debate' method. Interface mismatch?"
+            )
+
+        # 🛠️ [PEER MODE] Evolution 7: Sovereign self-modification loop
+        if hasattr(self, "_self_modification") or hasattr(self, "meta_learning"):
+            self_mod_allowed = True
+            self_mod_reason = "authority_unavailable"
+            try:
+                from core.constitution import get_constitutional_core
+
+                (
+                    self_mod_allowed,
+                    self_mod_reason,
+                    _authority_decision,
+                ) = await get_constitutional_core(self).approve_initiative(
+                    "peer_mode:sovereign_self_modification_loop",
+                    source="peer_mode",
+                    urgency=0.45,
+                )
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
+                _record_main_degradation(
+                    exec_err,
+                    action="left sovereign self-modification loop disabled because initiative authority was unavailable",
+                    severity="error",
+                )
+
+                logger.debug("Self-mod authority gate unavailable: %s", exec_err)
+
+            if self_mod_allowed:
+                self._fire_and_forget(
+                    self._safe_self_modification_loop(),
+                    name="orchestrator.safe_self_modification_loop",
+                )
+                logger.info("🛠️ Peer Mode: Sovereign self-modification loop active")
+            else:
+                logger.info(
+                    "🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: %s",
+                    self_mod_reason,
+                )
+    elif _foreground_only_runtime():
+        logger.info("Peer Mode background loops disabled for foreground-only boot.")
+    elif config.skeletal_mode:
+        logger.info(
+            "💀 Skeletal Mode: High-CPU autonomous subsystems (MindTick, Swarm, Self-Mod) bypassed."
+        )
+
+
 class RobustOrchestrator(
     OrchestratorBootMixin,
     StatusManagerMixin,
@@ -1601,120 +1728,9 @@ class RobustOrchestrator(
                     raise RuntimeError("scheduler start returned without live main loop")
 
             # 🧠 [PEER MODE] Evolution 1: MindTick / cognitive_loop becomes the PRIMARY heartbeat
-            if (
-                not _foreground_only_runtime()
-                and hasattr(self, "mind_tick")
-                and self.mind_tick
-                and not config.skeletal_mode
-            ):
-                # [STABILITY FIX] mind_tick.start() is a continuous loop. Must run in background.
-                self._fire_and_forget(self.mind_tick.start(), name="orchestrator.mind_tick.start")
-                logger.info("🧠 Peer Mode: MindTick elevated as primary sovereign thread")
-
-                # Optional compatibility hook for a one-time boot deliberation.
-                # Normal desktop operation uses the resource-admitted recurring
-                # AutonomyConductor job instead of spawning model work at boot.
-                swarm_autostart = os.getenv("AURA_ENABLE_PERMANENT_SWARM", "").strip().lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                    "on",
-                }
-                if (
-                    swarm_autostart
-                    and self.sovereign_swarm is not None
-                    and hasattr(self.sovereign_swarm, "start_permanent_debate")
-                ):
-                    swarm_allowed = True
-                    swarm_reason = "authority_unavailable"
-                    try:
-                        from core.constitution import get_constitutional_core
-
-                        (
-                            swarm_allowed,
-                            swarm_reason,
-                            _authority_decision,
-                        ) = await get_constitutional_core(self).approve_initiative(
-                            "peer_mode:permanent_swarm_debate",
-                            source="peer_mode",
-                            urgency=0.35,
-                        )
-                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
-                        _record_main_degradation(
-                            exec_err,
-                            action="left permanent swarm debate disabled because initiative authority was unavailable",
-                            severity="error",
-                        )
-
-                        logger.debug("Permanent swarm authority gate unavailable: %s", exec_err)
-
-                    # [STABILITY] Run in background to avoid blocking orchestrator launch
-                    # especially under memory pressure when model loading is slow.
-                    if swarm_allowed:
-                        self._fire_and_forget(
-                            self.sovereign_swarm.start_permanent_debate(
-                                roles=["philosopher", "critic", "explorer", "ethicist"],
-                                topic_source="liquid_state",
-                            ),
-                            name="orchestrator.swarm.start_permanent_debate",
-                        )
-                        logger.info("🗣️ Peer Mode: One boot-time internal deliberation scheduled")
-                    else:
-                        logger.info(
-                            "🗣️ Peer Mode: Permanent swarm debate suppressed by Executive: %s",
-                            swarm_reason,
-                        )
-                elif self.sovereign_swarm is not None and not swarm_autostart:
-                    logger.info(
-                        "🗣️ Peer Mode: Boot-time swarm disabled; conductor-managed deliberation remains scheduled."
-                    )
-                elif self.sovereign_swarm is not None:
-                    logger.warning(
-                        "🗣️ Peer Mode: sovereign_swarm missing 'start_permanent_debate' method. Interface mismatch?"
-                    )
-
-                # 🛠️ [PEER MODE] Evolution 7: Sovereign self-modification loop
-                if hasattr(self, "_self_modification") or hasattr(self, "meta_learning"):
-                    self_mod_allowed = True
-                    self_mod_reason = "authority_unavailable"
-                    try:
-                        from core.constitution import get_constitutional_core
-
-                        (
-                            self_mod_allowed,
-                            self_mod_reason,
-                            _authority_decision,
-                        ) = await get_constitutional_core(self).approve_initiative(
-                            "peer_mode:sovereign_self_modification_loop",
-                            source="peer_mode",
-                            urgency=0.45,
-                        )
-                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
-                        _record_main_degradation(
-                            exec_err,
-                            action="left sovereign self-modification loop disabled because initiative authority was unavailable",
-                            severity="error",
-                        )
-
-                        logger.debug("Self-mod authority gate unavailable: %s", exec_err)
-
-                    if self_mod_allowed:
-                        self._fire_and_forget(
-                            self._safe_self_modification_loop(),
-                            name="orchestrator.safe_self_modification_loop",
-                        )
-                        logger.info("🛠️ Peer Mode: Sovereign self-modification loop active")
-                    else:
-                        logger.info(
-                            "🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: %s",
-                            self_mod_reason,
-                        )
-            elif _foreground_only_runtime():
-                logger.info("Peer Mode background loops disabled for foreground-only boot.")
-            elif config.skeletal_mode:
-                logger.info(
-                    "💀 Skeletal Mode: High-CPU autonomous subsystems (MindTick, Swarm, Self-Mod) bypassed."
-                )
+            await _start_the_background_organs(
+                self=self,
+            )
 
             logger.info("✓ Orchestrator started")
             # [BOOT FIX] Defer locking to aura_main.py or _final_steps to avoid ContainerError

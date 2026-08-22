@@ -33,6 +33,10 @@ from .mixins.boot.boot_resilience import BootResilienceMixin
 from .mixins.boot.boot_sensory import BootSensoryMixin
 from .orchestrator_types import SystemStatus
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 logger = logging.getLogger(__name__)
 
 
@@ -167,6 +171,105 @@ def _final_boot_health_log(
         initialized=initialized,
         running=running,
     )
+
+
+async def _skip_the_background_subsystems_in_foreground_only(
+    *,
+    self: Any,
+) -> Any:
+    """Stop here when the run is foreground-only.
+
+    Moved out of ``OrchestratorBootMixin._async_init_subsystems`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 1 name(s) and hands back
+    0.
+    """
+    async def _block() -> Any:
+        if os.getenv("AURA_FOREGROUND_ONLY", "0").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        } or os.getenv("AURA_ENABLE_SELF_HEALING", "1").lower() in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }:
+            logger.info("Healing Swarm disabled for foreground-only boot.")
+        else:
+            try:
+                from core.resilience.healing_swarm import HealingSwarmService
+
+                healer = HealingSwarmService(self)
+                healing_started = healer.start()
+                if healing_started:
+                    ServiceContainer.register_instance("healing_swarm", healer)
+                    self.healing_service = healer
+                    logger.info("🛡️ Healing Swarm Service initialized and started.")
+                else:
+                    logger.info("Healing Swarm deferred by runtime background policy.")
+
+                if healing_started:
+                    # ── Wire IncidentManager → HealingSwarm ──────────────
+                    # Close the "log and limp on" gap: when degradation
+                    # events escalate to CRITICAL/EMERGENCY, trigger
+                    # autonomous repair instead of just recording.
+                    try:
+                        from core.resilience.incident_manager import get_incident_manager
+
+                        def _incident_to_repair(incident):
+                            """Bridge: IncidentManager alert → HealingSwarm repair."""
+                            import asyncio as _aio
+
+                            try:
+                                _aio.get_running_loop()
+                            except RuntimeError:
+                                return  # No event loop — can't schedule repair
+                            from core.utils.task_tracker import get_task_tracker
+
+                            get_task_tracker().create_task(
+                                healer.attempt_repair(
+                                    incident.category,
+                                    {
+                                        "status": incident.severity.value,
+                                        "description": incident.description[:200],
+                                        "root_cause": incident.root_cause_hint,
+                                        "occurrences": incident.occurrence_count,
+                                    },
+                                ),
+                                name=f"heal.{incident.category[:40]}",
+                            )
+                            logger.info(
+                                "🔗 [INCIDENT→HEAL] Dispatched repair for %s (severity=%s, occurrences=%d)",
+                                incident.category,
+                                incident.severity.value,
+                                incident.occurrence_count,
+                            )
+
+                        get_incident_manager().register_alert_callback(_incident_to_repair)
+                        logger.info("🔗 IncidentManager → HealingSwarm alert bridge active.")
+                    except (ImportError, AttributeError, RuntimeError) as bridge_err:
+                        _record_boot_degradation(
+                            bridge_err,
+                            action="continued healing swarm without incident alert bridge",
+                            severity="degraded",
+                        )
+                        logger.warning(
+                            "⚠️ IncidentManager→HealingSwarm bridge failed: %s", bridge_err
+                        )
+            except (ImportError, AttributeError, RuntimeError) as e:
+                _record_boot_degradation(
+                    e,
+                    action="continued boot without healing swarm service",
+                    severity="degraded",
+                )
+                logger.error("🛑 Failed to init Healing Swarm: %s", e)
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response
 
 
 class OrchestratorBootMixin(
@@ -1002,86 +1105,11 @@ class OrchestratorBootMixin(
                     )
                     logger.error("🛑 Failed to init Meta-Cognition Shard: %s", e)
 
-                if os.getenv("AURA_FOREGROUND_ONLY", "0").lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                    "on",
-                } or os.getenv("AURA_ENABLE_SELF_HEALING", "1").lower() in {
-                    "0",
-                    "false",
-                    "no",
-                    "off",
-                }:
-                    logger.info("Healing Swarm disabled for foreground-only boot.")
-                else:
-                    try:
-                        from core.resilience.healing_swarm import HealingSwarmService
-
-                        healer = HealingSwarmService(self)
-                        healing_started = healer.start()
-                        if healing_started:
-                            ServiceContainer.register_instance("healing_swarm", healer)
-                            self.healing_service = healer
-                            logger.info("🛡️ Healing Swarm Service initialized and started.")
-                        else:
-                            logger.info("Healing Swarm deferred by runtime background policy.")
-
-                        if healing_started:
-                            # ── Wire IncidentManager → HealingSwarm ──────────────
-                            # Close the "log and limp on" gap: when degradation
-                            # events escalate to CRITICAL/EMERGENCY, trigger
-                            # autonomous repair instead of just recording.
-                            try:
-                                from core.resilience.incident_manager import get_incident_manager
-
-                                def _incident_to_repair(incident):
-                                    """Bridge: IncidentManager alert → HealingSwarm repair."""
-                                    import asyncio as _aio
-
-                                    try:
-                                        _aio.get_running_loop()
-                                    except RuntimeError:
-                                        return  # No event loop — can't schedule repair
-                                    from core.utils.task_tracker import get_task_tracker
-
-                                    get_task_tracker().create_task(
-                                        healer.attempt_repair(
-                                            incident.category,
-                                            {
-                                                "status": incident.severity.value,
-                                                "description": incident.description[:200],
-                                                "root_cause": incident.root_cause_hint,
-                                                "occurrences": incident.occurrence_count,
-                                            },
-                                        ),
-                                        name=f"heal.{incident.category[:40]}",
-                                    )
-                                    logger.info(
-                                        "🔗 [INCIDENT→HEAL] Dispatched repair for %s (severity=%s, occurrences=%d)",
-                                        incident.category,
-                                        incident.severity.value,
-                                        incident.occurrence_count,
-                                    )
-
-                                get_incident_manager().register_alert_callback(_incident_to_repair)
-                                logger.info("🔗 IncidentManager → HealingSwarm alert bridge active.")
-                            except (ImportError, AttributeError, RuntimeError) as bridge_err:
-                                _record_boot_degradation(
-                                    bridge_err,
-                                    action="continued healing swarm without incident alert bridge",
-                                    severity="degraded",
-                                )
-                                logger.warning(
-                                    "⚠️ IncidentManager→HealingSwarm bridge failed: %s", bridge_err
-                                )
-                    except (ImportError, AttributeError, RuntimeError) as e:
-                        _record_boot_degradation(
-                            e,
-                            action="continued boot without healing swarm service",
-                            severity="degraded",
-                        )
-                        logger.error("🛑 Failed to init Healing Swarm: %s", e)
+                _seam_early_response = await _skip_the_background_subsystems_in_foreground_only(
+                    self=self,
+                )
+                if _seam_early_response is not _SEAM_FELL_THROUGH:
+                    return _seam_early_response
 
                 try:
                     # Incident Narrator: receipt-backed synthesis of Aura's own

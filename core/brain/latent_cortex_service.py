@@ -285,6 +285,143 @@ def _unit_signal(value: Any, *, name: str) -> float:
     return min(1.0, max(0.0, number))
 
 
+def _check_the_exchange_count_contract(
+    *,
+    config: Any,
+    errors: Any,
+    exchanges: Any,
+    receipt: Any,
+    resource_accounting: Any,
+) -> None:
+    """Check the exchange-count half of the receipt contract.
+
+    Moved out of ``LatentCortexService._receipt_contract_errors`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    0.
+    """
+    if type(exchanges) is int and exchanges > 0:
+        try:
+            from core.brain.llm.latent_cortex.branch_exchange import (
+                validate_branch_exchange_trace,
+            )
+
+            exchange_trace = validate_branch_exchange_trace(
+                receipt.get("branch_exchange"),
+                exchange_count=exchanges,
+                n_branches=int(config.get("n_branches")),
+                n_slots=int(config.get("n_slots")),
+                comm_slot=int(config.get("comm_slot", 0)),
+                exchange_gamma=float(config.get("exchange_gamma", 0.35)),
+                branch_isolation=receipt.get("branch_isolation"),
+                cognitive_slots=receipt.get("cognitive_slots"),
+                exchange_interval=int(config.get("exchange_interval", 4)),
+                schedule_hash=str(receipt.get("schedule_hash") or ""),
+                bytecode_events=receipt.get("bytecode_events"),
+                cognitive_action_trace=receipt.get("cognitive_action_trace"),
+            )
+            expected_reads = 0
+            expected_writes = 0
+            expected_scalar_ops = 0
+            for exchange_row in exchange_trace["exchanges"]:
+                accounting = exchange_row["tensor_accounting"]
+                expected_reads += accounting["source_elements_read"]
+                expected_writes += (
+                    accounting["message_elements_emitted"]
+                    + accounting["consensus_elements_written"]
+                )
+                expected_scalar_ops += accounting["tensor_scalar_ops"]
+            operation = (
+                resource_accounting.get("operations", {}).get("branch_exchange")
+                if resource_accounting is not None
+                else None
+            )
+            if (
+                not isinstance(operation, dict)
+                or operation.get("tensor_element_reads") != expected_reads
+                or operation.get("tensor_element_writes") != expected_writes
+                or operation.get("tensor_scalar_ops") != expected_scalar_ops
+                or any(
+                    operation.get(name) != 0
+                    for name in operation
+                    if name
+                    not in {
+                        "tensor_element_reads",
+                        "tensor_element_writes",
+                        "tensor_scalar_ops",
+                    }
+                )
+            ):
+                errors.append("branch_exchange_resource_binding_unproven")
+        except (ImportError, TypeError, ValueError):
+            errors.append("branch_exchange_provenance_unproven")
+    elif receipt.get("branch_exchange") not in ({}, None):
+        errors.append("unexpected_branch_exchange_trace")
+
+
+def _check_the_latent_optimiser_contract(
+    *,
+    config: Any,
+    errors: Any,
+    nonnegative_int: Any,
+    positive_int: Any,
+    receipt: Any,
+    verifier_arbitration_valid: Any,
+) -> None:
+    """Check the latent-optimiser half of the receipt contract.
+
+    Moved out of ``LatentCortexService._receipt_contract_errors`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 6 name(s) from the turn and hands back
+    0.
+    """
+    if config.get("latent_opt") is True:
+        if receipt.get("latent_opt_applied") is not True:
+            errors.append("latent_optimization_not_applied")
+        if receipt.get("latent_opt_mode") != "gradient":
+            errors.append("latent_optimization_wrong_mode")
+        if not positive_int(receipt, "latent_opt_attempts"):
+            errors.append("latent_optimization_not_attempted")
+        # Under verifier guidance, zero ACCEPTED steps is a legitimate
+        # verified outcome (every proposal was checked and declined) —
+        # the verifier evidence must exist to earn that exemption.
+        verifier_evidence = receipt.get("verifier_guidance")
+        # CP126 94593618: int() on a worker-supplied field raises on a
+        # string or a list, and this sits OUTSIDE any protective
+        # conversion — so a malformed receipt escaped the contract as an
+        # exception instead of the promised ok=false with a reason. A
+        # validator that can be crashed by the thing it validates is not
+        # a validator.
+        verifier_ran = (
+            isinstance(verifier_evidence, dict)
+            and type(verifier_evidence.get("evaluations")) is int
+            and verifier_evidence["evaluations"] > 0
+        )
+        if not positive_int(receipt, "latent_opt_steps") and not verifier_ran:
+            errors.append("latent_optimization_no_accepted_steps")
+        if not nonnegative_int(receipt, "latent_opt_rejected"):
+            errors.append("latent_optimization_rejection_count_invalid")
+        elif (
+            positive_int(receipt, "latent_opt_attempts")
+            and nonnegative_int(receipt, "latent_opt_steps")
+            and (
+                receipt["latent_opt_attempts"]
+                != receipt["latent_opt_steps"] + receipt["latent_opt_rejected"]
+            )
+        ):
+            errors.append("latent_optimization_accounting_mismatch")
+        if receipt.get("latent_opt_budget_exhausted") is not False:
+            errors.append("latent_optimization_budget_exhausted")
+        if config.get("verifier_accept_non_regression") is True:
+            arbitration = receipt.get("latent_opt_verifier")
+            if not verifier_arbitration_valid(
+                arbitration,
+                attempts=int(receipt.get("latent_opt_attempts") or 0),
+                accepted_steps=int(receipt.get("latent_opt_steps") or 0),
+            ):
+                errors.append("latent_optimization_verifier_receipt_invalid")
+
+
 class LatentCortexService:
     """Budget allocation + IPC routing for latent-reasoning episodes."""
 
@@ -2397,63 +2534,13 @@ class LatentCortexService:
             if not isolation_valid:
                 errors.append("branch_isolation_unproven")
         exchanges = receipt.get("exchanges")
-        if type(exchanges) is int and exchanges > 0:
-            try:
-                from core.brain.llm.latent_cortex.branch_exchange import (
-                    validate_branch_exchange_trace,
-                )
-
-                exchange_trace = validate_branch_exchange_trace(
-                    receipt.get("branch_exchange"),
-                    exchange_count=exchanges,
-                    n_branches=int(config.get("n_branches")),
-                    n_slots=int(config.get("n_slots")),
-                    comm_slot=int(config.get("comm_slot", 0)),
-                    exchange_gamma=float(config.get("exchange_gamma", 0.35)),
-                    branch_isolation=receipt.get("branch_isolation"),
-                    cognitive_slots=receipt.get("cognitive_slots"),
-                    exchange_interval=int(config.get("exchange_interval", 4)),
-                    schedule_hash=str(receipt.get("schedule_hash") or ""),
-                    bytecode_events=receipt.get("bytecode_events"),
-                    cognitive_action_trace=receipt.get("cognitive_action_trace"),
-                )
-                expected_reads = 0
-                expected_writes = 0
-                expected_scalar_ops = 0
-                for exchange_row in exchange_trace["exchanges"]:
-                    accounting = exchange_row["tensor_accounting"]
-                    expected_reads += accounting["source_elements_read"]
-                    expected_writes += (
-                        accounting["message_elements_emitted"]
-                        + accounting["consensus_elements_written"]
-                    )
-                    expected_scalar_ops += accounting["tensor_scalar_ops"]
-                operation = (
-                    resource_accounting.get("operations", {}).get("branch_exchange")
-                    if resource_accounting is not None
-                    else None
-                )
-                if (
-                    not isinstance(operation, dict)
-                    or operation.get("tensor_element_reads") != expected_reads
-                    or operation.get("tensor_element_writes") != expected_writes
-                    or operation.get("tensor_scalar_ops") != expected_scalar_ops
-                    or any(
-                        operation.get(name) != 0
-                        for name in operation
-                        if name
-                        not in {
-                            "tensor_element_reads",
-                            "tensor_element_writes",
-                            "tensor_scalar_ops",
-                        }
-                    )
-                ):
-                    errors.append("branch_exchange_resource_binding_unproven")
-            except (ImportError, TypeError, ValueError):
-                errors.append("branch_exchange_provenance_unproven")
-        elif receipt.get("branch_exchange") not in ({}, None):
-            errors.append("unexpected_branch_exchange_trace")
+        _check_the_exchange_count_contract(
+            config=config,
+            errors=errors,
+            exchanges=exchanges,
+            receipt=receipt,
+            resource_accounting=resource_accounting,
+        )
         if (
             not (type(exchanges) is int and exchanges > 0)
             and resource_accounting is not None
@@ -2688,51 +2775,14 @@ class LatentCortexService:
             flags = raw_flags
         if any(flag.startswith("fallback_vanilla") for flag in flags):
             errors.append("vanilla_fallback")
-        if config.get("latent_opt") is True:
-            if receipt.get("latent_opt_applied") is not True:
-                errors.append("latent_optimization_not_applied")
-            if receipt.get("latent_opt_mode") != "gradient":
-                errors.append("latent_optimization_wrong_mode")
-            if not positive_int(receipt, "latent_opt_attempts"):
-                errors.append("latent_optimization_not_attempted")
-            # Under verifier guidance, zero ACCEPTED steps is a legitimate
-            # verified outcome (every proposal was checked and declined) —
-            # the verifier evidence must exist to earn that exemption.
-            verifier_evidence = receipt.get("verifier_guidance")
-            # CP126 94593618: int() on a worker-supplied field raises on a
-            # string or a list, and this sits OUTSIDE any protective
-            # conversion — so a malformed receipt escaped the contract as an
-            # exception instead of the promised ok=false with a reason. A
-            # validator that can be crashed by the thing it validates is not
-            # a validator.
-            verifier_ran = (
-                isinstance(verifier_evidence, dict)
-                and type(verifier_evidence.get("evaluations")) is int
-                and verifier_evidence["evaluations"] > 0
-            )
-            if not positive_int(receipt, "latent_opt_steps") and not verifier_ran:
-                errors.append("latent_optimization_no_accepted_steps")
-            if not nonnegative_int(receipt, "latent_opt_rejected"):
-                errors.append("latent_optimization_rejection_count_invalid")
-            elif (
-                positive_int(receipt, "latent_opt_attempts")
-                and nonnegative_int(receipt, "latent_opt_steps")
-                and (
-                    receipt["latent_opt_attempts"]
-                    != receipt["latent_opt_steps"] + receipt["latent_opt_rejected"]
-                )
-            ):
-                errors.append("latent_optimization_accounting_mismatch")
-            if receipt.get("latent_opt_budget_exhausted") is not False:
-                errors.append("latent_optimization_budget_exhausted")
-            if config.get("verifier_accept_non_regression") is True:
-                arbitration = receipt.get("latent_opt_verifier")
-                if not verifier_arbitration_valid(
-                    arbitration,
-                    attempts=int(receipt.get("latent_opt_attempts") or 0),
-                    accepted_steps=int(receipt.get("latent_opt_steps") or 0),
-                ):
-                    errors.append("latent_optimization_verifier_receipt_invalid")
+        _check_the_latent_optimiser_contract(
+            config=config,
+            errors=errors,
+            nonnegative_int=nonnegative_int,
+            positive_int=positive_int,
+            receipt=receipt,
+            verifier_arbitration_valid=verifier_arbitration_valid,
+        )
         LatentCortexService._receipt_fast_weight_errors(config, errors, expected_worker_identity, finite_number_list, nonnegative_int, output_text, output_tokens, positive_int, receipt, resource_accounting)
         return errors
 

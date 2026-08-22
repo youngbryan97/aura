@@ -65,6 +65,7 @@ class Seam:
     jumps: int = 0
     depth: int = 0
     inside_loop: bool = False
+    nested_scope: str = ""
 
     @property
     def lines(self) -> int:
@@ -77,6 +78,7 @@ class Seam:
             and self.yields == 0
             and self.jumps == 0
             and not self.inside_loop
+            and not self.nested_scope
             and len(self.reads) <= 10
             and len(self.escapes) <= 10
         )
@@ -102,6 +104,11 @@ class Seam:
             )
         if self.inside_loop:
             out.append("sits inside a loop; the body carries state between turns")
+        if self.nested_scope:
+            out.append(
+                f"sits inside the nested function {self.nested_scope!r}, whose "
+                "scope the analysis does not follow"
+            )
         return out
 
     def to_dict(self) -> dict[str, object]:
@@ -117,6 +124,7 @@ class Seam:
             "depth": self.depth,
             "jumps": self.jumps,
             "inside_loop": self.inside_loop,
+            "nested_scope": self.nested_scope,
             "safe": self.safe,
             "blockers": self.blockers,
         }
@@ -617,11 +625,34 @@ def analyse(
                 jumps=_jump_count(stmt),
                 depth=depth,
                 inside_loop=inside_loop,
+                nested_scope=_nested_scope_name(fn, stmt.lineno, end),
             )
         )
 
     seams.sort(key=lambda s: (not s.safe, -s.lines))
     return seams
+
+
+def _nested_scope_name(fn: ast.AST, start: int, end: int) -> str:
+    """The innermost `def` inside ``fn`` holding this range, or "".
+
+    A block inside a nested function lives in that function's scope. Judging
+    it against the outer function's parameters and prefix says a name is
+    certain when it is a different variable: `_original_handle_incoming_logic`
+    binds `final_response` in its own body AND inside `_watchdog_wrapper`, and
+    a block cut from the wrapper was cleared against the outer binding.
+    """
+    found = ""
+    for node in ast.walk(fn):
+        if node is fn or not isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+        ):
+            continue
+        first = node.lineno
+        last = getattr(node, "end_lineno", first) or first
+        if first < start and last >= end:
+            found = getattr(node, "name", "<lambda>")
+    return found
 
 
 def _jump_count(node: ast.AST) -> int:
@@ -665,22 +696,36 @@ def implementation_source(owner: object, name: str, *, depth: int = 3) -> str:
     Following ``self.<helper>()`` calls one level at a time keeps the assertion
     about the *implementation* rather than about where its curly braces happen
     to fall, which is what those tests meant in the first place.
+
+    Module-level helpers count too. ``tools/extract_seam.py`` writes them at
+    module scope rather than as methods, because a moved block usually needs
+    nothing from ``self``; following only ``self.<helper>()`` missed those and
+    a contract test on ``_generate_inner`` failed for a marker that had moved
+    fifty lines up the same file.
     """
     import inspect
 
     seen: set[str] = set()
     parts: list[str] = []
+    module = inspect.getmodule(owner if inspect.isclass(owner) else type(owner))
 
-    def walk(method_name: str, remaining: int) -> None:
-        if method_name in seen or remaining < 0:
-            return
-        seen.add(method_name)
-        method = getattr(owner, method_name, None)
-        if method is None:
-            return
+    def source_of(target_name: str) -> str:
+        target = getattr(owner, target_name, None)
+        if target is None and module is not None:
+            target = getattr(module, target_name, None)
+        if target is None:
+            return ""
         try:
-            source = inspect.getsource(method)
+            return inspect.getsource(target)
         except (OSError, TypeError):
+            return ""
+
+    def walk(target_name: str, remaining: int) -> None:
+        if target_name in seen or remaining < 0:
+            return
+        seen.add(target_name)
+        source = source_of(target_name)
+        if not source:
             return
         parts.append(source)
         try:
@@ -688,13 +733,19 @@ def implementation_source(owner: object, name: str, *, depth: int = 3) -> str:
         except SyntaxError:
             return
         for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            called = node.func
             if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "self"
+                isinstance(called, ast.Attribute)
+                and isinstance(called.value, ast.Name)
+                and called.value.id == "self"
             ):
-                walk(node.func.attr, remaining - 1)
+                walk(called.attr, remaining - 1)
+            elif isinstance(called, ast.Name) and called.id.startswith("_"):
+                # A module-level helper. The leading underscore keeps this to
+                # private names, so an ordinary library call is not followed.
+                walk(called.id, remaining - 1)
 
     walk(name, depth)
     return "\n".join(parts)

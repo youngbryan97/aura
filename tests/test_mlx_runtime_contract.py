@@ -154,8 +154,13 @@ def test_mlx_main_generation_builds_contract_cap_after_bridge_lookup():
     import inspect
 
     from core.brain.llm.mlx_client import MLXLocalClient
+    from tools.find_extraction_seam import implementation_source
 
-    source = inspect.getsource(MLXLocalClient._generate_inner)
+    # The implementation, not the function boundary. Half of `_generate_inner`
+    # is now `_build_the_generation_request`, and asserting against
+    # `inspect.getsource(_generate_inner)` failed for a marker that had moved
+    # fifty lines up the same file while the order was unchanged.
+    source = implementation_source(MLXLocalClient, "_generate_inner")
     bridge_index = source.index("def _bridge_get")
     contract_index = source.index('requested_output_contract = kwargs.get("requested_output_contract")')
     request_index = source.index('"max_tokens": generation_max_tokens')

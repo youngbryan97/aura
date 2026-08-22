@@ -349,3 +349,53 @@ def test_a_helper_name_already_in_the_module_is_refused(tmp_path):
         module, "serve", 11, 13, "_already_here", is_async=False, apply=False
     )
     assert code == 1
+
+
+NESTED_SCOPE_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag):
+    answer = "outer"
+
+    def inner():
+        answer = "inner"
+        if flag:
+            answer = answer.upper()
+            answer = answer + "!"
+        return answer
+
+    return inner()
+'''
+
+
+def test_a_block_inside_a_nested_function_is_refused(tmp_path):
+    """Scope, not text.
+
+    `answer` is bound in `serve` AND in `inner`, and they are different
+    variables. Judging a block cut from `inner` against `serve`'s prefix says
+    the name is certain when it is not — eleven orchestrator tests raised
+    UnboundLocalError on the first run of exactly this shape, from
+    `_watchdog_wrapper` inside `_original_handle_incoming_logic`.
+    """
+    module = tmp_path / "sample_nested.py"
+    module.write_text(NESTED_SCOPE_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 11, 13, "_uppercase", is_async=False, apply=False
+    )
+    assert code == 1
+
+
+def test_the_finder_marks_a_nested_block_as_unsafe(tmp_path):
+    """The list and the tool must agree, or the list misleads."""
+    module = tmp_path / "sample_nested_finder.py"
+    module.write_text(NESTED_SCOPE_SAMPLE, encoding="utf-8")
+
+    tools = _load(SEAM_TOOLS, "_aura_seam_tools_test")
+    seams = tools.analyse(module, "serve", min_lines=1)
+    nested = [s for s in seams if s.nested_scope]
+    assert nested, "the finder saw no nested block at all"
+    assert all(not s.safe for s in nested)

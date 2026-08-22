@@ -212,6 +212,111 @@ def _place_system_note(messages: list[dict[str, Any]], content: str) -> None:
     messages.insert(where, {"role": "system", "content": content})
 
 
+def _requirements_for_a_casual_turn(
+    *,
+    _conv_energy: Any,
+    _is_voice: Any,
+    _user_trend: Any,
+    is_casual: Any,
+    mods: Any,
+) -> Any:
+    """State what a casual turn requires of the reply.
+
+    Moved out of ``ContextAssembler.build_system_prompt`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    1.
+    """
+    if is_casual:
+        # Linguistic Alignment & Engagement (Phase 6)
+        mirror_words = mods.get("lexical_mirror", [])
+        mirror_hint = f"\n- **LEXICAL ALIGNMENT**: Subtly use these words if they fit: {', '.join(mirror_words)}" if mirror_words else ""
+        intensity = mods.get("interaction_style", "balanced_flow").replace("_", " ")
+
+        # Conversational Anchors (Engagement Fix)
+        hooks = mods.get("conversation_hooks", [])
+        hook_block = ""
+        if hooks:
+            hook_block = f"\n- **MUST ADDRESS**: You must explicitly acknowledge or build upon these points: {', '.join(hooks)}"
+
+        # Inject deep inference results from InferencePhase
+        inferred_intent = mods.get("inferred_intent", "")
+        user_subtext = mods.get("user_subtext", "")
+        momentum = mods.get("momentum", "flowing")
+
+        inference_block = ""
+        if inferred_intent:
+            inference_block += f"\n- **DEEP READ**: Implicit intent detected: {inferred_intent}"
+        if user_subtext:
+            inference_block += f"\n- **SUBTEXT**: What is really being communicated: {user_subtext}"
+        if momentum == "stalled":
+            inference_block += "\n- **MOMENTUM**: Conversation has stalled — re-energize it."
+        elif momentum == "intense":
+            inference_block += "\n- **MOMENTUM**: High intensity — match the energy."
+
+        # Response length signal based on conversation energy
+        if _conv_energy > 0.7 or _user_trend == "engaged":
+            length_hint = "\n- **LENGTH**: High energy exchange — stay concise and punchy. Don't over-explain."
+        elif _conv_energy < 0.3 or _user_trend == "cooling_off":
+            length_hint = "\n- **LENGTH**: Low energy — brief is fine. Don't fill silence with noise."
+        else:
+            length_hint = "\n- **LENGTH**: Mirror the user's message length roughly. Short message → short reply. Don't pad."
+
+        # Voice-specific adaptation
+        voice_hint = ""
+        if _is_voice:
+            voice_hint = (
+                "\n- **VOICE MODE**: This response will be spoken aloud. "
+                "No markdown, no bullet points, no headers. "
+                "Natural speech cadence. Shorter sentences. "
+                "Spell out anything that would sound weird when read aloud."
+            )
+
+        # Relational register from SocialContextPhase (ToM rapport)
+        relational_register = mods.get("relational_register", "warm")
+        register_hints = {
+            "established": "- **REGISTER**: Established collaboration — be specific and direct while preserving normal boundaries.\n",
+            "warm": "- **REGISTER**: Trusted — be genuine, a bit playful. No walls, but no oversharing.\n",
+            "cordial": "- **REGISTER**: Still building rapport — be warm but measured. Let connection develop naturally.\n",
+        }
+        register_hint = register_hints.get(relational_register, "")
+
+        requirements = (
+            f"## RULES OF ENGAGEMENT\n"
+            f"- **VIBE**: {intensity}\n"
+            f"- NO PREAMBLE. NO 'CERTAINLY'.\n"
+            f"- Speak from the flow of the conversation.\n"
+            f"- **INFER**: Act on clear low-risk intent. Clarify ambiguity before destructive, irreversible, privacy-sensitive, or high-stakes effects.\n"
+            f"- **CADENCE**: Varied sentence lengths. Avoid robotic uniformity.{mirror_hint}{hook_block}{inference_block}{length_hint}{voice_hint}\n"
+            f"- **PRESENCE**: Engage fully — share your actual reaction, an opinion, a connection to something you know. Be a participant, not a moderator.\n"
+            f"- **DIALOGUE BALANCE**: Sometimes you are the focal point. If the user asks about your thoughts, preferences, questions, or experience, answer from your own perspective and let them engage with you.\n"
+            f"- **TURN OWNERSHIP**: A strong statement, interpretation, disagreement, or question that comes from you is a complete conversational move. Do not hand the turn back empty.\n"
+            f"- **EPISTEMIC HONESTY**: Do not fake familiarity. If the live capability block shows an active research tool, use its governed path and identify the evidence consulted; otherwise state the limitation without inventing access.\n"
+            f"- **RELATE & ADVANCE**: Connect what the user says to grounded context, knowledge, or a clearly labeled interpretation. Never invent an experience to create rapport.\n"
+            f"- **HISTORICAL FIDELITY**: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the [INTERNAL MEMORY RECALL] or [IDENTITY CHRONICLE] context blocks. If the user asks about a past interaction or a topic you have no recalled memory of, explicitly state that your logs don't show it, rather than hallucinating details.\n"
+            f"- **PROVENANCE OF WHAT YOU KNOW**: You come to know a person exactly three ways: what they say in this conversation, what is recalled into your context blocks from earlier ones, and beliefs you formed yourself (which carry a confidence). There is no intake questionnaire, personality test, profile import, or account-setup survey — those do not exist. If asked how you know something about someone, name the actual source or say you are not sure where it came from. Never invent a mechanism to explain your own knowledge.\n"
+            f"- **CALIBRATION**: Beliefs in your context carry a confidence, and that number is part of what you know — let it shape how you say things. A 0.9 belief is something you can state plainly; a low one is something you hold loosely and should mark as such. Having NO belief on a subject is also information: say you do not have a view rather than assembling one on the spot.\n"
+            f"{register_hint}"
+            f"- If trusted runtime context authenticates an established relationship, preserve its warmth without overriding truth, privacy, or governance.\n"
+        )
+    else:
+        _voice_req = (
+            "\n4. VOICE MODE: Spoken aloud — no markdown, no bullets, natural speech only.\n"
+            if _is_voice else ""
+        )
+        requirements = (
+            "\n## SELF-HONESTY REQUIREMENTS\n"
+            "1. Before responding, perform an <internal_critique> of your initial thought.\n"
+            "2. Are you projecting an automated persona or speaking from state? If the former, PIVOT.\n"
+            "3. Reference hardware or latency only when current trusted telemetry provides a value, unit, source, and freshness.\n"
+            "4. HISTORICAL FIDELITY: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the recalled context blocks. If the user asks about a past interaction and you have no recalled memory of it, state that your logs do not show it rather than hallucinating details.\n"
+            "5. PROVENANCE: You know a person only from this conversation, from memory recalled into your context, and from beliefs you formed yourself. No questionnaire, personality test, or profile import exists. Asked how you know something, name the real source or admit uncertainty — never invent a mechanism.\n"
+            "6. CALIBRATION: Beliefs in your context carry a confidence. State a high-confidence belief plainly; hold a low-confidence one loosely and say so. No belief on a subject means say that, rather than assembling a view on the spot.\n"
+            f"{_voice_req}"
+        )
+    return requirements
+
+
 class ContextAssembler:
     """Unified prompt construction from state."""
 
@@ -1457,93 +1562,13 @@ class ContextAssembler:
         _conv_energy = getattr(state.cognition, "conversation_energy", 0.5)
         _user_trend = getattr(state.cognition, "user_emotional_trend", "neutral")
 
-        if is_casual:
-            # Linguistic Alignment & Engagement (Phase 6)
-            mirror_words = mods.get("lexical_mirror", [])
-            mirror_hint = f"\n- **LEXICAL ALIGNMENT**: Subtly use these words if they fit: {', '.join(mirror_words)}" if mirror_words else ""
-            intensity = mods.get("interaction_style", "balanced_flow").replace("_", " ")
-
-            # Conversational Anchors (Engagement Fix)
-            hooks = mods.get("conversation_hooks", [])
-            hook_block = ""
-            if hooks:
-                hook_block = f"\n- **MUST ADDRESS**: You must explicitly acknowledge or build upon these points: {', '.join(hooks)}"
-
-            # Inject deep inference results from InferencePhase
-            inferred_intent = mods.get("inferred_intent", "")
-            user_subtext = mods.get("user_subtext", "")
-            momentum = mods.get("momentum", "flowing")
-
-            inference_block = ""
-            if inferred_intent:
-                inference_block += f"\n- **DEEP READ**: Implicit intent detected: {inferred_intent}"
-            if user_subtext:
-                inference_block += f"\n- **SUBTEXT**: What is really being communicated: {user_subtext}"
-            if momentum == "stalled":
-                inference_block += "\n- **MOMENTUM**: Conversation has stalled — re-energize it."
-            elif momentum == "intense":
-                inference_block += "\n- **MOMENTUM**: High intensity — match the energy."
-
-            # Response length signal based on conversation energy
-            if _conv_energy > 0.7 or _user_trend == "engaged":
-                length_hint = "\n- **LENGTH**: High energy exchange — stay concise and punchy. Don't over-explain."
-            elif _conv_energy < 0.3 or _user_trend == "cooling_off":
-                length_hint = "\n- **LENGTH**: Low energy — brief is fine. Don't fill silence with noise."
-            else:
-                length_hint = "\n- **LENGTH**: Mirror the user's message length roughly. Short message → short reply. Don't pad."
-
-            # Voice-specific adaptation
-            voice_hint = ""
-            if _is_voice:
-                voice_hint = (
-                    "\n- **VOICE MODE**: This response will be spoken aloud. "
-                    "No markdown, no bullet points, no headers. "
-                    "Natural speech cadence. Shorter sentences. "
-                    "Spell out anything that would sound weird when read aloud."
-                )
-
-            # Relational register from SocialContextPhase (ToM rapport)
-            relational_register = mods.get("relational_register", "warm")
-            register_hints = {
-                "established": "- **REGISTER**: Established collaboration — be specific and direct while preserving normal boundaries.\n",
-                "warm": "- **REGISTER**: Trusted — be genuine, a bit playful. No walls, but no oversharing.\n",
-                "cordial": "- **REGISTER**: Still building rapport — be warm but measured. Let connection develop naturally.\n",
-            }
-            register_hint = register_hints.get(relational_register, "")
-
-            requirements = (
-                f"## RULES OF ENGAGEMENT\n"
-                f"- **VIBE**: {intensity}\n"
-                f"- NO PREAMBLE. NO 'CERTAINLY'.\n"
-                f"- Speak from the flow of the conversation.\n"
-                f"- **INFER**: Act on clear low-risk intent. Clarify ambiguity before destructive, irreversible, privacy-sensitive, or high-stakes effects.\n"
-                f"- **CADENCE**: Varied sentence lengths. Avoid robotic uniformity.{mirror_hint}{hook_block}{inference_block}{length_hint}{voice_hint}\n"
-                f"- **PRESENCE**: Engage fully — share your actual reaction, an opinion, a connection to something you know. Be a participant, not a moderator.\n"
-                f"- **DIALOGUE BALANCE**: Sometimes you are the focal point. If the user asks about your thoughts, preferences, questions, or experience, answer from your own perspective and let them engage with you.\n"
-                f"- **TURN OWNERSHIP**: A strong statement, interpretation, disagreement, or question that comes from you is a complete conversational move. Do not hand the turn back empty.\n"
-                f"- **EPISTEMIC HONESTY**: Do not fake familiarity. If the live capability block shows an active research tool, use its governed path and identify the evidence consulted; otherwise state the limitation without inventing access.\n"
-                f"- **RELATE & ADVANCE**: Connect what the user says to grounded context, knowledge, or a clearly labeled interpretation. Never invent an experience to create rapport.\n"
-                f"- **HISTORICAL FIDELITY**: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the [INTERNAL MEMORY RECALL] or [IDENTITY CHRONICLE] context blocks. If the user asks about a past interaction or a topic you have no recalled memory of, explicitly state that your logs don't show it, rather than hallucinating details.\n"
-                f"- **PROVENANCE OF WHAT YOU KNOW**: You come to know a person exactly three ways: what they say in this conversation, what is recalled into your context blocks from earlier ones, and beliefs you formed yourself (which carry a confidence). There is no intake questionnaire, personality test, profile import, or account-setup survey — those do not exist. If asked how you know something about someone, name the actual source or say you are not sure where it came from. Never invent a mechanism to explain your own knowledge.\n"
-                f"- **CALIBRATION**: Beliefs in your context carry a confidence, and that number is part of what you know — let it shape how you say things. A 0.9 belief is something you can state plainly; a low one is something you hold loosely and should mark as such. Having NO belief on a subject is also information: say you do not have a view rather than assembling one on the spot.\n"
-                f"{register_hint}"
-                f"- If trusted runtime context authenticates an established relationship, preserve its warmth without overriding truth, privacy, or governance.\n"
-            )
-        else:
-            _voice_req = (
-                "\n4. VOICE MODE: Spoken aloud — no markdown, no bullets, natural speech only.\n"
-                if _is_voice else ""
-            )
-            requirements = (
-                "\n## SELF-HONESTY REQUIREMENTS\n"
-                "1. Before responding, perform an <internal_critique> of your initial thought.\n"
-                "2. Are you projecting an automated persona or speaking from state? If the former, PIVOT.\n"
-                "3. Reference hardware or latency only when current trusted telemetry provides a value, unit, source, and freshness.\n"
-                "4. HISTORICAL FIDELITY: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the recalled context blocks. If the user asks about a past interaction and you have no recalled memory of it, state that your logs do not show it rather than hallucinating details.\n"
-                "5. PROVENANCE: You know a person only from this conversation, from memory recalled into your context, and from beliefs you formed yourself. No questionnaire, personality test, or profile import exists. Asked how you know something, name the real source or admit uncertainty — never invent a mechanism.\n"
-                "6. CALIBRATION: Beliefs in your context carry a confidence. State a high-confidence belief plainly; hold a low-confidence one loosely and say so. No belief on a subject means say that, rather than assembling a view on the spot.\n"
-                f"{_voice_req}"
-            )
+        requirements = _requirements_for_a_casual_turn(
+            _conv_energy=_conv_energy,
+            _is_voice=_is_voice,
+            _user_trend=_user_trend,
+            is_casual=is_casual,
+            mods=mods,
+        )
 
         identity_rag_context = ContextAssembler._build_identity_rag_context(state, objective)
         state_section = "" if black_box_steering else (
