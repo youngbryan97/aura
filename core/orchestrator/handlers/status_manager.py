@@ -262,6 +262,24 @@ class StatusManagerMixin:
         import asyncio
 
         try:
+            # The evidence router's embedding model, loaded here or nowhere.
+            #
+            # LIVE, 2026-08-21: a chat preflight logged sight at 234 seconds.
+            # Deciding whether a turn needs a camera reading ends in a
+            # semantic routing question, and asking it loaded the embedding
+            # model in the foreground. A turn now answers from the lexical
+            # floor when the model is cold; this is where it stops being cold.
+            # It is a small encoder, not the resident cortex, so it does not
+            # wait for the blocker that protects the 32B.
+            from core.cognition.evidence_relevance import (
+                semantic_routing_ready,
+                warm_semantic_routing,
+            )
+
+            if not semantic_routing_ready():
+                if await asyncio.to_thread(warm_semantic_routing):
+                    logger.info("🧭 Semantic evidence routing is warm.")
+
             from core.runtime.background_policy import (
                 IDLE_COGNITION_BACKGROUND_POLICY,
                 background_activity_reason,

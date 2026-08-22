@@ -42,6 +42,8 @@ from core.runtime.lockdep import checked_lock
 logger = logging.getLogger("Aura.Cognition.EvidenceRelevance")
 
 __all__ = [
+    "semantic_routing_ready",
+    "warm_semantic_routing",
     "PHYSICAL_PERCEPTION",
     "SCREEN_PERCEPTION",
     "OWN_SOURCE",
@@ -233,6 +235,50 @@ def _embedder() -> Any | None:
             return engine
     except (ImportError, AttributeError, RuntimeError):
         return None
+
+
+#: Set once a warm has been asked for, so a turn asks at most once.
+_WARMING = {"asked": False}
+
+
+def semantic_routing_ready() -> bool:
+    """Whether the embedding model is loaded ALREADY, loading nothing.
+
+    LIVE, 2026-08-21: a chat preflight logged sight at 234 seconds. The
+    routing question at the end of `sight_intent.classify` runs on every turn
+    that the cheap lexical rules do not settle, and answering it called
+    `semantic_routing_available`, which checks out the model — that is, loads
+    it. The first turn after a restart paid for the load, in the foreground,
+    before anything had been said back.
+
+    A readiness question must not do the thing it is asking about.
+    """
+    embedder = _embedder()
+    if embedder is None:
+        return False
+    return getattr(embedder, "_model", None) is not None
+
+
+def warm_semantic_routing() -> bool:
+    """Load the embedding model. For a background task or boot, never a turn."""
+    try:
+        return semantic_routing_available()
+    except (AttributeError, RuntimeError, OSError):
+        return False
+
+
+def _ask_for_a_warm() -> None:
+    """Get the model loaded off the critical path, once."""
+    if _WARMING["asked"]:
+        return
+    _WARMING["asked"] = True
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    loop.run_in_executor(None, warm_semantic_routing)
 
 
 def semantic_routing_available() -> bool:
@@ -474,7 +520,11 @@ def wants_evidence(
             floor = False
     if floor:
         return True
-    if not semantic_routing_available():
+    # Never load a model to answer this. A turn that arrives before the
+    # embedding is warm gets the lexical floor and asks for a warm in the
+    # background; the turn after it gets meaning.
+    if not semantic_routing_ready():
+        _ask_for_a_warm()
         return False
     score = relevance(text, kind)
     required_margin = (
