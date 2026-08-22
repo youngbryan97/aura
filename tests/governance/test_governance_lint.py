@@ -226,6 +226,25 @@ def test_scanner_does_not_count_string_replace_or_read_only_image_open() -> None
     assert _scan_tree_scoped(tree, "core/synthetic.py") == {}
 
 
+def test_scanner_uses_replace_arity_to_separate_strings_from_paths() -> None:
+    tree = ast.parse(
+        textwrap.dedent(
+            """
+            from pathlib import Path
+
+            def normalize(source: str, path: Path, target: Path) -> None:
+                source.replace("_", " ")
+                path.replace(target)
+            """
+        )
+    )
+
+    buckets = _scan_tree_scoped(tree, "core/synthetic.py")
+
+    assert sum(buckets.values()) == 1
+    assert {key[0] for key in buckets} == {"raw_file_mutation"}
+
+
 def test_scanner_counts_mutating_path_open_modes() -> None:
     tree = ast.parse(
         textwrap.dedent(

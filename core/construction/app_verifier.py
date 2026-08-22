@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -85,7 +84,11 @@ class _Bindings(HTMLParser):
 
 
 def _run_node(
-    argv: list[str], *, cwd: str | None = None, timeout: float = _NODE_TIMEOUT_S
+    argv: list[str],
+    *,
+    cwd: str | None = None,
+    timeout: float = _NODE_TIMEOUT_S,
+    stdin: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run node through the runtime's own gateway.
 
@@ -110,6 +113,7 @@ def _run_node(
             text=True,
             timeout=timeout,
             read_only=True,
+            input=stdin,
             check=False,
             source="construction.verify_app",
             accelerator_capability="none",
@@ -186,13 +190,10 @@ def _run_in_node(spec: AppSpec, runs: list[list[str]], inputs: dict[str, Any]) -
         "  return state;\n});\n"
         "console.log(JSON.stringify(out));\n"
     )
-    with tempfile.TemporaryDirectory() as work:
-        script = Path(work) / "check.js"
-        script.write_text(driver, encoding="utf-8")
-        try:
-            done = _run_node(["node", str(script)])
-        except (OSError, subprocess.SubprocessError, RuntimeError):
-            return None
+    try:
+        done = _run_node(["node", "--input-type=commonjs", "-"], stdin=driver)
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        return None
     if done.returncode != 0:
         raise ValueError(f"the emitted JavaScript did not run: {done.stderr.strip()[:300]}")
     return json.loads(done.stdout or "[]")
@@ -204,7 +205,9 @@ def _same(left: Any, right: Any) -> bool:
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
         return abs(float(left) - float(right)) < 1e-9
     if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(_same(a, b) for a, b in zip(left, right))
+        return len(left) == len(right) and all(
+            _same(a, b) for a, b in zip(left, right, strict=True)
+        )
     return str(left) == str(right)
 
 
@@ -243,18 +246,16 @@ def _as_rendered(spec: AppSpec, state: dict[str, Any]) -> dict[str, Any]:
 
 def _drive_in_dom(html: str, runs: list[list[str]], inputs: dict[str, Any]) -> dict[str, Any] | None:
     """Open the page, click through each run, and report what it displays."""
-    with tempfile.TemporaryDirectory() as work:
-        page = Path(work) / "app.html"
-        page.write_text(html, encoding="utf-8")
-        payload = json.dumps({"runs": runs, "inputs": inputs})
-        try:
-            done = _run_node(
-                ["node", str(_DRIVER), str(page), payload],
-                cwd=str(_DRIVER.parent),
-                timeout=_NODE_TIMEOUT_S * 3,
-            )
-        except (OSError, subprocess.SubprocessError, RuntimeError):
-            return None
+    payload = json.dumps({"runs": runs, "inputs": inputs})
+    try:
+        done = _run_node(
+            ["node", str(_DRIVER), "-", payload],
+            cwd=str(_DRIVER.parent),
+            timeout=_NODE_TIMEOUT_S * 3,
+            stdin=html,
+        )
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        return None
     if done.returncode != 0:
         raise ValueError(f"the page could not be opened: {done.stderr.strip()[:300]}")
     try:
@@ -313,16 +314,22 @@ def verify_app(spec: AppSpec, html: str) -> VerifiedApp:
             from_node = None
         if from_node is not None:
             semantics_checked = True
-            for run, theirs in zip(runs, from_node):
-                mine = initial_state(spec)
-                for name in run:
-                    mine = apply(spec, mine, name, inputs)
-                for key in sorted(mine):
-                    if not _same(mine[key], theirs.get(key)):
-                        problems.append(
-                            f"after {' then '.join(run)}, {key} is {theirs.get(key)!r} in the "
-                            f"page and {mine[key]!r} in the model"
-                        )
+            if len(from_node) != len(runs):
+                problems.append(
+                    "the emitted reducer returned "
+                    f"{len(from_node)} result(s) for {len(runs)} action sequence(s)"
+                )
+            else:
+                for run, theirs in zip(runs, from_node, strict=True):
+                    mine = initial_state(spec)
+                    for name in run:
+                        mine = apply(spec, mine, name, inputs)
+                    for key in sorted(mine):
+                        if not _same(mine[key], theirs.get(key)):
+                            problems.append(
+                                f"after {' then '.join(run)}, {key} is {theirs.get(key)!r} "
+                                f"in the page and {mine[key]!r} in the model"
+                            )
             if not problems:
                 checks.append(f"{len(runs)} action sequence(s) agree with the model")
 
@@ -339,19 +346,28 @@ def verify_app(spec: AppSpec, html: str) -> VerifiedApp:
             driven = True
             for message in list(observed.get("errors") or [])[:4]:
                 problems.append(f"the page reported: {message}")
-            for run, shown in zip(runs, list(observed.get("rendered") or [])):
-                state = initial_state(spec)
-                for name in run:
-                    state = apply(spec, state, name, inputs)
-                expected = _as_rendered(spec, state)
-                for key in sorted(expected):
-                    if key not in shown:
-                        problems.append(f"after {' then '.join(run)}, the page never showed {key}")
-                    elif not _same_rendering(expected[key], shown[key]):
-                        problems.append(
-                            f"after {' then '.join(run)}, the page shows {key} as "
-                            f"{shown[key]!r} and it should be {expected[key]!r}"
-                        )
+            rendered = list(observed.get("rendered") or [])
+            if len(rendered) != len(runs):
+                problems.append(
+                    "the DOM driver returned "
+                    f"{len(rendered)} result(s) for {len(runs)} action sequence(s)"
+                )
+            else:
+                for run, shown in zip(runs, rendered, strict=True):
+                    state = initial_state(spec)
+                    for name in run:
+                        state = apply(spec, state, name, inputs)
+                    expected = _as_rendered(spec, state)
+                    for key in sorted(expected):
+                        if key not in shown:
+                            problems.append(
+                                f"after {' then '.join(run)}, the page never showed {key}"
+                            )
+                        elif not _same_rendering(expected[key], shown[key]):
+                            problems.append(
+                                f"after {' then '.join(run)}, the page shows {key} as "
+                                f"{shown[key]!r} and it should be {expected[key]!r}"
+                            )
             if not problems:
                 checks.append(f"{len(runs)} sequence(s) clicked through in a real DOM")
 
@@ -368,6 +384,6 @@ def verify_app(spec: AppSpec, html: str) -> VerifiedApp:
 def _same_rendering(expected: Any, shown: Any) -> bool:
     if isinstance(expected, list) and isinstance(shown, list):
         return len(expected) == len(shown) and all(
-            str(a) == str(b) for a, b in zip(expected, shown)
+            str(a) == str(b) for a, b in zip(expected, shown, strict=True)
         )
     return str(expected) == str(shown)

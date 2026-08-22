@@ -91,13 +91,19 @@ async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     gateway = get_file_write_gateway()
+    real_ensure = gateway.ensure_directory_async
     real_write = gateway.write_text_async
     observed = []
 
+    async def observing_ensure(path, **kwargs):
+        observed.append(("ensure", get_active_governance()))
+        await real_ensure(path, **kwargs)
+
     async def observing_write(path, text, **kwargs):
-        observed.append(get_active_governance())
+        observed.append(("write", get_active_governance()))
         await real_write(path, text, **kwargs)
 
+    monkeypatch.setattr(gateway, "ensure_directory_async", observing_ensure)
     monkeypatch.setattr(gateway, "write_text_async", observing_write)
 
     saved = await save_requested_artifact_async(
@@ -108,6 +114,8 @@ async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_
 
     assert saved is not None
     assert saved.path.exists()
-    assert observed[0] is not None
-    assert observed[0].source == "conversation.requested_artifact"
-    assert observed[0].domain == "state_mutation"
+    assert [operation for operation, _token in observed] == ["ensure", "write"]
+    for _operation, token in observed:
+        assert token is not None
+        assert token.source == "conversation.requested_artifact"
+        assert token.domain == "state_mutation"

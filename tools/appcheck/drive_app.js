@@ -12,9 +12,10 @@
 const fs = require("fs");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
+// "-" means the page arrives on stdin, so a check writes no file at all.
 const file = process.argv[2];
 const plan = JSON.parse(process.argv[3] || '{"runs":[],"inputs":{}}');
-const html = fs.readFileSync(file, "utf8");
+const html = fs.readFileSync(file === "-" ? 0 : file, "utf8");
 
 const errors = [];
 const virtualConsole = new VirtualConsole();

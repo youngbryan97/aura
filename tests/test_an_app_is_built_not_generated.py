@@ -134,6 +134,24 @@ def test_a_compiler_that_disagrees_is_caught():
     assert any("in the page" in problem for problem in report.problems)
 
 
+@pytest.mark.skipif(not node_available(), reason="node is not installed here")
+def test_a_reducer_cannot_omit_an_action_sequence(monkeypatch):
+    """A truncated verifier result is a failed proof, not partial agreement."""
+    import core.construction.app_verifier as verifier
+
+    spec = counter()
+    monkeypatch.setattr(
+        verifier,
+        "_run_in_node",
+        lambda _spec, _runs, _inputs: [{"count": 1}],
+    )
+
+    report = verify_app(spec, compile_app(spec))
+
+    assert not report.ok
+    assert any("result(s)" in problem and "action sequence(s)" in problem for problem in report.problems)
+
+
 def test_a_thin_plan_is_repaired_into_a_working_app():
     """A plan naming no state, an invented operation and an undeclared box."""
     planned = spec_from_plan(
@@ -201,6 +219,23 @@ def test_a_page_that_renders_the_wrong_thing_is_caught():
     report = verify_app(spec, html)
     assert not report.ok
     assert any("the page shows" in problem for problem in report.problems)
+
+
+@pytest.mark.skipif(not dom_driver_available(), reason="jsdom is not installed here")
+def test_a_dom_driver_cannot_omit_an_action_sequence(monkeypatch):
+    import core.construction.app_verifier as verifier
+
+    spec = counter()
+    monkeypatch.setattr(
+        verifier,
+        "_drive_in_dom",
+        lambda _html, _runs, _inputs: {"errors": [], "rendered": [{"count": "1"}]},
+    )
+
+    report = verify_app(spec, compile_app(spec))
+
+    assert not report.ok
+    assert any("DOM driver returned" in problem for problem in report.problems)
 
 
 @pytest.mark.skipif(not dom_driver_available(), reason="jsdom is not installed here")

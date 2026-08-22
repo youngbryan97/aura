@@ -17,12 +17,18 @@ when several agents share one tree.
 A real Aura instance is usually running on this machine: port 8000, the
 `aura_main` process, logs streaming to `~/.aura/logs/`.
 
-**Never kill it, restart it, or collide with its port.** Do not boot a second
-desktop runtime or load another 32B model beside it — the host has 64 GB and
-the live model already holds ~20 GB wired. A blanket `pkill -f aura_main`
-kills Bryan's running app along with whatever you were aiming at.
+**Never kill it, restart it, or collide with its port unless Bryan explicitly
+authorizes a runtime restart in the current task.** Do not boot a second desktop
+runtime or load another 32B model beside it — the host has 64 GB and the live
+model already holds ~20 GB wired. A blanket `pkill -f aura_main` kills Bryan's
+running app along with whatever you were aiming at and remains prohibited.
 
-Code fixes reach the live instance only when Bryan restarts it himself.
+With explicit current-task authorization, a coding agent may perform one
+controlled restart through Aura's supported lifecycle path. Before doing so,
+verify the intended source revision, confirm no training campaign or soak owns
+the resident model, preserve state and logs through graceful shutdown, and
+prove that exactly one replacement process loaded the expected revision. Code
+fixes otherwise reach the live instance when Bryan restarts it himself.
 
 ## Before you resume anything
 

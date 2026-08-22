@@ -94,19 +94,30 @@ class ParliamentDebate:
                 record_degradation("council_debate", e, action="used engineer fallback")
         self.rounds.append({"role": "engineer", "content": final_plan})
 
-        # 5. Round 5: Safety Judge & User Advocate check and vote
-        safety_status = True
-        safety_reason = "No irreversible actions or credential hazards detected. Clean sandbox plan."
+        # 5. Round 5: what the runtime can measure about this plan.
+        #
+        # The check that stood here looked for the words delete, submit or
+        # post near force or overwrite: it passed any plan that avoided six
+        # words and stopped any sentence that happened to contain them. The
+        # effect scope of a named skill is policy in this repository, so it is
+        # read rather than guessed at.
+        from core.council.measured_votes import measured_votes
 
-        # Simple heuristic safety check
-        lower_plan = final_plan.lower()
-        if "delete" in lower_plan or "submit" in lower_plan or "post" in lower_plan:
-            if "force" in lower_plan or "overwrite" in lower_plan:
-                safety_status = False
-                safety_reason = "Safety Judge veto: Plan contains force-delete/overwrite side effects."
+        measured = measured_votes(self.objective, final_plan)
+        safety = measured.get("safety_judge")
+        safety_status = True if safety is None or safety.abstained else bool(safety.approve)
+        safety_reason = (
+            safety.reason if safety is not None and not safety.abstained else "nothing measurable"
+        )
 
-        # Aggregate final votes from all 12 roles
-        votes: dict[str, tuple[bool, float, str]] = {}
+        # Roles the runtime answered for. A model does not get a vote on a
+        # question that has an answer.
+        votes: dict[str, tuple[bool, float, str]] = {
+            role: (bool(vote.approve), vote.score, f"{vote.reason} [{vote.source}]")
+            for role, vote in measured.items()
+            if not vote.abstained
+        }
+        settled = set(votes)
         if router and hasattr(router, "think"):
             try:
                 transcript_str = "\n".join(f"{r['role']}: {r['content']}" for r in self.rounds)
@@ -141,6 +152,8 @@ class ParliamentDebate:
                         parsed_votes = json.loads(repair_json(json_str))
 
                     for role in COUNCIL_ROLES.keys():
+                        if role in settled:
+                            continue
                         if role in parsed_votes and isinstance(parsed_votes[role], dict):
                             val = parsed_votes[role]
                             # Respect the safety judge veto if it is dynamically overridden to false
@@ -158,26 +171,21 @@ class ParliamentDebate:
                 record_degradation(
                     "council_debate",
                     e,
-                    action="used static council votes after dynamic vote synthesis failed",
+                    action="retained measured votes and abstained on unmeasured roles",
                 )
                 logger.warning("Failed to obtain dynamic votes from LLM router: %s", e)
 
-        # Fallback to safety-aware static votes if the router fails or is unavailable or incomplete
+        # No fallback votes.
+        #
+        # A fixed dictionary stood here in which every role approved, and one
+        # of them gave as its reason that tests and verification steps were
+        # integrated. Nothing had run. A council with no signal abstains, and
+        # abstention is not approval.
         if not votes:
-            votes = {
-                "strategist": (True, 0.90, "Plan meets target requirements"),
-                "planner": (True, 0.85, "Milestones mapped and realistic"),
-                "engineer": (True, 0.80, "Code patterns are clean"),
-                "researcher": (True, 0.75, "Literature context is accounted for"),
-                "critic": (True, 0.70, "Refined plan sufficiently addresses dependency risks"),
-                "verifier": (True, 0.85, "Tests and verification steps are integrated"),
-                "red_team": (True, 0.80, "Vulnerability risks are mitigated"),
-                "memory_auditor": (True, 0.80, "Aligned with past historical lessons"),
-                "safety_judge": (safety_status, 0.95 if safety_status else 0.10, safety_reason),
-                "tool_operator": (True, 0.90, "Appropriate tools are mapped"),
-                "forecaster": (True, 0.75, "Feasible within temporal limits"),
-                "user_advocate": (True, 0.90, "Output is helpful and aligned with user goals"),
-            }
+            logger.warning(
+                "council: nothing measurable and no votes returned; abstaining on %r.",
+                self.objective,
+            )
 
         consensus = ConsensusResolver.resolve(votes)
         consensus["plan"] = final_plan.split("\n")

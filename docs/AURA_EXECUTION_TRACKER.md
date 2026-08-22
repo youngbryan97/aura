@@ -51444,3 +51444,39 @@ ungoverned experience-consolidator shutdown failure. That run is evidence of
 source mismatch, not validation of CP891 or CP892. Live confirmation remains
 pending until the launch checkout is reconciled and a subsequent restart proves
 matching source identity.
+
+## Checkpoint 2026-08-21-893: Measure Before the Council Votes and Verify the Whole App
+
+Review of two recently exercised production surfaces found the same structural
+truth defect in different forms. The construction verifier compared only the
+prefix returned by its JavaScript and DOM probes, so a driver could omit later
+action sequences and still receive a passing report. The council asked one
+model to synthesize twelve votes and, if that call failed, substituted a fixed
+ballot in which every role approved claims such as completed verification even
+though no check had run.
+
+App verification now feeds JavaScript and HTML through stdin instead of making
+ungoverned temporary files, requires exact result cardinality, and compares
+every declared action sequence in both the reducer and real-DOM lanes. Requested
+artifact directory creation now crosses the same governed synchronous or async
+file gateway as the artifact itself. The governance scanner distinguishes
+one-argument `Path.replace(target)` from two-argument `str.replace(old, new)`,
+removing false file-mutation debt without suppressing real path replacement.
+
+The council now reads signals it can actually measure: declared skill effect
+scope from policy, Python syntax from the compiler, and named repository gates
+from the Makefile and test tree. Roles with no readable signal abstain and an
+empty ballot is explicitly `no_signal`; no static approval is invented. Merely
+naming a consequential skill is not a planning-time veto: the council records
+the required effect scope and abstains because authority is decided against the
+actual receipt at execution time.
+
+Deterministic contracts prove omitted reducer and DOM results fail, artifact
+directory and file writes share governed ownership, string replacement is not
+misclassified as a filesystem mutation, measurable council claims come from
+their named evidence, consequential plans are not prematurely vetoed, and
+abstention never becomes approval. The focused construction, conversation,
+council and governance suite passes `47/47` with four environment-dependent
+skips; canonical smoke passes `120/120` with one environment-dependent skip;
+Ruff, compilation and diff hygiene pass. The currently running desktop process
+predates this source and is not live evidence for it.

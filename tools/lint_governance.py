@@ -678,7 +678,11 @@ class EffectVisitor(ast.NodeVisitor):
             return "raw_file_mutation"
         if method in _PATH_MUTATION_METHODS:
             return "raw_file_mutation"
-        if method in _AMBIGUOUS_PATH_MUTATION_METHODS and _looks_path_receiver(callee):
+        if (
+            method in _AMBIGUOUS_PATH_MUTATION_METHODS
+            and _looks_path_receiver(callee)
+            and _replaces_a_path(node)
+        ):
             return "raw_file_mutation"
         if _strip_project_prefix(callee) == "os.open":
             return "raw_file_mutation" if _os_open_flags_mutate(node) else None
@@ -817,6 +821,17 @@ def _open_call_mutates(node: ast.Call, callee: str) -> bool:
 
 def _is_file_mode(value: str) -> bool:
     return bool(value) and all(character in "rwaxbt+" for character in value)
+
+
+def _replaces_a_path(node: ast.Call) -> bool:
+    """Whether this `replace`/`rename` moves a file rather than editing a string.
+
+    `Path.replace(target)` takes one argument and `str.replace(old, new)` takes
+    two, so arity separates them exactly. Without this, `op.source.replace("_",
+    " ")` was reported as a raw file mutation because the receiver happened to
+    be called `source`, which is on the list of words that look like paths.
+    """
+    return len(node.args) <= 1 and not node.keywords
 
 
 def _looks_path_receiver(callee: str) -> bool:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 logger = logging.getLogger("Aura.CouncilConsensus")
 
@@ -13,9 +13,9 @@ class ConsensusResolver:
 
     @staticmethod
     def resolve(
-        votes: Dict[str, Tuple[bool, float, str]],  # role -> (approve, score, reason)
-        veto_roles: List[str] | None = None
-    ) -> Dict[str, Any]:
+        votes: dict[str, tuple[bool, float, str]],  # role -> (approve, score, reason)
+        veto_roles: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Resolves voting outcome. Safety Judge has absolute veto power."""
         veto_roles = veto_roles or ["safety_judge"]
         
@@ -32,6 +32,24 @@ class ConsensusResolver:
                         "dissenters": [role],
                     }
 
+        # Nothing to resolve.
+        #
+        # `approve_ratio` divides by max(1e-5, total_weight), so an empty
+        # ballot produced a ratio of 0.0 and a rejection — right by accident,
+        # and indistinguishable from twelve roles voting no. A council that
+        # measured nothing has not decided anything, and says so.
+        if not votes:
+            logger.warning("Council reached no verdict: nothing was measured and nobody voted.")
+            return {
+                "approved": False,
+                "status": "no_signal",
+                "reason": "no role had anything to read and no vote was cast",
+                "dissenters": [],
+                "score": 0.0,
+                "ratio": 0.0,
+                "approve_ratio": 0.0,
+            }
+
         total_weight = 0.0
         weighted_score = 0.0
         approved_weight = 0.0
@@ -39,7 +57,7 @@ class ConsensusResolver:
 
         from core.council.roles import COUNCIL_ROLES
 
-        for role, (approved, score, reason) in votes.items():
+        for role, (approved, score, _reason) in votes.items():
             role_config = COUNCIL_ROLES.get(role)
             weight = role_config.weight if role_config else 1.0
             total_weight += weight
@@ -60,6 +78,7 @@ class ConsensusResolver:
             "status": "approved" if is_approved else "rejected",
             "score": average_score,
             "ratio": approve_ratio,
+            "approve_ratio": approve_ratio,
             "dissenters": dissenters,
             "reason": "Approved by majority" if is_approved else "Failed to achieve 60% majority support",
         }

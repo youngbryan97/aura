@@ -137,6 +137,12 @@ def save_requested_artifact(
                 "suffix": target.suffix,
             },
         ):
+            # The directory goes through the same lane as the file. A raw
+            # mkdir beside a governed write is the half-governed shape the
+            # gateway exists to remove.
+            get_file_write_gateway().ensure_directory(
+                str(base), source="conversation.requested_artifact"
+            )
             get_file_write_gateway().write_text(
                 target, body, source="conversation.requested_artifact"
             )
@@ -188,6 +194,10 @@ async def save_requested_artifact_async(
                 "suffix": target.suffix,
             },
         ):
+            await get_file_write_gateway().ensure_directory_async(
+                base,
+                source="conversation.requested_artifact",
+            )
             await get_file_write_gateway().write_text_async(
                 target,
                 body,

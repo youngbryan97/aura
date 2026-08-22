@@ -4057,12 +4057,28 @@
       "scope": "<module>.TerminalChatWindow._create_chat_script"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/conversation/requested_artifact.py",
+      "scope": "<module>.save_requested_artifact"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/conversation/requested_artifact.py",
       "scope": "<module>.save_requested_artifact"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/conversation/requested_artifact.py",
+      "scope": "<module>.save_requested_artifact_async"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
@@ -7537,14 +7553,6 @@
       "scope": "<module>.AdvancedCognitionRuntime.__init__"
     },
     {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 2,
-      "path": "core/advanced_cognition/ontology_invention.py",
-      "scope": "<module>.OntologyInventionEngine._hidden"
-    },
-    {
       "callee": "_PERSIST_PATH.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -7753,22 +7761,6 @@
       "scope": "<module>.LesionStudy.__init__"
     },
     {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/mutation_classifier.py",
-      "scope": "<module>.MutationClassifier.classify_path"
-    },
-    {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/mutation_classifier.py",
-      "scope": "<module>.MutationClassifier.explain_patterns"
-    },
-    {
       "callee": "self.root.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -7825,14 +7817,6 @@
       "scope": "<module>.RefactorPlanner.persist_plan"
     },
     {
-      "callee": "target.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/refactor_planner.py",
-      "scope": "<module>.RefactorPlanner.plan_for_target"
-    },
-    {
       "callee": "self.root.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -7855,22 +7839,6 @@
       "count": 1,
       "path": "core/architect/safety_gate.py",
       "scope": "<module>.ASASafetyGate.__init__"
-    },
-    {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/semantic_classifier.py",
-      "scope": "<module>.SemanticClassifier.classify_path"
-    },
-    {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/semantic_classifier.py",
-      "scope": "<module>.SemanticClassifier.module_name_for_path"
     },
     {
       "callee": "self.runs_dir.mkdir",
@@ -8135,14 +8103,6 @@
       "count": 1,
       "path": "core/autonomy/self_modification.py",
       "scope": "<module>.AutonomousSelfModification._durable_append"
-    },
-    {
-      "callee": "rel_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/autonomy/self_modification.py",
-      "scope": "<module>.AutonomousSelfModification.classify_target"
     },
     {
       "callee": "self.data_path.rename",
@@ -9121,30 +9081,6 @@
       "scope": "<module>.UnifiedSelf._save_to_disk"
     },
     {
-      "callee": "op.source.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/construction/app_planner.py",
-      "scope": "<module>.spec_from_plan"
-    },
-    {
-      "callee": "page.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/construction/app_verifier.py",
-      "scope": "<module>._drive_in_dom"
-    },
-    {
-      "callee": "script.write_text",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/construction/app_verifier.py",
-      "scope": "<module>._run_in_node"
-    },
-    {
       "callee": "project_root.mkdir",
       "canonical_owner": true,
       "category": "raw_file_mutation",
@@ -9601,14 +9537,6 @@
       "scope": "<module>.ExecutiveLedger.append"
     },
     {
-      "callee": "rel_dir.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/factory/repo_cartographer.py",
-      "scope": "<module>.RepoCartographer.map_repo"
-    },
-    {
       "callee": "<pathlib.Path>.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -9751,22 +9679,6 @@
       "count": 1,
       "path": "core/introspection/code_graph.py",
       "scope": "<module>.CodeGraph._get_conn"
-    },
-    {
-      "callee": "rel_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/introspection/code_graph.py",
-      "scope": "<module>.CodeGraph._parse_files"
-    },
-    {
-      "callee": "file_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/introspection/code_graph.py",
-      "scope": "<module>.CodeGraph.dependents_of"
     },
     {
       "callee": "self._db_path.replace",
@@ -12473,14 +12385,6 @@
       "scope": "<module>.ConstitutionalGate.__init__"
     },
     {
-      "callee": "module_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/safety/constitutional_gate.py",
-      "scope": "<module>.ConstitutionalGate._is_protected"
-    },
-    {
       "callee": "self.backup_root.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -12519,14 +12423,6 @@
       "count": 1,
       "path": "core/sandbox/macos_sandbox.py",
       "scope": "<module>.MacOSSandbox.execute_command"
-    },
-    {
-      "callee": "path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/sandbox/untrusted_python.py",
-      "scope": "<module>._escape"
     },
     {
       "callee": "self.path.parent.mkdir",
@@ -12873,14 +12769,6 @@
       "scope": "<module>.SandboxTester._setup_sandbox"
     },
     {
-      "callee": "fix.target_file.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/code_repair.py",
-      "scope": "<module>.SandboxTester._setup_sandbox"
-    },
-    {
       "callee": "sandbox_file.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -12911,30 +12799,6 @@
       "count": 1,
       "path": "core/self_modification/error_intelligence.py",
       "scope": "<module>.StructuredErrorLogger.__init__"
-    },
-    {
-      "callee": "file_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/fault_pipeline.py",
-      "scope": "<module>.ReproductionSynthesizer._module_name"
-    },
-    {
-      "callee": "frame.file.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/fault_pipeline.py",
-      "scope": "<module>.TestSynthesizer.synthesize"
-    },
-    {
-      "callee": "file_path.replace",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/formal_verifier.py",
-      "scope": "<module>._is_in_allow_list"
     },
     {
       "callee": "self.db_path.parent.mkdir",
@@ -15890,6 +15754,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "c55f3a79ee2a3b433398203effa5d700e03f96e1f0c6fe4348da7772280bf3da",
+  "inventory_sha256": "72d5af7db06430bd149e6908e6065bc7e4f8fb6a7ce7b0e298d60f06f75d100e",
   "schema_version": 1
 }
