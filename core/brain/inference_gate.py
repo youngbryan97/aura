@@ -1934,6 +1934,89 @@ def _settle_the_token_ceilings(
     return deep_handoff, max_tokens, requested_tier, stakes_token_ceiling
 
 
+async def _refuse_a_cold_protected_lane(
+    *,
+    benchmark_request: Any,
+    context: Any,
+    initial_visible_user_prompt: Any,
+    origin: Any,
+    output_contract: Any,
+    output_contract_payload: Any,
+    proof_evaluation_contract: Any,
+    self: Any,
+    state: Any,
+) -> Any:
+    """Refuse the turn when the protected lane is conclusively cold.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 9 name(s) and hands back
+    0.
+    """
+    async def _block() -> Any:
+        if bool(context.get("allow_mesh_cognition", True)) and not (
+            proof_evaluation_contract
+            or benchmark_request
+            or bool(context.get("is_background", False))
+        ):
+            try:
+                from core.consciousness.mesh_cognition import get_mesh_cognition
+
+                mesh_decision = get_mesh_cognition().decide(
+                    initial_visible_user_prompt,
+                    state=state,
+                )
+                if mesh_decision.handled:
+                    context["mesh_cognition"] = mesh_decision.as_dict()
+                    # This return happens BEFORE trust recognition, admission
+                    # and routing policy, all of which live further down. For
+                    # an acknowledgement or a resource hold that is fine —
+                    # neither reveals anything and neither spends a lane. A
+                    # SELF-REPORT is different: it describes her internal state
+                    # to whoever asked, and who asked is not yet known. Those
+                    # fall through to the full path, which recognizes trust
+                    # first and can still answer.
+                    if str(mesh_decision.rationale or "") in _MESH_PRE_TRUST_RATIONALES:
+                        self._record_client_generation_metadata(
+                            None,
+                            label="MeshCognition",
+                            success=bool(str(mesh_decision.response or "").strip()),
+                            text=str(mesh_decision.response or ""),
+                            requested_max_tokens=output_contract.semantic_token_cap,
+                            output_contract=output_contract_payload,
+                        )
+                        self._record_user_generation_endpoint("MeshCognition")
+                        return self._stabilize_user_facing_text(
+                            mesh_decision.response,
+                            initial_visible_user_prompt,
+                            is_user_facing=True,
+                        )
+                    context["mesh_deferred_for_trust"] = str(
+                        mesh_decision.rationale or "unknown"
+                    )
+                    logger.info(
+                        "🕸️ Mesh handled the turn as %s; deferring to the governed "
+                        "path so trust is recognized before self-report leaves.",
+                        mesh_decision.rationale,
+                    )
+            except _INFERENCE_RECOVERABLE_ERRORS as _mesh_exc:  # pragma: no cover - defensive
+                # A raised exception is not the same as `handled=False`. The
+                # first is a broken organism path, the second is the design
+                # working. Calling both "declined" in a debug line left an
+                # operator no way to tell them apart.
+                context["mesh_cognition_error"] = f"{type(_mesh_exc).__name__}: {_mesh_exc}"[:240]
+                _record_inference_degradation(
+                    _mesh_exc,
+                    action="fell through to the LLM path after the mesh cognition path raised",
+                    extra={"origin": str(origin or "")},
+                )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -10625,62 +10708,19 @@ class InferenceGate:
         proof_evaluation_contract = bool(context.get("proof_evaluation_contract", False)) or (
             not benchmark_request and is_proof_evaluation_purpose(purpose)
         )
-        if bool(context.get("allow_mesh_cognition", True)) and not (
-            proof_evaluation_contract
-            or benchmark_request
-            or bool(context.get("is_background", False))
-        ):
-            try:
-                from core.consciousness.mesh_cognition import get_mesh_cognition
-
-                mesh_decision = get_mesh_cognition().decide(
-                    initial_visible_user_prompt,
-                    state=state,
-                )
-                if mesh_decision.handled:
-                    context["mesh_cognition"] = mesh_decision.as_dict()
-                    # This return happens BEFORE trust recognition, admission
-                    # and routing policy, all of which live further down. For
-                    # an acknowledgement or a resource hold that is fine —
-                    # neither reveals anything and neither spends a lane. A
-                    # SELF-REPORT is different: it describes her internal state
-                    # to whoever asked, and who asked is not yet known. Those
-                    # fall through to the full path, which recognizes trust
-                    # first and can still answer.
-                    if str(mesh_decision.rationale or "") in _MESH_PRE_TRUST_RATIONALES:
-                        self._record_client_generation_metadata(
-                            None,
-                            label="MeshCognition",
-                            success=bool(str(mesh_decision.response or "").strip()),
-                            text=str(mesh_decision.response or ""),
-                            requested_max_tokens=output_contract.semantic_token_cap,
-                            output_contract=output_contract_payload,
-                        )
-                        self._record_user_generation_endpoint("MeshCognition")
-                        return self._stabilize_user_facing_text(
-                            mesh_decision.response,
-                            initial_visible_user_prompt,
-                            is_user_facing=True,
-                        )
-                    context["mesh_deferred_for_trust"] = str(
-                        mesh_decision.rationale or "unknown"
-                    )
-                    logger.info(
-                        "🕸️ Mesh handled the turn as %s; deferring to the governed "
-                        "path so trust is recognized before self-report leaves.",
-                        mesh_decision.rationale,
-                    )
-            except _INFERENCE_RECOVERABLE_ERRORS as _mesh_exc:  # pragma: no cover - defensive
-                # A raised exception is not the same as `handled=False`. The
-                # first is a broken organism path, the second is the design
-                # working. Calling both "declined" in a debug line left an
-                # operator no way to tell them apart.
-                context["mesh_cognition_error"] = f"{type(_mesh_exc).__name__}: {_mesh_exc}"[:240]
-                _record_inference_degradation(
-                    _mesh_exc,
-                    action="fell through to the LLM path after the mesh cognition path raised",
-                    extra={"origin": str(origin or "")},
-                )
+        _seam_early_response = await _refuse_a_cold_protected_lane(
+            benchmark_request=benchmark_request,
+            context=context,
+            initial_visible_user_prompt=initial_visible_user_prompt,
+            origin=origin,
+            output_contract=output_contract,
+            output_contract_payload=output_contract_payload,
+            proof_evaluation_contract=proof_evaluation_contract,
+            self=self,
+            state=state,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         health_probe = bool(context.get("health_probe", False)) or purpose == "proof_model_lane_probe"
         # A generation that is not the reply must be able to say so.

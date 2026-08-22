@@ -988,6 +988,68 @@ def _prepare_the_sham_seed_vectors(
     }
 
 
+def _admit_the_transition_candidate(
+    *,
+    ablate_slot: Any,
+    fast_weight_decode_active: Any,
+    fast_weight_learning_state: Any,
+    post_probe_text: Any,
+    prior_candidate: Any,
+    receipt: Any,
+    self: Any,
+    verification_response_contract: Any,
+    winner: Any,
+) -> tuple[Any, Any]:
+    """Admit the transition candidate this step produced.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    2.
+    """
+    from core.brain.llm.latent_cortex.post_adaptation_candidate import (
+        advance_post_adaptation_candidate,
+    )
+    transition, admitted_candidate = advance_post_adaptation_candidate(
+        selected_branch=winner.index,
+        prior_candidate=prior_candidate,
+        observed_candidate=post_probe_text,
+        stage="post_final_adaptation",
+        strict_answer_contract=(
+            "final_answer_v1"
+            in {
+                self.config.decode_contract,
+                self.config.verifier_probe_contract,
+            }
+        ),
+        response_contract=verification_response_contract,
+        adaptation_evidence={
+            "latent_opt_attempts": receipt.latent_opt_attempts,
+            "latent_opt_accepted_steps": receipt.latent_opt_steps,
+            "fast_weight_disposition": (
+                str(fast_weight_learning_state.get("disposition", "not_applied"))
+                if fast_weight_learning_state is not None
+                else "not_applied"
+            ),
+            "fast_weight_decode_active": fast_weight_decode_active,
+            "slot_ablation_applied": ablate_slot is not None,
+            "prior_disagreement_sha256": str(
+                receipt.disagreement_graph.get("receipt_sha256", "")
+            ),
+            "prior_diagnostic_sha256": str(
+                receipt.diagnostic_action_selection.get("receipt_sha256", "")
+            ),
+            "prior_local_repair_sha256": str(
+                receipt.local_repair.get("receipt_sha256", "")
+            ),
+            "prior_blind_review_sha256": str(
+                receipt.blind_review.get("receipt_sha256", "")
+            ),
+        },
+    )
+    return admitted_candidate, transition
+
+
 class LatentCortexEngine:
     """Runs complete latent-reasoning episodes on one frozen model."""
 
@@ -8321,7 +8383,6 @@ class LatentCortexEngine:
                 or research_oracle_enabled
             ):
                 from core.brain.llm.latent_cortex.post_adaptation_candidate import (
-                    advance_post_adaptation_candidate,
                     build_post_adaptation_candidate_receipt,
                 )
 
@@ -8349,42 +8410,16 @@ class LatentCortexEngine:
                         post_probe_tokens,
                         receipt=receipt,
                     )
-                    transition, admitted_candidate = advance_post_adaptation_candidate(
-                        selected_branch=winner.index,
+                    admitted_candidate, transition = _admit_the_transition_candidate(
+                        ablate_slot=ablate_slot,
+                        fast_weight_decode_active=fast_weight_decode_active,
+                        fast_weight_learning_state=fast_weight_learning_state,
+                        post_probe_text=post_probe_text,
                         prior_candidate=prior_candidate,
-                        observed_candidate=post_probe_text,
-                        stage="post_final_adaptation",
-                        strict_answer_contract=(
-                            "final_answer_v1"
-                            in {
-                                self.config.decode_contract,
-                                self.config.verifier_probe_contract,
-                            }
-                        ),
-                        response_contract=verification_response_contract,
-                        adaptation_evidence={
-                            "latent_opt_attempts": receipt.latent_opt_attempts,
-                            "latent_opt_accepted_steps": receipt.latent_opt_steps,
-                            "fast_weight_disposition": (
-                                str(fast_weight_learning_state.get("disposition", "not_applied"))
-                                if fast_weight_learning_state is not None
-                                else "not_applied"
-                            ),
-                            "fast_weight_decode_active": fast_weight_decode_active,
-                            "slot_ablation_applied": ablate_slot is not None,
-                            "prior_disagreement_sha256": str(
-                                receipt.disagreement_graph.get("receipt_sha256", "")
-                            ),
-                            "prior_diagnostic_sha256": str(
-                                receipt.diagnostic_action_selection.get("receipt_sha256", "")
-                            ),
-                            "prior_local_repair_sha256": str(
-                                receipt.local_repair.get("receipt_sha256", "")
-                            ),
-                            "prior_blind_review_sha256": str(
-                                receipt.blind_review.get("receipt_sha256", "")
-                            ),
-                        },
+                        receipt=receipt,
+                        self=self,
+                        verification_response_contract=verification_response_contract,
+                        winner=winner,
                     )
                     receipt.post_adaptation_candidate = build_post_adaptation_candidate_receipt(
                         [transition]

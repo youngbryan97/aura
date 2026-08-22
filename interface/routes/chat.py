@@ -5357,6 +5357,65 @@ def _note_the_latent_metadata(
         )
 
 
+def _assess_the_engine_reply(
+    *,
+    assessment: Any,
+    assessment_reasons: Any,
+    assessment_text: Any,
+    recent_user_messages: Any,
+    text: Any,
+    visible: Any,
+) -> tuple[Any, Any, Any]:
+    """Assess the engine's reply against what the turn asked for.
+
+    Moved out of ``_run_cognitive_engine_chat_turn`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    3.
+    """
+    from core.conversation.response_reliability import assess_user_facing_reply
+    if "generic_assistant_language" in assessment_reasons:
+        try:
+            from core.conversation.response_reliability import (
+                repair_generic_assistant_language,
+            )
+            from core.conversation.surface_disposition import (
+                repair_is_an_improvement,
+            )
+
+            # The draft under assessment in this scope is
+            # `assessment_text`. `reply_text` does not exist here, and
+            # NameError is not in _CHAT_RECOVERABLE_ERRORS, so this did
+            # not fail soft — it raised straight out of the turn. Every
+            # reply the gate flagged as generic-assistant voice took
+            # this branch, which is the exact case the branch was added
+            # to repair.
+            _devoiced = repair_generic_assistant_language(visible, assessment_text)
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat", exc)
+            _devoiced = ""
+        if _devoiced and _devoiced != assessment_text:
+            _devoiced_assessment = assess_user_facing_reply(
+                visible,
+                _devoiced,
+                recent_user_messages=recent_user_messages,
+            )
+            if "generic_assistant_language" not in set(
+                getattr(_devoiced_assessment, "reasons", ()) or ()
+            ) and repair_is_an_improvement(assessment_text, _devoiced, visible):
+                logger.info(
+                    "Stripped generic-assistant voice deterministically before "
+                    "the governed repair path."
+                )
+                text = _devoiced
+                assessment_text = _devoiced
+                assessment = _devoiced_assessment
+                assessment_reasons = list(
+                    getattr(_devoiced_assessment, "reasons", ()) or ()
+                )
+    return assessment, assessment_reasons, text
+
+
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
     *,
@@ -7875,45 +7934,14 @@ async def _run_cognitive_engine_chat_turn(
             # phase; this route, the one the desktop actually uses, never
             # called it. Detection without a reachable repair is how a caught
             # defect still gets served.
-            if "generic_assistant_language" in assessment_reasons:
-                try:
-                    from core.conversation.response_reliability import (
-                        repair_generic_assistant_language,
-                    )
-                    from core.conversation.surface_disposition import (
-                        repair_is_an_improvement,
-                    )
-
-                    # The draft under assessment in this scope is
-                    # `assessment_text`. `reply_text` does not exist here, and
-                    # NameError is not in _CHAT_RECOVERABLE_ERRORS, so this did
-                    # not fail soft — it raised straight out of the turn. Every
-                    # reply the gate flagged as generic-assistant voice took
-                    # this branch, which is the exact case the branch was added
-                    # to repair.
-                    _devoiced = repair_generic_assistant_language(visible, assessment_text)
-                except _CHAT_RECOVERABLE_ERRORS as exc:
-                    record_degradation("chat", exc)
-                    _devoiced = ""
-                if _devoiced and _devoiced != assessment_text:
-                    _devoiced_assessment = assess_user_facing_reply(
-                        visible,
-                        _devoiced,
-                        recent_user_messages=recent_user_messages,
-                    )
-                    if "generic_assistant_language" not in set(
-                        getattr(_devoiced_assessment, "reasons", ()) or ()
-                    ) and repair_is_an_improvement(assessment_text, _devoiced, visible):
-                        logger.info(
-                            "Stripped generic-assistant voice deterministically before "
-                            "the governed repair path."
-                        )
-                        text = _devoiced
-                        assessment_text = _devoiced
-                        assessment = _devoiced_assessment
-                        assessment_reasons = list(
-                            getattr(_devoiced_assessment, "reasons", ()) or ()
-                        )
+            assessment, assessment_reasons, text = _assess_the_engine_reply(
+                assessment=assessment,
+                assessment_reasons=assessment_reasons,
+                assessment_text=assessment_text,
+                recent_user_messages=recent_user_messages,
+                text=text,
+                visible=visible,
+            )
             if require_engine and capability_inventory_contract:
                 grounded_inventory = (
                     _chat_desktop_repair._build_grounded_capability_inventory_reply(
