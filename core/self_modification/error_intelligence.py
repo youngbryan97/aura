@@ -216,6 +216,56 @@ class StructuredErrorLogger:
         
         return event
     
+    async def log_observed_failure(
+        self,
+        *,
+        error_type: str,
+        error_message: str,
+        context: dict[str, Any],
+        skill_name: str | None = None,
+        goal: str | None = None,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        detail: str = "",
+    ) -> ErrorEvent:
+        """Record a failure observed somewhere else, with no exception to raise.
+
+        `log_error` reads an exception's traceback and resolves the deepest
+        frame inside this checkout, which is right for her own faults and
+        cannot describe anything else. A failure found by running somebody
+        else's project has a type, a message and a location already — they
+        were printed by that project's test runner — and there is no exception
+        here to carry them.
+
+        Added 2026-08-22 so a repository diagnosis feeds the same store the
+        pattern analyser reads. A failure seen once in one project and again
+        in another is exactly what that analyser exists to notice, and it
+        could not see any of them while this only accepted exceptions.
+        """
+        event = ErrorEvent(
+            timestamp=time.time(),
+            error_type=str(error_type or "ObservedFailure")[:120],
+            error_message=str(error_message or "")[:600],
+            stack_trace=str(detail or "")[:4000],
+            context=dict(context or {}),
+            skill_name=skill_name,
+            goal=goal,
+            file_path=str(file_path) if file_path else None,
+            line_number=int(line_number) if line_number else None,
+        )
+        self.recent_errors.append(event)
+        if len(self.recent_errors) > self.max_recent:
+            self.recent_errors = self.recent_errors[-self.max_recent :]
+        await self._append_to_log(self.error_log_path, event.to_dict())
+        logger.info(
+            "Observed failure recorded: %s at %s:%s (%s)",
+            event.error_type,
+            event.file_path or "unknown",
+            event.line_number or 0,
+            skill_name or "unknown",
+        )
+        return event
+
     def log_execution(
         self,
         skill_name: str,

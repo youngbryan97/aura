@@ -56,6 +56,7 @@ class DiagnoseRepoSkill(BaseSkill):
             diagnose_repository, params.path, argv=argv
         )
         described = describe_diagnosis(diagnosis)
+        await _remember_the_failure(diagnosis, params.path)
         # What was observed is the answer.
         #
         # LIVE, 2026-08-22: this skill ran in 428ms and returned the failing
@@ -99,6 +100,72 @@ class DiagnoseRepoSkill(BaseSkill):
             "stated_intent": diagnosis.stated_intent,
             "summary": described,
         }
+
+
+async def _remember_the_failure(diagnosis: Any, path: str) -> None:
+    """Put what failed into the store the pattern analyser reads.
+
+    A failure seen once in one project and again in another is what
+    ErrorPatternAnalyzer exists to notice, and it could not see any of them:
+    the store only accepted exceptions, which is right for her own faults and
+    cannot describe somebody else's test run.
+
+    This is the difference between a tool that answers one question and a
+    capability that gets better at answering the next one.
+    """
+    if getattr(diagnosis, "error", "") or not getattr(diagnosis, "failures", ()):
+        return
+    store = None
+    try:
+        # The live system if the runtime has one, so the finding lands in the
+        # same store its analyser is already reading, rather than beside it.
+        from core.container import ServiceContainer
+
+        live = ServiceContainer.get("error_intelligence", default=None)
+        store = getattr(live, "logger_system", None)
+    except (ImportError, AttributeError, RuntimeError, LookupError):
+        store = None
+    if store is None:
+        try:
+            from core.self_modification.error_intelligence import StructuredErrorLogger
+
+            store = StructuredErrorLogger()
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return
+    first = diagnosis.failures[0]
+    assertion = str(getattr(first, "assertion", "") or "")
+    kind = assertion.split(":", 1)[0].strip() if ":" in assertion else "AssertionError"
+    try:
+        await store.log_observed_failure(
+            error_type=kind or "AssertionError",
+            error_message=assertion or str(getattr(first, "message", "")),
+            context={
+                "project": str(path),
+                "ran": str(getattr(diagnosis, "ran", "")),
+                "test": str(getattr(first, "test", "")),
+                "passed": int(getattr(diagnosis, "passed", 0)),
+                "failed": int(getattr(diagnosis, "failed", 0)),
+                "stated_intent": str(getattr(diagnosis, "stated_intent", ""))[:400],
+                "reason": "a project's own tests were run and reported a failure",
+                "classification": "observed_project_failure",
+            },
+            skill_name="diagnose_repo",
+            goal=f"why {getattr(first, 'test', 'a test')} fails",
+            file_path=str(getattr(first, "file", "")) or None,
+            line_number=int(getattr(first, "line", 0)) or None,
+            detail=str(getattr(diagnosis, "source", ""))[:2000],
+        )
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        # Bookkeeping must never break a diagnosis that already succeeded.
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "diagnosis.remember_failure",
+            RuntimeError("could not record the observed failure"),
+            severity="debug",
+            action="returned the diagnosis without recording the failure",
+            enforce_failure_policy=False,
+        )
 
 
 __all__ = ["DiagnoseRepoInput", "DiagnoseRepoSkill"]
