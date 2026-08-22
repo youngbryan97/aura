@@ -15,7 +15,6 @@ instead of discarding them.
 
 from __future__ import annotations
 
-import contextvars
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -41,20 +40,23 @@ class _Gathered:
     sources: tuple[GatheredSource, ...] = ()
 
 
-#: A mutable holder, replaced per turn: a child task must be able to write
-#: where the parent can read, and a ContextVar set inside a child does not
-#: propagate back.
-_HOLDER: contextvars.ContextVar[dict[str, _Gathered] | None] = contextvars.ContextVar(
-    "aura_gathered_sources", default=None
-)
+#: Held outside the context tree.
+#:
+#: LIVE, 2026-08-22, twice in one afternoon. A ContextVar set inside a child
+#: task does not propagate back — asyncio gives children a copy of the
+#: context. The search runs beneath the caller that is timing it, so a holder
+#: created lazily in the child is invisible to the parent reading it, and the
+#: five gathered pages were discarded again on the very turn this module was
+#: written to save. The deferral registry had the identical bug an hour
+#: earlier.
+#:
+#: The query and the timestamp below are what keep one search from reading
+#: another's pages.
+_SHARED: dict[str, _Gathered] = {}
 
 
 def _holder() -> dict[str, _Gathered]:
-    current = _HOLDER.get()
-    if current is None:
-        current = {}
-        _HOLDER.set(current)
-    return current
+    return _SHARED
 
 
 def record_gathered(query: object, sources: Any) -> int:

@@ -89,3 +89,31 @@ def test_a_search_that_fetched_nothing_still_reports_failure():
     recovered = _recovered_search_result("q", TimeoutError())
     assert recovered["ok"] is False
     assert recovered["status"] == "required_search_failed"
+
+
+def test_pages_gathered_in_a_child_task_reach_the_timer():
+    """LIVE, 2026-08-22, twice in one afternoon.
+
+    The search runs beneath the caller that is timing it. A ContextVar set
+    inside a child does not propagate back — asyncio gives children a copy of
+    the context — so the first version of this module lost the five pages on
+    the very turn it was written to save. The deferral registry had the
+    identical bug an hour earlier.
+    """
+    import asyncio
+
+    async def main() -> object:
+        clear_gathered()
+
+        async def beneath() -> None:
+            record_gathered(
+                "hugging face",
+                [{"title": "About", "url": "https://example.invalid/a", "text": "Founded 2016."}],
+            )
+
+        await asyncio.wait_for(asyncio.create_task(beneath()), timeout=5)
+        return take_gathered()
+
+    held = asyncio.run(main())
+    assert held is not None
+    assert [item.url for item in held.sources] == ["https://example.invalid/a"]
