@@ -914,8 +914,16 @@ class _PublicPinnedHTTPSHandler(urllib.request.HTTPSHandler):
                 **kwargs,
             ),
             request,
+            # Context only, exactly as urllib's own HTTPSHandler.https_open
+            # does it.
+            #
+            # LIVE, 2026-08-22: every HTTPS request raised
+            # "'_PublicPinnedHTTPSHandler' object has no attribute
+            # '_check_hostname'", so http_request failed in 48 milliseconds on
+            # every page anyone named. HTTPSHandler stopped keeping that
+            # attribute — the context carries the setting now — and this
+            # override kept reading it.
             context=self._context,
-            check_hostname=self._check_hostname,
         )
 
 
