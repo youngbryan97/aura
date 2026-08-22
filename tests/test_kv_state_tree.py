@@ -12,7 +12,7 @@ import pytest
 mx = pytest.importorskip("mlx.core")
 pytest.importorskip("mlx_lm")
 
-from mlx_lm.models.cache import make_prompt_cache  # noqa: E402
+from mlx_lm.models.cache import BatchKVCache, make_prompt_cache  # noqa: E402
 from mlx_lm.models.qwen2 import Model, ModelArgs  # noqa: E402
 
 from core.brain.llm.latent_cortex.engine import LatentCortexEngine  # noqa: E402
@@ -172,6 +172,55 @@ def test_rejected_slice_restores_exact_parent_objects_and_receipts_lineage():
     assert receipt["all_rejected_slices_pruned"] is True
     assert receipt["exact_parent_restoration"] is True
     assert receipt["no_rejected_child_reused"] is True
+
+
+def test_batch_kv_cache_vector_coordinates_restore_exact_logical_boundary():
+    cache = [BatchKVCache([0, 2]) for _ in range(3)]
+    prefill_keys = mx.ones((2, 2, 5, 4))
+    prefill_values = mx.ones((2, 2, 5, 4)) * 1.5
+    for item in cache:
+        item.update_and_fetch(prefill_keys, prefill_values)
+    mx.eval(*(value for item in cache for value in (item.keys, item.values)))
+
+    tree = KVStateTree(
+        cache,
+        n_layers=3,
+        episode_id="episode-test",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    parent_keys = [item.keys for item in cache]
+    parent_values = [item.values for item in cache]
+    parent_offsets = [item.offset.tolist() for item in cache]
+
+    transaction = tree.begin_speculation(
+        cache,
+        start=0,
+        end=2,
+        purpose="batch_counterfactual",
+        branch_index=0,
+        parent_sha256=tree.root_sha256,
+    )
+    branch_keys = mx.ones((2, 2, 2, 4)) * 2.0
+    branch_values = mx.ones((2, 2, 2, 4)) * 2.5
+    for item in cache[:2]:
+        item.update_and_fetch(branch_keys, branch_values)
+    transaction.observe_mutation()
+    transaction.restore_parent()
+    event = transaction.reject_after_restore()
+
+    assert event["mutation_observed"] is True
+    assert event["appended_tokens_min"] == 2
+    assert event["appended_tokens_max"] == 2
+    assert [item._idx for item in cache] == [5, 5, 5]
+    assert [item.offset.tolist() for item in cache] == parent_offsets
+    assert all(item.keys is expected for item, expected in zip(cache, parent_keys, strict=True))
+    assert all(
+        item.values is expected
+        for item, expected in zip(cache, parent_values, strict=True)
+    )
+    receipt = _validate(tree.receipt(), layers=3, branches=1)
+    assert receipt["exact_parent_restoration"] is True
+    assert receipt["restore_failure_count"] == 0
 
 
 def test_rejected_child_cannot_become_a_later_parent():

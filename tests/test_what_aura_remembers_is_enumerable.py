@@ -13,6 +13,7 @@ kind of thing was quietly not being remembered.
 from __future__ import annotations
 
 import ast
+import time
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,16 @@ class _Hostile:
     @staticmethod
     def count():
         raise RuntimeError("index corrupt")
+
+
+class _BlockingCount:
+    calls = 0
+
+    @classmethod
+    def count(cls) -> int:
+        cls.calls += 1
+        time.sleep(0.06)
+        return 1
 
 
 # ── the register describes the facade, and cannot drift from it ────────────
@@ -176,6 +187,19 @@ def test_a_store_whose_count_raises_does_not_take_the_probe_down():
     assert episodic.present is True
     assert episodic.count_available is False
     assert "RuntimeError" in episodic.detail
+
+
+@pytest.mark.asyncio
+async def test_health_inventory_does_not_call_undeclared_blocking_count_on_loop():
+    _BlockingCount.calls = 0
+
+    inventory = collect_memory_inventory(_Facade(cold=_BlockingCount()))
+    cold = next(s for s in inventory.stores if s.name == "cold")
+
+    assert _BlockingCount.calls == 0
+    assert cold.item_count is None
+    assert cold.count_available is False
+    assert "nonblocking" in cold.detail
 
 
 def test_the_backend_is_read_from_the_object_not_guessed_from_the_name():

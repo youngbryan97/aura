@@ -48,6 +48,7 @@ from core.brain.llm.latent_cortex.types import ComputeBudget, RecurrenceConfig
 from core.brain.llm.latent_cortex.workspace import per_position_rms
 from core.brain.llm.recurrent_depth import (
     CacheSnapshotError,
+    _cache_entry_matches_snapshot,
     _restore_recurrent_caches,
     _snapshot_recurrent_caches,
 )
@@ -60,103 +61,9 @@ if TYPE_CHECKING:
     from core.brain.llm.latent_cortex.kv_state_tree import KVStateTree
 
 
-def _snapshot_value_matches(current: Any, expected: Any) -> bool:
-    """Compare a restored cache snapshot without scanning tensor contents.
-
-    MLX arrays are immutable values. Restoring the exact tensor objects proves
-    that a speculative branch cannot leave K/V writes reachable by the next
-    branch; scalar metadata is compared by value.
-    """
-
-    if current is expected:
-        return True
-    if isinstance(expected, tuple):
-        return (
-            isinstance(current, tuple)
-            and len(current) == len(expected)
-            and all(
-                _snapshot_value_matches(left, right)
-                for left, right in zip(current, expected, strict=True)
-            )
-        )
-    if isinstance(expected, list):
-        return (
-            isinstance(current, list)
-            and len(current) == len(expected)
-            and all(
-                _snapshot_value_matches(left, right)
-                for left, right in zip(current, expected, strict=True)
-            )
-        )
-    if isinstance(expected, dict):
-        return (
-            isinstance(current, dict)
-            and set(current) == set(expected)
-            and all(_snapshot_value_matches(current[key], expected[key]) for key in expected)
-        )
-    return isinstance(expected, (str, int, float, bool, type(None))) and (
-        type(current) is type(expected) and current == expected
-    )
-
-
 def _cache_matches_snapshot(cache, start: int, end: int, snapshots: list) -> bool:
     for index, layer_index in enumerate(range(start, end)):
-        item = cache[layer_index]
-        snapshot = snapshots[index]
-        if item is None or snapshot is None:
-            if item is not None or snapshot is not None:
-                return False
-            continue
-        kind = snapshot[0]
-        if kind == "buffers":
-            # The shape `_snapshot_recurrent_caches` emits for a live MLX
-            # cache, and the one this function did not know about.
-            #
-            # "buffers" was added to the producer and to
-            # `_restore_recurrent_caches`, and to neither of the two functions
-            # that VERIFY a restore. So every boundary restore compared a
-            # real cache against a snapshot kind it did not recognise, fell to
-            # the `else: return False` below, and raised "exact KV boundary
-            # restoration failed" — the episode degraded to a vanilla decode
-            # and twenty-nine tests failed on a receipt key the fallback does
-            # not carry. A snapshot format is a contract between four
-            # functions; three of them had it.
-            if item.keys is not snapshot[1] or item.values is not snapshot[2]:
-                return False
-            if snapshot[3] is not None and not _snapshot_value_matches(
-                getattr(item, "meta_state", None), snapshot[3]
-            ):
-                return False
-            if not _cache_coordinates_match(item, snapshot[4]):
-                return False
-        elif kind == "state":
-            if not _snapshot_value_matches(item.state, snapshot[1]):
-                return False
-            if not _snapshot_value_matches(item.meta_state, snapshot[2]):
-                return False
-            if len(snapshot) > 3 and not _cache_coordinates_match(item, snapshot[3]):
-                return False
-        elif kind == "attrs":
-            if (
-                item.keys is not snapshot[1]
-                or item.values is not snapshot[2]
-                or item.offset != snapshot[3]
-            ):
-                return False
-        else:
-            return False
-    return True
-
-
-def _cache_coordinates_match(cache_entry: Any, coordinates: Any) -> bool:
-    """The same comparison `_verify_cache_coordinates` raises on."""
-    if not isinstance(coordinates, dict):
-        return True
-    for attr, expected in coordinates.items():
-        observed = getattr(cache_entry, attr, None)
-        left = observed.tolist() if observed is not None and hasattr(observed, "tolist") else observed
-        right = expected.tolist() if expected is not None and hasattr(expected, "tolist") else expected
-        if left != right:
+        if not _cache_entry_matches_snapshot(cache[layer_index], snapshots[index]):
             return False
     return True
 

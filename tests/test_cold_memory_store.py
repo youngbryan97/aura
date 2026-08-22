@@ -28,3 +28,28 @@ def test_cold_store_rejects_empty_and_bounds_query_count(tmp_path):
         assert store.add_memory(f"bounded archival record {index}", {"i": index})
 
     assert len(store.search("archival", limit=2)) == 2
+
+
+def test_cold_store_count_is_a_cached_health_read_not_sqlite_io(tmp_path, monkeypatch):
+    store = ColdMemoryStore(tmp_path / "cold.db")
+    assert store.add_memory("one") is True
+
+    def database_access_would_block():
+        raise AssertionError("count reopened SQLite")
+
+    monkeypatch.setattr(store, "_connect", database_access_would_block)
+
+    assert store.count() == 1
+    assert store.health_item_count == 1
+
+
+def test_cold_store_reloads_cached_count_from_durable_state(tmp_path):
+    path = tmp_path / "cold.db"
+    first = ColdMemoryStore(path)
+    assert first.add_memory("one") is True
+    assert first.add_memory("two") is True
+
+    reopened = ColdMemoryStore(path)
+
+    assert reopened.count() == 2
+    assert reopened.health_item_count == 2

@@ -33,6 +33,8 @@ from typing import Any
 from core.brain.llm.latent_cortex.kv_mutation_transaction import KVMutationTransaction
 from core.brain.llm.latent_cortex.recurrence import _cache_matches_snapshot
 from core.brain.llm.recurrent_depth import (
+    CacheSnapshotError,
+    _cache_snapshot_commitment_parts,
     _restore_recurrent_caches,
     _snapshot_recurrent_caches,
 )
@@ -152,37 +154,12 @@ def _snapshot_commitment(snapshots: list, *, salt: bytes) -> str:
             continue
         if not isinstance(snapshot, tuple) or not snapshot:
             raise KVStateTreeError("cache snapshot entry is malformed")
-        # The shapes `_snapshot_recurrent_caches` actually emits, which is not
-        # what this function was written against.
-        #
-        # It accepted ("state", state, metadata) and ("attrs", keys, values,
-        # offset) — a three- and a four-tuple. The producer emits
-        # ("buffers", keys, values, meta_state, coordinates) for a live MLX
-        # cache and ("state", state, meta_state, coordinates) for a composite
-        # one, and has since coordinates were added. So EVERY commitment
-        # raised "cache snapshot kind is unsupported", the episode degraded to
-        # a vanilla decode with an honest fallback receipt, and twenty-nine
-        # tests in tests/test_latent_cortex_engine.py failed on a receipt key
-        # the fallback does not carry. Two definitions of one tuple,
-        # disagreeing, on the path that proves the rewind happened.
-        #
-        # The three-attribute "attrs" form is still read because
-        # `_restore_recurrent_caches` still reads it.
-        kind = snapshot[0]
-        if kind == "buffers" and len(snapshot) == 5:
-            state_value = (snapshot[1], snapshot[2])
-            metadata_value = (snapshot[3], snapshot[4])
-        elif kind == "state" and len(snapshot) in (3, 4):
-            state_value = snapshot[1]
-            metadata_value = snapshot[2] if len(snapshot) == 3 else (snapshot[2], snapshot[3])
-        elif kind == "attrs" and len(snapshot) == 4:
-            state_value = (snapshot[1], snapshot[2])
-            metadata_value = snapshot[3]
-        else:
-            raise KVStateTreeError(
-                f"cache snapshot kind is unsupported: {kind!r} with "
-                f"{len(snapshot)} field(s)"
+        try:
+            kind, state_value, metadata_value = _cache_snapshot_commitment_parts(
+                snapshot
             )
+        except CacheSnapshotError as exc:
+            raise KVStateTreeError(str(exc)) from exc
         rows.append(
             {
                 "kind": kind,
@@ -204,7 +181,12 @@ def _cache_offsets(cache: Sequence[Any], start: int, end: int) -> list[int]:
         if item is None:
             offsets.append(0)
             continue
-        offset = getattr(item, "offset", None)
+        # BatchKVCache has per-example offsets because left padding differs,
+        # but its scalar _idx is the shared logical K/V cursor. Transactions
+        # need one cursor per layer so layer-window escape checks remain exact.
+        offset = getattr(item, "_idx", None)
+        if type(offset) is not int:
+            offset = getattr(item, "offset", None)
         if type(offset) is not int or offset < 0:
             raise KVStateTreeError(f"cache layer {index} has an invalid offset")
         offsets.append(offset)
@@ -308,9 +290,8 @@ class KVStateTree:
             latent_sha256="",
         )
         self.root_sha256 = root
-        # Normalize capacity-backed cache arrays to the exact immutable
-        # cropped snapshot retained by the root. Later identity checks are
-        # then stable across repeated ``state`` property access.
+        # Reapply the retained boundary and verify both immutable K/V storage
+        # identity and logical cursor metadata before accepting the root.
         self.restore_boundary(cache, root)
 
     def _node(self, node_sha256: str) -> _NodeRuntime:

@@ -232,9 +232,140 @@ def _restore_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> N
 
 
 def _cache_coordinate_value(value):
+    """Return a value-stable description of small cache coordinates.
+
+    K/V tensors are intentionally compared by storage identity. Cursor and
+    padding metadata are different: MLX exposes some of them as tiny arrays,
+    and snapshotting those arrays creates new objects with the same logical
+    value. Normalizing coordinates recursively keeps commitments stable
+    without reading or copying the potentially multi-gigabyte K/V buffers.
+    """
+
     if hasattr(value, "tolist"):
-        return value.tolist()
+        return _cache_coordinate_value(value.tolist())
+    if isinstance(value, tuple):
+        return tuple(_cache_coordinate_value(item) for item in value)
+    if isinstance(value, list):
+        return [_cache_coordinate_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _cache_coordinate_value(item)
+            for key, item in value.items()
+        }
     return value
+
+
+def _snapshot_value_matches(current, expected) -> bool:
+    """Compare immutable cache storage by identity and metadata by value."""
+
+    if current is expected:
+        return True
+    if isinstance(expected, tuple):
+        return (
+            isinstance(current, tuple)
+            and len(current) == len(expected)
+            and all(
+                _snapshot_value_matches(left, right)
+                for left, right in zip(current, expected, strict=True)
+            )
+        )
+    if isinstance(expected, list):
+        return (
+            isinstance(current, list)
+            and len(current) == len(expected)
+            and all(
+                _snapshot_value_matches(left, right)
+                for left, right in zip(current, expected, strict=True)
+            )
+        )
+    if isinstance(expected, dict):
+        return (
+            isinstance(current, dict)
+            and set(current) == set(expected)
+            and all(
+                _snapshot_value_matches(current[key], expected[key])
+                for key in expected
+            )
+        )
+    return isinstance(expected, (str, int, float, bool, type(None))) and (
+        type(current) is type(expected) and current == expected
+    )
+
+
+def _cache_snapshot_commitment_parts(snapshot) -> tuple[str, object, object]:
+    """Decode every supported cache snapshot into commitment components.
+
+    This is the shared producer/consumer contract for recurrent depth and the
+    latent KV lineage. Keeping it here prevents a new snapshot representation
+    from silently disabling the cortex in another consumer.
+    """
+
+    if not isinstance(snapshot, tuple) or not snapshot:
+        raise CacheSnapshotError("Cache snapshot entry is malformed")
+    kind = snapshot[0]
+    if kind == "buffers" and len(snapshot) == 5:
+        return (
+            kind,
+            (snapshot[1], snapshot[2]),
+            {
+                "meta_state": snapshot[3],
+                "coordinates": _cache_coordinate_value(snapshot[4]),
+            },
+        )
+    if kind == "state" and len(snapshot) in {3, 4}:
+        coordinates = snapshot[3] if len(snapshot) == 4 else {}
+        return (
+            kind,
+            snapshot[1],
+            {
+                "meta_state": snapshot[2],
+                "coordinates": _cache_coordinate_value(coordinates),
+            },
+        )
+    if kind == "attrs" and len(snapshot) == 4:
+        coordinates = (
+            snapshot[3]
+            if isinstance(snapshot[3], dict)
+            else {"offset": snapshot[3]}
+        )
+        return (
+            kind,
+            (snapshot[1], snapshot[2]),
+            {"coordinates": _cache_coordinate_value(coordinates)},
+        )
+    raise CacheSnapshotError(f"Unknown cache snapshot kind: {kind!r}")
+
+
+def _cache_entry_matches_snapshot(cache_entry, snapshot) -> bool:
+    """Prove that one live cache entry is at an exact retained boundary."""
+
+    if cache_entry is None or snapshot is None:
+        return cache_entry is None and snapshot is None
+    try:
+        kind, _state_value, metadata = _cache_snapshot_commitment_parts(snapshot)
+    except CacheSnapshotError:
+        return False
+    coordinates = metadata.get("coordinates", {})
+    if kind == "buffers":
+        if cache_entry.keys is not snapshot[1] or cache_entry.values is not snapshot[2]:
+            return False
+        if snapshot[3] is not None and hasattr(cache_entry, "meta_state"):
+            if not _snapshot_value_matches(cache_entry.meta_state, snapshot[3]):
+                return False
+    elif kind == "state":
+        if not _snapshot_value_matches(cache_entry.state, snapshot[1]):
+            return False
+        if not _snapshot_value_matches(cache_entry.meta_state, snapshot[2]):
+            return False
+    elif kind == "attrs":
+        if cache_entry.keys is not snapshot[1] or cache_entry.values is not snapshot[2]:
+            return False
+    else:  # pragma: no cover - decoded by the exhaustive contract above.
+        return False
+    return all(
+        _cache_coordinate_value(getattr(cache_entry, attr, None)) == expected
+        for attr, expected in coordinates.items()
+    )
 
 
 def _verify_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> None:

@@ -33,6 +33,7 @@ class ColdMemoryStore:
         self.db_path = Path(db_path).expanduser()
         self._lock = checked_lock("core.memory.cold_store", reentrant=True)
         self._ready = False
+        self._item_count = 0
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -72,17 +73,22 @@ class ColdMemoryStore:
                 "ON cold_memories(created_at DESC)"
             )
             connection.commit()
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM cold_memories"
+            ).fetchone()
+            self._item_count = int(row["total"] if row is not None else 0)
         self._ready = True
 
     def is_ready(self) -> bool:
         return self._ready and self.db_path.exists()
 
     def count(self) -> int:
-        with self._lock, self._connect() as connection:
-            row = connection.execute(
-                "SELECT COUNT(*) AS total FROM cold_memories"
-            ).fetchone()
-        return int(row["total"] if row is not None else 0)
+        return self._item_count
+
+    @property
+    def health_item_count(self) -> int:
+        """Exact committed count without reopening SQLite from health probes."""
+        return self._item_count
 
     def add_memory(
         self,
@@ -109,6 +115,7 @@ class ColdMemoryStore:
                 (uuid.uuid4().hex, text, encoded_metadata, time.time()),
             )
             connection.commit()
+            self._item_count += 1
         return True
 
     remember = add_memory

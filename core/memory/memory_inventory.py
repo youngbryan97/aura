@@ -28,6 +28,7 @@ cannot be added without appearing here; a test asserts that.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -59,6 +60,13 @@ MEMORY_STORES: tuple[tuple[str, str, bool], ...] = (
 #: that has none is not interrogated: walking a store to count it is exactly the
 #: kind of work a health probe must not do.
 _COUNT_METHODS = ("count", "size", "__len__", "item_count", "total_records")
+
+# Health is often collected on the event-loop thread. An arbitrary ``count``
+# method is not evidence that the operation is in-memory: ColdStore's method
+# opened SQLite, and a routine health poll froze the loop long enough to taint
+# the runtime. Stores can publish this scalar only when they maintain it as
+# part of their own commit path.
+_NONBLOCKING_COUNT_ATTRIBUTE = "health_item_count"
 
 #: Attributes that name a store's backing technology. Read from the object so
 #: the register reports what a store IS rather than what its name suggests.
@@ -141,6 +149,18 @@ def _count_items(store: Any) -> tuple[int | None, bool, str]:
     an empty one, which is the reading that turns a broken store into "nothing
     was remembered".
     """
+    cached_value = getattr(store, _NONBLOCKING_COUNT_ATTRIBUTE, None)
+    if not isinstance(cached_value, bool) and isinstance(cached_value, int):
+        if cached_value >= 0:
+            return cached_value, True, f"via {_NONBLOCKING_COUNT_ATTRIBUTE}"
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        return None, False, "store exposes no declared nonblocking count"
+
     for method_name in _COUNT_METHODS:
         method = getattr(store, method_name, None)
         if not callable(method):
