@@ -38,38 +38,66 @@ POLICY = ROOT / "config" / "branch_protection_policy.json"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 _JOB_RE = re.compile(r"^  (?P<job>[A-Za-z0-9_-]+):\s*$")
+_JOB_NAME_RE = re.compile(r"^    name:\s*(?P<name>.+?)\s*$")
 _TOP_KEY_RE = re.compile(r"^(?P<key>[A-Za-z0-9_-]+):")
 
 
 def workflow_jobs_on_pull_request() -> dict[str, str]:
-    """Every job id that runs on a pull request, mapped to its workflow file.
+    """Every emitted pull-request check context, mapped to its workflow file.
 
     Parsed by structure rather than with a YAML dependency: this tool runs in
     a CI job that installs nothing but ruff, and a gate that needs a package
     to check whether the gates are required is a gate that will be skipped.
+
+    GitHub emits a job's explicit ``name`` as its required-check context and
+    falls back to the YAML job id only when no name exists. Mixing those up
+    creates a required context that can never arrive even while the job passes.
     """
     found: dict[str, str] = {}
     for path in sorted(WORKFLOWS.glob("*.yml")):
         lines = path.read_text("utf-8").splitlines()
         in_on = False
         on_pull_request = False
-        in_jobs = False
         for line in lines:
             top = _TOP_KEY_RE.match(line)
             if top:
                 key = top.group("key")
                 in_on = key == "on"
-                in_jobs = key == "jobs"
                 continue
             if in_on and re.match(r"^\s*pull_request:", line):
                 on_pull_request = True
-            if in_jobs:
-                job = _JOB_RE.match(line)
-                if job:
-                    found.setdefault(job.group("job"), path.name)
         if not on_pull_request:
-            for job in [j for j, f in found.items() if f == path.name]:
-                found.pop(job, None)
+            continue
+
+        in_jobs = False
+        job_id = ""
+        job_name = ""
+
+        def record_job(current_id: str, current_name: str, workflow: str) -> None:
+            if current_id:
+                found.setdefault(current_name or current_id, workflow)
+
+        for line in lines:
+            top = _TOP_KEY_RE.match(line)
+            if top:
+                if in_jobs:
+                    record_job(job_id, job_name, path.name)
+                in_jobs = top.group("key") == "jobs"
+                job_id = ""
+                job_name = ""
+                continue
+            if not in_jobs:
+                continue
+            job = _JOB_RE.match(line)
+            if job:
+                record_job(job_id, job_name, path.name)
+                job_id = job.group("job")
+                job_name = ""
+                continue
+            explicit_name = _JOB_NAME_RE.match(line)
+            if explicit_name and job_id and not job_name:
+                job_name = explicit_name.group("name").strip().strip("\"'")
+        record_job(job_id, job_name, path.name)
     return found
 
 
@@ -117,12 +145,12 @@ def check_offline(policy: dict) -> list[str]:
     for name in required:
         if name not in jobs:
             problems.append(
-                f"required check {name!r} is not a job that runs on a pull request"
+                f"required check {name!r} is not a check context emitted on a pull request"
             )
     for name, reason in sorted(pending.items()):
         if name not in jobs:
             problems.append(
-                f"pending check {name!r} is not a job that runs on a pull request; "
+                f"pending check {name!r} is not a check context emitted on a pull request; "
                 "delete the entry rather than leaving it as a promise"
             )
         if name in required:
@@ -132,10 +160,10 @@ def check_offline(policy: dict) -> list[str]:
             problems.append(
                 f"pending check {name!r} records no real reason for not blocking"
             )
-    for job, workflow in sorted(jobs.items()):
-        if job not in required and job not in pending:
+    for context, workflow in sorted(jobs.items()):
+        if context not in required and context not in pending:
             problems.append(
-                f"{workflow} runs job {job!r} on pull requests and no branch "
+                f"{workflow} emits check {context!r} on pull requests and no branch "
                 "protection rule requires it, so it cannot block anything. "
                 "Require it, or list it in pending_checks with the reason."
             )
@@ -197,6 +225,9 @@ def compare_live(policy: dict, live: dict | None) -> list[str]:
     missing = required - set(checks)
     if missing:
         problems.append(f"these checks are not required: {sorted(missing)}")
+    unexpected = set(checks) - required
+    if unexpected:
+        problems.append(f"these stale checks are still required: {sorted(unexpected)}")
 
     reviews = live.get("required_pull_request_reviews")
     if settings["require_pull_request"] and not reviews:
@@ -232,10 +263,10 @@ def compare_live(policy: dict, live: dict | None) -> list[str]:
     return problems
 
 
-def apply(policy: dict, repo: str) -> int:
-    """Write the policy to GitHub. Only ever from an explicit --apply."""
+def _protection_body(policy: dict) -> dict:
+    """Build the exact GitHub protection payload from the checked policy."""
     settings = policy["settings"]
-    body = {
+    return {
         "required_status_checks": {
             "strict": True,
             "contexts": sorted(policy["required_checks"]),
@@ -260,6 +291,11 @@ def apply(policy: dict, repo: str) -> int:
             "required_conversation_resolution"
         ],
     }
+
+
+def apply(policy: dict, repo: str) -> int:
+    """Write the policy to GitHub. Only ever from an explicit --apply."""
+    body = _protection_body(policy)
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
         [
             "gh",
