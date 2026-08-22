@@ -105,6 +105,55 @@ def plan_schema() -> dict[str, Any]:
     }
 
 
+def _scalar(value: object) -> object | None:
+    """A value a field can hold, or None when it is not one."""
+    if isinstance(value, bool) or isinstance(value, (int, float, str)):
+        return value
+    return None
+
+
+#: What an expression may be built from: a field, a number, and + or -.
+_SIMPLE_EXPRESSION = re.compile(
+    r"^\s*(?:fields?\.)?(?P<name>[A-Za-z_][A-Za-z0-9_ ]*?)\s*"
+    r"(?P<sign>[+-])\s*(?P<amount>\d+(?:\.\d+)?)\s*$"
+)
+
+
+def _reduce_expression(value: object, target: str) -> tuple[str, object] | None:
+    """Turn an expression the model wrote into a typed operation.
+
+    LIVE, 2026-08-22: asked for a water tracker, the plan carried
+    ``{"op": "set", "target": "count", "value": {"$expr": "fields.count + 1"}}``
+    and the built page rendered the object itself — the count read
+    "[object Object]" and the build was refused, correctly, by the check that
+    clicks the page.
+
+    A model reaching for an expression is describing an increment this schema
+    already has. Where the expression reduces to the field plus or minus a
+    number, it becomes that operation; where it does not reduce, it is not
+    guessed at.
+    """
+    if isinstance(value, dict):
+        strings = [item for item in value.values() if isinstance(item, str)]
+        if len(strings) != 1:
+            return None
+        text = strings[0]
+    elif isinstance(value, str):
+        text = value
+    else:
+        return None
+    match = _SIMPLE_EXPRESSION.match(text)
+    if not match:
+        return None
+    named = _identifier(match.group("name"), "")
+    if named and named != target:
+        return None
+    amount = float(match.group("amount"))
+    if amount.is_integer():
+        amount = int(amount)
+    return ("add", -amount if match.group("sign") == "-" else amount)
+
+
 def _identifier(value: object, fallback: str) -> str:
     text = re.sub(r"[^a-z0-9_]+", "_", str(value or "").strip().lower()).strip("_")
     return text or fallback
@@ -173,11 +222,35 @@ def spec_from_plan(plan: dict[str, Any], request: str = "") -> PlannedApp:
             if not target:
                 repairs.append(f"dropped an operation in {name} that named no field")
                 continue
+            raw_value = entry.get("value")
+            # A string can be a literal or an expression. It is only read as
+            # an expression when it names this very field, so ordinary text
+            # like "item 1" stays text.
+            reduced_text = (
+                _reduce_expression(raw_value, target) if isinstance(raw_value, str) else None
+            )
+            if reduced_text is not None:
+                op, value = reduced_text
+                repairs.append(f"read {target} as changing by {value}")
+                ops.append(Op(op=op, target=target, value=value))  # type: ignore[arg-type]
+                continue
+            value = _scalar(raw_value)
+            if value is None and raw_value is not None:
+                # An expression where a literal belongs.
+                reduced = _reduce_expression(raw_value, target)
+                if reduced is None:
+                    repairs.append(
+                        f"dropped an operation in {name} whose value was not a number "
+                        f"or a piece of text"
+                    )
+                    continue
+                op, value = reduced[0], reduced[1]
+                repairs.append(f"read {target} as changing by {value}")
             ops.append(
                 Op(
                     op=op,  # type: ignore[arg-type]
                     target=target,
-                    value=entry.get("value"),
+                    value=value,
                     source=_identifier(entry.get("source"), "") if entry.get("source") else "",
                 )
             )

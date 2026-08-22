@@ -262,3 +262,79 @@ def test_a_row_action_is_planned_and_driven():
     report = verify_app(planned.spec, compile_app(planned.spec))
     assert report.ok, report.problems
     assert report.driven_in_dom
+
+
+def test_an_expression_where_a_literal_belongs_is_reduced():
+    """LIVE, 2026-08-22, asked in the window for a water tracker.
+
+    The plan carried {"op": "set", "target": "count", "value": {"$expr":
+    "fields.count + 1"}} and the built page rendered the object itself — the
+    count read "[object Object]". The check that clicks the page caught it and
+    refused the build, which is the check working; the plan still has to
+    build.
+    """
+    planned = spec_from_plan(
+        {
+            "title": "Water tracker",
+            "fields": [{"name": "count", "kind": "number", "initial": 0}],
+            "actions": [
+                {
+                    "name": "addone",
+                    "ops": [{"op": "set", "target": "count", "value": {"$expr": "fields.count + 1"}}],
+                },
+                {"name": "reset", "ops": [{"op": "set", "target": "count", "value": 0}]},
+            ],
+        },
+        "track glasses of water",
+    )
+    action = planned.spec.action_named("addone")
+    assert action is not None
+    assert action.ops[0].op == "add"
+    assert action.ops[0].value == 1
+    assert verify_app(planned.spec, compile_app(planned.spec)).ok
+
+
+def test_a_subtraction_reduces_too():
+    planned = spec_from_plan(
+        {
+            "title": "Countdown",
+            "fields": [{"name": "left", "kind": "number", "initial": 10}],
+            "actions": [
+                {"name": "take", "ops": [{"op": "set", "target": "left", "value": "left - 2"}]}
+            ],
+        },
+        "a countdown",
+    )
+    op = planned.spec.action_named("take").ops[0]
+    assert (op.op, op.value) == ("add", -2)
+
+
+def test_an_expression_that_does_not_reduce_is_not_guessed_at():
+    planned = spec_from_plan(
+        {
+            "title": "Odd",
+            "fields": [{"name": "count", "kind": "number"}],
+            "actions": [
+                {
+                    "name": "weird",
+                    "ops": [{"op": "set", "target": "count", "value": {"$expr": "sqrt(other * 3)"}}],
+                }
+            ],
+        },
+        "something odd",
+    )
+    assert planned.spec.action_named("weird") is None
+    assert any("not a number" in note for note in planned.repairs)
+
+
+def test_a_plain_value_is_untouched():
+    planned = spec_from_plan(
+        {
+            "title": "Tally",
+            "fields": [{"name": "hits", "kind": "number"}],
+            "actions": [{"name": "hit", "ops": [{"op": "add", "target": "hits", "value": 3}]}],
+        },
+        "a tally",
+    )
+    op = planned.spec.action_named("hit").ops[0]
+    assert (op.op, op.value) == ("add", 3)
