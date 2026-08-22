@@ -1,0 +1,77 @@
+{
+  "description": "One source of truth for what any build installs. Every `pip install -r` in a Dockerfile, a workflow or the Makefile must name a requirements file declared here; a target with lock_status 'present' must install its lockfile with --require-hashes; a target with lock_status 'pending' must record the command that closes it, and the pending set may only shrink. tools/check_dependency_contract.py is the gate.",
+  "targets": {
+    "release-macos": {
+      "purpose": "the signed, notarized desktop bundle",
+      "requirements": "requirements.txt",
+      "lockfile": "requirements_lock.txt",
+      "lock_status": "present",
+      "require_hashes": true,
+      "platform": "macos-14, cpython-3.12",
+      "installed_by": [
+        ".github/workflows/release.yml"
+      ]
+    },
+    "code-sandbox-image": {
+      "purpose": "the network-isolated image untrusted code runs in",
+      "requirements": "requirements/sandbox.txt",
+      "lockfile": "requirements/lock/code-sandbox.txt",
+      "lock_status": "present",
+      "derived_from": "requirements_lock.txt",
+      "require_hashes": true,
+      "platform": "linux/amd64, cpython-3.12",
+      "installed_by": [
+        "docker/Dockerfile"
+      ]
+    },
+    "container-runtime": {
+      "purpose": "the headless runtime image",
+      "requirements": "requirements/core.txt",
+      "lockfile": "requirements/lock/container-runtime.txt",
+      "lock_status": "pending",
+      "require_hashes": false,
+      "constraint": "requirements_lock.txt",
+      "pending_reason": "requirements/core.txt names seven distributions requirements_lock.txt has never resolved (aiofiles, orjson, ollama, backoff, colorlog, celery, redis), so the lock cannot be derived from it. Until a linux resolution exists the image installs core.txt constrained by the release lock, which pins every package the two sets share.",
+      "closed_by": "pip-compile --allow-unsafe --generate-hashes --output-file=requirements/lock/container-runtime.txt requirements/core.txt (run on linux/amd64 with cpython 3.12)",
+      "platform": "linux/amd64, cpython-3.12",
+      "installed_by": [
+        "Dockerfile"
+      ]
+    },
+    "ci-gates": {
+      "purpose": "the offline gate runners; no model or GUI stack",
+      "requirements": "requirements/core.txt",
+      "lockfile": null,
+      "lock_status": "unlocked",
+      "require_hashes": false,
+      "unlocked_reason": "the gate jobs resolve fresh on purpose, so a dependency that stops resolving is caught by CI rather than pinned out of sight",
+      "platform": "ubuntu-latest and macos-latest, cpython-3.12",
+      "installed_by": [
+        ".github/workflows/security-gates.yml",
+        ".github/workflows/reliability-gate.yml",
+        ".github/workflows/decisive.yml",
+        ".github/workflows/slo-gate.yml",
+        ".github/workflows/enterprise-gate.yml",
+        ".github/workflows/ratchets.yml"
+      ]
+    },
+    "developer": {
+      "purpose": "make setup / make setup-dev on a workstation",
+      "requirements": "requirements/dev.txt",
+      "lockfile": null,
+      "lock_status": "unlocked",
+      "require_hashes": false,
+      "unlocked_reason": "a workstation tracks upstream; the release lane is what must be reproducible",
+      "platform": "any",
+      "installed_by": [
+        "Makefile"
+      ]
+    }
+  },
+  "source_digests": {
+    "requirements.txt": "d805a373391401a9869d39cc007b40a885a235d95542e360a8b884bc5f63e768",
+    "requirements/core.txt": "0884f2c08e9b98d643311e0db008913f40ba4def2713afca225780476d52e136",
+    "requirements/dev.txt": "908be975e30bf4ce74f81ae592d39f7de28f0fff29f191a736c946b70cf27c2d",
+    "requirements/sandbox.txt": "8d1b4cd7227cc0f545dcbcad0beb87f6e924d9b7b3c063300125348df5f67ba6"
+  }
+}

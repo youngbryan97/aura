@@ -12,7 +12,7 @@ LABEL maintainer="security@aura-project.dev" \
       org.opencontainers.image.title="Aura Cognitive Runtime" \
       org.opencontainers.image.description="Locally-deployed autonomous AI cognitive agent" \
       org.opencontainers.image.source="https://github.com/youngbryan97/aura" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="NONE"
 
 # ── System dependencies (pinned versions for reproducibility) ────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,12 +29,21 @@ WORKDIR /app
 
 # ── Python dependencies (fail-closed: no fallback installs) ──────────────
 COPY requirements/core.txt requirements/core.txt
-COPY requirements.txt requirements.txt
 COPY requirements_lock.txt requirements_lock.txt
 
-# Production builds MUST succeed with the lockfile. No best-effort fallback.
+# The lockfile is a constraint, not the install list, and the difference is
+# recorded rather than papered over. requirements_lock.txt was compiled from
+# requirements.txt on macOS: it carries mlx and pyobjc with no environment
+# markers, so it cannot install here, and it has never resolved seven of the
+# distributions requirements/core.txt names. As a constraint it still pins
+# every package the two sets share to the version the release lane ships.
+#
+# config/dependency_contract.json records this as the one pending lock, with
+# the pip-compile invocation that closes it; tools/check_dependency_contract.py
+# fails if this line stops matching the contract.
 RUN pip install --no-cache-dir --upgrade pip wheel && \
-    pip install --no-cache-dir -r requirements/core.txt
+    pip install --no-cache-dir --constraint requirements_lock.txt \
+        -r requirements/core.txt
 
 # ── Copy source ──────────────────────────────────────────────────────────
 COPY . .

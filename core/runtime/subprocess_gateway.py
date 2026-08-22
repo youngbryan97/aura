@@ -1554,6 +1554,7 @@ class SubprocessGateway:
         cwd: str | os.PathLike[str] | None = None,
         env: Mapping[str, str] | None = None,
         start_new_session: bool = True,
+        preexec_fn: Callable[[], None] | None = None,
         read_only: bool = False,
         offline_tooling: bool = False,
         allow_during_shutdown: bool = False,
@@ -1644,6 +1645,13 @@ class SubprocessGateway:
                 cwd=_coerce_cwd(cwd),
                 env=process_env,
                 start_new_session=start_new_session,
+                # Child-side rlimits. ``spawn`` has taken this since it was
+                # written; without it here, every async caller that wanted a
+                # CPU or address-space ceiling on its child had to give up the
+                # ceiling or give up being async. The callable runs in the
+                # forked child before exec, so it constrains the child and
+                # never this process.
+                preexec_fn=preexec_fn,
             )
             process_pid = int(getattr(proc, "pid", 0) or 0)
             try:

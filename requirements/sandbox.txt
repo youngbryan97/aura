@@ -1,0 +1,17 @@
+# requirements/sandbox.txt
+# ──────────────────────────────────────────────────────────────
+# What the code-sandbox image (docker/Dockerfile) may import.
+#
+# The image used to run `pip install numpy pandas requests` with no bounds at
+# all, so the environment untrusted code executes in was whatever the index
+# served on build day. An unpinned install is a supply-chain decision made by
+# nobody, and this is the one image where the code running afterwards is
+# assumed hostile.
+#
+# Pins and hashes live in requirements/lock/code-sandbox.txt. Install that,
+# with --require-hashes.
+# ──────────────────────────────────────────────────────────────
+
+numpy
+pandas
+requests

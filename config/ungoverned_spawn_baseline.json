@@ -1,0 +1,12 @@
+{
+  "description": "Modules that turn a command STRING into a process without core.security.execution_authority. Each entry names the property that makes it tolerable today. tests/test_general_execution_surfaces_are_governed.py fails on any module not listed here and fails when a listed module no longer matches, so this list may only SHRINK.",
+  "count": 6,
+  "grandfathered": {
+    "core/runtime/subprocess_gateway.py": "the sink itself; it is what every governed surface spawns through",
+    "core/actuators/process_supervisor.py": "binary allowlist plus verify_actuator_authority on the actuate path",
+    "core/adaptation/safe_optimizer.py": "the command is operator configuration for the LoRA trainer, not caller text",
+    "core/capability_engine.py": "read-only binary allowlist: cat, echo, find, grep, ls, pwd, tree",
+    "core/skills/computer_use.py": "run_command is confined to ComputerUseSkill.ALLOWED_COMMANDS",
+    "core/sovereign/local_sandbox.py": "_parse_command allowlist plus a temp-dir workdir"
+  }
+}

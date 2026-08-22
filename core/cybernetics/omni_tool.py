@@ -10,6 +10,12 @@ from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.security.execution_authority import (
+    KIND_SHELL,
+    ExecutionVerdict,
+    authorize_execution,
+    release_execution,
+)
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Cybernetics.OmniTool")
@@ -223,6 +229,22 @@ class OmniTool:
         if not argv:
             return {"status": "error", "message": "Daemon command is empty."}
 
+        # A daemon is general execution that also outlives the call that made
+        # it, so it is the one spawn most worth asking about. The only check
+        # here used to be `self._permissions["external_request"]`, a boolean
+        # this object sets on itself — which answers "is this action switched
+        # on", never "should this command run now". That question belongs to
+        # the Will, through the same gate the terminal and MCP use, so one
+        # standing directive covers all three.
+        verdict = await authorize_execution(
+            KIND_SHELL,
+            argv,
+            source="core.cybernetics.omni_tool.daemon",
+            extra={"daemon": name, "lifetime": "background", "timeout_s": timeout_s},
+        )
+        if not verdict.approved:
+            return {"status": "error", "message": verdict.reason}
+
         metadata = {
             "name": name,
             "command": command,
@@ -230,6 +252,7 @@ class OmniTool:
             "status": "starting",
             "pid": None,
             "returncode": None,
+            "governance": verdict.receipt(),
         }
         self._daemons[name] = metadata
 
@@ -245,6 +268,12 @@ class OmniTool:
             metadata["status"] = "failed_to_start"
             metadata["end_time"] = time.time()
             metadata["error"] = str(exc)
+            release_execution(
+                verdict,
+                source="core.cybernetics.omni_tool.daemon",
+                success=False,
+                error=str(exc),
+            )
             _record_omni_degradation(
                 exc,
                 action="failed to start supervised daemon process",
@@ -258,7 +287,7 @@ class OmniTool:
         logger.info("🕯️ [DAEMON] LIGHTING: %s -> %s", name, command)
 
         get_task_tracker().create_task(
-            self._watch_daemon(name, process, timeout_s),
+            self._watch_daemon(name, process, timeout_s, verdict),
             name=f"omni_tool.daemon.{name}",
         )
 
@@ -272,7 +301,14 @@ class OmniTool:
         name: str,
         process: asyncio.subprocess.Process,
         timeout_s: float,
+        verdict: "ExecutionVerdict | None" = None,
     ) -> None:
+        """Watch the daemon, and close its grant when it stops.
+
+        The grant is released here rather than at spawn because a daemon
+        outlives the call that started it. A capability token closed at spawn
+        would say the action finished while the process was still running.
+        """
         metadata = self._daemons.get(name)
         if metadata is None:
             return
@@ -316,6 +352,13 @@ class OmniTool:
             metadata["stdout_tail"] = await stdout_task
             metadata["stderr_tail"] = await stderr_task
             logger.info("✨ [DAEMON] EXTINGUISHED: %s status=%s", name, metadata["status"])
+            if verdict is not None:
+                release_execution(
+                    verdict,
+                    source="core.cybernetics.omni_tool.daemon",
+                    success=metadata["status"] == "completed",
+                    error=str(metadata.get("error", "") or ""),
+                )
             if self._event_bus:
                 await self._publish_daemon_event("core/cybernetics/daemon_finished", metadata)
 

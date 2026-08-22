@@ -409,6 +409,16 @@ def test_mcp_declares_that_it_requires_approval():
 _CALLER_SUPPLIED_SPAWN_MODULES = {
     "core/skills/sovereign_terminal.py",
     "core/skills/mcp_client.py",
+    # The ordinary shell skill. It spawned through `spawn_async` from
+    # `skills/`, so both halves of the old guard missed it: the regex looked
+    # for `spawn_shell_async`, and the scan looked only under `core/`.
+    "skills/shell.py",
+    # A daemon is general execution that outlives the call that made it. The
+    # only check was a boolean this object sets on itself.
+    "core/cybernetics/omni_tool.py",
+    # A motor named `terminal` that any planner can actuate with a command
+    # string. Its docstring said "safely" and it had no check of any kind.
+    "core/body/terminal_motor.py",
     # Reachable from mission_state with a plan-supplied command string. Its
     # section header claimed "(governed)" while the only check was a
     # syntactic AST guard.
@@ -587,3 +597,117 @@ def test_the_gate_module_has_no_bypass_parameter():
                 offenders.append(f"{node.name}({arg.arg})")
 
     assert not offenders, f"the execution gate grew a bypass: {offenders}"
+
+
+# ──────────────────────────── the guard the old guard needed
+
+# Where general execution can live. `core/` alone was the old scan, and the
+# ungoverned shell skill was in `skills/`.
+_SPAWN_SCAN_ROOTS = (
+    "core",
+    "skills",
+    "interface",
+    "executors",
+    "infrastructure",
+    "llm",
+    "senses",
+    "security",
+)
+
+# The sinks that create a process. Named methods, not a bare `run(`, so the
+# rule matches process creation rather than every function called run.
+_SPAWN_SINK_RE = re.compile(
+    r"get_subprocess_gateway\(\)\s*\.\s*(spawn|spawn_async|spawn_shell_async|run|run_async)\b"
+    r"|asyncio\.create_subprocess_(exec|shell)\b"
+    r"|subprocess\.(Popen|run|call|check_output|check_call)\b"
+)
+
+# The tell that the command came from outside the repository. A program this
+# repo chose is written as a list; a command that has to be SPLIT arrived as
+# one string from a caller, a plan, or a model. That is what makes it general
+# execution rather than a fixed helper, and it is checkable without guessing
+# at data flow.
+_COMMAND_STRING_RE = re.compile(r"\bshlex\.split\s*\(")
+
+_UNGOVERNED_SPAWN_BASELINE = ROOT / "config" / "ungoverned_spawn_baseline.json"
+
+
+def _command_string_spawn_modules() -> list[str]:
+    """Every module that turns a command string into a process."""
+    found: list[str] = []
+    for root in _SPAWN_SCAN_ROOTS:
+        base = ROOT / root
+        if not base.exists():
+            continue
+        for path in sorted(base.rglob("*.py")):
+            if "__pycache__" in str(path):
+                continue
+            body = path.read_text("utf-8", errors="ignore")
+            if _COMMAND_STRING_RE.search(body) and _SPAWN_SINK_RE.search(body):
+                found.append(str(path.relative_to(ROOT)))
+    return found
+
+
+def _load_ungoverned_baseline() -> dict[str, str]:
+    import json
+
+    data = json.loads(_UNGOVERNED_SPAWN_BASELINE.read_text("utf-8"))
+    return dict(data["grandfathered"])
+
+
+def test_no_new_command_string_reaches_a_process_ungoverned():
+    """The rule that would have caught the shell skill.
+
+    The previous structural guard asked whether a module named
+    `spawn_shell_async` or `stdio_client`. `skills/shell.py` did neither: it
+    called `spawn_async` with an argv it had just `shlex.split` out of a
+    caller's string, from a directory the scan did not visit. It was the most
+    obvious general-execution surface in the repository and it was invisible
+    to the test written to find general-execution surfaces.
+
+    This asks the question the other way round. Any module that splits a
+    command string AND creates a process is general execution, wherever it
+    lives and whatever it calls the sink. It must route through the gate or
+    be named in the baseline with the property that makes it tolerable.
+    """
+    baseline = _load_ungoverned_baseline()
+    offenders: list[str] = []
+    for rel in _command_string_spawn_modules():
+        body = (ROOT / rel).read_text("utf-8", errors="ignore")
+        if "execution_authority" in body:
+            continue
+        if rel in baseline:
+            continue
+        offenders.append(rel)
+
+    assert not offenders, (
+        "these turn a caller-supplied command string into a process without "
+        f"core.security.execution_authority: {offenders}. Wire the gate, or "
+        f"add the module to {_UNGOVERNED_SPAWN_BASELINE.name} with the "
+        "property that makes it safe."
+    )
+
+
+def test_the_ungoverned_spawn_baseline_only_shrinks():
+    """A baseline entry that no longer matches is debt already paid.
+
+    Leaving it recorded lets the next ungoverned surface reuse the slot: the
+    list stays the same length while what it excuses changes underneath. The
+    same reason `config/layering_baseline.json` refuses to carry a stale
+    entry.
+    """
+    baseline = _load_ungoverned_baseline()
+    current = set(_command_string_spawn_modules())
+    stale: list[str] = []
+    for rel in sorted(baseline):
+        if rel not in current:
+            stale.append(f"{rel} (no longer splits a command into a spawn)")
+            continue
+        body = (ROOT / rel).read_text("utf-8", errors="ignore")
+        if "execution_authority" in body:
+            stale.append(f"{rel} (now routes through the gate)")
+
+    assert not stale, (
+        "these baseline entries no longer describe the code and must be "
+        f"deleted from {_UNGOVERNED_SPAWN_BASELINE.name}: {stale}"
+    )

@@ -32,10 +32,16 @@ jobs:
         run: cargo install tauri-cli --version 2.0.0-beta.18
       - name: Install Python deps
         run: |
+          # `pip install -r requirements/runtime.txt || pip install -r
+          # requirements.txt || true` used to stand here. requirements/runtime.txt
+          # has never existed, so the first install always failed; the `|| true`
+          # let the second fail too, and the job went on to sign and notarize a
+          # bundle built against whatever happened to be in the image.
+          set -euo pipefail
           python -m venv .venv
           . .venv/bin/activate
           pip install -U pip
-          pip install -r requirements/runtime.txt || pip install -r requirements.txt || true
+          pip install --require-hashes -r requirements_lock.txt
       - name: Build (unsigned)
         env:
           AURA_BUILD_PROFILE: release
