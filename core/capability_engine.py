@@ -8045,3 +8045,23 @@ async def execute_tool(
         return await engine.execute(real_tool, real_params, context=context)
 
     return await engine.execute(tool_name, params, context=context)
+
+
+def live_capability_engine() -> "CapabilityEngine | None":
+    """The engine the runtime is already using, or None outside a runtime.
+
+    LIVE, 2026-08-22: a single chat turn logged "Refreshing skill registry"
+    twenty times in forty-five seconds, each one rebuilding and probing all 79
+    skills. `_ensure_catalog_loaded` guards against reloading, so twenty loads
+    meant twenty engines: several callers fall back to `CapabilityEngine()`
+    when none is passed to them, and a fresh engine has a cold catalog.
+
+    Asking the container first costs nothing and finds the warm one.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        engine = ServiceContainer.get("capability_engine", default=None)
+    except (ImportError, AttributeError, RuntimeError, LookupError):
+        return None
+    return engine if engine is not None else None

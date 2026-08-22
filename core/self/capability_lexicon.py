@@ -23,11 +23,11 @@ words and is found by them, with nothing to re-wire.
 from __future__ import annotations
 
 import re
-
-from core.conversation.word_markers import stem_fold
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
+
+from core.conversation.word_markers import stem_fold
 
 __all__ = [
     "CAPABILITY_STATUS_HEADER",
@@ -136,9 +136,11 @@ def _skill_metadata(engine: Any = None) -> dict[str, Any]:
         pass
     if engine is None:
         try:
-            from core.capability_engine import CapabilityEngine
+            from core.capability_engine import CapabilityEngine, live_capability_engine
 
-            engine = CapabilityEngine()
+            # The warm engine if the runtime has one; a cold catalog costs a
+            # full rebuild and probe of every skill.
+            engine = live_capability_engine() or CapabilityEngine()
         except (ImportError, RuntimeError, TypeError, ValueError):
             return {}
     return dict(getattr(engine, "skills", None) or {})

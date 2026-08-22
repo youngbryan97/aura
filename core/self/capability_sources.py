@@ -12,8 +12,9 @@ that whole class at once, and nothing downstream has to learn its name.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 __all__ = [
     "CapabilityRecord",
@@ -56,9 +57,11 @@ def registered_sources() -> tuple[str, ...]:
 def _skill_records(engine: Any = None) -> dict[str, CapabilityRecord]:
     if engine is None:
         try:
-            from core.capability_engine import CapabilityEngine
+            from core.capability_engine import CapabilityEngine, live_capability_engine
 
-            engine = CapabilityEngine()
+            # The warm engine if the runtime has one; a cold catalog costs a
+            # full rebuild and probe of every skill.
+            engine = live_capability_engine() or CapabilityEngine()
         except _SOURCE_ERRORS:
             return {}
     skills = dict(getattr(engine, "skills", None) or {})

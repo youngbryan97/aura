@@ -578,22 +578,33 @@ def _spawn(
     source: str,
     env: dict[str, str] | None = None,
 ) -> SandboxOutcome:
+    from core.governance_context import local_internal_governed_scope
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     try:
-        completed = get_subprocess_gateway().run(
-            list(argv),
-            input=request,
-            timeout=timeout_s + 5.0,
-            capture_output=True,
-            cwd=str(scratch),
-            env=env,
-            # Executing generated Python is an effect even when the kernel
-            # confines every write to this ephemeral scratch directory.
-            read_only=False,
-            source=f"sandbox.untrusted_python.{source}",
-            accelerator_capability="auto",
-        )
+        # Running confined code on the runtime's own behalf is internal
+        # maintenance, and the gateway refuses maintenance that does not say
+        # so.
+        #
+        # LIVE, 2026-08-22: every turn logged "GOVERNANCE VIOLATION:
+        # subprocess_gateway.run:sandbox.untrusted_python.symbolic_cognition
+        # called outside governed context", recorded a degradation and raised
+        # a MARGINAL fault — so the symbolic boundary this sandbox exists to
+        # provide was unavailable on every single turn.
+        with local_internal_governed_scope(f"sandbox.untrusted_python.{source}"):
+            completed = get_subprocess_gateway().run(
+                list(argv),
+                input=request,
+                timeout=timeout_s + 5.0,
+                capture_output=True,
+                cwd=str(scratch),
+                env=env,
+                # Executing generated Python is an effect even when the kernel
+                # confines every write to this ephemeral scratch directory.
+                read_only=False,
+                source=f"sandbox.untrusted_python.{source}",
+                accelerator_capability="auto",
+            )
     except subprocess.TimeoutExpired:
         return SandboxOutcome(
             status="timeout",

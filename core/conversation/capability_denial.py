@@ -187,9 +187,11 @@ def denied_registered_capabilities(
         return ()
     if engine is None:
         try:
-            from core.capability_engine import CapabilityEngine
+            # The warm engine if the runtime has one; a cold catalog costs a
+            # full rebuild and probe of every skill.
+            from core.capability_engine import CapabilityEngine, live_capability_engine
 
-            engine = CapabilityEngine()
+            engine = live_capability_engine() or CapabilityEngine()
         except (ImportError, RuntimeError, TypeError, ValueError):
             return ()
     available = _enabled_skill_names(engine)
