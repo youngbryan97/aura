@@ -919,6 +919,46 @@ class TestWorkerDeathIsProven:
 
         assert client._kill_and_join_blocking(_Opaque()) is False
 
+    def test_an_external_kill_is_reconciled_from_exitcode(self, client, monkeypatch):
+        import core.brain.llm.mlx_client as mod
+
+        degradations = []
+        monkeypatch.setattr(
+            mod,
+            "_record_mlx_degradation",
+            lambda *args, **kwargs: degradations.append((args, kwargs)),
+        )
+
+        class _ExternallyKilled:
+            pid = 9988
+
+            def __init__(self):
+                self.exitcode = None
+
+            def is_alive(self):
+                return True
+
+            def kill(self):
+                raise ProcessLookupError("another owner already killed it")
+
+            def join(self, timeout=None):
+                self.exitcode = -9
+
+        assert client._kill_and_join_blocking(_ExternallyKilled()) is True
+        assert degradations == []
+
+    def test_survivor_registry_retires_an_externally_reaped_handle(self, client):
+        class _Reaped:
+            pid = 9989
+            exitcode = -9
+
+            def is_alive(self):
+                return True
+
+        client._surviving_workers = [_Reaped()]
+        assert client.surviving_worker_count() == 0
+        assert client._surviving_workers == []
+
     def test_close_retains_a_survivor_and_refuses_replacement(
         self,
         client,

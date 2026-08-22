@@ -3617,6 +3617,59 @@ def _should_emit_generation_progress(
     return (now - float(last_emit_at or 0.0)) >= max(0.1, float(every_seconds))
 
 
+def _prefill_step_size_for_model(model_path: str) -> int:
+    """Bound one opaque Metal prefill call below the liveness horizon.
+
+    ``mlx_lm`` defaults to 2048 tokens per prefill step. On the resident 32B,
+    a measured 755-token recurrent prefill occupied the inference thread for
+    roughly 52 seconds, long enough for Aura's independent heartbeat to report
+    a false loop stall. Smaller checkpoints can safely amortize more tokens
+    per call; heavy checkpoints need observable, cancellable boundaries.
+    """
+    from core.brain.llm.model_artifact_profile import model_size_class
+
+    weight_class = model_size_class(str(model_path or ""))
+    return {
+        "72b": 64,
+        "32b": 128,
+        "14b": 256,
+        "7b": 512,
+    }.get(weight_class, 512)
+
+
+def _build_prefill_progress_callback(
+    watchdog: Any,
+    writer: Any,
+    *,
+    request_id: str,
+    action: str,
+):
+    """Return an ``mlx_lm`` callback with causal worker/parent liveness.
+
+    Prefill progress is deliberately not token progress: the parent uses it to
+    keep the request alive and expose phase coordinates, but first-token and
+    decode-stall clocks remain untouched until generation actually yields.
+    """
+    normalized_request_id = str(request_id or "")
+    normalized_action = str(action or "generate")
+
+    def report(processed: int, total: int) -> None:
+        watchdog.activity()
+        writer.put(
+            {
+                "id": normalized_request_id,
+                "action": normalized_action,
+                "status": "progress",
+                "phase": "prefill",
+                "prompt_tokens_processed": max(0, int(processed or 0)),
+                "prompt_tokens_total": max(0, int(total or 0)),
+                "timestamp": time.time(),
+            }
+        )
+
+    return report
+
+
 def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
     # Measured weight class (artifact evidence first): a renamed heavy model
     # previously inherited the 12-entry cache budget of an unknown small lane.
@@ -5624,7 +5677,14 @@ def _run_nonparametric_ingest_job(
     }
 
 
-def _speculative_eligible(draft_model: Any, generation_kwargs: dict, job: dict) -> bool:
+def _speculative_eligible(
+    draft_model: Any,
+    generation_kwargs: dict,
+    job: dict,
+    *,
+    prefill_tokens: int = 0,
+    prefill_step_size: int = 0,
+) -> bool:
     """Speculative decoding is only safe on the plain generation path.
 
     The draft model PROPOSES tokens; the steered target model VERIFIES every
@@ -5640,6 +5700,15 @@ def _speculative_eligible(draft_model: Any, generation_kwargs: dict, job: dict) 
     if "logits_processors" in generation_kwargs:
         return False
     if "prompt_cache" in generation_kwargs:
+        return False
+    # mlx_lm's speculative path discards prompt_progress_callback. It remains
+    # safe for a one-chunk prompt; a multi-chunk heavy-model prefill must take
+    # the observable target-only path or it is indistinguishable from a stall.
+    if (
+        "prompt_progress_callback" in generation_kwargs
+        and int(prefill_step_size or 0) > 0
+        and int(prefill_tokens or 0) > int(prefill_step_size)
+    ):
         return False
     return True
 
@@ -7271,6 +7340,22 @@ def _mlx_worker_loop(
                                     clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
                                     clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
 
+                                    prefill_tokens = (
+                                        len(gen_prompt)
+                                        if not isinstance(gen_prompt, str)
+                                        else prompt_token_count
+                                    )
+                                    prefill_step_size = _prefill_step_size_for_model(model_path)
+                                    clean_kwargs["prefill_step_size"] = prefill_step_size
+                                    clean_kwargs["prompt_progress_callback"] = (
+                                        _build_prefill_progress_callback(
+                                            watchdog,
+                                            ipc_writer,
+                                            request_id=str(job.get("id") or ""),
+                                            action="generate",
+                                        )
+                                    )
+
                                     watchdog.activity()
 
                                     # If the foreground memory tap is installed, keep it active
@@ -7295,7 +7380,11 @@ def _mlx_worker_loop(
                                             )
 
                                     use_speculative = _speculative_eligible(
-                                        draft_model, clean_kwargs, job
+                                        draft_model,
+                                        clean_kwargs,
+                                        job,
+                                        prefill_tokens=prefill_tokens,
+                                        prefill_step_size=prefill_step_size,
                                     )
                                     if use_speculative:
                                         clean_kwargs["draft_model"] = draft_model
@@ -8914,12 +9003,28 @@ def _mlx_worker_loop(
                                 # [STABILITY v60] Definitive scrub of legacy kwargs.
                                 clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
                                 clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
-                                if _speculative_eligible(draft_model, clean_kwargs, job):
-                                    clean_kwargs["draft_model"] = draft_model
 
                                 # Context-window admission before streamed Metal work.
                                 _stream_prompt_text = str(prompt or "")
                                 _stream_prompt_tokens = len(tokenizer.encode(_stream_prompt_text))
+                                _stream_prefill_step_size = _prefill_step_size_for_model(model_path)
+                                clean_kwargs["prefill_step_size"] = _stream_prefill_step_size
+                                clean_kwargs["prompt_progress_callback"] = (
+                                    _build_prefill_progress_callback(
+                                        watchdog,
+                                        ipc_writer,
+                                        request_id=str(job.get("id") or ""),
+                                        action="stream",
+                                    )
+                                )
+                                if _speculative_eligible(
+                                    draft_model,
+                                    clean_kwargs,
+                                    job,
+                                    prefill_tokens=_stream_prompt_tokens,
+                                    prefill_step_size=_stream_prefill_step_size,
+                                ):
+                                    clean_kwargs["draft_model"] = draft_model
                                 # The assembler budgets in characters and has
                                 # no tokenizer — loading one in the process that
                                 # serves conversation is the thing that must not

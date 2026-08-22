@@ -9294,7 +9294,7 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/db/migrations.py",
-      "scope": "<module>.Migrator.reconcile_legacy_schema"
+      "scope": "<module>.Migrator._open"
     },
     {
       "callee": "pathlib.Path().parent.mkdir",
@@ -9302,7 +9302,7 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/db/migrations.py",
-      "scope": "<module>.Migrator.run"
+      "scope": "<module>.Migrator.reconcile_legacy_schema"
     },
     {
       "callee": "path.parent.mkdir",
@@ -15438,7 +15438,15 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "skills/shell.py",
-      "scope": "<module>.ShellSkill.execute"
+      "scope": "<module>.ShellSkill._run_confined"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "skills/shell.py",
+      "scope": "<module>.ShellSkill._run_on_host"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
@@ -15754,6 +15762,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "72d5af7db06430bd149e6908e6065bc7e4f8fb6a7ce7b0e298d60f06f75d100e",
+  "inventory_sha256": "efbd3ed3491fc08b19f9f9d807b55dfce9d806a0bc23d1cafafab154550c23bb",
   "schema_version": 1
 }

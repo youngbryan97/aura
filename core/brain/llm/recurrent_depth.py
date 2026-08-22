@@ -177,6 +177,78 @@ class CacheSnapshotError(RuntimeError):
     """
 
 
+_CACHE_COORDINATE_ATTRS = (
+    "offset",
+    "_idx",
+    "left_padding",
+    "_right_padding",
+    "start_position",
+)
+
+
+def _owned_cache_coordinate(value):
+    """Copy small mutable cache coordinates without cloning K/V tensors."""
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return value
+    if isinstance(value, tuple):
+        return tuple(_owned_cache_coordinate(item) for item in value)
+    if isinstance(value, list):
+        return [_owned_cache_coordinate(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            _owned_cache_coordinate(key): _owned_cache_coordinate(item)
+            for key, item in value.items()
+        }
+    try:
+        import mlx.core as mx
+
+        if isinstance(value, mx.array):
+            return mx.array(value)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+    copier = getattr(value, "copy", None)
+    if callable(copier):
+        try:
+            return copier()
+        except (RuntimeError, TypeError, ValueError):
+            pass
+    raise CacheSnapshotError(
+        f"Cache coordinate {type(value).__name__} has no owned-copy contract"
+    )
+
+
+def _snapshot_cache_coordinates(cache_entry) -> dict[str, object]:
+    return {
+        attr: _owned_cache_coordinate(getattr(cache_entry, attr))
+        for attr in _CACHE_COORDINATE_ATTRS
+        if hasattr(cache_entry, attr)
+    }
+
+
+def _restore_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> None:
+    for attr, value in coordinates.items():
+        setattr(cache_entry, attr, _owned_cache_coordinate(value))
+
+
+def _cache_coordinate_value(value):
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    return value
+
+
+def _verify_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> None:
+    mismatches = []
+    for attr, expected in coordinates.items():
+        observed = getattr(cache_entry, attr, None)
+        if _cache_coordinate_value(observed) != _cache_coordinate_value(expected):
+            mismatches.append(attr)
+    if mismatches:
+        raise CacheSnapshotError(
+            "Cache restore postcondition failed for coordinates: "
+            + ", ".join(sorted(mismatches))
+        )
+
+
 def _clear_recurrent_depth_attrs(inner) -> None:
     for attr in (
         "_recurrent_depth_original_call",
@@ -221,13 +293,27 @@ def _snapshot_recurrent_caches(cache, start: int, end: int) -> list:
         if c is None:
             snapshots.append(None)
             continue
-        # Prefer the canonical mlx_lm KVCache contract: state / meta_state.
-        if hasattr(c, "state") and hasattr(c, "meta_state"):
-            snapshots.append(("state", c.state, c.meta_state))
-            continue
-        # Fallback: direct attribute snapshot for simple cache types.
+        # Live MLX caches expose capacity-bearing K/V buffers. Rewinding those
+        # buffers in place preserves their spare allocation; assigning the
+        # persistence ``state`` crops to the logical cursor and forces a fresh
+        # 256-token allocation on every recurrent decode step.
         if all(hasattr(c, attr) for attr in ("keys", "values", "offset")):
-            snapshots.append(("attrs", c.keys, c.values, c.offset))
+            snapshots.append(
+                (
+                    "buffers",
+                    c.keys,
+                    c.values,
+                    c.meta_state if hasattr(c, "meta_state") else None,
+                    _snapshot_cache_coordinates(c),
+                )
+            )
+            continue
+        # Composite caches use the canonical persistence contract because
+        # they own no direct K/V buffers.
+        if hasattr(c, "state") and hasattr(c, "meta_state"):
+            snapshots.append(
+                ("state", c.state, c.meta_state, _snapshot_cache_coordinates(c))
+            )
             continue
         raise CacheSnapshotError(
             f"KV cache at layer {i} ({type(c).__name__}) supports neither "
@@ -246,13 +332,30 @@ def _restore_recurrent_caches(cache, start: int, end: int, snapshots: list):
         if c is None or snap is None:
             continue
         kind = snap[0]
-        if kind == "state":
+        if kind == "buffers":
+            c.keys = snap[1]
+            c.values = snap[2]
+            if snap[3] is not None and hasattr(c, "meta_state"):
+                c.meta_state = snap[3]
+            coordinates = snap[4]
+            _restore_cache_coordinates(c, coordinates)
+            _verify_cache_coordinates(c, coordinates)
+        elif kind == "state":
             c.state = snap[1]
             c.meta_state = snap[2]
+            coordinates = snap[3] if len(snap) > 3 else {}
+            _restore_cache_coordinates(c, coordinates)
+            _verify_cache_coordinates(c, coordinates)
         elif kind == "attrs":
             c.keys = snap[1]
             c.values = snap[2]
-            c.offset = snap[3]
+            if isinstance(snap[3], dict):
+                coordinates = snap[3]
+            else:
+                # Read snapshots from the original three-attribute format.
+                coordinates = {"offset": snap[3]}
+            _restore_cache_coordinates(c, coordinates)
+            _verify_cache_coordinates(c, coordinates)
         else:
             raise CacheSnapshotError(f"Unknown cache snapshot kind: {kind!r}")
 

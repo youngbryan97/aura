@@ -19,10 +19,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.brain.llm.recurrent_depth import (  # noqa: E402
     CacheSnapshotError,
+    _get_lane_defaults,
+    _restore_recurrent_caches,
     _self_test_cache_snapshot,
     _snapshot_recurrent_caches,
-    _restore_recurrent_caches,
-    _get_lane_defaults,
     resolve_loops_for_model,
 )
 
@@ -131,6 +131,80 @@ def test_restore_rewinds_mlx_cache():
     _restore_recurrent_caches([c], 0, 1, snap)
     assert c.offset == pre_offset, f"Restore failed: {pre_offset} → {c.offset}"
 
+
+@pytest.mark.hardware
+def test_batch_cache_snapshot_owns_arrays_and_restores_both_cursors():
+    """A speculative batch pass must not mutate its saved rewind point."""
+    import mlx.core as mx
+    from mlx_lm.models.cache import BatchKVCache
+
+    cache = BatchKVCache([0, 0])
+    prefix = mx.ones((2, 8, 742, 128))
+    cache.update_and_fetch(prefix, prefix)
+    backing_capacity = cache.keys.shape[2]
+    snapshot = _snapshot_recurrent_caches([cache], 0, 1)
+
+    step = mx.ones((2, 8, 13, 128))
+    cache.update_and_fetch(step, step)
+    assert cache._idx == 755
+    assert cache.offset.tolist() == [755, 755]
+
+    _restore_recurrent_caches([cache], 0, 1, snapshot)
+
+    assert cache._idx == 742
+    assert cache.offset.tolist() == [742, 742]
+    assert cache.keys.shape[2] == backing_capacity
+    keys, _values = cache.update_and_fetch(step, step)
+    assert keys.shape == (2, 8, 755, 128)
+    assert cache.keys.shape[2] == backing_capacity
+    assert cache._idx == 755
+    assert cache.offset.tolist() == [755, 755]
+
+
+@pytest.mark.hardware
+def test_real_qwen_batch_recurrence_keeps_layer_geometry_aligned():
+    """Exercise the installed Qwen attention/cache call that failed live."""
+    import mlx.core as mx
+    from mlx_lm.models.cache import BatchKVCache
+    from mlx_lm.models.qwen2 import Model, ModelArgs
+
+    import core.brain.llm.recurrent_depth as rd
+
+    args = ModelArgs(
+        model_type="qwen2",
+        hidden_size=32,
+        num_hidden_layers=8,
+        intermediate_size=64,
+        num_attention_heads=4,
+        rms_norm_eps=1e-6,
+        vocab_size=128,
+        num_key_value_heads=2,
+        max_position_embeddings=2048,
+    )
+    model = Model(args)
+    assert rd.apply_recurrent_depth(
+        model,
+        n_loops=2,
+        prelude_frac=0.25,
+        coda_frac=0.25,
+        residual_alpha=0.1,
+    )
+
+    caches = [BatchKVCache([0, 3]) for _ in range(8)]
+    prefix = mx.zeros((2, 2, 742, 8))
+    for cache in caches:
+        cache.update_and_fetch(prefix, prefix)
+
+    for token_count, expected_idx in ((13, 755), (1, 756), (1, 757)):
+        output = model(
+            mx.zeros((2, token_count), dtype=mx.int32),
+            cache=caches,
+        )
+        mx.eval(output)
+        for cache in caches:
+            assert cache._idx == expected_idx
+            assert cache.offset.tolist() == [expected_idx, expected_idx - 3]
+            assert cache.keys.shape[2] == 768
 
 def _install_fake_mlx_modules(monkeypatch):
     mlx_pkg = types.ModuleType("mlx")

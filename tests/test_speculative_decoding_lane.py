@@ -35,6 +35,32 @@ def test_external_prompt_cache_takes_the_normal_path():
     assert _speculative_eligible(_DRAFT, {"prompt_cache": [object()]}, {}) is False
 
 
+def test_multi_chunk_prefill_takes_the_observable_normal_path():
+    assert (
+        _speculative_eligible(
+            _DRAFT,
+            {"max_tokens": 512, "prompt_progress_callback": object()},
+            {},
+            prefill_tokens=755,
+            prefill_step_size=128,
+        )
+        is False
+    )
+
+
+def test_single_chunk_prefill_can_still_use_the_draft_lane():
+    assert (
+        _speculative_eligible(
+            _DRAFT,
+            {"max_tokens": 512, "prompt_progress_callback": object()},
+            {},
+            prefill_tokens=64,
+            prefill_step_size=128,
+        )
+        is True
+    )
+
+
 def test_draft_load_disabled_by_env(monkeypatch):
     monkeypatch.setenv("AURA_SPECULATIVE_DECODING", "0")
     assert _load_speculative_draft("/models/Qwen2.5-32B-Instruct-4bit", None) is None

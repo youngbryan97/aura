@@ -25,8 +25,10 @@ from core.brain.llm.mlx_worker import (
     WorkerMemorySentinel,
     _apply_surface_generation_controls,
     _build_operator_evidence_prompt,
+    _build_prefill_progress_callback,
     _merge_stop_sequences,
     _operator_evidence_fragment_incomplete,
+    _prefill_step_size_for_model,
     _prompt_cache_entry_budget_for_model,
     _restore_surface_generation_controls,
     _should_emit_generation_progress,
@@ -2429,6 +2431,145 @@ class TestMLXWorkerProgress(unittest.IsolatedAsyncioTestCase):
                 now=100.4,
             )
         )
+
+    def test_heavy_model_prefill_is_chunked_below_the_stall_horizon(self):
+        self.assertEqual(
+            _prefill_step_size_for_model("/models/Qwen2.5-32B-Instruct-8bit"),
+            128,
+        )
+        self.assertEqual(
+            _prefill_step_size_for_model("/models/Qwen2.5-72B-Instruct-4bit"),
+            64,
+        )
+        self.assertGreaterEqual(
+            _prefill_step_size_for_model("/models/Qwen2.5-7B-Instruct-4bit"),
+            256,
+        )
+
+    def test_prefill_progress_refreshes_watchdog_and_emits_correlated_phase(self):
+        class WatchdogProbe:
+            def __init__(self):
+                self.calls = 0
+
+            def activity(self):
+                self.calls += 1
+
+        class WriterProbe:
+            def __init__(self):
+                self.messages = []
+
+            def put(self, message):
+                self.messages.append(message)
+
+        watchdog = WatchdogProbe()
+        writer = WriterProbe()
+        callback = _build_prefill_progress_callback(
+            watchdog,
+            writer,
+            request_id="prefill-request",
+            action="generate",
+        )
+
+        callback(0, 755)
+        callback(128, 755)
+        callback(256, 755)
+
+        self.assertEqual(watchdog.calls, 3)
+        self.assertEqual(
+            [message["prompt_tokens_processed"] for message in writer.messages],
+            [0, 128, 256],
+        )
+        self.assertTrue(all(message["phase"] == "prefill" for message in writer.messages))
+        self.assertTrue(all(message["id"] == "prefill-request" for message in writer.messages))
+
+    @pytest.mark.hardware
+    def test_installed_mlx_lm_calls_prefill_hook_at_each_chunk_boundary(self):
+        import mlx.core as mx
+        from mlx_lm.generate import generate_step
+        from mlx_lm.models.qwen2 import Model, ModelArgs
+
+        class WatchdogProbe:
+            def __init__(self):
+                self.calls = 0
+
+            def activity(self):
+                self.calls += 1
+
+        class WriterProbe:
+            def __init__(self):
+                self.messages = []
+
+            def put(self, message):
+                self.messages.append(message)
+
+        model = Model(
+            ModelArgs(
+                model_type="qwen2",
+                hidden_size=16,
+                num_hidden_layers=1,
+                intermediate_size=32,
+                num_attention_heads=2,
+                rms_norm_eps=1e-6,
+                vocab_size=32,
+                num_key_value_heads=1,
+                max_position_embeddings=64,
+            )
+        )
+        watchdog = WatchdogProbe()
+        writer = WriterProbe()
+        callback = _build_prefill_progress_callback(
+            watchdog,
+            writer,
+            request_id="real-prefill",
+            action="generate",
+        )
+        generator = generate_step(
+            mx.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            model,
+            max_tokens=1,
+            prefill_step_size=4,
+            prompt_progress_callback=callback,
+        )
+
+        next(generator)
+
+        coordinates = [
+            message["prompt_tokens_processed"] for message in writer.messages
+        ]
+        self.assertEqual(coordinates[0], 0)
+        self.assertIn(4, coordinates)
+        self.assertIn(8, coordinates)
+        self.assertEqual(coordinates[-1], 10)
+        self.assertEqual(watchdog.calls, len(coordinates))
+
+    async def test_prefill_progress_does_not_claim_a_first_token(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._req_q = queue.Queue()
+        client._res_q = queue.Queue()
+        client._mark_generation_started("prefill-request", prompt_chars=4096)
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put(
+                {
+                    "status": "progress",
+                    "phase": "prefill",
+                    "action": "generate",
+                    "id": "prefill-request",
+                    "prompt_tokens_processed": 128,
+                    "prompt_tokens_total": 755,
+                }
+            )
+            await asyncio.sleep(0.25)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertEqual(client._current_first_token_at, 0.0)
+        self.assertEqual(client._last_token_progress_at, 0.0)
+        self.assertEqual(client._current_prefill_tokens_processed, 128)
+        self.assertEqual(client._current_prefill_tokens_total, 755)
 
 
 class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):

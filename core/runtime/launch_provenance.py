@@ -586,18 +586,28 @@ def validate_launch_source(
         if expected and str(expected) != str(observed or ""):
             drift.append(field)
 
+    # Identity findings decide whether this signed bundle belongs to this
+    # checkout. Freshness findings are still issues a health consumer must be
+    # able to see, but they are non-blocking because Aura.app intentionally
+    # launches live source that can advance after the binary was signed.
     source_verified = not issues
+    freshness_issues = [f"source_revision_drift:{field}" for field in drift]
+    source_current = source_verified and not drift
     return {
         "schema": LAUNCH_PROVENANCE_SCHEMA,
         "required": True,
         "launch_mode": "signed_app",
         "source_verified": source_verified,
+        "verification_scope": "bundle_identity",
         # True when the bundle was built from exactly this workspace state.
         # Informational: the workspace moving on is normal, not a fault.
-        "source_current": source_verified and not drift,
+        "source_current": source_current,
+        "freshness_status": (
+            "current" if source_current else "drifted" if source_verified else "unverified"
+        ),
         "source_drift": sorted(set(drift)),
         "verified": False,
-        "issues": sorted(set(issues)),
+        "issues": sorted(set(issues + freshness_issues)),
         "manifest_path": str(manifest_path or ""),
         "app_executable": str(executable or ""),
         "expected": {

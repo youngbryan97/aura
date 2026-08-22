@@ -1042,6 +1042,7 @@ def test_runtime_revision_public_projection_is_coarse_but_owner_keeps_diagnostic
         "verified": True,
         "revision_token": "a" * 64,
         "status": "verified",
+        "source_current": True,
         "blocker": "",
     }
     assert "expected_commit_sha" not in public["runtime_revision"]
@@ -1050,6 +1051,8 @@ def test_runtime_revision_public_projection_is_coarse_but_owner_keeps_diagnostic
         "required": True,
         "verified": True,
         "status": "verified",
+        "source_current": True,
+        "source_drift": [],
         "blocker": "",
     }
     assert "actual" not in public["launch_provenance"]
@@ -1058,11 +1061,40 @@ def test_runtime_revision_public_projection_is_coarse_but_owner_keeps_diagnostic
         "required": True,
         "verified": True,
         "status": "verified",
+        "source_current": True,
+        "source_drift": [],
         "blocker": "",
     }
     assert "expected" not in public["boot"]["launch_provenance"]
     assert owner is payload
     assert owner["runtime_revision"]["expected_commit_sha"] == "c" * 40
+
+    drifted_public = system_routes._runtime_revision_response_projection(
+        {
+            "launch_provenance": {
+                "schema": "aura.launch_provenance.v1",
+                "required": True,
+                "verified": True,
+                "source_current": False,
+                "source_drift": ["commit_sha"],
+                "verification_scope": "bundle_identity",
+                "freshness_status": "drifted",
+            },
+            "runtime_revision": {
+                "schema": "aura.runtime_revision.v2",
+                "required": True,
+                "verified": True,
+                "source_current": False,
+                "revision_token": "f" * 64,
+            },
+        },
+        include_diagnostics=False,
+    )
+    assert drifted_public["launch_provenance"]["status"] == "verified_drifted"
+    assert drifted_public["launch_provenance"]["source_current"] is False
+    assert drifted_public["launch_provenance"]["source_drift"] == ["commit_sha"]
+    assert drifted_public["runtime_revision"]["status"] == "verified_drifted"
+    assert drifted_public["runtime_revision"]["source_current"] is False
 
     launch_only = system_routes._runtime_revision_response_projection(
         {"launch_provenance": payload["launch_provenance"]},
@@ -1073,6 +1105,8 @@ def test_runtime_revision_public_projection_is_coarse_but_owner_keeps_diagnostic
         "required": True,
         "verified": True,
         "status": "verified",
+        "source_current": True,
+        "source_drift": [],
         "blocker": "",
     }
 
@@ -1141,6 +1175,7 @@ async def test_api_health_applies_provenance_projection_by_authenticated_surface
         "verified",
         "revision_token",
         "status",
+        "source_current",
         "blocker",
     }
     assert "expected_commit_sha" not in public["runtime_revision"]
@@ -1215,6 +1250,7 @@ async def test_api_boot_health_applies_provenance_projection_by_authenticated_su
         "verified",
         "revision_token",
         "status",
+        "source_current",
         "blocker",
     }
     assert "expected_commit_sha" not in public["runtime_revision"]
@@ -1223,6 +1259,8 @@ async def test_api_boot_health_applies_provenance_projection_by_authenticated_su
         "required": True,
         "verified": True,
         "status": "verified",
+        "source_current": True,
+        "source_drift": [],
         "blocker": "",
     }
 

@@ -4529,6 +4529,8 @@ class MLXLocalClient:
         self._current_requested_max_tokens = 0
         self._current_request_prompt_chars = 0
         self._current_first_token_hard_ceiling_s = 0.0
+        self._current_prefill_tokens_processed = 0
+        self._current_prefill_tokens_total = 0
         self._foreground_generation_watchdog: _threading.Timer | None = None
         self._recurrent_depth_status: dict[str, Any] = {"active": False, "config": None}
         #: The worker's recurrent-adapter activation receipt, validated against
@@ -5566,6 +5568,29 @@ class MLXLocalClient:
             0.0,
             float(first_token_hard_ceiling_s or 0.0),
         )
+        self._current_prefill_tokens_processed = 0
+        self._current_prefill_tokens_total = 0
+        self._mark_progress()
+
+    def _mark_prefill_progress(
+        self,
+        req_id: str | None,
+        *,
+        processed: int,
+        total: int,
+    ) -> None:
+        normalized_req_id = str(req_id or "")
+        if (
+            normalized_req_id
+            and self._current_request_id
+            and normalized_req_id != self._current_request_id
+        ):
+            return
+        if not normalized_req_id and self._current_request_id:
+            self._mark_progress()
+            return
+        self._current_prefill_tokens_processed = max(0, int(processed or 0))
+        self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
 
     def _mark_token_progress(self, req_id: str | None = None) -> None:
@@ -5599,6 +5624,8 @@ class MLXLocalClient:
         self._current_requested_max_tokens = 0
         self._current_request_prompt_chars = 0
         self._current_first_token_hard_ceiling_s = 0.0
+        self._current_prefill_tokens_processed = 0
+        self._current_prefill_tokens_total = 0
         self._mark_progress()
 
     def _mark_generation_completed(self, *, user_facing: bool = False) -> None:
@@ -6278,6 +6305,8 @@ class MLXLocalClient:
             "current_request_started_at": self._current_request_started_at,
             "current_first_token_at": self._current_first_token_at,
             "current_request_prompt_chars": self._current_request_prompt_chars,
+            "current_prefill_tokens_processed": self._current_prefill_tokens_processed,
+            "current_prefill_tokens_total": self._current_prefill_tokens_total,
             "recurrent_depth": recurrent_depth_status,
             "unified_recurrent_shadow": copy.deepcopy(
                 getattr(self, "_unified_recurrent_shadow_status", {})
@@ -7065,13 +7094,32 @@ class MLXLocalClient:
         survivors = getattr(self, "_surviving_workers", None) or []
         alive = []
         for process in survivors:
-            try:
-                if process.is_alive():
-                    alive.append(process)
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            if not self._worker_exit_is_proven(process):
                 alive.append(process)
         self._surviving_workers = alive
         return len(alive)
+
+    @staticmethod
+    def _worker_exit_is_proven(process: Any, identity: Any = None) -> bool:
+        """Reconcile a process handle without mistaking stale liveness for life."""
+        try:
+            if getattr(process, "exitcode", None) is not None:
+                return True
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            pass
+        try:
+            if not process.is_alive():
+                return True
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            pass
+        if identity is not None and getattr(identity, "bound", False):
+            try:
+                from core.runtime.process_identity import identity_still_current
+
+                return not identity_still_current(identity, process)
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+                return False
+        return False
 
     def _kill_and_join_blocking(self, p: mp.Process) -> bool:
         """Kill and join a worker, PROVING termination. Returns True when dead.
@@ -7081,6 +7129,8 @@ class MLXLocalClient:
         child could still be running.
         """
         if not p:
+            return True
+        if self._worker_exit_is_proven(p):
             return True
         try:
             initially_alive = bool(p.is_alive())
@@ -7093,43 +7143,48 @@ class MLXLocalClient:
             return False
         if not initially_alive:
             return True
+        identity = None
         try:
-            p.kill()
-            p.join(timeout=2.0)
-            if p.is_alive():
-                # One more attempt before reporting a survivor.
+            from multiprocessing.process import BaseProcess
+
+            if isinstance(p, BaseProcess):
+                from core.runtime.process_identity import capture_identity
+
+                identity = capture_identity(p, label="mlx_model_worker")
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            identity = None
+
+        failures: list[BaseException] = []
+        for _attempt in range(2):
+            if self._worker_exit_is_proven(p, identity):
+                return True
+            try:
                 p.kill()
+            except ProcessLookupError as exc:
+                # Another owner won the race. Joining below reconciles the
+                # multiprocessing handle and publishes its exit code.
+                failures.append(exc)
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                failures.append(exc)
+            try:
                 p.join(timeout=2.0)
-        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as e:
-            # OSError included: kill(), join() and is_alive() all reach the OS,
-            # and an OSError escaping here left the CALLER — a reboot or a
-            # forced abort — to fail on a diagnostic while the worker's fate
-            # went unrecorded and unproven.
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                failures.append(exc)
+            if self._worker_exit_is_proven(p, identity):
+                return True
+
+        for failure in failures:
             _record_mlx_degradation(
-                e,
-                action="continued process cleanup after worker kill/join failed",
+                failure,
+                action="worker kill/join failed before termination could be proven",
                 severity="error",
             )
-            logger.warning("Error killing process: %s", e)
-        try:
-            still_alive = bool(p.is_alive())
-        except (RuntimeError, AttributeError, ValueError, OSError) as exc:
-            # Unknown is not dead. Reporting an unobservable process as
-            # terminated is what lets a surviving worker keep the accelerator
-            # while the client believes the lane is free.
-            _record_mlx_degradation(
-                exc,
-                action="treated an unobservable worker as alive after kill/join",
-                severity="critical",
-            )
-            still_alive = True
-        if still_alive:
-            _record_mlx_degradation(
-                RuntimeError(f"worker_survived_kill:pid={getattr(p, 'pid', '?')}"),
-                action="worker process survived kill+join; caller state may briefly double-count it",
-                severity="critical",
-            )
-        return not still_alive
+        _record_mlx_degradation(
+            RuntimeError(f"worker_survived_kill:pid={getattr(p, 'pid', '?')}"),
+            action="worker process survived kill+join; caller retains its handle",
+            severity="critical",
+        )
+        return False
 
     def _replace_ipc_queues(self, *, maxsize: int = 10) -> None:
         """Replace IPC queues after closing the old semaphores and feeder threads."""
@@ -11495,7 +11550,14 @@ class MLXLocalClient:
                 if status in {"progress", "token"}:
                     if action == "latent_reason" and isinstance(res, dict):
                         self._record_latent_progress(res)
-                    self._mark_token_progress(res.get("id"))
+                    if status == "progress" and res.get("phase") == "prefill":
+                        self._mark_prefill_progress(
+                            res.get("id"),
+                            processed=res.get("prompt_tokens_processed", 0),
+                            total=res.get("prompt_tokens_total", 0),
+                        )
+                    else:
+                        self._mark_token_progress(res.get("id"))
                     live_intero = res.get("interoception_live")
                     if isinstance(live_intero, dict) and live_intero:
                         try:

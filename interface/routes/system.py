@@ -1484,6 +1484,7 @@ def _runtime_revision_response_projection(
     if isinstance(revision, dict):
         required = revision.get("required") is True
         verified = revision.get("verified") is True
+        source_current = revision.get("source_current") is not False
         result["runtime_revision"] = {
             "schema": str(revision.get("schema") or "aura.runtime_revision.v2"),
             "required": required,
@@ -1492,12 +1493,13 @@ def _runtime_revision_response_projection(
                 str(revision.get("revision_token") or "") if verified else ""
             ),
             "status": (
-                "verified"
-                if verified
+                "verified" if verified and source_current
+                else "verified_drifted" if verified
                 else "unverified"
                 if required
                 else "not_required"
             ),
+            "source_current": source_current,
             "blocker": (
                 "runtime_revision_unverified"
                 if required and not verified
@@ -1509,17 +1511,22 @@ def _runtime_revision_response_projection(
         launch = boot["launch_provenance"]
         launch_required = launch.get("required") is True
         launch_verified = launch.get("verified") is True
+        launch_current = launch.get("source_current") is not False
         boot = dict(boot)
         boot["launch_provenance"] = {
             "schema": str(launch.get("schema") or "aura.launch_provenance.v1"),
             "required": launch_required,
             "verified": launch_verified,
             "status": (
-                "verified"
-                if launch_verified
+                "verified" if launch_verified and launch_current
+                else "verified_drifted" if launch_verified
                 else "unverified"
                 if launch_required
                 else "not_required"
+            ),
+            "source_current": launch_current,
+            "source_drift": sorted(
+                {str(item) for item in launch.get("source_drift", []) if str(item)}
             ),
             "blocker": "launch_provenance" if launch_required and not launch_verified else "",
         }
@@ -1528,16 +1535,21 @@ def _runtime_revision_response_projection(
     if isinstance(launch, dict):
         launch_required = launch.get("required") is True
         launch_verified = launch.get("verified") is True
+        launch_current = launch.get("source_current") is not False
         result["launch_provenance"] = {
             "schema": str(launch.get("schema") or "aura.launch_provenance.v1"),
             "required": launch_required,
             "verified": launch_verified,
             "status": (
-                "verified"
-                if launch_verified
+                "verified" if launch_verified and launch_current
+                else "verified_drifted" if launch_verified
                 else "unverified"
                 if launch_required
                 else "not_required"
+            ),
+            "source_current": launch_current,
+            "source_drift": sorted(
+                {str(item) for item in launch.get("source_drift", []) if str(item)}
             ),
             "blocker": "launch_provenance" if launch_required and not launch_verified else "",
         }

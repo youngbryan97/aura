@@ -217,8 +217,10 @@ def test_commit_drift_is_reported_not_failed(monkeypatch, tmp_path):
     result = launch_provenance.validate_launch_source(tmp_path, env=env)
 
     assert result["source_verified"] is True
-    assert result["issues"] == []
+    assert result["issues"] == ["source_revision_drift:commit_sha"]
     assert result["source_current"] is False
+    assert result["verification_scope"] == "bundle_identity"
+    assert result["freshness_status"] == "drifted"
     assert "commit_sha" in result["source_drift"]
     # The measured value is the running one, not the manifest's.
     assert result["actual"]["commit_sha"] == "a" * 40
@@ -232,8 +234,9 @@ def test_dirty_workspace_drift_is_reported_not_failed(monkeypatch, tmp_path):
     result = launch_provenance.validate_launch_source(tmp_path, env=env)
 
     assert result["source_verified"] is True
-    assert result["issues"] == []
+    assert result["issues"] == ["source_revision_drift:workspace_state_sha256"]
     assert result["source_current"] is False
+    assert result["freshness_status"] == "drifted"
     assert "workspace_state_sha256" in result["source_drift"]
 
 
@@ -269,6 +272,8 @@ def test_an_unmoved_workspace_reports_current(monkeypatch, tmp_path):
 
     assert result["source_verified"] is True
     assert result["source_current"] is True
+    assert result["verification_scope"] == "bundle_identity"
+    assert result["freshness_status"] == "current"
     assert result["source_drift"] == []
 
 
@@ -348,6 +353,40 @@ def test_runtime_provenance_rejects_orphaned_app(monkeypatch, tmp_path):
 
     assert result["verified"] is False
     assert "resident_app_not_running" in result["issues"]
+
+
+def test_runtime_provenance_exposes_nonblocking_bundle_drift(monkeypatch, tmp_path):
+    executable, _manifest_path, env, _manifest = _app_contract(tmp_path)
+    _stub_source(monkeypatch, tmp_path)
+    env["AURA_LAUNCH_EXPECTED_COMMIT"] = "c" * 40
+    from core.security import native_desktop_bridge
+
+    monkeypatch.setattr(
+        native_desktop_bridge,
+        "native_desktop_bridge_identity",
+        lambda *, executable: {
+            "bridge_executable": str(executable),
+            "resident_running": True,
+            "code_signature": {
+                "available": True,
+                "stable_tcc_identity": True,
+                "identifier": launch_provenance.EXPECTED_BUNDLE_ID,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        launch_provenance,
+        "_strict_bundle_verification",
+        lambda _executable: {"ok": True, "bundle_path": str(executable.parents[2])},
+    )
+
+    result = launch_provenance.collect_runtime_launch_provenance(tmp_path, env=env)
+
+    assert result["verified"] is True
+    assert result["source_verified"] is True
+    assert result["source_current"] is False
+    assert result["freshness_status"] == "drifted"
+    assert result["issues"] == ["source_revision_drift:commit_sha"]
 
 
 def test_boot_health_fails_closed_on_required_launch_provenance(monkeypatch):

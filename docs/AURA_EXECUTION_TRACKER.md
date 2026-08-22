@@ -51519,3 +51519,48 @@ Ruff, compilation, governance ownership, layering and diff hygiene pass. The
 running desktop process predates this checkpoint and remains intentionally
 untouched; live confirmation requires a source-matched controlled restart in a
 fresh agent session under the updated repository rule.
+
+## Checkpoint 2026-08-21-895: Keep Recurrent State, Worker Death, and Prefill Truth Aligned
+
+The first source-matched 32B exercise after the Metal ownership repair exposed
+three different liveness failures that had been collapsed into one apparent
+model stall. Recurrent decode restored a `BatchKVCache` state tuple by
+reference, so the speculative pass mutated the saved offset while the state
+setter rewound only the key/value index. The next layer call combined a
+755-token attention mask with a 742-token cache and failed with an MLX broadcast
+error. A worker killed by another owner could leave a stale multiprocessing
+handle whose `is_alive()` disagreed with its exit code, producing a false
+`worker_survived_kill` fault. Finally, a 32B prefill could spend roughly 52
+seconds inside one opaque `mlx_lm` call without sending activity, so the
+heartbeat classified useful inference as a stalled loop before the first token.
+
+Recurrent cache snapshots now own mutable coordinates and restore the original
+key/value capacity, index, offset and padding metadata as one checked state.
+Worker cleanup always joins after a kill race, reconciles exit code and captured
+PID identity, and retains a handle only when termination remains genuinely
+unproven. Heavy-model prefill is divided into model-sized observable chunks;
+each chunk advances the worker watchdog and sends correlated prefill coordinates
+to the parent without falsely claiming token or first-token progress. Because
+the installed speculative generator discards its prefill callback, only
+multi-chunk prompts take the observable target-only lane; single-chunk prompts
+retain speculative decoding.
+
+Launch provenance now separates verified bundle identity from source freshness.
+A valid thin launcher built from an older checkout remains boot-capable, while
+the authenticated and public health projections explicitly report
+`verified_drifted` and coarse drift dimensions rather than saying verified,
+current and issue-free at once. The governance effect baseline was refreshed
+only for four reviewed ownership moves already present on `main`: migration
+directory creation moved into the shared database opener, and shell gateway
+calls moved from the dispatcher into the confined and host execution owners.
+
+Real installed-MLX regressions reproduce the original batch-two, eight-head,
+742-token cache geometry and exercise an eight-layer tiny Qwen recurrence.
+The complete affected recurrent, lifecycle, prefill, speculative and provenance
+file set passes `351/351`; canonical smoke passes `120/120` with one
+environment-dependent skip; compilation, governance ownership, layering and
+diff hygiene pass. Live
+confirmation remains the next bounded gate: launch the exact pushed revision,
+prove one runtime and one model worker, exercise a long recurrent turn, and
+observe chunked prefill without cache-shape, phantom-worker or false-stall
+faults.
