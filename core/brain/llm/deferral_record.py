@@ -52,19 +52,37 @@ class Deferral:
 
 _last: ContextVar[Deferral | None] = ContextVar("aura_last_llm_deferral", default=None)
 
+#: The same deferral, outside the context tree.
+#:
+#: LIVE, 2026-08-22: the router recorded "no_endpoint_available_for_tier" and
+#: the task engine, reading a moment later, found nothing — so it raised "LLM
+#: returned empty or None response", reported planning as a FAILURE, and drove
+#: frustration to 1.00 and the resilience state to strain. Every layer of that
+#: cascade was working from an absence.
+#:
+#: A ContextVar set inside a child task does not propagate back: asyncio gives
+#: children a COPY of the context. The router runs beneath the caller, so its
+#: write landed in a copy the caller could never read. The same trap is
+#: documented in core/conversation/session_scope.py, which solves it by
+#: sharing a mutable container.
+#:
+#: This holder is process-wide, and the freshness, origin and not_before
+#: filters below are what keep one call from reading another's refusal.
+_shared: dict[str, Deferral | None] = {"entry": None}
+
 
 def record_deferral(*, origin: str, reason: str) -> None:
     """Called by whoever returned the empty string, at the moment it did."""
     cleaned = " ".join(str(reason or "").split())[:200]
     if not cleaned:
         return
-    _last.set(
-        Deferral(
-            origin=" ".join(str(origin or "").split())[:80],
-            at=time.time(),
-            reason=cleaned,
-        )
+    entry = Deferral(
+        origin=" ".join(str(origin or "").split())[:80],
+        at=time.time(),
+        reason=cleaned,
     )
+    _last.set(entry)
+    _shared["entry"] = entry
 
 
 def last_deferral(
@@ -75,6 +93,10 @@ def last_deferral(
 ) -> Deferral | None:
     """Return the current task's matching fresh deferral, when one exists."""
     entry = _last.get()
+    if entry is None:
+        # The router may have recorded it beneath this task, where a
+        # ContextVar write cannot be seen from here.
+        entry = _shared.get("entry")
     if entry is None:
         return None
     stamp = float(now if now is not None else time.time())
@@ -100,6 +122,8 @@ def take_deferral(
     entry = last_deferral(now=now, origin=origin, not_before=not_before)
     if entry is not None:
         _last.set(None)
+        if _shared.get("entry") is entry:
+            _shared["entry"] = None
     return entry
 
 
@@ -115,6 +139,7 @@ def explain_empty_generation(*, now: float | None = None) -> str:
 
 def reset_for_test() -> None:
     _last.set(None)
+    _shared["entry"] = None
 
 
 __all__ = [
