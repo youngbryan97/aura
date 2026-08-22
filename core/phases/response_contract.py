@@ -1188,6 +1188,24 @@ def build_response_contract(
     search_lower = normalize_memory_intent_text(search_trigger_text) if carries_supplied_material else lower
 
     explicit_search = _matches_any(search_lower, _EXPLICIT_SEARCH_PATTERNS)
+    # Asking about the world, in the ordinary ways.
+    #
+    # LIVE, 2026-08-22: "what can you tell me about the company Hugging Face?
+    # ... link your sources." ran no search, read her own source code for
+    # grounding, and answered from memory with "It was founded by <NAME> and
+    # <NAME>" and no citations. Asked as "can you LOOK UP Hugging Face" the
+    # same question searched. Three ordinary phrasings matched none of the
+    # pattern lists above.
+    #
+    # Two additions, neither a list of topics: somebody who asks for sources
+    # has asked for evidence, and a factual question about something named
+    # that is not her cannot be answered from what she happens to remember.
+    try:
+        from core.conversation.asks_about_the_world import wants_outside_evidence
+
+        asks_about_the_world = bool(wants_outside_evidence(search_trigger_text))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        asks_about_the_world = False
     factual_lookup = _matches_any(search_lower, _FACTUAL_LOOKUP_PATTERNS)
     specific_reference = _matches_any(search_trigger_text, _REFERENCE_MARKERS)
     factual_followup = _looks_like_grounded_followup(state, search_trigger_text)
@@ -1251,11 +1269,13 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     if search_capability_question or capability_inventory_question:
         explicit_search = False
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     if is_desktop_objective:
         # Desktop objectives own their research/action sequence through
         # desktop_task. Letting the response contract launch web_search first
@@ -1265,6 +1285,7 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     if asks_about_own_runtime(text):
         # Her uptime is not on the internet. Asked "how much memory are you
         # holding? Read it from your own runtime", the live runtime opened a
@@ -1274,6 +1295,7 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     if is_learning_bundle:
         # Structured curricula should be handled as decomposable task input,
         # not collapsed into one giant one-shot web search query.
@@ -1281,6 +1303,7 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     if carries_supplied_material:
         # The turn carries the thing it is asking about, so the answer is
         # already in the message and no search result can improve it.
@@ -1371,6 +1394,7 @@ def build_response_contract(
         and (
             explicit_search
             or has_url
+            or asks_about_the_world
             or (
                 not self_referential_turn
                 and (
@@ -1458,6 +1482,13 @@ def build_response_contract(
         reasons.append("temporal_live_lookup")
     elif factual_followup:
         reasons.append("grounded_followup")
+    elif factual_lookup and specific_reference:
+        reasons.append("specific_fact_lookup")
+    elif asks_about_the_world:
+        # Only for turns the older signals do not already explain, so the
+        # reason names what actually decided: an explicit request for sources,
+        # or a factual question about something named.
+        reasons.append("asks_about_the_world")
     elif requires_search:
         reasons.append("specific_fact_lookup")
     if is_learning_bundle:
