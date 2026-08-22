@@ -14946,6 +14946,35 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
     return reply
 
 
+async def _serve_solved_game(user_message: object, reply: object) -> object:
+    """Answer "who wins" by enumerating the game rather than arguing about it.
+
+    LIVE, 2026-08-22: given the rules of an invented game on nine squares she
+    answered "move your piece one square on every turn", at high confidence,
+    and called it a Nim variant the first player always wins. The conclusion
+    was right by luck and the strategy loses. There are eight positions.
+    """
+    try:
+        from core.reasoning.game_answer import solve_described_game
+
+        solved = await solve_described_game(user_message)
+        if not solved:
+            return reply
+        from core.conversation.composed_answer import compose_measured
+        from core.reasoning.game_planner import describes_a_game
+
+        return compose_measured(user_message, reply, solved, describes_a_game)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.solved_game",
+            exc,
+            severity="debug",
+            action="left the game question to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_lifetime(user_message: object, reply: object) -> object:
     """Answer how long she has been alive from the record that counts it.
 
@@ -16858,6 +16887,7 @@ async def _recorded_answer_corrections(
     corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
+    corrected = str(await _serve_solved_game(user_message, corrected) or corrected)
     return corrected, corrected.strip() != body.strip()
 
 
