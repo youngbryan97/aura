@@ -13629,6 +13629,31 @@ _FALSE_SEARCH_PROVENANCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: A citation shape with nothing in it.
+#:
+#: LIVE, 2026-08-22: asked about a company with sources, the reply ended
+#: "Source: [Live web search]". No URL, no title, nothing anyone could open —
+#: the shape of a citation standing in for one. A reader skims that as
+#: evidence, which is worse than no citation at all.
+_EMPTY_CITATION_RE = re.compile(
+    r"\bsources?\s*:\s*(?!https?://)"
+    r"(?:\[[^\]]{0,60}\]|\(?(?:live |the )?(?:web )?search(?:es)?\)?|"
+    r"my (?:own )?(?:memory|knowledge)|internal|n/?a|none|unknown|tbd)"
+    r"\s*\.?",
+    re.IGNORECASE,
+)
+
+
+def _cites_nothing(text: object) -> bool:
+    """Whether the reply offers a source that names no source."""
+    return bool(_EMPTY_CITATION_RE.search(str(text or "")))
+
+
+def _strip_empty_citations(text: object) -> str:
+    """Remove citation shapes that carry no source."""
+    cleaned = _EMPTY_CITATION_RE.sub("", str(text or ""))
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
 
 def _resolve_chat_response_contract(user_message: str) -> Any | None:
     try:
@@ -13839,7 +13864,13 @@ def _evidence_grounded_desktop_search_reply(search_evidence: dict[str, Any]) -> 
     if len(fact) > 360:
         fact = fact[:357].rstrip() + "..."
     saved = bool(search_evidence.get("memory_saved"))
-    parts = ["I checked live web evidence."]
+    # Only claim the check when there is something to open.
+    #
+    # LIVE, 2026-08-22: this opened with "I checked live web evidence" on a
+    # turn whose evidence carried no URL at all, and the reply ended "Source:
+    # [Live web search]". A provenance claim with nothing behind it reads as
+    # proof and is worse than saying plainly where the answer came from.
+    parts = ["I checked live web evidence."] if source else ["From what the search returned:"]
     if title:
         parts.append(f"{title}: {fact}")
     else:
@@ -13863,7 +13894,7 @@ def _repair_required_search_reply_provenance(
     entries = _search_result_entries(result)
     evidence_urls = [entry.get("url") for entry in entries if entry.get("url")]
     has_evidence_url = bool(evidence_urls and any(url in text for url in evidence_urls))
-    false_provenance = bool(_FALSE_SEARCH_PROVENANCE_RE.search(text))
+    false_provenance = bool(_FALSE_SEARCH_PROVENANCE_RE.search(text)) or _cites_nothing(text)
     if text and not false_provenance and (not evidence_urls or has_evidence_url):
         return text
     grounded = _evidence_grounded_desktop_search_reply(search_evidence)
@@ -13875,6 +13906,17 @@ def _repair_required_search_reply_provenance(
             has_evidence_url,
         )
         return grounded
+    # Nothing better to say — but the empty citation still goes.
+    #
+    # LIVE, 2026-08-22: with no grounded rebuild available the original text
+    # was returned unchanged, so "Source: [Live web search]" was served.
+    # A citation that names no source is removed rather than kept for shape.
+    if _cites_nothing(text):
+        stripped = _strip_empty_citations(text)
+        logger.warning(
+            "Removed a citation that named no source (%d chars left).", len(stripped)
+        )
+        return stripped or text
     return text
 
 
