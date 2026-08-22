@@ -83,6 +83,18 @@ def test_reply_shape_segment_is_not_a_second_semantic_ask():
     assert not _unanswered_question_parts(reply, _Contract(shape))
 
 
+def test_exclusion_only_clause_is_part_of_the_reply_shape():
+    user = "For diagnostics only: answer in five words and include nothing else."
+    shape = analyze_prompt_shape(user)
+
+    assert shape.question_segments == ("answer in five words", "include nothing else")
+    assert all(
+        is_reply_shape_constraint_segment(segment)
+        for segment in shape.question_segments
+    )
+    assert not _unanswered_question_parts("I am present and aligned.", _Contract(shape))
+
+
 def test_content_request_that_names_a_paragraph_is_not_only_reply_shape():
     assert not is_reply_shape_constraint_segment(
         "Write a paragraph about yourself in your own words."
