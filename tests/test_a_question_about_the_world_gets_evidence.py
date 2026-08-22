@@ -105,3 +105,41 @@ def test_the_older_reasons_still_name_themselves():
         is_user_facing=True,
     )
     assert contract.reason == "specific_fact_lookup"
+
+
+def test_a_placeholder_is_not_an_answer():
+    """LIVE, 2026-08-22: "It was founded by <NAME> and <NAME>." A placeholder
+    is the model saying it does not know, in a shape that reads like an
+    answer."""
+    from core.conversation.response_reliability import (
+        contains_unfilled_placeholder,
+        repair_runtime_boilerplate,
+    )
+
+    reply = (
+        "Hugging Face is a technology company that specializes in NLP. "
+        "It was founded by <NAME> and <NAME>."
+    )
+    assert contains_unfilled_placeholder(reply)
+    repaired = repair_runtime_boilerplate(reply)
+    assert "<NAME>" not in repaired
+    assert "specializes in NLP" in repaired
+
+    for shape in ("The release is set for [DATE].", "Your total is {{ amount }}."):
+        assert contains_unfilled_placeholder(shape), shape
+        assert repair_runtime_boilerplate(shape) == ""
+
+
+def test_a_real_answer_is_left_alone():
+    from core.conversation.response_reliability import (
+        contains_unfilled_placeholder,
+        repair_runtime_boilerplate,
+    )
+
+    for kept in (
+        "Hugging Face was founded by Clement Delangue and Julien Chaumond in 2016.",
+        "I compared <a and b> using the operator.",
+        "The list is <ul> in HTML.",
+    ):
+        assert not contains_unfilled_placeholder(kept), kept
+        assert repair_runtime_boilerplate(kept) == kept

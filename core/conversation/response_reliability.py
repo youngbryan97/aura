@@ -249,6 +249,26 @@ _MODEL_RUNTIME_ARTIFACT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: A slot the model left unfilled.
+#:
+#: LIVE, 2026-08-22: asked who founded a company, with no search having run,
+#: the reply was "It was founded by <NAME> and <NAME>." A placeholder is the
+#: model saying it does not know, in a shape that reads like an answer. The
+#: sentence carrying one is removed rather than served.
+_UNFILLED_PLACEHOLDER_RE = re.compile(
+    r"<\s*(?:name|person|company|organi[sz]ation|place|city|country|date|year|"
+    r"number|amount|value|title|url|link|email|address|redacted|unknown|tbd|"
+    r"insert[^>]{0,20}|your[^>]{0,20}|full[_ ]?name)\s*>"
+    r"|\[\s*(?:NAME|PERSON|COMPANY|DATE|YEAR|NUMBER|TBD|REDACTED|INSERT[^\]]{0,20})\s*\]"
+    r"|\{\{\s*[a-z_][a-z0-9_]{0,40}\s*\}\}",
+    re.IGNORECASE,
+)
+
+
+def contains_unfilled_placeholder(reply_text: Any) -> bool:
+    """Whether a reply still carries a slot nobody filled in."""
+    return bool(_UNFILLED_PLACEHOLDER_RE.search(str(reply_text or "")))
+
 
 def strip_prompt_artifacts(reply_text: Any) -> str:
     """Cut a reply at the first role/tool marker, keeping what came before.
@@ -297,7 +317,11 @@ def repair_runtime_boilerplate(reply_text: Any) -> str:
     matches = sorted(
         [
             match
-            for pattern in (_BROKEN_LANE_BOILERPLATE_RE, _MODEL_RUNTIME_ARTIFACT_RE)
+            for pattern in (
+                _BROKEN_LANE_BOILERPLATE_RE,
+                _MODEL_RUNTIME_ARTIFACT_RE,
+                _UNFILLED_PLACEHOLDER_RE,
+            )
             for match in pattern.finditer(text)
         ],
         key=lambda match: match.start(),
