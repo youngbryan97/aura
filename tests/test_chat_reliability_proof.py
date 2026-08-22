@@ -382,6 +382,25 @@ def test_reliability_gate_allows_grounded_project_continuation():
     assert "unsupported_context_continuation_claim" not in assessment.reasons
 
 
+def test_reliability_gate_does_not_mistake_technical_conditionals_for_shared_history():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        (
+            "Explain Dijkstra's shortest-path algorithm, including its invariant, "
+            "pseudocode, complexity, and negative-edge failure case."
+        ),
+        (
+            "The key point is that every settled vertex has its final shortest-path "
+            "distance. If you made one edge negative, that invariant could fail; "
+            "Bellman-Ford is the correct alternative when negative edges are allowed."
+        ),
+        recent_user_messages=["We were discussing graph algorithms."],
+    )
+
+    assert "unsupported_context_continuation_claim" not in assessment.reasons
+
+
 def test_reliability_gate_allows_concise_memory_pin_receipt():
     from core.conversation.response_reliability import assess_user_facing_reply
 

@@ -87,7 +87,7 @@ _MANNER_WORDS = frozenset(
 _MANNER_OPENER_RE = re.compile(
     r"^\s*(?:please\s+)?(?:"
     r"be|keep\s+it|stay|answer|reply|respond|say\s+it|make\s+it|"
-    r"don'?t|do\s+not|no|skip|avoid|without|just|only"
+    r"include|don'?t|do\s+not|no|skip|avoid|without|just|only"
     r")\b",
     re.IGNORECASE,
 )
@@ -100,7 +100,7 @@ _MANNER_FUNCTION_WORDS = frozenset(
     was were be been being do does did doing done have has had having will
     would can could shall should may might must let get got it its
     me my you your yours we us our i one two three too very much more less
-    please s t don dont doesn isn aren wasn weren won
+    please nothing else s t don dont doesn isn aren wasn weren won
     """.split()
 )
 
@@ -140,7 +140,7 @@ def _is_manner_only_clause(segment: str) -> bool:
 
 _MANNER_OPENER_WORDS = frozenset(
     "be keep stay answer reply respond say make don dont do not no skip avoid "
-    "without just only please it".split()
+    "without just only please include it".split()
 )
 
 

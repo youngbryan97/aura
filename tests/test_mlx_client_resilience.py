@@ -2648,6 +2648,81 @@ class TestMLXWorkerProgress(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._current_prefill_tokens_processed, 128)
         self.assertEqual(client._current_prefill_tokens_total, 755)
 
+    async def test_latent_stage_progress_does_not_claim_a_decoded_token(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._req_q = queue.Queue()
+        client._res_q = queue.Queue()
+        client._mark_generation_started(
+            "latent-request",
+            prompt_chars=4096,
+            first_token_hard_ceiling_s=153.0,
+        )
+        baseline_progress_at = client._last_progress_at
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put(
+                {
+                    "status": "progress",
+                    "action": "latent_reason",
+                    "id": "latent-request",
+                    "stage": "branch_select",
+                    "elapsed_s": 112.0,
+                    "spent_layer_apps": 160_000,
+                }
+            )
+            await asyncio.sleep(0.25)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertEqual(client._current_first_token_at, 0.0)
+        self.assertEqual(client._last_token_progress_at, 0.0)
+        self.assertGreater(client._last_progress_at, baseline_progress_at)
+        self.assertEqual(
+            client._latent_progress_by_request["latent-request"]["stage"],
+            "branch_select",
+        )
+        stalled, budget = client._confirm_worker_reported_loop_stall(
+            {
+                "request_id": "latent-request",
+                "job_age_s": 46.7,
+                "loop_stalled": True,
+            }
+        )
+        self.assertFalse(stalled)
+        self.assertEqual(budget, 153.0)
+
+    async def test_textless_stream_progress_still_claims_a_decoded_token(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._req_q = queue.Queue()
+        client._res_q = queue.Queue()
+        client._mark_generation_started(
+            "stream-request",
+            prompt_chars=4096,
+            first_token_hard_ceiling_s=153.0,
+        )
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put(
+                {
+                    "status": "progress",
+                    "action": "stream",
+                    "id": "stream-request",
+                    "tokens_generated": 1,
+                }
+            )
+            await asyncio.sleep(0.25)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertGreater(client._current_first_token_at, 0.0)
+        self.assertGreater(client._last_token_progress_at, 0.0)
+
 
 class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_probe_failure_marks_lane_failed_without_spawn_loop(self):

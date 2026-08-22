@@ -11611,6 +11611,34 @@ class MLXLocalClient:
             raise RuntimeError("runtime_shutdown")
         return await asyncio.get_running_loop().run_in_executor(None, self._spawn_worker_blocking)
 
+    def _record_worker_stream_progress(
+        self,
+        res: dict[str, Any],
+        *,
+        status: str | None,
+        action: str | None,
+    ) -> None:
+        """Classify worker activity without mistaking compute for decoded output."""
+        if action == "latent_reason":
+            self._record_latent_progress(res)
+        if status == "token":
+            self._mark_token_progress(res.get("id"))
+        elif res.get("phase") == "prefill":
+            self._mark_prefill_progress(
+                res.get("id"),
+                processed=res.get("prompt_tokens_processed", 0),
+                total=res.get("prompt_tokens_total", 0),
+            )
+        elif action == "latent_reason":
+            # Branch selection proves liveness but is not decoded output. Treating
+            # it as a token switches a healthy request onto the shorter token gap.
+            self._mark_progress()
+        elif res.get("tokens_generated") is not None:
+            # A decoded token can be temporarily textless in the detokenizer.
+            self._mark_token_progress(res.get("id"))
+        else:
+            self._mark_progress()
+
     async def _response_listener_loop(
         self,
         response_queue: Any | None = None,
@@ -11833,16 +11861,7 @@ class MLXLocalClient:
                         audit.heartbeat(tier_name)
                     continue
                 if status in {"progress", "token"}:
-                    if action == "latent_reason" and isinstance(res, dict):
-                        self._record_latent_progress(res)
-                    if status == "progress" and res.get("phase") == "prefill":
-                        self._mark_prefill_progress(
-                            res.get("id"),
-                            processed=res.get("prompt_tokens_processed", 0),
-                            total=res.get("prompt_tokens_total", 0),
-                        )
-                    else:
-                        self._mark_token_progress(res.get("id"))
+                    self._record_worker_stream_progress(res, status=status, action=action)
                     live_intero = res.get("interoception_live")
                     if isinstance(live_intero, dict) and live_intero:
                         try:

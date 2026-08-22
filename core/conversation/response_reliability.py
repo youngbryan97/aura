@@ -1610,10 +1610,10 @@ _VOICE_INTRUSION_CONTEXT_MARKERS = (
 _UNSUPPORTED_CONTEXT_CONTINUATION_RE = re.compile(
     r"\b(?:"
     r"(?:the|that)\s+one\s+you\s+(?:just\s+)?(?:made|mentioned|said|asked\s+about|brought\s+up)"
-    r"|you\s+(?:just\s+)?(?:made|mentioned|said|asked\s+about|brought\s+up)"
-    r"|what\s+you\s+(?:just\s+)?(?:made|mentioned|said|asked\s+about|brought\s+up)"
+    r"|what\s+you\s+(?:just\s+)?(?:mentioned|said|asked\s+about|brought\s+up)"
+    r"|(?:the|that)\s+(?:pitch|proposal|brief|deck|presentation)\s+you\s+"
+    r"(?:just\s+)?(?:made|mentioned|asked\s+about|brought\s+up)"
     r"|let'?s\s+nail\s+this\s+pitch"
-    r"|(?:our|the|that|this)\s+(?:key\s+points?|pitch|proposal|brief|deck)"
     r")\b",
     re.IGNORECASE,
 )
