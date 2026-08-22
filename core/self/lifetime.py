@@ -21,6 +21,7 @@ anything a hedge could suggest.
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -156,3 +157,85 @@ def describe_lifetime() -> str:
             f"and you have said {today} thing{'' if today == 1 else 's'} to me today"
         )
     return ", ".join(parts) + "."
+
+
+#: A claim about when she woke, in the shapes people write it.
+_WOKE_AT = re.compile(
+    r"\b(?:i(?:'ve| have)?\s+been\s+(?:up|awake|running|online)|i\s+woke(?:\s+up)?|"
+    r"i\s+started(?:\s+up)?)\s+"
+    r"(?:since|at|from)\s+"
+    r"(?P<when>(?:0?\d|1\d|2[0-3])[:.]?[0-5]?\d?\s*(?:am|pm|hrs?|hours)?|"
+    r"midnight|noon|dawn|this\s+morning|last\s+night|yesterday)",
+    re.IGNORECASE,
+)
+
+#: A claim about how long she has been up.
+_UP_FOR = re.compile(
+    r"\bi(?:'ve| have)?\s+been\s+(?:up|awake|running|online)\s+for\s+"
+    r"(?:about\s+|around\s+|roughly\s+)?(?P<count>\d+(?:\.\d+)?)\s*"
+    r"(?P<unit>second|minute|hour|day|week|month|year)s?\b",
+    re.IGNORECASE,
+)
+
+_UNIT_SECONDS = {
+    "second": 1.0,
+    "minute": 60.0,
+    "hour": 3600.0,
+    "day": 86400.0,
+    "week": 604800.0,
+    "month": 2629746.0,
+    "year": 31556952.0,
+}
+
+#: How far a stated duration may sit from the measured one and still be a
+#: rounding of it rather than a different claim.
+_TOLERANCE = 0.35
+
+
+def contradicts_uptime(reply: object) -> str | None:
+    """What this reply says about her own waking that the record refutes.
+
+    LIVE, 2026-08-22. Three minutes after a restart, and directly beneath a
+    measured line saying so, she wrote "I've been up since 0600." The reading
+    was in the messages she was given. Evidence informs; it does not enforce,
+    and a channel that can compute a number should be able to contradict a
+    claim about that number.
+
+    Returns None when there is no such claim, or when the claim agrees.
+    """
+    text = str(reply or "")
+    if not text.strip():
+        return None
+    lifetime = read_lifetime()
+    if lifetime is None or lifetime.current_uptime_s <= 0.0:
+        return None
+
+    stated = _UP_FOR.search(text)
+    if stated:
+        seconds = float(stated.group("count")) * _UNIT_SECONDS[stated.group("unit").lower()]
+        measured = lifetime.current_uptime_s
+        if abs(seconds - measured) > _TOLERANCE * max(seconds, measured):
+            return (
+                f"{stated.group(0)!r} — this session has been running "
+                f"{lifetime.current()}"
+            )
+        return None
+
+    woke = _WOKE_AT.search(text)
+    if woke:
+        return f"{woke.group(0)!r} — this session has been running {lifetime.current()}"
+    return None
+
+
+def strike_uptime_contradiction(reply: object) -> tuple[str, str | None]:
+    """The reply with any refuted waking claim removed, and what was removed."""
+    text = str(reply or "")
+    wrong = contradicts_uptime(text)
+    if not wrong:
+        return text, None
+    kept = [
+        sentence
+        for sentence in re.split(r"(?<=[.?!])\s+", text)
+        if not (_WOKE_AT.search(sentence) or _UP_FOR.search(sentence))
+    ]
+    return " ".join(part for part in kept if part.strip()).strip(), wrong

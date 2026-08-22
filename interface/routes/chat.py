@@ -14877,7 +14877,11 @@ def _brevity_requested(user_message: object) -> bool:
 
 
 def _compose(
-    user_message: object, reply: object, measured: str, matches: Any
+    user_message: object,
+    reply: object,
+    measured: str,
+    matches: Any,
+    refute: Any = None,
 ) -> str:
     """A reading replaces a guess about the same thing, and nothing else.
 
@@ -14888,7 +14892,7 @@ def _compose(
     """
     from core.conversation.composed_answer import compose_measured
 
-    return compose_measured(user_message, reply, measured, matches)
+    return compose_measured(user_message, reply, measured, matches, refute=refute)
 
 
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
@@ -14964,7 +14968,15 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
         measured = describe_lifetime()
         if measured:
             logger.info("⏳ Served the cumulative lifetime from the continuity record.")
-            return _compose(user_message, reply, measured, _matches_lifetime)
+            from core.self.lifetime import strike_uptime_contradiction
+
+            return _compose(
+                user_message,
+                reply,
+                measured,
+                _matches_lifetime,
+                refute=strike_uptime_contradiction,
+            )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.lifetime",

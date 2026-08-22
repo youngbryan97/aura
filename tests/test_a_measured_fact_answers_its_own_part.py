@@ -77,3 +77,68 @@ def test_nothing_written_yet_still_serves_the_reading():
         "how long have you been up, and what else?", "", MEASURED, about_uptime
     )
     assert out == MEASURED
+
+
+def test_a_channel_strikes_a_claim_its_own_record_refutes(monkeypatch):
+    """Three minutes after a restart, directly beneath a measured line saying
+    so, she wrote "I've been up since 0600". The reading was in the messages
+    she was given: evidence informs, it does not enforce."""
+    import core.self.lifetime as lifetime
+
+    class ThreeMinutes:
+        current_uptime_s = 180.0
+
+        def current(self) -> str:
+            return "3 minutes"
+
+    monkeypatch.setattr(lifetime, "read_lifetime", lambda *a, **k: ThreeMinutes())
+
+    kept, wrong = lifetime.strike_uptime_contradiction(
+        "Morning. I've been up since 0600. My schedule includes maintenance checks."
+    )
+    assert "0600" not in kept
+    assert "maintenance checks" in kept
+    assert wrong and "3 minutes" in wrong
+
+    # A claim that agrees with the record survives untouched.
+    agrees, nothing = lifetime.strike_uptime_contradiction("I've been up for 3 minutes.")
+    assert nothing is None
+    assert agrees == "I've been up for 3 minutes."
+
+    # A reply that says nothing about waking is not touched.
+    unrelated, none_either = lifetime.strike_uptime_contradiction("Today is maintenance.")
+    assert none_either is None
+    assert unrelated == "Today is maintenance."
+
+
+def test_the_composer_applies_the_refutation(monkeypatch):
+    import core.self.lifetime as lifetime
+
+    class ThreeMinutes:
+        current_uptime_s = 180.0
+
+        def current(self) -> str:
+            return "3 minutes"
+
+    monkeypatch.setattr(lifetime, "read_lifetime", lambda *a, **k: ThreeMinutes())
+
+    out = compose_measured(
+        "how long have you been up, and what have you got going on today?",
+        "I've been up since 0600. Maintenance checks are queued.",
+        MEASURED,
+        about_uptime,
+        refute=lifetime.strike_uptime_contradiction,
+    )
+    assert "0600" not in out
+    assert "Maintenance checks are queued." in out
+    assert MEASURED in out
+
+
+def test_a_channel_with_no_record_refutes_nothing(monkeypatch):
+    """Abstention, not invention: no measurement means no contradiction."""
+    import core.self.lifetime as lifetime
+
+    monkeypatch.setattr(lifetime, "read_lifetime", lambda *a, **k: None)
+    kept, wrong = lifetime.strike_uptime_contradiction("I've been up since 0600.")
+    assert wrong is None
+    assert kept == "I've been up since 0600."

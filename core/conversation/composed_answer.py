@@ -18,9 +18,12 @@ them, the reading is joined to what was already written for the rest.
 
 from __future__ import annotations
 
-from typing import Callable
+import logging
+from collections.abc import Callable
 
 from core.language.asking_clauses import asking_clauses
+
+_LOG = logging.getLogger("Aura.ComposedAnswer")
 
 __all__ = ["compose_measured", "coverage_of"]
 
@@ -46,8 +49,16 @@ def compose_measured(
     reply: object,
     measured: str,
     matches: Callable[[str], bool],
+    refute: Callable[[object], tuple[str, str | None]] | None = None,
 ) -> str:
-    """The reading, alone or joined to the answer for what it does not cover."""
+    """The reading, alone or joined to the answer for what it does not cover.
+
+    `refute` lets the channel police its own quantity in the half it did not
+    write. Three minutes after a restart, directly beneath a measured line
+    saying so, she wrote "I've been up since 0600" — the reading was in the
+    messages she was given, and evidence informs rather than enforces. A
+    channel that can compute a number can contradict a claim about it.
+    """
     reading = str(measured or "").strip()
     if not reading:
         return str(reply or "")
@@ -62,6 +73,14 @@ def compose_measured(
         return reading
 
     written = str(reply or "").strip()
+    if refute is not None and written:
+        try:
+            kept, wrong = refute(written)
+        except (RuntimeError, TypeError, ValueError):
+            kept, wrong = written, None
+        if wrong:
+            _LOG.info("Struck a claim the record refutes: %s", wrong)
+            written = str(kept or "").strip()
     if not written:
         return reading
     # The reading first. It is the part that is known rather than composed,
