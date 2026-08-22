@@ -55,6 +55,10 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "build_app": "read_write_artifacts",
     "clock": "status",
     "code_repl": "sandboxed_compute",
+    # Running a project's own tests reads its tree and writes only the
+    # runner's scratch. It is not a desktop action, which is where a request
+    # to debug a directory was going before this existed.
+    "diagnose_repo": "sandboxed_compute",
     "coding_skill": "pure_compute",
     "cognitive_trainer": "state_mutation",
     "computer_use": "foreground_desktop_control",
