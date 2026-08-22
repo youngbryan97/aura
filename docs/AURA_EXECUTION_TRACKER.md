@@ -51599,6 +51599,31 @@ canonical smoke passes `120/120` with one environment-dependent skip;
 compilation, Ruff, governance ownership, layering and diff hygiene pass.
 Installed-app resident validation remains the next bounded gate.
 
+## Checkpoint 2026-08-21-897: Bound Recurrent Prefill Graph Lifetime
+
+The CP896 installed-app exercise proved that the unified host envelope no
+longer kills a healthy steady-state worker, then exposed a distinct transient
+allocation failure. A 2,405-token resident-32B turn built one lazy Metal graph
+across the prelude, both 40-layer recurrent passes and the coda. Host use grew
+by roughly 13 GB before the first token, crossed the emergency fuse at 94.3%,
+and correctly aborted rather than risking jetsam. This was not a timeout or an
+answer-adjudication failure: the model never reached decode.
+
+Multi-token recurrent calls now materialize the refined hidden state after a
+non-final pass and retire that pass's transient graph before the final pass.
+The cache rewind, residual injection and final numerical input remain the same.
+One-token decode does not take the boundary, so it retains asynchronous token
+throughput instead of synchronizing every generated token.
+
+A real installed-MLX Qwen benchmark over a 1,024-token, sixteen-layer recurrent
+forward measured peak Metal allocation falling from 872 MB to 544 MB (37.6%)
+with the boundary. The installed BatchKVCache geometry, multi-token boundary,
+embedding-input axis and one-token bypass tests pass together with the focused
+prefill/speculative suite (`32/32`); canonical smoke passes `120/120` with one
+environment-dependent skip; compilation, Ruff and diff hygiene pass. The exact
+resident-32B turn remains the required live gate before this checkpoint closes
+the observed failure.
+
 ### Open follow-up: evidence-based local model portfolio
 
 Audit every active inference, embedding, vision, speech, verifier and repair

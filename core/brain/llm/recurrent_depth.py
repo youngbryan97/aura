@@ -249,6 +249,42 @@ def _verify_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> No
         )
 
 
+def _materialize_recurrent_prefill_boundary(
+    hidden_state,
+    *,
+    input_tokens,
+    input_embeddings=None,
+) -> bool:
+    """Retire a non-final recurrent prefill graph before the next pass.
+
+    MLX is lazy. Without an evaluation boundary, a two-loop 32B prefill builds
+    one graph containing the prelude, both recurrent passes, and the coda. The
+    resident 32B live lane measured roughly 13 GB of transient growth before
+    its first token and crossed the host emergency fuse. Materializing the
+    refined hidden state after the discarded-cache pass preserves the exact
+    numerical state consumed by the final pass while allowing MLX to release
+    the first pass's temporary graph.
+
+    Decode stays asynchronous: a one-token call would pay this synchronization
+    on every generated token, while its graph is already bounded to one token.
+    """
+
+    source = input_embeddings if input_embeddings is not None else input_tokens
+    shape = getattr(source, "shape", ())
+    try:
+        sequence_tokens = int(shape[-2] if input_embeddings is not None else shape[-1])
+    except (IndexError, TypeError, ValueError):
+        sequence_tokens = 1
+    if sequence_tokens <= 1:
+        return False
+
+    import mlx.core as mx
+
+    mx.eval(hidden_state)
+    mx.clear_cache()
+    return True
+
+
 def _clear_recurrent_depth_attrs(inner) -> None:
     for attr in (
         "_recurrent_depth_original_call",
@@ -540,6 +576,11 @@ def apply_recurrent_depth(
                 )
                 # LTI-stable residual injection: ground the representation
                 h = h + residual_alpha * h_embed
+                _materialize_recurrent_prefill_boundary(
+                    h,
+                    input_tokens=inputs,
+                    input_embeddings=input_embeddings,
+                )
 
         # ── CODA: layers [coda_start..end) — run once ────────────
         for i in range(coda_start, num_layers):

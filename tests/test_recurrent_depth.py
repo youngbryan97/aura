@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from core.brain.llm.recurrent_depth import (  # noqa: E402
     CacheSnapshotError,
     _get_lane_defaults,
+    _materialize_recurrent_prefill_boundary,
     _restore_recurrent_caches,
     _self_test_cache_snapshot,
     _snapshot_recurrent_caches,
@@ -205,6 +206,57 @@ def test_real_qwen_batch_recurrence_keeps_layer_geometry_aligned():
             assert cache._idx == expected_idx
             assert cache.offset.tolist() == [expected_idx, expected_idx - 3]
             assert cache.keys.shape[2] == 768
+
+
+@pytest.mark.hardware
+def test_multi_token_recurrent_prefill_materializes_between_loops(monkeypatch):
+    """The 32B repair boundary is causal and decode remains asynchronous."""
+    import mlx.core as mx
+
+    calls: list[str] = []
+    real_eval = mx.eval
+    real_clear = mx.clear_cache
+
+    def observed_eval(*args):
+        calls.append("eval")
+        return real_eval(*args)
+
+    def observed_clear():
+        calls.append("clear")
+        return real_clear()
+
+    monkeypatch.setattr(mx, "eval", observed_eval)
+    monkeypatch.setattr(mx, "clear_cache", observed_clear)
+
+    hidden = mx.ones((1, 128, 32))
+    assert _materialize_recurrent_prefill_boundary(
+        hidden,
+        input_tokens=mx.zeros((1, 128), dtype=mx.int32),
+    ) is True
+    assert calls == ["eval", "clear"]
+
+    calls.clear()
+    assert _materialize_recurrent_prefill_boundary(
+        mx.ones((1, 1, 32)),
+        input_tokens=mx.zeros((1, 1), dtype=mx.int32),
+    ) is False
+    assert calls == []
+
+
+@pytest.mark.hardware
+def test_embedding_prefill_uses_embedding_sequence_axis(monkeypatch):
+    import mlx.core as mx
+
+    calls: list[str] = []
+    monkeypatch.setattr(mx, "eval", lambda *_args: calls.append("eval"))
+    monkeypatch.setattr(mx, "clear_cache", lambda: calls.append("clear"))
+
+    assert _materialize_recurrent_prefill_boundary(
+        mx.ones((1, 7, 32)),
+        input_tokens=mx.zeros((0,), dtype=mx.int32),
+        input_embeddings=mx.ones((1, 7, 32)),
+    ) is True
+    assert calls == ["eval", "clear"]
 
 def _install_fake_mlx_modules(monkeypatch):
     mlx_pkg = types.ModuleType("mlx")
