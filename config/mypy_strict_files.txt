@@ -124,3 +124,6 @@ tools/extract_seam.py
 tools/lint_lexical_debt.py
 tools/lint_phrase_pinned_tests.py
 tools/typecheck_changed.py
+
+# Adopted by tools/typecheck_changed.py
+tools/generate_deps.py

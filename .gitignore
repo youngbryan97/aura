@@ -13,8 +13,14 @@ models_gguf/
 *.onnx
 
 # Data and Logs
-data/
-logs/
+#
+# Anchored. `data/` with no leading slash matches a directory called `data`
+# at ANY depth, so it was also hiding `core/data/` — a real package whose
+# three modules are tracked only because somebody once forced them in. Its
+# generated DEPS file was invisible to git, so the layering rule existed on
+# this machine and nowhere else, and CI failed on a file it could not see.
+/data/
+/logs/
 memory_store/*.json
 memory_store/*.sqlite
 memory_store/*.sqlite3

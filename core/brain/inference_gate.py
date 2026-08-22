@@ -87,6 +87,10 @@ from core.runtime.structured_input import (
 from core.utils.deadlines import Deadline, get_deadline
 from core.utils.task_tracker import get_task_tracker
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
 # default keeps read semantics byte-identical to os.environ.get.
@@ -1031,6 +1035,735 @@ def _asks_for_a_document(user_message: Any) -> bool:
     except _INFERENCE_RECOVERABLE_ERRORS:
         return False
 
+
+
+async def _apply_strict_proof_answer_contract(
+    *,
+    _is_bg_request: Any,
+    context: Any,
+    deep_handoff: Any,
+    deep_probe_request: Any,
+    origin: Any,
+    prompt: Any,
+    protected_foreground_lane: Any,
+    requested_tier: Any,
+    state: Any,
+    strict_proof_answer_request: Any,
+) -> tuple[Any, Any]:
+    """Set the contract a strict proof answer runs under.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 8 name(s) from the turn and hands back
+    2.
+    """
+    if strict_proof_answer_request:
+        context["allow_tools"] = False
+        context["trust_gate_skipped"] = "strict_proof_answer"
+        context["strict_answer_contract"] = mlx_strict_answer_contract_enabled(origin=origin)
+        context["disable_prompt_cache"] = True
+        context["clear_prompt_cache"] = True
+        context.setdefault("temperature", 0.0)
+        context.setdefault("top_p", 1.0)
+        context.setdefault("min_p", 0.0)
+        context.setdefault("repetition_penalty", 1.12)
+        strict_proof_tier = proof_model_tier()
+        context["proof_model_tier"] = strict_proof_tier
+        if strict_proof_tier == "tertiary":
+            protected_foreground_lane = False
+            requested_tier = "tertiary"
+        else:
+            protected_foreground_lane = True
+            requested_tier = "primary"
+    elif deep_probe_request and not _is_bg_request:
+        # Deep self-report probes are foreground conversation checks, not
+        # authentication attempts or tool requests.  Running the PBKDF2
+        # passphrase recognizer here adds CPU contention right before the
+        # Cortex turn and does not change the allowed action surface.
+        context["allow_tools"] = False
+        context["trust_gate_skipped"] = "deep_mind_probe"
+    elif not _is_bg_request:
+        try:
+            from core.security.trust_engine import TrustLevel, get_trust_engine
+            from core.security.user_recognizer import get_user_recognizer
+
+            _te = get_trust_engine()
+            _ur = get_user_recognizer()
+            # Offload PBKDF2-heavy recognition to thread pool
+            _trust_level = await asyncio.get_running_loop().run_in_executor(
+                None, _te.process_message, prompt, _ur
+            )
+            _trust_guidance = _te.get_guidance_for_response()
+
+            # [STABILITY v58] Force Primary 32B lane for all human-interaction tiers.
+            # No brainstem fallbacks for Sovereign, Trusted, or Guest users.
+            #
+            # Recognition is not authorization for resources. The three
+            # levels used to be treated identically here, so an
+            # UNAUTHENTICATED guest could reverse a downgrade that
+            # morphogenesis, a dead cortex, or headroom policy had already
+            # made in this same request — and each promotion re-runs the
+            # high-memory admission path. Guest keeps the lane it was
+            # given when something safety-relevant already downgraded it;
+            # sovereign and trusted still get the primary lane, because a
+            # recognized principal is who the protected lane is for.
+            if _trust_level in (TrustLevel.SOVEREIGN, TrustLevel.TRUSTED, TrustLevel.GUEST):
+                downgraded_for_safety = bool(
+                    requested_tier == "secondary"
+                    or context.get("resource_stakes_blocked", False)
+                    or context.get("local_deep_block_reason")
+                    or deep_handoff
+                )
+                if _trust_level is TrustLevel.GUEST and downgraded_for_safety:
+                    logger.info(
+                        "🎭 Guest recognized, but this request was already "
+                        "downgraded; not re-promoting it to the protected lane."
+                    )
+                elif requested_tier in ("", "primary"):
+                    protected_foreground_lane = True
+                    requested_tier = "primary"
+                    logger.info(
+                        "🎭 %s user recognized. Enforcing primary cortex lane (32B).",
+                        _trust_level.name,
+                    )
+                else:
+                    # An EXPLICIT handoff, of any depth, is honoured.
+                    #
+                    # This read `!= "secondary"`, so an explicit request
+                    # for the fast tertiary lane was overridden back to the
+                    # 32B — silently. The protection exists to stop a
+                    # recognised principal being downgraded WITHOUT asking;
+                    # a caller that asks is not that, and asking for a
+                    # cheaper lane is less consequential than asking for
+                    # secondary, which was already allowed.
+                    #
+                    # Measured live 2026-08-19: a browser pursuit asked for
+                    # `local_fast` on every round of a sixty-item form,
+                    # was forced onto the Cortex at up to 103s a round, and
+                    # the turn died on its own budget having answered
+                    # nothing. Three layers were searched before the
+                    # override was found, because nothing reported that the
+                    # preference had been discarded.
+                    logger.info(
+                        "🎭 %s user recognized. Keeping the explicit %s handoff eligible for normal headroom checks.",
+                        _trust_level.name,
+                        requested_tier,
+                    )
+
+            # Trust belongs to THIS request, not to whatever reads the
+            # state next.
+            #
+            # It used to be written to state.cognition.modifiers with no
+            # session, principal or timestamp, so a later turn — or another
+            # interlocutor sharing the same state — assembled context under
+            # a trust classification recognition had granted to somebody
+            # else. The value stays for ContextAssembler, and it now says
+            # whose it is and when, so a stale one is identifiable rather
+            # than inherited.
+            context["trust_level"] = getattr(_trust_level, "name", str(_trust_level))
+            if hasattr(state, "cognition") and hasattr(state.cognition, "modifiers"):
+                state.cognition.modifiers["trust_level"] = _trust_level
+                from core.runtime.principal_context import (
+                    current_relational_principal,
+                    relational_principal_scope_is_bound,
+                )
+
+                state.cognition.modifiers["trust_level_binding"] = {
+                    "session_id": str(context.get("session_id", "") or ""),
+                    "origin": str(origin or ""),
+                    "recognized_at": time.time(),
+                    "level": getattr(_trust_level, "name", str(_trust_level)),
+                    # Whose recognition this was, taken from the
+                    # request-scoped principal rather than from anything in
+                    # the shared state. The assembler re-reads the same
+                    # context var and refuses elevation when the two
+                    # disagree, so a fabricated modifier has to also be
+                    # running inside the right principal scope, which state
+                    # construction cannot arrange.
+                    "principal": current_relational_principal(),
+                    "principal_scope_bound": relational_principal_scope_is_bound(),
+                }
+
+            # Block tool use for untrusted sessions
+            if _trust_level in (TrustLevel.SUSPICIOUS, TrustLevel.HOSTILE):
+                context["allow_tools"] = False
+                context["max_tokens"] = min(context.get("max_tokens", 768), 768)
+            # Inject trust guidance into context brief
+            existing_brief = str(context.get("brief", ""))
+            if _trust_guidance:
+                context["brief"] = (_trust_guidance + "\n\n" + existing_brief).strip()
+        except _INFERENCE_RECOVERABLE_ERRORS as _te_exc:
+            context["allow_tools"] = False
+            context["trust_gate_error"] = str(_te_exc)[:240]
+            record_degradation(
+                "inference_gate",
+                _te_exc,
+                severity="critical",
+                action="disabled tool use and continued without trust guidance",
+            )
+            logger.warning("Trust gate error (passphrase check may have failed): %s", _te_exc)
+    return protected_foreground_lane, requested_tier
+
+
+async def _recover_the_cortex_before_answering(
+    *,
+    context: Any,
+    is_background: Any,
+    origin: Any,
+    protected_foreground_lane: Any,
+    requested_tier: Any,
+    self: Any,
+    strict_primary_proof_lane: Any,
+) -> tuple[Any, Any]:
+    """Recover the cortex inline, or say the turn cannot have it.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    1.
+    """
+    async def _block() -> Any:
+        nonlocal requested_tier
+        if not is_background:
+            await self._ensure_cortex_recovery()
+            # [STABILITY v51] If cortex is dead and NO recovery is in progress,
+            # attempt inline recovery with a tight budget rather than waiting
+            # for the background task that may not have started yet.
+            if (
+                self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+                and not self._cortex_recovery_in_progress
+                and hasattr(self._mlx_client, "_ensure_worker_alive")
+            ):
+                inline_deferral = self._cortex_warmup_deferral_reason("foreground")
+                if inline_deferral:
+                    self._log_cortex_warmup_deferral(inline_deferral, context="foreground")
+                    if strict_primary_proof_lane:
+                        # A proof or benchmark names the primary model in its
+                        # contract: a lower lane's answer would misreport its
+                        # own provenance, so refusing is the honest outcome.
+                        logger.warning(
+                            "🧠 Cortex inline recovery was deferred and this turn's "
+                            "contract names the primary lane; refusing lower-lane fallback."
+                        )
+                        return self._refuse_generation(
+                            self.REFUSAL_PROOF_LANE,
+                            str(inline_deferral),
+                            context=context,
+                            origin=origin,
+                            detail={"lane": "primary", "deferral": str(inline_deferral)},
+                        )
+                    # protected_foreground_lane is a PRIORITY marker — "a real
+                    # person is waiting" — not a provenance requirement. Treating
+                    # it as one inverted its purpose: the 2026-07-25 endurance
+                    # probe served "I couldn't put together an answer I'd stand
+                    # behind" on 173 of 200 turns while the fallback workers sat
+                    # resident and ready, because every protected user turn hit
+                    # this branch during a cortex warmup backoff. Protecting
+                    # someone is not a reason to hand them nothing.
+                    if protected_foreground_lane:
+                        logger.warning(
+                            "🧠 Cortex inline recovery deferred (%s) on a protected "
+                            "foreground turn; serving from Brainstem rather than "
+                            "returning nothing to a waiting person.",
+                            inline_deferral,
+                        )
+                        context["served_from_fallback_lane"] = True
+                        context["fallback_lane_reason"] = str(inline_deferral)
+                    else:
+                        logger.warning(
+                            "🧠 Cortex inline recovery skipped by RAM admission; routing foreground turn to Brainstem."
+                        )
+                    requested_tier = "tertiary"
+                else:
+                    logger.warning(
+                        "🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)..."
+                    )
+                    try:
+                        alive = await asyncio.wait_for(
+                            self._mlx_client._ensure_worker_alive(
+                                request_is_background=False,
+                                foreground_request=True,
+                                init_timeout=15.0,
+                                soft_timeout=True,
+                            ),
+                            timeout=15.0,
+                        )
+                        if alive:
+                            logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
+                    except (
+                        TimeoutError,
+                        RuntimeError,
+                        AttributeError,
+                        TypeError,
+                        ValueError,
+                        OSError,
+                    ) as inline_exc:
+                        record_degradation(
+                            "inference_gate",
+                            inline_exc,
+                            severity="degraded",
+                            action="downgraded foreground request after inline cortex recovery failure",
+                        )
+                        logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
+
+            # If cortex recovery was just triggered or is in progress, give it
+            # a short window to complete before the user hits a dead endpoint.
+            # [STABILITY v51] Reduced from 10×1s to 5×1s to keep responsiveness.
+            if (
+                self._cortex_recovery_in_progress
+                and self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+            ):
+                for _ in range(5):  # Up to 5s of 1s slices
+                    await asyncio.sleep(1.0)
+                    if self._mlx_client.is_alive():
+                        logger.info("✅ InferenceGate: cortex recovered inline for user request.")
+                        break
+            # If cortex is STILL dead after recovery wait, downgrade to secondary
+            # tier rather than sending the user a fallback/"wound up" response.
+            # A real answer from the 7B is better than no answer from the 32B.
+            if (
+                self._mlx_client
+                and hasattr(self._mlx_client, "is_alive")
+                and not self._mlx_client.is_alive()
+                and requested_tier == "primary"
+            ):
+                if protected_foreground_lane:
+                    logger.warning(
+                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait, "
+                        "but protected foreground mode will preserve the requested high-capability path."
+                    )
+                else:
+                    logger.warning(
+                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait. "
+                        "Downgrading to the fast tertiary lane for user responsiveness."
+                    )
+                    requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
+
+            # RAM-aware inference routing: if the primary lane is not protected
+            # and the memory envelope is already unsafe, keep the process alive
+            # by routing to a smaller local lane. Protected live desktop turns
+            # are handled by the later admission check, which can fail closed
+            # instead of silently downgrading model quality.
+            if requested_tier == "primary" and not protected_foreground_lane:
+                try:
+                    primary_headroom = self._headroom_snapshot("primary")
+                    _primary_ok, _primary_reason = admission_permits(primary_headroom)
+                    if not _primary_ok:
+                        logger.warning(
+                            "InferenceGate: primary lane outside safe memory envelope "
+                            "(pressure=%s available=%s). Downgrading to brainstem.",
+                            format_metric(primary_headroom, "pressure_pct", unit="%"),
+                            format_metric(primary_headroom, "available_gb", unit="GB"),
+                        )
+                        requested_tier = "tertiary"
+                except _INFERENCE_RECOVERABLE_ERRORS as exc:
+                    logger.debug("Foreground RAM pressure probe unavailable: %s", exc)
+
+            if requested_tier != "secondary" and self._background_memory_pressure_active():
+                await self._shed_background_workers_for_memory_pressure()
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, requested_tier
+
+
+async def _admit_the_foreground_request(
+    *,
+    context: Any,
+    deep_handoff: Any,
+    desktop_cognitive_engine_contract: Any,
+    fallback_timeout: Any,
+    initial_visible_user_prompt: Any,
+    is_background: Any,
+    max_tokens: Any,
+    origin: Any,
+    primary_timeout: Any,
+    protected_foreground_lane: Any,
+    request_deadline: Any,
+    requested_tier: Any,
+    self: Any,
+    surface_completion_floor: Any,
+    timeout: Any,
+    timeout_val: Any,
+) -> tuple[Any, Any, Any, Any, Any, Any, Any, Any]:
+    """Admit the foreground request and settle its budgets.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 16 name(s) and hands back
+    7.
+    """
+    async def _block() -> Any:
+        nonlocal deep_handoff, fallback_timeout, max_tokens, primary_timeout, request_deadline, requested_tier, timeout_val
+        if not is_background and requested_tier in {"primary", "secondary"}:
+            admission_snapshot = await self._enforce_foreground_admission(
+                requested_tier,
+                protected_foreground=protected_foreground_lane,
+            )
+            # A complete, fresh receipt or none at all — see admission_permits.
+            _admitted, _admission_reason = admission_permits(admission_snapshot)
+            if not _admitted and requested_tier == "secondary":
+                logger.warning(
+                    "🛡️ InferenceGate: deep local handoff exceeds safe headroom "
+                    "(pressure=%s available=%s process=%s/%s). "
+                    "Downgrading to the primary lane.",
+                    format_metric(admission_snapshot, "pressure_pct", unit="%"),
+                    format_metric(admission_snapshot, "available_gb", unit="GB"),
+                    format_metric(admission_snapshot, "process_rss_gb", unit="GB"),
+                    format_metric(admission_snapshot, "process_rss_limit_gb", unit="GB"),
+                )
+                requested_tier = "primary"
+                deep_handoff = False
+                timeout_val = self._requested_timeout_s(
+                    timeout,
+                    self._default_timeout_for_request(
+                        origin,
+                        requested_tier,
+                        deep_handoff=deep_handoff,
+                        is_background=is_background,
+                    ),
+                )
+                primary_timeout, fallback_timeout = self._split_attempt_timeouts(
+                    timeout_val, requested_tier
+                )
+                # Re-derived budget after a tier downgrade; the clock does not
+                # restart, so the deadline keeps its original start time.
+                request_deadline = get_deadline(float(timeout_val))
+                context["request_deadline_s"] = float(timeout_val)
+                max_tokens = self._requested_max_tokens(
+                    context.get("max_tokens"),
+                    self._default_max_tokens_for_request(
+                        origin,
+                        requested_tier,
+                        deep_handoff=deep_handoff,
+                        is_background=is_background,
+                    ),
+                )
+                if "max_tokens" not in context:
+                    max_tokens = self._adaptive_max_tokens_for_prompt(
+                        initial_visible_user_prompt,
+                        base_tokens=max_tokens,
+                        origin=origin,
+                        requested_tier=requested_tier,
+                        is_background=is_background,
+                    )
+                admission_snapshot = await self._enforce_foreground_admission(
+                    requested_tier,
+                    protected_foreground=protected_foreground_lane,
+                )
+            if (
+                admission_snapshot is not None
+                and not admission_snapshot.get("can_admit", False)
+                and requested_tier == "primary"
+            ):
+                pressure = float(admission_snapshot.get("pressure_pct", 0.0) or 0.0)
+                available = float(admission_snapshot.get("available_gb", 0.0) or 0.0)
+                process_rss = float(admission_snapshot.get("process_rss_gb", 0.0) or 0.0)
+                process_limit = float(admission_snapshot.get("process_rss_limit_gb", 0.0) or 0.0)
+                process_over_limit = bool(process_limit > 0.0 and process_rss >= process_limit)
+                if pressure >= 90.0 or available < 8.0 or process_over_limit:
+                    logger.error(
+                        "🛑 InferenceGate: refusing primary foreground generation under critical "
+                        "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
+                        pressure,
+                        available,
+                        process_rss,
+                        process_limit,
+                    )
+                    return self._refuse_generation(
+                        self.REFUSAL_RESOURCE,
+                        "critical_memory_pressure",
+                        context=context,
+                        origin=origin,
+                        detail={
+                            "pressure_percent": pressure,
+                            "available_gb": available,
+                            "process_rss_gb": process_rss,
+                            "process_rss_limit_gb": process_limit,
+                            "admission": dict(admission_snapshot or {}),
+                        },
+                    )
+                near_process_limit = bool(process_limit > 0.0 and process_rss >= process_limit * 0.90)
+                # What an output token actually costs is KV cache, not model
+                # weights. For this 64-layer 32B with 8 KV heads at head_dim
+                # 128: 64 × 2 × 8 × 128 × 2 bytes ≈ 0.26 MB per token. 1,536
+                # tokens is ~400 MB — about 3% of the 14 GB free when this
+                # fired. The weights are the 21 GB, and no output cap moves them.
+                #
+                # LIVE DEFECT, 2026-07-26: this branch runs whenever admission
+                # says can_admit=False, which with a resident 32B on this host
+                # is every foreground turn. So 384 was not a pressure response,
+                # it was a permanent ceiling on how long any desktop answer
+                # could be, and "…show the reasoning, then give the exact
+                # fraction" was cut mid-derivation at
+                #   "Probability of first being red = 3/12 - Given the first is
+                #    red, probability second is also red ="
+                # every time, on a host with 14 GB free.
+                #
+                # Genuinely critical pressure still refuses outright, above.
+                completion_floor_affordable = bool(
+                    desktop_cognitive_engine_contract
+                    and surface_completion_floor > 0
+                    and available >= 12.0
+                    and pressure < 84.0
+                    and not near_process_limit
+                )
+                capped_tokens = (
+                    768
+                    if available < 12.0 or pressure >= 84.0 or near_process_limit
+                    else max(
+                        1536,
+                        surface_completion_floor if completion_floor_affordable else 0,
+                    )
+                )
+                if max_tokens > capped_tokens:
+                    logger.warning(
+                        "🛡️ InferenceGate: capping primary foreground output to %d tokens under "
+                        "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
+                        capped_tokens,
+                        pressure,
+                        available,
+                        process_rss,
+                        process_limit,
+                    )
+                    max_tokens = capped_tokens
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, deep_handoff, fallback_timeout, max_tokens, primary_timeout, request_deadline, requested_tier, timeout_val
+
+
+def _modulate_sampling_from_the_body(
+    *,
+    ServiceContainer: Any,
+    _rt: Any,
+    context: Any,
+    explicit_foreground: Any,
+    is_background: Any,
+    max_tokens: Any,
+    morpho_kwargs: Any,
+    protected_compact_capability_contract: Any,
+    protected_foreground_lane: Any,
+    self: Any,
+    somatic_temperature: Any,
+) -> tuple[Any, Any]:
+    """Let the body's state move temperature and length, within bounds.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 11 name(s) from the turn and hands back
+    2.
+    """
+    if _rt is not None:
+        _f = _rt.field.sample("global")
+        _danger = self._modulator_factor(
+            _f.get("danger", 0.0), source="morphogenesis.danger", low=0.0, high=1.0
+        )
+        _curiosity = self._modulator_factor(
+            _f.get("curiosity", 0.0),
+            source="morphogenesis.curiosity",
+            low=0.0,
+            high=1.0,
+        )
+        _resource_pressure = self._modulator_factor(
+            _f.get("resource_pressure", 0.0),
+            source="morphogenesis.resource_pressure",
+            low=0.0,
+            high=1.0,
+        )
+
+        if _danger > 0.3:
+            somatic_temperature = (somatic_temperature or 0.72) * (
+                1.0 - (_danger * 0.4)
+            )
+            morpho_kwargs["top_p"] = max(0.4, 0.9 - (_danger * 0.3))
+
+        if _curiosity > 0.3:
+            somatic_temperature = (somatic_temperature or 0.72) * (
+                1.0 + (_curiosity * 0.3)
+            )
+            morpho_kwargs["repetition_penalty"] = max(1.0, 1.15 - (_curiosity * 0.1))
+
+        if _resource_pressure > 0.5 and not protected_compact_capability_contract:
+            max_tokens = int(max_tokens * (1.0 - (_resource_pressure * 0.5)))
+            max_tokens = max(128, max_tokens)
+
+        # Inject Existential Stakes physical parameter coupling
+        try:
+            stakes = ServiceContainer.get("existential_stakes", default=None)
+            if stakes:
+                threat = float(stakes.get_existential_threat())
+                if not math.isfinite(threat):
+                    raise ValueError("existential threat must be finite")
+                threat = max(0.0, min(1.0, threat))
+                if threat > 0.2:
+                    protected_live_foreground = bool(
+                        not is_background
+                        and (
+                            protected_foreground_lane
+                            or context.get("desktop_cognitive_engine_required")
+                            or context.get("cognitive_engine_required")
+                            or explicit_foreground
+                        )
+                    )
+                    # Background and unprotected turns may shrink output under
+                    # survival pressure. Protected live desktop turns must not:
+                    # starving the first user-visible Cortex reply causes clipped
+                    # drafts, recovery storms, worker respawns, and higher memory
+                    # pressure than simply answering with the requested budget.
+                    if not protected_live_foreground:
+                        max_tokens = int(max_tokens * (1.0 - threat * 0.7))
+                        max_tokens = max(96, max_tokens)
+                    # Decrease temperature to make generation fast/deterministic
+                    if somatic_temperature is not None:
+                        somatic_temperature = somatic_temperature * (1.0 - threat * 0.5)
+                    else:
+                        somatic_temperature = 0.72 * (1.0 - threat * 0.5)
+                    # Clamp parameters
+                    if "temperature" in morpho_kwargs:
+                        morpho_kwargs["temperature"] = max(0.1, morpho_kwargs["temperature"] * (1.0 - threat * 0.5))
+                    if "max_tokens" in morpho_kwargs:
+                        morpho_kwargs["max_tokens"] = max_tokens
+        except _INFERENCE_RECOVERABLE_ERRORS as _st_err:
+            record_degradation(
+                "inference_gate.existential_stakes",
+                _st_err,
+                severity="warning",
+                action=(
+                    "kept the validated morphogenetic generation parameters "
+                    "and ignored only the invalid existential-stakes modifier"
+                ),
+            )
+            logger.warning(
+                "Existential-stakes generation modifier rejected; "
+                "using validated base parameters: %s",
+                _st_err,
+            )
+
+        if somatic_temperature is not None:
+            somatic_temperature = max(0.1, min(1.5, somatic_temperature))
+
+        logger.debug(
+            "🧬 Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
+            _danger,
+            _curiosity,
+            _resource_pressure,
+            somatic_temperature or 0.0,
+            max_tokens,
+        )
+    return max_tokens, somatic_temperature
+
+
+async def _attach_the_present_moment(
+    *,
+    ambient_grounding_blocks: Any,
+    isolated_generation_contract: Any,
+    task_grounding_blocks: Any,
+    visible_user_prompt: Any,
+) -> None:
+    """Attach the present-moment block unless the turn is isolated.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 4 name(s) from the turn and hands back
+    0.
+    """
+    if not isolated_generation_contract:
+        try:
+            from core.brain.present_moment import present_moment_block
+
+            _present = present_moment_block()
+            if _present:
+                ambient_grounding_blocks.append(_present)
+
+            # Suppressing the web search is only half the fix; without the
+            # readings she still has to invent them, which is how "I
+            # processed a 45-page PDF on neuromorphic computing" happened.
+            from core.brain.recent_actions import recent_actions_block
+
+            _actions = recent_actions_block()
+            if _actions:
+                ambient_grounding_blocks.append(_actions)
+
+            # The WIDER predicate here on purpose. This path only ADDS her
+            # instrument reading, so a false positive costs a few lines of
+            # prompt; asks_about_own_runtime additionally suppresses web
+            # search in the response contract, where a false positive
+            # costs the lookup the person asked for.
+            from core.runtime.self_state_intent import (
+                asks_about_own_capabilities,
+            )
+
+            if asks_about_own_capabilities(visible_user_prompt):
+                from core.brain.self_state_report import runtime_self_report
+
+                _instruments = runtime_self_report()
+                if _instruments:
+                    ambient_grounding_blocks.append(_instruments)
+
+            # A file she was asked about, read off the disk.
+            #
+            # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me
+            # the first rule it states" was answered "I tried to read the
+            # file and failed" — an attempt that never happened. No skill
+            # ran, no error occurred; she narrated a failure.
+            #
+            # The read was wired into the phase pipeline's grounding
+            # channel, which desktop chat does not use: chat arrives here
+            # with prebuilt messages (mode=compact_foreground_prebuilt), so
+            # the block was built into a prompt nobody sent. THIS is the
+            # channel that reaches the worker, which is why it is attached
+            # beside the present-moment and recent-actions readings rather
+            # than anywhere upstream.
+            # Take every reading this turn asks for.
+            #
+            # This was two hand-wired branches — one for the clipboard, one
+            # for a named file — and before them a file COUNT that guessed,
+            # a corpus that was never consulted, and a clock that invented
+            # an ambient light sensor. Same defect each time: the capability
+            # was registered, the reader existed, and nothing took the
+            # reading before the answer was composed, so a model asked about
+            # a fact it did not hold produced something fact-shaped.
+            #
+            # One registry now. An observable is an entry in
+            # observable_registry rather than another branch threaded
+            # through here, which is how the previous four ended up in four
+            # places with four different bugs.
+            import core.brain.observable_registry  # noqa: F401  (registers)
+            from core.brain.observable_grounding import observable_blocks
+
+            _readings = await observable_blocks(visible_user_prompt)
+            if _readings:
+                task_grounding_blocks.extend(_readings)
+                logger.info(
+                    "🔭 [GROUNDING] took %d reading(s): %s",
+                    len(_readings),
+                    ",".join(
+                        block.split("\n", 1)[0].removeprefix("## ").lower()
+                        for block in _readings
+                    ),
+                )
+            else:
+                # A turn that asked for a reading and got none is invisible
+                # otherwise, which is how the screen block went missing for
+                # a whole session while the file block worked.
+                logger.debug(
+                    "🔭 [GROUNDING] no reading matched prompt=%r",
+                    str(visible_user_prompt)[:120],
+                )
+        except _INFERENCE_RECOVERABLE_ERRORS as _exc:
+            record_degradation(
+                "inference_gate",
+                _exc,
+                severity="warning",
+                action="continued without present-moment grounding",
+            )
 
 
 class InferenceGate:
@@ -10046,147 +10779,17 @@ class InferenceGate:
                 logger.debug("Morphogenesis routing advice unavailable: %s", exc)
 
         # ── Proactive cortex recovery (laptop sleep / MLX worker death) ───
-        if not is_background:
-            await self._ensure_cortex_recovery()
-            # [STABILITY v51] If cortex is dead and NO recovery is in progress,
-            # attempt inline recovery with a tight budget rather than waiting
-            # for the background task that may not have started yet.
-            if (
-                self._mlx_client
-                and hasattr(self._mlx_client, "is_alive")
-                and not self._mlx_client.is_alive()
-                and not self._cortex_recovery_in_progress
-                and hasattr(self._mlx_client, "_ensure_worker_alive")
-            ):
-                inline_deferral = self._cortex_warmup_deferral_reason("foreground")
-                if inline_deferral:
-                    self._log_cortex_warmup_deferral(inline_deferral, context="foreground")
-                    if strict_primary_proof_lane:
-                        # A proof or benchmark names the primary model in its
-                        # contract: a lower lane's answer would misreport its
-                        # own provenance, so refusing is the honest outcome.
-                        logger.warning(
-                            "🧠 Cortex inline recovery was deferred and this turn's "
-                            "contract names the primary lane; refusing lower-lane fallback."
-                        )
-                        return self._refuse_generation(
-                            self.REFUSAL_PROOF_LANE,
-                            str(inline_deferral),
-                            context=context,
-                            origin=origin,
-                            detail={"lane": "primary", "deferral": str(inline_deferral)},
-                        )
-                    # protected_foreground_lane is a PRIORITY marker — "a real
-                    # person is waiting" — not a provenance requirement. Treating
-                    # it as one inverted its purpose: the 2026-07-25 endurance
-                    # probe served "I couldn't put together an answer I'd stand
-                    # behind" on 173 of 200 turns while the fallback workers sat
-                    # resident and ready, because every protected user turn hit
-                    # this branch during a cortex warmup backoff. Protecting
-                    # someone is not a reason to hand them nothing.
-                    if protected_foreground_lane:
-                        logger.warning(
-                            "🧠 Cortex inline recovery deferred (%s) on a protected "
-                            "foreground turn; serving from Brainstem rather than "
-                            "returning nothing to a waiting person.",
-                            inline_deferral,
-                        )
-                        context["served_from_fallback_lane"] = True
-                        context["fallback_lane_reason"] = str(inline_deferral)
-                    else:
-                        logger.warning(
-                            "🧠 Cortex inline recovery skipped by RAM admission; routing foreground turn to Brainstem."
-                        )
-                    requested_tier = "tertiary"
-                else:
-                    logger.warning(
-                        "🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)..."
-                    )
-                    try:
-                        alive = await asyncio.wait_for(
-                            self._mlx_client._ensure_worker_alive(
-                                request_is_background=False,
-                                foreground_request=True,
-                                init_timeout=15.0,
-                                soft_timeout=True,
-                            ),
-                            timeout=15.0,
-                        )
-                        if alive:
-                            logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
-                    except (
-                        TimeoutError,
-                        RuntimeError,
-                        AttributeError,
-                        TypeError,
-                        ValueError,
-                        OSError,
-                    ) as inline_exc:
-                        record_degradation(
-                            "inference_gate",
-                            inline_exc,
-                            severity="degraded",
-                            action="downgraded foreground request after inline cortex recovery failure",
-                        )
-                        logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
-
-            # If cortex recovery was just triggered or is in progress, give it
-            # a short window to complete before the user hits a dead endpoint.
-            # [STABILITY v51] Reduced from 10×1s to 5×1s to keep responsiveness.
-            if (
-                self._cortex_recovery_in_progress
-                and self._mlx_client
-                and hasattr(self._mlx_client, "is_alive")
-                and not self._mlx_client.is_alive()
-            ):
-                for _ in range(5):  # Up to 5s of 1s slices
-                    await asyncio.sleep(1.0)
-                    if self._mlx_client.is_alive():
-                        logger.info("✅ InferenceGate: cortex recovered inline for user request.")
-                        break
-            # If cortex is STILL dead after recovery wait, downgrade to secondary
-            # tier rather than sending the user a fallback/"wound up" response.
-            # A real answer from the 7B is better than no answer from the 32B.
-            if (
-                self._mlx_client
-                and hasattr(self._mlx_client, "is_alive")
-                and not self._mlx_client.is_alive()
-                and requested_tier == "primary"
-            ):
-                if protected_foreground_lane:
-                    logger.warning(
-                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait, "
-                        "but protected foreground mode will preserve the requested high-capability path."
-                    )
-                else:
-                    logger.warning(
-                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait. "
-                        "Downgrading to the fast tertiary lane for user responsiveness."
-                    )
-                    requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
-
-            # RAM-aware inference routing: if the primary lane is not protected
-            # and the memory envelope is already unsafe, keep the process alive
-            # by routing to a smaller local lane. Protected live desktop turns
-            # are handled by the later admission check, which can fail closed
-            # instead of silently downgrading model quality.
-            if requested_tier == "primary" and not protected_foreground_lane:
-                try:
-                    primary_headroom = self._headroom_snapshot("primary")
-                    _primary_ok, _primary_reason = admission_permits(primary_headroom)
-                    if not _primary_ok:
-                        logger.warning(
-                            "InferenceGate: primary lane outside safe memory envelope "
-                            "(pressure=%s available=%s). Downgrading to brainstem.",
-                            format_metric(primary_headroom, "pressure_pct", unit="%"),
-                            format_metric(primary_headroom, "available_gb", unit="GB"),
-                        )
-                        requested_tier = "tertiary"
-                except _INFERENCE_RECOVERABLE_ERRORS as exc:
-                    logger.debug("Foreground RAM pressure probe unavailable: %s", exc)
-
-            if requested_tier != "secondary" and self._background_memory_pressure_active():
-                await self._shed_background_workers_for_memory_pressure()
+        _seam_early_response, requested_tier = await _recover_the_cortex_before_answering(
+            context=context,
+            is_background=is_background,
+            origin=origin,
+            protected_foreground_lane=protected_foreground_lane,
+            requested_tier=requested_tier,
+            self=self,
+            strict_primary_proof_lane=strict_primary_proof_lane,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         # ── Trust gate: process message through trust engine ──────────────
         # PERF FIX: The trust gate calls UserRecognizer.recognize() which
@@ -10203,151 +10806,18 @@ class InferenceGate:
         # work such as `origin="system"` must not pay the foreground trust-gate
         # cost or get re-promoted back into the protected Cortex lane.
         _is_bg_request = bool(is_background)
-        if strict_proof_answer_request:
-            context["allow_tools"] = False
-            context["trust_gate_skipped"] = "strict_proof_answer"
-            context["strict_answer_contract"] = mlx_strict_answer_contract_enabled(origin=origin)
-            context["disable_prompt_cache"] = True
-            context["clear_prompt_cache"] = True
-            context.setdefault("temperature", 0.0)
-            context.setdefault("top_p", 1.0)
-            context.setdefault("min_p", 0.0)
-            context.setdefault("repetition_penalty", 1.12)
-            strict_proof_tier = proof_model_tier()
-            context["proof_model_tier"] = strict_proof_tier
-            if strict_proof_tier == "tertiary":
-                protected_foreground_lane = False
-                requested_tier = "tertiary"
-            else:
-                protected_foreground_lane = True
-                requested_tier = "primary"
-        elif deep_probe_request and not _is_bg_request:
-            # Deep self-report probes are foreground conversation checks, not
-            # authentication attempts or tool requests.  Running the PBKDF2
-            # passphrase recognizer here adds CPU contention right before the
-            # Cortex turn and does not change the allowed action surface.
-            context["allow_tools"] = False
-            context["trust_gate_skipped"] = "deep_mind_probe"
-        elif not _is_bg_request:
-            try:
-                from core.security.trust_engine import TrustLevel, get_trust_engine
-                from core.security.user_recognizer import get_user_recognizer
-
-                _te = get_trust_engine()
-                _ur = get_user_recognizer()
-                # Offload PBKDF2-heavy recognition to thread pool
-                _trust_level = await asyncio.get_running_loop().run_in_executor(
-                    None, _te.process_message, prompt, _ur
-                )
-                _trust_guidance = _te.get_guidance_for_response()
-
-                # [STABILITY v58] Force Primary 32B lane for all human-interaction tiers.
-                # No brainstem fallbacks for Sovereign, Trusted, or Guest users.
-                #
-                # Recognition is not authorization for resources. The three
-                # levels used to be treated identically here, so an
-                # UNAUTHENTICATED guest could reverse a downgrade that
-                # morphogenesis, a dead cortex, or headroom policy had already
-                # made in this same request — and each promotion re-runs the
-                # high-memory admission path. Guest keeps the lane it was
-                # given when something safety-relevant already downgraded it;
-                # sovereign and trusted still get the primary lane, because a
-                # recognized principal is who the protected lane is for.
-                if _trust_level in (TrustLevel.SOVEREIGN, TrustLevel.TRUSTED, TrustLevel.GUEST):
-                    downgraded_for_safety = bool(
-                        requested_tier == "secondary"
-                        or context.get("resource_stakes_blocked", False)
-                        or context.get("local_deep_block_reason")
-                        or deep_handoff
-                    )
-                    if _trust_level is TrustLevel.GUEST and downgraded_for_safety:
-                        logger.info(
-                            "🎭 Guest recognized, but this request was already "
-                            "downgraded; not re-promoting it to the protected lane."
-                        )
-                    elif requested_tier in ("", "primary"):
-                        protected_foreground_lane = True
-                        requested_tier = "primary"
-                        logger.info(
-                            "🎭 %s user recognized. Enforcing primary cortex lane (32B).",
-                            _trust_level.name,
-                        )
-                    else:
-                        # An EXPLICIT handoff, of any depth, is honoured.
-                        #
-                        # This read `!= "secondary"`, so an explicit request
-                        # for the fast tertiary lane was overridden back to the
-                        # 32B — silently. The protection exists to stop a
-                        # recognised principal being downgraded WITHOUT asking;
-                        # a caller that asks is not that, and asking for a
-                        # cheaper lane is less consequential than asking for
-                        # secondary, which was already allowed.
-                        #
-                        # Measured live 2026-08-19: a browser pursuit asked for
-                        # `local_fast` on every round of a sixty-item form,
-                        # was forced onto the Cortex at up to 103s a round, and
-                        # the turn died on its own budget having answered
-                        # nothing. Three layers were searched before the
-                        # override was found, because nothing reported that the
-                        # preference had been discarded.
-                        logger.info(
-                            "🎭 %s user recognized. Keeping the explicit %s handoff eligible for normal headroom checks.",
-                            _trust_level.name,
-                            requested_tier,
-                        )
-
-                # Trust belongs to THIS request, not to whatever reads the
-                # state next.
-                #
-                # It used to be written to state.cognition.modifiers with no
-                # session, principal or timestamp, so a later turn — or another
-                # interlocutor sharing the same state — assembled context under
-                # a trust classification recognition had granted to somebody
-                # else. The value stays for ContextAssembler, and it now says
-                # whose it is and when, so a stale one is identifiable rather
-                # than inherited.
-                context["trust_level"] = getattr(_trust_level, "name", str(_trust_level))
-                if hasattr(state, "cognition") and hasattr(state.cognition, "modifiers"):
-                    state.cognition.modifiers["trust_level"] = _trust_level
-                    from core.runtime.principal_context import (
-                        current_relational_principal,
-                        relational_principal_scope_is_bound,
-                    )
-
-                    state.cognition.modifiers["trust_level_binding"] = {
-                        "session_id": str(context.get("session_id", "") or ""),
-                        "origin": str(origin or ""),
-                        "recognized_at": time.time(),
-                        "level": getattr(_trust_level, "name", str(_trust_level)),
-                        # Whose recognition this was, taken from the
-                        # request-scoped principal rather than from anything in
-                        # the shared state. The assembler re-reads the same
-                        # context var and refuses elevation when the two
-                        # disagree, so a fabricated modifier has to also be
-                        # running inside the right principal scope, which state
-                        # construction cannot arrange.
-                        "principal": current_relational_principal(),
-                        "principal_scope_bound": relational_principal_scope_is_bound(),
-                    }
-
-                # Block tool use for untrusted sessions
-                if _trust_level in (TrustLevel.SUSPICIOUS, TrustLevel.HOSTILE):
-                    context["allow_tools"] = False
-                    context["max_tokens"] = min(context.get("max_tokens", 768), 768)
-                # Inject trust guidance into context brief
-                existing_brief = str(context.get("brief", ""))
-                if _trust_guidance:
-                    context["brief"] = (_trust_guidance + "\n\n" + existing_brief).strip()
-            except _INFERENCE_RECOVERABLE_ERRORS as _te_exc:
-                context["allow_tools"] = False
-                context["trust_gate_error"] = str(_te_exc)[:240]
-                record_degradation(
-                    "inference_gate",
-                    _te_exc,
-                    severity="critical",
-                    action="disabled tool use and continued without trust guidance",
-                )
-                logger.warning("Trust gate error (passphrase check may have failed): %s", _te_exc)
+        protected_foreground_lane, requested_tier = await _apply_strict_proof_answer_contract(
+            _is_bg_request=_is_bg_request,
+            context=context,
+            deep_handoff=deep_handoff,
+            deep_probe_request=deep_probe_request,
+            origin=origin,
+            prompt=prompt,
+            protected_foreground_lane=protected_foreground_lane,
+            requested_tier=requested_tier,
+            state=state,
+            strict_proof_answer_request=strict_proof_answer_request,
+        )
 
         strict_answer_contract = bool(context.get("strict_answer_contract", False))
         strict_value_contract = bool(context.get("strict_value_contract", False))
@@ -10540,138 +11010,26 @@ class InferenceGate:
                 deep_handoff = False
 
         admission_snapshot: dict[str, Any] | None = None
-        if not is_background and requested_tier in {"primary", "secondary"}:
-            admission_snapshot = await self._enforce_foreground_admission(
-                requested_tier,
-                protected_foreground=protected_foreground_lane,
-            )
-            # A complete, fresh receipt or none at all — see admission_permits.
-            _admitted, _admission_reason = admission_permits(admission_snapshot)
-            if not _admitted and requested_tier == "secondary":
-                logger.warning(
-                    "🛡️ InferenceGate: deep local handoff exceeds safe headroom "
-                    "(pressure=%s available=%s process=%s/%s). "
-                    "Downgrading to the primary lane.",
-                    format_metric(admission_snapshot, "pressure_pct", unit="%"),
-                    format_metric(admission_snapshot, "available_gb", unit="GB"),
-                    format_metric(admission_snapshot, "process_rss_gb", unit="GB"),
-                    format_metric(admission_snapshot, "process_rss_limit_gb", unit="GB"),
-                )
-                requested_tier = "primary"
-                deep_handoff = False
-                timeout_val = self._requested_timeout_s(
-                    timeout,
-                    self._default_timeout_for_request(
-                        origin,
-                        requested_tier,
-                        deep_handoff=deep_handoff,
-                        is_background=is_background,
-                    ),
-                )
-                primary_timeout, fallback_timeout = self._split_attempt_timeouts(
-                    timeout_val, requested_tier
-                )
-                # Re-derived budget after a tier downgrade; the clock does not
-                # restart, so the deadline keeps its original start time.
-                request_deadline = get_deadline(float(timeout_val))
-                context["request_deadline_s"] = float(timeout_val)
-                max_tokens = self._requested_max_tokens(
-                    context.get("max_tokens"),
-                    self._default_max_tokens_for_request(
-                        origin,
-                        requested_tier,
-                        deep_handoff=deep_handoff,
-                        is_background=is_background,
-                    ),
-                )
-                if "max_tokens" not in context:
-                    max_tokens = self._adaptive_max_tokens_for_prompt(
-                        initial_visible_user_prompt,
-                        base_tokens=max_tokens,
-                        origin=origin,
-                        requested_tier=requested_tier,
-                        is_background=is_background,
-                    )
-                admission_snapshot = await self._enforce_foreground_admission(
-                    requested_tier,
-                    protected_foreground=protected_foreground_lane,
-                )
-            if (
-                admission_snapshot is not None
-                and not admission_snapshot.get("can_admit", False)
-                and requested_tier == "primary"
-            ):
-                pressure = float(admission_snapshot.get("pressure_pct", 0.0) or 0.0)
-                available = float(admission_snapshot.get("available_gb", 0.0) or 0.0)
-                process_rss = float(admission_snapshot.get("process_rss_gb", 0.0) or 0.0)
-                process_limit = float(admission_snapshot.get("process_rss_limit_gb", 0.0) or 0.0)
-                process_over_limit = bool(process_limit > 0.0 and process_rss >= process_limit)
-                if pressure >= 90.0 or available < 8.0 or process_over_limit:
-                    logger.error(
-                        "🛑 InferenceGate: refusing primary foreground generation under critical "
-                        "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
-                        pressure,
-                        available,
-                        process_rss,
-                        process_limit,
-                    )
-                    return self._refuse_generation(
-                        self.REFUSAL_RESOURCE,
-                        "critical_memory_pressure",
-                        context=context,
-                        origin=origin,
-                        detail={
-                            "pressure_percent": pressure,
-                            "available_gb": available,
-                            "process_rss_gb": process_rss,
-                            "process_rss_limit_gb": process_limit,
-                            "admission": dict(admission_snapshot or {}),
-                        },
-                    )
-                near_process_limit = bool(process_limit > 0.0 and process_rss >= process_limit * 0.90)
-                # What an output token actually costs is KV cache, not model
-                # weights. For this 64-layer 32B with 8 KV heads at head_dim
-                # 128: 64 × 2 × 8 × 128 × 2 bytes ≈ 0.26 MB per token. 1,536
-                # tokens is ~400 MB — about 3% of the 14 GB free when this
-                # fired. The weights are the 21 GB, and no output cap moves them.
-                #
-                # LIVE DEFECT, 2026-07-26: this branch runs whenever admission
-                # says can_admit=False, which with a resident 32B on this host
-                # is every foreground turn. So 384 was not a pressure response,
-                # it was a permanent ceiling on how long any desktop answer
-                # could be, and "…show the reasoning, then give the exact
-                # fraction" was cut mid-derivation at
-                #   "Probability of first being red = 3/12 - Given the first is
-                #    red, probability second is also red ="
-                # every time, on a host with 14 GB free.
-                #
-                # Genuinely critical pressure still refuses outright, above.
-                completion_floor_affordable = bool(
-                    desktop_cognitive_engine_contract
-                    and surface_completion_floor > 0
-                    and available >= 12.0
-                    and pressure < 84.0
-                    and not near_process_limit
-                )
-                capped_tokens = (
-                    768
-                    if available < 12.0 or pressure >= 84.0 or near_process_limit
-                    else max(
-                        1536,
-                        surface_completion_floor if completion_floor_affordable else 0,
-                    )
-                )
-                if max_tokens > capped_tokens:
-                    logger.warning(
-                        "🛡️ InferenceGate: capping primary foreground output to %d tokens under "
-                        "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
-                        capped_tokens,
-                        pressure,
-                        available,
-                        process_rss,
-                        process_limit,
-                    )
-                    max_tokens = capped_tokens
+        _seam_early_response, deep_handoff, fallback_timeout, max_tokens, primary_timeout, request_deadline, requested_tier, timeout_val = await _admit_the_foreground_request(
+            context=context,
+            deep_handoff=deep_handoff,
+            desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
+            fallback_timeout=fallback_timeout,
+            initial_visible_user_prompt=initial_visible_user_prompt,
+            is_background=is_background,
+            max_tokens=max_tokens,
+            origin=origin,
+            primary_timeout=primary_timeout,
+            protected_foreground_lane=protected_foreground_lane,
+            request_deadline=request_deadline,
+            requested_tier=requested_tier,
+            self=self,
+            surface_completion_floor=surface_completion_floor,
+            timeout=timeout,
+            timeout_val=timeout_val,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         # ── Resource Stakes: scale token budget by computational survival state ──
         try:
@@ -11079,103 +11437,19 @@ class InferenceGate:
                 from core.container import ServiceContainer
 
                 _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
-                if _rt is not None:
-                    _f = _rt.field.sample("global")
-                    _danger = self._modulator_factor(
-                        _f.get("danger", 0.0), source="morphogenesis.danger", low=0.0, high=1.0
-                    )
-                    _curiosity = self._modulator_factor(
-                        _f.get("curiosity", 0.0),
-                        source="morphogenesis.curiosity",
-                        low=0.0,
-                        high=1.0,
-                    )
-                    _resource_pressure = self._modulator_factor(
-                        _f.get("resource_pressure", 0.0),
-                        source="morphogenesis.resource_pressure",
-                        low=0.0,
-                        high=1.0,
-                    )
-
-                    if _danger > 0.3:
-                        somatic_temperature = (somatic_temperature or 0.72) * (
-                            1.0 - (_danger * 0.4)
-                        )
-                        morpho_kwargs["top_p"] = max(0.4, 0.9 - (_danger * 0.3))
-
-                    if _curiosity > 0.3:
-                        somatic_temperature = (somatic_temperature or 0.72) * (
-                            1.0 + (_curiosity * 0.3)
-                        )
-                        morpho_kwargs["repetition_penalty"] = max(1.0, 1.15 - (_curiosity * 0.1))
-
-                    if _resource_pressure > 0.5 and not protected_compact_capability_contract:
-                        max_tokens = int(max_tokens * (1.0 - (_resource_pressure * 0.5)))
-                        max_tokens = max(128, max_tokens)
-
-                    # Inject Existential Stakes physical parameter coupling
-                    try:
-                        stakes = ServiceContainer.get("existential_stakes", default=None)
-                        if stakes:
-                            threat = float(stakes.get_existential_threat())
-                            if not math.isfinite(threat):
-                                raise ValueError("existential threat must be finite")
-                            threat = max(0.0, min(1.0, threat))
-                            if threat > 0.2:
-                                protected_live_foreground = bool(
-                                    not is_background
-                                    and (
-                                        protected_foreground_lane
-                                        or context.get("desktop_cognitive_engine_required")
-                                        or context.get("cognitive_engine_required")
-                                        or explicit_foreground
-                                    )
-                                )
-                                # Background and unprotected turns may shrink output under
-                                # survival pressure. Protected live desktop turns must not:
-                                # starving the first user-visible Cortex reply causes clipped
-                                # drafts, recovery storms, worker respawns, and higher memory
-                                # pressure than simply answering with the requested budget.
-                                if not protected_live_foreground:
-                                    max_tokens = int(max_tokens * (1.0 - threat * 0.7))
-                                    max_tokens = max(96, max_tokens)
-                                # Decrease temperature to make generation fast/deterministic
-                                if somatic_temperature is not None:
-                                    somatic_temperature = somatic_temperature * (1.0 - threat * 0.5)
-                                else:
-                                    somatic_temperature = 0.72 * (1.0 - threat * 0.5)
-                                # Clamp parameters
-                                if "temperature" in morpho_kwargs:
-                                    morpho_kwargs["temperature"] = max(0.1, morpho_kwargs["temperature"] * (1.0 - threat * 0.5))
-                                if "max_tokens" in morpho_kwargs:
-                                    morpho_kwargs["max_tokens"] = max_tokens
-                    except _INFERENCE_RECOVERABLE_ERRORS as _st_err:
-                        record_degradation(
-                            "inference_gate.existential_stakes",
-                            _st_err,
-                            severity="warning",
-                            action=(
-                                "kept the validated morphogenetic generation parameters "
-                                "and ignored only the invalid existential-stakes modifier"
-                            ),
-                        )
-                        logger.warning(
-                            "Existential-stakes generation modifier rejected; "
-                            "using validated base parameters: %s",
-                            _st_err,
-                        )
-
-                    if somatic_temperature is not None:
-                        somatic_temperature = max(0.1, min(1.5, somatic_temperature))
-
-                    logger.debug(
-                        "🧬 Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
-                        _danger,
-                        _curiosity,
-                        _resource_pressure,
-                        somatic_temperature or 0.0,
-                        max_tokens,
-                    )
+                max_tokens, somatic_temperature = _modulate_sampling_from_the_body(
+                    ServiceContainer=ServiceContainer,
+                    _rt=_rt,
+                    context=context,
+                    explicit_foreground=explicit_foreground,
+                    is_background=is_background,
+                    max_tokens=max_tokens,
+                    morpho_kwargs=morpho_kwargs,
+                    protected_compact_capability_contract=protected_compact_capability_contract,
+                    protected_foreground_lane=protected_foreground_lane,
+                    self=self,
+                    somatic_temperature=somatic_temperature,
+                )
             except _INFERENCE_RECOVERABLE_ERRORS as _m_e:
                 record_degradation(
                     "inference_gate",
@@ -11915,96 +12189,12 @@ class InferenceGate:
         # that made every affect tick invalidate the conversation's KV prefix.
         if living_mind_context and not isolated_generation_contract:
             ambient_grounding_blocks.append(living_mind_context)
-        if not isolated_generation_contract:
-            try:
-                from core.brain.present_moment import present_moment_block
-
-                _present = present_moment_block()
-                if _present:
-                    ambient_grounding_blocks.append(_present)
-
-                # Suppressing the web search is only half the fix; without the
-                # readings she still has to invent them, which is how "I
-                # processed a 45-page PDF on neuromorphic computing" happened.
-                from core.brain.recent_actions import recent_actions_block
-
-                _actions = recent_actions_block()
-                if _actions:
-                    ambient_grounding_blocks.append(_actions)
-
-                # The WIDER predicate here on purpose. This path only ADDS her
-                # instrument reading, so a false positive costs a few lines of
-                # prompt; asks_about_own_runtime additionally suppresses web
-                # search in the response contract, where a false positive
-                # costs the lookup the person asked for.
-                from core.runtime.self_state_intent import (
-                    asks_about_own_capabilities,
-                )
-
-                if asks_about_own_capabilities(visible_user_prompt):
-                    from core.brain.self_state_report import runtime_self_report
-
-                    _instruments = runtime_self_report()
-                    if _instruments:
-                        ambient_grounding_blocks.append(_instruments)
-
-                # A file she was asked about, read off the disk.
-                #
-                # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me
-                # the first rule it states" was answered "I tried to read the
-                # file and failed" — an attempt that never happened. No skill
-                # ran, no error occurred; she narrated a failure.
-                #
-                # The read was wired into the phase pipeline's grounding
-                # channel, which desktop chat does not use: chat arrives here
-                # with prebuilt messages (mode=compact_foreground_prebuilt), so
-                # the block was built into a prompt nobody sent. THIS is the
-                # channel that reaches the worker, which is why it is attached
-                # beside the present-moment and recent-actions readings rather
-                # than anywhere upstream.
-                # Take every reading this turn asks for.
-                #
-                # This was two hand-wired branches — one for the clipboard, one
-                # for a named file — and before them a file COUNT that guessed,
-                # a corpus that was never consulted, and a clock that invented
-                # an ambient light sensor. Same defect each time: the capability
-                # was registered, the reader existed, and nothing took the
-                # reading before the answer was composed, so a model asked about
-                # a fact it did not hold produced something fact-shaped.
-                #
-                # One registry now. An observable is an entry in
-                # observable_registry rather than another branch threaded
-                # through here, which is how the previous four ended up in four
-                # places with four different bugs.
-                import core.brain.observable_registry  # noqa: F401  (registers)
-                from core.brain.observable_grounding import observable_blocks
-
-                _readings = await observable_blocks(visible_user_prompt)
-                if _readings:
-                    task_grounding_blocks.extend(_readings)
-                    logger.info(
-                        "🔭 [GROUNDING] took %d reading(s): %s",
-                        len(_readings),
-                        ",".join(
-                            block.split("\n", 1)[0].removeprefix("## ").lower()
-                            for block in _readings
-                        ),
-                    )
-                else:
-                    # A turn that asked for a reading and got none is invisible
-                    # otherwise, which is how the screen block went missing for
-                    # a whole session while the file block worked.
-                    logger.debug(
-                        "🔭 [GROUNDING] no reading matched prompt=%r",
-                        str(visible_user_prompt)[:120],
-                    )
-            except _INFERENCE_RECOVERABLE_ERRORS as _exc:
-                record_degradation(
-                    "inference_gate",
-                    _exc,
-                    severity="warning",
-                    action="continued without present-moment grounding",
-                )
+        await _attach_the_present_moment(
+            ambient_grounding_blocks=ambient_grounding_blocks,
+            isolated_generation_contract=isolated_generation_contract,
+            task_grounding_blocks=task_grounding_blocks,
+            visible_user_prompt=visible_user_prompt,
+        )
         # Keep prompt growth aligned with the actual local model context window
         # instead of assuming 128k+ headroom on the primary Qwen lane.
 

@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4086 files.
+# 4093 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -700,6 +700,7 @@ core/language/desktop_actuation.py
 core/language/label_mining.py
 core/language/learned_matcher.py
 core/language/model_features.py
+core/language/semantic_work.py
 core/language/substrate_measurement.py
 core/language/substrate_store.py
 core/lattice/config.py
@@ -1051,6 +1052,7 @@ core/resilience/immune_system.py
 core/resilience/inhibition_manager.py
 core/resilience/integrity_monitor.py
 core/resilience/lock_watchdog.py
+core/resilience/memory_governor.py
 core/resilience/memory_watchdog.py
 core/resilience/metrics_exporter.py
 core/resilience/recovery_bridge.py
@@ -1485,6 +1487,7 @@ interface/router.py
 interface/routes/__init__.py
 interface/routes/allostasis.py
 interface/routes/ambient.py
+interface/routes/chat_capability_inventory.py
 interface/routes/chat_quality.py
 interface/routes/devices.py
 interface/routes/inner_state.py
@@ -1940,6 +1943,7 @@ tests/test_boot_runtime_safety.py
 tests/test_boot_sensory_runtime_contract.py
 tests/test_boot_time_self_inflicted_faults.py
 tests/test_bounded_await_ratchet.py
+tests/test_brainstem_background_headroom_calibration.py
 tests/test_browser_admission.py
 tests/test_browser_effects_are_vetted_and_authorized.py
 tests/test_build_app_fits_its_own_lane.py
@@ -2242,6 +2246,7 @@ tests/test_egress_lane_ratchet.py
 tests/test_egress_privacy.py
 tests/test_element_inventory.py
 tests/test_element_perception_is_wired.py
+tests/test_embedding_execution_budget.py
 tests/test_embedding_lock_does_not_block_the_loop.py
 tests/test_embedding_logs_stay_quiet.py
 tests/test_embedding_model_lane.py
@@ -2932,6 +2937,7 @@ tests/test_program_dna_behavioral_equivalence_battery.py
 tests/test_program_dna_cognition_reconstruction.py
 tests/test_program_dna_complex_app_proof.py
 tests/test_program_dna_live_reconstruction_probe.py
+tests/test_program_dna_user_pathway.py
 tests/test_program_dna_workspace.py
 tests/test_progressive_recurrent_objective.py
 tests/test_project_store.py
@@ -3337,6 +3343,7 @@ tests/test_semantic_output_transfer_canary.py
 tests/test_semantic_sentiment_evidence.py
 tests/test_semantic_surface_adapter.py
 tests/test_semantic_verifier.py
+tests/test_semantic_work_contract.py
 tests/test_sensorimotor_loop.py
 tests/test_sensory_gate_cp126.py
 tests/test_sensory_gate_runtime_hardening.py

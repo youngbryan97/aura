@@ -511,6 +511,39 @@ def extract(
     )
 
 
+def _module_level_insertion_point(source: str, function: str, fn: ast.AST) -> int:
+    """Where a module-level helper can go, above the thing it came out of.
+
+    For a plain function that is the function itself. For a method it is the
+    class that holds it, because a helper written at column zero cannot live
+    inside a class body.
+    """
+    tree = ast.parse(source)
+    lines = source.splitlines(keepends=True)
+
+    def offset_of(line_number: int) -> int:
+        return sum(len(line) for line in lines[: line_number - 1])
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            for child in node.body:
+                if (
+                    isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and child.name == function
+                ):
+                    first = min([node.lineno] + [d.lineno for d in node.decorator_list])
+                    return offset_of(first)
+        elif (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == function
+        ):
+            first = min([node.lineno] + [d.lineno for d in node.decorator_list])
+            return offset_of(first)
+
+    marker = f"{'async ' if isinstance(fn, ast.AsyncFunctionDef) else ''}def {function}("
+    return source.index(marker)
+
+
 def _finish(
     *,
     path: Path,
@@ -577,13 +610,13 @@ def _finish(
     # Computing it once against `source` and then adjusting by a character
     # offset using a LINE number produced an index in the middle of a token
     # and a file that began `asynasync def`.
+    #
+    # A method's enclosing CLASS is the boundary, not the method: putting a
+    # module-level helper immediately above `    def generate(` lands it inside
+    # the class body at zero indentation, and the file stops parsing on the
+    # helper's own docstring.
     name_of_fn = getattr(fn, "name", "")
-    marker = f"{'async ' if isinstance(fn, ast.AsyncFunctionDef) else ''}def {name_of_fn}("
-    insert_at = rewritten.index(marker)
-    head = rewritten[:insert_at]
-    decorator = head.rfind("\n@")
-    if decorator != -1 and head[decorator:].count("\n") < 10:
-        insert_at = decorator + 1
+    insert_at = _module_level_insertion_point(rewritten, name_of_fn, fn)
     rewritten = rewritten[:insert_at] + helper + "\n\n" + rewritten[insert_at:]
 
     if nested and f"\n{_SENTINEL} = object()" not in rewritten:

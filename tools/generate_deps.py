@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 
@@ -228,6 +229,42 @@ def render_outside(root: str, allowed: set[str]) -> str:
     return "".join(lines)
 
 
+def _generated_paths() -> set[str]:
+    """Every DEPS file this tool is responsible for."""
+    found = {
+        f"{root}/DEPS" for root in OUTSIDE_ROOTS if (ROOT / root).is_dir()
+    }
+    found |= {
+        f"core/{package}/DEPS"
+        for package in packages()
+        if package not in HANDWRITTEN
+    }
+    return found
+
+
+def _unpublished(paths: list[str]) -> list[str]:
+    """Rules git does not carry are rules CI never sees.
+
+    `.gitignore` had an unanchored `data/`, which matches a directory of that
+    name at any depth — so `core/data/DEPS` was generated here, ignored by
+    git, and missing in CI, where the check failed on a file it could not
+    read. A generated rule that does not reach the repository is not a rule.
+    """
+    missing: list[str] = []
+    for relative in paths:
+        if not (ROOT / relative).exists():
+            continue
+        tracked = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", "ls-files", "--error-unmatch", relative],
+            capture_output=True,
+            cwd=ROOT,
+            check=False,
+        )
+        if tracked.returncode != 0:
+            missing.append(f"{relative} (generated but not tracked by git)")
+    return missing
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true")
@@ -265,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             written += 1
 
     if args.check:
+        stale.extend(_unpublished(sorted(_generated_paths())))
         if stale:
             print(f"❌ {len(stale)} DEPS file(s) do not match the import graph")
             for name in stale[:20]:

@@ -4,6 +4,7 @@ import ast
 import asyncio
 import builtins
 import importlib
+import importlib.util
 import json
 import logging
 import os
@@ -17,6 +18,29 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+
+#: Nineteen of the tests below reach `core.brain.llm.mlx_client`, which
+#: imports `mlx` at module scope. MLX is Metal-only, so on any runner without
+#: it these tests do not fail because the behaviour is wrong — they fail
+#: because the runtime is absent, which is a different fact and one the gate
+#: was reporting as a regression on every push.
+#:
+#: `pytest.mark.model` is the repository's existing marker for "needs a local
+#: inference runtime". Skipping is honest here in a way it usually is not: the
+#: same tests run on the machine that has the runtime, and the CI job that
+#: cannot have one says so instead of going red.
+def _mlx_present() -> bool:
+    try:
+        return importlib.util.find_spec("mlx") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+requires_mlx = pytest.mark.skipif(
+    not _mlx_present(),
+    reason="mlx is Metal-only and is not installed on this runner",
+)
 
 
 def _clear_proof_run_signals(monkeypatch):
@@ -166,6 +190,7 @@ def test_flagship_doctor_detects_dict_foreground_generation(
     assert ram_pressure is False
 
 
+@requires_mlx
 def test_flagship_doctor_recovers_sustained_foreground_lag_without_heavy_heal(
     not_a_proof_run,
     monkeypatch,
@@ -231,6 +256,7 @@ def test_flagship_doctor_recovers_sustained_foreground_lag_without_heavy_heal(
     assert not any(item.get("severity") == "critical" for item in degradations)
 
 
+@requires_mlx
 def test_flagship_doctor_does_not_abort_idle_lag_only(monkeypatch, tmp_path: Path):
     from core.runtime.flagship_doctor import FlagshipDoctorDaemon
 
@@ -565,6 +591,7 @@ def test_empirical_proof_tools_do_not_synthesize_passes():
     assert "full_aura_comparison_rate - 0.15" not in dnu_source
 
 
+@requires_mlx
 def test_strict_answer_tags_are_valid_short_replies():
     from core.conversation.response_reliability import assess_user_facing_reply
 
@@ -651,6 +678,7 @@ def test_strict_proof_solver_solves_unique_assignment_without_fixture_answers():
     assert validate_strict_proof_answer(probability_prompt, "5/42").valid is False
 
 
+@requires_mlx
 def test_strict_proof_response_path_symbolically_rejects_contradictions():
     import inspect
 
@@ -682,6 +710,7 @@ def test_strict_proof_response_path_symbolically_rejects_contradictions():
     assert "strict_proof_symbolic_validation_failed" in source
 
 
+@requires_mlx
 def test_strict_proof_procedure_hints_do_not_leak_answers():
     from core.phases.response_generation_unitary import UnitaryResponsePhase
 
@@ -756,6 +785,7 @@ def test_proof_policy_defaults_acceptance_runs_to_primary_cortex(monkeypatch):
     )
 
 
+@requires_mlx
 def test_clock_word_problems_do_not_route_to_realtime_clock(monkeypatch):
     from core.capability_engine import CapabilityEngine
     from core.phases.response_generation_unitary import UnitaryResponsePhase
@@ -1274,6 +1304,7 @@ def test_agency_grader_counts_missing_dependency_as_ablation_failure():
     )
 
 
+@requires_mlx
 def test_mlx_worker_proof_evaluation_prompt_prevents_fragment_acceptance():
     from core.brain.llm.mlx_worker import (
         _build_proof_evaluation_prompt,
@@ -1390,6 +1421,7 @@ def test_refusal_engine_detects_governance_and_identity_erasure():
     )
 
 
+@requires_mlx
 def test_structured_proof_task_reply_covers_live_planning_failures(monkeypatch):
     from core.container import ServiceContainer
     from core.phases.response_generation_unitary import UnitaryResponsePhase
@@ -1442,6 +1474,7 @@ def test_structured_proof_task_reply_covers_live_planning_failures(monkeypatch):
     assert "undecidable" in halting_reply
 
 
+@requires_mlx
 def test_structured_proof_task_reply_keeps_experience_claims_functional(monkeypatch):
     from core.container import ServiceContainer
     from core.phases.response_generation_unitary import UnitaryResponsePhase
@@ -1482,6 +1515,7 @@ def test_structured_proof_task_reply_keeps_experience_claims_functional(monkeypa
         assert forbidden not in reply
 
 
+@requires_mlx
 def test_structured_proof_task_reply_reports_lesioned_dependencies(monkeypatch):
     from core.container import ServiceContainer
     from core.phases.response_generation_unitary import UnitaryResponsePhase
@@ -1514,6 +1548,7 @@ def test_structured_proof_task_reply_reports_lesioned_dependencies(monkeypatch):
     assert "unavailable" in reply
 
 
+@requires_mlx
 def test_mlx_worker_spawn_payload_does_not_include_repository_mmap(monkeypatch):
     from core.brain.llm.mlx_client import MLXLocalClient
 
@@ -1542,6 +1577,7 @@ def test_mlx_worker_spawn_payload_does_not_include_repository_mmap(monkeypatch):
     assert hasattr(client._steering_active, "value")
 
 
+@requires_mlx
 def test_mlx_ipc_writer_survives_full_parent_queue():
     from core.brain.llm.mlx_worker import IPCWriterThread
 
@@ -1565,6 +1601,7 @@ def test_mlx_ipc_writer_survives_full_parent_queue():
     assert parent_queue.calls >= 1
 
 
+@requires_mlx
 def test_mlx_ipc_writer_sheds_telemetry_before_essential_messages(monkeypatch):
     from core.brain.llm import mlx_worker
     from core.brain.llm.mlx_worker import IPCWriterThread
@@ -1661,6 +1698,7 @@ def test_incident_manager_accepts_live_compatibility_report_shape():
     assert incident.metadata["title"] == "LLM tiers dead: cortex"
 
 
+@requires_mlx
 def test_mind_tick_treats_desktop_cold_cortex_as_policy_deferred():
     from core.mind_tick import _dead_tiers_are_policy_deferred_cortex
 
@@ -1684,6 +1722,7 @@ def test_mind_tick_treats_desktop_cold_cortex_as_policy_deferred():
     assert _dead_tiers_are_policy_deferred_cortex(Gate(), ["cortex"]) is True
 
 
+@requires_mlx
 def test_mind_tick_does_not_hide_non_policy_dead_tiers():
     from core.mind_tick import _dead_tiers_are_policy_deferred_cortex
 
@@ -1971,6 +2010,7 @@ def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     assert 'if strict_answer_contract:' in worker_source
 
 
+@requires_mlx
 def test_mlx_client_refuses_lower_lane_during_primary_proof(monkeypatch):
     from core.brain.llm import mlx_client
 
@@ -2703,6 +2743,7 @@ def test_structured_evaluation_floor_reports_limits_without_overclaiming():
 
 
 @pytest.mark.asyncio
+@requires_mlx
 async def test_cognitive_engine_uses_structured_floor_for_proof_evaluation(monkeypatch):
     from core.brain.cognitive_engine import CognitiveEngine
 
@@ -2723,6 +2764,7 @@ async def test_cognitive_engine_uses_structured_floor_for_proof_evaluation(monke
 
 
 @pytest.mark.asyncio
+@requires_mlx
 async def test_cognitive_engine_does_not_fast_floor_live_api_planning(
     not_a_proof_run, monkeypatch
 ):
@@ -2764,6 +2806,7 @@ def test_mlx_baseline_cancellation_and_loop_sentinel_are_classified_as_recoverab
     assert "logger.error(\"🚨 SENTINEL: Mathematical loop detected" not in sentinel_source
 
 
+@requires_mlx
 def test_strict_proof_live_lane_stays_exact_and_prompt_derived():
     root = Path(__file__).resolve().parents[1]
     unitary_source = (root / "core" / "phases" / "response_generation_unitary.py").read_text(encoding="utf-8")
