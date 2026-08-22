@@ -528,6 +528,18 @@ def classify_execution_risk(
         return "high" if scope == "sandboxed_compute" else "low"
     if name == "test_generator" and scope == "sandboxed_compute":
         return "high"
+    if name == "diagnose_repo":
+        # Running a project's own test suite is not the same act as running
+        # code the model just wrote, which is what sandboxed_compute is rated
+        # high for. The code here was on disk before the turn began, the
+        # person named the directory, and nothing the model produces is
+        # executed. It is medium rather than low because a test suite is still
+        # somebody else's code running on this machine.
+        #
+        # LIVE, 2026-08-22: rated high by scope alone, it was refused with
+        # "Requires user confirmation" on the very turn that asked for it,
+        # after routing had finally found it.
+        return "medium"
     if name == "self_evolution" and scope == "read_only":
         return "low"
     if name in _CRITICAL_TOOLS:

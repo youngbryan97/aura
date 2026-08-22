@@ -108,3 +108,27 @@ def test_the_skill_is_not_a_desktop_action():
     from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
 
     assert SKILL_EFFECT_SCOPES["diagnose_repo"] == "sandboxed_compute"
+
+
+def test_it_is_rated_for_what_it_actually_runs():
+    """LIVE, 2026-08-22: rated high by effect scope alone, it was refused with
+    "Requires user confirmation" on the very turn that asked for it, after
+    routing had finally found it.
+
+    sandboxed_compute is rated high because it usually means executing code
+    the model just wrote. This runs the project's own tests: the code was on
+    disk before the turn began, the person named the directory, and nothing
+    the model produces is executed. Medium rather than low, because a test
+    suite is still somebody else's code running on this machine.
+    """
+    from core.executive.execution_policy import classify_execution_risk
+
+    assert (
+        classify_execution_risk("diagnose_repo", {}, effect_scope="sandboxed_compute")
+        == "medium"
+    )
+    # The tools that DO run model-written code keep their rating.
+    assert classify_execution_risk("code_repl", {}, effect_scope="sandboxed_compute") == "high"
+    assert (
+        classify_execution_risk("run_code", {}, effect_scope="sandboxed_compute") == "critical"
+    )
