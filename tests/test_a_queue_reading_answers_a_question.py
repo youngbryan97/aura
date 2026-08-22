@@ -55,3 +55,18 @@ def test_naming_the_queue_outright_still_works_imperatively():
 
 def test_the_past_is_still_excluded():
     assert _matches_queued_work("what did you have queued earlier?") is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Explain Dijkstra's algorithm and include a priority queue trace.",
+        "Can you explain how a priority queue works?",
+        "Which pending vertex should the shortest-path queue visit next?",
+        "Show me the print queue on the office server.",
+        "What songs are queued in the music player?",
+        "How many messages are waiting in the network queue?",
+    ],
+)
+def test_queues_owned_by_other_systems_are_not_her_pending_work(message):
+    assert _matches_queued_work(message) is False

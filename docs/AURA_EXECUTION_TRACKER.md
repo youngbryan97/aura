@@ -51632,3 +51632,31 @@ latency, memory footprint and fallback behavior. Replace or retire outdated
 selections only with measured task-specific evidence, preserve local operation,
 and prove routing, degradation and resident-memory behavior after each change.
 This follows the resident CP896 live gate and does not displace it.
+
+## Checkpoint 2026-08-21-898: Bind Fast Actions to Their Semantic Objects
+
+The first CP897 resident exercise did not repeat the transient memory failure:
+host use stayed below 68 percent and the request returned in four seconds. It
+still did not reach cognition. The phrase ``reconstruct the shortest path``
+was treated as a Program DNA software-reconstruction command, and the phrase
+``priority queue`` then caused the pending-maintenance reader to replace that
+action result with Aura's biological-sleep queue. One ordinary reasoning
+request crossed two unrelated fast paths because each path treated an
+overloaded word as its complete intent.
+
+Program DNA dispatch now uses the shared declaration-based language matcher to
+bind an action request to an extracted object. That object must be a software
+artifact, a known executable, or part of an explicit clean-room/equivalence
+contract. Reconstructing paths, proofs, timelines and conversations remains on
+the cognitive lane. The pending-work observable now requires Aura ownership,
+a work-shaped object, or an unambiguous elliptical question such as ``anything
+queued?``. Algorithm, printer, network and media queues do not acquire Aura as
+their owner merely because they use the same noun.
+
+Cross-domain positive and negative contracts pass with the broader capability
+and observable suites (`211/211`). Canonical smoke passes `120/120` with one
+environment-dependent skip; compilation, Ruff, governance ownership, layering
+and diff hygiene pass. Live confirmation remains open: install this exact
+revision, repeat the resident long-form reasoning request, and prove the
+CognitiveEngine response is complete without route substitution, recurrent
+cache failure, false heartbeat stall or memory-fuse admission.

@@ -471,19 +471,31 @@ _PENDING_MARKER = (
     r"will\s+you|you'?ll)"
 )
 _HER_ACTIVITY = (
-    r"(?:\byou\b|\byour\b|\bqueue\b|\bwork\b|\btasks?\b|\bjobs?\b|"
+    r"(?:\byou\b|\byour\b|\bwork\b|\btasks?\b|\bjobs?\b|"
     r"\bmaintenance\b|\bhappens?\b|\brunning\b)"
 )
 _PAST_TENSE = re.compile(
     r"\b(?:did|was|were|had|used\s+to|earlier|yesterday|last\s+(?:time|night|week))\b",
     re.IGNORECASE,
 )
-#: Words that name pending work on their own. "Anything planned?" and
-#: "what's in your queue?" need nothing else to be this question.
+#: A queue has many possible owners: an algorithm, printer, network, music
+#: player, or Aura. It names pending work on its own only when the phrase binds
+#: it to Aura, names work as its contents, or is an unambiguous elliptical
+#: question. Bare ``queue`` once replaced a complete Dijkstra answer with the
+#: dream coordinator's maintenance list.
 _NAMES_PENDING_WORK = re.compile(
-    r"\b(?:queued|queue|scheduled|pending|deferred|backlog)\b"
-    r"|\banything\s+planned\b"
-    r"|\bwaiting\s+to\s+run\b",
+    r"\b(?:your|aura(?:'s|s))\s+(?:(?:current|own|pending|work|task|job)\s+){0,3}"
+    r"(?:queue|backlog|schedule|plans?|work|tasks?|jobs?|maintenance|reminders?)\b"
+    r"|\b(?:queued|scheduled|pending|deferred)\s+(?:background\s+)?"
+    r"(?:work|tasks?|jobs?|maintenance|reminders?)\b"
+    r"|\b(?:work|tasks?|jobs?|maintenance|reminders?)\s+"
+    r"(?:is\s+|are\s+)?(?:queued|scheduled|pending|deferred|waiting)\b"
+    r"|\b(?:anything|something)\s+(?:else\s+)?"
+    r"(?:queued|scheduled|pending|planned|deferred|waiting(?:\s+to\s+run)?)\b"
+    r"|\b(?:what(?:'s|\s+is)|whats)\s+(?:else\s+)?"
+    r"(?:queued|scheduled|pending|planned|deferred|waiting)\b"
+    r"|\bwhat\s+(?:do\s+)?you\s+have\s+(?:else\s+)?"
+    r"(?:queued|scheduled|pending|planned|deferred|waiting)\b",
     re.IGNORECASE,
 )
 _ASKS_QUEUED_WORK = re.compile(

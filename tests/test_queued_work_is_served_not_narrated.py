@@ -59,7 +59,13 @@ def test_the_real_pending_list_is_served(coordinator):
 
 def test_a_question_about_something_else_is_left_alone(coordinator):
     coordinator({"dlq_recovery": {"reason": "x"}})
-    for unrelated in ("what is 2 + 2", "tell me a story", "what did you do after the update?"):
+    for unrelated in (
+        "what is 2 + 2",
+        "tell me a story",
+        "what did you do after the update?",
+        "Explain Dijkstra and include a priority queue trace.",
+        "What songs are queued in the music player?",
+    ):
         assert _serve_queued_work(unrelated, "the model's reply") == "the model's reply"
 
 

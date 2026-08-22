@@ -8,28 +8,26 @@ read inside the turn's budget.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-from core.container import ServiceContainer
 import asyncio
+import re
+from typing import Any
+
+from core.container import ServiceContainer
+from core.intent.declared_capability import request_matches_declaration
+from core.runtime.chat_delivery_progress import (
+    report_chat_delivery_progress,
+)
+from core.runtime.errors import record_degradation
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
     _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
     _CHAT_REQUEST_SURFACE,  # noqa: F401
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
+    _SEARCH_SKILL_NAMES,
     _conversation_log,  # noqa: F401
     _locks,  # noqa: F401
     logger,  # noqa: F401
-)
-import re
-from core.runtime.errors import describe_error, record_degradation
-from core.runtime.chat_delivery_progress import (
-    bind_chat_delivery_progress,
-    report_chat_delivery_progress,
-)
-
-from interface.routes.chat_common import (
-    _SEARCH_SKILL_NAMES,
 )
 
 
@@ -245,6 +243,43 @@ _PROGRAM_DNA_EXECUTION_MARKERS = (
     "no source",
 )
 
+_PROGRAM_DNA_METHOD_BOUNDARY = re.compile(
+    r"\b(?:program\s+dna|clean[ -]?room|behavio(?:u)?r\s+only|without\s+(?:the\s+)?source|"
+    r"no\s+source|held[ -]?out|behavioral\s+equivalence)\b",
+    re.IGNORECASE,
+)
+_PROGRAM_DNA_SOFTWARE_TARGET = re.compile(
+    r"\b(?:app(?:lication)?|binary|command|executable|implementation|program|script|"
+    r"software|tool|utility)\b|(?:[/\\][a-z0-9_.+-]+|[a-z0-9_.+-]+\.[a-z][a-z0-9]{0,11})$",
+    re.IGNORECASE,
+)
+_PROGRAM_DNA_ACTIONS = (
+    "build",
+    "engineer",
+    "rebuild",
+    "reconstruct",
+    "reverse",
+)
+_PROGRAM_DNA_OBJECTS = (
+    "app",
+    "application",
+    "base64",
+    "binary",
+    "code",
+    "command",
+    "dna",
+    "executable",
+    "implementation",
+    "jq",
+    "md5",
+    "program",
+    "rev",
+    "script",
+    "software",
+    "tool",
+    "utility",
+)
+
 
 def _extract_program_dna_target(user_message: str) -> str | None:
     text = str(user_message or "")
@@ -396,34 +431,35 @@ def _program_dna_known_host_target(target: str) -> bool:
 
 
 def _looks_like_program_dna_execution_request(user_message: str) -> bool:
-    lowered = str(user_message or "").lower()
-    target = _extract_program_dna_target(lowered)
+    text = str(user_message or "").strip()
+    lowered = text.lower()
+    target = _extract_program_dna_target(text)
     if not target:
         return False
-    if not any(marker in lowered for marker in _PROGRAM_DNA_EXECUTION_MARKERS):
-        return False
-    # Avoid converting conceptual questions into tool execution. The route is for
-    # proof/action requests: reconstruct, compare, verify, or run held-out cases.
-    execution_words = (
-        "reverse engineer",
-        "reverse-engineer",
-        "reconstruct",
-        "prove",
-        "run",
-        "do the same",
-        "held-out",
-        "held out",
-        "equivalence",
-        "matches the real command",
-        "no source",
-        "build",
-        "scaffold",
-        "research",
-        "app",
-        "application",
-        "tool",
+    route_identity = bool(
+        _program_dna_known_host_target(target)
+        or _PROGRAM_DNA_SOFTWARE_TARGET.search(target)
+        or _PROGRAM_DNA_METHOD_BOUNDARY.search(lowered)
     )
-    return any(word in lowered for word in execution_words)
+    if not route_identity:
+        return False
+    action_text = re.sub(r"^\s*clean[ -]?room\s+", "", text, count=1, flags=re.IGNORECASE)
+    if not request_matches_declaration(
+        action_text,
+        verbs=_PROGRAM_DNA_ACTIONS,
+        # A method-bound clean-room request may target an arbitrary named
+        # protocol or device. Its extracted noun phrase is then the object of
+        # the declared action, rather than another fixed catalogue entry.
+        objects=(*_PROGRAM_DNA_OBJECTS, *target.split()),
+    ):
+        return False
+    # Program DNA is a software-reconstruction lane, while "reconstruct" also
+    # governs paths, timelines, proofs, memories and physical scenes. Dispatch
+    # only when the extracted OBJECT is software-shaped, names a known host
+    # executable, or the request explicitly establishes the clean-room method.
+    # This keeps action mood, object identity and method in one contract instead
+    # of treating one overloaded verb anywhere in a message as authorization.
+    return True
 
 
 def _build_program_dna_chat_params(target: str, objective: str) -> dict[str, Any]:

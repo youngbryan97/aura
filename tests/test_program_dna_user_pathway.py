@@ -8,13 +8,13 @@ import inspect
 
 import pytest
 
+import interface.routes.chat_capability_inventory as _chat_capability_inventory
 from core.discovery.reconstruction_sandbox import GeneralReconstructionEvaluator
 from core.self_improvement.host_reconstruction import (
     KNOWN_TARGETS,
     resolve_target,
     reverse_engineer_host_binary,
 )
-import interface.routes.chat_capability_inventory as _chat_capability_inventory
 
 
 def test_user_phrasings_resolve_to_known_targets():
@@ -210,6 +210,62 @@ async def test_live_chat_program_dna_does_not_execute_conceptual_question(monkey
     )
 
     assert result is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        (
+            "Explain Dijkstra's algorithm, trace its priority queue, and reconstruct "
+            "the shortest path from A to E."
+        ),
+        "Reconstruct the argument in this proof and tell me whether it is valid.",
+        "Reconstruct the timeline from these witness statements.",
+        "Can you reconstruct what happened in our earlier conversation?",
+    ],
+)
+async def test_program_dna_requires_a_software_reconstruction_contract(monkeypatch, user_text):
+    """An overloaded reasoning verb must not become a software action."""
+    from interface.routes import chat as chat_routes
+
+    async def _forbidden_governed_skill(*_args, **_kwargs):
+        raise AssertionError("non-software reconstruction must stay with cognition")
+
+    monkeypatch.setattr(_chat_capability_inventory, "_execute_governed_live_skill", _forbidden_governed_skill)
+
+    assert await chat_routes._execute_governed_capability_request_from_chat(user_text) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Reconstruct the calculator from behavior only, without reading its source.",
+        "Clean-room reverse engineer the device protocol and verify it on held-out traces.",
+        "Reconstruct a Python script from these observed inputs and outputs.",
+        "Use Program DNA to rebuild 2048 from observed behavior.",
+    ],
+)
+async def test_program_dna_accepts_method_bound_or_software_targets(monkeypatch, user_text):
+    """The route remains general across named software and clean-room evidence."""
+    calls = []
+
+    async def _fake_governed_skill(skill_name, params, *, objective, extra_context=None):
+        calls.append((skill_name, params, objective, extra_context))
+        return {
+            "ok": True,
+            "summary": "verified",
+            "result": {"ok": True, "target_name": params["target"]},
+        }
+
+    monkeypatch.setattr(_chat_capability_inventory, "_execute_governed_live_skill", _fake_governed_skill)
+
+    result = await _chat_capability_inventory._execute_program_dna_request_from_chat(user_text)
+
+    assert result is not None
+    assert result["status"] == "program_dna_reconstruct_completed"
+    assert calls and calls[0][0] == "program_dna_reconstruct"
 
 
 @pytest.mark.asyncio
@@ -443,10 +499,7 @@ def test_live_chat_governed_capabilities_precede_generic_desktop_objectives():
     # The call is module-qualified now that the capability lane is its own
     # module; the ordering guarantee is the same one either way.
     governed_call = "governed_capability_response = await "
-    desktop_call = (
-        "desktop_objective_response = await "
-        "_execute_narrow_desktop_objective_before_cognition()"
-    )
+    desktop_call = "desktop_objective_response = ("
     candidates = [
         inspect.getsource(candidate)
         for candidate in (
@@ -461,6 +514,7 @@ def test_live_chat_governed_capabilities_precede_generic_desktop_objectives():
         if governed_call in text
         and "_execute_governed_capability_request_from_chat" in text
         and desktop_call in text
+        and "_execute_narrow_desktop_objective_before_cognition()" in text
     ]
     assert holders, (
         "neither api_chat nor _api_chat_turn contains both the governed-capability "
