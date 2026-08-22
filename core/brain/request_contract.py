@@ -165,6 +165,11 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "allow_tools": Field_(Kind.BOOL, policy=True),
     "is_background": Field_(Kind.BOOL, policy=True),
     "foreground_request": Field_(Kind.BOOL, policy=True),
+    # A planner that runs as part of the turn in progress. Unlike
+    # foreground_request this is a request rather than an assertion: the gate
+    # grants it only while the orchestrator reports a live foreground turn,
+    # so outside a turn it buys nothing.
+    "serves_current_turn": Field_(Kind.BOOL, policy=True),
     "protected_foreground_lane": Field_(Kind.BOOL, policy=True),
     "benchmark_request": Field_(Kind.BOOL, policy=True),
     "health_probe": Field_(Kind.BOOL, policy=True),
