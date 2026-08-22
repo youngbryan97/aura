@@ -233,5 +233,19 @@ def describe_solution(spec: GameSpec, solution: Solution | None) -> str:
     elif solution.first_player_wins:
         lines.append("No opening move wins outright.")
     if solution.invariant:
-        lines.append(f"The rule: {solution.invariant} — leave your opponent there every turn.")
+        # Name the positions as well as the pattern. The pattern is stated in
+        # whatever the spec called the quantity, and "leaves 1 on division by
+        # 4" is unreadable without knowing what the quantity counts; the
+        # positions themselves are checkable against the rules as written.
+        losing = [
+            state[0] for state in solution.losing_positions[:6] if len(state) == 1
+        ]
+        where = (
+            f" — that is {', '.join(str(value) for value in sorted(losing))}"
+            if losing
+            else ""
+        )
+        lines.append(
+            f"The rule: {solution.invariant}{where}. Leave your opponent there every turn."
+        )
     return "\n".join(lines)

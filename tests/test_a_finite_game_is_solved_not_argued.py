@@ -122,3 +122,23 @@ def test_the_description_states_the_move_and_the_rule():
     assert "moves first wins" in described
     assert "by 3" in described
     assert "multiple of 4" in described
+
+
+def test_the_rule_names_the_positions_it_means():
+    """The pattern is stated in whatever the spec called the quantity, and
+    "leaves 1 on division by 4" is unreadable without knowing what the
+    quantity counts. The positions are checkable against the rules as
+    written."""
+    spec = row_game(9, 3)
+    described = describe_solution(spec, solve_game(spec))
+    assert "that is 0, 4" in described
+
+    # The same game counted from one instead of zero: a different residue,
+    # the same positions to hand over.
+    shifted = GameSpec(
+        title="counted from one",
+        variables=(Variable("gap", 8, 1, 8),),
+        moves=(Move("move", {"gap": -1}, steps=(1, 3)),),
+    )
+    other = describe_solution(shifted, solve_game(shifted))
+    assert "that is 1, 5" in other

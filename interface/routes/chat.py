@@ -14972,6 +14972,10 @@ async def _serve_solved_game(user_message: object, reply: object) -> object:
         )
         if not solved:
             return reply
+        # The preflight answer is already the reply on a solved turn, and
+        # composing it with itself printed the whole thing twice.
+        if solved.strip() and solved.strip() in str(reply or ""):
+            return reply
         from core.conversation.composed_answer import compose_measured
         from core.reasoning.game_planner import describes_a_game
 
