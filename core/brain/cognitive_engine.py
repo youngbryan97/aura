@@ -1403,6 +1403,73 @@ async def _commit_the_thought_with_retries(
     return commit_outcome, state
 
 
+def _note_the_quick_reply_contract(
+    *,
+    ambient_grounding_blocks: Any,
+    capability_inventory_contract: Any,
+    live_mind_context: Any,
+    memory_state_contract: Any,
+    mind_context_contract: Any,
+    mind_context_lesioned: Any,
+    self_condition_contract: Any,
+) -> None:
+    """Record what the quick-reply contract required of this turn.
+
+    Moved out of ``CognitiveEngine._direct_desktop_quick_reply`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 7 name(s) from the turn and hands back
+    0.
+    """
+    if isinstance(live_mind_context, dict) and live_mind_context and not mind_context_lesioned:
+        mind_context_limit = (
+            900
+            if memory_state_contract
+            else 360
+            if capability_inventory_contract
+            else 700
+            if self_condition_contract
+            else 2600
+        )
+        if capability_inventory_contract or self_condition_contract:
+            compact_mind_context = {
+                "required_for_live_desktop": live_mind_context.get("required_for_live_desktop"),
+                "must_answer_from_full_mind_path": live_mind_context.get(
+                    "must_answer_from_full_mind_path"
+                ),
+                "required_subsystems_ok": live_mind_context.get("required_subsystems_ok"),
+                "lane": live_mind_context.get("lane"),
+                "governance": live_mind_context.get("governance"),
+            }
+        else:
+            compact_mind_context = {
+                "required_for_live_desktop": live_mind_context.get("required_for_live_desktop"),
+                "must_answer_from_full_mind_path": live_mind_context.get(
+                    "must_answer_from_full_mind_path"
+                ),
+                "required_subsystems_ok": live_mind_context.get("required_subsystems_ok"),
+                "required_subsystems": live_mind_context.get("required_subsystems"),
+                "lane": live_mind_context.get("lane"),
+                "voice": live_mind_context.get("voice"),
+                "substrate": live_mind_context.get("substrate"),
+                "mind_snapshot": live_mind_context.get("mind_snapshot"),
+                "mind_snapshot_quality": live_mind_context.get("mind_snapshot_quality"),
+                "governance": live_mind_context.get("governance"),
+            }
+        live_mind_grounding = (
+            "[LIVE MIND CONTEXT]\n"
+            f"{_compact_json(compact_mind_context, limit=mind_context_limit)}\n"
+            "This is causal grounding for the reply, not text to recite. "
+            "If required_for_live_desktop is true, do not answer from a generic assistant persona. "
+            "Use the current user turn, the recent role history, memory, substrate, governance, and "
+            "inference lane as one live context."
+        )
+        if mind_context_contract:
+            live_mind_grounding = f"{live_mind_grounding}\n{mind_context_contract}"
+        ambient_grounding_blocks.append(
+            f"{live_mind_grounding}\n[END LIVE MIND CONTEXT]"
+        )
+
+
 class CognitiveEngine:
     """
     Cognitive Engine facade.
@@ -4671,54 +4738,15 @@ class CognitiveEngine:
         mind_context_lesioned = get_lesion_registry().is_lesioned(
             influence_channels.LIVE_MIND_CONTEXT_BLOCK
         )
-        if isinstance(live_mind_context, dict) and live_mind_context and not mind_context_lesioned:
-            mind_context_limit = (
-                900
-                if memory_state_contract
-                else 360
-                if capability_inventory_contract
-                else 700
-                if self_condition_contract
-                else 2600
-            )
-            if capability_inventory_contract or self_condition_contract:
-                compact_mind_context = {
-                    "required_for_live_desktop": live_mind_context.get("required_for_live_desktop"),
-                    "must_answer_from_full_mind_path": live_mind_context.get(
-                        "must_answer_from_full_mind_path"
-                    ),
-                    "required_subsystems_ok": live_mind_context.get("required_subsystems_ok"),
-                    "lane": live_mind_context.get("lane"),
-                    "governance": live_mind_context.get("governance"),
-                }
-            else:
-                compact_mind_context = {
-                    "required_for_live_desktop": live_mind_context.get("required_for_live_desktop"),
-                    "must_answer_from_full_mind_path": live_mind_context.get(
-                        "must_answer_from_full_mind_path"
-                    ),
-                    "required_subsystems_ok": live_mind_context.get("required_subsystems_ok"),
-                    "required_subsystems": live_mind_context.get("required_subsystems"),
-                    "lane": live_mind_context.get("lane"),
-                    "voice": live_mind_context.get("voice"),
-                    "substrate": live_mind_context.get("substrate"),
-                    "mind_snapshot": live_mind_context.get("mind_snapshot"),
-                    "mind_snapshot_quality": live_mind_context.get("mind_snapshot_quality"),
-                    "governance": live_mind_context.get("governance"),
-                }
-            live_mind_grounding = (
-                "[LIVE MIND CONTEXT]\n"
-                f"{_compact_json(compact_mind_context, limit=mind_context_limit)}\n"
-                "This is causal grounding for the reply, not text to recite. "
-                "If required_for_live_desktop is true, do not answer from a generic assistant persona. "
-                "Use the current user turn, the recent role history, memory, substrate, governance, and "
-                "inference lane as one live context."
-            )
-            if mind_context_contract:
-                live_mind_grounding = f"{live_mind_grounding}\n{mind_context_contract}"
-            ambient_grounding_blocks.append(
-                f"{live_mind_grounding}\n[END LIVE MIND CONTEXT]"
-            )
+        _note_the_quick_reply_contract(
+            ambient_grounding_blocks=ambient_grounding_blocks,
+            capability_inventory_contract=capability_inventory_contract,
+            live_mind_context=live_mind_context,
+            memory_state_contract=memory_state_contract,
+            mind_context_contract=mind_context_contract,
+            mind_context_lesioned=mind_context_lesioned,
+            self_condition_contract=self_condition_contract,
+        )
         if isinstance(live_speech_frame, dict) and live_speech_frame and not capability_inventory_contract:
             compact_frame = {
                 key: live_speech_frame.get(key)

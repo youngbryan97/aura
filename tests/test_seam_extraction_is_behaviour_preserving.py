@@ -399,3 +399,38 @@ def test_the_finder_marks_a_nested_block_as_unsafe(tmp_path):
     nested = [s for s in seams if s.nested_scope]
     assert nested, "the finder saw no nested block at all"
     assert all(not s.safe for s in nested)
+
+
+LOCAL_CLASS_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag, text):
+    class _Helper:
+        @staticmethod
+        def shout(value: str) -> str:
+            return value.upper()
+
+    if flag:
+        text = _Helper.shout(text)
+        text = text + "!"
+    return text
+'''
+
+
+def test_a_locally_defined_class_is_not_passed_as_an_argument(tmp_path):
+    """`_TextExtractor` became a parameter named after a class.
+
+    A class defined inside the function is part of the function, not a value
+    the caller holds. Passing it in produced a signature ruff rejects on sight
+    and a helper nobody would write by hand.
+    """
+    module = tmp_path / "sample_local_class.py"
+    module.write_text(LOCAL_CLASS_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 12, 14, "_shout", is_async=False, apply=False
+    )
+    assert code == 1

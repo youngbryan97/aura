@@ -1849,6 +1849,91 @@ def _refresh_volatile_grounding(
     return messages, system_prompt
 
 
+def _settle_the_token_ceilings(
+    *,
+    context: Any,
+    deep_handoff: Any,
+    desktop_cognitive_engine_contract: Any,
+    max_tokens: Any,
+    prompt: Any,
+    protected_compact_capability_contract: Any,
+    requested_tier: Any,
+    self: Any,
+    stakes: Any,
+    stakes_token_ceiling: Any,
+    surface_completion_floor: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Settle the token ceilings this request runs under.
+
+    Moved out of ``InferenceGate.generate`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 9 name(s) from the turn and hands back
+    4.
+    """
+    if stakes is not None and hasattr(stakes, "action_envelope"):
+        envelope = stakes.action_envelope("high" if deep_handoff else "normal")
+        protected_surface_completion = bool(
+            protected_compact_capability_contract
+            or (
+                desktop_cognitive_engine_contract
+                and surface_completion_floor > 0
+            )
+        )
+        # CP126 (critical): "A resource-stakes block can be undone by
+        # later token modifiers. A denied envelope caps max_tokens at
+        # 128, but later homeostatic modifiers impose a 384 minimum,
+        # temporal continuity can grow the budget to 4096, and runtime
+        # sampling biases still run. resource_stakes_blocked
+        # suppresses only selected foreground floors, not these."
+        #
+        # A cap applied here is a suggestion — a dozen later
+        # transformations each raise or scale the budget, and asking
+        # every one of them to remember a flag is how the flag ends up
+        # checked in four places and missed in six. The envelope's
+        # limit is recorded as a CEILING and re-applied as the last
+        # token transformation before generation, next to the existing
+        # caller-cap clamp that already works this way.
+        #
+        # The protected capability lane used to skip the cap
+        # ENTIRELY, on both branches. That is an exemption from
+        # viability control, and the denied branch is exactly where an
+        # exemption is worst: the ledger has said the runtime is out
+        # of resources and this lane ignored it with no ceiling at all.
+        # It is a bounded override now — the lane gets enough tokens to
+        # answer the question it was protected for, and not one more,
+        # with the raise recorded.
+        if not envelope.allowed:
+            requested_tier = "primary"
+            deep_handoff = False
+            max_tokens, stakes_token_ceiling = self._stakes_capped_tokens(
+                max_tokens,
+                envelope_cap=_STAKES_DENIED_TOKEN_CAP,
+                protected=protected_surface_completion,
+                completion_floor=surface_completion_floor,
+                prompt=prompt,
+                context=context,
+                reason="envelope_denied",
+            )
+            context["resource_stakes_blocked"] = True
+        else:
+            max_tokens, stakes_token_ceiling = self._stakes_capped_tokens(
+                max_tokens,
+                envelope_cap=max(1, int(envelope.max_tokens)),
+                protected=protected_surface_completion,
+                completion_floor=surface_completion_floor,
+                prompt=prompt,
+                context=context,
+                reason="envelope_allowed",
+            )
+            if "large_model_cortex" in set(envelope.disabled_capabilities):
+                requested_tier = "primary"
+                deep_handoff = False
+        context["resource_stakes_envelope"] = envelope.as_dict()
+        if stakes_token_ceiling is not None:
+            context["resource_stakes_token_ceiling"] = stakes_token_ceiling
+    return deep_handoff, max_tokens, requested_tier, stakes_token_ceiling
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -11144,67 +11229,19 @@ class InferenceGate:
             from core.container import ServiceContainer
 
             stakes = ServiceContainer.get("resource_stakes", default=None)
-            if stakes is not None and hasattr(stakes, "action_envelope"):
-                envelope = stakes.action_envelope("high" if deep_handoff else "normal")
-                protected_surface_completion = bool(
-                    protected_compact_capability_contract
-                    or (
-                        desktop_cognitive_engine_contract
-                        and surface_completion_floor > 0
-                    )
-                )
-                # CP126 (critical): "A resource-stakes block can be undone by
-                # later token modifiers. A denied envelope caps max_tokens at
-                # 128, but later homeostatic modifiers impose a 384 minimum,
-                # temporal continuity can grow the budget to 4096, and runtime
-                # sampling biases still run. resource_stakes_blocked
-                # suppresses only selected foreground floors, not these."
-                #
-                # A cap applied here is a suggestion — a dozen later
-                # transformations each raise or scale the budget, and asking
-                # every one of them to remember a flag is how the flag ends up
-                # checked in four places and missed in six. The envelope's
-                # limit is recorded as a CEILING and re-applied as the last
-                # token transformation before generation, next to the existing
-                # caller-cap clamp that already works this way.
-                #
-                # The protected capability lane used to skip the cap
-                # ENTIRELY, on both branches. That is an exemption from
-                # viability control, and the denied branch is exactly where an
-                # exemption is worst: the ledger has said the runtime is out
-                # of resources and this lane ignored it with no ceiling at all.
-                # It is a bounded override now — the lane gets enough tokens to
-                # answer the question it was protected for, and not one more,
-                # with the raise recorded.
-                if not envelope.allowed:
-                    requested_tier = "primary"
-                    deep_handoff = False
-                    max_tokens, stakes_token_ceiling = self._stakes_capped_tokens(
-                        max_tokens,
-                        envelope_cap=_STAKES_DENIED_TOKEN_CAP,
-                        protected=protected_surface_completion,
-                        completion_floor=surface_completion_floor,
-                        prompt=prompt,
-                        context=context,
-                        reason="envelope_denied",
-                    )
-                    context["resource_stakes_blocked"] = True
-                else:
-                    max_tokens, stakes_token_ceiling = self._stakes_capped_tokens(
-                        max_tokens,
-                        envelope_cap=max(1, int(envelope.max_tokens)),
-                        protected=protected_surface_completion,
-                        completion_floor=surface_completion_floor,
-                        prompt=prompt,
-                        context=context,
-                        reason="envelope_allowed",
-                    )
-                    if "large_model_cortex" in set(envelope.disabled_capabilities):
-                        requested_tier = "primary"
-                        deep_handoff = False
-                context["resource_stakes_envelope"] = envelope.as_dict()
-                if stakes_token_ceiling is not None:
-                    context["resource_stakes_token_ceiling"] = stakes_token_ceiling
+            deep_handoff, max_tokens, requested_tier, stakes_token_ceiling = _settle_the_token_ceilings(
+                context=context,
+                deep_handoff=deep_handoff,
+                desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
+                max_tokens=max_tokens,
+                prompt=prompt,
+                protected_compact_capability_contract=protected_compact_capability_contract,
+                requested_tier=requested_tier,
+                self=self,
+                stakes=stakes,
+                stakes_token_ceiling=stakes_token_ceiling,
+                surface_completion_floor=surface_completion_floor,
+            )
         except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
             record_degradation(
                 "inference_gate",

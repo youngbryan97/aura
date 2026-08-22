@@ -10,11 +10,17 @@ is where a behaviour-preserving move stops being one.
 
 So this does the edit. Given a function and a line range it:
 
-* refuses the cut unless the block is separable — no ``return`` out of the
-  middle, no ``yield``, no ``break``/``continue`` targeting a loop outside it,
-  and no name that escapes while being bound only on some paths, because
-  giving such a name a default turns a possible ``UnboundLocalError`` into a
-  value and that is a behaviour CHANGE, not a move;
+* refuses the cut unless the block is separable. Each refusal is a defect it
+  shipped once and now cannot ship again: a name that escapes while bound only
+  on some paths (UnboundLocalError on the chat route's first degraded turn);
+  a name read only down one branch, which as an argument is read on every call
+  (UnboundLocalError before the helper body ran); a block inside a nested
+  function, judged against the outer scope's bindings for a name that is a
+  different variable (eleven orchestrator tests); a helper name already bound
+  in the module, which shadows the first definition and rebinds its callers;
+  a class or function defined inside the enclosing function, which is part of
+  it rather than a value to pass; ``yield``; and ``break``/``continue``
+  targeting a loop outside the block;
 * computes the block's free variables in EVALUATION order, so a multi-line
   tuple assignment whose targets sit above the call that reads them is
   correctly seen as reading them;
@@ -68,7 +74,7 @@ def _render_nested_helper(
     summary: str,
     function: str,
     reads: list[str],
-    replayed: "dict[str, str] | None" = None,
+    replayed: dict[str, str] | None = None,
 ) -> str:
     """A helper whose body is the block, inside a function that can return.
 
@@ -343,7 +349,6 @@ def extract(
     reads = sorted(free - module_scope - tools._BUILTINS)
 
     after: set[str] = set()
-    seen_end = False
     for statement in ast.walk(fn):
         if not isinstance(statement, ast.stmt):
             continue
@@ -353,7 +358,6 @@ def extract(
                 for n in ast.walk(statement)
                 if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
             }
-            seen_end = True
     escapes = sorted(bound & after)
 
     # An escape is safe under exactly one of two conditions: the block binds it
@@ -380,6 +384,24 @@ def extract(
     # further down. Moving the guarded part into a helper hoisted the read into
     # the call, and the turn that took the other branch raised
     # UnboundLocalError before the helper ran at all.
+    # A class or function DEFINED inside the enclosing function is not a value
+    # to pass around: `_TextExtractor` became a parameter named after a class,
+    # which is a lint error on sight and a signature nobody can read.
+    locally_defined = {
+        node.name
+        for node in ast.walk(fn)
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        and node is not fn
+        and node.lineno < start
+    }
+    defined_here = sorted(n for n in reads if n in locally_defined)
+    if defined_here:
+        refusals.append(
+            f"{defined_here} are defined inside {getattr(fn, 'name', 'the function')} "
+            "itself; passing a locally defined class or function as an argument "
+            "is a rewrite, not a move"
+        )
+
     unsafe_reads = sorted(n for n in reads if n not in held_by_caller)
     if unsafe_reads:
         refusals.append(
@@ -655,7 +677,7 @@ def _finish(
     escapes: list[str],
     apply: bool,
     nested: bool,
-    replayed: "dict[str, str] | None" = None,
+    replayed: dict[str, str] | None = None,
 ) -> int:
     """Prove the move, then write it.
 

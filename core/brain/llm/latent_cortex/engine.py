@@ -924,6 +924,70 @@ def _apply_the_verified_teaching_event(
             receipt.flag("fast_weight_answer_decode_keys_compiled")
 
 
+def _prepare_the_sham_seed_vectors(
+    *,
+    fast_weight_learning_state: Any,
+    fast_weights: Any,
+    fw_incumbent_input_features: Any,
+    fw_sham_trajectory_directions: Any,
+    incumbent_context_tokens: Any,
+    layers: Any,
+    self: Any,
+    sham_context_tokens: Any,
+    target_context_tokens: Any,
+    treatment_directions: Any,
+) -> None:
+    """Prepare the sham seed vectors before the control is seeded.
+
+    Moved out of ``LatentCortexEngine._latent_episode`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    0.
+    """
+    fast_weight_learning_state["controls"][
+        "trajectory_transplant"
+    ] = {
+        "schema": "aura.fast_weight_trajectory_transplant.v1",
+        "site_id": self.plasticity_site.site_id,
+        "layers": layers,
+        "rank": self.config.fast_weights.rank,
+        "supervised_key_source": (
+            self.config.fast_weights.supervised_trajectory_key_source
+        ),
+        "target_context_sha256": token_sequence_sha256(
+            target_context_tokens
+        ),
+        "incumbent_context_sha256": token_sequence_sha256(
+            incumbent_context_tokens
+        ),
+        "sham_context_sha256": token_sequence_sha256(
+            sham_context_tokens
+        ),
+        "query_activation_sha256s": {
+            str(layer): digest
+            for layer, digest in (
+                fast_weights.input_feature_commitments().items()
+            )
+        },
+        "incumbent_input_sha256s": {
+            str(layer): tensor_sha256(
+                fw_incumbent_input_features[layer]
+            )
+            for layer in layers
+        },
+        "target_direction_sha256s": {
+            str(layer): tensor_sha256(treatment_directions[layer])
+            for layer in layers
+        },
+        "sham_direction_sha256s": {
+            str(layer): tensor_sha256(
+                fw_sham_trajectory_directions[layer]
+            )
+            for layer in layers
+        },
+    }
+
+
 class LatentCortexEngine:
     """Runs complete latent-reasoning episodes on one frozen model."""
 
@@ -7781,48 +7845,18 @@ class LatentCortexEngine:
                             fast_weights.captured_input_features()
                         )
                         layers = sorted(treatment_directions)
-                        fast_weight_learning_state["controls"][
-                            "trajectory_transplant"
-                        ] = {
-                            "schema": "aura.fast_weight_trajectory_transplant.v1",
-                            "site_id": self.plasticity_site.site_id,
-                            "layers": layers,
-                            "rank": self.config.fast_weights.rank,
-                            "supervised_key_source": (
-                                self.config.fast_weights.supervised_trajectory_key_source
-                            ),
-                            "target_context_sha256": token_sequence_sha256(
-                                target_context_tokens
-                            ),
-                            "incumbent_context_sha256": token_sequence_sha256(
-                                incumbent_context_tokens
-                            ),
-                            "sham_context_sha256": token_sequence_sha256(
-                                sham_context_tokens
-                            ),
-                            "query_activation_sha256s": {
-                                str(layer): digest
-                                for layer, digest in (
-                                    fast_weights.input_feature_commitments().items()
-                                )
-                            },
-                            "incumbent_input_sha256s": {
-                                str(layer): tensor_sha256(
-                                    fw_incumbent_input_features[layer]
-                                )
-                                for layer in layers
-                            },
-                            "target_direction_sha256s": {
-                                str(layer): tensor_sha256(treatment_directions[layer])
-                                for layer in layers
-                            },
-                            "sham_direction_sha256s": {
-                                str(layer): tensor_sha256(
-                                    fw_sham_trajectory_directions[layer]
-                                )
-                                for layer in layers
-                            },
-                        }
+                        _prepare_the_sham_seed_vectors(
+                            fast_weight_learning_state=fast_weight_learning_state,
+                            fast_weights=fast_weights,
+                            fw_incumbent_input_features=fw_incumbent_input_features,
+                            fw_sham_trajectory_directions=fw_sham_trajectory_directions,
+                            incumbent_context_tokens=incumbent_context_tokens,
+                            layers=layers,
+                            self=self,
+                            sham_context_tokens=sham_context_tokens,
+                            target_context_tokens=target_context_tokens,
+                            treatment_directions=treatment_directions,
+                        )
                         receipt.flag(
                             f"fast_weight_teacher_trajectory_transplant:{len(layers)}"
                         )
