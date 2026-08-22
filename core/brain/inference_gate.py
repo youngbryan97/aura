@@ -10746,6 +10746,20 @@ class InferenceGate:
         requested_tier = self._normalize_tier(context.get("prefer_tier"))
         explicit_background = "is_background" in context
         explicit_foreground = bool(context.get("foreground_request", False))
+        # A planner that runs AS PART OF the turn in progress.
+        #
+        # LIVE, 2026-08-22: the finite-game solver asks the model to translate
+        # the rules into a spec, and that call was refused —
+        # "all_background_endpoints_deferred" — because the foreground turn it
+        # was serving had reserved the lane. The turn then answered from the
+        # model's own guess and got the strategy wrong.
+        #
+        # The flag alone would be an unauthenticated claim on the protected
+        # lane, so it is honoured only when the orchestrator agrees a
+        # foreground turn is actually running. Outside a turn it means
+        # nothing and the request stays background.
+        if not explicit_foreground and context.get("serves_current_turn"):
+            explicit_foreground = self._foreground_user_turn_active()
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         deep_probe_request = False
         try:

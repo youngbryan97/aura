@@ -37,6 +37,7 @@ async def _ask_the_model(text: str) -> str:
             max_tokens=_PLAN_TOKENS,
             temperature=0.0,
             origin="reasoning.game_solver",
+            serves_current_turn=True,
         )
         or ""
     )
