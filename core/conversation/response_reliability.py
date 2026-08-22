@@ -70,12 +70,11 @@ from core.runtime.turn_outcome import note_candidate, note_suppression
 logger = logging.getLogger("Aura.Conversation.ResponseReliability")
 
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
-_ROLE_OR_PROMPT_ARTIFACT_RE = re.compile(
+_TURN_OR_CONTROL_ARTIFACT_RE = re.compile(
     r"(?im)"
     r"(?:<\|im_(?:start|end)\|>)"
-    r"|(?:^\s*(?:assistant|system|human|user|aura)\s*[:：])"
+    r"|(?:^\s*(?:>[ \t]*)?(?:assistant|system|human|user|aura)\s*[:：])"
     r"|(?:(?<=[.!?])\s*(?:assistant|system|human|user|aura)\s*[:：])"
-    r"|(?:^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice)\s*:)"
     r"|(?:\[ACTIVE GROUNDING EVIDENCE\])"
     r"|(?:\[FETCHED PAGE CONTENT\])"
     r"|(?:\[INTERNAL MEMORY RECALL\])"
@@ -97,6 +96,141 @@ _ROLE_OR_PROMPT_ARTIFACT_RE = re.compile(
     r"|(?:<\|(?:start|end)_of_turn\|>)"
     r"|(?:^\s*###\s*(?:Human|Assistant|User)\b)"
 )
+_SCAFFOLD_ONLY_LINE_RE = re.compile(
+    r"(?im)^[ \t]*(?:obj|prev_obj|phenom|narr|pers|usr|ctx|cont)[ \t]*:"
+)
+_AMBIGUOUS_SCAFFOLD_LINE_RE = re.compile(
+    r"(?im)^[ \t]*(?:state|mood|goals|history|voice|recalled)[ \t]*:"
+    r"[ \t]*(?P<value>[^\n]*)$"
+)
+_SCAFFOLD_RUN_MIN = 3
+_SCAFFOLD_VALUE_MIN_WORDS = 4
+_INLINE_CODE_RE = re.compile(r"(`+)(?!`)([^\n]*?)(?<!`)\1")
+
+
+@dataclass(frozen=True)
+class PromptArtifact:
+    """One executable prompt/transcript leak outside quoted code."""
+
+    start: int
+    end: int
+    kind: str
+
+
+def _authored_prose_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Return markdown spans that Aura is asserting as prose.
+
+    Prompt-control words inside fenced code are data, not executable dialogue.
+    The former detector ignored that distinction, so valid pseudocode
+    containing ``state:`` was discarded as a prompt leak. Offsets are retained
+    because transcript continuation must still be cut at the exact authored
+    boundary.
+    """
+
+    spans: list[tuple[int, int]] = []
+    offset = 0
+    prose_start = 0
+    fence_char = ""
+    fence_width = 0
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip(" \t")
+        marker = ""
+        if stripped.startswith("```"):
+            marker = "`"
+        elif stripped.startswith("~~~"):
+            marker = "~"
+        marker_width = len(stripped) - len(stripped.lstrip(marker)) if marker else 0
+        is_fence = marker_width >= 3
+        if fence_char:
+            if is_fence and marker == fence_char and marker_width >= fence_width:
+                fence_char = ""
+                fence_width = 0
+                prose_start = offset + len(line)
+            offset += len(line)
+            continue
+        if is_fence:
+            if prose_start < offset:
+                spans.append((prose_start, offset))
+            fence_char = marker
+            fence_width = marker_width
+            offset += len(line)
+            continue
+        offset += len(line)
+    if not fence_char and prose_start < len(text):
+        spans.append((prose_start, len(text)))
+    return tuple(spans)
+
+
+def _mask_inline_code(text: str) -> str:
+    """Mask inline-code bytes without changing offsets."""
+
+    return _INLINE_CODE_RE.sub(lambda match: " " * len(match.group(0)), text)
+
+
+def _first_terse_scaffold_run(prose: str, *, span_start: int) -> PromptArtifact | None:
+    """Find three adjacent terse state fields, allowing only blank separators."""
+
+    run: list[PromptArtifact] = []
+    offset = 0
+    for line in prose.splitlines(keepends=True):
+        body = line.rstrip("\r\n")
+        match = _AMBIGUOUS_SCAFFOLD_LINE_RE.match(body)
+        if match and len(match.group("value").split()) < _SCAFFOLD_VALUE_MIN_WORDS:
+            run.append(
+                PromptArtifact(
+                    span_start + offset + match.start(),
+                    span_start + offset + match.end(),
+                    "terse_scaffold_run",
+                )
+            )
+            if len(run) >= _SCAFFOLD_RUN_MIN:
+                return run[0]
+        elif body.strip():
+            run.clear()
+        offset += len(line)
+    return None
+
+
+def first_prompt_artifact(reply_text: Any) -> PromptArtifact | None:
+    """Locate a real prompt/transcript artifact in authored prose.
+
+    The distinction is structural rather than lexical: hard turn/control
+    markers are always artifacts in authored prose; compact internal-state
+    keys are artifacts on one line; ordinary headings such as ``State:`` only
+    become an internal scaffold when at least three carry terse machine
+    values. Fenced and inline code are evidence the answer is discussing, not
+    instructions the runtime should execute.
+    """
+
+    text = str(reply_text or "")
+    candidates: list[PromptArtifact] = []
+    for span_start, span_end in _authored_prose_spans(text):
+        prose = _mask_inline_code(text[span_start:span_end])
+        if match := _TURN_OR_CONTROL_ARTIFACT_RE.search(prose):
+            candidates.append(
+                PromptArtifact(
+                    span_start + match.start(),
+                    span_start + match.end(),
+                    "turn_or_control",
+                )
+            )
+        if match := _SCAFFOLD_ONLY_LINE_RE.search(prose):
+            candidates.append(
+                PromptArtifact(
+                    span_start + match.start(),
+                    span_start + match.end(),
+                    "scaffold_key",
+                )
+            )
+        if terse_run := _first_terse_scaffold_run(prose, span_start=span_start):
+            candidates.append(terse_run)
+    return min(candidates, key=lambda item: item.start) if candidates else None
+
+
+def contains_prompt_artifact(reply_text: Any) -> bool:
+    """Whether authored prose contains executable prompt/transcript residue."""
+
+    return first_prompt_artifact(reply_text) is not None
 _BROKEN_LANE_BOILERPLATE_RE = re.compile(
     r"(dropped the heavy reasoning lane|deeper lane recovers|lighter mode|"
     r"cortex (?:is catching up|hit turbulence)|reasoning engine hit|thinking engine hit|"
@@ -142,10 +276,10 @@ def strip_prompt_artifacts(reply_text: Any) -> str:
     text = str(reply_text or "")
     if not text.strip():
         return ""
-    match = _ROLE_OR_PROMPT_ARTIFACT_RE.search(text)
-    if match is None:
+    artifact = first_prompt_artifact(text)
+    if artifact is None:
         return text
-    return text[: match.start()].rstrip()
+    return text[: artifact.start].rstrip()
 
 
 def repair_runtime_boilerplate(reply_text: Any) -> str:
@@ -7744,7 +7878,7 @@ def _model_text_integrity_reasons(
     if _is_code_response(raw):
         if _TRAILING_ESCAPE_RE.search(raw):
             reasons.append("escaped_control_artifact")
-        if _ROLE_OR_PROMPT_ARTIFACT_RE.search(raw) and not _matches_exact_reply_request(prompt, raw):
+        if contains_prompt_artifact(raw) and not _matches_exact_reply_request(prompt, raw):
             reasons.append("prompt_artifact")
         if _BROKEN_LANE_BOILERPLATE_RE.search(raw) or _MODEL_RUNTIME_ARTIFACT_RE.search(raw):
             reasons.append("runtime_boilerplate")
@@ -7760,7 +7894,7 @@ def _model_text_integrity_reasons(
 
     if _TRAILING_ESCAPE_RE.search(raw):
         reasons.append("escaped_control_artifact")
-    if _ROLE_OR_PROMPT_ARTIFACT_RE.search(raw) and not _matches_exact_reply_request(prompt, raw):
+    if contains_prompt_artifact(raw) and not _matches_exact_reply_request(prompt, raw):
         reasons.append("prompt_artifact")
     if _BROKEN_LANE_BOILERPLATE_RE.search(raw) or _MODEL_RUNTIME_ARTIFACT_RE.search(raw):
         reasons.append("runtime_boilerplate")
@@ -9154,4 +9288,3 @@ def disclaims_delivered_evidence(reply_text: Any, delivered: Any = None) -> bool
     if not delivered:
         return False
     return bool(_DISCLAIMS_EVIDENCE_RE.search(body))
-

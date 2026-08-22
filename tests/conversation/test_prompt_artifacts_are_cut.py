@@ -17,7 +17,11 @@ from __future__ import annotations
 
 import pytest
 
-from core.conversation.response_reliability import strip_prompt_artifacts
+from core.conversation.response_reliability import (
+    assess_user_facing_reply,
+    contains_prompt_artifact,
+    strip_prompt_artifacts,
+)
 
 
 def test_the_live_leak_is_cut_at_the_marker() -> None:
@@ -56,6 +60,57 @@ def test_a_clean_reply_is_untouched() -> None:
     original = "A normal answer with no leaks."
 
     assert strip_prompt_artifacts(original) == original
+
+
+def test_structured_pseudocode_state_is_not_executable_prompt_scaffold() -> None:
+    prompt = (
+        "Explain Dijkstra with its invariant, numbered pseudocode, a worked "
+        "example, both complexities, and the negative-weight alternative."
+    )
+    answer = """(1) Once the minimum-distance vertex is extracted, its distance is final.
+
+(2) Pseudocode:
+```text
+state: distance and predecessor maps
+1: initialize the source distance to zero
+2: extract the minimum and relax each outgoing edge
+```
+
+(3) For A-B=1, A-C=4, B-C=2, B-D=5, and C-D=1, the final distances are A=0, B=1, C=3, D=4.
+
+(4) A binary heap costs O((V+E) log V); an array costs O(V^2+E).
+
+(5) Negative weights break the settled-distance invariant; use Bellman-Ford instead."""
+
+    assessment = assess_user_facing_reply(prompt, answer)
+
+    assert assessment.ok
+    assert not contains_prompt_artifact(answer)
+    assert "prompt_artifact" not in assessment.reasons
+    assert strip_prompt_artifacts(answer) == answer
+
+
+def test_inline_prompt_vocabulary_is_quoted_data() -> None:
+    answer = "The label `state:` is part of the schema, not a new instruction."
+
+    assert not contains_prompt_artifact(answer)
+    assert strip_prompt_artifacts(answer) == answer
+
+
+def test_quoted_next_user_turn_remains_a_transcript_continuation() -> None:
+    leaked = "The answer is complete.\n\n> User: now invent my next request"
+
+    assert contains_prompt_artifact(leaked)
+
+
+def test_unrelated_terse_headings_do_not_become_a_scaffold_run() -> None:
+    answer = (
+        "State: healthy\nThe runtime checks have all passed.\n\n"
+        "Mood: steady\nThat reading comes from the current affect state.\n\n"
+        "Goals: ship\nThe next step is live verification."
+    )
+
+    assert not contains_prompt_artifact(answer)
 
 
 def test_a_reply_that_is_only_continuation_yields_nothing() -> None:

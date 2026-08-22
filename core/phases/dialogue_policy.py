@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field, replace
 
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import unanswered_question_parts
+from core.conversation.response_reliability import contains_prompt_artifact
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 logger = logging.getLogger(__name__)
@@ -66,45 +67,6 @@ _GENERIC_ASSISTANT_LANGUAGE = (
         re.IGNORECASE,
     ),
     re.compile(r"\bthe aim of being (?:as )?helpful and engaging as possible\b", re.IGNORECASE),
-)
-#: Keys that only ever appear in the compact internal state block. Nobody
-#: writes "narr:" or "prev_obj:" in a reply, so one is enough to condemn a
-#: draft.
-_SCAFFOLD_ONLY_LINE_RE = re.compile(
-    r"(?im)^\s*(?:obj|prev_obj|phenom|narr|pers|usr|ctx|cont)\s*:"
-)
-
-#: Keys that are ALSO ordinary English headings.
-#:
-#: LIVE DEFECT, 2026-08-18. Asked to model out disk growth and show the
-#: numbers, she was answered with "I couldn't get to an answer I'd stand behind
-#: on that one." Nothing had failed to generate: the worker produced a draft,
-#: the surface gate rejected it as a prompt artifact, retried, exhausted its
-#: retries, and the turn ended with no reply at all.
-#:
-#: The draft's offence was writing a structured answer. "History:", "Goals:",
-#: "Mood:" and "State:" at the start of a line are how anyone lays out a model
-#: — and each one, alone, matched the scaffold pattern. So the more carefully
-#: she organised an answer, the more certainly it was destroyed, and the
-#: person got a canned apology instead.
-#:
-#: One such heading is prose. Several together is the internal block, which is
-#: what the guard is actually for.
-_AMBIGUOUS_SCAFFOLD_LINE_RE = re.compile(
-    r"(?im)^\s*(?:state|mood|goals|history|voice|recalled)\s*:"
-)
-
-#: How many ambiguous headings make a run read as the internal block.
-_SCAFFOLD_RUN_MIN = 3
-
-#: Words after the colon before a heading stops reading as a machine field.
-#: The state block writes "mood: curious"; an answer writes a sentence.
-_SCAFFOLD_VALUE_MIN_WORDS = 4
-
-_PROMPT_ARTIFACT_PATTERNS = (
-    re.compile(r"\[ACTIVE GROUNDING EVIDENCE\]", re.IGNORECASE),
-    re.compile(r"\[FETCHED PAGE CONTENT\]", re.IGNORECASE),
-    re.compile(r"\[INTERNAL MEMORY RECALL\]", re.IGNORECASE),
 )
 _UNSUPPORTED_INTERNAL_JARGON_PATTERNS = (
     re.compile(r"\blinguist'?s\s+screen[- ]tracking\s+divisor\b", re.IGNORECASE),
@@ -355,52 +317,12 @@ def _contains_generic_assistant_language(text: str) -> bool:
     return any(pattern.search(text or "") for pattern in _GENERIC_ASSISTANT_LANGUAGE)
 
 
-def _prose_outside_fences(text: str) -> str:
-    """The reply with fenced blocks removed.
-
-    Every pattern here describes the PROMPT scaffold leaking into speech —
-    "obj:", "state:", "ctx:" at the start of a line. Inside a code fence those
-    are ordinary content: a Python annotation (`state: str = "x"`), a YAML key,
-    a JSON field. Checking them there rejected any answer that showed a
-    dataclass or a config example, and the repair below went further and
-    deleted the offending line out of the middle of the code.
-    """
-    body = str(text or "")
-    if "```" not in body:
-        return body
-    # Even indices are outside the fences.
-    return "\n".join(body.split("```")[::2])
-
-
 def _contains_prompt_artifact(text: str, *, whole_reply: bool = True) -> bool:
-    body = _prose_outside_fences(text) if whole_reply else str(text or "")
-    if any(pattern.search(body) for pattern in _PROMPT_ARTIFACT_PATTERNS):
-        return True
-    if _SCAFFOLD_ONLY_LINE_RE.search(body):
-        return True
-    # A single "History:" is a heading; a stack of them is the state block —
-    # but only when they read like one.
-    #
-    # LIVE 2026-08-19: "explain the same thing to a systems engineer who thinks
-    # you're a chatbot" died with the canned refusal. A good answer to that
-    # lays out state, history, goals and voice with a sentence under each, and
-    # four ambiguous headings met the run threshold. Raising the threshold
-    # again only moves the line; what separates the two is what follows the
-    # colon. The internal block carries machine values — "thinking",
-    # "curious", "none", "empty" — and an answer carries an explanation.
-    return _terse_scaffold_run(body) >= _SCAFFOLD_RUN_MIN
-
-
-def _terse_scaffold_run(body: str) -> int:
-    """How many ambiguous headings carry a machine value rather than prose."""
-    terse = 0
-    for line in str(body or "").splitlines():
-        if not _AMBIGUOUS_SCAFFOLD_LINE_RE.match(line):
-            continue
-        _, _, value = line.partition(":")
-        if len(value.split()) < _SCAFFOLD_VALUE_MIN_WORDS:
-            terse += 1
-    return terse
+    # ``whole_reply`` is retained for the private compatibility surface used by
+    # the line repair below. That caller already excludes fenced lines; the
+    # shared detector is syntax-aware for both whole replies and single lines.
+    del whole_reply
+    return contains_prompt_artifact(text)
 
 
 def _contains_unsupported_internal_jargon(text: str) -> bool:

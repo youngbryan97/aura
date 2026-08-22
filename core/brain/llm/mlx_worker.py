@@ -8318,6 +8318,10 @@ def _mlx_worker_loop(
                                             # as a copy of the first branch,
                                             # so it is a table now.
                                             repairs = {
+                                                "prompt_artifact": (
+                                                    "strip_prompt_artifacts",
+                                                    "cut_transcript_continuation_and_revalidate",
+                                                ),
                                                 "runtime_boilerplate": (
                                                     "repair_runtime_boilerplate",
                                                     "remove_matching_sentences_and_revalidate",
