@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from core.conversation.request_mood import assess_request_mood
+from core.language.semantic_work import build_semantic_work_contract
 from core.runtime.cognitive_execution_scope import (
     CognitiveExecutionScope,
     bound_cognitive_execution_scope,
@@ -389,6 +390,8 @@ class CognitiveRoutingPhase(BasePhase):
         if not input_text.strip():
             return new_state
         new_state.response_modifiers.pop("auto_browse_urls", None)
+        semantic_work = build_semantic_work_contract(input_text)
+        new_state.response_modifiers["semantic_work_contract"] = semantic_work.to_dict()
 
         execution_scope = bound_cognitive_execution_scope(new_state, input_text)
         if execution_scope is CognitiveExecutionScope.REASONING_ONLY:
@@ -504,12 +507,27 @@ class CognitiveRoutingPhase(BasePhase):
             and _looks_like_simple_dialogue_request(input_text)
             and not looks_like_deep_mind_probe(input_text)
         ):
-            logger.info("🧭 Routing: simple dialogue request kept on CHAT lane.")
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            selected_mode = (
+                CognitiveMode.DELIBERATE
+                if semantic_work.requires_deliberation
+                else CognitiveMode.REACTIVE
+            )
+            logger.info(
+                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+                "(%d typed obligations, floor=%d).",
+                selected_mode.name,
+                semantic_work.obligation_count,
+                semantic_work.answer_token_floor,
+            )
+            new_state.cognition.current_mode = selected_mode
             new_state.cognition.current_objective = input_text
             new_state.cognition.current_origin = routing_origin
             new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["semantic_intent"] = (
+                "structured_reasoning"
+                if semantic_work.requires_deliberation
+                else "casual"
+            )
             new_state.response_modifiers["request_mood"] = request_mood.mood.value
             new_state.response_modifiers["request_mood_reasons"] = list(
                 request_mood.reasons
@@ -524,7 +542,7 @@ class CognitiveRoutingPhase(BasePhase):
                 new_state,
                 input_text,
                 routing_origin=routing_origin,
-                mode=str(CognitiveMode.REACTIVE.value),
+                mode=str(selected_mode.value),
             )
             return new_state
 

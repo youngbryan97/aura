@@ -2448,6 +2448,81 @@ class TestMLXWorkerProgress(unittest.IsolatedAsyncioTestCase):
             256,
         )
 
+    def test_32b_prefill_chunk_shrinks_with_measured_host_pressure(self):
+        normal = SimpleNamespace(
+            observation_available=True,
+            available_gb=32.0,
+            level="normal",
+        )
+        constrained = SimpleNamespace(
+            observation_available=True,
+            available_gb=18.0,
+            level="warning",
+        )
+        critical = SimpleNamespace(
+            observation_available=True,
+            available_gb=8.0,
+            level="critical",
+        )
+
+        self.assertEqual(
+            _prefill_step_size_for_model(
+                "/models/Qwen2.5-32B-Instruct-8bit",
+                pressure_snapshot=normal,
+            ),
+            128,
+        )
+        self.assertEqual(
+            _prefill_step_size_for_model(
+                "/models/Qwen2.5-32B-Instruct-8bit",
+                pressure_snapshot=constrained,
+            ),
+            64,
+        )
+        self.assertEqual(
+            _prefill_step_size_for_model(
+                "/models/Qwen2.5-32B-Instruct-8bit",
+                pressure_snapshot=critical,
+            ),
+            32,
+        )
+
+    def test_prefill_pressure_can_never_increase_model_base_chunk(self):
+        constrained = SimpleNamespace(
+            observation_available=True,
+            available_gb=5.0,
+            level="emergency",
+        )
+
+        for model_path in (
+            "/models/Qwen2.5-72B-Instruct-4bit",
+            "/models/Qwen2.5-32B-Instruct-8bit",
+            "/models/Qwen2.5-14B-Instruct-4bit",
+            "/models/Qwen2.5-7B-Instruct-4bit",
+        ):
+            base = _prefill_step_size_for_model(model_path)
+            pressured = _prefill_step_size_for_model(
+                model_path,
+                pressure_snapshot=constrained,
+            )
+            self.assertLessEqual(pressured, base)
+            self.assertGreaterEqual(pressured, 32)
+
+    def test_unavailable_prefill_pressure_sample_does_not_invent_pressure(self):
+        unavailable = SimpleNamespace(
+            observation_available=False,
+            available_gb=0.0,
+            level="emergency",
+        )
+
+        self.assertEqual(
+            _prefill_step_size_for_model(
+                "/models/Qwen2.5-32B-Instruct-8bit",
+                pressure_snapshot=unavailable,
+            ),
+            128,
+        )
+
     def test_prefill_progress_refreshes_watchdog_and_emits_correlated_phase(self):
         class WatchdogProbe:
             def __init__(self):

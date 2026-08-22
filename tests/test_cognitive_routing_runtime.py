@@ -113,6 +113,38 @@ def test_matched_skill_cache_failure_does_not_break_chat_route():
     asyncio.run(scenario())
 
 
+def test_compatibility_router_uses_shared_semantic_work_contract():
+    class CapabilityEngineMustNotRun:
+        def __init__(self):
+            self.calls = 0
+
+        def detect_intent(self, _text):
+            self.calls += 1
+            return ["code_repl"]
+
+    async def scenario():
+        capability_engine = CapabilityEngineMustNotRun()
+        phase = CognitiveRoutingPhase(RouteContainer(capability_engine))
+        result = await phase.execute(
+            _state_with_user_text(
+                "Explain a queueing method in one complete response. Include: "
+                "(1) its invariant, (2) numbered pseudocode, (3) a worked example, "
+                "(4) two complexity bounds, and (5) the invalid-input alternative."
+            )
+        )
+
+        assert capability_engine.calls == 0
+        assert result.cognition.current_mode == CognitiveMode.DELIBERATE
+        assert result.response_modifiers["intent_type"] == "CHAT"
+        assert "matched_skills" not in result.response_modifiers
+        work = result.response_modifiers["semantic_work_contract"]
+        assert work["delivery_mode"] == "inline_reply"
+        assert work["requires_deliberation"] is True
+        assert work["architecture_assistance_eligible"] is True
+
+    asyncio.run(scenario())
+
+
 def test_executive_receipt_failure_preserves_user_response_lane(monkeypatch):
     async def scenario():
         tracker = get_degradation_tracker()

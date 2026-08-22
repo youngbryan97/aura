@@ -3617,7 +3617,11 @@ def _should_emit_generation_progress(
     return (now - float(last_emit_at or 0.0)) >= max(0.1, float(every_seconds))
 
 
-def _prefill_step_size_for_model(model_path: str) -> int:
+def _prefill_step_size_for_model(
+    model_path: str,
+    *,
+    pressure_snapshot: Any | None = None,
+) -> int:
     """Bound one opaque Metal prefill call below the liveness horizon.
 
     ``mlx_lm`` defaults to 2048 tokens per prefill step. On the resident 32B,
@@ -3629,12 +3633,68 @@ def _prefill_step_size_for_model(model_path: str) -> int:
     from core.brain.llm.model_artifact_profile import model_size_class
 
     weight_class = model_size_class(str(model_path or ""))
-    return {
+    base_step = {
         "72b": 64,
         "32b": 128,
         "14b": 256,
         "7b": 512,
     }.get(weight_class, 512)
+
+    if pressure_snapshot is None or not bool(
+        getattr(pressure_snapshot, "observation_available", False)
+    ):
+        return base_step
+
+    try:
+        available_gb = max(
+            0.0, float(getattr(pressure_snapshot, "available_gb", 0.0) or 0.0)
+        )
+    except (TypeError, ValueError, OverflowError):
+        return base_step
+    level = str(getattr(pressure_snapshot, "level", "") or "").strip().lower()
+    ample_headroom_gb = {
+        "72b": 32.0,
+        "32b": 24.0,
+        "14b": 12.0,
+        "7b": 8.0,
+    }.get(weight_class, 8.0)
+
+    # Live CP901 evidence: a 32B, 128-token prefill step expanded Aura's
+    # process tree by roughly 10.5 GiB. Reserve about twice that transient
+    # working set before using the latency-optimized base chunk. Under pressure
+    # use power-of-two halves so mlx-lm can reuse compiled shapes.
+    if level in {"critical", "emergency"} or available_gb < (ample_headroom_gb / 2.0):
+        return max(32, base_step // 4)
+    if level in {"warning", "high"} or available_gb < ample_headroom_gb:
+        return max(32, base_step // 2)
+    return base_step
+
+
+def _runtime_prefill_step_size(model_path: str) -> int:
+    """Select one host-aware prefill chunk from the canonical pressure probe."""
+
+    pressure_snapshot = None
+    try:
+        from core.utils.memory_monitor import get_memory_pressure_snapshot
+
+        pressure_snapshot = get_memory_pressure_snapshot()
+    except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        pressure_snapshot = None
+    selected = _prefill_step_size_for_model(
+        model_path,
+        pressure_snapshot=pressure_snapshot,
+    )
+    base = _prefill_step_size_for_model(model_path)
+    if selected < base and pressure_snapshot is not None:
+        logger.info(
+            "🧠 [WORKER] Prefill chunk reduced %d→%d for host headroom "
+            "(level=%s available=%.1fGB).",
+            base,
+            selected,
+            str(getattr(pressure_snapshot, "level", "unknown") or "unknown"),
+            float(getattr(pressure_snapshot, "available_gb", 0.0) or 0.0),
+        )
+    return selected
 
 
 def _build_prefill_progress_callback(
@@ -7441,7 +7501,7 @@ def _mlx_worker_loop(
                                         if not isinstance(gen_prompt, str)
                                         else prompt_token_count
                                     )
-                                    prefill_step_size = _prefill_step_size_for_model(model_path)
+                                    prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(
@@ -9103,7 +9163,7 @@ def _mlx_worker_loop(
                                 # Context-window admission before streamed Metal work.
                                 _stream_prompt_text = str(prompt or "")
                                 _stream_prompt_tokens = len(tokenizer.encode(_stream_prompt_text))
-                                _stream_prefill_step_size = _prefill_step_size_for_model(model_path)
+                                _stream_prefill_step_size = _runtime_prefill_step_size(model_path)
                                 clean_kwargs["prefill_step_size"] = _stream_prefill_step_size
                                 clean_kwargs["prompt_progress_callback"] = (
                                     _build_prefill_progress_callback(

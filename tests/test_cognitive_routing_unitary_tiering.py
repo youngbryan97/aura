@@ -127,6 +127,60 @@ async def test_everyday_chat_fast_path_stays_reactive_on_primary():
     assert new_state.response_modifiers["deep_handoff"] is False
 
 
+@pytest.mark.asyncio
+async def test_multipart_inline_explanation_is_deliberate_chat_not_task_dispatch(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+    detect_calls = []
+    capability_engine = SimpleNamespace(
+        detect_intent=lambda text: detect_calls.append(text) or ["code_repl"]
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(
+            lambda name, default=None: (
+                capability_engine if name == "capability_engine" else default
+            )
+        ),
+    )
+
+    objective = (
+        "Explain a scheduling method in one response. Include: "
+        "(1) the invariant, (2) numbered pseudocode, (3) a worked example, "
+        "(4) two complexity bounds, and (5) the invalid-input alternative."
+    )
+    new_state = await phase.execute(state, objective=objective, priority=True)
+
+    assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
+    assert new_state.response_modifiers["intent_type"] == "CHAT"
+    assert "matched_skills" not in new_state.response_modifiers
+    assert detect_calls == []
+    work = new_state.response_modifiers["semantic_work_contract"]
+    assert work["delivery_mode"] == "inline_reply"
+    assert work["obligation_count"] >= 5
+    assert work["requires_deliberation"] is True
+
+
+@pytest.mark.asyncio
+async def test_short_inline_explanation_remains_reactive_chat():
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+
+    new_state = await phase.execute(
+        state,
+        objective="Explain why leaves look green.",
+        priority=True,
+    )
+
+    assert new_state.cognition.current_mode == CognitiveMode.REACTIVE
+    assert new_state.response_modifiers["intent_type"] == "CHAT"
+    assert new_state.response_modifiers["semantic_work_contract"][
+        "requires_deliberation"
+    ] is False
+
+
 def test_benchmark_artifact_turn_stays_out_of_task_and_skill_dispatch(monkeypatch):
     kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
     phase = CognitiveRoutingPhase(kernel)

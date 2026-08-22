@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 from core.kernel.bridge import Phase
+from core.language.semantic_work import build_semantic_work_contract
 from core.phases.response_contract import build_response_contract
 from core.runtime.cognitive_execution_scope import (
     CognitiveExecutionScope,
@@ -470,6 +471,8 @@ class CognitiveRoutingPhase(Phase):
 
         contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing and not is_benchmark)
         new_state.response_modifiers["response_contract"] = contract.to_dict()
+        semantic_work = build_semantic_work_contract(objective)
+        new_state.response_modifiers["semantic_work_contract"] = semantic_work.to_dict()
         previous_user_text = previous_user_turn_text(
             state.cognition.working_memory,
             current_text=objective,
@@ -659,8 +662,19 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         if is_user_facing and _looks_like_simple_dialogue_request(objective):
-            logger.info("🧭 Routing: simple dialogue request kept on CHAT lane.")
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            selected_mode = (
+                CognitiveMode.DELIBERATE
+                if semantic_work.requires_deliberation
+                else CognitiveMode.REACTIVE
+            )
+            logger.info(
+                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+                "(%d typed obligations, floor=%d).",
+                selected_mode.name,
+                semantic_work.obligation_count,
+                semantic_work.answer_token_floor,
+            )
+            new_state.cognition.current_mode = selected_mode
             self._stamp_llm_route(
                 new_state,
                 objective=objective,

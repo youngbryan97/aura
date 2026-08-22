@@ -6,9 +6,9 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 40 outbound edges when this was generated.
+# 41 outbound edges when this rule was last reconciled.
 
-description = "core.phases: may import only what it already imports; every new edge is an edit here."
+description = "core.phases: may coordinate cognition through declared packages, including the single typed language substrate; every new edge is explicit here."
 
 include_rules = [
     "+core.phases",
@@ -33,6 +33,8 @@ include_rules = [
     "+core.intent",
     "+core.kernel",
     "+core.knowledge",
+    # Routing consumes typed semantic work from Aura's one language substrate.
+    "+core.language",
     "+core.learning",
     "+core.llm",
     "+core.memory",
