@@ -151,13 +151,20 @@ def _read_settings_file(path: Path) -> dict[str, Any]:
 
             verified = RuntimeSettingsStore(path).snapshot(refresh=True)
             return dict(verified.values)
+        # Annotated because `--follow-imports=skip` hides settings_schema from
+        # mypy, so its return type arrives as Any and returning it from a
+        # function declared `dict[str, Any]` is the no-any-return this file
+        # was failing on. The annotation restates the contract the callee
+        # already declares, at the boundary where mypy stops looking.
+        migrated: dict[str, Any]
         migrated, _unknown = migrated_settings_snapshot(data.get("payload"))
         return migrated
 
     # Legacy flat-map compatibility. The control plane migrates it into the
     # versioned envelope on the first mutation.
-    migrated, _unknown = migrated_settings_snapshot(data)
-    return migrated
+    legacy: dict[str, Any]
+    legacy, _unknown = migrated_settings_snapshot(data)
+    return legacy
 
 
 def _refresh_settings_from_disk() -> None:

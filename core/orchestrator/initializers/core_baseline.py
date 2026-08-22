@@ -5,7 +5,7 @@ from core.runtime.service_registry import register_runtime_service
 
 logger = logging.getLogger(__name__)
 
-async def init_enterprise_layer(orchestrator: Any):
+async def init_enterprise_layer(orchestrator: Any) -> None:
     """Initialize the enterprise layer subsystems."""
     # 1. Structured Logging & Metrics
     from core.observability.logging_config import setup_logging
@@ -16,9 +16,25 @@ async def init_enterprise_layer(orchestrator: Any):
     orchestrator.metrics = metrics
 
     # 2. Database Migrations
-    from core.db.migrations import get_migrator
+    #
+    # A drift stops the boot on purpose. Everything below this line queries a
+    # schema it believes the code wrote; when the database says otherwise, the
+    # useful outcome is a named failure here rather than wrong rows later.
+    from core.db.migrations import MigrationDriftError, get_migrator
+    from core.runtime.errors import record_degradation
+
     migrator = get_migrator()
-    migrator.run_all()
+    try:
+        migrator.run_all()
+    except MigrationDriftError as exc:
+        record_degradation(
+            "migrations",
+            exc,
+            severity="critical",
+            action="stopped the boot rather than query a schema the code does not match",
+            extra={"database": migrator.db_path, "problems": migrator.verify()},
+        )
+        raise
 
     # 3. Conversation Persistence
     from core.conversation.persistence import get_persistence

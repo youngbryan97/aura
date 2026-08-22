@@ -1,0 +1,82 @@
+name: quality-gate
+
+# The one check branch protection points at.
+#
+# There were eight workflows and nine jobs before this, none of which had
+# authority over anything: `main` reported protected: false, so every gate in
+# this directory was advisory. A branch with twenty green checks and no
+# required check is a branch where the checks are a courtesy.
+#
+# `quality-gate` runs the static gates — the ones that need no runtime
+# dependency set and are therefore cheap enough to gate every push. It is not
+# the only required check, because GitHub Actions has no cross-workflow
+# `needs`: a job in another workflow file cannot be waited on, only required
+# separately. So the authoritative list lives in
+# config/branch_protection_policy.json, and tools/check_review_policy.py fails
+# when a job runs on a pull request and is not on that list — otherwise a gate
+# added next year is green, required by nothing, and nobody notices.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # These gates are AST and regex over tracked source. They import no part
+      # of Aura, so they need no runtime dependency set and are cheap enough
+      # to gate every push.
+      - name: Install linters
+        run: python -m pip install --disable-pip-version-check ruff
+
+      - name: Compile
+        run: python -m compileall -q core tests interface skills security tools
+
+      - name: Ruff
+        run: |
+          python -m ruff check core interface llm security senses skills executors \
+            infrastructure aura_main.py tools tests --select E9
+          python -m ruff check core interface llm security senses skills executors \
+            infrastructure aura_main.py --select F821,F822,F823,F601
+
+      - name: Dependency contract
+        run: python tools/check_dependency_contract.py
+
+      - name: Review policy
+        run: python tools/check_review_policy.py
+
+      - name: Branch protection policy
+        run: python tools/check_branch_protection.py --offline
+
+      - name: Architectural layering
+        run: python tools/check_layering.py
+
+      - name: Module size ratchet
+        run: python tools/lint_module_size.py
+
+      - name: Method size ratchet
+        run: python tools/lint_method_size.py
+
+      - name: Typed-surface ratchet
+        run: python tools/check_typed_surface.py
+
+      - name: Writing rules
+        run: |
+          python tools/lint_ai_writing.py
+          python tools/lint_ai_writing.py --code --quiet

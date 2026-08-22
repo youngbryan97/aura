@@ -1,4 +1,4 @@
-.PHONY: coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
+.PHONY: deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
 
 
 PYTHON ?= python
@@ -21,7 +21,11 @@ setup:
 	@echo "🔧 Setup: creating virtualenv (.venv) and installing requirements"
 	@echo "   ⚠️  For production installs, use 'make setup-prod' (fail-closed, no fallbacks)"
 	@if [ ! -d .venv ]; then $(PYTHON) -m venv .venv; fi
-	@. .venv/bin/activate; pip install -U pip wheel; pip install -r requirements/core.txt 2>/dev/null || pip install -r requirements.txt 2>/dev/null || echo "⚠️  Core requirements install failed; falling back to dev mode"
+	@. .venv/bin/activate; pip install -U pip wheel
+	@# One install, no fallback. The chain that stood here hid the failure
+	@# twice — once with 2>/dev/null and once by ending in `echo` — so a
+	@# broken environment reported "Setup complete".
+	@. .venv/bin/activate; pip install -r requirements/core.txt
 	@. .venv/bin/activate; if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; else pip install -e ".[dev]"; fi
 	@echo "✅ Setup complete"
 
@@ -189,6 +193,48 @@ raw-skill-execute:
 raw-skill-execute-baseline:
 	@echo "🛡  Rewriting the raw skill execute ratchet (shrink only)..."
 	@$(PYTHON) tools/check_raw_skill_execute.py --baseline
+
+deps-gate:
+	@echo "📦 Checking that every build installs what the contract declares..."
+	@$(PYTHON) tools/check_dependency_contract.py
+
+lockfiles:
+	@echo "🔒 Regenerating the derivable lockfiles..."
+	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
+		--requirements requirements/sandbox.txt \
+		--out requirements/lock/code-sandbox.txt
+	@echo "   The container-runtime lock is not derivable; see"
+	@echo "   config/dependency_contract.json for the pip-compile that closes it."
+
+lockfiles-check:
+	@echo "🔒 Checking the derived lockfiles are not stale..."
+	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
+		--requirements requirements/sandbox.txt \
+		--out requirements/lock/code-sandbox.txt --check
+
+review-policy:
+	@echo "👥 Checking ownership, templates, and that every gate is required..."
+	@$(PYTHON) tools/check_review_policy.py
+
+branch-protection:
+	@echo "🛡  Comparing the live branch protection with the declared policy..."
+	@$(PYTHON) tools/check_branch_protection.py
+
+branch-protection-policy:
+	@echo "🛡  Checking the branch protection policy is coherent (no network)..."
+	@$(PYTHON) tools/check_branch_protection.py --offline
+
+typed-surface:
+	@echo "📝 Checking the annotated surface (ratchet: only grows)..."
+	@$(PYTHON) tools/check_typed_surface.py
+
+typed-surface-baseline:
+	@echo "📝 Recording the annotated surface (untyped list may only shrink)..."
+	@$(PYTHON) tools/check_typed_surface.py --write-baseline
+
+typecheck-changed:
+	@echo "📝 Strict mypy over every production file this branch changed..."
+	@$(PYTHON) tools/typecheck_changed.py
 
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
@@ -404,7 +450,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
+quality: deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
 	@echo "🏁 Quality gates passed"
 
 decisive:

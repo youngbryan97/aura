@@ -1,0 +1,67 @@
+# Who must review what.
+#
+# This repository had no CODEOWNERS and its own August architecture
+# assessment measured the reason it needed one: roughly 99.6% of commits
+# were agent-authored, with no independent review to reject the 4,000-line
+# functions as they grew. That is not an argument about who writes code. An
+# agent writing and another invocation of the same agent reviewing share
+# their assumptions, so the second pass cannot find what the first one could
+# not see.
+#
+# The paths below are the ones where a wrong assumption is expensive: the
+# security boundary, the runtime foundation, persistent state, the release
+# and dependency contract, and the gates themselves. tools/check_review_policy.py
+# fails when a path listed here stops existing, so this file cannot rot into
+# a list of directories that were renamed years ago.
+#
+# Ordering follows CODEOWNERS semantics: the LAST matching pattern wins, so
+# the general rule comes first and the specific ones after it.
+
+# Default owner for everything not named below.
+*                               @youngbryan97
+
+# ── The security boundary ────────────────────────────────────────────────
+/security/                      @youngbryan97
+/core/security/                 @youngbryan97
+/core/sandbox/                  @youngbryan97
+/core/governance/               @youngbryan97
+/core/governance_context.py     @youngbryan97
+/skills/shell.py                @youngbryan97
+/core/skills/sovereign_terminal.py  @youngbryan97
+/core/skills/mcp_client.py      @youngbryan97
+/core/skills/computer_use.py    @youngbryan97
+
+# ── The runtime foundation ───────────────────────────────────────────────
+/core/runtime/                  @youngbryan97
+/core/observability/            @youngbryan97
+/core/verify/                   @youngbryan97
+/core/fsw/                      @youngbryan97
+/core/health/                   @youngbryan97
+
+# ── Persistent state and its migrations ──────────────────────────────────
+/core/db/                       @youngbryan97
+/core/persistence/              @youngbryan97
+/core/memory/                   @youngbryan97
+/core/identity/                 @youngbryan97
+
+# ── Model execution ──────────────────────────────────────────────────────
+/core/brain/llm/                @youngbryan97
+/core/brain/inference_gate.py   @youngbryan97
+
+# ── The interface ────────────────────────────────────────────────────────
+/interface/                     @youngbryan97
+
+# ── Build, release and dependency contract ───────────────────────────────
+/Dockerfile                     @youngbryan97
+/docker/                        @youngbryan97
+/requirements.txt               @youngbryan97
+/requirements_lock.txt          @youngbryan97
+/requirements/                  @youngbryan97
+/.github/workflows/             @youngbryan97
+/.github/CODEOWNERS             @youngbryan97
+
+# ── The gates, and the baselines they ratchet ────────────────────────────
+/tools/check_*.py               @youngbryan97
+/tools/lint_*.py                @youngbryan97
+/config/                        @youngbryan97
+/Makefile                       @youngbryan97

@@ -28,7 +28,7 @@ jobs:
         python -m venv .venv
         source .venv/bin/activate
         pip install -U pip wheel
-        pip install -r requirements/core.txt || pip install -r requirements.txt
+        pip install -r requirements/core.txt
         pip install -e ".[dev]"
 
     - name: Phase 1 — Fault taxonomy integrity

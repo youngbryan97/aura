@@ -943,7 +943,11 @@ def _turn_trust_state() -> str:
         from core.self_modification.safe_modification import SafeSelfModification
 
         pipeline = SafeSelfModification.__new__(SafeSelfModification)
-        return pipeline._turn_trust_verdict().state
+        # `--follow-imports=skip` means mypy never sees TurnTrust.state, so the
+        # attribute arrives as Any. The annotation is the contract the dataclass
+        # already declares.
+        state: str = pipeline._turn_trust_verdict().state
+        return state
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "self_code_improver.turn_trust",

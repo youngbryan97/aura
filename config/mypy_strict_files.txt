@@ -100,3 +100,7 @@ core/voice/speech_profile.py
 # Exact-principal request scope and canonical consent control (2026-07-12)
 core/runtime/principal_context.py
 core/runtime/memory_consent.py
+
+# Adopted by tools/typecheck_changed.py
+core/db/migrations.py
+core/orchestrator/initializers/core_baseline.py
