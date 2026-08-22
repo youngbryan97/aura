@@ -1,4 +1,4 @@
-.PHONY: deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
+.PHONY: deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
 
 
 PYTHON ?= python
@@ -240,6 +240,14 @@ layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
 	@$(PYTHON) tools/check_layering.py
 
+deps-generate:
+	@echo "🏛  Regenerating the per-package DEPS from the import graph..."
+	@$(PYTHON) tools/generate_deps.py --write
+
+deps-check:
+	@echo "🏛  Checking every generated DEPS still matches the import graph..."
+	@$(PYTHON) tools/generate_deps.py --check
+
 layering-baseline:
 	@echo "🏛  Rewriting the layering ratchet baseline (shrink only)..."
 	@$(PYTHON) tools/check_layering.py --baseline
@@ -450,7 +458,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
+quality: deps-check deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
 	@echo "🏁 Quality gates passed"
 
 decisive:

@@ -67,6 +67,9 @@ jobs:
       - name: Architectural layering
         run: python tools/check_layering.py
 
+      - name: DEPS match the import graph
+        run: python tools/generate_deps.py --check
+
       - name: Module size ratchet
         run: python tools/lint_module_size.py
 

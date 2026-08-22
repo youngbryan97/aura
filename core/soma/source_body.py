@@ -444,11 +444,18 @@ class SourceBodyAwareness:
 
     @staticmethod
     def _resolve_source_root(explicit: Path | str | None) -> Path:
+        """The checkout this module was loaded from.
+
+        Derived from this file rather than from ``core.__file__``. The two
+        answer the same question — ``core/soma/source_body.py`` is two
+        directories below the root, ``core/__init__.py`` is one — and
+        ``import core`` is a dependency on the whole package, which no
+        per-package layering rule can allow without allowing everything
+        under it.
+        """
         if explicit is not None:
             return Path(explicit).resolve()
-        import core as _core_pkg
-
-        return Path(_core_pkg.__file__).resolve().parents[1]
+        return Path(__file__).resolve().parents[2]
 
     @staticmethod
     def _resolve_ledger_path(explicit: Path | str | None) -> Path:

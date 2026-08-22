@@ -105,9 +105,16 @@ replies — is checked against [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
   `asyncio.Lock`. Lockdep finds ABBA deadlocks without the deadlock
   happening, and it only sees locks it wraps. Adopt an existing lock with
   `instrument(name)`.
-- **Layering:** `core/runtime` and `core/observability` carry `DEPS` files
-  and may not import cognition or agency. `make layering` is the gate; the
-  grandfathered baseline (`config/layering_baseline.json`) only shrinks.
+- **Layering:** every package under `core/`, plus `interface/`, `skills/`,
+  `security/`, `llm/` and `executors/`, carries a `DEPS` file. Seven are
+  hand-written and say what a foundation package may NOT reach for
+  (`core/runtime`, `core/observability`, `core/verify`, `core/fsw`,
+  `core/health`, `core/persistence`, `core/utils`); the rest are generated
+  from the import graph by `tools/generate_deps.py` and allow exactly what
+  the package imports today, so a new cross-package edge is an edit to a
+  DEPS file. `make layering` is the gate, `make deps-check` catches a DEPS
+  that no longer matches the graph, and `make deps-generate` rewrites them.
+  The grandfathered baseline (`config/layering_baseline.json`) only shrinks.
 - **New invariants** go next to what they protect, via
   `@invariant(name, scope=..., owner=...)` in `core/verify/`. A check that
   raises counts as a violation.
