@@ -13629,6 +13629,31 @@ _FALSE_SEARCH_PROVENANCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Claiming a live check. Only true when the evidence came from the network.
+_CLAIMS_A_LIVE_CHECK_RE = re.compile(
+    r"\b(?:i\s+(?:checked|searched|looked\s+up|found)\s+"
+    r"(?:the\s+)?(?:live\s+)?(?:web|internet|online)"
+    r"|live\s+web\s+(?:evidence|search|results?)"
+    r"|according\s+to\s+(?:my\s+)?(?:live\s+)?(?:web\s+)?search)\b",
+    re.IGNORECASE,
+)
+
+
+def _claims_a_live_check(text: object) -> bool:
+    return bool(_CLAIMS_A_LIVE_CHECK_RE.search(str(text or "")))
+
+
+def _evidence_came_from_the_network(result: object) -> bool:
+    """Whether this evidence was fetched now, rather than read off a snapshot."""
+    if not isinstance(result, dict):
+        return False
+    if result.get("offline_fallback"):
+        return False
+    if str(result.get("provenance") or "").strip().lower() == "local_corpus":
+        return False
+    return True
+
+
 #: A citation shape with nothing in it.
 #:
 #: LIVE, 2026-08-22: asked about a company with sources, the reply ended
@@ -13864,13 +13889,26 @@ def _evidence_grounded_desktop_search_reply(search_evidence: dict[str, Any]) -> 
     if len(fact) > 360:
         fact = fact[:357].rstrip() + "..."
     saved = bool(search_evidence.get("memory_saved"))
-    # Only claim the check when there is something to open.
+    # Say where it actually came from.
     #
     # LIVE, 2026-08-22: this opened with "I checked live web evidence" on a
-    # turn whose evidence carried no URL at all, and the reply ended "Source:
-    # [Live web search]". A provenance claim with nothing behind it reads as
-    # proof and is worse than saying plainly where the answer came from.
-    parts = ["I checked live web evidence."] if source else ["From what the search returned:"]
+    # turn where the search had degraded to the local offline corpus. The
+    # result said so itself — provenance local_corpus, offline_fallback true,
+    # entries carrying a `source` and no url — and the reply overrode it,
+    # ending "Source: [Live web search]". A dated snapshot presented as a live
+    # check is a lie the reader has no way to catch.
+    offline = bool(result.get("offline_fallback")) or str(
+        result.get("provenance") or ""
+    ).strip().lower() == "local_corpus"
+    if offline:
+        parts = [
+            "Web search was unavailable, so this is from my offline reference "
+            "snapshot rather than a live check:"
+        ]
+    elif source:
+        parts = ["I checked live web evidence."]
+    else:
+        parts = ["From what the search returned:"]
     if title:
         parts.append(f"{title}: {fact}")
     else:
@@ -13894,7 +13932,11 @@ def _repair_required_search_reply_provenance(
     entries = _search_result_entries(result)
     evidence_urls = [entry.get("url") for entry in entries if entry.get("url")]
     has_evidence_url = bool(evidence_urls and any(url in text for url in evidence_urls))
-    false_provenance = bool(_FALSE_SEARCH_PROVENANCE_RE.search(text)) or _cites_nothing(text)
+    false_provenance = (
+        bool(_FALSE_SEARCH_PROVENANCE_RE.search(text))
+        or _cites_nothing(text)
+        or (_claims_a_live_check(text) and not _evidence_came_from_the_network(result))
+    )
     if text and not false_provenance and (not evidence_urls or has_evidence_url):
         return text
     grounded = _evidence_grounded_desktop_search_reply(search_evidence)

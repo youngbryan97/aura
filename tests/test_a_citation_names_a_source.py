@@ -84,3 +84,65 @@ def test_an_empty_citation_is_removed_when_there_is_no_rebuild():
     )
     assert "Live web search" not in repaired
     assert "founded in 2016" in repaired
+
+
+def test_an_offline_snapshot_says_it_is_offline():
+    """LIVE, 2026-08-22: the search had degraded to the local corpus and the
+    reply called it "live web evidence". The result said so itself —
+    provenance local_corpus, offline_fallback true — and the reply overrode
+    it."""
+    from interface.routes.chat import (
+        _claims_a_live_check,
+        _evidence_came_from_the_network,
+    )
+
+    offline = {
+        "ok": True,
+        "result": {
+            "ok": True,
+            "offline_fallback": True,
+            "provenance": "local_corpus",
+            "results": [{"title": "HF", "snippet": "An ML company.", "source": "corpus"}],
+        },
+    }
+    said = _evidence_grounded_desktop_search_reply(offline)
+    assert "live" not in said.lower().split("rather than a live check")[0]
+    assert "offline reference snapshot" in said
+    assert not _evidence_came_from_the_network(offline["result"])
+
+    live = {
+        "ok": True,
+        "result": {
+            "ok": True,
+            "results": [
+                {"title": "About", "url": "https://huggingface.co/about", "snippet": "Founded 2016."}
+            ],
+        },
+    }
+    assert "I checked live web evidence." in _evidence_grounded_desktop_search_reply(live)
+    assert _evidence_came_from_the_network(live["result"])
+
+
+def test_claiming_a_live_check_over_a_snapshot_is_false_provenance():
+    from interface.routes.chat import _repair_required_search_reply_provenance
+
+    offline = {
+        "ok": True,
+        "result": {
+            "ok": True,
+            "offline_fallback": True,
+            "provenance": "local_corpus",
+            "results": [{"title": "HF", "snippet": "An ML company.", "source": "corpus"}],
+        },
+    }
+    repaired = _repair_required_search_reply_provenance(
+        "I checked live web evidence. Hugging Face is an ML company.", offline
+    )
+    assert "offline reference snapshot" in repaired
+
+
+def test_ordinary_sentences_are_not_live_check_claims():
+    from interface.routes.chat import _claims_a_live_check
+
+    for text in ("I read the file.", "The web page was long.", "I checked the log."):
+        assert not _claims_a_live_check(text), text
