@@ -61,6 +61,10 @@ from core.utils.task_tracker import get_task_tracker
 from .chat_format import format_chatml_messages, format_chatml_prompt
 from .mlx_worker import _mlx_worker_loop
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 logger = logging.getLogger("LLM.MLX")
 
 # Abort reasons that race a finishing generation: losing that race is the
@@ -4393,6 +4397,236 @@ async def _join_inflight_across_loops(inflight: Any) -> Any:
 
     bridged = asyncio.run_coroutine_threadsafe(_await_owned(), owner_loop)
     return await asyncio.wrap_future(bridged)
+
+
+def _apply_the_wire_action_intervention(
+    *,
+    base: Any,
+    receipt: Any,
+    wire_action_intervention: Any,
+    wire_action_policy_evidence: Any,
+    wire_external_execution_offer: Any,
+) -> Any:
+    """Apply the wire-action intervention this episode carried.
+
+    Moved out of ``MLXLocalClient.latent_reason_async`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 5 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if wire_action_intervention is not None:
+            try:
+                from core.brain.llm.latent_cortex.action_intervention import (
+                    validate_action_intervention_receipt,
+                )
+                from core.brain.llm.latent_cortex.epistemic_state import (
+                    OperationKind,
+                )
+                from core.brain.llm.latent_cortex.value_of_computation import (
+                    validate_action_trace,
+                )
+
+                policy_receipt = receipt.get("value_of_computation")
+                action_trace = receipt.get("cognitive_action_trace")
+                expected_policy_fields = {
+                    "schema",
+                    "bucket",
+                    "snapshot_sha256",
+                    "active",
+                    "calibration_intervention",
+                    "executors",
+                    "actions_selected",
+                    "checked_transitions",
+                    "selected_actions",
+                }
+                if (
+                    not isinstance(policy_receipt, dict)
+                    or set(policy_receipt) != expected_policy_fields
+                    or not isinstance(action_trace, list)
+                ):
+                    raise ValueError("worker intervention policy receipt is incomplete")
+                executors = tuple(
+                    OperationKind(item) for item in policy_receipt.get("executors", ())
+                )
+                if not executors or len(set(executors)) != len(executors):
+                    raise ValueError("worker intervention executor inventory is invalid")
+                validated_trace = validate_action_trace(
+                    action_trace,
+                    evidence_snapshot=wire_action_policy_evidence,
+                    executors=executors,
+                    action_intervention=wire_action_intervention,
+                )
+                validate_action_intervention_receipt(
+                    policy_receipt["calibration_intervention"],
+                    intervention=wire_action_intervention,
+                    cognitive_action_trace=action_trace,
+                )
+                selected_actions = validated_trace["selected_actions"]
+                if (
+                    wire_external_execution_offer is not None
+                    or OperationKind.EXECUTE.value in selected_actions
+                ):
+                    if wire_external_execution_offer is None:
+                        raise ValueError(
+                            "worker selected execute without an external execution offer"
+                        )
+                    from core.brain.llm.latent_cortex.external_execution import (
+                        validate_external_execution_handoff,
+                    )
+
+                    validate_external_execution_handoff(
+                        receipt.get("external_execution_handoff"),
+                        offer=wire_external_execution_offer,
+                        cognitive_action_trace=action_trace,
+                    )
+                elif receipt.get("external_execution_handoff"):
+                    raise ValueError(
+                        "worker emitted an unsolicited external execution handoff"
+                    )
+                checked_transitions = sum(
+                    int(row["transition"]["checked"]) for row in validated_trace["rows"]
+                )
+                if (
+                    policy_receipt.get("schema") != wire_action_policy_evidence["schema"]
+                    or policy_receipt.get("bucket") != wire_action_policy_evidence["bucket"]
+                    or policy_receipt.get("snapshot_sha256")
+                    != wire_action_policy_evidence["snapshot_sha256"]
+                    or policy_receipt.get("active") is not True
+                    or policy_receipt.get("actions_selected") != len(action_trace)
+                    or policy_receipt.get("selected_actions") != selected_actions
+                    or policy_receipt.get("checked_transitions") != checked_transitions
+                ):
+                    raise ValueError("worker intervention policy summary differs")
+            except (
+                ImportError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ):
+                return {
+                    **base,
+                    "receipt": receipt,
+                    "reason": "action_intervention_receipt_invalid",
+                }
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _build_the_generation_request(
+    *,
+    _bridge_get: Any,
+    adaptive_suggested_max_tokens: Any,
+    contract_generation_floor: Any,
+    generation_max_tokens: Any,
+    hard_output_token_ceiling: Any,
+    kwargs: Any,
+    prompt: Any,
+    req_id: Any,
+    requested_output_contract: Any,
+    self: Any,
+) -> Any:
+    """Build the request the worker receives for this generation.
+
+    Moved out of ``MLXLocalClient._generate_inner`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    1.
+    """
+    req = {
+        "id": req_id,
+        "seq": self._job_seq_counter,
+        "action": "generate",
+        "prompt": prompt,
+        "messages": kwargs.get("messages"),
+        "tools": kwargs.get("tools"),
+        "temp": kwargs.get(
+            "temp",
+            kwargs.get("temperature", _bridge_get("temperature", self.temp)),
+        ),
+        "top_p": kwargs.get("top_p", _bridge_get("top_p", self.top_p)),
+        "top_k": kwargs.get("top_k", _bridge_get("top_k", 60)),
+        "min_p": kwargs.get("min_p", 0.05),
+        "repetition_penalty": kwargs.get(
+            "repetition_penalty", _bridge_get("repetition_penalty", 1.05)
+        ),
+        "repetition_context_size": kwargs.get("repetition_context_size", 30),
+        "presence_penalty": kwargs.get(
+            "presence_penalty", _bridge_get("presence_penalty", 0.0)
+        ),
+        # max_tokens is a cap: both the latent bridge and the typed visible
+        # output contract may shrink it, but neither can expand the caller.
+        "max_tokens": generation_max_tokens,
+        "memory_pressure_token_cap": kwargs.get("memory_pressure_token_cap"),
+        "user_surface_completion_floor": kwargs.get("user_surface_completion_floor"),
+        "completion_floor_applied": bool(kwargs.get("completion_floor_applied", False)),
+        "caller_requested_max_tokens": kwargs.get("max_tokens", self.max_tokens),
+        "adaptive_suggested_max_tokens": adaptive_suggested_max_tokens,
+        "output_contract_generation_floor": contract_generation_floor,
+        "requested_output_contract": dict(requested_output_contract),
+        "semantic_output_token_cap": kwargs.get("semantic_output_token_cap"),
+        "hard_output_token_ceiling": hard_output_token_ceiling,
+        "schema": kwargs.get("schema"),
+        "stop_sequences": list(kwargs.get("stop_sequences") or []),
+        "strict_answer_contract": bool(kwargs.get("strict_answer_contract", False)),
+        "strict_value_contract": bool(kwargs.get("strict_value_contract", False)),
+        "expected_strict_value": str(kwargs.get("expected_strict_value") or ""),
+        "proof_evaluation_contract": bool(kwargs.get("proof_evaluation_contract", False)),
+        "operator_evidence_contract": bool(kwargs.get("operator_evidence_contract", False)),
+        "web_interlocutor_contract": bool(kwargs.get("web_interlocutor_contract", False)),
+        "health_probe": bool(kwargs.get("health_probe", False)),
+        "warmup_precompile": bool(kwargs.get("warmup_precompile", False)),
+        "runtime_fact_status_contract": bool(kwargs.get("runtime_fact_status_contract", False)),
+        "requires_memory_grounding": bool(kwargs.get("requires_memory_grounding", False)),
+        "memory_state_contract": bool(kwargs.get("memory_state_contract", False)),
+        "grounded_recall_contract": bool(kwargs.get("grounded_recall_contract", False)),
+        "grounded_runtime_status_contract": bool(
+            kwargs.get("grounded_runtime_status_contract", False)
+        ),
+        "self_condition_contract": bool(kwargs.get("self_condition_contract", False)),
+        "clean_user_surface_contract": bool(
+            kwargs.get("clean_user_surface_contract", False)
+            or kwargs.get("health_probe", False)
+        )
+        and not bool(kwargs.get("web_interlocutor_contract", False)),
+        "user_surface_validation_prompt": str(
+            kwargs.get("user_surface_validation_prompt") or ""
+        ),
+        "user_surface_continuation_contract": bool(
+            kwargs.get("user_surface_continuation_contract", False)
+        ),
+        "user_surface_continuation_partial": continuation_state_text(
+            kwargs.get("user_surface_continuation_partial")
+        ),
+        "semantic_completion_contract": bool(
+            kwargs.get("semantic_completion_contract", False)
+        ),
+        "user_surface_prompt_binding": (
+            dict(kwargs.get("user_surface_prompt_binding") or {})
+            if isinstance(kwargs.get("user_surface_prompt_binding"), dict)
+            else {}
+        ),
+        "user_surface_grounding_evidence": _bounded_surface_grounding_evidence(
+            kwargs.get("user_surface_grounding_evidence")
+        ),
+        "user_surface_sensory_evidence": _bounded_surface_sensory_evidence(
+            kwargs.get("user_surface_sensory_evidence")
+        ),
+        "clean_user_surface_steering_alpha": kwargs.get("clean_user_surface_steering_alpha"),
+        "clean_user_surface_recurrent_loops": (
+            kwargs.get("clean_user_surface_recurrent_loops")
+            if kwargs.get("clean_user_surface_recurrent_loops") is not None
+            else (1 if kwargs.get("health_probe", False) else None)
+        ),
+        "live_mind_controls_bound": bool(kwargs.get("live_mind_controls_bound", False)),
+        "benchmark_request": bool(kwargs.get("benchmark_request", False)),
+        "disable_prompt_cache": bool(kwargs.get("disable_prompt_cache", False)),
+        "clear_prompt_cache": bool(kwargs.get("clear_prompt_cache", False)),
+    }
+    return req
 
 
 class MLXLocalClient:
@@ -9784,100 +10018,15 @@ class MLXLocalClient:
                         "receipt": receipt,
                         "reason": "worker_identity_failed:" + ",".join(identity_errors),
                     }
-                if wire_action_intervention is not None:
-                    try:
-                        from core.brain.llm.latent_cortex.action_intervention import (
-                            validate_action_intervention_receipt,
-                        )
-                        from core.brain.llm.latent_cortex.epistemic_state import (
-                            OperationKind,
-                        )
-                        from core.brain.llm.latent_cortex.value_of_computation import (
-                            validate_action_trace,
-                        )
-
-                        policy_receipt = receipt.get("value_of_computation")
-                        action_trace = receipt.get("cognitive_action_trace")
-                        expected_policy_fields = {
-                            "schema",
-                            "bucket",
-                            "snapshot_sha256",
-                            "active",
-                            "calibration_intervention",
-                            "executors",
-                            "actions_selected",
-                            "checked_transitions",
-                            "selected_actions",
-                        }
-                        if (
-                            not isinstance(policy_receipt, dict)
-                            or set(policy_receipt) != expected_policy_fields
-                            or not isinstance(action_trace, list)
-                        ):
-                            raise ValueError("worker intervention policy receipt is incomplete")
-                        executors = tuple(
-                            OperationKind(item) for item in policy_receipt.get("executors", ())
-                        )
-                        if not executors or len(set(executors)) != len(executors):
-                            raise ValueError("worker intervention executor inventory is invalid")
-                        validated_trace = validate_action_trace(
-                            action_trace,
-                            evidence_snapshot=wire_action_policy_evidence,
-                            executors=executors,
-                            action_intervention=wire_action_intervention,
-                        )
-                        validate_action_intervention_receipt(
-                            policy_receipt["calibration_intervention"],
-                            intervention=wire_action_intervention,
-                            cognitive_action_trace=action_trace,
-                        )
-                        selected_actions = validated_trace["selected_actions"]
-                        if (
-                            wire_external_execution_offer is not None
-                            or OperationKind.EXECUTE.value in selected_actions
-                        ):
-                            if wire_external_execution_offer is None:
-                                raise ValueError(
-                                    "worker selected execute without an external execution offer"
-                                )
-                            from core.brain.llm.latent_cortex.external_execution import (
-                                validate_external_execution_handoff,
-                            )
-
-                            validate_external_execution_handoff(
-                                receipt.get("external_execution_handoff"),
-                                offer=wire_external_execution_offer,
-                                cognitive_action_trace=action_trace,
-                            )
-                        elif receipt.get("external_execution_handoff"):
-                            raise ValueError(
-                                "worker emitted an unsolicited external execution handoff"
-                            )
-                        checked_transitions = sum(
-                            int(row["transition"]["checked"]) for row in validated_trace["rows"]
-                        )
-                        if (
-                            policy_receipt.get("schema") != wire_action_policy_evidence["schema"]
-                            or policy_receipt.get("bucket") != wire_action_policy_evidence["bucket"]
-                            or policy_receipt.get("snapshot_sha256")
-                            != wire_action_policy_evidence["snapshot_sha256"]
-                            or policy_receipt.get("active") is not True
-                            or policy_receipt.get("actions_selected") != len(action_trace)
-                            or policy_receipt.get("selected_actions") != selected_actions
-                            or policy_receipt.get("checked_transitions") != checked_transitions
-                        ):
-                            raise ValueError("worker intervention policy summary differs")
-                    except (
-                        ImportError,
-                        KeyError,
-                        TypeError,
-                        ValueError,
-                    ):
-                        return {
-                            **base,
-                            "receipt": receipt,
-                            "reason": "action_intervention_receipt_invalid",
-                        }
+                _seam_early_response = _apply_the_wire_action_intervention(
+                    base=base,
+                    receipt=receipt,
+                    wire_action_intervention=wire_action_intervention,
+                    wire_action_policy_evidence=wire_action_policy_evidence,
+                    wire_external_execution_offer=wire_external_execution_offer,
+                )
+                if _seam_early_response is not _SEAM_FELL_THROUGH:
+                    return _seam_early_response
                 try:
                     identity_remaining = deadline.remaining
                     if identity_remaining is not None and identity_remaining <= 0.0:
@@ -14178,96 +14327,18 @@ class MLXLocalClient:
 
         req_id = uuid.uuid4().hex
         self._job_seq_counter += 1
-        req = {
-            "id": req_id,
-            "seq": self._job_seq_counter,
-            "action": "generate",
-            "prompt": prompt,
-            "messages": kwargs.get("messages"),
-            "tools": kwargs.get("tools"),
-            "temp": kwargs.get(
-                "temp",
-                kwargs.get("temperature", _bridge_get("temperature", self.temp)),
-            ),
-            "top_p": kwargs.get("top_p", _bridge_get("top_p", self.top_p)),
-            "top_k": kwargs.get("top_k", _bridge_get("top_k", 60)),
-            "min_p": kwargs.get("min_p", 0.05),
-            "repetition_penalty": kwargs.get(
-                "repetition_penalty", _bridge_get("repetition_penalty", 1.05)
-            ),
-            "repetition_context_size": kwargs.get("repetition_context_size", 30),
-            "presence_penalty": kwargs.get(
-                "presence_penalty", _bridge_get("presence_penalty", 0.0)
-            ),
-            # max_tokens is a cap: both the latent bridge and the typed visible
-            # output contract may shrink it, but neither can expand the caller.
-            "max_tokens": generation_max_tokens,
-            "memory_pressure_token_cap": kwargs.get("memory_pressure_token_cap"),
-            "user_surface_completion_floor": kwargs.get("user_surface_completion_floor"),
-            "completion_floor_applied": bool(kwargs.get("completion_floor_applied", False)),
-            "caller_requested_max_tokens": kwargs.get("max_tokens", self.max_tokens),
-            "adaptive_suggested_max_tokens": adaptive_suggested_max_tokens,
-            "output_contract_generation_floor": contract_generation_floor,
-            "requested_output_contract": dict(requested_output_contract),
-            "semantic_output_token_cap": kwargs.get("semantic_output_token_cap"),
-            "hard_output_token_ceiling": hard_output_token_ceiling,
-            "schema": kwargs.get("schema"),
-            "stop_sequences": list(kwargs.get("stop_sequences") or []),
-            "strict_answer_contract": bool(kwargs.get("strict_answer_contract", False)),
-            "strict_value_contract": bool(kwargs.get("strict_value_contract", False)),
-            "expected_strict_value": str(kwargs.get("expected_strict_value") or ""),
-            "proof_evaluation_contract": bool(kwargs.get("proof_evaluation_contract", False)),
-            "operator_evidence_contract": bool(kwargs.get("operator_evidence_contract", False)),
-            "web_interlocutor_contract": bool(kwargs.get("web_interlocutor_contract", False)),
-            "health_probe": bool(kwargs.get("health_probe", False)),
-            "warmup_precompile": bool(kwargs.get("warmup_precompile", False)),
-            "runtime_fact_status_contract": bool(kwargs.get("runtime_fact_status_contract", False)),
-            "requires_memory_grounding": bool(kwargs.get("requires_memory_grounding", False)),
-            "memory_state_contract": bool(kwargs.get("memory_state_contract", False)),
-            "grounded_recall_contract": bool(kwargs.get("grounded_recall_contract", False)),
-            "grounded_runtime_status_contract": bool(
-                kwargs.get("grounded_runtime_status_contract", False)
-            ),
-            "self_condition_contract": bool(kwargs.get("self_condition_contract", False)),
-            "clean_user_surface_contract": bool(
-                kwargs.get("clean_user_surface_contract", False)
-                or kwargs.get("health_probe", False)
-            )
-            and not bool(kwargs.get("web_interlocutor_contract", False)),
-            "user_surface_validation_prompt": str(
-                kwargs.get("user_surface_validation_prompt") or ""
-            ),
-            "user_surface_continuation_contract": bool(
-                kwargs.get("user_surface_continuation_contract", False)
-            ),
-            "user_surface_continuation_partial": continuation_state_text(
-                kwargs.get("user_surface_continuation_partial")
-            ),
-            "semantic_completion_contract": bool(
-                kwargs.get("semantic_completion_contract", False)
-            ),
-            "user_surface_prompt_binding": (
-                dict(kwargs.get("user_surface_prompt_binding") or {})
-                if isinstance(kwargs.get("user_surface_prompt_binding"), dict)
-                else {}
-            ),
-            "user_surface_grounding_evidence": _bounded_surface_grounding_evidence(
-                kwargs.get("user_surface_grounding_evidence")
-            ),
-            "user_surface_sensory_evidence": _bounded_surface_sensory_evidence(
-                kwargs.get("user_surface_sensory_evidence")
-            ),
-            "clean_user_surface_steering_alpha": kwargs.get("clean_user_surface_steering_alpha"),
-            "clean_user_surface_recurrent_loops": (
-                kwargs.get("clean_user_surface_recurrent_loops")
-                if kwargs.get("clean_user_surface_recurrent_loops") is not None
-                else (1 if kwargs.get("health_probe", False) else None)
-            ),
-            "live_mind_controls_bound": bool(kwargs.get("live_mind_controls_bound", False)),
-            "benchmark_request": bool(kwargs.get("benchmark_request", False)),
-            "disable_prompt_cache": bool(kwargs.get("disable_prompt_cache", False)),
-            "clear_prompt_cache": bool(kwargs.get("clear_prompt_cache", False)),
-        }
+        req = _build_the_generation_request(
+            _bridge_get=_bridge_get,
+            adaptive_suggested_max_tokens=adaptive_suggested_max_tokens,
+            contract_generation_floor=contract_generation_floor,
+            generation_max_tokens=generation_max_tokens,
+            hard_output_token_ceiling=hard_output_token_ceiling,
+            kwargs=kwargs,
+            prompt=prompt,
+            req_id=req_id,
+            requested_output_contract=requested_output_contract,
+            self=self,
+        )
 
         # CP126 cac5c1a3: normalise the sampling parameters BEFORE the
         # mandatory stop sequences are appended, so the caller's list is

@@ -11,7 +11,7 @@ isn't that kind of question.
 If you're evaluating this repo, start here rather than with the README. It's
 shorter, and it tells you more.
 
-*Last reconciled against the tree: 2026-08-01.* There's a machine-checked
+*Last reconciled against the tree: 2026-08-22.* There's a machine-checked
 counterpart in `core/organism/model_validation.py`, where a claim cannot be
 registered without a test attached — a claim without a test is a document,
 not a fact — and `ValidationSuite.unsupported_claims()` reports the live
@@ -315,3 +315,63 @@ and the runtime disagree, the runtime is right.
   more than one of them marked `thresholds_exhaustive`, since a contract that
   declares its branches but not the constants deciding them still leaves the
   criteria unreadable.
+
+## 17. Exact IIT 4.0 Integrated Information
+
+* **Status**: `not proven`
+* **What the code does**: `core/consciousness/phi_core.py` computes a spectral
+  approximation of φ over a declared 16-node substrate, and keeps exhaustive
+  bipartition search for the 8-node affective subset as a validation baseline.
+  Its own header says the 16-node case is an approximation and not a
+  consciousness meter, and gives the reason: 2^16 states is 65,536, and
+  exhaustive search over the 32,767 bipartitions of that space is intractable
+  at this scale.
+* **Why the approximation is not the theory**: IIT 4.0 defines φ over the
+  minimum-information partition found exhaustively, and over interventional
+  distributions — the do-operator applied to each mechanism. This computes
+  neither. The transition matrix is empirical, built from observed state
+  sequences, so it measures correlation structure rather than causal power.
+* **What would change this status**: an exact MIP over all 32,767 partitions,
+  and a TPM built by intervention rather than observation. The first is a
+  compute problem with a known cost; the second is an experimental design
+  problem, because intervening on a running mind changes the thing measured.
+
+## 18. Reproducible Concept-Activation Vectors
+
+* **Status**: `not proven`
+* **What the code does**: `core/consciousness/caa/production_caa.py` derives
+  activation vectors at runtime from the resident model. The evidence bundle
+  carries the A/B results as JSON and no `.npy` vectors, so a reader with the
+  bundle cannot recompute the result — reproduction depends on a local cache
+  that only exists on the machine that produced it.
+* **What would change this status**: the vetted vectors committed as artifacts
+  with the hash of the model they were derived from, so the numbers can be
+  recomputed by someone who was not there.
+
+## 19. A Closed Recurrence-Training Loop
+
+* **Status**: `not proven`
+* **What the code does**: the recurrence trainer exists
+  (`core/learning/recurrent_sft_kernel_probe.py` and the campaign tooling in
+  `tools/`), along with pre-registrations and a resident-model pilot contract.
+  What is absent is a run that closes the loop: train, promote, measure the
+  promoted model on held-out work, and beat the pre-registered baseline.
+* **What would change this status**: one detached run with a checkpoint, a
+  receipt and a held-out margin that survives the task set being swapped.
+  Pre-registration is what makes such a run worth reading; it is not the run.
+
+## 20. A Provably Contractive Substrate
+
+* **Status**: `not proven`
+* **What the code does**: `core/consciousness/timescale_stability.py` builds a
+  Jacobian for the coupled multi-timescale system and reports a maximal
+  Lyapunov exponent and whether a candidate V(x) is a valid Lyapunov function.
+  `core/phenomenal_substrate/maths.py` bounds every value and substitutes the
+  neutral element for a NaN rather than letting it saturate a channel.
+* **What is missing**: bounded is not contractive. Nothing proves the update
+  map is a contraction, so nothing rules out a bounded oscillation that never
+  settles. The adaptive step size is chosen, not derived from a contraction
+  factor.
+* **What would change this status**: a Lyapunov function for the substrate's
+  own update — not the timescale coupling — with a proof that the step size
+  keeps the map contractive over the reachable state set.

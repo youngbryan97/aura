@@ -1201,6 +1201,208 @@ def _compact_cognitive_situation_directive(frame: dict[str, Any] | None) -> str:
         return ""
 
 
+def _record_the_capability_inventory_miss(
+    *,
+    capability_inventory_contract: Any,
+    system_prompt: Any,
+    visible_user_message: Any,
+) -> None:
+    """Record why the capability inventory contract did not hold.
+
+    Moved out of ``CognitiveEngine._direct_desktop_quick_reply`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    0.
+    """
+    if not capability_inventory_contract:
+        try:
+            from core.brain.present_moment import present_moment_block
+
+            present = present_moment_block()
+            if present:
+                # PREPENDED, not appended. The system prompt is compacted to
+                # a 2,400-char scaffold floor before it reaches the worker,
+                # keeping the head and a critical excerpt; anything at the
+                # tail is the first thing cut. Attached at the tail, this
+                # block was logged as attached and still never arrived —
+                # "what time is it?" answered "my clock says 06:15 and the
+                # ambient light sensors report low illumination" at 01:40,
+                # from a runtime with no light sensor.
+                # NOT prepended any more. inference_gate now delivers this
+                # same block as its own system message positioned just
+                # BEFORE the final user turn — added after compaction, so
+                # it cannot be trimmed away, which was the original reason
+                # for prepending here.
+                #
+                # Prepending it a second time put per-turn volatile text
+                # (a clock, "2 min ago" receipts) at token ~125 of the
+                # system prompt, which invalidated the KV prefix for
+                # everything behind it. Measured live: 1,648 of 1,834
+                # tokens re-prefilled every turn (10% reuse) and a simple
+                # reply taking 13-16s, almost all of it prefill.
+                pass
+                # Grounding that cannot be seen cannot be verified. Two
+                # prompt builders and one of them ungrounded cost an hour
+                # of reasoning about why a fix "did not work" when it had
+                # simply never run.
+                logger.info(
+                    "🧭 [GROUNDING] present-moment prepended to the desktop "
+                    "system prompt (+%d chars, total %d).",
+                    len(present),
+                    len(system_prompt),
+                )
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine",
+                exc,
+                severity="warning",
+                action="continued desktop turn without present-moment grounding",
+            )
+        try:
+            from core.brain.recent_actions import recent_actions_block
+
+            actions = recent_actions_block()
+            if actions:
+                # Same: the gate places the receipts block before the final
+                # user turn. This copy only cost the cache prefix.
+                pass
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine",
+                exc,
+                severity="warning",
+                action="continued desktop turn without recent-action receipts",
+            )
+        try:
+            # Wider predicate: this path only adds a reading, while
+            # asks_about_own_runtime also turns off web search.
+            from core.runtime.self_state_intent import (
+                asks_about_own_capabilities,
+            )
+
+            if asks_about_own_capabilities(visible_user_message):
+                from core.brain.self_state_report import runtime_self_report
+
+                instruments = runtime_self_report()
+                if instruments:
+                    # Same: delivered by the gate.
+                    pass
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine",
+                exc,
+                severity="warning",
+                action="continued desktop turn without runtime self-readings",
+            )
+
+
+async def _commit_the_thought_with_retries(
+    *,
+    commit_outcome: Any,
+    cycle_deadline_at: Any,
+    is_test_run: Any,
+    max_retries: Any,
+    origin: Any,
+    pre_turn_cognition: Any,
+    self: Any,
+    should_bypass_commit: Any,
+    state: Any,
+    temp_state: Any,
+) -> tuple[Any, Any]:
+    """Commit the thought, retrying inside the attempt budget.
+
+    Moved out of ``CognitiveEngine._run_thinking_loop`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    2.
+    """
+    from core.state.state_repository import StateVersionConflictError
+    for attempt in range(max_retries):
+        if should_bypass_commit:
+            commit_outcome = (
+                "bypassed_test_isolation" if is_test_run else "no_state_repository"
+            )
+            logger.info("🧠 [STATE] Test run state isolation: bypassing database commit.")
+            break
+        _commit_budget = max(0.0, cycle_deadline_at - time.monotonic())
+        if _commit_budget <= 0.0:
+            commit_outcome = "cycle_deadline_expired"
+            record_degradation(
+                "cognitive_engine",
+                TimeoutError("cognitive cycle budget spent before state commit"),
+                severity="warning",
+                action="skipped the state commit because the cycle deadline had passed",
+            )
+            break
+        try:
+            # v14.2: Ensure the repository reference is correct (self.state_repository)
+            await asyncio.wait_for(
+                self.state_repository.commit(state, "cognitive_cycle"),
+                timeout=_commit_budget,
+            )
+            commit_outcome = "committed"
+            break  # Success!
+        except TimeoutError:
+            commit_outcome = "commit_timeout"
+            record_degradation(
+                "cognitive_engine",
+                TimeoutError(f"state commit exceeded {_commit_budget:.1f}s"),
+                severity="error",
+                action="abandoned the state commit at the cognitive cycle deadline",
+            )
+            break
+        except StateVersionConflictError as v_err:
+            if attempt == max_retries - 1:
+                commit_outcome = "version_conflict_exhausted"
+                logger.error(
+                    "Final state commit failed after %d retries: %s", max_retries, v_err
+                )
+                break
+
+            logger.warning(
+                "🔄 [STATE] Version conflict (attempt %d/%d). Re-deriving from latest...",
+                attempt + 1,
+                max_retries,
+            )
+            # Preserve the cognitive work completed in this cycle
+            preserved_memory = list(state.cognition.working_memory)
+            preserved_objective = state.cognition.current_objective
+            preserved_origin = state.cognition.current_origin
+
+            latest = await self.state_repository.get_current()
+            state = latest.derive(f"rebase_retry_{attempt + 1}: {origin}", origin=origin)
+
+            # Apply preserved cognitive context onto the newly derived state
+            state.cognition.working_memory = preserved_memory
+            state.cognition.current_objective = preserved_objective
+            state.cognition.current_origin = preserved_origin
+
+            # HF12 Extension: Preserve additional cognitive labor —
+            # ONLY the fields this turn actually changed.
+            #
+            # Copying all of them from the per-turn snapshot overwrote
+            # whatever a concurrent writer had committed in the meantime,
+            # which is the exact thing a version conflict is telling us
+            # happened. A field this turn did not touch keeps the latest
+            # value; a field it did touch wins, because that work would
+            # otherwise be lost.
+            self._reapply_turn_changes(
+                state.cognition,
+                temp_state.cognition,
+                pre_turn_cognition,
+            )
+        except (RuntimeError, AttributeError, TypeError) as e:
+            record_degradation(
+                "cognitive_engine",
+                e,
+                severity="degraded",
+                action="stopped commit retry loop and preserved in-memory cognitive result",
+            )
+            logger.error("Failed to commit final cognitive state: %s", e)
+            break
+    return commit_outcome, state
+
+
 class CognitiveEngine:
     """
     Cognitive Engine facade.
@@ -3281,7 +3483,6 @@ class CognitiveEngine:
         # — so it gets what is left of the same deadline instead of an
         # unbounded wait after the budget is already gone.
 
-        from core.state.state_repository import StateVersionConflictError
 
         # What actually happened to durable state. Every exit from this loop
         # used to be a bare `break`, after which extraction returned a
@@ -3289,89 +3490,18 @@ class CognitiveEngine:
         # had landed, been bypassed, exhausted its retries, or raised.
         commit_outcome = "not_attempted"
         max_retries = 3
-        for attempt in range(max_retries):
-            if should_bypass_commit:
-                commit_outcome = (
-                    "bypassed_test_isolation" if is_test_run else "no_state_repository"
-                )
-                logger.info("🧠 [STATE] Test run state isolation: bypassing database commit.")
-                break
-            _commit_budget = max(0.0, cycle_deadline_at - time.monotonic())
-            if _commit_budget <= 0.0:
-                commit_outcome = "cycle_deadline_expired"
-                record_degradation(
-                    "cognitive_engine",
-                    TimeoutError("cognitive cycle budget spent before state commit"),
-                    severity="warning",
-                    action="skipped the state commit because the cycle deadline had passed",
-                )
-                break
-            try:
-                # v14.2: Ensure the repository reference is correct (self.state_repository)
-                await asyncio.wait_for(
-                    self.state_repository.commit(state, "cognitive_cycle"),
-                    timeout=_commit_budget,
-                )
-                commit_outcome = "committed"
-                break  # Success!
-            except TimeoutError:
-                commit_outcome = "commit_timeout"
-                record_degradation(
-                    "cognitive_engine",
-                    TimeoutError(f"state commit exceeded {_commit_budget:.1f}s"),
-                    severity="error",
-                    action="abandoned the state commit at the cognitive cycle deadline",
-                )
-                break
-            except StateVersionConflictError as v_err:
-                if attempt == max_retries - 1:
-                    commit_outcome = "version_conflict_exhausted"
-                    logger.error(
-                        "Final state commit failed after %d retries: %s", max_retries, v_err
-                    )
-                    break
-
-                logger.warning(
-                    "🔄 [STATE] Version conflict (attempt %d/%d). Re-deriving from latest...",
-                    attempt + 1,
-                    max_retries,
-                )
-                # Preserve the cognitive work completed in this cycle
-                preserved_memory = list(state.cognition.working_memory)
-                preserved_objective = state.cognition.current_objective
-                preserved_origin = state.cognition.current_origin
-
-                latest = await self.state_repository.get_current()
-                state = latest.derive(f"rebase_retry_{attempt + 1}: {origin}", origin=origin)
-
-                # Apply preserved cognitive context onto the newly derived state
-                state.cognition.working_memory = preserved_memory
-                state.cognition.current_objective = preserved_objective
-                state.cognition.current_origin = preserved_origin
-
-                # HF12 Extension: Preserve additional cognitive labor —
-                # ONLY the fields this turn actually changed.
-                #
-                # Copying all of them from the per-turn snapshot overwrote
-                # whatever a concurrent writer had committed in the meantime,
-                # which is the exact thing a version conflict is telling us
-                # happened. A field this turn did not touch keeps the latest
-                # value; a field it did touch wins, because that work would
-                # otherwise be lost.
-                self._reapply_turn_changes(
-                    state.cognition,
-                    temp_state.cognition,
-                    pre_turn_cognition,
-                )
-            except (RuntimeError, AttributeError, TypeError) as e:
-                record_degradation(
-                    "cognitive_engine",
-                    e,
-                    severity="degraded",
-                    action="stopped commit retry loop and preserved in-memory cognitive result",
-                )
-                logger.error("Failed to commit final cognitive state: %s", e)
-                break
+        commit_outcome, state = await _commit_the_thought_with_retries(
+            commit_outcome=commit_outcome,
+            cycle_deadline_at=cycle_deadline_at,
+            is_test_run=is_test_run,
+            max_retries=max_retries,
+            origin=origin,
+            pre_turn_cognition=pre_turn_cognition,
+            self=self,
+            should_bypass_commit=should_bypass_commit,
+            state=state,
+            temp_state=temp_state,
+        )
 
         # The turn completed durably (or was legitimately isolated). Only now
         # may external lifecycle state be told it finished.
@@ -4509,86 +4639,11 @@ class CognitiveEngine:
         # ... clouds gathering in the east" at 00:53 in the morning, word for
         # word. Two prompt builders, one of them ungrounded, and this is the one
         # every real conversation goes through.
-        if not capability_inventory_contract:
-            try:
-                from core.brain.present_moment import present_moment_block
-
-                present = present_moment_block()
-                if present:
-                    # PREPENDED, not appended. The system prompt is compacted to
-                    # a 2,400-char scaffold floor before it reaches the worker,
-                    # keeping the head and a critical excerpt; anything at the
-                    # tail is the first thing cut. Attached at the tail, this
-                    # block was logged as attached and still never arrived —
-                    # "what time is it?" answered "my clock says 06:15 and the
-                    # ambient light sensors report low illumination" at 01:40,
-                    # from a runtime with no light sensor.
-                    # NOT prepended any more. inference_gate now delivers this
-                    # same block as its own system message positioned just
-                    # BEFORE the final user turn — added after compaction, so
-                    # it cannot be trimmed away, which was the original reason
-                    # for prepending here.
-                    #
-                    # Prepending it a second time put per-turn volatile text
-                    # (a clock, "2 min ago" receipts) at token ~125 of the
-                    # system prompt, which invalidated the KV prefix for
-                    # everything behind it. Measured live: 1,648 of 1,834
-                    # tokens re-prefilled every turn (10% reuse) and a simple
-                    # reply taking 13-16s, almost all of it prefill.
-                    pass
-                    # Grounding that cannot be seen cannot be verified. Two
-                    # prompt builders and one of them ungrounded cost an hour
-                    # of reasoning about why a fix "did not work" when it had
-                    # simply never run.
-                    logger.info(
-                        "🧭 [GROUNDING] present-moment prepended to the desktop "
-                        "system prompt (+%d chars, total %d).",
-                        len(present),
-                        len(system_prompt),
-                    )
-            except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-                record_degradation(
-                    "cognitive_engine",
-                    exc,
-                    severity="warning",
-                    action="continued desktop turn without present-moment grounding",
-                )
-            try:
-                from core.brain.recent_actions import recent_actions_block
-
-                actions = recent_actions_block()
-                if actions:
-                    # Same: the gate places the receipts block before the final
-                    # user turn. This copy only cost the cache prefix.
-                    pass
-            except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-                record_degradation(
-                    "cognitive_engine",
-                    exc,
-                    severity="warning",
-                    action="continued desktop turn without recent-action receipts",
-                )
-            try:
-                # Wider predicate: this path only adds a reading, while
-                # asks_about_own_runtime also turns off web search.
-                from core.runtime.self_state_intent import (
-                    asks_about_own_capabilities,
-                )
-
-                if asks_about_own_capabilities(visible_user_message):
-                    from core.brain.self_state_report import runtime_self_report
-
-                    instruments = runtime_self_report()
-                    if instruments:
-                        # Same: delivered by the gate.
-                        pass
-            except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-                record_degradation(
-                    "cognitive_engine",
-                    exc,
-                    severity="warning",
-                    action="continued desktop turn without runtime self-readings",
-                )
+        _record_the_capability_inventory_miss(
+            capability_inventory_contract=capability_inventory_contract,
+            system_prompt=system_prompt,
+            visible_user_message=visible_user_message,
+        )
 
         if style_contract and not capability_inventory_contract:
             turn_dynamic_contracts.append(style_contract)

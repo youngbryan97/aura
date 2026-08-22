@@ -1,10 +1,10 @@
 {
-  "total_patterns": 197,
-  "total_lines": 10240,
+  "total_patterns": 200,
+  "total_lines": 10373,
   "by_file": {
     "core/conversation/response_reliability.py": {
-      "compiled_patterns": 172,
-      "lines": 9157
+      "compiled_patterns": 175,
+      "lines": 9290
     },
     "core/conversation/ontology_grounding.py": {
       "compiled_patterns": 12,
@@ -21,7 +21,7 @@
   },
   "growth_notes": {
     "core/conversation/ontology_grounding.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it.",
-    "core/conversation/response_reliability.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it.",
+    "core/conversation/response_reliability.py": "2026-08-22: CP904 (b209751df, 2026-08-22) added three patterns to response_reliability while stopping prompt syntax from destroying complete answers. It landed on main while this branch was open, and nothing blocked it, because main is not yet protected \u2014 which is the case this ratchet's own message describes. Recorded rather than reverted: the change is somebody else's in-flight behaviour work and removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses.",
     "core/dialogue/shared_history.py": "2026-08-22: Landed by the response-reliability work between 2026-08-13 and 2026-08-22, not by the pass that recorded this. Sixteen patterns across three files. Removing a filter whose live behaviour I cannot reproduce is how a fixed answer regresses, so the count is recorded here rather than quietly re-baselined, and it may not rise again without another reason beside it."
   }
 }

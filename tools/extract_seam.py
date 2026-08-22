@@ -68,6 +68,7 @@ def _render_nested_helper(
     summary: str,
     function: str,
     reads: list[str],
+    replayed: "dict[str, str] | None" = None,
 ) -> str:
     """A helper whose body is the block, inside a function that can return.
 
@@ -89,6 +90,7 @@ def _render_nested_helper(
         else "Any"
     )
     nonlocal_line = f"        nonlocal {', '.join(rebound)}\n" if rebound else ""
+    replay = "".join(f"    {line}\n" for line in sorted((replayed or {}).values()))
     return (
         f"{prefix}def {name}(\n"
         "    *,\n"
@@ -102,7 +104,8 @@ def _render_nested_helper(
         f"    means it finished instead. It reads {len(reads)} name(s) and hands back\n"
         f"    {len(escapes)}.\n"
         '    """\n'
-        f"    {prefix}def _block() -> Any:\n"
+        + replay
+        + f"    {prefix}def _block() -> Any:\n"
         f"{nonlocal_line}"
         + textwrap.indent(body, "        ")
         + f"        return {_SENTINEL}\n"
@@ -425,6 +428,10 @@ def extract(
         if nested
         else sorted(set(reads) | set(carried))
     )
+    # Names the enclosing function imported locally are replayed as imports in
+    # the helper rather than passed in.
+    replayed = _local_imports_before(fn, start, set(parameters) - set(escapes))
+    parameters = [name for name in parameters if name not in replayed]
     signature = "".join(f"    {n}: Any,\n" for n in parameters)
     prefix = "async " if is_async else ""
     awaited = "await " if is_async else ""
@@ -454,6 +461,7 @@ def extract(
             summary=summary,
             function=function,
             reads=parameters,
+            replayed=replayed,
         )
         pad = " " * indent
         call_arguments = "".join(f"{pad}    {n}={n},\n" for n in parameters)
@@ -493,6 +501,7 @@ def extract(
         f"    writing. It reads {len(reads)} name(s) from the turn and hands back\n"
         f"    {len(escapes)}.\n"
         '    """\n'
+        + "".join(f"    {line}\n" for line in sorted(replayed.values()))
         + textwrap.indent(body, "    ")
         + ("" if not escapes else f"    return {returned}\n")
     )
@@ -519,6 +528,7 @@ def extract(
         escapes=escapes,
         apply=apply,
         nested=False,
+        replayed=replayed,
     )
 
 
@@ -534,6 +544,35 @@ def _name_is_taken(source: str, name: str) -> bool:
                 if isinstance(target, ast.Name) and target.id == name:
                     return True
     return False
+
+
+def _local_imports_before(fn: ast.AST, start: int, names: set[str]) -> dict[str, str]:
+    """Import statements inside the function that bind one of ``names``.
+
+    A function that imports something locally — `from core.x import Error`
+    partway down — makes that name a free variable of every block after it. As
+    a parameter it is correct and reads badly: the helper takes an argument
+    called `StateVersionConflictError`, which is a class name in an argument
+    position and a lint error on sight. Replaying the import inside the helper
+    keeps the block's text identical and the signature honest.
+    """
+    found: dict[str, str] = {}
+    for node in ast.walk(fn):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if node.lineno >= start:
+            continue
+        for alias in node.names:
+            bound = alias.asname or alias.name.split(".")[0]
+            if bound not in names:
+                continue
+            if isinstance(node, ast.Import):
+                spelled = alias.name + (f" as {alias.asname}" if alias.asname else "")
+                found[bound] = f"import {spelled}"
+            else:
+                spelled = alias.name + (f" as {alias.asname}" if alias.asname else "")
+                found[bound] = f"from {'.' * node.level}{node.module or ''} import {spelled}"
+    return found
 
 
 def _module_level_insertion_point(source: str, function: str, fn: ast.AST) -> int:
@@ -583,6 +622,7 @@ def _finish(
     escapes: list[str],
     apply: bool,
     nested: bool,
+    replayed: "dict[str, str] | None" = None,
 ) -> int:
     """Prove the move, then write it.
 
@@ -606,6 +646,13 @@ def _finish(
         moved_body = [n for n in inner.body if not isinstance(n, ast.Nonlocal)][:-1]
     else:
         moved_body = helper_fn.body[1:] if not escapes else helper_fn.body[1:-1]
+
+    # The docstring is dropped above; replayed local imports sit between it and
+    # the block and are not part of the block either. Without this the proof
+    # compares the block against the block plus an import and refuses a cut it
+    # made correctly.
+    while moved_body and isinstance(moved_body[0], (ast.Import, ast.ImportFrom)):
+        moved_body = moved_body[1:]
 
     original_tokens = _normalised_tokens(body)
     if not original_tokens:
@@ -656,6 +703,15 @@ def _finish(
     ast.parse(rewritten)
     path.write_text(rewritten, encoding="utf-8")
     print(f"✅ wrote {path}")
+    if replayed:
+        # The caller may now import something nothing in it uses. Removing it
+        # is a change to the caller rather than a move, so this says so and
+        # leaves the decision to the person running `make lint`.
+        print(
+            "   replayed into the helper: "
+            + ", ".join(sorted(replayed))
+            + " — check whether the caller's local import is now unused"
+        )
     return 0
 
 

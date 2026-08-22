@@ -24,6 +24,16 @@ without evidence to back a claim yet.
 ## 2026-08
 
 ### Added
+- **Four honest limits, written down**
+  (`CLAIMS_NOT_SUPPORTED.md` §17-20) — exact IIT 4.0 (the φ measure is a
+  spectral approximation over an observed transition matrix, not an exhaustive
+  MIP over interventional distributions), reproducible concept-activation
+  vectors (derived at runtime, so the bundle cannot be recomputed by someone
+  who was not there), a closed recurrence-training loop (the trainer and the
+  pre-registrations exist; a run that beats its own baseline on held-out work
+  does not), and a provably contractive substrate (bounded is not
+  contractive). Each entry says what the code does and what would change the
+  status.
 - **A skill may not reach past the scope it declares**
   (`core/skills/effect_reach.py`, `tools/check_skill_effect_scope.py`) —
   registration refused a skill that declared no recognised `effect_scope` and
