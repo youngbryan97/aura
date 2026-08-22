@@ -9730,6 +9730,14 @@ def _known_answer_for_this_turn() -> str:
         if seating:
             return seating
 
+        # A game the preflight already enumerated. Worked out before anything
+        # was generated, so there is nothing here to improve on.
+        from core.conversation.session_scope import solved_answers
+
+        solved = solved_answers()
+        if solved:
+            return next(reversed(list(solved.values())))
+
         value = requested_arithmetic_result(question)
         if value is None:
             return ""

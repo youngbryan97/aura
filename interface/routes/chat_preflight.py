@@ -2096,6 +2096,30 @@ async def _run_chat_preflight(
                 logger.debug("Chat sight preflight skipped: %s", _sight_exc)
             _finish_timing("sight")
 
+            # Work out what can be worked out, before anything is generated.
+            #
+            # LIVE, 2026-08-22: the finite-game solver ran after the reply and
+            # its translation call was refused as background work, on a turn
+            # whose own generation had already spent 180 seconds and timed
+            # out. An exact answer is not an improvement on a generated one;
+            # it is a reason not to generate.
+            try:
+                from core.conversation.session_scope import record_solved_answer
+                from core.reasoning.game_answer import solve_described_game
+
+                _solved = await solve_described_game(_original_user_message)
+                if _solved:
+                    record_solved_answer("finite_game", _solved)
+            except _CHAT_RECOVERABLE_ERRORS as _solve_exc:
+                record_degradation(
+                    "chat.solve_before_generating",
+                    _solve_exc,
+                    severity="debug",
+                    action="left the question to the model",
+                    enforce_failure_policy=False,
+                )
+            _finish_timing("solved")
+
             # Her own measured state, on every turn.
             #
             # Every earlier attempt at this fetched self-evidence only when a

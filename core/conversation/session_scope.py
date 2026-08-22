@@ -105,6 +105,8 @@ __all__ = [
     "current_conversation_turn",
     "normalize_conversation_id",
     "normalize_conversation_turn_id",
+    "record_solved_answer",
+    "solved_answers",
 ]
 
 
@@ -115,6 +117,38 @@ def set_user_question(text: object) -> None:
     # A fresh container per turn, so evidence from the previous one cannot be
     # mistaken for evidence in hand now.
     _TURN_EVIDENCE.set(set())
+    _TURN_SOLVED.set({})
+
+
+#: An exact answer worked out before the model was asked. A dict for the same
+#: reason the evidence set is one: children get a copy of the context, so the
+#: container is shared and the child mutates it.
+_TURN_SOLVED: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
+    "aura_turn_solved", default={}
+)
+
+
+def record_solved_answer(name: object, answer: object) -> None:
+    """Keep an answer the runtime worked out before generation.
+
+    LIVE, 2026-08-22: the finite-game solver ran after the reply was written,
+    by which time the turn was over for lane admission, so its translation
+    call was refused as background work — twice, on a turn whose own generation
+    had already timed out at 180 seconds. An exact answer is not an improvement
+    on a generated one; it is a reason not to generate.
+    """
+    label = str(name or "").strip()
+    body = str(answer or "").strip()
+    if not label or not body:
+        return
+    holder = _TURN_SOLVED.get()
+    if isinstance(holder, dict):
+        holder[label] = body
+
+
+def solved_answers() -> dict[str, str]:
+    """Everything worked out exactly this turn, newest last."""
+    return dict(_TURN_SOLVED.get() or {})
 
 
 def record_evidence_delivered(name: object) -> None:
