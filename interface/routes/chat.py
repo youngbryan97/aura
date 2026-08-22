@@ -9732,11 +9732,16 @@ def _known_answer_for_this_turn() -> str:
 
         # A game the preflight already enumerated. Worked out before anything
         # was generated, so there is nothing here to improve on.
+        #
+        # A repository diagnosis is different: it is an observation, and what
+        # was asked for was an explanation of it. That one is composed with
+        # the reply instead of replacing it, further down.
         from core.conversation.session_scope import solved_answers
 
         solved = solved_answers()
-        if solved:
-            return next(reversed(list(solved.values())))
+        settled = solved.get("finite_game", "")
+        if settled:
+            return settled
 
         value = requested_arithmetic_result(question)
         if value is None:
@@ -15113,6 +15118,40 @@ def _compose(
     return compose_measured(user_message, reply, measured, matches, refute=refute)
 
 
+def _serve_repo_diagnosis(reply: object) -> object:
+    """Put what running the project showed in front of what was said about it.
+
+    LIVE, 2026-08-22: the diagnosis ran in 428ms and the turn served "I
+    couldn't get to an answer I'd stand behind", because the draft explaining
+    it was rejected for missing the numbers the diagnosis contains.
+
+    Unlike an enumerated game, this is an observation rather than an answer:
+    somebody asked what is wrong, and the failing line beside the project's
+    own stated invariant is the evidence for that, not the sentence. So it is
+    composed with the reply rather than replacing it.
+    """
+    try:
+        from core.conversation.session_scope import solved_answers
+
+        found = solved_answers().get("repo_diagnosis", "").strip()
+        if not found:
+            return reply
+        written = str(reply or "").strip()
+        if not written or found in written:
+            return found
+        logger.info("🔬 Served the diagnosis from running the project.")
+        return f"{found}\n\n{written}"
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.repo_diagnosis",
+            exc,
+            severity="debug",
+            action="left the diagnosis to the reply",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
     """Answer a quantitative question about a data file by computing it.
 
@@ -17114,6 +17153,7 @@ async def _recorded_answer_corrections(
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
     corrected = str(await _serve_solved_game(user_message, corrected) or corrected)
+    corrected = str(_serve_repo_diagnosis(corrected) or corrected)
     return corrected, corrected.strip() != body.strip()
 
 
