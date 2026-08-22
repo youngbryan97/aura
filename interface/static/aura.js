@@ -8044,11 +8044,84 @@ if (termSendBtn) termSendBtn.addEventListener('click', async (e) => {
     }
 });
 
+
+// ── Asking before doing ───────────────────────────────────
+//
+// LIVE DEFECT, 2026-08-22: the Reboot button did nothing. Twice pressed, same
+// process, same start time, nothing in the log. `confirm()` routes to the
+// app's WKUIDelegate, and the shell implements the media-capture handler and
+// none of the JavaScript panels — so WebKit answers false itself, with no
+// dialog shown. Clearing the transcript was dead the same way.
+//
+// A control that asks before acting must not depend on the shell answering.
+// This draws the question in the page, so it behaves the same in the desktop
+// window, a browser tab, and anything else that renders the UI.
+function auraConfirm(message, { confirmLabel = 'Confirm', cancelLabel = 'Cancel' } = {}) {
+    return new Promise((resolve) => {
+        const existing = document.getElementById('aura-confirm');
+        if (existing) existing.remove();
+
+        const shade = document.createElement('div');
+        shade.id = 'aura-confirm';
+        shade.className = 'aura-confirm-shade';
+        shade.setAttribute('role', 'dialog');
+        shade.setAttribute('aria-modal', 'true');
+
+        const box = document.createElement('div');
+        box.className = 'aura-confirm-box';
+
+        const text = document.createElement('div');
+        text.className = 'aura-confirm-text';
+        String(message || '').split(/\n\n+/).forEach((para) => {
+            const line = document.createElement('p');
+            line.textContent = para;
+            text.appendChild(line);
+        });
+
+        const row = document.createElement('div');
+        row.className = 'aura-confirm-row';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'aura-confirm-btn';
+        cancel.textContent = cancelLabel;
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'aura-confirm-btn primary';
+        go.textContent = confirmLabel;
+        row.appendChild(cancel);
+        row.appendChild(go);
+
+        box.appendChild(text);
+        box.appendChild(row);
+        shade.appendChild(box);
+        document.body.appendChild(shade);
+
+        let settled = false;
+        const finish = (answer) => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            shade.remove();
+            resolve(answer);
+        };
+        const onKey = (event) => {
+            if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+            else if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+        };
+        document.addEventListener('keydown', onKey, true);
+        cancel.addEventListener('click', () => finish(false));
+        go.addEventListener('click', () => finish(true));
+        shade.addEventListener('click', (event) => { if (event.target === shade) finish(false); });
+        go.focus();
+    });
+}
+window.auraConfirm = auraConfirm;
+
 const rebootBtn = $('btn-reboot');
 if (rebootBtn) rebootBtn.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirm('Reboot Aura? This will restart the server process.')) {
+    if (await auraConfirm('Reboot Aura? This restarts the server process.', { confirmLabel: 'Reboot' })) {
         try {
             const res = await fetch('/api/reboot', {
                 method: 'POST',
@@ -8951,8 +9024,8 @@ if (exportBtn) exportBtn.addEventListener('click', async () => {
 // the view is still one-way for the reader — the shell never repopulates
 // #messages from the server — so the confirm stays.
 const clearBtn = document.getElementById('btn-clear-history');
-if (clearBtn) clearBtn.addEventListener('click', () => {
-    if (confirm('Clear the transcript shown in this window?\n\nAura\'s stored conversation history and memories are not affected.')) {
+if (clearBtn) clearBtn.addEventListener('click', async () => {
+    if (await auraConfirm('Clear the transcript shown in this window?\n\nAura\'s stored conversation history and memories are not affected.', { confirmLabel: 'Clear' })) {
         const msgEl = document.getElementById('messages');
         if (msgEl) msgEl.innerHTML = '<div class="sys-box">Transcript cleared from this view. Aura\'s history is unchanged.</div>';
     }

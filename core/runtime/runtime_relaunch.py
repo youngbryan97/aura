@@ -148,17 +148,27 @@ def schedule_relaunch(
         # catch. allow_during_shutdown is the point of this call: the waiter
         # must be arranged BEFORE the runtime stops, or the reboot leaves Aura
         # down with nothing to bring it back.
+        # Arranging your own replacement is internal maintenance, and the
+        # gateway refuses maintenance that does not say so.
+        #
+        # LIVE DEFECT, 2026-08-22: pressing Reboot in the header answered 500
+        # with "GovernanceViolationError: subprocess_gateway.spawn:
+        # runtime_relaunch:schedule_relaunch called outside governed context".
+        # The scope belongs here rather than at each caller: this function
+        # owns the spawn, so it is the thing that has to declare it.
+        from core.governance_context import local_internal_governed_scope
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-        child = get_subprocess_gateway().spawn(
-            command,
-            cwd=resolved_cwd,
-            start_new_session=True,
-            stdin=subprocess.DEVNULL,
-            allow_during_shutdown=True,
-            source="runtime_relaunch:schedule_relaunch",
-            accelerator_capability="auto",
-        )
+        with local_internal_governed_scope("runtime_relaunch.schedule_relaunch"):
+            child = get_subprocess_gateway().spawn(
+                command,
+                cwd=resolved_cwd,
+                start_new_session=True,
+                stdin=subprocess.DEVNULL,
+                allow_during_shutdown=True,
+                source="runtime_relaunch:schedule_relaunch",
+                accelerator_capability="auto",
+            )
     except (OSError, ValueError) as exc:
         record_degradation(
             _SUBSYSTEM,

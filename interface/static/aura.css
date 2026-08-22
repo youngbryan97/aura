@@ -7714,3 +7714,69 @@ body.theme-light .skill-card::before {
 }
 
 .media-note-error { color: #f0a06a; }
+
+/* ── Asking before doing ──────────────────────────────────
+ *
+ * LIVE DEFECT, 2026-08-22: the Reboot button did nothing, twice pressed.
+ * `confirm()` routes to the app's WKUIDelegate, and the shell implements the
+ * media-capture handler and none of the JavaScript panels, so WebKit answers
+ * false itself and shows nothing. A control that asks before acting draws its
+ * own question now, and behaves the same in every shell.
+ */
+.aura-confirm-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 5, 9, 0.66);
+  backdrop-filter: blur(3px);
+}
+.aura-confirm-box {
+  width: min(30rem, calc(100vw - 2 * var(--aura-space-5)));
+  padding: var(--aura-space-5);
+  border: 1px solid var(--aura-card-border);
+  border-radius: var(--aura-radius-2);
+  background: #16141c;
+  color: var(--aura-fg);
+  font-family: var(--aura-font-ui);
+  font-size: var(--aura-text-1);
+  line-height: var(--aura-text-1h);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.aura-confirm-text p {
+  margin: 0 0 var(--aura-space-3);
+}
+.aura-confirm-text p:last-child {
+  margin-bottom: 0;
+  color: var(--aura-fg-dim);
+}
+.aura-confirm-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--aura-space-2);
+  margin-top: var(--aura-space-5);
+}
+.aura-confirm-btn {
+  font: inherit;
+  padding: var(--aura-space-2) var(--aura-space-4);
+  border-radius: var(--aura-radius-1);
+  border: 1px solid var(--aura-card-border);
+  background: transparent;
+  color: var(--aura-fg-dim);
+  cursor: pointer;
+}
+.aura-confirm-btn:hover {
+  color: var(--aura-fg);
+  border-color: var(--aura-accent);
+}
+.aura-confirm-btn.primary {
+  color: var(--aura-fg);
+  border-color: var(--aura-accent);
+  background: var(--aura-accent-soft);
+}
+.aura-confirm-btn:focus-visible {
+  outline: 2px solid var(--aura-accent);
+  outline-offset: 2px;
+}

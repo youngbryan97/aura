@@ -3893,6 +3893,77 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         decisionHandler(.grant)
     }
 
+    /// Answer WebKit's JavaScript dialogs for Aura's own pages.
+    ///
+    /// LIVE DEFECT, 2026-08-22: the Reboot button in the header did nothing.
+    /// Pressed twice, the runtime kept the same pid and start time and the log
+    /// recorded no request. `confirm()` routes to the app's WKUIDelegate, and
+    /// this delegate implemented the media-capture handler and none of the
+    /// JavaScript panels — so WebKit answered false on its own behalf and
+    /// showed nothing. Clearing the transcript was dead the same way.
+    ///
+    /// The page now draws its own confirmation and no longer depends on this,
+    /// but a delegate that silently denies is a trap for whatever asks next.
+    /// Only Aura's own runtime is answered; a page that is not hers gets the
+    /// same silence as before.
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptAlertPanelWithMessage message: String,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard isLocalRuntimeOrigin(frame.securityOrigin) else {
+            completionHandler()
+            return
+        }
+        let panel = NSAlert()
+        panel.messageText = "Aura"
+        panel.informativeText = message
+        panel.addButton(withTitle: "OK")
+        panel.runModal()
+        completionHandler()
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptConfirmPanelWithMessage message: String,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        guard isLocalRuntimeOrigin(frame.securityOrigin) else {
+            completionHandler(false)
+            return
+        }
+        let panel = NSAlert()
+        panel.messageText = "Aura"
+        panel.informativeText = message
+        panel.addButton(withTitle: "OK")
+        panel.addButton(withTitle: "Cancel")
+        completionHandler(panel.runModal() == .alertFirstButtonReturn)
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptTextInputPanelWithPrompt prompt: String,
+        defaultText: String?,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping (String?) -> Void
+    ) {
+        guard isLocalRuntimeOrigin(frame.securityOrigin) else {
+            completionHandler(nil)
+            return
+        }
+        let panel = NSAlert()
+        panel.messageText = "Aura"
+        panel.informativeText = prompt
+        panel.addButton(withTitle: "OK")
+        panel.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.stringValue = defaultText ?? ""
+        panel.accessoryView = field
+        completionHandler(panel.runModal() == .alertFirstButtonReturn ? field.stringValue : nil)
+    }
+
     private func openNativeDesktopWindow() {
         if desktopWindow == nil {
             let frame = NSRect(x: 0, y: 0, width: 1280, height: 820)
