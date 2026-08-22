@@ -127,6 +127,65 @@ def test_research_history_owns_a_narrow_governed_append(monkeypatch, tmp_path):
     assert constraints["record_sha256"] == digest
 
 
+@pytest.mark.asyncio
+async def test_experience_consolidation_owns_async_governed_writes(
+    monkeypatch,
+    tmp_path,
+):
+    from core.consciousness import experience_consolidator as module
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    narrative_path = tmp_path / "identity" / "self_narrative.json"
+    log_path = tmp_path / "identity" / "consolidation_log.jsonl"
+    monkeypatch.setattr(module, "NARRATIVE_PATH", narrative_path)
+    monkeypatch.setattr(module, "CONSOL_LOG_PATH", log_path)
+
+    consolidator = module.ExperienceConsolidator(cognitive_engine=None)
+    narrative = module.IdentityNarrative(
+        version=4,
+        signature_phrase="I retain measured changes in a durable self-model.",
+    )
+    consolidator._narrative = narrative
+
+    gateway = get_file_write_gateway()
+    real_write = gateway.write_text_async
+    real_append = gateway.append_text_async
+    observed = []
+
+    async def observing_write(path, text, **kwargs):
+        observed.append(("write", get_active_governance()))
+        await real_write(path, text, **kwargs)
+
+    async def observing_append(path, text, **kwargs):
+        observed.append(("append", get_active_governance()))
+        await real_append(path, text, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text_async", observing_write)
+    monkeypatch.setattr(gateway, "append_text_async", observing_append)
+
+    with _governance_runtime_forced_active(monkeypatch):
+        await consolidator._save_narrative()
+        await consolidator._log_consolidation(
+            narrative,
+            {"experiences": [{"type": "test"}]},
+        )
+
+    assert narrative_path.exists()
+    assert log_path.exists()
+    assert [kind for kind, _token in observed] == ["write", "append"]
+    save_token = observed[0][1]
+    log_token = observed[1][1]
+    assert save_token is not None
+    assert save_token.source == "experience_consolidator.save_narrative"
+    assert save_token.domain == "state_mutation"
+    assert dict(save_token.constraints)["version"] == 4
+    assert log_token is not None
+    assert log_token.source == "experience_consolidator.log_consolidation"
+    assert log_token.domain == "memory_write"
+    assert dict(log_token.constraints)["operation"] == "append_only"
+
+
 def test_degradation_is_not_recorded_for_governed_bookkeeping(monkeypatch, tmp_path):
     """The live failure mode: refused writes spawned incidents every turn."""
     from core.meta.cognitive_trace import CognitiveTrace

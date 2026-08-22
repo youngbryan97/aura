@@ -70,9 +70,44 @@ def test_an_unknown_language_is_not_guessed_at(tmp_path) -> None:
     assert saved.path.suffix == ".txt"
 
 
-def test_the_reply_keeps_the_page_and_gains_the_path() -> None:
+@pytest.mark.asyncio
+async def test_the_reply_keeps_the_page_and_gains_the_path() -> None:
     from interface.routes.chat import _save_requested_artifact
 
-    out = str(_save_requested_artifact("build me a self-contained HTML page", REPLY))
+    out = str(
+        await _save_requested_artifact(
+            "build me a self-contained HTML page",
+            REPLY,
+        )
+    )
     assert "<!DOCTYPE html>" in out
     assert "Saved it to " in out
+
+
+@pytest.mark.asyncio
+async def test_live_artifact_write_uses_async_governed_gateway(monkeypatch, tmp_path) -> None:
+    from core.conversation.requested_artifact import save_requested_artifact_async
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    gateway = get_file_write_gateway()
+    real_write = gateway.write_text_async
+    observed = []
+
+    async def observing_write(path, text, **kwargs):
+        observed.append(get_active_governance())
+        await real_write(path, text, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text_async", observing_write)
+
+    saved = await save_requested_artifact_async(
+        "build me a small web app, one self-contained HTML file",
+        REPLY,
+        root=tmp_path,
+    )
+
+    assert saved is not None
+    assert saved.path.exists()
+    assert observed[0] is not None
+    assert observed[0].source == "conversation.requested_artifact"
+    assert observed[0].domain == "state_mutation"

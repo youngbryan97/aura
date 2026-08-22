@@ -353,14 +353,6 @@
       "scope": "<module>.SubjectiveChoiceEngine._save"
     },
     {
-      "callee": "core.utils.file_utils.atomic_write_json",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/agency/task_commitment_verifier.py",
-      "scope": "<module>.TaskCommitmentVerifier._save_locked"
-    },
-    {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
@@ -775,14 +767,6 @@
       "count": 1,
       "path": "core/brain/verifiers/code_engine.py",
       "scope": "<module>.CodeTruthEngine._ruff"
-    },
-    {
-      "callee": "core.runtime.atomic_writer.async_atomic_write_text",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 2,
-      "path": "core/capabilities/self_taught_builder.py",
-      "scope": "<module>.build_app_verified"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
@@ -3393,6 +3377,14 @@
       "scope": "<module>.SelfRepairBacklog._mark_seen"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/task_commitment_verifier.py",
+      "scope": "<module>.TaskCommitmentVerifier._commit_task_snapshot"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": true,
       "category": "file_write_gateway",
@@ -3913,7 +3905,7 @@
       "scope": "<module>.DreamingProcess._get_recent_summary"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -3921,7 +3913,7 @@
       "scope": "<module>.ExperienceConsolidator._log_consolidation"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -3929,7 +3921,7 @@
       "scope": "<module>.ExperienceConsolidator._log_consolidation"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -4009,6 +4001,22 @@
       "scope": "<module>.WholeSystemPhiService.persist_latest"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/construction/build_app_system.py",
+      "scope": "<module>.build_app"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/construction/build_app_system.py",
+      "scope": "<module>.build_app"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -4047,6 +4055,22 @@
       "count": 1,
       "path": "core/conversation/external_chat.py",
       "scope": "<module>.TerminalChatWindow._create_chat_script"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/conversation/requested_artifact.py",
+      "scope": "<module>.save_requested_artifact"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/conversation/requested_artifact.py",
+      "scope": "<module>.save_requested_artifact_async"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -4494,7 +4518,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/memory/black_hole_vault.py",
-      "scope": "<module>.BlackHoleVault._save_vault"
+      "scope": "<module>.BlackHoleVault._persist_encoded_vault"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -6318,14 +6342,6 @@
       "category": "memory_write_gateway",
       "count": 1,
       "path": "core/capabilities/self_code_improver.py",
-      "scope": "<module>._retain"
-    },
-    {
-      "callee": "core.memory.memory_write_gateway.get_memory_write_gateway().write",
-      "canonical_owner": false,
-      "category": "memory_write_gateway",
-      "count": 1,
-      "path": "core/capabilities/self_taught_builder.py",
       "scope": "<module>._retain"
     },
     {
@@ -8777,22 +8793,6 @@
       "scope": "<module>.SandboxedFileBroker.move_file"
     },
     {
-      "callee": "path.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/capabilities/self_taught_builder.py",
-      "scope": "<module>._prepare_output_directory"
-    },
-    {
-      "callee": "tmp.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/capabilities/self_taught_builder.py",
-      "scope": "<module>.build_app_verified"
-    },
-    {
       "callee": "pathlib.Path().unlink",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -8977,14 +8977,6 @@
       "scope": "<module>.ExperienceConsolidator.__init__"
     },
     {
-      "callee": "CONSOL_LOG_PATH.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/consciousness/experience_consolidator.py",
-      "scope": "<module>.ExperienceConsolidator._log_consolidation"
-    },
-    {
       "callee": "self.state_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -9119,6 +9111,30 @@
       "count": 1,
       "path": "core/consciousness/unified_self.py",
       "scope": "<module>.UnifiedSelf._save_to_disk"
+    },
+    {
+      "callee": "op.source.replace",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/construction/app_planner.py",
+      "scope": "<module>.spec_from_plan"
+    },
+    {
+      "callee": "page.write_text",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/construction/app_verifier.py",
+      "scope": "<module>._drive_in_dom"
+    },
+    {
+      "callee": "script.write_text",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/construction/app_verifier.py",
+      "scope": "<module>._run_in_node"
     },
     {
       "callee": "project_root.mkdir",
@@ -10567,14 +10583,6 @@
       "count": 1,
       "path": "core/memory/black_hole_vault.py",
       "scope": "<module>.BlackHoleVault._quarantine_unreadable_vault"
-    },
-    {
-      "callee": "os.remove",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/memory/black_hole_vault.py",
-      "scope": "<module>.BlackHoleVault.clear"
     },
     {
       "callee": "os.makedirs",
@@ -14425,14 +14433,6 @@
       "scope": "<module>.PostActionVerifier._verify_wallpaper_changed"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/capabilities/self_taught_builder.py",
-      "scope": "<module>._functional_test"
-    },
-    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -14447,6 +14447,14 @@
       "count": 1,
       "path": "core/collective/probe_manager.py",
       "scope": "<module>.ProbeManager.deploy_probe"
+    },
+    {
+      "callee": "<subprocess_gateway>.run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/construction/app_verifier.py",
+      "scope": "<module>._run_node"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
@@ -15882,6 +15890,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "b552cf7166a9d6570368ac2325330cc8f5a2e58e80f7f890a7cf58bbb22224c2",
+  "inventory_sha256": "8e95e7212d546bf30e2cef7f51dc0ccc63576a40b30cd1c32ed1d19de54d2d95",
   "schema_version": 1
 }

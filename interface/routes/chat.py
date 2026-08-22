@@ -14886,7 +14886,7 @@ def _serve_positional_solution(user_message: object, reply: object) -> object:
         return reply
 
 
-def _save_requested_artifact(user_message: object, reply: object) -> object:
+async def _save_requested_artifact(user_message: object, reply: object) -> object:
     """Write the file the reply contains, and say where it went.
 
     LIVE, 2026-08-21. "build me a small web app… Keep it one self-contained
@@ -14902,9 +14902,9 @@ def _save_requested_artifact(user_message: object, reply: object) -> object:
     """
     body = str(reply or "")
     try:
-        from core.conversation.requested_artifact import save_requested_artifact
+        from core.conversation.requested_artifact import save_requested_artifact_async
 
-        saved = save_requested_artifact(str(user_message or ""), body)
+        saved = await save_requested_artifact_async(str(user_message or ""), body)
         if saved is None:
             return reply
         logger.info("💾 Saved the requested file to %s.", saved.path)
@@ -16691,7 +16691,10 @@ _SERVED_FROM_RECORD_OPENINGS = (
 _SERVED_COUNT_OPENING = re.compile(r"^\d+\s+jobs?\s+waiting\s+to\s+run\b")
 
 
-def _recorded_answer_corrections(user_message: object, reply: object) -> tuple[str, bool]:
+async def _recorded_answer_corrections(
+    user_message: object,
+    reply: object,
+) -> tuple[str, bool]:
     """Every answer the runtime already holds, applied in order.
 
     Returns the text and whether a record replaced what the model wrote, so
@@ -16706,7 +16709,7 @@ def _recorded_answer_corrections(user_message: object, reply: object) -> tuple[s
     corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
     corrected = str(_serve_queued_work(user_message, corrected) or corrected)
     corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
-    corrected = str(_save_requested_artifact(user_message, corrected) or corrected)
+    corrected = str(await _save_requested_artifact(user_message, corrected) or corrected)
     corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
@@ -16720,7 +16723,7 @@ def _reply_was_served_from_a_record(reply: object) -> bool:
     return any(body.startswith(opening) for opening in _SERVED_FROM_RECORD_OPENINGS)
 
 
-def _apply_recorded_answer(user_message: object, response: Any) -> Any:
+async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
     """Attach a recorded answer to whatever this turn ended up returning.
 
     Applied HERE, around the whole turn, because _api_chat_turn returns from
@@ -16772,7 +16775,10 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # server with it. The comment there is right that a proof must not
         # come to refer to different text; what follows from that is
         # re-typing the response, not keeping the wrong answer.
-        recorded, served_from_record = _recorded_answer_corrections(user_message, reply)
+        recorded, served_from_record = await _recorded_answer_corrections(
+            user_message,
+            reply,
+        )
         if served_from_record:
             data["response"] = recorded
             data["response_confidence"] = "computed"
@@ -16802,7 +16808,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # The same readers, through the one entry point. Evidence informs; it
         # does not enforce, so where the runtime holds the answer it composes
         # it rather than asking again.
-        corrected = _recorded_answer_corrections(user_message, corrected)[0]
+        corrected = (await _recorded_answer_corrections(user_message, corrected))[0]
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a reply that stopped mid-clause back to where it last made sense.
         #
@@ -16945,7 +16951,7 @@ async def api_chat(
                             else "tool-governance spine was not ready at turn ingress"
                         ),
                     )
-                _served = _apply_recorded_answer(
+                _served = await _apply_recorded_answer(
                     visible_user_message,
                     await _api_chat_turn(body, request),
                 )

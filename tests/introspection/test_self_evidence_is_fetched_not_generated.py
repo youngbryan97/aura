@@ -745,20 +745,25 @@ def test_the_recorded_answer_is_applied_around_the_whole_turn() -> None:
     )
 
 
-def test_the_wrapper_leaves_an_unrelated_reply_alone() -> None:
+@pytest.mark.asyncio
+async def test_the_wrapper_leaves_an_unrelated_reply_alone() -> None:
     from starlette.responses import JSONResponse
 
     from interface.routes import chat
 
     original = JSONResponse(content={"response": "Lima."})
-    assert chat._apply_recorded_answer("what is the capital of Peru", original) is original
+    assert await chat._apply_recorded_answer(
+        "what is the capital of Peru",
+        original,
+    ) is original
 
 
-def test_the_wrapper_survives_a_response_with_no_body() -> None:
+@pytest.mark.asyncio
+async def test_the_wrapper_survives_a_response_with_no_body() -> None:
     from interface.routes import chat
 
     sentinel = object()
-    assert chat._apply_recorded_answer("anything", sentinel) is sentinel
+    assert await chat._apply_recorded_answer("anything", sentinel) is sentinel
 
 
 def test_the_record_leads_when_the_reply_denies_the_action() -> None:

@@ -268,6 +268,46 @@ async def run_durable_receipt_io[T](
         raise
 
 
+def run_durable_receipt_io_sync[T](
+    fn: Callable[..., T],
+    *args: Any,
+    timeout_s: float = 10.0,
+    label: str = "",
+    **kwargs: Any,
+) -> T:
+    """Run synchronous receipt work on the same ordered durable lane.
+
+    Boot-time migrations and synchronous setup paths must share ordering with
+    runtime async commits. Calling the writer directly would let a delayed
+    older snapshot race a newer async receipt, while protecting it with a
+    caller lock would hold that lock across fsync. The single receipt worker
+    provides ordering without either failure mode.
+    """
+
+    if threading.current_thread().name.startswith("aura-durable-receipt"):
+        return fn(*args, **kwargs)
+
+    pool = _live_pool("durable_receipt")
+    _register_pool(pool, name="durable_receipt_thread_pool")
+    tag = label or getattr(fn, "__qualname__", str(fn))
+    started = time.monotonic()
+    future = pool.submit(functools.partial(fn, *args, **kwargs))
+    try:
+        return future.result(timeout=timeout_s)
+    except TimeoutError:
+        if future.done():
+            raise
+        future.cancel()
+        logger.warning(
+            "Synchronous durable receipt IO '%s' timed out after %.1f ms "
+            "(budget %.0f ms)",
+            tag,
+            (time.monotonic() - started) * 1000.0,
+            timeout_s * 1000.0,
+        )
+        raise
+
+
 def submit_blocking_io[T](
     fn: Callable[..., T],
     *args: Any,

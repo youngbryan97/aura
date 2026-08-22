@@ -34,28 +34,28 @@ How it works
    be answered accurately from stored state rather than guessed.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import json
 import logging
 import re
 import time
-from pathlib import Path
-from threading import RLock
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.config import config
 from core.continuity import is_evaluation_contamination
+from core.governance_context import local_internal_governed_scope
+from core.runtime.errors import record_degradation
+from core.runtime.executors import run_durable_receipt_io, run_durable_receipt_io_sync
+from core.runtime.lockdep import checked_lock
 from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
 from core.runtime.structured_input import looks_like_learning_resource_bundle
-from core.utils.file_utils import atomic_write_json
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.TaskCommitmentVerifier")
 _STATUS_FOLLOWUP_MARKERS = (
@@ -218,7 +218,9 @@ class TaskCommitmentVerifier:
         self.kernel = kernel
         base_dir = config.paths.data_dir / "runtime"
         self.persist_path = Path(persist_path or (base_dir / "task_commitment_state.json"))
-        self._lock = RLock()
+        self._lock = checked_lock("task_commitment.state", reentrant=True)
+        self._state_generation = 0
+        self._persisted_generation = 0
         self._active_tasks: Dict[str, Dict] = {}   # task_id → status record
         self._background_tasks: Dict[str, asyncio.Task] = {}
         self._updated_at: float = 0.0
@@ -635,7 +637,7 @@ class TaskCommitmentVerifier:
     ) -> TaskAcceptance:
         """Run task synchronously and wait for result (short tasks only)."""
         execution_origin = self._resolve_execution_origin(state)
-        self._store_task_entry(
+        await self._store_task_entry_async(
             task_id,
             {
                 "task_id": task_id,
@@ -694,7 +696,7 @@ class TaskCommitmentVerifier:
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
             if deferred:
                 outcome = DispatchOutcome.DEFERRED
-            self._update_task_entry(
+            await self._update_task_entry_async(
                 task_id,
                 status="deferred" if deferred else outcome.value,
                 completed_at=time.time(),
@@ -728,7 +730,7 @@ class TaskCommitmentVerifier:
             updates: Dict[str, Any] = {"status": "running_async"}
             if commitment_id:
                 updates["commitment_id"] = commitment_id
-            self._update_task_entry(task_id, **updates)
+            await self._update_task_entry_async(task_id, **updates)
             self._background_tasks[task_id] = execution_task
             execution_task.add_done_callback(
                 lambda fut, _task_id=task_id, _objective=objective, _commitment_id=commitment_id:
@@ -764,7 +766,7 @@ class TaskCommitmentVerifier:
             )
         except (RuntimeError, TimeoutError, AttributeError) as e:
             record_degradation('task_commitment_verifier', e)
-            self._update_task_entry(task_id, status="failed", error=str(e))
+            await self._update_task_entry_async(task_id, status="failed", error=str(e))
             await self._update_goal_dispatch(
                 task_id=task_id,
                 status=DispatchOutcome.FAILED.value,
@@ -801,7 +803,7 @@ class TaskCommitmentVerifier:
         # Register with CommitmentEngine for cross-session tracking
         commitment_id = self._register_commitment(objective)
 
-        self._store_task_entry(
+        await self._store_task_entry_async(
             task_id,
             {
                 "task_id": task_id,
@@ -999,7 +1001,7 @@ class TaskCommitmentVerifier:
         with self._lock:
             entry = dict(self._active_tasks.get(task_id) or {})
         attempts = int(entry.get("deferred_attempts", 0) or 0) + 1
-        self._update_task_entry(task_id, deferred_attempts=attempts)
+        await self._update_task_entry_async(task_id, deferred_attempts=attempts)
         if attempts > self.DEFERRED_RETRY_LIMIT:
             logger.warning(
                 "TaskCommitmentVerifier: task %s still deferred after %d attempts (%s)",
@@ -1007,7 +1009,7 @@ class TaskCommitmentVerifier:
                 attempts,
                 reason,
             )
-            self._update_task_entry(
+            await self._update_task_entry_async(
                 task_id,
                 status="failed",
                 error=f"still waiting on {reason} after {attempts} attempts",
@@ -1157,7 +1159,7 @@ class TaskCommitmentVerifier:
                 logger.info(
                     "TaskCommitmentVerifier: task %s deferred — %s", task_id, deferred
                 )
-                self._update_task_entry(
+                await self._update_task_entry_async(
                     task_id,
                     status="deferred",
                     error=deferred,
@@ -1172,7 +1174,7 @@ class TaskCommitmentVerifier:
                     reason=deferred,
                 )
                 return
-            self._update_task_entry(
+            await self._update_task_entry_async(
                 task_id,
                 status="completed" if succeeded else "failed",
                 completed_at=time.time(),
@@ -1216,7 +1218,11 @@ class TaskCommitmentVerifier:
                 summary[:80],
             )
         except asyncio.CancelledError:
-            self._update_task_entry(task_id, status="cancelled", completed_at=time.time())
+            await self._update_task_entry_async(
+                task_id,
+                status="cancelled",
+                completed_at=time.time(),
+            )
             try:
                 await self._update_goal_dispatch(
                     task_id=task_id,
@@ -1241,7 +1247,7 @@ class TaskCommitmentVerifier:
             logger.warning("TaskCommitmentVerifier: async task %s was cancelled", task_id)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('task_commitment_verifier', e)
-            self._update_task_entry(
+            await self._update_task_entry_async(
                 task_id,
                 status="failed",
                 error=str(e),
@@ -1275,24 +1281,55 @@ class TaskCommitmentVerifier:
             # after a grace period so callers can still query recent results.
             entry = self.get_task_status(task_id)
             if entry and entry.get("status") in {"completed", "failed", "cancelled"}:
-                self._update_task_entry(task_id, cleanup_at=time.time() + 300)
-            self._prune_terminal_tasks()
+                await self._update_task_entry_async(
+                    task_id,
+                    cleanup_at=time.time() + 300,
+                )
+            await self._prune_terminal_tasks_async()
 
     def _prune_terminal_tasks(self, max_age: float = 300.0) -> None:
         """Remove completed/failed/cancelled tasks older than max_age seconds."""
+        snapshot = self._prune_terminal_tasks_state(max_age=max_age)
+        if snapshot is not None:
+            self._persist_task_snapshot_sync(*snapshot)
+
+    async def _prune_terminal_tasks_async(self, max_age: float = 300.0) -> None:
+        snapshot = self._prune_terminal_tasks_state(max_age=max_age)
+        if snapshot is not None:
+            await self._persist_task_snapshot_async(*snapshot)
+
+    def _prune_terminal_tasks_state(
+        self,
+        *,
+        max_age: float,
+    ) -> tuple[int, dict[str, Any]] | None:
         now = time.time()
+
+        def _cleanup_deadline(entry: Dict[str, Any]) -> float:
+            explicit = float(entry.get("cleanup_at", 0.0) or 0.0)
+            if explicit > 0.0:
+                return explicit
+            terminal_at = float(
+                entry.get("completed_at")
+                or entry.get("updated_at")
+                or entry.get("started_at")
+                or 0.0
+            )
+            return terminal_at + max_age if terminal_at > 0.0 else now + 1.0
+
         with self._lock:
             to_remove = [
                 tid
                 for tid, entry in self._active_tasks.items()
                 if str(entry.get("status", "") or "") in {"completed", "failed", "cancelled"}
-                and now >= float(entry.get("cleanup_at", now + 1))
+                and now >= _cleanup_deadline(entry)
             ]
             for tid in to_remove:
                 self._active_tasks.pop(tid, None)
             if to_remove:
                 self._updated_at = now
-                self._save_locked()
+                return self._snapshot_task_state_locked()
+        return None
 
     def _task_engine_entries(self) -> List[Dict[str, Any]]:
         task_engine = self._get_task_engine()
@@ -1516,34 +1553,120 @@ class TaskCommitmentVerifier:
         return ""
 
     def _store_task_entry(self, task_id: str, entry: Dict[str, Any]) -> None:
+        snapshot = self._store_task_entry_state(task_id, entry)
+        self._persist_task_snapshot_sync(*snapshot)
+
+    async def _store_task_entry_async(
+        self,
+        task_id: str,
+        entry: Dict[str, Any],
+    ) -> None:
+        snapshot = self._store_task_entry_state(task_id, entry)
+        await self._persist_task_snapshot_async(*snapshot)
+
+    def _store_task_entry_state(
+        self,
+        task_id: str,
+        entry: Dict[str, Any],
+    ) -> tuple[int, dict[str, Any]]:
         with self._lock:
             payload = dict(entry)
             payload.setdefault("task_id", task_id)
             payload.setdefault("updated_at", time.time())
             self._active_tasks[task_id] = payload
             self._updated_at = time.time()
-            self._save_locked()
+            return self._snapshot_task_state_locked()
 
     def _update_task_entry(self, task_id: str, **updates: Any) -> None:
+        snapshot = self._update_task_entry_state(task_id, **updates)
+        if snapshot is not None:
+            self._persist_task_snapshot_sync(*snapshot)
+
+    async def _update_task_entry_async(self, task_id: str, **updates: Any) -> None:
+        snapshot = self._update_task_entry_state(task_id, **updates)
+        if snapshot is not None:
+            await self._persist_task_snapshot_async(*snapshot)
+
+    def _update_task_entry_state(
+        self,
+        task_id: str,
+        **updates: Any,
+    ) -> tuple[int, dict[str, Any]] | None:
         with self._lock:
             entry = self._active_tasks.get(task_id)
             if not entry:
-                return
+                return None
             entry.update(updates)
             entry["updated_at"] = time.time()
             self._updated_at = time.time()
-            self._save_locked()
+            return self._snapshot_task_state_locked()
 
-    def _save_locked(self) -> None:
+    def _snapshot_task_state_locked(self) -> tuple[int, dict[str, Any]]:
+        self._state_generation += 1
         payload = {
             "updated_at": self._updated_at or time.time(),
             "active_tasks": [
-                entry
+                deepcopy(entry)
                 for entry in self._active_tasks.values()
                 if not self._is_evaluation_task(entry)
             ],
         }
-        atomic_write_json(str(self.persist_path), payload)
+        return self._state_generation, payload
+
+    def _persist_task_snapshot_sync(
+        self,
+        generation: int,
+        payload: dict[str, Any],
+    ) -> None:
+        run_durable_receipt_io_sync(
+            self._commit_task_snapshot,
+            generation,
+            payload,
+            timeout_s=10.0,
+            label="task_commitment.persist_snapshot.sync",
+        )
+
+    def _commit_task_snapshot(
+        self,
+        generation: int,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Commit one snapshot without allowing an older generation to win."""
+        if generation <= self._persisted_generation:
+            return False
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "task_commitment_verifier.persist_snapshot",
+            domain="state_mutation",
+            receipt_prefix="task-commitment-state",
+            constraints={
+                "artifact": "aura.task_commitment_state.v1",
+                "generation": generation,
+                "task_count": len(payload.get("active_tasks") or []),
+                "operation": "replace",
+            },
+        ):
+            get_file_write_gateway().write_text(
+                self.persist_path,
+                json.dumps(payload, indent=2, sort_keys=True),
+                source="task_commitment_verifier.persist_snapshot",
+            )
+        self._persisted_generation = generation
+        return True
+
+    async def _persist_task_snapshot_async(
+        self,
+        generation: int,
+        payload: dict[str, Any],
+    ) -> None:
+        await run_durable_receipt_io(
+            self._commit_task_snapshot,
+            generation,
+            payload,
+            timeout_s=10.0,
+            label="task_commitment.persist_snapshot",
+        )
 
     def _load(self) -> None:
         try:
@@ -1580,13 +1703,18 @@ class TaskCommitmentVerifier:
                 needs_save = True
             loaded[task_id] = entry
 
+        snapshot: tuple[int, dict[str, Any]] | None = None
         with self._lock:
             self._active_tasks = loaded
             self._updated_at = float(raw.get("updated_at") or now)
-            self._prune_terminal_tasks(max_age=86400.0)
             if needs_save:
                 self._updated_at = now
-                self._save_locked()
+                snapshot = self._snapshot_task_state_locked()
+        pruned_snapshot = self._prune_terminal_tasks_state(max_age=86400.0)
+        if pruned_snapshot is not None:
+            snapshot = pruned_snapshot
+        if snapshot is not None:
+            self._persist_task_snapshot_sync(*snapshot)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

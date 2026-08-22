@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Callable
 
 import pytest
@@ -65,6 +66,26 @@ def test_runtime_pool_registers_before_work(
 
     assert asyncio.run(executors.run_blocking_io(lambda: "ok")) == "ok"
     assert names == ["blocking_io_thread_pool"]
+
+
+def test_sync_durable_receipt_uses_the_dedicated_worker() -> None:
+    from core.runtime import executors
+
+    caller_thread = threading.get_ident()
+    worker_thread = executors.run_durable_receipt_io_sync(threading.get_ident)
+
+    assert worker_thread != caller_thread
+
+
+@pytest.mark.asyncio
+async def test_sync_durable_receipt_is_reentrant_inside_dedicated_worker() -> None:
+    from core.runtime import executors
+
+    result = await executors.run_durable_receipt_io(
+        lambda: executors.run_durable_receipt_io_sync(lambda: "nested")
+    )
+
+    assert result == "nested"
 
 
 @pytest.mark.asyncio

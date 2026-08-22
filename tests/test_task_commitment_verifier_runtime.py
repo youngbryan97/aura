@@ -1,6 +1,7 @@
 import asyncio
 import json
 import tempfile
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -537,6 +538,80 @@ def test_task_commitment_verifier_persistence_marks_running_tasks_interrupted(tm
     assert status is not None
     assert status["status"] == "interrupted"
     assert "interrupted" in status["summary"].lower()
+
+
+@pytest.mark.asyncio
+async def test_task_commitment_persistence_runs_off_loop_without_state_lock(
+    monkeypatch,
+    tmp_path,
+):
+    from core.governance_context import get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.runtime.lockdep import get_validator
+
+    verifier = TaskCommitmentVerifier(
+        kernel=None,
+        persist_path=tmp_path / "task_commitment_state.json",
+    )
+    loop_thread = threading.get_ident()
+    observed = {}
+    gateway = get_file_write_gateway()
+    real_write_text = gateway.write_text
+
+    def observing_write_text(path, text, **kwargs):
+        observed["thread"] = threading.get_ident()
+        observed["held"] = get_validator().held_names()
+        observed["governance"] = get_active_governance()
+        return real_write_text(path, text, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text", observing_write_text)
+
+    await verifier._store_task_entry_async(
+        "task-off-loop",
+        {
+            "objective": "Prove persistence ownership",
+            "status": "running_async",
+        },
+    )
+
+    assert observed["thread"] != loop_thread
+    assert "task_commitment.state" not in observed["held"]
+    assert observed["held"] == []
+    assert observed["governance"] is not None
+    assert observed["governance"].source == (
+        "task_commitment_verifier.persist_snapshot"
+    )
+    assert observed["governance"].domain == "state_mutation"
+
+
+@pytest.mark.asyncio
+async def test_task_commitment_persistence_rejects_stale_snapshot(tmp_path):
+    path = tmp_path / "task_commitment_state.json"
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=path)
+
+    older = verifier._store_task_entry_state(
+        "task-generation",
+        {
+            "objective": "Preserve the newest durable task state",
+            "status": "running_async",
+        },
+    )
+    newer = verifier._update_task_entry_state(
+        "task-generation",
+        status="completed",
+        summary="The newest generation is authoritative.",
+    )
+    assert newer is not None
+
+    await verifier._persist_task_snapshot_async(*newer)
+    await verifier._persist_task_snapshot_async(*older)
+
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    assert persisted["active_tasks"][0]["status"] == "completed"
+    assert persisted["active_tasks"][0]["summary"] == (
+        "The newest generation is authoritative."
+    )
+    assert verifier._persisted_generation == newer[0]
 
 
 def test_task_commitment_verifier_quarantines_evaluation_fixture_from_lived_state(tmp_path):

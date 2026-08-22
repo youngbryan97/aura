@@ -12770,7 +12770,8 @@ def test_protected_foreground_delivery_rejects_any_post_worker_byte_change() -> 
     )
 
 
-def test_recorded_answer_wrapper_does_not_rewrite_proven_authored_bytes(
+@pytest.mark.asyncio
+async def test_recorded_answer_wrapper_does_not_rewrite_proven_authored_bytes(
     monkeypatch,
 ) -> None:
     from fastapi.responses import JSONResponse
@@ -12789,7 +12790,7 @@ def test_recorded_answer_wrapper_does_not_rewrite_proven_authored_bytes(
         }
     )
 
-    wrapped = chat_routes._apply_recorded_answer("What happened?", response)
+    wrapped = await chat_routes._apply_recorded_answer("What happened?", response)
 
     assert json.loads(wrapped.body)["response"] == "The exact authored answer."
 

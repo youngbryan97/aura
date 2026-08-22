@@ -51362,3 +51362,39 @@ transaction and pruning contracts pass `63/63`; canonical smoke passes
 `120/120` with one environment-dependent skip. Ruff, compilation and diff
 hygiene pass. The running process still has the pre-checkpoint module loaded;
 live confirmation belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-891: Keep Identity and Task Continuity Persistence Off the Loop
+
+The current live process exposed two related ownership failures. Experience
+consolidation reached its narrative commit without a governed context and was
+refused by `FileWriteGateway`; task-continuity updates still reached legacy
+atomic JSON persistence synchronously from async dispatch and completion paths.
+The latter remained a latent event-loop `fsync` wedge even when task execution
+itself succeeded.
+
+Identity narrative replacement, consolidation-log append and bounded log
+rotation now own explicit internal governance scopes and use the async file
+gateway. Metadata inspection and rotation reads run off the event loop. Task
+continuity now separates short checked-lock state mutation from immutable
+snapshots, serializes every runtime commit on the dedicated durable-receipt
+worker and rejects stale generations. Synchronous boot migration uses that same
+ordered worker, including a reentrant worker path, so it cannot race runtime
+commits or hold a caller lock through `fsync`.
+
+Review of the governance inventory found the newly landed requested-artifact
+chat path doing a synchronous directory creation and durable write from the
+async HTTP turn. Live delivery now awaits an explicitly governed async gateway
+write. Synchronous tooling retains a governed counterpart, while the live route
+can no longer block the control plane when it saves the file already present in
+Aura's answer.
+
+Deterministic contracts prove task persistence executes on another thread with
+no state lock held, preserves the newest generation against stale commits,
+retains governance provenance, and supports nested durable-lane calls without
+deadlock. Experience and artifact tests assert their owned governance domains
+and real durable output. The indirect async-write baseline shrank by seven
+historical entries and its complete five-test ratchet passes. The focused set
+passes `86/86`; canonical smoke passes `120/120` with one environment-dependent
+skip; Ruff, compilation, governance ownership and layering all pass. The
+running process intentionally remains on its original source, so live
+confirmation belongs to the next normal installed-app restart.

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from interface.routes.chat import (
     _apply_recorded_answer,
     _recorded_answer_corrections,
@@ -44,9 +46,13 @@ def _served(response) -> dict:
     return json.loads(response.body)
 
 
-def test_a_record_replaces_a_proven_reply_and_is_retyped() -> None:
+@pytest.mark.asyncio
+async def test_a_record_replaces_a_proven_reply_and_is_retyped() -> None:
     original = "I've been running in the background."
-    response = _apply_recorded_answer("what have you been up to tonight?", _Response(_payload(original, proven=True)))
+    response = await _apply_recorded_answer(
+        "what have you been up to tonight?",
+        _Response(_payload(original, proven=True)),
+    )
     data = _served(response)
     if data["response"] == original:
         # Nothing recorded on this machine right now; the gate still must not
@@ -58,19 +64,31 @@ def test_a_record_replaces_a_proven_reply_and_is_retyped() -> None:
     assert contract["answer_delivery_proven"] is False
 
 
-def test_a_proven_reply_with_no_record_is_left_alone() -> None:
+@pytest.mark.asyncio
+async def test_a_proven_reply_with_no_record_is_left_alone() -> None:
     original = "I think Lem was writing about the limits of contact."
-    response = _apply_recorded_answer("what do you make of Solaris?", _Response(_payload(original, proven=True)))
+    response = await _apply_recorded_answer(
+        "what do you make of Solaris?",
+        _Response(_payload(original, proven=True)),
+    )
     assert _served(response)["response"] == original
 
 
-def test_the_readers_report_whether_they_replaced_anything() -> None:
-    text, served = _recorded_answer_corrections("what do you make of Solaris?", "a view of my own")
+@pytest.mark.asyncio
+async def test_the_readers_report_whether_they_replaced_anything() -> None:
+    text, served = await _recorded_answer_corrections(
+        "what do you make of Solaris?",
+        "a view of my own",
+    )
     assert text == "a view of my own"
     assert served is False
 
 
-def test_an_unproven_reply_still_goes_through_the_whole_chain() -> None:
+@pytest.mark.asyncio
+async def test_an_unproven_reply_still_goes_through_the_whole_chain() -> None:
     original = "I could not get there."
-    response = _apply_recorded_answer("what is the weather", _Response(_payload(original, proven=False)))
+    response = await _apply_recorded_answer(
+        "what is the weather",
+        _Response(_payload(original, proven=False)),
+    )
     assert isinstance(_served(response)["response"], str)

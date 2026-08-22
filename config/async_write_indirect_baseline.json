@@ -82,31 +82,6 @@
       "_save"
     ],
     [
-      "core/agency/task_commitment_verifier.py",
-      "_dispatch_async",
-      "_store_task_entry"
-    ],
-    [
-      "core/agency/task_commitment_verifier.py",
-      "_dispatch_inline",
-      "_store_task_entry"
-    ],
-    [
-      "core/agency/task_commitment_verifier.py",
-      "_dispatch_inline",
-      "_update_task_entry"
-    ],
-    [
-      "core/agency/task_commitment_verifier.py",
-      "_finalize_background_task",
-      "_prune_terminal_tasks"
-    ],
-    [
-      "core/agency/task_commitment_verifier.py",
-      "_finalize_background_task",
-      "_update_task_entry"
-    ],
-    [
       "core/agency/tension_engine.py",
       "tick",
       "_save"
@@ -200,16 +175,6 @@
       "core/cognitive/strange_loop.py",
       "tick",
       "_save_weights"
-    ],
-    [
-      "core/consciousness/experience_consolidator.py",
-      "_consolidate",
-      "_log_consolidation"
-    ],
-    [
-      "core/consciousness/experience_consolidator.py",
-      "_consolidate",
-      "_save_narrative"
     ],
     [
       "core/consciousness/mhaf_field.py",

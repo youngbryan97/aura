@@ -24,7 +24,7 @@ from pathlib import Path
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["SavedArtifact", "save_requested_artifact"]
+__all__ = ["SavedArtifact", "save_requested_artifact", "save_requested_artifact_async"]
 
 _RECOVERABLE = (OSError, TypeError, ValueError)
 
@@ -122,15 +122,76 @@ def save_requested_artifact(
         from core.config import config
 
         base = Path(root) if root is not None else Path(config.paths.generated_dir)
-        base.mkdir(parents=True, exist_ok=True)
         target = base / f"{_slug(user_message)}{_suffix_for(language, body)}"
 
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        with local_internal_governed_scope("conversation.requested_artifact"):
+        with local_internal_governed_scope(
+            "conversation.requested_artifact",
+            domain="state_mutation",
+            receipt_prefix="conversation-requested-artifact",
+            constraints={
+                "artifact": "aura.generated_conversation_artifact.v1",
+                "operation": "replace",
+                "suffix": target.suffix,
+            },
+        ):
             get_file_write_gateway().write_text(
                 target, body, source="conversation.requested_artifact"
+            )
+    except _RECOVERABLE + (ImportError, AttributeError, RuntimeError) as exc:
+        record_degradation(
+            "conversation.requested_artifact",
+            exc,
+            severity="info",
+            action="left the file in the reply rather than on disk",
+            enforce_failure_policy=False,
+        )
+        return None
+    return SavedArtifact(path=target, language=language or "", characters=len(body))
+
+
+async def save_requested_artifact_async(
+    user_message: str,
+    reply: str,
+    *,
+    root: Path | None = None,
+) -> SavedArtifact | None:
+    """Event-loop-safe counterpart used by the live chat delivery path."""
+    try:
+        from core.runtime.desktop_objective_intent import asks_to_build_software
+
+        if not asks_to_build_software(str(user_message or "")):
+            return None
+    except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
+        return None
+
+    language, body = largest_document(reply)
+    if len(body) < _MIN_DOCUMENT_CHARS:
+        return None
+
+    try:
+        from core.config import config
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        base = Path(root) if root is not None else Path(config.paths.generated_dir)
+        target = base / f"{_slug(user_message)}{_suffix_for(language, body)}"
+        with local_internal_governed_scope(
+            "conversation.requested_artifact",
+            domain="state_mutation",
+            receipt_prefix="conversation-requested-artifact",
+            constraints={
+                "artifact": "aura.generated_conversation_artifact.v1",
+                "operation": "replace",
+                "suffix": target.suffix,
+            },
+        ):
+            await get_file_write_gateway().write_text_async(
+                target,
+                body,
+                source="conversation.requested_artifact",
             )
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError) as exc:
         record_degradation(

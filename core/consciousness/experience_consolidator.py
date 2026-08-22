@@ -39,9 +39,10 @@ from typing import Any
 
 import numpy as np
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ExperienceConsolidator")
 
@@ -310,8 +311,8 @@ class ExperienceConsolidator:
 
         # Persist
         self._narrative = new_narrative
-        self._save_narrative()
-        self._log_consolidation(new_narrative, material)
+        await self._save_narrative()
+        await self._log_consolidation(new_narrative, material)
 
         logger.info(
             'ExperienceConsolidator: consolidated v%d — "%s"',
@@ -663,18 +664,28 @@ Return valid JSON only:
 
     # ── Persistence ────────────────────────────────────────────────────────
 
-    def _save_narrative(self):
+    async def _save_narrative(self):
         try:
             if not self._narrative:
                 return
             data = asdict(self._narrative)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().write_text(
-                NARRATIVE_PATH,
-                json.dumps(data, indent=2),
-                source="experience_consolidator.save_narrative",
-            )
+            with local_internal_governed_scope(
+                "experience_consolidator.save_narrative",
+                domain="state_mutation",
+                receipt_prefix="experience-narrative-save",
+                constraints={
+                    "artifact": "aura.identity_narrative.v1",
+                    "operation": "replace",
+                    "version": self._narrative.version,
+                },
+            ):
+                await get_file_write_gateway().write_text_async(
+                    NARRATIVE_PATH,
+                    json.dumps(data, indent=2),
+                    source="experience_consolidator.save_narrative",
+                )
         except (OSError, TypeError, ValueError) as e:
             _record_experience_consolidator_degradation(
                 e,
@@ -756,7 +767,11 @@ Return valid JSON only:
             )
             logger.debug("home_vector_delta restoration skipped: %s", e)
 
-    def _log_consolidation(self, narrative: IdentityNarrative, material: dict):
+    async def _log_consolidation(
+        self,
+        narrative: IdentityNarrative,
+        material: dict,
+    ) -> None:
         try:
             entry = {
                 "timestamp": time.time(),
@@ -765,25 +780,49 @@ Return valid JSON only:
                 "traits": narrative.stable_traits,
                 "experiences_processed": len(material.get("experiences", [])),
             }
-            CONSOL_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().append_text(
-                CONSOL_LOG_PATH,
-                json.dumps(entry) + "\n",
-                encoding="utf-8",
-                source="experience_consolidator.log_consolidation",
-            )
+            with local_internal_governed_scope(
+                "experience_consolidator.log_consolidation",
+                domain="memory_write",
+                receipt_prefix="experience-consolidation-log",
+                constraints={
+                    "artifact": "aura.identity_consolidation_log.v1",
+                    "operation": "append_only",
+                    "version": narrative.version,
+                },
+            ):
+                await get_file_write_gateway().append_text_async(
+                    CONSOL_LOG_PATH,
+                    json.dumps(entry) + "\n",
+                    encoding="utf-8",
+                    source="experience_consolidator.log_consolidation",
+                )
             # Rotate log if it grows too large (>5MB)
             try:
-                if CONSOL_LOG_PATH.stat().st_size > 5 * 1024 * 1024:
-                    lines = CONSOL_LOG_PATH.read_text().splitlines()
-                    # Keep last 500 entries
-                    get_file_write_gateway().write_text(
-                        CONSOL_LOG_PATH,
-                        "\n".join(lines[-500:]) + "\n",
-                        source="experience_consolidator.rotate_log",
+                size = await asyncio.to_thread(lambda: CONSOL_LOG_PATH.stat().st_size)
+                if size > 5 * 1024 * 1024:
+                    content = await asyncio.to_thread(
+                        CONSOL_LOG_PATH.read_text,
+                        encoding="utf-8",
                     )
+                    lines = content.splitlines()
+                    # Keep last 500 entries
+                    with local_internal_governed_scope(
+                        "experience_consolidator.rotate_log",
+                        domain="memory_write",
+                        receipt_prefix="experience-consolidation-rotate",
+                        constraints={
+                            "artifact": "aura.identity_consolidation_log.v1",
+                            "operation": "bounded_rotation",
+                            "retained_records": 500,
+                        },
+                    ):
+                        await get_file_write_gateway().write_text_async(
+                            CONSOL_LOG_PATH,
+                            "\n".join(lines[-500:]) + "\n",
+                            source="experience_consolidator.rotate_log",
+                        )
             except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as _exc:
                 _record_experience_consolidator_degradation(
                     _exc,
