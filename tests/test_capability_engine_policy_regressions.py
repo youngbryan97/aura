@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -758,6 +759,42 @@ async def test_expectation_downgrade_emits_durable_receipt_and_fault(monkeypatch
         assert kwargs["recovery_time_s"] == 0.0
     finally:
         reset_receipt_store()
+
+
+@pytest.mark.asyncio
+async def test_action_expectation_receipt_persists_off_event_loop(monkeypatch):
+    loop_thread = threading.get_ident()
+    persistence_threads = []
+
+    class ReceiptStoreStub:
+        @staticmethod
+        def emit(receipt):
+            persistence_threads.append(threading.get_ident())
+            receipt.receipt_id = "tool-execution-off-loop"
+            return receipt
+
+    monkeypatch.setattr(
+        "core.runtime.receipts.get_receipt_store",
+        lambda: ReceiptStoreStub(),
+    )
+
+    receipt_id = await CapabilityEngine._emit_action_expectation_receipt(
+        "web_search",
+        {
+            "ok": True,
+            "status": "success_verified",
+            "verification_evidence": {
+                "expectation_verdict": {"passed": True, "next_step": ""},
+            },
+        },
+        SimpleNamespace(
+            objective="read and verify public sources",
+            rollback_hint="not_required_read_only",
+        ),
+    )
+
+    assert receipt_id
+    assert persistence_threads and persistence_threads[0] != loop_thread
 
 
 @pytest.mark.asyncio

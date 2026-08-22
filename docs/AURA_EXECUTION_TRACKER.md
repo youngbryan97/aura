@@ -51310,3 +51310,28 @@ canonical smoke passes `120/120` with one environment-dependent skip. Ruff,
 compilation and diff hygiene pass. The running pre-checkpoint process remains
 on its original source and was intentionally not restarted; live confirmation
 belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-889: Keep Tool Postcondition Receipts Off the Event Loop
+
+Three live lock-dependency reports placed the event loop inside
+`AuditChain.append()` for 54, 60 and 141 milliseconds. The surrounding events
+identified a common caller: the capability engine had finished a governed
+skill attempt and synchronously persisted its action-expectation receipt before
+returning the verified result. The chain correctly keeps hashing, process
+serialization and `fsync` under one commit lock. The defect was the async
+capability path entering that synchronous commit lane.
+
+Action-expectation application and receipt emission now form one awaited async
+boundary. Receipt construction, store initialization, body persistence and
+audit-chain commit execute through the dedicated single-worker durable-receipt
+executor. The capability engine still waits for the receipt before it exposes a
+verified result, so downstream action verification retains the exact durable
+receipt ID and no success criterion was relaxed.
+
+A deterministic thread-identity contract proves expectation persistence does
+not execute on the event-loop thread. Capability policy, executor lifecycle,
+lock discipline and downstream action-verification contracts pass `105/105`;
+canonical smoke passes `120/120` with one environment-dependent skip. Ruff,
+compilation and diff hygiene pass. The running process remains on its original
+source and was intentionally not restarted; live confirmation belongs to the
+next normal installed-app restart.

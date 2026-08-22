@@ -7195,13 +7195,13 @@ class CapabilityEngine(AuraBaseModule):
                             )
                         )
                         payload["retries"] = attempt
-                        return self._apply_action_expectation_result(
+                        return await self._apply_action_expectation_result(
                             skill_name,
                             payload,
                             params,
                             context,
                         )
-                    return self._apply_action_expectation_result(
+                    return await self._apply_action_expectation_result(
                         skill_name,
                         {"ok": True, "result": output, "retries": attempt},
                         params,
@@ -7494,7 +7494,7 @@ class CapabilityEngine(AuraBaseModule):
         return any(marker in query for marker in source_markers)
 
     @classmethod
-    def _apply_action_expectation_result(
+    async def _apply_action_expectation_result(
         cls,
         skill_name: str,
         result: dict[str, Any],
@@ -7518,7 +7518,7 @@ class CapabilityEngine(AuraBaseModule):
         if not isinstance(raw_payload, dict):
             raise TypeError("action-expectation verifier returned a non-object payload")
         payload: dict[str, Any] = raw_payload
-        expectation_receipt_id = cls._emit_action_expectation_receipt(
+        expectation_receipt_id = await cls._emit_action_expectation_receipt(
             skill_name,
             payload,
             expectation,
@@ -7544,7 +7544,7 @@ class CapabilityEngine(AuraBaseModule):
         return hashlib.sha256(encoded).hexdigest()
 
     @classmethod
-    def _emit_action_expectation_receipt(
+    async def _emit_action_expectation_receipt(
         cls,
         skill_name: str,
         result: dict[str, Any],
@@ -7589,7 +7589,16 @@ class CapabilityEngine(AuraBaseModule):
                     "passed": bool(verdict.get("passed", False)),
                 },
             )
-            emitted = get_receipt_store().emit(receipt)
+            from core.runtime.executors import run_durable_receipt_io
+
+            def persist_receipt() -> Any:
+                return get_receipt_store().emit(receipt)
+
+            emitted = await run_durable_receipt_io(
+                persist_receipt,
+                timeout_s=10.0,
+                label="capability_action_expectation_receipt",
+            )
             if not bool(verdict.get("passed", False)):
                 try:
                     from core.resilience.fault_taxonomy import get_fault_registry
