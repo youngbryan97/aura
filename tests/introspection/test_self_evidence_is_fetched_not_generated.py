@@ -690,11 +690,17 @@ def test_the_recorded_answer_is_applied_after_every_repair() -> None:
     from interface.routes import chat
 
     source = inspect.getsource(chat._api_chat_turn)
-    marker = "_final_reply = _strip_user_visible_context_leaks(reply_text)"
-    assert marker in source
-    window = source[source.find(marker) : source.find(marker) + 1400]
 
-    assert "_append_past_action_record(_semantic_user_message, _final_reply)" in window
+    # The property, not one spelling of it: the record is applied to the final
+    # reply, and after it exists. Asserting the exact assignment expression
+    # broke the moment it became a conditional across several lines, while the
+    # ordering it protects was untouched.
+    assigned = source.find("_final_reply = ")
+    assert assigned != -1, "the final reply is not assembled here any more"
+
+    applied = source.find("_append_past_action_record(_semantic_user_message, _final_reply)")
+    assert applied != -1, "the recorded answer is not applied to the final reply"
+    assert applied > assigned, "the record is applied before the final reply exists"
 
 
 def test_the_recorded_answer_is_applied_around_the_whole_turn() -> None:

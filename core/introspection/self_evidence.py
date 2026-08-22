@@ -103,9 +103,29 @@ def asks_about_own_operational_state(text: Any) -> bool:
     raw = str(text or "").strip()
     if not raw:
         return False
-    if not _SELF_SUBJECT_RE.search(raw):
+    # Read the topic in the clause that is asking.
+    #
+    # LIVE, 2026-08-22: "I have to present you to a funding panel in 10
+    # minutes. Six slides, no fluff: what you are, what you can actually do
+    # today, ... your honest limitations ..." was answered with "Overall
+    # runtime status: healthy. No conducted job is currently recording
+    # failures." — a wall of telemetry in place of a deck, which is exactly
+    # the false positive the docstring above warns about.
+    #
+    # The words that matched were spread across a long request about
+    # something else. The same remedy as the queued-work channel, which
+    # answered the rules of an invented game with a maintenance list: a topic
+    # found in one sentence and a question found in another are not evidence
+    # about the same thing.
+    try:
+        from core.language.asking_clauses import asking_part
+
+        asked = asking_part(raw)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        asked = raw
+    if not _SELF_SUBJECT_RE.search(asked):
         return False
-    return bool(_TROUBLE_RE.search(raw) or _STATE_ENQUIRY_RE.search(raw))
+    return bool(_TROUBLE_RE.search(asked) or _STATE_ENQUIRY_RE.search(asked))
 
 
 def self_health_answer(message: Any) -> str:
