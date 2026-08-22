@@ -599,7 +599,21 @@ Respond naturally as Aura:
             response = thought.content if thought else None
 
             if not response:
-                return "I recorded a degraded cognitive cycle instead of inventing an answer."
+                # Say what actually happened.
+                #
+                # LIVE, 2026-08-22: this sentence reached the chat window as a
+                # reply to nothing. It is also runtime jargon: it tells the
+                # reader that a cycle was degraded and nothing about why. The
+                # router records the reason whenever it declines, so the
+                # reason is used when there is one.
+                from core.brain.llm.deferral_record import explain_empty_generation
+
+                because = explain_empty_generation()
+                return (
+                    f"I did not answer that one: {because}."
+                    if because
+                    else "I could not produce an answer for that, and I would rather say so."
+                )
 
             # Clean up response
             response = response.strip()

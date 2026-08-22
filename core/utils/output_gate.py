@@ -103,6 +103,38 @@ class AutonomousOutputGate:
         if origin in trusted_primary_origins or (explicit_user_visible and executive_authority):
             return target, metadata
 
+        # A turn the runtime raised for itself does not get to speak.
+        #
+        # LIVE, 2026-08-22: a tick whose objective began "[SILENT AUTO-FIX]"
+        # and ended "Handle this silently" produced an empty generation, fell
+        # back to "I recorded a degraded cognitive cycle instead of inventing
+        # an answer", and that sentence appeared in the chat window as a reply
+        # to nothing. Neither the origin nor the phrase was on the lists
+        # below, and adding the phrase would leave the next one to be found by
+        # a person reading it.
+        #
+        # Provenance decides: these origins raise work for the runtime, never
+        # for whoever is talking to it.
+        internal_only_origins = {
+            "terminal_monitor",
+            "autofix",
+            "self_repair",
+            "immune",
+            "watchdog",
+            "curriculum_loop",
+            "maintenance",
+        }
+        if str(origin or "").strip().lower() in internal_only_origins and target in {
+            "primary",
+            "both",
+        }:
+            metadata = dict(metadata)
+            metadata["autonomous"] = True
+            metadata["authority_rerouted"] = True
+            metadata["voice"] = False
+            metadata["suppress_bus"] = True
+            return "secondary", metadata
+
         background_origin_terms = (
             "system",
             "cognitive",
