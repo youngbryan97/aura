@@ -15139,6 +15139,17 @@ def _serve_repo_diagnosis(reply: object) -> object:
         written = str(reply or "").strip()
         if not written or found in written:
             return found
+        # Never follow evidence with an admission of having none.
+        #
+        # LIVE, 2026-08-22: the finding was served and then the canned "I
+        # couldn't get to an answer I'd stand behind" was appended to it, so a
+        # complete diagnosis read as a failure. A reply the runtime has itself
+        # marked an honest failure is not an explanation of anything.
+        from core.conversation.reply_provenance import ReplyProvenance, declared_provenance
+
+        if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
+            logger.info("🔬 Served the diagnosis alone; the draft admitted having nothing.")
+            return found
         logger.info("🔬 Served the diagnosis from running the project.")
         return f"{found}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:

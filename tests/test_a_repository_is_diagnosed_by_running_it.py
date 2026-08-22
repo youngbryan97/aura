@@ -183,3 +183,33 @@ def test_a_skill_running_beneath_the_turn_can_still_record(tmp_path):
         return solved_answers()
 
     assert asyncio.run(run())["repo_diagnosis"] == "found it"
+
+
+def test_evidence_is_never_followed_by_an_admission_of_having_none(monkeypatch):
+    """LIVE, 2026-08-22: the finding was served and then "I couldn't get to an
+    answer I'd stand behind" was appended to it, so a complete diagnosis read
+    as a failure."""
+    from core.conversation.reply_provenance import (
+        ReplyProvenance,
+        declare_provenance,
+        forget_declared_provenance,
+    )
+    from interface.routes.chat import _serve_repo_diagnosis
+    import core.conversation.session_scope as scope
+
+    forget_declared_provenance()
+    scope.set_user_question("why does it fail?")
+    scope.record_solved_answer("repo_diagnosis", "I ran pytest: 1 failed. assert 100.0 == 0.0")
+
+    admission = "I couldn't get to an answer I'd stand behind on that one."
+    declare_provenance(admission, ReplyProvenance.HONEST_FAILURE)
+    served = str(_serve_repo_diagnosis(admission))
+    assert "assert 100.0 == 0.0" in served
+    assert "stand behind" not in served
+
+    # A real explanation is kept, after the evidence.
+    explanation = "The opening balance is posted single-sided, so the pair never balances."
+    both = str(_serve_repo_diagnosis(explanation))
+    assert both.index("assert 100.0") < both.index("single-sided")
+    forget_declared_provenance()
+    scope.set_user_question("")
