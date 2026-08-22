@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,31 @@ def _request(path: str, *, query: str = "", referer: str = "") -> Request:
             "server": ("127.0.0.1", 8000),
         }
     )
+
+
+class _ShellAssetParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.paths: set[str] = set()
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        dependency_attribute = {
+            "audio": "src",
+            "img": "src",
+            "link": "href",
+            "script": "src",
+            "source": "src",
+            "video": "src",
+        }.get(tag.lower())
+        if dependency_attribute is None:
+            return
+        for name, value in attrs:
+            if name == dependency_attribute and str(value or "").startswith("/static/"):
+                self.paths.add(str(value))
 
 
 @pytest.fixture(autouse=True)
@@ -103,6 +129,18 @@ def test_capture_rejects_symlinked_parent_directory(
 
     with pytest.raises(RuntimeError, match="symlink"):
         launch_provenance.capture_runtime_shell_assets(tmp_path)
+
+
+def test_every_static_shell_dependency_belongs_to_signed_snapshot() -> None:
+    root = Path(__file__).resolve().parents[1]
+    parser = _ShellAssetParser()
+    parser.feed((root / "interface/static/index.html").read_text(encoding="utf-8"))
+    signed_paths = {
+        "/" + relative.removeprefix("interface/")
+        for relative in RUNTIME_SHELL_ASSETS
+    }
+
+    assert parser.paths <= signed_paths, sorted(parser.paths - signed_paths)
 
 
 @pytest.mark.asyncio

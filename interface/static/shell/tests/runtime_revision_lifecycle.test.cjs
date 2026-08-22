@@ -86,6 +86,9 @@ function serviceWorkerHarness({
   const context = {
     URL,
     Promise,
+    AbortController,
+    clearTimeout,
+    setTimeout,
     caches,
     self,
     fetch: async (request) => {
@@ -115,7 +118,7 @@ test('service worker binds cache and assets to the full revision without deletin
   await installPromise;
 
   assert.ok(harness.opened.includes(`aura-runtime-shell-${revision}`));
-  assert.equal(harness.cacheEntries.size, 21);
+  assert.equal(harness.cacheEntries.size, 24);
   for (const path of [
     '/static/index.html',
     '/static/aura.js',
@@ -152,11 +155,15 @@ test('service worker binds cache and assets to the full revision without deletin
     respondWith(value) { shellResponse = value; },
   });
   assert.ok(shellResponse, 'service worker did not revision-bind shell JS');
+  assert.equal((await shellResponse).ok, true);
   assert.deepEqual(
-    await shellResponse,
-    { cached: `/static/aura.js?_aura_runtime=${revision}` },
+    harness.networkCalls,
+    [`/static/aura.js?_aura_runtime=${revision}`],
   );
-  assert.deepEqual(harness.networkCalls, []);
+  assert.equal(
+    harness.cacheEntries.get(`/static/aura.js?_aura_runtime=${revision}`).ok,
+    true,
+  );
 
   let iconResponse;
   harness.listeners.get('fetch')({
@@ -169,11 +176,8 @@ test('service worker binds cache and assets to the full revision without deletin
     },
     respondWith(value) { iconResponse = value; },
   });
-  assert.deepEqual(
-    await iconResponse,
-    { cached: `/static/icon-192.png?_aura_runtime=${revision}` },
-  );
-  assert.equal(harness.networkCalls.length, 0);
+  assert.equal((await iconResponse).ok, true);
+  assert.equal(harness.networkCalls.length, 2);
 
   let futureModuleResponse;
   harness.listeners.get('fetch')({
@@ -187,7 +191,7 @@ test('service worker binds cache and assets to the full revision without deletin
     respondWith(value) { futureModuleResponse = value; },
   });
   assert.equal(futureModuleResponse, undefined);
-  assert.equal(harness.networkCalls.length, 0);
+  assert.equal(harness.networkCalls.length, 2);
 
   let futureImageResponse;
   harness.listeners.get('fetch')({
@@ -201,7 +205,7 @@ test('service worker binds cache and assets to the full revision without deletin
     respondWith(value) { futureImageResponse = value; },
   });
   assert.equal(futureImageResponse, undefined);
-  assert.equal(harness.networkCalls.length, 0);
+  assert.equal(harness.networkCalls.length, 2);
 
   let rootNavigationResponse;
   harness.listeners.get('fetch')({
@@ -227,9 +231,10 @@ test('service worker binds cache and assets to the full revision without deletin
     },
     respondWith(value) { revisionNavigationResponse = value; },
   });
-  assert.deepEqual(
-    await revisionNavigationResponse,
-    { cached: `/static/index.html?_aura_runtime=${revision}` },
+  assert.equal((await revisionNavigationResponse).ok, true);
+  assert.equal(
+    harness.networkCalls.at(-1),
+    `/static/index.html?_aura_runtime=${revision}`,
   );
 });
 
@@ -292,6 +297,24 @@ test('worker ignores cross-origin collisions and all non-shell private resources
     respondWith(value) { crossRevisionResponse = value; },
   });
   assert.equal(crossRevisionResponse, undefined);
+  assert.deepEqual(harness.networkCalls, []);
+});
+
+test('stale controller cannot bind a fresh unmarked document to its old assets', () => {
+  const harness = serviceWorkerHarness();
+  let shellResponse;
+  harness.listeners.get('fetch')({
+    request: {
+      method: 'GET',
+      url: 'http://127.0.0.1:8000/static/aura.js',
+      destination: 'script',
+      mode: 'same-origin',
+      referrer: 'http://127.0.0.1:8000/',
+    },
+    respondWith(value) { shellResponse = value; },
+  });
+
+  assert.equal(shellResponse, undefined);
   assert.deepEqual(harness.networkCalls, []);
 });
 
@@ -501,7 +524,7 @@ test('fresh trust loss retires only Aura workers and purges revision state', asy
   assert.equal(messages[0].type, 'AURA_RETIRE_RUNTIME_SHELL');
   assert.deepEqual(deletedCaches, ['aura-runtime-shell-old']);
   assert.equal(values.has('aura.runtime_revision'), false);
-  assert.equal(context.state.runtimeRevisionTrust, 'untrusted');
+  assert.equal(context.state.runtimeRevisionTrust, 'not_required');
   assert.equal(context.state.serviceWorkerRegistrationTarget, null);
 
   context.state.runtimeRevision = revision;

@@ -6343,9 +6343,12 @@ function auraServiceWorkerRegistration(registration) {
     }
 }
 
-function retireRuntimeShellTrust(reason = 'runtime_revision_unverified') {
+function retireRuntimeShellTrust(
+    reason = 'runtime_revision_unverified',
+    finalTrust = 'untrusted',
+) {
     if (state.runtimeShellRetirementPromise) return state.runtimeShellRetirementPromise;
-    state.runtimeRevisionTrust = 'untrusted';
+    state.runtimeRevisionTrust = finalTrust;
     state.runtimeRevision = null;
     state.runtimeRevisionGeneration = 0;
     state.runtimeRevisionCapturedAtUnix = 0;
@@ -6600,7 +6603,20 @@ function reconcileRuntimeShellRevision(payload) {
             // /api/health simultaneously reported zero blockers. Absence of a
             // requirement is not a failed check.
             if (payload?.runtime_revision?.required === false) {
+                const hadTrustedShell = Boolean(
+                    state.runtimeRevisionTrust === 'trusted'
+                    || state.runtimeRevision
+                    || storedRuntimeRevision()
+                    || runtimeRevisionMarkerFromLocation()
+                    || state.serviceWorkerRegistrationTarget
+                );
                 state.runtimeRevisionTrust = 'not_required';
+                if (hadTrustedShell) {
+                    void retireRuntimeShellTrust(
+                        runtimeRevisionPolicyBlocker(payload),
+                        'not_required',
+                    );
+                }
                 return false;
             }
             const hadTrustedShell = Boolean(

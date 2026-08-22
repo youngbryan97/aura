@@ -26,12 +26,15 @@ const LIVE_SHELL_PATHS = new Set([
   '/static/motion_design.css',
   '/static/error_banner.css',
   '/static/aura.css',
+  '/static/voice_mode.css',
   '/static/presence_design.css',
   '/static/vendor/vis-network.min.js',
+  '/static/shell_lexicon.js',
   '/static/error_banner.js',
   '/static/sound_design.js',
   '/static/perf_collector.js',
   '/static/aura.js',
+  '/static/voice_mode.js',
   '/static/manifest.json',
   '/static/service-worker.js',
   '/static/aura_avatar.svg',
@@ -133,9 +136,10 @@ self.addEventListener('fetch', (event) => {
   if (!SHELL_REVISION || !runtimeTrustActive) return;
   const requestRevision = url.searchParams.get('_aura_runtime') || '';
   if (requestRevision && requestRevision !== SHELL_REVISION) return;
+  let referrerRevision = '';
   try {
     const referrer = event.request.referrer ? new URL(event.request.referrer) : null;
-    const referrerRevision = referrer?.origin === self.location.origin
+    referrerRevision = referrer?.origin === self.location.origin
       ? referrer.searchParams.get('_aura_runtime') || ''
       : '';
     if (referrerRevision && referrerRevision !== SHELL_REVISION) return;
@@ -151,6 +155,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname !== '/'
     &&
     url.pathname !== '/static/service-worker.js'
+    && (requestRevision === SHELL_REVISION || referrerRevision === SHELL_REVISION)
     && (LIVE_SHELL_PATHS.has(url.pathname) || REVISION_ADDRESSED_PATHS.has(url.pathname))
   );
   if (revisionBound) {
@@ -172,9 +177,10 @@ self.addEventListener('fetch', (event) => {
       // "Conversation lane initializing" while /api/health reported
       // conversation_ready: true.
       //
-      // The server ignores the _aura_runtime query, so this returns what the
-      // runtime is serving NOW even when this worker is an old one. That is
-      // the property that makes the pin escapable.
+      // The immutable server accepts only snapshots held by this runtime.
+      // An unmarked bootstrap document bypasses this worker above, allowing a
+      // new runtime to load its current shell before health binds the page to
+      // a revision. A marked document remains byte-consistent here.
       try {
         const response = await fetchWithinShellBudget(revisionUrl);
         if (response && response.ok) {
