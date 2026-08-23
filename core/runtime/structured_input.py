@@ -349,6 +349,33 @@ class PromptShape:
         }
 
 
+#: Words for the pieces of a deliverable, when somebody says how many.
+_COUNTED_PARTS = (
+    "slide", "section", "part", "chapter", "step", "example", "point",
+    "item", "bullet", "paragraph", "reason", "option", "question", "idea",
+)
+
+
+def _parts_the_request_counted(text: str) -> int:
+    """How many pieces the request asked for, or 0 when it did not say.
+
+    LIVE, 2026-08-22: "six slides on the ledger project" was given a floor of
+    256 tokens — the same as "what is 2 + 2?" — because a count of parts was
+    not among the obligations counted here. Every attempt at that deck came
+    back truncated: two slides of six, then three, then one.
+
+    A request that says how many pieces it wants has said how much work it is
+    asking for. Read by the same reader the rest of the runtime uses for
+    counted units, so this does not become a second opinion about numbers.
+    """
+    try:
+        from core.conversation.response_reliability import requested_count
+
+        return int(requested_count(text, *_COUNTED_PARTS) or 0)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0
+
+
 def answer_surface_token_floor(text: str) -> int:
     """Minimum decode capacity needed to answer the visible request once.
 
@@ -366,6 +393,7 @@ def answer_surface_token_floor(text: str) -> int:
         int(shape.numbered_parts),
         int(shape.imperative_parts),
         len(shape.question_segments),
+        _parts_the_request_counted(text),
     )
     if not (
         shape.prefers_extended_answer
@@ -419,6 +447,7 @@ def answer_surface_planning_tokens(text: str) -> int:
         int(shape.numbered_parts),
         int(shape.imperative_parts),
         len(shape.question_segments),
+        _parts_the_request_counted(text),
     )
     capacity = answer_surface_token_floor(text)
     if capacity <= 256:
