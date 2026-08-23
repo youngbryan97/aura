@@ -1,0 +1,236 @@
+{
+  "candidate": {
+    "canonical_path": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "descriptor": {
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/artifacts/closeout/cortex_upgrade/cp911/artifact_descriptor.json",
+      "sha256": "b4eac8e86cb0bfefbe5464d8ec7e25dc328e03b47076b93dcddffa4748d48df0",
+      "size_bytes": 4429
+    },
+    "descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+    "repository_id": "mlx-community/Qwen3.8-27B-4bit",
+    "revision": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff"
+  },
+  "checks": {
+    "candidate_resume_path_isolated": true,
+    "candidate_target_modules_compatible": true,
+    "crsm_delta_manifest_current": false,
+    "crsm_source_schema_valid": true,
+    "descriptor_exact": true,
+    "legacy_qwen25_adapter_refused": true,
+    "no_model_load": true,
+    "persona_dataset_schema_valid": true,
+    "persona_manifest_output_current": false,
+    "persona_split_disjoint": false
+  },
+  "datasets": {
+    "crsm": {
+      "delta_manifest": {
+        "current": false,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/data/crsm_delta_manifest.json",
+        "present": false
+      },
+      "delta_train": null,
+      "delta_valid": null,
+      "integration_manifest": {
+        "current": false,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/data/crsm_integration_manifest.json",
+        "present": false
+      },
+      "requires_rebuild": true,
+      "source": {
+        "invalid_by_reason": {},
+        "invalid_records": 0,
+        "lines": 1,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/data/synthetic_training/lora_dataset.jsonl",
+        "sha256": "ef6fc9aaa874271258920a0e03e13eaa4bd85a7da34025b42b026a43aa29abb3",
+        "size_bytes": 195,
+        "valid_records": 1
+      }
+    },
+    "persona": {
+      "identity_sha256": "fe319061512033ac84f7111a80d4b620933d702b984aee6eb56bb120a5e37d08",
+      "manifest": {
+        "current": false,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/data/crsm_integration_manifest.json",
+        "present": false
+      },
+      "split_overlap_records": 25,
+      "train": {
+        "content_identity_sha256": "05bf019777d733fd5c5b640da8feda4312770e4bd9f1cfc51ea17469ea681d05",
+        "duplicate_records": 99,
+        "invalid_by_reason": {},
+        "invalid_records": 0,
+        "lines": 60429,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/data/train.jsonl",
+        "sha256": "09d29108371b9ee406fe777733bab2ffb8da2c64f26a29b50711f3baf757204d",
+        "size_bytes": 35701653,
+        "unique_records": 60330,
+        "valid_records": 60429
+      },
+      "valid": {
+        "content_identity_sha256": "da1ece9677bfcaa5477f6020af5b0bf228def71bae8dd38773d27652f540f1cd",
+        "duplicate_records": 2,
+        "invalid_by_reason": {},
+        "invalid_records": 0,
+        "lines": 6715,
+        "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/data/valid.jsonl",
+        "sha256": "b7c24a11b6adf2adeb33ae5266b97d851d2ecd99e9551fe2345233788f0e9d53",
+        "size_bytes": 3964103,
+        "unique_records": 6713,
+        "valid_records": 6715
+      }
+    }
+  },
+  "no_model_load": true,
+  "paths": {
+    "crsm_adapter_dir": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/adapter",
+    "crsm_binding": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/adapter/candidate_binding.json",
+    "crsm_checkpoint_pattern": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/adapter/[0-9]*_adapters.safetensors",
+    "crsm_completion": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/completion.json",
+    "crsm_dataset_dir": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/data",
+    "crsm_final_adapter": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/adapter/adapters.safetensors",
+    "crsm_resume_root": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/crsm/adapter",
+    "fused_model_dir": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/fused-model",
+    "output_root": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs",
+    "persona_adapter_dir": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter",
+    "persona_binding": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter/candidate_binding.json",
+    "persona_checkpoint_pattern": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter/[0-9]*_adapters.safetensors",
+    "persona_completion": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/completion.json",
+    "persona_final_adapter": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter/adapters.safetensors",
+    "persona_resume_root": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter",
+    "run_id": "4d8e89dc434aecad7a7c",
+    "run_root": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c"
+  },
+  "pipeline_sources": {
+    "training/build_dataset_v3.py": {
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/build_dataset_v3.py",
+      "sha256": "343abe2fac08121c2b7fe8a490bb0b2e3ef3b8a328906010ac9a8bb0abf91d4e",
+      "size_bytes": 23537
+    },
+    "training/finetune_lora.py": {
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/finetune_lora.py",
+      "sha256": "7c4c503050f1c0ed13792ffa4ed31b1fc3cd1f690078b2f3f46aa8b2f01759f5",
+      "size_bytes": 9861
+    },
+    "training/train_and_fuse.py": {
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/train_and_fuse.py",
+      "sha256": "b40fd8872fcfdde249b677a5b63043f2fd85bbfb665ced1125943c40bcd59f13",
+      "size_bytes": 39846
+    }
+  },
+  "preflight_sha256": "16d01dd68f5651f575b7795bf6255fb254a5b4f8c565dd0f52640e8c5490aa1b",
+  "readiness": {
+    "crsm_blockers": [
+      "crsm_delta_dataset_requires_rebuild",
+      "candidate_persona_adapter_required_for_crsm_resume"
+    ],
+    "crsm_delta_after_persona": false,
+    "persona_blockers": [
+      "persona_train_valid_overlap:25",
+      "persona_dataset_manifest_output_stale"
+    ],
+    "persona_fresh_training": false
+  },
+  "resume": {
+    "candidate_binding_schema": "aura.candidate_persona_adapter_binding.v1",
+    "candidate_binding_template": {
+      "dataset_identity_sha256": "fe319061512033ac84f7111a80d4b620933d702b984aee6eb56bb120a5e37d08",
+      "model_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+      "model_path": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+      "run_id": "4d8e89dc434aecad7a7c",
+      "schema": "aura.candidate_persona_adapter_binding.v1",
+      "target_topology_sha256": "809e780ce450118e7be04ce9b29ea68ddd0986f5b934cdcc8e497e098e399713"
+    },
+    "candidate_persona": {
+      "accepted": false,
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/candidate-runs/79b8369af238a0d6/4d8e89dc434aecad7a7c/persona/adapter",
+      "present": false,
+      "reasons": [
+        "adapter_missing"
+      ]
+    },
+    "legacy_adapter_audit": {
+      "accepted": false,
+      "binding": {},
+      "binding_path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/adapters/aura-personality/candidate_binding.json",
+      "checkpoint_step": null,
+      "config_path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/adapters/aura-personality/adapter_config.json",
+      "configured_model": "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-4bit",
+      "missing_tensor_count": 0,
+      "missing_tensor_sample": [],
+      "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/adapters/aura-personality",
+      "present": true,
+      "reasons": [
+        "adapter_model_mismatch",
+        "adapter_outside_candidate_run",
+        "adapter_tensor_missing",
+        "candidate_binding_missing"
+      ],
+      "shape_mismatch_count": 0,
+      "shape_mismatch_sample": [],
+      "tensor_count": 0,
+      "tensor_path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-autonomy-deferral/training/adapters/aura-personality/adapters.safetensors",
+      "tensor_sha256": null,
+      "unexpected_tensor_count": 0,
+      "unexpected_tensor_sample": []
+    }
+  },
+  "schema": "aura.candidate_persona_crsm_preflight.v1",
+  "source_revision": "CP912",
+  "target_modules": {
+    "compatible": true,
+    "dropout": 0.0,
+    "full_attention_layers": 16,
+    "layers": 64,
+    "linear_attention_layers": 48,
+    "minimum_projection_dimension": 48,
+    "missing_weight_keys": [],
+    "mlx_lora_config": {
+      "lora_parameters": {
+        "dropout": 0.0,
+        "keys": [
+          "linear_attn.in_proj_a",
+          "linear_attn.in_proj_b",
+          "linear_attn.in_proj_qkv",
+          "linear_attn.in_proj_z",
+          "linear_attn.out_proj",
+          "mlp.down_proj",
+          "mlp.gate_proj",
+          "mlp.up_proj",
+          "self_attn.k_proj",
+          "self_attn.o_proj",
+          "self_attn.q_proj",
+          "self_attn.v_proj"
+        ],
+        "rank": 32,
+        "scale": 20.0
+      }
+    },
+    "model_type": "qwen3_5",
+    "projection_count_by_layer_type": {
+      "full_attention": 112,
+      "linear_attention": 384
+    },
+    "rank": 32,
+    "rank_incompatible_paths": [],
+    "relative_keys": [
+      "linear_attn.in_proj_a",
+      "linear_attn.in_proj_b",
+      "linear_attn.in_proj_qkv",
+      "linear_attn.in_proj_z",
+      "linear_attn.out_proj",
+      "mlp.down_proj",
+      "mlp.gate_proj",
+      "mlp.up_proj",
+      "self_attn.k_proj",
+      "self_attn.o_proj",
+      "self_attn.q_proj",
+      "self_attn.v_proj"
+    ],
+    "scale": 20.0,
+    "text_model_type": "qwen3_5_text",
+    "topology_sha256": "809e780ce450118e7be04ce9b29ea68ddd0986f5b934cdcc8e497e098e399713",
+    "wrapped_projection_count": 496
+  },
+  "verdict": "BLOCKED"
+}

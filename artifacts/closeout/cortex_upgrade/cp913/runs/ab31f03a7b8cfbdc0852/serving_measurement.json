@@ -1,0 +1,655 @@
+{
+ "cells": [
+  {
+   "cell_id": "template",
+   "contract_sha256": "cbc707e6b95dfdbe984fc09e6e9329b6df51db7fdf26a643a39a59522dcd972d",
+   "native_tool_calling": true,
+   "passed": true,
+   "plain_prompt_tokens": 14,
+   "row_sha256": "28a89a7c6ae94128d9ba6b5f353bf2c0282b75f9b307d5a0102aad8db3e3e19f",
+   "thinking_control": true,
+   "tool_prompt_tokens": 276
+  },
+  {
+   "cell_id": "complete_answer",
+   "contract_sha256": "5276a505dcd523b10c1fb4f1cddcbd01786cf4e26e2dbd89961cea625ef3a0e6",
+   "generation": {
+    "elapsed_s": 193.2812,
+    "finish_reason": "stop",
+    "generation_tokens": 1897,
+    "generation_tps": 9.8641,
+    "minimum_host_available_gb": 20.1014,
+    "mlx_active_memory_gb": 14.2759,
+    "mlx_cache_memory_gb": 0.4625,
+    "peak_memory_gb": 15.7769,
+    "process_peak_rss_gb": 14.9659,
+    "progress": [
+     {
+      "elapsed_s": 0.125745,
+      "host_available_gb": 24.0941,
+      "mlx_active_gb": 14.094253,
+      "mlx_cache_gb": 1e-05,
+      "mlx_peak_gb": 14.094253,
+      "process_rss_gb": 14.955048,
+      "processed": 0,
+      "total": 163
+     },
+     {
+      "elapsed_s": 0.793436,
+      "host_available_gb": 20.1014,
+      "mlx_active_gb": 14.253433,
+      "mlx_cache_gb": 0.462451,
+      "mlx_peak_gb": 14.693397,
+      "process_rss_gb": 14.965408,
+      "processed": 162,
+      "total": 163
+     },
+     {
+      "elapsed_s": 0.918975,
+      "host_available_gb": 20.527,
+      "mlx_active_gb": 14.275932,
+      "mlx_cache_gb": 0.011975,
+      "mlx_peak_gb": 14.693397,
+      "process_rss_gb": 14.965927,
+      "processed": 163,
+      "total": 163
+     }
+    ],
+    "prompt_tokens": 163,
+    "prompt_tps": 205.3754,
+    "text": "Dijkstra\u2019s algorithm is a foundational method in computer science and graph theory used to find the shortest path from a single source node to all other nodes in a weighted graph. It operates on the principle of greedy selection, ensuring that at each step, the node with the currently known shortest distance is finalized. This approach is efficient and deterministic, provided the graph meets specific constraints regarding edge weights. The following explanation details the algorithm\u2019s logic, implementation, practical application, and theoretical limitations.\n\nCORE INVARIANT\n\nThe heart of Dijkstra\u2019s algorithm lies in a specific logical guarantee known as the core invariant. This invariant states that once a node is extracted from the priority queue (or marked as visited), its shortest distance from the source node is permanently fixed and will never be updated again. This guarantee holds true only if all edge weights in the graph are non-negative. The reasoning behind this invariant is rooted in the nature of non-negative weights. If all edges have weights greater than or equal to zero, it is impossible to find a path to a node that is shorter than a path that has already been established, because any additional path segment would only add to the total distance, never subtract from it. Therefore, if a node $u$ has the smallest tentative distance among all unvisited nodes, no other unvisited node can lead to a shorter path to $u$. If there were a shorter path to $u$ through some other unvisited node $v$, the distance to $v$ would have to be less than the distance to $u$ (since the edge weight from $v$ to $u$ is non-negative). However, we selected $u$ precisely because it had the smallest distance among all unvisited nodes, creating a contradiction. Thus, the invariant ensures correctness: the set of finalized nodes always contains the true shortest paths, and the set of tentative nodes contains the best known upper bounds for the remaining nodes. This invariant is what allows the algorithm to terminate correctly without needing to revisit finalized nodes, making it significantly more efficient than algorithms that might require re-evaluation, such as Bellman-Ford.\n\nNUMBERED PSEUDOCODE\n\nThe implementation of Dijkstra\u2019s algorithm relies heavily on a priority queue to efficiently retrieve the node with the minimum distance. Below is the standard pseudocode using a min-heap structure:\n\n1. Initialize the distance array $dist$ for all nodes in the graph to infinity ($\\infty$).\n2. Set the distance of the source node $s$ to 0 ($dist[s] = 0$).\n3. Create an empty priority queue $Q$ and insert all nodes into it, keyed by their current distance values.\n4. While $Q$ is not empty:\n    a. Extract the node $u$ with the minimum key (distance) from $Q$.\n    b. Mark $u$ as visited (or remove it from consideration for future updates).\n    c. For each neighbor $v$ of $u$ that has not yet been visited:\n        i. Calculate the alternative distance: $alt = dist[u] + weight(u, v)$.\n        ii. If $alt < dist[v]$, then update $dist[v]$ to $alt$.\n        iii. Decrease the key of $v$ in the priority queue $Q$ to reflect the new, smaller distance.\n5. Return the $dist$ array, which now contains the shortest path distances from $s$ to all reachable nodes.\n\nWORKED EXAMPLE\n\nTo illustrate the algorithm, consider a directed graph with four nodes: A, B, C, and D. The source node is A. The directed weighted edges are defined as follows: $A \\to B$ with weight 4, $A \\to C$ with weight 1, $C \\to B$ with weight 2, and $B \\to D$ with weight 1, and $C \\to D$ with weight 5.\n\nInitially, the distances are set as: $dist[A]=0$, $dist[B]=\\infty$, $dist[C]=\\infty$, $dist[D]=\\infty$. The priority queue contains all nodes, with A having the minimum key of 0.\n\nFirst, we extract A from the queue. We examine its neighbors. The edge $A \\to B$ has weight 4, so the tentative distance to B becomes $0 + 4 = 4$. The edge $A \\to C$ has weight 1, so the tentative distance to C becomes $0 + 1 = 1$. The queue now prioritizes C (key 1) over B (key 4) and D (key $\\infty$).\n\nNext, we extract C from the queue. We examine C\u2019s neighbors. The edge $C \\to B$ has weight 2. The current distance to B is 4. The alternative path via C is $dist[C] + weight(C, B) = 1 + 2 = 3$. Since 3 is less than 4, we update $dist[B]$ to 3. The edge $C \\to D$ has weight 5. The alternative path via C is $dist[C] + weight(C, D) = 1 + 5 = 6$. Since 6 is less than $\\infty$, we update $dist[D]$ to 6. The queue now prioritizes B (key 3) over D (key 6).\n\nNext, we extract B from the queue. We examine B\u2019s neighbors. The edge $B \\to D$ has weight 1. The current distance to D is 6. The alternative path via B is $dist[B] + weight(B, D) = 3 + 1 = 4$. Since 4 is less than 6, we update $dist[D]$ to 4. The queue now prioritizes D (key 4).\n\nFinally, we extract D from the queue. D has no outgoing edges to unvisited nodes, so no updates are made. The algorithm terminates.\n\nThe final distances from source A are:\nDistance to A: 0\nDistance to B: 3\nDistance to C: 1\nDistance to D: 4\n\nCOMPLEXITY\n\nThe time complexity of Dijkstra\u2019s algorithm depends heavily on the data structure used for the priority queue. If a simple array is used to store the nodes and find the minimum, the operation to extract the minimum node takes $O(V)$ time, where $V$ is the number of vertices. Since this operation is performed $V$ times, and each extraction requires scanning the entire array, the total time complexity becomes $O(V^2)$. This is efficient for dense graphs where the number of edges $E$ is close to $V^2$, as the relaxation step for each edge is $O(1)$, leading to a total of $O(V^2 + E)$, which simplifies to $O(V^2)$.\n\nHowever, for sparse graphs, a binary heap is more efficient. With a binary heap, the extract-min operation takes $O(\\log V)$ time. The decrease-key operation also takes $O(\\log V)$ time. Each edge is relaxed at most once, and each node is extracted once. Therefore, the total time complexity is $O((V + E) \\log V)$. For sparse graphs where $E$ is much smaller than $V^2$, this is significantly faster than the array-based approach. If a Fibonacci heap is used, the complexity can be improved to $O(E + V \\log V)$, but binary heaps are more commonly implemented due to their simplicity and good practical performance.\n\nNEGATIVE WEIGHTS\n\nDijkstra\u2019s algorithm fails if the graph contains edges with negative weights. The core invariant, which assumes that once a node is finalized, its distance is minimal, is violated by negative weights. If a negative edge exists, it is possible to find a path to a node that is shorter than a path that has already been finalized. For example, if a node $u$ is finalized with distance 10, but there is a negative edge from a later-processed node $v$ to $u$ with weight -5, and $v$ has a distance of 12, the path through $v$ would result in a distance of 7 for $u$, which is shorter than 10. Since Dijkstra\u2019s algorithm does not revisit finalized nodes, it would incorrectly report 10 as the shortest distance.\n\nThe correct alternative for graphs with negative weights (but no negative weight cycles) is the Bellman-Ford algorithm. Bellman-Ford works by relaxing all edges in the graph $V-1$ times. This ensures that all possible paths with up to $V-1$ edges are considered, allowing it to correctly handle negative weights. If a negative weight cycle exists, no shortest path is defined, and Bellman-Ford can detect this by checking if any distance can be further reduced after $V-1$ iterations. Thus, while Dijkstra is optimal for non-negative weights, Bellman-Ford is the necessary tool for general weighted graphs.",
+    "ttft_s": 0.919
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 0.6677,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 22.1257,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 24.097,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "31668635871ef9298595c8d18ae63d4a35f958f2fdb9f8851f34eebd56111c76",
+   "score": {
+    "completion_pass": true,
+    "complexity_pass": true,
+    "distance_pass": true,
+    "edge_pass": true,
+    "heading_pass": true,
+    "invariant_pass": true,
+    "length_pass": true,
+    "negative_weight_pass": true,
+    "passed": true,
+    "pseudocode_pass": true,
+    "terminal_sentence_pass": true,
+    "word_count": 1342
+   }
+  },
+  {
+   "cell_id": "tool_contract",
+   "contract_sha256": "7814db3749e666fbf6140a3da94b2bc76f99d8d74ba95f908b60abb93b2f339c",
+   "generation": {
+    "elapsed_s": 4.8042,
+    "finish_reason": "stop",
+    "generation_tokens": 31,
+    "generation_tps": 10.3421,
+    "minimum_host_available_gb": 20.7763,
+    "mlx_active_memory_gb": 14.2916,
+    "mlx_cache_memory_gb": 0.9656,
+    "peak_memory_gb": 16.0192,
+    "process_peak_rss_gb": 14.3442,
+    "progress": [
+     {
+      "elapsed_s": 0.176411,
+      "host_available_gb": 21.9796,
+      "mlx_active_gb": 14.094255,
+      "mlx_cache_gb": 0.449378,
+      "mlx_peak_gb": 14.094255,
+      "process_rss_gb": 14.343735,
+      "processed": 0,
+      "total": 285
+     },
+     {
+      "elapsed_s": 1.642251,
+      "host_available_gb": 20.7763,
+      "mlx_active_gb": 14.269731,
+      "mlx_cache_gb": 0.965583,
+      "mlx_peak_gb": 14.919027,
+      "process_rss_gb": 14.344223,
+      "processed": 284,
+      "total": 285
+     },
+     {
+      "elapsed_s": 1.766429,
+      "host_available_gb": 21.6525,
+      "mlx_active_gb": 14.291587,
+      "mlx_cache_gb": 0.009717,
+      "mlx_peak_gb": 14.919027,
+      "process_rss_gb": 14.343567,
+      "processed": 285,
+      "total": 285
+     }
+    ],
+    "prompt_tokens": 285,
+    "prompt_tps": 179.2066,
+    "text": "<tool_call>\n<function=calculate>\n<parameter=expression>\n17 * 19\n</parameter>\n</function>\n</tool_call>",
+    "ttft_s": 1.7665
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 1.4658,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 21.1851,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 22.1135,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "b336c3fdf7632a9318bb8dac24f3a342cba44c1b2c3b4660d619fe0ec29eb4ce",
+   "score": {
+    "exact_objective": true,
+    "parsed_call": {
+     "args": {
+      "expression": "17 * 19"
+     },
+     "tool": "calculate"
+    },
+    "passed": true,
+    "schema_error": ""
+   }
+  },
+  {
+   "cell_id": "code_contract",
+   "contract_sha256": "2e0a9d3d0bc8221361dbecc380e336c84a2b84f65b521d25d63202e4cb8940a8",
+   "generation": {
+    "elapsed_s": 10.2603,
+    "finish_reason": "stop",
+    "generation_tokens": 89,
+    "generation_tps": 9.5867,
+    "minimum_host_available_gb": 17.0905,
+    "mlx_active_memory_gb": 14.276,
+    "mlx_cache_memory_gb": 0.2968,
+    "peak_memory_gb": 15.5649,
+    "process_peak_rss_gb": 14.3493,
+    "progress": [
+     {
+      "elapsed_s": 0.182077,
+      "host_available_gb": 21.115,
+      "mlx_active_gb": 14.094253,
+      "mlx_cache_gb": 0.207512,
+      "mlx_peak_gb": 14.094253,
+      "process_rss_gb": 14.349289,
+      "processed": 0,
+      "total": 82
+     },
+     {
+      "elapsed_s": 0.786335,
+      "host_available_gb": 20.7324,
+      "mlx_active_gb": 14.254134,
+      "mlx_cache_gb": 0.296782,
+      "mlx_peak_gb": 14.495967,
+      "process_rss_gb": 14.349319,
+      "processed": 81,
+      "total": 82
+     },
+     {
+      "elapsed_s": 0.924697,
+      "host_available_gb": 20.9441,
+      "mlx_active_gb": 14.275993,
+      "mlx_cache_gb": 0.009701,
+      "mlx_peak_gb": 14.495967,
+      "process_rss_gb": 14.348999,
+      "processed": 82,
+      "total": 82
+     }
+    ],
+    "prompt_tokens": 82,
+    "prompt_tps": 110.384,
+    "text": "```python\ndef rolling_pair_sums(values):\n    \"\"\"Return each adjacent pair's sum; return [] when fewer than two values exist.\"\"\"\n    it = iter(values)\n    try:\n        prev = next(it)\n    except StopIteration:\n        return []\n    result = []\n    for curr in it:\n        result.append(prev + curr)\n        prev = curr\n    return result\n```",
+    "ttft_s": 0.9247
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 0.6043,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 17.0888,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 21.1852,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "ecce418a9740a107a9e9f224fb9072dbfa43617c3e49c3adcea2c8c2bc9b46ae",
+   "score": {
+    "code_sha256": "2a93ba48ec995f21424fb95f33cc3e4af37e7306522d30f447bb12d3495c9b07",
+    "passed": true,
+    "sandbox": {
+     "boundary": "seatbelt",
+     "error": "",
+     "results": [],
+     "returncode": 0,
+     "sandboxed": true,
+     "status": "ok",
+     "stderr": "",
+     "stdout": ""
+    }
+   }
+  },
+  {
+   "cell_id": "context:8192",
+   "contract_sha256": "13a33f13edf19f166307860de1bc1163661b3dcdb3ffcb0400c211be85eb5974",
+   "generation": {
+    "elapsed_s": 43.116,
+    "finish_reason": "stop",
+    "generation_tokens": 16,
+    "generation_tps": 10.2325,
+    "minimum_host_available_gb": 8.3383,
+    "mlx_active_memory_gb": 14.7633,
+    "mlx_cache_memory_gb": 3.7214,
+    "peak_memory_gb": 19.0915,
+    "process_peak_rss_gb": 14.3422,
+    "progress": [
+     {
+      "elapsed_s": 0.198164,
+      "host_available_gb": 16.2481,
+      "mlx_active_gb": 14.094283,
+      "mlx_cache_gb": 0.191888,
+      "mlx_peak_gb": 14.094283,
+      "process_rss_gb": 14.342224,
+      "processed": 0,
+      "total": 8120
+     },
+     {
+      "elapsed_s": 10.965086,
+      "host_available_gb": 8.3383,
+      "mlx_active_gb": 14.363494,
+      "mlx_cache_gb": 2.923776,
+      "mlx_peak_gb": 16.955794,
+      "process_rss_gb": 14.198425,
+      "processed": 2048,
+      "total": 8120
+     },
+     {
+      "elapsed_s": 21.184971,
+      "host_available_gb": 8.4684,
+      "mlx_active_gb": 14.488494,
+      "mlx_cache_gb": 3.194543,
+      "mlx_peak_gb": 17.274276,
+      "process_rss_gb": 14.20369,
+      "processed": 4096,
+      "total": 8120
+     },
+     {
+      "elapsed_s": 30.984733,
+      "host_available_gb": 17.605,
+      "mlx_active_gb": 14.613494,
+      "mlx_cache_gb": 3.522683,
+      "mlx_peak_gb": 17.586776,
+      "process_rss_gb": 14.20488,
+      "processed": 6144,
+      "total": 8120
+     },
+     {
+      "elapsed_s": 41.357735,
+      "host_available_gb": 15.7363,
+      "mlx_active_gb": 14.738494,
+      "mlx_cache_gb": 3.721444,
+      "mlx_peak_gb": 17.780364,
+      "process_rss_gb": 14.205139,
+      "processed": 8119,
+      "total": 8120
+     },
+     {
+      "elapsed_s": 41.500464,
+      "host_available_gb": 19.4037,
+      "mlx_active_gb": 14.76328,
+      "mlx_cache_gb": 0.011239,
+      "mlx_peak_gb": 17.780364,
+      "process_rss_gb": 14.206177,
+      "processed": 8120,
+      "total": 8120
+     }
+    ],
+    "prompt_tokens": 8120,
+    "prompt_tps": 196.5976,
+    "text": "AURA-8192-CORTEX-9F3C",
+    "ttft_s": 41.5008
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 6,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 10.7669,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": true,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 19.1793,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 16.6064,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "b0fd6487c148fe659bd635c4cee2ada427ea8e59e68ec5480ceb5979b8c17e05",
+   "score": {
+    "completion_pass": true,
+    "nonce_recovered": true,
+    "passed": true
+   }
+  },
+  {
+   "cell_id": "context:32768",
+   "contract_sha256": "77d99acda647e4dc6882dbc77060bbd7aaf635798f6fce81f8b55fd308f18fa0",
+   "generation": {
+    "elapsed_s": 176.7455,
+    "finish_reason": "stop",
+    "generation_tokens": 17,
+    "generation_tps": 9.9202,
+    "minimum_host_available_gb": 15.6622,
+    "mlx_active_memory_gb": 16.2596,
+    "mlx_cache_memory_gb": 7.4223,
+    "peak_memory_gb": 23.0176,
+    "process_peak_rss_gb": 14.3501,
+    "progress": [
+     {
+      "elapsed_s": 0.144216,
+      "host_available_gb": 20.0225,
+      "mlx_active_gb": 14.094375,
+      "mlx_cache_gb": 0.680806,
+      "mlx_peak_gb": 14.094375,
+      "process_rss_gb": 14.349533,
+      "processed": 0,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 9.853933,
+      "host_available_gb": 15.6622,
+      "mlx_active_gb": 14.36357,
+      "mlx_cache_gb": 3.412709,
+      "mlx_peak_gb": 16.955886,
+      "process_rss_gb": 14.349533,
+      "processed": 2048,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 19.184672,
+      "host_available_gb": 22.0608,
+      "mlx_active_gb": 14.48857,
+      "mlx_cache_gb": 3.194543,
+      "mlx_peak_gb": 17.274367,
+      "process_rss_gb": 14.349167,
+      "processed": 4096,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 29.20527,
+      "host_available_gb": 21.0959,
+      "mlx_active_gb": 14.61357,
+      "mlx_cache_gb": 3.522683,
+      "mlx_peak_gb": 17.586867,
+      "process_rss_gb": 14.349167,
+      "processed": 6144,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 38.973844,
+      "host_available_gb": 21.8721,
+      "mlx_active_gb": 14.73857,
+      "mlx_cache_gb": 3.835183,
+      "mlx_peak_gb": 17.899367,
+      "process_rss_gb": 14.349472,
+      "processed": 8192,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 49.757239,
+      "host_available_gb": 21.6477,
+      "mlx_active_gb": 14.86357,
+      "mlx_cache_gb": 4.10859,
+      "mlx_peak_gb": 18.211867,
+      "process_rss_gb": 14.349472,
+      "processed": 10240,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 59.616417,
+      "host_available_gb": 21.7055,
+      "mlx_active_gb": 14.98857,
+      "mlx_cache_gb": 4.436715,
+      "mlx_peak_gb": 18.524367,
+      "process_rss_gb": 14.349472,
+      "processed": 12288,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 70.502972,
+      "host_available_gb": 20.2859,
+      "mlx_active_gb": 15.11357,
+      "mlx_cache_gb": 4.772652,
+      "mlx_peak_gb": 18.836867,
+      "process_rss_gb": 14.349472,
+      "processed": 14336,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 81.495338,
+      "host_available_gb": 19.862,
+      "mlx_active_gb": 15.23857,
+      "mlx_cache_gb": 5.085152,
+      "mlx_peak_gb": 19.149367,
+      "process_rss_gb": 14.349472,
+      "processed": 16384,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 92.944761,
+      "host_available_gb": 19.1571,
+      "mlx_active_gb": 15.36357,
+      "mlx_cache_gb": 5.397652,
+      "mlx_peak_gb": 19.461867,
+      "process_rss_gb": 14.349472,
+      "processed": 18432,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 104.083103,
+      "host_available_gb": 19.0873,
+      "mlx_active_gb": 15.48857,
+      "mlx_cache_gb": 5.632027,
+      "mlx_peak_gb": 19.774367,
+      "process_rss_gb": 14.349472,
+      "processed": 20480,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 115.657422,
+      "host_available_gb": 18.5799,
+      "mlx_active_gb": 15.61357,
+      "mlx_cache_gb": 6.022744,
+      "mlx_peak_gb": 20.086867,
+      "process_rss_gb": 14.349472,
+      "processed": 22528,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 126.878266,
+      "host_available_gb": 18.0356,
+      "mlx_active_gb": 15.73857,
+      "mlx_cache_gb": 6.288369,
+      "mlx_peak_gb": 20.399367,
+      "process_rss_gb": 14.349472,
+      "processed": 24576,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 138.413574,
+      "host_available_gb": 17.4979,
+      "mlx_active_gb": 15.86357,
+      "mlx_cache_gb": 6.647759,
+      "mlx_peak_gb": 20.711867,
+      "process_rss_gb": 14.349472,
+      "processed": 26624,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 150.120817,
+      "host_available_gb": 17.0431,
+      "mlx_active_gb": 15.98857,
+      "mlx_cache_gb": 6.960259,
+      "mlx_peak_gb": 21.024367,
+      "process_rss_gb": 14.349472,
+      "processed": 28672,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 162.144785,
+      "host_available_gb": 16.8379,
+      "mlx_active_gb": 16.11357,
+      "mlx_cache_gb": 7.272775,
+      "mlx_peak_gb": 21.336867,
+      "process_rss_gb": 14.349472,
+      "processed": 30720,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 174.83945,
+      "host_available_gb": 16.1797,
+      "mlx_active_gb": 16.23857,
+      "mlx_cache_gb": 7.422326,
+      "mlx_peak_gb": 21.436812,
+      "process_rss_gb": 14.349747,
+      "processed": 32690,
+      "total": 32691
+     },
+     {
+      "elapsed_s": 175.007661,
+      "host_available_gb": 23.58,
+      "mlx_active_gb": 16.259648,
+      "mlx_cache_gb": 0.006571,
+      "mlx_peak_gb": 21.436812,
+      "process_rss_gb": 14.349884,
+      "processed": 32691,
+      "total": 32691
+     }
+    ],
+    "prompt_tokens": 32691,
+    "prompt_tps": 186.9513,
+    "text": "AURA-32768-CORTEX-9F3C",
+    "ttft_s": 175.0077
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 18,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 12.6947,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": true,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 23.6133,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 20.0225,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "15e59e7c2cd09b13ff7949c35d015561276800c803fccd6029006147ac47c4bd",
+   "score": {
+    "completion_pass": true,
+    "nonce_recovered": true,
+    "passed": true
+   }
+  }
+ ],
+ "code_contract_pass": true,
+ "complete_answer_pass": true,
+ "context_pass": true,
+ "evidence_binding_sha256": "ab31f03a7b8cfbdc0852b91c17539c6be4f119e3a9f780e1a5309cfade002cbe",
+ "evidence_sha256": "7eafbaab9352d6fa9426aa266278da12f9f131835791e9ddff28e74755c89fdb",
+ "latency_pass": true,
+ "maximum_peak_memory_gb": 23.6819,
+ "memory_pass": true,
+ "minimum_available_memory_gb": 8.3383,
+ "model_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "prefill_chunk_tokens": 2048,
+ "requested_context_tokens": 32768,
+ "schema": "aura.cortex_upgrade.serving_measurement.v2",
+ "served_context_tokens": 32768,
+ "template_pass": true,
+ "tool_contract_pass": true,
+ "verdict": "PASS"
+}

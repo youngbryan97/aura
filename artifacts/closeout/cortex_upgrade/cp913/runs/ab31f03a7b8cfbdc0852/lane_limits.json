@@ -1,0 +1,30 @@
+{
+ "code": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ },
+ "deep_reasoning": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ },
+ "document": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ },
+ "foreground_extended": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ },
+ "foreground_simple": {
+  "max_input_tokens": 8192,
+  "max_output_tokens": 2048
+ },
+ "foreground_standard": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ },
+ "tool_execution": {
+  "max_input_tokens": 24576,
+  "max_output_tokens": 8192
+ }
+}

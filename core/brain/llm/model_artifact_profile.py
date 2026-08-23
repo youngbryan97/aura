@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_ARTIFACT_DESCRIPTOR_SCHEMA = "aura.model_artifact_descriptor.v1"
 SERVING_PROFILE_SCHEMA = "aura.model_serving_profile.v1"
-SERVING_QUALIFICATION_SCHEMA = "aura.model_serving_qualification.v1"
+SERVING_QUALIFICATION_SCHEMA = "aura.model_serving_qualification.v2"
 
 _REQUIRED_SERVING_LANES = frozenset(
     {
@@ -612,23 +612,49 @@ def validate_model_artifact_descriptor(
     return descriptor
 
 
-def _validate_serving_qualification(value: dict[str, object]) -> str:
+def _validate_serving_qualification(
+    value: dict[str, object],
+    *,
+    model_descriptor_sha256: str,
+) -> str:
     required = {
         "schema",
         "verdict",
+        "model_descriptor_sha256",
+        "template_pass",
         "complete_answer_pass",
+        "tool_contract_pass",
+        "code_contract_pass",
+        "context_pass",
         "latency_pass",
         "memory_pass",
+        "served_context_tokens",
+        "requested_context_tokens",
+        "prefill_chunk_tokens",
         "evidence_sha256",
     }
+    try:
+        served_context = int(value.get("served_context_tokens") or 0)
+        requested_context = int(value.get("requested_context_tokens") or 0)
+        prefill_chunk = int(value.get("prefill_chunk_tokens") or 0)
+    except (AttributeError, TypeError, ValueError):
+        raise ValueError("serving_qualification_incomplete") from None
     if (
         not isinstance(value, dict)
         or set(value) != required
         or value.get("schema") != SERVING_QUALIFICATION_SCHEMA
         or value.get("verdict") != "PASS"
+        or value.get("model_descriptor_sha256") != model_descriptor_sha256
+        or value.get("template_pass") is not True
         or value.get("complete_answer_pass") is not True
+        or value.get("tool_contract_pass") is not True
+        or value.get("code_contract_pass") is not True
+        or value.get("context_pass") is not True
         or value.get("latency_pass") is not True
         or value.get("memory_pass") is not True
+        or served_context <= 0
+        or requested_context != served_context
+        or prefill_chunk <= 0
         or not _is_sha256(value.get("evidence_sha256"))
     ):
         raise ValueError("serving_qualification_incomplete")
@@ -651,7 +677,11 @@ def build_model_serving_profile(
     """
 
     validate_model_artifact_descriptor(descriptor)
-    qualification_sha256 = _validate_serving_qualification(qualification)
+    descriptor_sha256 = str(descriptor["descriptor_sha256"])
+    qualification_sha256 = _validate_serving_qualification(
+        qualification,
+        model_descriptor_sha256=descriptor_sha256,
+    )
     artifact_profile = descriptor["artifact_profile"]
     assert isinstance(artifact_profile, dict)
     native_context = int(artifact_profile.get("native_context_window") or 0)
@@ -661,6 +691,12 @@ def build_model_serving_profile(
         raise ValueError("serving_context_invalid")
     if chunk < 128 or chunk > min(served, 8192):
         raise ValueError("serving_prefill_chunk_invalid")
+    if (
+        int(qualification["served_context_tokens"]) != served
+        or int(qualification["requested_context_tokens"]) != served
+        or int(qualification["prefill_chunk_tokens"]) != chunk
+    ):
+        raise ValueError("serving_qualification_profile_mismatch")
     if not isinstance(lane_limits, dict) or set(lane_limits) != _REQUIRED_SERVING_LANES:
         raise ValueError("serving_lanes_incomplete")
 
@@ -716,7 +752,10 @@ def validate_model_serving_profile(
     qualification = profile.get("qualification")
     if not isinstance(qualification, dict):
         raise ValueError("serving_qualification_incomplete")
-    if _validate_serving_qualification(qualification) != profile.get(
+    if _validate_serving_qualification(
+        qualification,
+        model_descriptor_sha256=str(descriptor["descriptor_sha256"]),
+    ) != profile.get(
         "qualification_sha256"
     ):
         raise ValueError("serving_qualification_digest_invalid")

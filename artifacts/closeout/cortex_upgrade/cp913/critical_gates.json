@@ -1,0 +1,8 @@
+{
+ "code_contract": true,
+ "complete_answer": true,
+ "identity_migration": false,
+ "latency": false,
+ "memory": true,
+ "tool_contract": true
+}

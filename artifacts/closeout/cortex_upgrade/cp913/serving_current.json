@@ -1,0 +1,17 @@
+{
+ "artifacts": {
+  "critical_gates": "artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/critical_gates.json",
+  "lane_limits": "artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/lane_limits.json",
+  "measurement": "artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/serving_measurement.json",
+  "qualification": "artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/serving_qualification.json",
+  "serving_profile": "artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/serving_profile.json"
+ },
+ "evidence_binding_sha256": "ab31f03a7b8cfbdc0852b91c17539c6be4f119e3a9f780e1a5309cfade002cbe",
+ "measurement_sha256": "7eafbaab9352d6fa9426aa266278da12f9f131835791e9ddff28e74755c89fdb",
+ "model_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "profile_sha256": "31a6ff40f15d811d8e846b03156e38f68d3568bedca361bc570c6256dfe15d0b",
+ "qualification_sha256": "65293831d0e08741ff9ef3be6e2f3666ca887e04169a63073ffd29f44a027f8f",
+ "run_id": "ab31f03a7b8cfbdc0852",
+ "schema": "aura.cortex_upgrade.serving_publication.v1",
+ "status": "PASS"
+}

@@ -1,0 +1,323 @@
+{
+ "cells": [
+  {
+   "cell_id": "template",
+   "contract_sha256": "cbc707e6b95dfdbe984fc09e6e9329b6df51db7fdf26a643a39a59522dcd972d",
+   "native_tool_calling": true,
+   "passed": true,
+   "plain_prompt_tokens": 14,
+   "row_sha256": "ea8c91dcdcb784e94be4fe6ff5ab2270ef2ce90ddda0aab512849b04cd7fae4e",
+   "thinking_control": true,
+   "tool_prompt_tokens": 276
+  },
+  {
+   "cell_id": "complete_answer",
+   "contract_sha256": "9ee81f5139a8ba1e8c258aec0add62481699330e7f68bc3bd78ad87ee33a299f",
+   "generation": {
+    "elapsed_s": 149.4368,
+    "finish_reason": "stop",
+    "generation_tokens": 1543,
+    "generation_tps": 10.3896,
+    "minimum_host_available_gb": 20.4641,
+    "mlx_active_memory_gb": 14.2759,
+    "mlx_cache_memory_gb": 0.4625,
+    "peak_memory_gb": 15.7769,
+    "process_peak_rss_gb": 14.9695,
+    "progress": [
+     {
+      "elapsed_s": 0.126513,
+      "host_available_gb": 27.5528,
+      "mlx_active_gb": 14.094253,
+      "mlx_cache_gb": 1e-05,
+      "mlx_peak_gb": 14.094253,
+      "process_rss_gb": 14.95845,
+      "processed": 0,
+      "total": 163
+     },
+     {
+      "elapsed_s": 0.767851,
+      "host_available_gb": 27.5528,
+      "mlx_active_gb": 14.253433,
+      "mlx_cache_gb": 0.462451,
+      "mlx_peak_gb": 14.693397,
+      "process_rss_gb": 14.968933,
+      "processed": 162,
+      "total": 163
+     },
+     {
+      "elapsed_s": 0.888681,
+      "host_available_gb": 27.5528,
+      "mlx_active_gb": 14.275932,
+      "mlx_cache_gb": 0.011929,
+      "mlx_peak_gb": 14.693397,
+      "process_rss_gb": 14.969482,
+      "processed": 163,
+      "total": 163
+     }
+    ],
+    "prompt_tokens": 163,
+    "prompt_tps": 213.7398,
+    "text": "Dijkstra\u2019s algorithm is a foundational method in graph theory and computer science, designed to find the shortest path from a single source node to all other nodes in a weighted graph. Its elegance lies in its greedy approach, which systematically expands the set of nodes whose shortest path is known to be optimal. To understand why this works, we must first establish the logical foundation upon which the algorithm rests.\n\nCORE INVARIANT\n\nThe heart of Dijkstra\u2019s algorithm is a specific invariant that holds true at every step of the execution. This invariant states that at any point during the algorithm, the set of nodes that have been permanently settled (often called the \"visited\" or \"finalized\" set) contains only those nodes for which the shortest path from the source has been definitively determined. More formally, if a node $u$ is in the settled set, its distance label $d[u]$ is equal to the true shortest path distance from the source to $u$. Furthermore, for any node $v$ not yet in the settled set, the current distance label $d[v]$ represents the length of the shortest path from the source to $v$ that uses only settled nodes as intermediate stops. This invariant ensures that when the algorithm selects the unsettled node with the smallest tentative distance, that distance is indeed the global minimum among all unsettled nodes. Because edge weights are non-negative, adding any further edges to a path can only increase the total weight. Therefore, the unsettled node with the smallest tentative distance cannot possibly have a shorter path discovered later, as any such path would have to pass through another unsettled node with a distance greater than or equal to the current minimum. This logical guarantee allows the algorithm to permanently fix the distance of the selected node and proceed to the next iteration without backtracking.\n\nNUMBERED PSEUDOCODE\n\nThe implementation of Dijkstra\u2019s algorithm relies on a priority queue to efficiently retrieve the node with the minimum distance. The following pseudocode outlines the standard procedure:\n\n1. Initialize the distance $d[v]$ to infinity for all nodes $v$ in the graph, except for the source node $s$, where $d[s] = 0$.\n2. Create an empty priority queue $Q$ and insert all nodes into it, keyed by their initial distance values.\n3. While $Q$ is not empty:\n    a. Extract the node $u$ with the minimum key (distance) from $Q$.\n    b. Mark $u$ as settled (or remove it from consideration for future updates).\n    c. For each neighbor $v$ of $u$ that is still in $Q$:\n        i. Calculate the tentative distance: $alt = d[u] + weight(u, v)$.\n        ii. If $alt < d[v]$, update $d[v]$ to $alt$ and decrease the key of $v$ in $Q$.\n4. Return the array of distances $d$.\n\nWORKED EXAMPLE\n\nConsider a directed graph with four nodes: A, B, C, and D. The source node is A. The directed weighted edges are defined as follows: A->B with weight 4, A->C with weight 1, C->B with weight 2, B->D with weight 1, and C->D with weight 5. We will trace the execution to determine the final shortest paths.\n\nInitially, the distances are $d[A]=0$, $d[B]=\\infty$, $d[C]=\\infty$, and $d[D]=\\infty$. The priority queue contains all nodes.\n\nFirst, we extract A (distance 0). We relax its outgoing edges. For edge A->B, the new distance is $0 + 4 = 4$, so $d[B]$ becomes 4. For edge A->C, the new distance is $0 + 1 = 1$, so $d[C]$ becomes 1. The queue now prioritizes C (1) and B (4).\n\nNext, we extract C (distance 1). We relax its outgoing edges. For edge C->B, the new distance is $1 + 2 = 3$. Since 3 is less than the current $d[B]$ of 4, we update $d[B]$ to 3. For edge C->D, the new distance is $1 + 5 = 6$, so $d[D]$ becomes 6. The queue now prioritizes B (3) and D (6).\n\nNext, we extract B (distance 3). We relax its outgoing edge. For edge B->D, the new distance is $3 + 1 = 4$. Since 4 is less than the current $d[D]$ of 6, we update $d[D]$ to 4. The queue now contains only D (4).\n\nFinally, we extract D (distance 4). D has no outgoing edges to relax. The algorithm terminates.\n\nThe final distances from A are: A to A is 0, A to B is 3, A to C is 1, and A to D is 4. Note that the path to B is A->C->B, not the direct edge A->B, demonstrating the algorithm's ability to find indirect shorter routes.\n\nCOMPLEXITY\n\nThe time complexity of Dijkstra\u2019s algorithm depends heavily on the data structure used for the priority queue. If a simple array is used to store the nodes and find the minimum, each extraction takes $O(V)$ time, and there are $V$ extractions, leading to $O(V^2)$ for the extraction phase. Relaxing edges takes $O(E)$ total time. Thus, with an array, the complexity is $O(V^2 + E)$, which simplifies to $O(V^2)$ for dense graphs.\n\nIf a binary heap is used, the extraction of the minimum takes $O(\\log V)$ time, and there are $V$ such operations, resulting in $O(V \\log V)$. Each edge relaxation may trigger a decrease-key operation, which also takes $O(\\log V)$ time. With $E$ edges, this adds $O(E \\log V)$. Therefore, the total complexity with a binary heap is $O((V + E) \\log V)$. For sparse graphs where $E$ is proportional to $V$, this is $O(V \\log V)$, which is superior to the array-based approach for large, sparse networks.\n\nNEGATIVE WEIGHTS\n\nDijkstra\u2019s algorithm strictly requires that all edge weights be non-negative. If a graph contains negative weight edges, the core invariant breaks down. The greedy choice of selecting the node with the smallest tentative distance assumes that adding any subsequent edge will only increase the path cost. However, a negative edge can reduce the total path cost, meaning a node that appears to have the shortest path at one step might actually have a shorter path discovered later via a different route that includes a negative edge. This can lead to incorrect results or infinite loops if negative cycles exist.\n\nThe correct alternative for graphs with negative weights (but no negative cycles) is the Bellman-Ford algorithm. Bellman-Ford works by relaxing all edges in the graph $V-1$ times, which allows it to propagate distance updates through paths of up to $V-1$ edges, thereby correctly handling negative weights. If a negative cycle is detected, the algorithm reports that no shortest path exists.",
+    "ttft_s": 0.8888
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 0.6413,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 20.4641,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 27.5528,
+    "total_gb": 64.0
+   },
+   "passed": false,
+   "row_sha256": "cba2ab4c80b8b55f2488d18fa0c56d9d22e6b158c56bc70bbb2f0a52d23cdbe5",
+   "score": {
+    "completion_pass": false,
+    "complexity_pass": true,
+    "distance_pass": true,
+    "edge_pass": false,
+    "heading_pass": true,
+    "invariant_pass": true,
+    "length_pass": false,
+    "negative_weight_pass": true,
+    "passed": false,
+    "pseudocode_pass": true,
+    "terminal_sentence_pass": true,
+    "word_count": 1111
+   }
+  },
+  {
+   "cell_id": "tool_contract",
+   "contract_sha256": "7814db3749e666fbf6140a3da94b2bc76f99d8d74ba95f908b60abb93b2f339c",
+   "generation": {
+    "elapsed_s": 4.4333,
+    "finish_reason": "stop",
+    "generation_tokens": 31,
+    "generation_tps": 10.9478,
+    "minimum_host_available_gb": 19.9823,
+    "mlx_active_memory_gb": 14.2916,
+    "mlx_cache_memory_gb": 0.8063,
+    "peak_memory_gb": 16.0192,
+    "process_peak_rss_gb": 14.9729,
+    "progress": [
+     {
+      "elapsed_s": 0.144032,
+      "host_available_gb": 20.462,
+      "mlx_active_gb": 14.094255,
+      "mlx_cache_gb": 0.290122,
+      "mlx_peak_gb": 14.094255,
+      "process_rss_gb": 14.9729,
+      "processed": 0,
+      "total": 285
+     },
+     {
+      "elapsed_s": 1.45132,
+      "host_available_gb": 19.9823,
+      "mlx_active_gb": 14.269731,
+      "mlx_cache_gb": 0.806327,
+      "mlx_peak_gb": 14.919027,
+      "process_rss_gb": 14.972931,
+      "processed": 284,
+      "total": 285
+     },
+     {
+      "elapsed_s": 1.572536,
+      "host_available_gb": 20.7595,
+      "mlx_active_gb": 14.291588,
+      "mlx_cache_gb": 0.009718,
+      "mlx_peak_gb": 14.919027,
+      "process_rss_gb": 14.972305,
+      "processed": 285,
+      "total": 285
+     }
+    ],
+    "prompt_tokens": 285,
+    "prompt_tps": 199.4746,
+    "text": "<tool_call>\n<function=calculate>\n<parameter=expression>\n17 * 19\n</parameter>\n</function>\n</tool_call>",
+    "ttft_s": 1.5726
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 1.3073,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 20.767,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 20.4641,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "9a079ee1378c0585166518695d8b0664757d6c07807553af7fa6a1382a9f7c9f",
+   "score": {
+    "exact_objective": true,
+    "parsed_call": {
+     "args": {
+      "expression": "17 * 19"
+     },
+     "tool": "calculate"
+    },
+    "passed": true,
+    "schema_error": ""
+   }
+  },
+  {
+   "cell_id": "code_contract",
+   "contract_sha256": "2e0a9d3d0bc8221361dbecc380e336c84a2b84f65b521d25d63202e4cb8940a8",
+   "generation": {
+    "elapsed_s": 9.2407,
+    "finish_reason": "stop",
+    "generation_tokens": 89,
+    "generation_tps": 10.5376,
+    "minimum_host_available_gb": 20.767,
+    "mlx_active_memory_gb": 14.276,
+    "mlx_cache_memory_gb": 0.2968,
+    "peak_memory_gb": 15.5649,
+    "process_peak_rss_gb": 14.9725,
+    "progress": [
+     {
+      "elapsed_s": 0.154184,
+      "host_available_gb": 20.767,
+      "mlx_active_gb": 14.094253,
+      "mlx_cache_gb": 0.207509,
+      "mlx_peak_gb": 14.094253,
+      "process_rss_gb": 14.972504,
+      "processed": 0,
+      "total": 82
+     },
+     {
+      "elapsed_s": 0.647515,
+      "host_available_gb": 20.767,
+      "mlx_active_gb": 14.254134,
+      "mlx_cache_gb": 0.296778,
+      "mlx_peak_gb": 14.495967,
+      "process_rss_gb": 14.972519,
+      "processed": 81,
+      "total": 82
+     },
+     {
+      "elapsed_s": 0.765009,
+      "host_available_gb": 20.767,
+      "mlx_active_gb": 14.275993,
+      "mlx_cache_gb": 0.009701,
+      "mlx_peak_gb": 14.495967,
+      "process_rss_gb": 14.972214,
+      "processed": 82,
+      "total": 82
+     }
+    ],
+    "prompt_tokens": 82,
+    "prompt_tps": 133.687,
+    "text": "```python\ndef rolling_pair_sums(values):\n    \"\"\"Return each adjacent pair's sum; return [] when fewer than two values exist.\"\"\"\n    it = iter(values)\n    try:\n        prev = next(it)\n    except StopIteration:\n        return []\n    result = []\n    for curr in it:\n        result.append(prev + curr)\n        prev = curr\n    return result\n```",
+    "ttft_s": 0.765
+   },
+   "liveness": {
+    "bounds_valid": true,
+    "callbacks": 3,
+    "complete": true,
+    "elapsed_monotonic": true,
+    "max_callback_gap_s": 0.4933,
+    "maximum_callback_gap_s": 30.0,
+    "maximum_ttft_s": 240.0,
+    "minimum_generation_tps": 2.0,
+    "minimum_prompt_tps": 150.0,
+    "minimum_prompt_tps_measurement_tokens": 2048,
+    "monotonic": true,
+    "passed": true,
+    "prompt_throughput_applicable": false,
+    "prompt_throughput_pass": true,
+    "starts_at_zero": true,
+    "totals_match": true
+   },
+   "memory_after": {
+    "available_gb": 20.8408,
+    "total_gb": 64.0
+   },
+   "memory_before": {
+    "available_gb": 20.767,
+    "total_gb": 64.0
+   },
+   "passed": true,
+   "row_sha256": "f82f5753db719cdcf6861ad0244241061076ad1c70cdcb9ce01b0c9c04b0f851",
+   "score": {
+    "code_sha256": "2a93ba48ec995f21424fb95f33cc3e4af37e7306522d30f447bb12d3495c9b07",
+    "passed": true,
+    "sandbox": {
+     "boundary": "seatbelt",
+     "error": "",
+     "results": [],
+     "returncode": 0,
+     "sandboxed": true,
+     "status": "ok",
+     "stderr": "",
+     "stdout": ""
+    }
+   }
+  },
+  {
+   "cell_id": "context:8192",
+   "contract_sha256": "13a33f13edf19f166307860de1bc1163661b3dcdb3ffcb0400c211be85eb5974",
+   "passed": false,
+   "row_sha256": "c77c4756956c28aaa50c26a788e0f99936b55b1cf9ae3e28a8a649405f461e93",
+   "skip_reason": "foundational_serving_failure",
+   "skipped": true
+  },
+  {
+   "cell_id": "context:32768",
+   "contract_sha256": "77d99acda647e4dc6882dbc77060bbd7aaf635798f6fce81f8b55fd308f18fa0",
+   "passed": false,
+   "row_sha256": "68381027ef992c4e0f145c140b8f07321fe78204db4f00946b29b582f1483760",
+   "skip_reason": "foundational_serving_failure",
+   "skipped": true
+  }
+ ],
+ "code_contract_pass": true,
+ "complete_answer_pass": false,
+ "context_pass": false,
+ "evidence_binding_sha256": "0c025815a363064e50b839a64128c124cda1649dc5b86bbb6a7eb00f419dde7a",
+ "evidence_sha256": "4353f1e9dd03d9dba9f0f5dd9f4f7d9eabd74408a7a27b6204cc058be3374ffa",
+ "latency_pass": true,
+ "maximum_peak_memory_gb": 16.0192,
+ "memory_pass": true,
+ "minimum_available_memory_gb": 19.9823,
+ "model_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "prefill_chunk_tokens": 2048,
+ "requested_context_tokens": 32768,
+ "schema": "aura.cortex_upgrade.serving_measurement.v2",
+ "served_context_tokens": 0,
+ "template_pass": true,
+ "tool_contract_pass": true,
+ "verdict": "FAIL"
+}

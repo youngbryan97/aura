@@ -1,0 +1,17 @@
+{
+ "admitted": true,
+ "artifact_seal_sha256": "f2a19de6e649a96da757c279ee8aca0ec3bd8492fbbbdd815f8b0fb9ce42cdb4",
+ "available_gb": 37.27,
+ "free_margin_gb": 8.0,
+ "model_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "model_dir": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+ "projected_load_gb": 19.44,
+ "resident_giants": [
+  {
+   "name": "codex",
+   "pid": 23431,
+   "rss_gb": 8.6
+  }
+ ],
+ "weights_gb": 14.95
+}

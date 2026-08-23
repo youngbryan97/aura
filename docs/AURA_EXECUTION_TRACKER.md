@@ -51827,3 +51827,62 @@ ownership-baseline move between `core/diagnosis/repository.py` and
 candidate's serving envelope and prepare
 candidate-native persona/CRSM, steering and recurrent tissue in independent
 lanes. Old same-width steering and trained model-facing deltas remain invalid.
+
+## Checkpoint 2026-08-23-913: Measure the Candidate Before Teaching It Aura
+
+CP913 gives the pinned Qwen3.8-27B candidate a complete, model-bound serving
+qualification and classifies the existing model-facing tissue before any
+training, fusion or active-pointer change. Aura's resident cortex remains the
+fused Qwen2.5-32B incumbent.
+
+- Qwen3.8's native XML tool-call wire is parsed as a strict typed object. The
+  parser accepts one complete checkpoint-owned call and rejects trailing prose,
+  duplicate functions, malformed closures, extra parameters and schema drift.
+- Serving qualification loads the candidate once and measures its native chat
+  template, thinking control, complete long-form output, typed tool call,
+  executable Python, exact 8K and 32K retrieval, prefill progress, generation
+  rate and physical memory envelope. Every row is bound to the full model
+  descriptor and source identity; only passing rows may resume.
+- The progress journal is chained with a host-private HMAC. A run publishes no
+  authoritative pointer while incomplete or failed, rehashes the entire model
+  artifact before and after use, and atomically publishes `serving_current.json`
+  only after every gate passes. A qualification from another artifact cannot
+  be replayed onto a same-shaped checkpoint.
+- The exact candidate passed all serving cells. The 8K cell prefills at
+  `196.60 tok/s` with `41.50 s` TTFT; the 32K cell prefills at `186.95 tok/s`
+  with `175.01 s` TTFT. Generation remains approximately `9.6-10.3 tok/s`.
+  Peak measured footprint is `23.6819 GB`, minimum host availability is
+  `8.3383 GB`, and the qualified served window is 32,768 tokens with a 2,048
+  token prefill chunk. The larger 262,144-token native window remains
+  unadmitted until separately measured.
+- The candidate-bound lane profile grants 8K input/2K output to simple turns
+  and 24K input/8K output to standard, extended, document, code, tool and deep
+  reasoning lanes. These are measured envelopes, not model-card assumptions.
+- Existing persona, CRSM, CAA, steering and recurrent artifacts were inventoried
+  against descriptor `79b8369a...e0703e`. Their recipes and architecture-
+  independent corpora can be reused; their tensors cannot. Old same-width
+  steering vectors remain explicitly prohibited.
+- Candidate data preparation repairs 99 duplicate train records, 2 duplicate
+  validation records and 25 cross-split leaks without changing the source
+  corpora. The replacement compact kernel contains 2,065 unique conversations:
+  1,865 train and 200 validation rows across twelve named domains. It retains
+  all 548 eligible CRSM captures, excludes 452 unsafe, duplicate or too-short
+  captures, emits no system messages, excludes the generic/movie corpus, and
+  keeps normalized user-turn groups wholly within one split.
+- The compact-kernel receipt is the trainer's one dataset contract. The earlier
+  sidecar schema could pass independently while remaining unreadable by the
+  trainer; that duplicate contract is removed. Corpus publication and training
+  journals now use Aura's canonical governed file-write gateway instead of
+  direct atomic primitives.
+
+The serving qualification is retained under
+`artifacts/closeout/cortex_upgrade/cp913/runs/ab31f03a7b8cfbdc0852/`; its public
+pointer is `artifacts/closeout/cortex_upgrade/cp913/serving_current.json`.
+Focused qualification, migration, data, parser, compact-kernel, training-plan
+and promotion contracts pass `137/137`; canonical smoke passes `121/121` with
+one environment-dependent skip. Ruff, compilation, governance ownership,
+layering and diff hygiene pass. Next: run a measured ten-step candidate canary,
+use its loss, memory and step-time evidence to set the bounded adaptive
+schedule, train candidate-native persona/CRSM tissue, then rebuild CAA and
+recurrent tissue, fuse once, stage, restart and prove the exact live rollback
+path. Final multi-hour soaks remain deferred.

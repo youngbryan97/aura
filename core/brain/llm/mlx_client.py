@@ -13503,6 +13503,7 @@ class MLXLocalClient:
         response_text: str,
         *,
         allowed_tools: set[str] | None = None,
+        tool_definitions: Mapping[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Extract a tool call ONLY when the model actually intended one.
 
@@ -13592,6 +13593,21 @@ class MLXLocalClient:
                     call = _normalize(parsed)
                     if call is None:
                         why = "the call named a tool that was not offered, or its arguments were not an object"
+            if call is None:
+                xml_payload, xml_error = _native_xml_tool_payload(
+                    stripped,
+                    start=native.end(),
+                    tool_definitions=tool_definitions,
+                )
+                if xml_payload is not None:
+                    call = _normalize(xml_payload)
+                    if call is None:
+                        why = (
+                            "the XML call named a tool that was not offered, "
+                            "or its arguments were not an object"
+                        )
+                elif xml_error:
+                    why = xml_error
             if call is not None:
                 return call
             logger.info(
@@ -14978,6 +14994,7 @@ class MLXLocalClient:
                 self._extract_tool_call_payload(
                     response_text,
                     allowed_tools=set(tools.keys()),
+                    tool_definitions=tools,
                 )
                 if tools
                 else None
@@ -16305,6 +16322,155 @@ def _agent_execution_context(
 _TOOL_ARGS_MAX_KEYS = 64
 _TOOL_ARGS_MAX_DEPTH = 6
 _TOOL_ARGS_MAX_CHARS = 20_000
+_NATIVE_XML_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.:-]{0,127}")
+_NATIVE_XML_FUNCTION_RE = re.compile(
+    r"\A\s*<function=(?P<name>[A-Za-z_][A-Za-z0-9_.:-]{0,127})>"
+    r"(?P<body>.*?)</function>",
+    re.DOTALL,
+)
+_NATIVE_XML_PARAMETER_RE = re.compile(
+    r"<parameter=(?P<name>[A-Za-z_][A-Za-z0-9_.:-]{0,127})>"
+    r"(?P<value>.*?)</parameter>",
+    re.DOTALL,
+)
+
+
+def _native_xml_tool_payload(
+    text: str,
+    *,
+    start: int,
+    tool_definitions: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str]:
+    """Parse the typed XML function grammar used by newer Qwen templates.
+
+    Qwen3.8 no longer emits JSON inside ``<tool_call>``. Its checkpoint-owned
+    template emits one ``<function=name>`` block containing typed
+    ``<parameter=name>`` blocks. Treating that as prose makes every correctly
+    generated call disappear at the parent boundary.
+
+    This parser implements only the template's closed grammar. It rejects
+    duplicate parameters, unclosed functions, extra material inside the
+    function, and values that cannot be converted to the advertised JSON
+    schema type. The later schema validator still owns required fields,
+    enums, bounds, and additional properties.
+    """
+
+    candidate = str(text[start:] or "")
+    if len(candidate) > _TOOL_ARGS_MAX_CHARS * 2:
+        return None, "native XML envelope exceeded the bounded scan size"
+    match = _NATIVE_XML_FUNCTION_RE.match(candidate)
+    if match is None:
+        return None, "no complete JSON object or XML function after the tag"
+
+    suffix = candidate[match.end() :].strip()
+    if suffix.startswith("</tool_call>"):
+        suffix = suffix[len("</tool_call>") :].strip()
+    if suffix:
+        return None, "native XML envelope contained material after the function"
+
+    function_name = match.group("name")
+    if _NATIVE_XML_NAME_RE.fullmatch(function_name) is None:
+        return None, "native XML function name was invalid"
+
+    properties = _tool_parameter_properties(tool_definitions, function_name)
+    arguments: dict[str, Any] = {}
+    body = match.group("body")
+    cursor = 0
+    for parameter in _NATIVE_XML_PARAMETER_RE.finditer(body):
+        if body[cursor : parameter.start()].strip():
+            return None, "native XML function contained material outside parameters"
+        name = parameter.group("name")
+        if name in arguments:
+            return None, f"native XML parameter '{name}' was repeated"
+        value = _strip_native_xml_framing(parameter.group("value"))
+        try:
+            arguments[name] = _coerce_native_xml_parameter(
+                value,
+                properties.get(name),
+            )
+        except ValueError as exc:
+            return None, f"native XML parameter '{name}' was invalid: {exc}"
+        cursor = parameter.end()
+    if body[cursor:].strip():
+        return None, "native XML function contained material outside parameters"
+    if len(arguments) > _TOOL_ARGS_MAX_KEYS:
+        return None, "native XML function had too many parameters"
+    return {"name": function_name, "arguments": arguments}, ""
+
+
+def _tool_parameter_properties(
+    tool_definitions: Mapping[str, Any] | None,
+    function_name: str,
+) -> dict[str, Any]:
+    if not isinstance(tool_definitions, Mapping):
+        return {}
+    definition = tool_definitions.get(function_name)
+    if not isinstance(definition, Mapping):
+        return {}
+    if isinstance(definition.get("function"), Mapping):
+        definition = definition["function"]
+    parameters = definition.get("parameters")
+    if not isinstance(parameters, Mapping):
+        return {}
+    properties = parameters.get("properties")
+    return dict(properties) if isinstance(properties, Mapping) else {}
+
+
+def _strip_native_xml_framing(value: str) -> str:
+    """Remove template framing newlines without changing parameter content."""
+
+    result = value
+    if result.startswith("\r\n"):
+        result = result[2:]
+    elif result.startswith("\n"):
+        result = result[1:]
+    if result.endswith("\r\n"):
+        result = result[:-2]
+    elif result.endswith("\n"):
+        result = result[:-1]
+    return result
+
+
+def _coerce_native_xml_parameter(value: str, property_schema: Any) -> Any:
+    """Convert one XML value only when the advertised schema names its type."""
+
+    schema = property_schema if isinstance(property_schema, Mapping) else {}
+    expected = schema.get("type")
+    if expected == "string" or not isinstance(expected, str):
+        return value
+    compact = value.strip()
+    if expected == "integer":
+        if re.fullmatch(r"[-+]?\d+", compact) is None:
+            raise ValueError("expected integer")
+        return int(compact)
+    if expected == "number":
+        if re.fullmatch(
+            r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?",
+            compact,
+        ) is None:
+            raise ValueError("expected number")
+        return float(compact) if any(char in compact for char in ".eE") else int(compact)
+    if expected == "boolean":
+        if compact.casefold() == "true":
+            return True
+        if compact.casefold() == "false":
+            return False
+        raise ValueError("expected boolean")
+    if expected in {"array", "object"}:
+        try:
+            parsed = json.loads(compact)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"expected JSON {expected}") from exc
+        if expected == "array" and not isinstance(parsed, list):
+            raise ValueError("expected JSON array")
+        if expected == "object" and not isinstance(parsed, dict):
+            raise ValueError("expected JSON object")
+        return parsed
+    if expected == "null":
+        if compact.casefold() != "null":
+            raise ValueError("expected null")
+        return None
+    return value
 
 
 def _json_depth(value: Any, *, _depth: int = 0) -> int:

@@ -65,9 +65,11 @@ IDENTITY_TRANSITION_SCHEMA = "aura.cortex_upgrade.identity_transition.v1"
 
 _REQUIRED_CRITICAL_GATES = frozenset(
     {
+        "template",
         "complete_answer",
         "tool_contract",
         "code_contract",
+        "context",
         "identity_migration",
         "latency",
         "memory",

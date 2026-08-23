@@ -14,9 +14,50 @@ from core.brain.llm.mlx_client import MLXLocalClient, _balanced_json_object
 
 ALLOWED = {"web_search", "code_repl", "file_operation"}
 
+TOOL_DEFINITIONS = {
+    "web_search": {
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "limit": {"type": "integer"},
+                "fresh": {"type": "boolean"},
+                "domains": {"type": "array"},
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        }
+    },
+    "code_repl": {
+        "parameters": {
+            "type": "object",
+            "properties": {"code": {"type": "string"}},
+            "required": ["code"],
+        }
+    },
+    "file_operation": {
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string"},
+                "path": {"type": "string"},
+            },
+            "required": ["action"],
+        }
+    },
+}
+
 
 def extract(text: str):
     return MLXLocalClient._extract_tool_call_payload(text, allowed_tools=ALLOWED)
+
+
+def extract_typed(text: str):
+    return MLXLocalClient._extract_tool_call_payload(
+        text,
+        allowed_tools=ALLOWED,
+        tool_definitions=TOOL_DEFINITIONS,
+    )
 
 
 def test_the_call_that_was_dropped_live() -> None:
@@ -102,3 +143,114 @@ def test_an_escaped_newline_is_not_escaped_twice() -> None:
 
 def test_a_truncated_call_is_still_refused() -> None:
     assert extract('<tool_call> {"name": "code_repl", "arguments": {"code": ') is None
+
+
+def test_qwen38_native_xml_call_reaches_the_runtime_parser() -> None:
+    text = """<tool_call>
+<function=web_search>
+<parameter=query>
+recent orca cognition research
+</parameter>
+<parameter=limit>
+3
+</parameter>
+<parameter=fresh>
+true
+</parameter>
+<parameter=domains>
+["nature.com", "science.org"]
+</parameter>
+</function>
+</tool_call>"""
+
+    assert extract_typed(text) == {
+        "tool": "web_search",
+        "args": {
+            "query": "recent orca cognition research",
+            "limit": 3,
+            "fresh": True,
+            "domains": ["nature.com", "science.org"],
+        },
+    }
+
+
+def test_qwen38_xml_call_survives_a_consumed_outer_stop_tag() -> None:
+    text = """<tool_call>
+<function=file_operation>
+<parameter=action>
+read
+</parameter>
+<parameter=path>
+/tmp/example.txt
+</parameter>
+</function>"""
+
+    assert extract_typed(text) == {
+        "tool": "file_operation",
+        "args": {"action": "read", "path": "/tmp/example.txt"},
+    }
+
+
+def test_qwen38_xml_call_allows_only_whitespace_after_the_outer_tag() -> None:
+    text = """<tool_call>
+<function=file_operation>
+<parameter=action>
+read
+</parameter>
+</function>
+</tool_call>
+
+"""
+
+    assert extract_typed(text) == {
+        "tool": "file_operation",
+        "args": {"action": "read"},
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "<tool_call><function=rm_rf></function></tool_call>",
+        "<tool_call><function=web_search><parameter=query>x</parameter>",
+        (
+            "<tool_call><function=web_search>"
+            "<parameter=query>x</parameter><parameter=query>y</parameter>"
+            "</function></tool_call>"
+        ),
+        (
+            "<tool_call><function=web_search>"
+            "<parameter=limit>three</parameter>"
+            "<parameter=query>x</parameter></function></tool_call>"
+        ),
+        (
+            "<tool_call><function=web_search>"
+            "<parameter=domains>[not-json]</parameter>"
+            "<parameter=query>x</parameter></function></tool_call>"
+        ),
+    ],
+)
+def test_malformed_or_unadvertised_native_xml_is_not_an_effect(text: str) -> None:
+    assert extract_typed(text) is None
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "arbitrary prose",
+        "</tool_call>arbitrary prose",
+        "</tool_call></tool_call>",
+        "</tool_call extra>",
+        "<function=file_operation></function>",
+        "</tool_call><function=file_operation></function>",
+        "<parameter=query>another value</parameter>",
+    ],
+)
+def test_qwen38_native_xml_rejects_material_after_the_function(suffix: str) -> None:
+    text = (
+        "<tool_call><function=web_search>"
+        "<parameter=query>orca cognition</parameter>"
+        f"</function>{suffix}"
+    )
+
+    assert extract_typed(text) is None

@@ -66,13 +66,26 @@ def _artifact(tmp_path: Path, *, name: str = "Qwen3.8-27B-4bit") -> Path:
     return root
 
 
-def _qualification() -> dict[str, object]:
+def _qualification(
+    descriptor_sha256: str,
+    *,
+    served_context_tokens: int = 262144,
+    prefill_chunk_tokens: int = 2048,
+) -> dict[str, object]:
     return {
-        "schema": "aura.model_serving_qualification.v1",
+        "schema": "aura.model_serving_qualification.v2",
         "verdict": "PASS",
+        "model_descriptor_sha256": descriptor_sha256,
+        "template_pass": True,
         "complete_answer_pass": True,
+        "tool_contract_pass": True,
+        "code_contract_pass": True,
+        "context_pass": True,
         "latency_pass": True,
         "memory_pass": True,
+        "served_context_tokens": served_context_tokens,
+        "requested_context_tokens": served_context_tokens,
+        "prefill_chunk_tokens": prefill_chunk_tokens,
         "evidence_sha256": _sha("serving-evidence"),
     }
 
@@ -131,7 +144,7 @@ def test_serving_profile_is_bound_to_model_and_measured_gates(tmp_path):
         served_context_tokens=262144,
         prefill_chunk_tokens=2048,
         lane_limits=_limits(),
-        qualification=_qualification(),
+        qualification=_qualification(str(descriptor["descriptor_sha256"])),
     )
 
     assert serving["schema"] == SERVING_PROFILE_SCHEMA
@@ -143,6 +156,25 @@ def test_serving_profile_is_bound_to_model_and_measured_gates(tmp_path):
     wrong["descriptor_sha256"] = _sha("other-model")
     with pytest.raises(ValueError, match="model_identity_mismatch"):
         validate_model_serving_profile(serving, wrong)
+
+
+def test_serving_profile_rejects_a_qualification_from_another_model(tmp_path):
+    first = _artifact(tmp_path, name="first")
+    second = _artifact(tmp_path, name="second")
+    (second / "model.safetensors").write_bytes(b"different-candidate-weights")
+    first_descriptor = build_model_artifact_descriptor(first)
+    second_descriptor = build_model_artifact_descriptor(second)
+
+    with pytest.raises(ValueError, match="qualification_incomplete"):
+        build_model_serving_profile(
+            second_descriptor,
+            served_context_tokens=262144,
+            prefill_chunk_tokens=2048,
+            lane_limits=_limits(),
+            qualification=_qualification(
+                str(first_descriptor["descriptor_sha256"]),
+            ),
+        )
 
 
 def test_serving_profile_rejects_context_overcommit_and_unmeasured_expansion(tmp_path):
@@ -159,10 +191,10 @@ def test_serving_profile_rejects_context_overcommit_and_unmeasured_expansion(tmp
             served_context_tokens=262144,
             prefill_chunk_tokens=2048,
             lane_limits=limits,
-            qualification=_qualification(),
+            qualification=_qualification(str(descriptor["descriptor_sha256"])),
         )
 
-    failed = _qualification()
+    failed = _qualification(str(descriptor["descriptor_sha256"]))
     failed["complete_answer_pass"] = False
     with pytest.raises(ValueError, match="qualification_incomplete"):
         build_model_serving_profile(
@@ -352,10 +384,12 @@ def test_active_pointer_accepts_one_complete_identity_bound_promotion(
             "identity_digests": ["candidate"],
         },
         candidate_descriptor=descriptor,
-        critical_gates={
-            "complete_answer": True,
-            "tool_contract": True,
-            "code_contract": True,
+            critical_gates={
+                "template": True,
+                "complete_answer": True,
+                "tool_contract": True,
+                "code_contract": True,
+                "context": True,
             "identity_migration": True,
             "latency": True,
             "memory": True,
@@ -366,7 +400,7 @@ def test_active_pointer_accepts_one_complete_identity_bound_promotion(
         served_context_tokens=262144,
         prefill_chunk_tokens=2048,
         lane_limits=_limits(),
-        qualification=_qualification(),
+        qualification=_qualification(str(descriptor["descriptor_sha256"])),
     )
     migration = build_migration_contract(
         descriptor,
