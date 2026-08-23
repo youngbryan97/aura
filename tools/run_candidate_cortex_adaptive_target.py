@@ -15,8 +15,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import psutil
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -49,6 +47,10 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
 )
 from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
 from core.runtime.model_lane_control import standalone_model_lane  # noqa: E402
+from core.runtime.resource_observation import (  # noqa: E402
+    ResourceObserver,
+    get_resource_observer,
+)
 from tools import measure_candidate_cortex_checkpoint as measurement  # noqa: E402
 from tools import run_detached_step as detached  # noqa: E402
 from tools.run_candidate_cortex_canary_target import _mlx_arguments  # noqa: E402
@@ -346,22 +348,30 @@ def _reset_incomplete_stage(plan: Mapping[str, Any], stage_index: int) -> None:
         )
 
 
-def _sample_host(stop: threading.Event, state: dict[str, Any]) -> None:
-    process = psutil.Process(os.getpid())
+def _sample_host(
+    stop: threading.Event,
+    state: dict[str, Any],
+    observer: ResourceObserver | None = None,
+) -> None:
+    resource_observer = observer or get_resource_observer()
     while True:
-        virtual = psutil.virtual_memory()
-        try:
-            rss = int(process.memory_info().rss)
-        except (psutil.AccessDenied, psutil.NoSuchProcess):
-            rss = 0
+        memory = resource_observer.memory(
+            root_pid=os.getpid(),
+            include_process_tree=False,
+        )
         state["sample_count"] += 1
         state["min_available_bytes"] = min(
-            state["min_available_bytes"], int(virtual.available)
+            state["min_available_bytes"],
+            int(memory.available_bytes) if memory.available else 0,
         )
         state["max_used_percent"] = max(
-            state["max_used_percent"], float(virtual.percent)
+            state["max_used_percent"],
+            float(memory.percent) if memory.available else 100.0,
         )
-        state["max_process_rss_bytes"] = max(state["max_process_rss_bytes"], rss)
+        state["max_process_rss_bytes"] = max(
+            state["max_process_rss_bytes"],
+            int(memory.process_rss_bytes),
+        )
         if stop.wait(0.5):
             return
 
@@ -951,7 +961,12 @@ def _train_next_segment(
         "max_process_rss_bytes": 0,
     }
     stop = threading.Event()
-    sampler = threading.Thread(target=_sample_host, args=(stop, state), daemon=True)
+    observer = get_resource_observer()
+    sampler = threading.Thread(
+        target=_sample_host,
+        args=(stop, state, observer),
+        daemon=True,
+    )
     sampler.start()
     started = time.monotonic()
     try:

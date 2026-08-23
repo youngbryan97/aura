@@ -122,32 +122,60 @@ def _prepare_adapter_input(plan: Mapping[str, Any]) -> Path:
     return adapter_input
 
 
-def _fuse_with_mlx(base_model: str, adapter_input: Path, staging_path: Path) -> int:
-    from mlx.utils import tree_unflatten
-    from mlx_lm.utils import load, save
+def _fuse_with_mlx(
+    base_model: str,
+    adapter_input: Path,
+    staging_path: Path,
+    *,
+    owner_id: str,
+    metadata: Mapping[str, Any],
+) -> int:
+    with standalone_model_lane(
+        owner_id=owner_id,
+        model_path=base_model,
+        purpose="fuse",
+        priority=100,
+        preemptible=False,
+        require_exclusive=True,
+        allow_owner_eviction=True,
+        metadata=metadata,
+    ):
+        model = None
+        tokenizer = None
+        config = None
+        fused_linears = None
+        try:
+            from mlx.utils import tree_unflatten
+            from mlx_lm.utils import load, save
 
-    model, tokenizer, config = load(
-        base_model,
-        adapter_path=str(adapter_input),
-        return_config=True,
-    )
-    fused_linears = [
-        (name, module.fuse(dequantize=False))
-        for name, module in model.named_modules()
-        if hasattr(module, "fuse")
-    ]
-    if not fused_linears:
-        raise CandidateCortexFusionError("fusion_applied_zero_modules")
-    model.update_modules(tree_unflatten(fused_linears))
-    save(
-        staging_path,
-        base_model,
-        model,
-        tokenizer,
-        config,
-        donate_model=False,
-    )
-    return len(fused_linears)
+            model, tokenizer, config = load(
+                base_model,
+                adapter_path=str(adapter_input),
+                return_config=True,
+            )
+            fused_linears = [
+                (name, module.fuse(dequantize=False))
+                for name, module in model.named_modules()
+                if hasattr(module, "fuse")
+            ]
+            if not fused_linears:
+                raise CandidateCortexFusionError("fusion_applied_zero_modules")
+            model.update_modules(tree_unflatten(fused_linears))
+            save(
+                staging_path,
+                base_model,
+                model,
+                tokenizer,
+                config,
+                donate_model=False,
+            )
+            return len(fused_linears)
+        finally:
+            fused_linears = None
+            model = None
+            tokenizer = None
+            config = None
+            _release_model_memory()
 
 
 def _fuse(plan: Mapping[str, Any]) -> Path:
@@ -176,27 +204,16 @@ def _fuse(plan: Mapping[str, Any]) -> Path:
             )
 
     base_model = str(plan["base_model"]["canonical_path"])
-    try:
-        with standalone_model_lane(
-            owner_id=f"candidate-cortex-fusion:{output['generation_id']}",
-            model_path=base_model,
-            purpose="fuse",
-            priority=100,
-            preemptible=False,
-            require_exclusive=True,
-            allow_owner_eviction=True,
-            metadata={
-                "tool": "run_candidate_cortex_fusion_target",
-                "fusion_plan_sha256": plan["fusion_plan_sha256"],
-            },
-        ):
-            fused_module_count = _fuse_with_mlx(
-                base_model,
-                adapter_input,
-                staging_path,
-            )
-    finally:
-        _release_model_memory()
+    fused_module_count = _fuse_with_mlx(
+        base_model,
+        adapter_input,
+        staging_path,
+        owner_id=f"candidate-cortex-fusion:{output['generation_id']}",
+        metadata={
+            "tool": "run_candidate_cortex_fusion_target",
+            "fusion_plan_sha256": plan["fusion_plan_sha256"],
+        },
+    )
 
     provenance = build_fusion_provenance(
         plan,

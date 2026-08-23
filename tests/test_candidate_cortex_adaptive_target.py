@@ -16,6 +16,7 @@ from core.learning.candidate_cortex_training import (
     build_stage_command,
     read_authenticated_journal,
 )
+from core.runtime.resource_observation import SimulatedResourceObserver
 from tools import run_candidate_cortex_adaptive_target as target
 from tools import run_detached_step as detached
 from tools import verify_candidate_cortex_adaptive_resume as resume
@@ -101,6 +102,31 @@ def _plan(tmp_path: Path) -> dict[str, Any]:
             "adapter_identity": str(identity_path),
             "mlx_config": str(config_path),
         },
+    }
+
+
+def test_host_sampler_uses_injected_observer() -> None:
+    observer = SimulatedResourceObserver(
+        available_memory_bytes=11 * 1024**3,
+        memory_percent=82.5,
+        process_rss_bytes=9 * 1024**3,
+    )
+    state = {
+        "sample_count": 0,
+        "min_available_bytes": 2**63 - 1,
+        "max_used_percent": 0.0,
+        "max_process_rss_bytes": 0,
+    }
+    stop = target.threading.Event()
+    stop.set()
+
+    target._sample_host(stop, state, observer)
+
+    assert state == {
+        "sample_count": 1,
+        "min_available_bytes": 11 * 1024**3,
+        "max_used_percent": 82.5,
+        "max_process_rss_bytes": 9 * 1024**3,
     }
 
 

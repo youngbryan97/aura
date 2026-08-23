@@ -68,6 +68,105 @@ def test_inventory_path_is_repository_scoped() -> None:
     assert (ROOT / "config" / "model_load_ownership.json").is_file()
 
 
+def test_enclosing_context_contract_rejects_unrelated_guard_symbol(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "from mlx_lm import load\n"
+        "from lane import standalone_model_lane\n\n"
+        "with standalone_model_lane():\n"
+        "    pass\n\n"
+        "model, tokenizer = load('/models/direct')\n",
+        encoding="utf-8",
+    )
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "aura.model_load_ownership.v1",
+                "entries": [
+                    {
+                        "expected_load_references": 1,
+                        "guard_scope": "enclosing_context",
+                        "guard_symbol": "standalone_model_lane",
+                        "min_guard_sites": 1,
+                        "modules": ["mlx_lm"],
+                        "ownership_mode": "standalone_process",
+                        "path": "tool.py",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = run_audit(root=tmp_path, inventory_path=inventory)
+
+    assert report["passed"] is False
+    assert report["findings"] == [
+        {
+            "code": "ownership_guard_not_enclosing_load",
+            "path": "tool.py",
+            "detail": "guard=standalone_model_lane unguarded_load_lines=[7]",
+        }
+    ]
+
+
+def test_guarded_finally_contract_rejects_unrelated_cleanup(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "from mlx_lm import load\n"
+        "from lane import standalone_model_lane\n"
+        "from mlx.core import clear_cache\n\n"
+        "with standalone_model_lane():\n"
+        "    try:\n"
+        "        prepare = True\n"
+        "    finally:\n"
+        "        clear_cache()\n"
+        "    model, tokenizer = load('/models/direct')\n",
+        encoding="utf-8",
+    )
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "aura.model_load_ownership.v1",
+                "entries": [
+                    {
+                        "cleanup_scope": "guarded_finally",
+                        "cleanup_symbol": "clear_cache",
+                        "expected_load_references": 1,
+                        "guard_scope": "enclosing_context",
+                        "guard_symbol": "standalone_model_lane",
+                        "min_guard_sites": 1,
+                        "modules": ["mlx_lm"],
+                        "ownership_mode": "standalone_process",
+                        "path": "tool.py",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = run_audit(root=tmp_path, inventory_path=inventory)
+
+    assert report["passed"] is False
+    assert report["findings"] == [
+        {
+            "code": "ownership_cleanup_not_guarded_finally",
+            "path": "tool.py",
+            "detail": (
+                "guard=standalone_model_lane cleanup=clear_cache "
+                "unprotected_load_lines=[10]"
+            ),
+        }
+    ]
+
+
 def test_capability_ablation_retains_lane_until_responder_closes(monkeypatch) -> None:
     from core.runtime import model_lane_control
     from tools.capability_ablation_mlx import make_mlx_responder

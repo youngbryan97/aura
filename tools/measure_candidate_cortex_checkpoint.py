@@ -29,7 +29,6 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     canonical_json_bytes,
     discover_exact_checkpoint,
     document_sha256,
-    file_sha256,
     load_and_verify_plan,
 )
 from core.learning.recurrent_sft_behavior_canaries import (  # noqa: E402
@@ -637,68 +636,80 @@ def main(argv: list[str] | None = None) -> int:
             allow_owner_eviction=True,
             metadata={"tool": "measure_candidate_cortex_checkpoint"},
         ):
+            import mlx.core as mx
             from mlx_lm import load
 
-            model, tokenizer = load(
-                model_path,
-                tokenizer_config={"trust_remote_code": True},
-            )
-            persona_tokens = _tokenize_samples(tokenizer, persona)
-            retention_tokens = _tokenize_samples(tokenizer, retention)
-            contract_sha256 = _measurement_contract_sha256(plan, persona_tokens, retention_tokens)
+            model = None
+            tokenizer = None
+            produce_baseline = None
+            try:
+                model, tokenizer = load(
+                    model_path,
+                    tokenizer_config={"trust_remote_code": True},
+                )
+                persona_tokens = _tokenize_samples(tokenizer, persona)
+                retention_tokens = _tokenize_samples(tokenizer, retention)
+                contract_sha256 = _measurement_contract_sha256(
+                    plan,
+                    persona_tokens,
+                    retention_tokens,
+                )
 
-            produce_baseline = partial(
-                _measure_baseline_document,
-                model,
-                tokenizer,
-                plan=plan,
-                contract_sha256=contract_sha256,
-                persona_tokens=persona_tokens,
-                retention_tokens=retention_tokens,
-            )
-
-            if args.baseline_cache is None:
-                baseline, baseline_path, baseline_reused = _load_or_create_addressed_baseline(
-                    run_root=args.run_root,
+                produce_baseline = partial(
+                    _measure_baseline_document,
+                    model,
+                    tokenizer,
                     plan=plan,
                     contract_sha256=contract_sha256,
-                    producer=produce_baseline,
+                    persona_tokens=persona_tokens,
+                    retention_tokens=retention_tokens,
                 )
-            else:
-                baseline_path = args.baseline_cache.expanduser().resolve(strict=False)
-                if baseline_path.is_file():
-                    baseline = _validate_baseline_document(
-                        _strict_json(baseline_path),
-                        plan=plan,
-                        contract_sha256=contract_sha256,
+
+                if args.baseline_cache is None:
+                    baseline, baseline_path, baseline_reused = (
+                        _load_or_create_addressed_baseline(
+                            run_root=args.run_root,
+                            plan=plan,
+                            contract_sha256=contract_sha256,
+                            producer=produce_baseline,
+                        )
                     )
-                    baseline_reused = True
                 else:
-                    baseline = produce_baseline()
-                    _write_once(
-                        baseline_path,
-                        baseline,
-                        source="candidate_cortex_measurement.baseline",
-                    )
-                    baseline_reused = False
-            del produce_baseline
-            baseline_persona = list(baseline["persona"])
-            baseline_retention = list(baseline["retention"])
-            baseline_behavior = list(baseline["behavior"])
+                    baseline_path = args.baseline_cache.expanduser().resolve(strict=False)
+                    if baseline_path.is_file():
+                        baseline = _validate_baseline_document(
+                            _strict_json(baseline_path),
+                            plan=plan,
+                            contract_sha256=contract_sha256,
+                        )
+                        baseline_reused = True
+                    else:
+                        baseline = produce_baseline()
+                        _write_once(
+                            baseline_path,
+                            baseline,
+                            source="candidate_cortex_measurement.baseline",
+                        )
+                        baseline_reused = False
+                produce_baseline = None
+                baseline_persona = list(baseline["persona"])
+                baseline_retention = list(baseline["retention"])
+                baseline_behavior = list(baseline["behavior"])
 
-            _attach_checkpoint(
-                model,
-                Path(str(plan["paths"]["adapter_root"])).resolve(strict=True),
-                Path(str(checkpoint["path"])).resolve(strict=True),
-            )
-            candidate_persona = _loss_rows(model, persona_tokens)
-            candidate_retention = _loss_rows(model, retention_tokens)
-            candidate_behavior = _behavior_rows(model, tokenizer)
-            del model, tokenizer
-            gc.collect()
-            import mlx.core as mx
-
-            mx.clear_cache()
+                _attach_checkpoint(
+                    model,
+                    Path(str(plan["paths"]["adapter_root"])).resolve(strict=True),
+                    Path(str(checkpoint["path"])).resolve(strict=True),
+                )
+                candidate_persona = _loss_rows(model, persona_tokens)
+                candidate_retention = _loss_rows(model, retention_tokens)
+                candidate_behavior = _behavior_rows(model, tokenizer)
+            finally:
+                produce_baseline = None
+                model = None
+                tokenizer = None
+                gc.collect()
+                mx.clear_cache()
 
         persona_rows = _pair_losses(baseline_persona, candidate_persona)
         retention_rows = _pair_losses(baseline_retention, candidate_retention)

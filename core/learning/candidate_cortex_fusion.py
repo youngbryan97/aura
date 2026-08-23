@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
@@ -19,6 +18,7 @@ from core.learning.candidate_cortex_training import (
     read_authenticated_journal,
 )
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 
 FUSION_PLAN_SCHEMA: Final = "aura.candidate_cortex_fusion.plan.v1"
 FUSION_RECEIPT_SCHEMA: Final = "aura.candidate_cortex_fusion.receipt.v1"
@@ -570,11 +570,14 @@ def move_directory(source_path: Path, destination: Path, *, source: str) -> Path
         )
 
 
-def available_bytes(path: Path) -> int:
+def available_bytes(path: Path, *, observer: ResourceObserver | None = None) -> int:
     resolved = path.expanduser().resolve(strict=True)
     if not resolved.is_dir():
         _fail("fusion_disk_root_invalid")
-    return int(shutil.disk_usage(resolved).free)
+    observation = (observer or get_resource_observer()).disk(resolved)
+    if not observation.available:
+        _fail("fusion_disk_observation_unavailable")
+    return int(observation.free_bytes)
 
 
 __all__ = [

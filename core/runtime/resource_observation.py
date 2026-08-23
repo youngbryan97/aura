@@ -1376,6 +1376,8 @@ class SimulatedResourceObserver:
         process_tree_rss_bytes: int | None = None,
         swap_total_bytes: int | None = None,
         swap_used_bytes: int | None = None,
+        observation_available: bool | None = None,
+        error: str | None = None,
     ) -> None:
         with self._lock:
             current = self._memory
@@ -1415,6 +1417,12 @@ class SimulatedResourceObserver:
                     if swap_used_bytes is None
                     else max(0, int(swap_used_bytes))
                 ),
+                available=(
+                    current.available
+                    if observation_available is None
+                    else bool(observation_available)
+                ),
+                error=current.error if error is None else str(error),
             )
             swap_total = self._memory.swap_total_bytes
             swap_used = min(swap_total, self._memory.swap_used_bytes)
@@ -1432,6 +1440,8 @@ class SimulatedResourceObserver:
         *,
         total_bytes: int | None = None,
         free_bytes: int | None = None,
+        observation_available: bool | None = None,
+        error: str | None = None,
     ) -> None:
         with self._lock:
             current = self._disk
@@ -1445,6 +1455,12 @@ class SimulatedResourceObserver:
                 used_bytes=used,
                 free_bytes=free,
                 percent=0.0 if total <= 0 else used / total * 100.0,
+                available=(
+                    current.available
+                    if observation_available is None
+                    else bool(observation_available)
+                ),
+                error=current.error if error is None else str(error),
             )
 
     def configure_thermal(self, level: int, *, provider: str = "simulated") -> None:

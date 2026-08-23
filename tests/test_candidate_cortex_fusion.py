@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
 
 from core.learning import candidate_cortex_fusion as fusion
 from core.learning import candidate_cortex_training as training
+from core.runtime.resource_observation import SimulatedResourceObserver
 from tools import run_candidate_cortex_fusion_target as fusion_target
 
 
@@ -125,6 +128,27 @@ def _redigest(plan: dict[str, Any]) -> None:
     material = dict(plan)
     material.pop("fusion_plan_sha256")
     plan["fusion_plan_sha256"] = training.document_sha256(material)
+
+
+def test_fusion_disk_budget_uses_attributable_observer_and_fails_blind(
+    tmp_path: Path,
+) -> None:
+    observer = SimulatedResourceObserver(
+        disk_total_bytes=1_000,
+        disk_free_bytes=640,
+    )
+
+    assert fusion.available_bytes(tmp_path, observer=observer) == 640
+
+    observer.configure_disk(
+        observation_available=False,
+        error="simulated_blind",
+    )
+    with pytest.raises(
+        fusion.CandidateCortexFusionError,
+        match="fusion_disk_observation_unavailable",
+    ):
+        fusion.available_bytes(tmp_path, observer=observer)
 
 
 def test_fusion_plan_binds_complete_authority_and_exact_identity(
@@ -332,23 +356,20 @@ def test_fusion_target_publishes_from_staging_under_exclusive_lane(
     Path(plan["output"]["root"]).mkdir(parents=True)
     observed: dict[str, Any] = {}
 
-    def fake_fuse(_base: str, _adapter: Path, save_path: Path) -> int:
+    def fake_fuse(
+        _base: str,
+        _adapter: Path,
+        save_path: Path,
+        **lane_contract: Any,
+    ) -> int:
         observed["adapter"] = str(_adapter)
+        observed["lane_contract"] = lane_contract
         save_path.mkdir()
         (save_path / "config.json").write_text("{}\n", encoding="ascii")
         (save_path / "model.safetensors").write_bytes(b"fused")
         return 384
 
-    class _Lane:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return False
-
-    monkeypatch.setattr(fusion_target, "standalone_model_lane", lambda **_kwargs: _Lane())
     monkeypatch.setattr(fusion_target, "_fuse_with_mlx", fake_fuse)
-    monkeypatch.setattr(fusion_target, "_release_model_memory", lambda: None)
 
     final_path = fusion_target._fuse(plan)
 
@@ -356,9 +377,77 @@ def test_fusion_target_publishes_from_staging_under_exclusive_lane(
     assert final_path.is_dir()
     assert not Path(plan["output"]["staging_path"]).exists()
     assert observed["adapter"].endswith("adapter-input")
+    assert observed["lane_contract"] == {
+        "owner_id": f"candidate-cortex-fusion:{plan['output']['generation_id']}",
+        "metadata": {
+            "tool": "run_candidate_cortex_fusion_target",
+            "fusion_plan_sha256": plan["fusion_plan_sha256"],
+        },
+    }
     assert fusion.validate_fusion_provenance(
         plan,
         json.loads(
             (final_path / fusion.FUSION_PROVENANCE_FILE).read_text(encoding="utf-8")
         ),
     )["fusion_plan_sha256"] == plan["fusion_plan_sha256"]
+
+
+def test_fusion_releases_allocator_before_lane_exit_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _Lane:
+        def __enter__(self):
+            events.append("lane_enter")
+            return self
+
+        def __exit__(self, *_args):
+            events.append("lane_exit")
+            return False
+
+    class _Model:
+        def named_modules(self):
+            events.append("model_use")
+            raise RuntimeError("injected_fusion_failure")
+
+    mlx_utils = ModuleType("mlx.utils")
+    mlx_utils.tree_unflatten = lambda value: value
+    mlx_lm_utils = ModuleType("mlx_lm.utils")
+
+    def load(*_args, **_kwargs):
+        events.append("load")
+        return _Model(), object(), {}
+
+    mlx_lm_utils.load = load
+    mlx_lm_utils.save = lambda *_args, **_kwargs: events.append("save")
+    monkeypatch.setitem(sys.modules, "mlx.utils", mlx_utils)
+    monkeypatch.setitem(sys.modules, "mlx_lm.utils", mlx_lm_utils)
+    monkeypatch.setattr(
+        fusion_target,
+        "standalone_model_lane",
+        lambda **_kwargs: _Lane(),
+    )
+    monkeypatch.setattr(
+        fusion_target,
+        "_release_model_memory",
+        lambda: events.append("allocator_release"),
+    )
+
+    with pytest.raises(RuntimeError, match="injected_fusion_failure"):
+        fusion_target._fuse_with_mlx(
+            "base",
+            tmp_path / "adapter",
+            tmp_path / "staging",
+            owner_id="owner",
+            metadata={"tool": "test"},
+        )
+
+    assert events == [
+        "lane_enter",
+        "load",
+        "model_use",
+        "allocator_release",
+        "lane_exit",
+    ]

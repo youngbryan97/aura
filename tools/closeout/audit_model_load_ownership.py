@@ -168,6 +168,71 @@ def _symbol_sites(tree: ast.Module, symbol: str) -> int:
     )
 
 
+def _called_symbol(expression: ast.expr) -> str:
+    function = expression.func if isinstance(expression, ast.Call) else expression
+    if isinstance(function, ast.Name):
+        return function.id
+    if isinstance(function, ast.Attribute):
+        return function.attr
+    return ""
+
+
+def _enclosing_context_call_lines(tree: ast.Module, symbol: str) -> set[int]:
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.With, ast.AsyncWith)):
+            continue
+        if not any(_called_symbol(item.context_expr) == symbol for item in node.items):
+            continue
+        for statement in node.body:
+            guarded.update(
+                child.lineno
+                for child in ast.walk(statement)
+                if isinstance(child, ast.Call)
+            )
+    return guarded
+
+
+def _guarded_finally_load_lines(
+    tree: ast.Module,
+    guard_symbol: str,
+    cleanup_symbol: str,
+    load_lines: set[int],
+) -> set[int]:
+    protected: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.With, ast.AsyncWith)):
+            continue
+        if not any(
+            _called_symbol(item.context_expr) == guard_symbol for item in node.items
+        ):
+            continue
+        for statement in node.body:
+            for candidate in ast.walk(statement):
+                if not isinstance(candidate, ast.Try):
+                    continue
+                cleanup_lines = {
+                    child.lineno
+                    for final_statement in candidate.finalbody
+                    for child in ast.walk(final_statement)
+                    if isinstance(child, ast.Call)
+                    and _called_symbol(child) == cleanup_symbol
+                }
+                if not cleanup_lines:
+                    continue
+                protected.update(
+                    child.lineno
+                    for protected_statement in (
+                        *candidate.body,
+                        *(body_item for handler in candidate.handlers for body_item in handler.body),
+                        *candidate.orelse,
+                    )
+                    for child in ast.walk(protected_statement)
+                    if isinstance(child, ast.Call) and child.lineno in load_lines
+                )
+    return protected
+
+
 def _module_name(path: str) -> str:
     return path.removesuffix(".py").replace("/", ".")
 
@@ -273,6 +338,7 @@ def run_audit(
         guard_path = str(entry.get("guard_path") or owned_path)
         guard_file = root / guard_path
         guard_symbol = str(entry.get("guard_symbol") or "")
+        guard_tree: ast.Module | None = None
         try:
             guard_tree = _parse(guard_file)
             guard_sites = _symbol_sites(guard_tree, guard_symbol)
@@ -290,6 +356,68 @@ def run_audit(
                     f"guard={guard_path}:{guard_symbol} expected_sites>={minimum} observed={guard_sites}",
                 )
             )
+        guard_scope = str(entry.get("guard_scope") or "symbol_present")
+        if guard_scope not in {"symbol_present", "enclosing_context"}:
+            findings.append(
+                AuditFinding(
+                    "ownership_guard_scope_invalid",
+                    owned_path,
+                    guard_scope,
+                )
+            )
+        elif guard_scope == "enclosing_context" and guard_tree is not None:
+            if guard_path != owned_path:
+                findings.append(
+                    AuditFinding(
+                        "ownership_guard_not_enclosing_load",
+                        owned_path,
+                        f"guard path differs: {guard_path}",
+                    )
+                )
+            else:
+                guarded_lines = _enclosing_context_call_lines(guard_tree, guard_symbol)
+                unguarded = sorted(
+                    item.line for item in observed if item.line not in guarded_lines
+                )
+                if unguarded:
+                    findings.append(
+                        AuditFinding(
+                            "ownership_guard_not_enclosing_load",
+                            owned_path,
+                            f"guard={guard_symbol} unguarded_load_lines={unguarded}",
+                        )
+                    )
+        cleanup_scope = str(entry.get("cleanup_scope") or "")
+        cleanup_symbol = str(entry.get("cleanup_symbol") or "")
+        if cleanup_scope and guard_tree is not None:
+            if cleanup_scope != "guarded_finally" or not cleanup_symbol:
+                findings.append(
+                    AuditFinding(
+                        "ownership_cleanup_scope_invalid",
+                        owned_path,
+                        f"scope={cleanup_scope} symbol={cleanup_symbol}",
+                    )
+                )
+            else:
+                load_lines = {item.line for item in observed}
+                protected_load_lines = _guarded_finally_load_lines(
+                    guard_tree,
+                    guard_symbol,
+                    cleanup_symbol,
+                    load_lines,
+                )
+                unprotected = sorted(load_lines - protected_load_lines)
+                if unprotected:
+                    findings.append(
+                        AuditFinding(
+                            "ownership_cleanup_not_guarded_finally",
+                            owned_path,
+                            (
+                                f"guard={guard_symbol} cleanup={cleanup_symbol} "
+                                f"unprotected_load_lines={unprotected}"
+                            ),
+                        )
+                    )
         worker_entrypoint = str(entry.get("worker_entrypoint") or "")
         if worker_entrypoint:
             source_tree = _parse(root / owned_path)

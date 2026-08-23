@@ -6,7 +6,9 @@ import pytest
 
 from core.learning.cortex_serving_qualification import (
     SERVING_MEASUREMENT_SCHEMA,
+    _host_memory,
     _prefill_liveness,
+    _resource_sample,
     _resumable_row,
     _seal_row,
     build_serving_qualification,
@@ -17,6 +19,7 @@ from core.learning.cortex_serving_qualification import (
     score_complete_answer,
     score_tool_answer,
 )
+from core.runtime.resource_observation import SimulatedResourceObserver
 
 
 def _passing_measurement() -> dict:
@@ -41,6 +44,35 @@ def _passing_measurement() -> dict:
     }
     value["evidence_sha256"] = canonical_sha256(value)
     return value
+
+
+def test_serving_resources_use_one_attributable_observer() -> None:
+    observer = SimulatedResourceObserver(
+        total_memory_bytes=64 * 1024**3,
+        available_memory_bytes=18 * 1024**3,
+        process_rss_bytes=7 * 1024**3,
+    )
+    mx = type(
+        "MX",
+        (),
+        {
+            "get_active_memory": staticmethod(lambda: 3 * 1024**3),
+            "get_cache_memory": staticmethod(lambda: 2 * 1024**3),
+            "get_peak_memory": staticmethod(lambda: 4 * 1024**3),
+        },
+    )()
+
+    assert _host_memory(observer=observer) == {
+        "total_gb": 64.0,
+        "available_gb": 18.0,
+    }
+    assert _resource_sample(mx, observer=observer) == {
+        "host_available_gb": 18.0,
+        "mlx_active_gb": 3.0,
+        "mlx_cache_gb": 2.0,
+        "mlx_peak_gb": 4.0,
+        "process_rss_gb": 7.0,
+    }
 
 
 def test_complete_answer_requires_every_predicate_and_a_natural_stop() -> None:

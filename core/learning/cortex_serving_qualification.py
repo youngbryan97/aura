@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.brain.llm.model_artifact_profile import SERVING_QUALIFICATION_SCHEMA
+from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 
 SERVING_MEASUREMENT_SCHEMA = "aura.cortex_upgrade.serving_measurement.v2"
 SERVING_PROGRESS_SCHEMA = "aura.cortex_upgrade.serving_progress.v2"
@@ -212,28 +213,36 @@ def _emit(
     )
 
 
-def _host_memory() -> dict[str, float]:
-    try:
-        import psutil
-
-        memory = psutil.virtual_memory()
-        return {
-            "total_gb": round(float(memory.total) / 1024**3, 4),
-            "available_gb": round(float(memory.available) / 1024**3, 4),
-        }
-    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+def _host_memory(*, observer: ResourceObserver | None = None) -> dict[str, float]:
+    memory = (observer or get_resource_observer()).memory(include_process_tree=False)
+    if not memory.available:
         return {"total_gb": 0.0, "available_gb": 0.0}
+    return {
+        "total_gb": round(float(memory.total_bytes) / 1024**3, 4),
+        "available_gb": round(float(memory.available_bytes) / 1024**3, 4),
+    }
 
 
-def _resource_sample(mx: object) -> dict[str, float]:
-    host = _host_memory()
-    rss_gb = 0.0
-    try:
-        import psutil
-
-        rss_gb = float(psutil.Process().memory_info().rss) / 1024**3
-    except (ImportError, AttributeError, OSError, TypeError, ValueError):
-        pass
+def _resource_sample(
+    mx: object,
+    *,
+    observer: ResourceObserver | None = None,
+) -> dict[str, float]:
+    resource_observer = observer or get_resource_observer()
+    memory = resource_observer.memory(include_process_tree=False)
+    host = (
+        {
+            "total_gb": round(float(memory.total_bytes) / 1024**3, 4),
+            "available_gb": round(float(memory.available_bytes) / 1024**3, 4),
+        }
+        if memory.available
+        else {"total_gb": 0.0, "available_gb": 0.0}
+    )
+    rss_gb = (
+        float(memory.process_rss_bytes) / 1024**3
+        if memory.available
+        else 0.0
+    )
 
     def mlx_gb(name: str) -> float:
         getter = getattr(mx, name, None)

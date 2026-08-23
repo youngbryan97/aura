@@ -369,6 +369,20 @@
       "path": "tools/latent_cortex_lab.py"
     },
     {
+      "cleanup_scope": "guarded_finally",
+      "cleanup_symbol": "clear_cache",
+      "expected_load_references": 1,
+      "guard_scope": "enclosing_context",
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/measure_candidate_cortex_checkpoint.py",
+      "purpose": "evaluation"
+    },
+    {
       "expected_load_references": 1,
       "guard_symbol": "acquire_standalone_model_lane",
       "min_guard_sites": 1,
@@ -461,6 +475,20 @@
       "ownership_mode": "standalone_process",
       "path": "tools/rlc_accuracy_ladder.py",
       "purpose": "evaluation"
+    },
+    {
+      "cleanup_scope": "guarded_finally",
+      "cleanup_symbol": "_release_model_memory",
+      "expected_load_references": 1,
+      "guard_scope": "enclosing_context",
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/run_candidate_cortex_fusion_target.py",
+      "purpose": "fusion"
     },
     {
       "expected_load_references": 1,
