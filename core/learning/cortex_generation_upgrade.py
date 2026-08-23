@@ -50,6 +50,7 @@ from core.brain.llm.model_artifact_profile import (
     validate_model_artifact_descriptor,
     validate_model_serving_profile,
 )
+from core.learning.cortex_migration_authority import validate_component_authority
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CortexGenerationUpgrade")
@@ -57,7 +58,7 @@ logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v3"
 EVALUATION_PROGRESS_SCHEMA = "aura.cortex_upgrade.evaluation_progress.v1"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
-MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v1"
+MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v2"
 STAGING_SCHEMA = "aura.cortex_upgrade.staging.v2"
 ACTIVATION_SCHEMA = "aura.cortex_upgrade.activation.v2"
 IDENTITY_NORMALIZATION_SCHEMA = "aura.cortex_upgrade.identity_normalization.v1"
@@ -685,28 +686,11 @@ def build_migration_contract(
         raw = components.get(name)
         if not isinstance(raw, dict):
             raise ValueError(f"migration_component_invalid:{name}")
-        status = str(raw.get("status") or "")
-        if status not in {"qualified", "retired"}:
-            raise ValueError(f"migration_component_status_invalid:{name}")
-        if name != "expert_adapters" and status != "qualified":
-            raise ValueError(f"migration_component_required:{name}")
-        artifact_sha256 = raw.get("artifact_sha256")
-        if not _valid_sha256(artifact_sha256):
-            raise ValueError(f"migration_component_digest_invalid:{name}")
-        component: dict[str, object] = {
-            "status": status,
-            "artifact_sha256": artifact_sha256,
-            "model_descriptor_sha256": descriptor_sha256,
-        }
-        if name == "steering":
-            supplied_identity = raw.get("model_descriptor_sha256")
-            if supplied_identity != descriptor_sha256:
-                raise ValueError("steering_model_identity_mismatch")
-            for field in ("extraction_protocol_sha256", "causal_evaluation_sha256"):
-                value = raw.get(field)
-                if not _valid_sha256(value):
-                    raise ValueError(f"steering_{field}_invalid")
-                component[field] = value
+        component = validate_component_authority(
+            raw,
+            component=name,
+            descriptor_sha256=descriptor_sha256,
+        )
         normalized[name] = component
 
     material: dict[str, object] = {
@@ -787,12 +771,6 @@ def _validate_migration_contract(
     components = contract.get("components")
     if not isinstance(components, dict) or set(components) != _REQUIRED_MIGRATION_COMPONENTS:
         raise ValueError("migration_components_incomplete")
-    steering = components.get("steering")
-    if (
-        not isinstance(steering, dict)
-        or steering.get("model_descriptor_sha256") != descriptor_sha256
-    ):
-        raise ValueError("steering_model_identity_mismatch")
     required = {
         "schema",
         "model_descriptor_sha256",
@@ -811,28 +789,14 @@ def _validate_migration_contract(
     ):
         raise ValueError("migration_contract_digest_invalid")
 
-    rebuilt_inputs: dict[str, dict[str, object]] = {}
     for name, raw in components.items():
         if not isinstance(raw, dict):
             raise ValueError(f"migration_component_invalid:{name}")
-        expected_keys = {"status", "artifact_sha256", "model_descriptor_sha256"}
-        if name == "steering":
-            expected_keys |= {"extraction_protocol_sha256", "causal_evaluation_sha256"}
-        if set(raw) != expected_keys:
-            raise ValueError(f"migration_component_schema_invalid:{name}")
-        if raw.get("model_descriptor_sha256") != descriptor_sha256:
-            if name == "steering":
-                raise ValueError("steering_model_identity_mismatch")
-            raise ValueError(f"migration_component_model_identity_mismatch:{name}")
-        rebuilt_inputs[name] = dict(raw)
-    rebuilt = build_migration_contract(descriptor, components=rebuilt_inputs)
-    rebuilt["built_at"] = contract["built_at"]
-    rebuilt["migration_contract_sha256"] = _receipt_digest(
-        rebuilt,
-        digest_key="migration_contract_sha256",
-    )
-    if rebuilt["migration_contract_sha256"] != claimed:
-        raise ValueError("migration_contract_invalid")
+        validate_component_authority(
+            raw,
+            component=name,
+            descriptor_sha256=descriptor_sha256,
+        )
     return contract
 
 

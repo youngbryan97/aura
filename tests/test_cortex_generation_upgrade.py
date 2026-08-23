@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,14 @@ from core.learning.cortex_generation_upgrade import (  # noqa: E402
     rollback_upgrade,
     stage_upgrade,
 )
+from tests.support.cortex_migration_authority import (  # noqa: E402
+    build_signed_migration_authorities,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_state_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "state"))
 
 
 class TinyTokenizer:
@@ -443,22 +452,35 @@ def _upgrade_contracts(candidate, *, repository_id="", revision=""):
             "evidence_sha256": _digest("serving"),
         },
     )
+    components = build_signed_migration_authorities(
+        candidate.parent,
+        descriptor_sha256=descriptor["descriptor_sha256"],
+        state_root=Path(os.environ["AURA_STATE_ROOT"]),
+    )
     migration = build_migration_contract(
         descriptor,
-        components={
-            "persona_crsm": {"status": "qualified", "artifact_sha256": _digest("persona")},
-            "steering": {
-                "status": "qualified",
-                "artifact_sha256": _digest("steering"),
-                "model_descriptor_sha256": descriptor["descriptor_sha256"],
-                "extraction_protocol_sha256": _digest("protocol"),
-                "causal_evaluation_sha256": _digest("caa-eval"),
-            },
-            "expert_adapters": {"status": "retired", "artifact_sha256": _digest("retired")},
-            "recurrence_native": {"status": "qualified", "artifact_sha256": _digest("rlc")},
-        },
+        components=components,
     )
     return descriptor, evaluation, serving, migration
+
+
+def test_migration_contract_reopens_component_authority_instead_of_trusting_a_digest(
+    tmp_path,
+):
+    candidate = tmp_path / "candidate-model"
+    _write_model_artifact(candidate, b"candidate-weights", model_type="qwen3_5")
+    descriptor = build_model_artifact_descriptor(candidate)
+    components = build_signed_migration_authorities(
+        tmp_path,
+        descriptor_sha256=descriptor["descriptor_sha256"],
+        state_root=Path(os.environ["AURA_STATE_ROOT"]),
+    )
+    components["persona_crsm"]["authority_sha256"] = "0" * 64
+
+    with pytest.raises(
+        ValueError, match="migration_component_authority_signature_invalid:persona_crsm"
+    ):
+        build_migration_contract(descriptor, components=components)
 
 
 def test_active_identity_normalization_is_exact_idempotent_and_model_preserving(
@@ -577,19 +599,59 @@ def test_activation_without_staging_refuses(tmp_path, monkeypatch):
 
 def test_stage_rejects_a_steering_receipt_from_same_width_old_model(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    _fused, candidate = _fused_dir(tmp_path)
+    descriptor, _evaluation, _serving, migration = _upgrade_contracts(candidate)
+    old_model = tmp_path / "same-width-old-model"
+    _write_model_artifact(old_model, b"old-model-weights", model_type="qwen3_5")
+    old_descriptor = build_model_artifact_descriptor(old_model)
+    old_authorities = build_signed_migration_authorities(
+        tmp_path / "old-authority",
+        descriptor_sha256=old_descriptor["descriptor_sha256"],
+        state_root=Path(os.environ["AURA_STATE_ROOT"]),
+    )
+    components = dict(migration["components"])
+    components["steering"] = old_authorities["steering"]
+
+    with pytest.raises(
+        ValueError, match="migration_component_authority_invalid:steering"
+    ):
+        build_migration_contract(
+            descriptor,
+            components=components,
+        )
+
+
+def test_activation_reopens_staged_migration_authority_and_refuses_drift(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
     fused, candidate = _fused_dir(tmp_path)
     _, evaluation, serving, migration = _upgrade_contracts(candidate)
-    migration["components"]["steering"]["model_descriptor_sha256"] = "0" * 64
+    stage_upgrade(
+        candidate_model_path=candidate,
+        base_model_path="Qwen3.8-27B",
+        tag="qwen3.8-gen",
+        fused_model_dir=fused,
+        evaluation=evaluation,
+        serving_profile=serving,
+        migration_contract=migration,
+    )
+    Path(
+        migration["components"]["persona_crsm"]["evidence"]["fusion_plan"]["path"]
+    ).write_text(
+        "substituted-persona-authority",
+        encoding="utf-8",
+    )
 
-    with pytest.raises(ValueError, match="steering_model_identity_mismatch"):
-        stage_upgrade(
-            candidate_model_path=candidate,
-            base_model_path="Qwen3-32B",
-            tag="qwen3-gen",
+    with pytest.raises(
+        ValueError,
+        match="migration_component:persona_crsm:fusion_plan_binding_drift",
+    ):
+        activate_upgrade(
             fused_model_dir=fused,
+            authorized_by="bryan",
             evaluation=evaluation,
-            serving_profile=serving,
-            migration_contract=migration,
         )
 
 

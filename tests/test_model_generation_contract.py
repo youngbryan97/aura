@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,12 @@ from core.learning.cortex_generation_upgrade import (
     compare_batteries,
     normalize_active_pointer_identity,
 )
+from tests.support.cortex_migration_authority import build_signed_migration_authorities
+
+
+@pytest.fixture(autouse=True)
+def _isolated_state_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "state"))
 
 
 def _sha(label: str) -> str:
@@ -404,27 +411,11 @@ def test_active_pointer_accepts_one_complete_identity_bound_promotion(
     )
     migration = build_migration_contract(
         descriptor,
-        components={
-            "persona_crsm": {
-                "status": "qualified",
-                "artifact_sha256": _sha("persona"),
-            },
-            "steering": {
-                "status": "qualified",
-                "artifact_sha256": _sha("steering"),
-                "model_descriptor_sha256": descriptor["descriptor_sha256"],
-                "extraction_protocol_sha256": _sha("protocol"),
-                "causal_evaluation_sha256": _sha("steering-eval"),
-            },
-            "expert_adapters": {
-                "status": "retired",
-                "artifact_sha256": _sha("retired"),
-            },
-            "recurrence_native": {
-                "status": "qualified",
-                "artifact_sha256": _sha("recurrence"),
-            },
-        },
+        components=build_signed_migration_authorities(
+            tmp_path,
+            descriptor_sha256=descriptor["descriptor_sha256"],
+            state_root=Path(os.environ["AURA_STATE_ROOT"]),
+        ),
     )
     promotion_root = tmp_path / "promotion"
     promotion_root.mkdir()
