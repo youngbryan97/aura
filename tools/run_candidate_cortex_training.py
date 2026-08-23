@@ -31,6 +31,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     next_stage_plan,
     prepare_training_run,
     read_authenticated_journal,
+    stage_detached_root,
 )
 from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
 from tools import run_detached_step as detached  # noqa: E402
@@ -218,6 +219,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     adjudicate.add_argument("--run-root", type=Path, required=True)
     adjudicate.add_argument("--journal-key", type=Path, required=True)
+    adaptive = commands.add_parser(
+        "launch-adaptive",
+        help="launch all admitted adaptive stages under resumable detached custody",
+    )
+    adaptive.add_argument("--run-root", type=Path, required=True)
+    adaptive.add_argument("--journal-key", type=Path, required=True)
+    adaptive.add_argument("--resume", action="store_true")
+    adaptive_status = commands.add_parser(
+        "status-adaptive", help="inspect the detached adaptive campaign"
+    )
+    adaptive_status.add_argument("--run-root", type=Path, required=True)
     return parser
 
 
@@ -227,6 +239,50 @@ def _target_command(plan: dict[str, Any]) -> list[str]:
         str((REPO_ROOT / "tools" / "run_candidate_cortex_canary_target.py").resolve()),
         "--run-root",
         str(plan["paths"]["run_root"]),
+    ]
+
+
+def _plan_source_root(plan: dict[str, Any]) -> Path:
+    inputs = plan.get("admission", {}).get("inputs")
+    if not isinstance(inputs, list) or not inputs:
+        raise CandidateCortexTrainingError("plan_source_binding_missing")
+    roots: set[Path] = set()
+    for raw in inputs:
+        if not isinstance(raw, dict) or not isinstance(raw.get("path"), str):
+            raise CandidateCortexTrainingError("plan_source_binding_invalid")
+        path = Path(raw["path"]).expanduser().resolve(strict=True)
+        if path.parent.name != "tools":
+            raise CandidateCortexTrainingError("plan_source_binding_invalid")
+        roots.add(path.parent.parent)
+    if len(roots) != 1:
+        raise CandidateCortexTrainingError("plan_source_binding_ambiguous")
+    root = roots.pop()
+    if not (root / ".git").exists():
+        raise CandidateCortexTrainingError("plan_source_not_git_bound")
+    return root
+
+
+def _adaptive_target_command(plan: dict[str, Any], journal_key: Path) -> list[str]:
+    return [
+        str(plan["python"]),
+        str((REPO_ROOT / "tools" / "run_candidate_cortex_adaptive_target.py").resolve()),
+        "--run-root",
+        str(plan["paths"]["run_root"]),
+        "--journal-key",
+        str(journal_key.expanduser().resolve(strict=True)),
+    ]
+
+
+def _adaptive_resume_verifier_command(
+    plan: dict[str, Any], journal_key: Path
+) -> list[str]:
+    return [
+        str(plan["python"]),
+        str((REPO_ROOT / "tools" / "verify_candidate_cortex_adaptive_resume.py").resolve()),
+        "--run-root",
+        str(plan["paths"]["run_root"]),
+        "--journal-key",
+        str(journal_key.expanduser().resolve(strict=True)),
     ]
 
 
@@ -281,6 +337,61 @@ def _launch_canary(plan: dict[str, Any]) -> dict[str, Any]:
 
 def _status_canary(plan: dict[str, Any]) -> dict[str, Any]:
     detached_root = Path(str(plan["paths"]["canary_detached_root"]))
+    if not detached_root.exists():
+        return {"state": "not_launched", "terminal": False}
+    return detached._status(detached_root)
+
+
+def _launch_adaptive(
+    plan: dict[str, Any], journal_key: Path, *, resume: bool
+) -> dict[str, Any]:
+    key_path = journal_key.expanduser().resolve(strict=True)
+    key = _key(key_path)
+    events = read_authenticated_journal(
+        Path(str(plan["paths"]["run_root"])) / JOURNAL_FILE,
+        key=key,
+    )
+    execution = execution_admission(
+        plan,
+        execute=True,
+        authenticated_events=events,
+    )
+    if execution.get("execution_authorized") is not True:
+        raise CandidateCortexTrainingError("adaptive_launch_not_authorized")
+    detached_root = stage_detached_root(plan)
+    launch_args = [
+        "launch",
+        "--run-dir",
+        str(detached_root),
+        "--name",
+        f"candidate-cortex-adaptive-{plan['run_id']}",
+        "--cwd",
+        str(_plan_source_root(plan)),
+        "--timeout",
+        "86400",
+        "--resume-contract",
+        "target_checkpoint",
+        "--resume-verifier-json",
+        json.dumps(_adaptive_resume_verifier_command(plan, key_path)),
+        "--execution-output-root",
+        str(plan["paths"]["run_root"]),
+    ]
+    if resume:
+        launch_args.append("--resume")
+    launch_args.extend(("--", *_adaptive_target_command(plan, key_path)))
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        return_code = detached.main(launch_args)
+    if return_code != 0:
+        detail = captured.getvalue().strip()
+        raise CandidateCortexTrainingError(
+            f"adaptive_detached_launch_failed:{detail[:500]}"
+        )
+    return detached._status(detached_root)
+
+
+def _status_adaptive(plan: dict[str, Any]) -> dict[str, Any]:
+    detached_root = stage_detached_root(plan)
     if not detached_root.exists():
         return {"state": "not_launched", "terminal": False}
     return detached._status(detached_root)
@@ -345,6 +456,14 @@ def main(argv: list[str] | None = None) -> int:
                 payload = _status_canary(plan)
             elif args.action == "adjudicate-canary":
                 payload = _adjudicate_canary(plan, args.journal_key)
+            elif args.action == "launch-adaptive":
+                payload = _launch_adaptive(
+                    plan,
+                    args.journal_key,
+                    resume=args.resume,
+                )
+            elif args.action == "status-adaptive":
+                payload = _status_adaptive(plan)
             else:
                 events = (
                     read_authenticated_journal(

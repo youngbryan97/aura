@@ -884,6 +884,26 @@ def discover_exact_checkpoint(
     return binding
 
 
+def stage_adapter_root(plan: Mapping[str, Any], stage_index: int) -> Path:
+    if isinstance(stage_index, bool) or not isinstance(stage_index, int) or stage_index < 0:
+        _fail("stage_index_invalid")
+    run_root = Path(str(plan["paths"]["run_root"])).resolve(strict=True)
+    root = (run_root / "stages" / f"stage-{stage_index:04d}" / "adapter").resolve(
+        strict=False
+    )
+    if not _within(root, run_root):
+        _fail("stage_adapter_path_escape")
+    return root
+
+
+def stage_detached_root(plan: Mapping[str, Any]) -> Path:
+    run_root = Path(str(plan["paths"]["run_root"])).resolve(strict=True)
+    root = (run_root / "adaptive-execution" / "detached").resolve(strict=False)
+    if not _within(root, run_root):
+        _fail("stage_detached_path_escape")
+    return root
+
+
 def build_stage_command(
     plan: Mapping[str, Any],
     *,
@@ -942,9 +962,9 @@ def build_stage_command(
         "--grad-accumulation-steps",
         str(config.gradient_accumulation_steps),
         "--adapter-path",
-        str(plan["paths"]["adapter_root"]),
+        str(stage_adapter_root(plan, stage_index)),
         "--save-every",
-        str(config.save_every),
+        str(policy.iterations(stage_index)),
         "--max-seq-length",
         str(config.max_seq_length),
         "--grad-checkpoint",
@@ -1633,6 +1653,8 @@ __all__ = [
     "prepare_training_run",
     "read_authenticated_journal",
     "run_admission_callback",
+    "stage_adapter_root",
+    "stage_detached_root",
     "validate_candidate_descriptor",
     "validate_compact_kernel_receipt",
     "validate_stage_observation",

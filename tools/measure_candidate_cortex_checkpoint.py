@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import sys
 from collections.abc import Mapping, Sequence
@@ -618,6 +619,11 @@ def main(argv: list[str] | None = None) -> int:
             candidate_persona = _loss_rows(model, persona_tokens)
             candidate_retention = _loss_rows(model, retention_tokens)
             candidate_behavior = _behavior_rows(model, tokenizer)
+            del model, tokenizer
+            gc.collect()
+            import mlx.core as mx
+
+            mx.clear_cache()
 
         persona_rows = _pair_losses(baseline_persona, candidate_persona)
         retention_rows = _pair_losses(baseline_retention, candidate_retention)

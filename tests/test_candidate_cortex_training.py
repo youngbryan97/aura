@@ -257,7 +257,10 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
     assert command[command.index("--num-layers") + 1] == "48"
     assert command[command.index("--batch-size") + 1] == "2"
     assert command[command.index("--max-seq-length") + 1] == "8192"
-    assert command[command.index("--save-every") + 1] == "20"
+    assert command[command.index("--save-every") + 1] == "100"
+    assert command[command.index("--adapter-path") + 1] == str(
+        training.stage_adapter_root(plan, 0)
+    )
     assert command[command.index("--steps-per-eval") + 1] == "10"
     assert command[command.index("--steps-per-report") + 1] == "2"
     assert command[command.index("--grad-accumulation-steps") + 1] == "8"
@@ -282,6 +285,36 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
         },
     }
     assert command[command.index("--optimizer") + 1] == "adafactor"
+
+
+def test_stages_use_isolated_adapter_roots_and_cumulative_public_checkpoints(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    policy = training.StagePolicy(**plan["stages"])
+    canonical = Path(plan["paths"]["adapter_root"])
+    canonical.mkdir(exist_ok=True)
+    previous_path = canonical / "0000100_adapters.safetensors"
+    previous_path.write_bytes(b"stage-zero")
+    previous = training.discover_exact_checkpoint(
+        canonical,
+        expected_cumulative_iterations=policy.cumulative_iterations(0),
+    )
+
+    first = training.build_stage_command(
+        plan, stage_index=0, resume_checkpoint=None
+    )
+    second = training.build_stage_command(
+        plan, stage_index=1, resume_checkpoint=previous
+    )
+
+    assert first[first.index("--adapter-path") + 1] != second[
+        second.index("--adapter-path") + 1
+    ]
+    assert second[second.index("--iters") + 1] == "200"
+    assert second[second.index("--save-every") + 1] == "200"
+    assert second[second.index("--resume-adapter-file") + 1] == str(previous_path)
+    assert policy.cumulative_iterations(1) == 300
 
 
 def test_historical_v2_adam_plan_remains_verifiable(tmp_path: Path) -> None:
