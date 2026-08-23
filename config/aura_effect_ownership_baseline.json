@@ -5913,6 +5913,22 @@
       "scope": "<module>.BranchingFuturesSkill.execute"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/build_document.py",
+      "scope": "<module>.BuildDocumentSkill.execute"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/skills/build_document.py",
+      "scope": "<module>.BuildDocumentSkill.execute"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -14329,6 +14345,14 @@
       "scope": "<module>.OmniTool.spawn_daemon"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/diagnosis/repository.py",
+      "scope": "<module>._run"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_shell_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -15746,6 +15770,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "375feeec666a1f34405ca5ad5d3098be6592769a0c91dbc26f7bd02d6ad5283e",
+  "inventory_sha256": "2f46af6a1a4d3c972531f9bf82c8828cab99b7f72c32bf8701cd253e827d51e1",
   "schema_version": 1
 }

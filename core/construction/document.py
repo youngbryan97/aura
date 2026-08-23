@@ -420,3 +420,64 @@ def check_document(
     return DocumentCheck(
         not problems, len(document.sections), tuple(checks), tuple(dict.fromkeys(problems))
     )
+
+
+#: A heading, in the shapes prose uses for one.
+_HEADING_RE = re.compile(
+    r"^\s*(?:#{1,6}\s+(?P<hash>.+?)"
+    r"|(?:slide|section|part|chapter|page)\s*\d+\s*[:.\-]\s*(?P<numbered>.+?)"
+    r"|\*\*(?P<bold>[^*]{2,80})\*\*:?"
+    r"|(?P<colon>[A-Z][^.!?\n]{2,60}):)\s*$",
+    re.IGNORECASE,
+)
+
+#: A line belonging to the heading above it.
+_BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(?P<text>.+?)\s*$")
+
+
+def sections_from_prose(text: object) -> tuple[Section, ...]:
+    """Read the sections out of an answer that already contains them.
+
+    LIVE, 2026-08-22. Asked for a one-page report, the builder was offered and
+    the model wrote the report as prose instead of calling it. The prose was
+    then blocked for leaking internal state and the turn ended in an apology,
+    with the content it had written thrown away.
+
+    The same principle as taking a file out of a fenced block: the document is
+    in front of us. Headings are read in the shapes prose writes them —
+    markdown, "Slide 3:", a bold line, a short line ending in a colon — and
+    the lines under each belong to it.
+    """
+    body = str(text or "")
+    if not body.strip():
+        return ()
+    sections: list[Section] = []
+    title = ""
+    lines: list[str] = []
+
+    def close() -> None:
+        if title or lines:
+            sections.append(Section(title=title or (lines[0] if lines else ""),
+                                    lines=tuple(lines if title else lines[1:])))
+
+    for raw in body.splitlines():
+        heading = _HEADING_RE.match(raw)
+        if heading:
+            close()
+            found = heading.groupdict()
+            title = _text(
+                found.get("hash") or found.get("numbered") or found.get("bold")
+                or found.get("colon") or "",
+                120,
+            )
+            lines = []
+            continue
+        bullet = _BULLET_RE.match(raw)
+        if bullet:
+            lines.append(_text(bullet.group("text"), 240))
+            continue
+        stripped = raw.strip()
+        if stripped and title:
+            lines.append(_text(stripped, 240))
+    close()
+    return tuple(section for section in sections[:_MAX_SECTIONS] if section.title)

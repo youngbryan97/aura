@@ -19,6 +19,8 @@ paragraphs and bullets, rather than a second copy of the number words.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.construction.document import (
@@ -176,3 +178,60 @@ def test_the_reply_says_where_the_file_is():
     assert "/tmp/panel.html" in served
     assert served.index("/tmp/panel.html") < served.index("Here is what")
     scope.set_user_question("")
+
+
+def test_a_document_written_as_prose_is_still_written_to_disk(tmp_path):
+    """LIVE, 2026-08-22: asked for a one-page report, the builder was offered
+    and the model wrote the report as prose instead of calling it. The prose
+    was then blocked for leaking internal state and the turn ended in an
+    apology, with everything it had written thrown away.
+
+    Same principle as taking a file out of a fenced block, one level up: the
+    document is in front of us.
+    """
+    from core.conversation.requested_artifact import save_requested_artifact
+
+    reply = (
+        "Slide 1: What Broke\n"
+        "- trial_balance() returned 100.0 instead of 0.0\n"
+        "\n"
+        "Slide 2: Why\n"
+        "- every transfer posts an equal and opposite pair\n"
+        "\n"
+        "Slide 3: What I'd Change\n"
+        "- post opening balances against an equity account\n"
+    )
+    saved = save_requested_artifact(
+        "put together a short report on what you found. one page, not slides.",
+        reply,
+        root=tmp_path,
+    )
+    assert saved is not None
+    written = Path(saved.path).read_text(encoding="utf-8")
+    assert "What Broke" in written and "What I'd Change" in written
+    assert written.lstrip().lower().startswith("<!doctype html>")
+
+
+def test_conversation_is_not_deposited_on_disk(tmp_path):
+    """It writes only when a thing was asked for."""
+    from core.conversation.requested_artifact import save_requested_artifact
+
+    assert (
+        save_requested_artifact(
+            "what do you think about consciousness?",
+            "Section One:\n- a thought\n\nSection Two:\n- another\n",
+            root=tmp_path,
+        )
+        is None
+    )
+
+
+def test_one_section_is_not_a_document(tmp_path):
+    from core.conversation.requested_artifact import save_requested_artifact
+
+    assert (
+        save_requested_artifact(
+            "write me a report", "Findings:\n- only one thing\n", root=tmp_path
+        )
+        is None
+    )

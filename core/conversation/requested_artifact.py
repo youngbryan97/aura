@@ -97,6 +97,36 @@ def largest_document(reply: str) -> tuple[str, str]:
     return best_language, best_body
 
 
+def _document_from_prose(user_message: object, reply: object) -> str | None:
+    """A rendered document built from the sections the reply already has."""
+    try:
+        from core.construction.document import (
+            Document,
+            render_document,
+            sections_from_prose,
+        )
+        from core.skills.build_document import _form_wanted
+    except (ImportError, AttributeError):
+        return None
+    sections = sections_from_prose(reply)
+    if len(sections) < 2:
+        return None
+    words = [
+        word
+        for word in re.findall(r"[A-Za-z][A-Za-z'-]*", str(user_message or ""))
+        if len(word) > 2
+    ]
+    document = Document(
+        title=" ".join(words[:6]).capitalize() or "Document", sections=sections
+    )
+    if document.problems():
+        return None
+    try:
+        return render_document(document, form=_form_wanted("", user_message))
+    except (ValueError, TypeError):
+        return None
+
+
 def save_requested_artifact(
     user_message: str, reply: str, *, root: Path | None = None
 ) -> SavedArtifact | None:
@@ -107,16 +137,28 @@ def save_requested_artifact(
     it is.
     """
     try:
-        from core.runtime.desktop_objective_intent import asks_to_build_software
+        from core.intent.artifact_request import asks_for_an_artifact
 
-        if not asks_to_build_software(str(user_message or "")):
+        if not asks_for_an_artifact(str(user_message or "")):
             return None
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
         return None
 
     language, body = largest_document(reply)
     if len(body) < _MIN_DOCUMENT_CHARS:
-        return None
+        # No fenced block, but a document may still be in front of us.
+        #
+        # LIVE, 2026-08-22: asked for a one-page report, the builder was
+        # offered and the model wrote the report as prose instead of calling
+        # it. The prose was blocked for leaking internal state and the turn
+        # ended in an apology, with everything it had written thrown away.
+        #
+        # Same principle as the fenced block, one level up: take the document
+        # out of the answer she already gave.
+        laid_out = _document_from_prose(user_message, reply)
+        if laid_out is None:
+            return None
+        language, body = "html", laid_out
 
     try:
         from core.config import config
@@ -166,16 +208,28 @@ async def save_requested_artifact_async(
 ) -> SavedArtifact | None:
     """Event-loop-safe counterpart used by the live chat delivery path."""
     try:
-        from core.runtime.desktop_objective_intent import asks_to_build_software
+        from core.intent.artifact_request import asks_for_an_artifact
 
-        if not asks_to_build_software(str(user_message or "")):
+        if not asks_for_an_artifact(str(user_message or "")):
             return None
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
         return None
 
     language, body = largest_document(reply)
     if len(body) < _MIN_DOCUMENT_CHARS:
-        return None
+        # No fenced block, but a document may still be in front of us.
+        #
+        # LIVE, 2026-08-22: asked for a one-page report, the builder was
+        # offered and the model wrote the report as prose instead of calling
+        # it. The prose was blocked for leaking internal state and the turn
+        # ended in an apology, with everything it had written thrown away.
+        #
+        # Same principle as the fenced block, one level up: take the document
+        # out of the answer she already gave.
+        laid_out = _document_from_prose(user_message, reply)
+        if laid_out is None:
+            return None
+        language, body = "html", laid_out
 
     try:
         from core.config import config
