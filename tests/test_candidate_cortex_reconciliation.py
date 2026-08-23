@@ -138,15 +138,12 @@ def _fixture() -> tuple[dict, dict, dict, dict]:
 
 def test_preserved_measurement_reconciliation_corrects_only_the_grader(tmp_path: Path) -> None:
     plan, detail, evidence, prior = _fixture()
-    source = tmp_path / "evaluator.py"
-    source.write_text("corrected evaluator\n", encoding="utf-8")
     result = reconcile_preserved_measurement(
         plan=plan,
         stage_index=0,
         detail=detail,
         original_evidence=evidence,
         prior_admission=prior,
-        evaluator_source_path=source,
     )
     assert result["schema"] == STAGE_RECONCILIATION_SCHEMA
     assert result["admission"]["regressions"] == 0
@@ -196,16 +193,12 @@ def test_v2_reconciliation_preserves_exact_baseline_generation_binding(
     )
     detail = {**detail_body, "detail_sha256": document_sha256(detail_body)}
     prior = adjudicate_checkpoint_evidence(evidence, plan=plan, stage_index=0)
-    source = tmp_path / "evaluator.py"
-    source.write_text("corrected evaluator\n", encoding="utf-8")
-
     result = reconcile_preserved_measurement(
         plan=plan,
         stage_index=0,
         detail=detail,
         original_evidence=evidence,
         prior_admission=prior,
-        evaluator_source_path=source,
     )
 
     assert result["corrected_evidence"]["measurement_contract_sha256"] == "7" * 64
@@ -214,15 +207,12 @@ def test_v2_reconciliation_preserves_exact_baseline_generation_binding(
 
 def test_effective_stage_evidence_applies_bound_reconciliation(tmp_path: Path) -> None:
     plan, detail, evidence, prior = _fixture()
-    source = tmp_path / "evaluator.py"
-    source.write_text("corrected evaluator\n", encoding="utf-8")
     result = reconcile_preserved_measurement(
         plan=plan,
         stage_index=0,
         detail=detail,
         original_evidence=evidence,
         prior_admission=prior,
-        evaluator_source_path=source,
     )
     event_keys = {
         "schema",

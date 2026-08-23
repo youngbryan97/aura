@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any, Final
 
 from core.learning.candidate_cortex_admission import adjudicate_checkpoint_evidence
@@ -12,9 +11,9 @@ from core.learning.candidate_cortex_measurement import compile_checkpoint_eviden
 from core.learning.candidate_cortex_training import (
     STAGE_RECONCILIATION_SCHEMA,
     document_sha256,
-    file_sha256,
 )
 from core.learning.recurrent_sft_behavior_canaries import (
+    behavior_evaluator_source_sha256,
     build_generated_behavior_canaries,
     grade_generated_behavior_text,
 )
@@ -180,7 +179,6 @@ def reconcile_preserved_measurement(
     detail: Mapping[str, Any],
     original_evidence: Mapping[str, Any],
     prior_admission: Mapping[str, Any],
-    evaluator_source_path: Path,
 ) -> dict[str, Any]:
     """Regrade exact preserved texts and bind the correction to old evidence."""
 
@@ -219,7 +217,7 @@ def reconcile_preserved_measurement(
     if rebuilt_original != dict(original_evidence):
         _fail("reconciliation_original_replay_mismatch")
 
-    evaluator_source_sha256 = file_sha256(evaluator_source_path.resolve(strict=True))
+    evaluator_source_sha256 = behavior_evaluator_source_sha256()
     baseline = _validated_behavior_rows(
         list(validated["baseline_behavior"]),
         evaluator_source_sha256=evaluator_source_sha256,

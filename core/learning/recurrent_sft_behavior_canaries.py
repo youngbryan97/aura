@@ -12,6 +12,7 @@ import hashlib
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, Final, Never
 
 from core.language.action_semantics import affirms_action, denies_action
@@ -97,6 +98,26 @@ def _tokens_sha256(tokens: Sequence[int]) -> str:
             allow_nan=False,
         ).encode("ascii")
     ).hexdigest()
+
+
+def behavior_evaluator_source_sha256() -> str:
+    """Hash every source file that can change a generated-behavior grade."""
+
+    import core.language.action_semantics as action_semantics
+    import core.language.proposition_semantics as proposition_semantics
+
+    paths = {
+        "action_semantics": action_semantics.__file__,
+        "behavior_canaries": __file__,
+        "proposition_semantics": proposition_semantics.__file__,
+    }
+    digests: dict[str, str] = {}
+    for name, raw_path in paths.items():
+        if not isinstance(raw_path, str):
+            _fail("recurrent_sft_behavior_canary_source_path_invalid")
+        path = Path(raw_path).resolve(strict=True)
+        digests[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return sha256_json(digests)
 
 
 def _case(
@@ -704,6 +725,7 @@ def generated_behavior_verdict(
 __all__ = [
     "BEHAVIOR_CANARY_SCHEMA",
     "RecurrentSFTBehaviorCanaryError",
+    "behavior_evaluator_source_sha256",
     "build_generated_behavior_canaries",
     "build_generated_behavior_generation_contract",
     "generated_behavior_verdict",

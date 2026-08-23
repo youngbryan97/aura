@@ -99,9 +99,6 @@ def main(argv: list[str] | None = None) -> int:
             detail=_strict_json(args.detail),
             original_evidence=_strict_json(args.evidence),
             prior_admission=admissions[args.stage_index],
-            evaluator_source_path=(
-                REPO_ROOT / "core" / "learning" / "recurrent_sft_behavior_canaries.py"
-            ),
         )
         event = _event(bundle)
         output = {

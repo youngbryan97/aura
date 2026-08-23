@@ -33,6 +33,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     load_and_verify_plan,
 )
 from core.learning.recurrent_sft_behavior_canaries import (  # noqa: E402
+    behavior_evaluator_source_sha256,
     build_generated_behavior_canaries,
     grade_generated_behavior_text,
 )
@@ -225,9 +226,7 @@ def _loss_rows(model: Any, tokenized: Sequence[Mapping[str, Any]]) -> list[dict[
 
 
 def _behavior_source_sha256() -> str:
-    import core.learning.recurrent_sft_behavior_canaries as canaries
-
-    return file_sha256(Path(canaries.__file__).resolve(strict=True))
+    return behavior_evaluator_source_sha256()
 
 
 def _measurement_contract_sha256(
