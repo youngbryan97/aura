@@ -22,6 +22,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     JOURNAL_FILE,
     CanaryPolicy,
     CandidateCortexTrainingError,
+    OptimizerConfig,
     StagePolicy,
     TrainingConfig,
     adjudicate_canary,
@@ -90,6 +91,10 @@ def _policy(args: argparse.Namespace) -> StagePolicy:
     )
 
 
+def _optimizer(args: argparse.Namespace) -> OptimizerConfig:
+    return OptimizerConfig(name=args.optimizer)
+
+
 def _canary_policy(args: argparse.Namespace) -> CanaryPolicy:
     return CanaryPolicy(
         optimizer_steps=args.canary_optimizer_steps,
@@ -125,6 +130,11 @@ def _add_plan_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--max-seq-length", type=int, default=defaults.max_seq_length)
     parser.add_argument("--learning-rate", type=float, default=defaults.learning_rate)
+    parser.add_argument(
+        "--optimizer",
+        choices=("adafactor", "adam"),
+        default=OptimizerConfig().name,
+    )
     parser.add_argument("--save-every", type=int, default=defaults.save_every)
     parser.add_argument("--eval-every", type=int, default=defaults.eval_every)
     parser.add_argument("--report-every", type=int, default=defaults.report_every)
@@ -319,6 +329,7 @@ def main(argv: list[str] | None = None) -> int:
                 python_executable=args.python,
                 admission_command=args.admission_command,
                 config=_config(args),
+                optimizer=_optimizer(args),
                 policy=_policy(args),
                 canary_policy=_canary_policy(args),
                 verify_full_model=True,

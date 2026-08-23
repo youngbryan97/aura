@@ -271,8 +271,47 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
             "scale": 12.0,
             "dropout": 0.1,
             "keys": ["self_attn.q_proj", "mlp.down_proj"],
-        }
+        },
+        "optimizer": "adafactor",
+        "optimizer_config": {
+            "adafactor": {
+                "relative_step": False,
+                "scale_parameter": False,
+                "beta_1": None,
+            }
+        },
     }
+    assert command[command.index("--optimizer") + 1] == "adafactor"
+
+
+def test_historical_v2_adam_plan_remains_verifiable(tmp_path: Path) -> None:
+    plan = _plan(
+        tmp_path,
+        optimizer=training.OptimizerConfig(name="adam"),
+    )
+    root = Path(plan["paths"]["run_root"])
+    plan_path = root / training.PLAN_FILE
+    identity_path = root / training.IDENTITY_FILE
+    config_path = root / training.CONFIG_FILE
+
+    historical = json.loads(plan_path.read_text())
+    historical.pop("plan_sha256")
+    historical["schema"] = training.PLAN_SCHEMA_V2
+    historical.pop("optimizer")
+    historical["plan_sha256"] = training.document_sha256(historical)
+    _write_json(plan_path, historical)
+
+    identity = json.loads(identity_path.read_text())
+    identity.pop("optimizer_identity_sha256")
+    _write_json(identity_path, identity)
+    _write_json(
+        config_path,
+        {"lora_parameters": json.loads(config_path.read_text())["lora_parameters"]},
+    )
+
+    verified = training.load_and_verify_plan(root, verify_full_model=False)
+    command = training.build_canary_command(verified)
+    assert command[command.index("--optimizer") + 1] == "adam"
 
 
 def test_venv_launcher_and_environment_are_preserved_and_reverified(

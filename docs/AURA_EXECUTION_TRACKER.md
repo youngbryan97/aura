@@ -51975,3 +51975,36 @@ and diff hygiene pass. The independent CP915 resource canary remains detached
 and source-stable while this checkpoint advances `main`. Next: finish and
 adjudicate that canary, then add the exclusive-lane measurement target which
 produces these exact checkpoint evidence surfaces during adaptive stages.
+
+## Checkpoint 2026-08-23-917: Factor Optimizer State Instead of Removing Tissue
+
+Two source-bound ten-update canaries proved that broad candidate training learns
+but that reducing LoRA rank does not remove the dominant memory cost. Neither
+rejected run is a promotion artifact.
+
+- Rank 32 across all 64 layers and twelve attention, linear-attention and MLP
+  projection families reduced validation loss from `2.850` to `1.273`, but its
+  minimum host availability was `3.415 GiB`, below the `4 GiB` admission floor.
+- Rank 16 preserved the same layer and projection coverage and reduced
+  validation loss from `2.850` to `1.291`. It completed in 521 seconds with
+  zero restarts and an empty process lineage, but still reached `34.580 GB`
+  peak MLX and only `3.664 GiB` minimum host availability. Adjudication again
+  rejected only `host_headroom_within_bound`.
+- The surviving cost is Adam's full first- and second-moment state, not the
+  adapter tensor alone. New v3 plans therefore use fixed-rate Adafactor with a
+  factored second moment and no first moment while restoring rank 32 and the
+  complete projection surface. The optimizer name and exact state policy are
+  part of plan, adapter and MLX configuration identity.
+- Historical v2 plans remain independently verifiable as Adam plans. A new
+  optimizer policy cannot retroactively reinterpret either rejected canary.
+- A separate measurement compiler now aggregates additive per-example
+  negative log likelihood into token-weighted persona and retention surfaces
+  and canonical deterministic behavior rows. Duplicate samples/probes,
+  non-finite values and incoherent token evidence are rejected before the
+  model-free CP916 admission boundary.
+
+The focused training, measurement and admission contracts pass `29/29`; Ruff
+and compilation pass. Next: run one rank-32 factored-state canary. A pass
+authorizes the adaptive executor and exact base-versus-checkpoint measurement
+lane; a failure changes the training-state architecture again rather than
+lowering the resource threshold or shortening Aura's reasoning surface.

@@ -31,7 +31,8 @@ from core.learning.candidate_cortex_kernel import (
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.file_write_gateway import get_file_write_gateway
 
-PLAN_SCHEMA: Final = "aura.candidate_cortex_training.plan.v2"
+PLAN_SCHEMA_V2: Final = "aura.candidate_cortex_training.plan.v2"
+PLAN_SCHEMA: Final = "aura.candidate_cortex_training.plan.v3"
 DATASET_SCHEMA: Final = KERNEL_RECEIPT_SCHEMA
 JOURNAL_EVENT_SCHEMA: Final = "aura.candidate_cortex_training.journal_event.v1"
 OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.stage_observation.v1"
@@ -317,6 +318,35 @@ class TrainingConfig:
 
 
 @dataclass(frozen=True)
+class OptimizerConfig:
+    """Optimizer-state policy bound into the training identity.
+
+    Adafactor is deliberately fixed-rate here. Its factored second moment
+    preserves per-matrix adaptation without Adam's two full-size moment
+    tensors, which dominate host memory for a broad LoRA surface.
+    """
+
+    name: str = "adafactor"
+    relative_step: bool = False
+    scale_parameter: bool = False
+    beta_1: float | None = None
+
+    def validate(self) -> None:
+        if self.name not in {"adam", "adafactor"}:
+            _fail("optimizer_invalid")
+        if self.name == "adam" and (
+            self.relative_step is not False
+            or self.scale_parameter is not False
+            or self.beta_1 is not None
+        ):
+            _fail("adam_optimizer_config_invalid")
+        if self.beta_1 is not None and (
+            not math.isfinite(self.beta_1) or not 0 <= self.beta_1 < 1
+        ):
+            _fail("optimizer_beta_1_invalid")
+
+
+@dataclass(frozen=True)
 class StagePolicy:
     """Bounded geometric schedule and evidence thresholds."""
 
@@ -474,8 +504,11 @@ def validate_compact_kernel_receipt(
     }
 
 
-def _training_config_document(config: TrainingConfig) -> dict[str, Any]:
-    return {
+def _training_config_document(
+    config: TrainingConfig,
+    optimizer: OptimizerConfig | None = None,
+) -> dict[str, Any]:
+    document: dict[str, Any] = {
         "lora_parameters": {
             "rank": config.rank,
             "scale": config.scale,
@@ -483,6 +516,22 @@ def _training_config_document(config: TrainingConfig) -> dict[str, Any]:
             "keys": list(config.targets),
         }
     }
+    if optimizer is not None:
+        optimizer.validate()
+        parameters: dict[str, Any] = {}
+        if optimizer.name == "adafactor":
+            parameters = {
+                "relative_step": optimizer.relative_step,
+                "scale_parameter": optimizer.scale_parameter,
+                "beta_1": optimizer.beta_1,
+            }
+        document.update(
+            {
+                "optimizer": optimizer.name,
+                "optimizer_config": {optimizer.name: parameters},
+            }
+        )
+    return document
 
 
 def _admission_command_identity(command: Sequence[str]) -> dict[str, Any]:
@@ -516,6 +565,7 @@ def prepare_training_run(
     python_executable: Path,
     admission_command: Sequence[str],
     config: TrainingConfig | None = None,
+    optimizer: OptimizerConfig | None = None,
     policy: StagePolicy | None = None,
     canary_policy: CanaryPolicy | None = None,
     verify_full_model: bool = True,
@@ -523,9 +573,11 @@ def prepare_training_run(
     """Validate immutable inputs and publish one content-addressed plan."""
 
     config = config or TrainingConfig()
+    optimizer = optimizer or OptimizerConfig()
     policy = policy or StagePolicy()
     canary_policy = canary_policy or CanaryPolicy()
     config.validate()
+    optimizer.validate()
     policy.validate()
     canary_policy.validate()
     descriptor, model_root = validate_candidate_descriptor(
@@ -544,6 +596,7 @@ def prepare_training_run(
         "model_descriptor_sha256": expected_descriptor_sha256,
         "dataset_receipt_sha256": dataset["receipt_sha256"],
         "training": asdict(config),
+        "optimizer": asdict(optimizer),
         "stages": asdict(policy),
         "canary": asdict(canary_policy),
         "python": python_binding,
@@ -591,6 +644,7 @@ def prepare_training_run(
             "outputs": dataset["outputs"],
         },
         "training": asdict(config),
+        "optimizer": asdict(optimizer),
         "stages": asdict(policy),
         "canary": asdict(canary_policy),
         "python": str(python),
@@ -616,10 +670,11 @@ def prepare_training_run(
         "model_descriptor_sha256": expected_descriptor_sha256,
         "dataset_receipt_sha256": dataset["receipt_sha256"],
         "training_identity_sha256": document_sha256(asdict(config)),
+        "optimizer_identity_sha256": document_sha256(asdict(optimizer)),
         "stage_policy_sha256": document_sha256(asdict(policy)),
         "canary_policy_sha256": document_sha256(asdict(canary_policy)),
     }
-    mlx_config = _training_config_document(config)
+    mlx_config = _training_config_document(config, optimizer)
     lock_path = run_root.parent / LOCK_FILE
     with interprocess_file_lock(lock_path):
         for path, payload, conflict in (
@@ -648,7 +703,8 @@ def load_and_verify_plan(
     plan = _strict_json(root / PLAN_FILE, role="training_plan")
     material = dict(plan)
     claimed = material.pop("plan_sha256", None)
-    if plan.get("schema") != PLAN_SCHEMA or not _is_sha256(claimed):
+    schema = plan.get("schema")
+    if schema not in {PLAN_SCHEMA_V2, PLAN_SCHEMA} or not _is_sha256(claimed):
         _fail("training_plan_schema_invalid")
     if claimed != document_sha256(material):
         _fail("training_plan_digest_invalid")
@@ -703,12 +759,21 @@ def load_and_verify_plan(
     if verified_dataset.get("receipt_sha256") != dataset.get("receipt_sha256"):
         _fail("training_dataset_receipt_drift")
     config = TrainingConfig(**plan["training"])
+    optimizer = (
+        OptimizerConfig(**plan["optimizer"])
+        if schema == PLAN_SCHEMA
+        else None
+    )
     policy = StagePolicy(**plan["stages"])
     canary_policy = CanaryPolicy(**plan["canary"])
     config.validate()
+    if optimizer is not None:
+        optimizer.validate()
     policy.validate()
     canary_policy.validate()
-    if _strict_json(root / CONFIG_FILE, role="mlx_config") != _training_config_document(config):
+    if _strict_json(root / CONFIG_FILE, role="mlx_config") != _training_config_document(
+        config, optimizer
+    ):
         _fail("mlx_config_drift")
     expected_identity = {
         "schema": ADAPTER_IDENTITY_SCHEMA,
@@ -719,6 +784,10 @@ def load_and_verify_plan(
         "stage_policy_sha256": document_sha256(asdict(policy)),
         "canary_policy_sha256": document_sha256(asdict(canary_policy)),
     }
+    if optimizer is not None:
+        expected_identity["optimizer_identity_sha256"] = document_sha256(
+            asdict(optimizer)
+        )
     if _strict_json(root / IDENTITY_FILE, role="adapter_identity") != expected_identity:
         _fail("adapter_identity_mismatch")
     return plan
@@ -822,8 +891,10 @@ def build_stage_command(
     resume_checkpoint: Mapping[str, Any] | None,
 ) -> tuple[str, ...]:
     config = TrainingConfig(**dict(plan["training"]))
+    optimizer = OptimizerConfig(**dict(plan.get("optimizer") or {"name": "adam"}))
     policy = StagePolicy(**dict(plan["stages"]))
     config.validate()
+    optimizer.validate()
     policy.validate()
     if stage_index == 0 and resume_checkpoint is not None:
         _fail("initial_stage_resume_forbidden")
@@ -849,6 +920,8 @@ def build_stage_command(
         str(plan["dataset"]["data_root"]),
         "--fine-tune-type",
         "lora",
+        "--optimizer",
+        optimizer.name,
         "--mask-prompt",
         "-c",
         str(plan["paths"]["mlx_config"]),
@@ -913,8 +986,10 @@ def build_canary_command(plan: Mapping[str, Any]) -> tuple[str, ...]:
     """Build the production-shaped canary command bound by ``plan``."""
 
     config = TrainingConfig(**dict(plan["training"]))
+    optimizer = OptimizerConfig(**dict(plan.get("optimizer") or {"name": "adam"}))
     policy = CanaryPolicy(**dict(plan["canary"]))
     config.validate()
+    optimizer.validate()
     policy.validate()
     checkpoint_iteration = canary_checkpoint_iteration(config, policy)
     validation_interval = (
@@ -932,6 +1007,8 @@ def build_canary_command(plan: Mapping[str, Any]) -> tuple[str, ...]:
         str(plan["dataset"]["data_root"]),
         "--fine-tune-type",
         "lora",
+        "--optimizer",
+        optimizer.name,
         "--mask-prompt",
         "-c",
         str(plan["paths"]["mlx_config"]),
@@ -1532,8 +1609,10 @@ __all__ = [
     "IDENTITY_FILE",
     "JOURNAL_FILE",
     "OBSERVATION_SCHEMA",
+    "OptimizerConfig",
     "PLAN_FILE",
     "PLAN_SCHEMA",
+    "PLAN_SCHEMA_V2",
     "StagePolicy",
     "TrainingConfig",
     "append_authenticated_event",
