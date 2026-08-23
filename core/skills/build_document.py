@@ -79,10 +79,16 @@ class BuildDocumentSkill(BaseSkill):
         )
         from core.runtime.payload_values import payload_path
 
+        # What the PERSON asked for, not what the model echoed back, read
+        # before anything is decided from it.
+        from core.conversation.session_scope import the_persons_own_words
+
+        asked = the_persons_own_words(params.request)
         entries = list(params.sections) or list(params.slides) or list(params.slide_contents)
         document = document_from_plan(
-            {"title": params.title, "subtitle": params.subtitle, "sections": entries},
-            params.request,
+            {"title": _title_worth_using(params.title, asked), "subtitle": params.subtitle,
+             "sections": entries},
+            asked,
         )
         problems = document.problems()
         if problems:
@@ -93,15 +99,6 @@ class BuildDocumentSkill(BaseSkill):
                 "summary": f"Could not build it: {'; '.join(problems)}.",
             }
 
-        # What the PERSON asked for, not what the model echoed back.
-        #
-        # LIVE, 2026-08-22: asked for six slides, the skill received
-        # request="present system funders" — the model's own paraphrase — so
-        # the count reader found nothing, the check had nothing to enforce,
-        # and a three-section deck was built and reported as finished.
-        from core.conversation.session_scope import the_persons_own_words
-
-        asked = the_persons_own_words(params.request)
         form = _form_wanted(params.form, asked)
         wanted = _sections_asked_for(asked)
         html = render_document(document, form=form)
@@ -191,6 +188,42 @@ _FORM_WORDS = {
         "document", "page",
     ),
 }
+
+
+def _title_worth_using(given: object, asked: object) -> str:
+    """A title naming the subject, whoever proposed it.
+
+    LIVE, 2026-08-22: the model titled a deck "Present you funding panel
+    minutes six" — the request's words in the order it found them. A title is
+    what the document is about, and the same extraction that rescues one from
+    a request rescues one from a restatement of it.
+    """
+    from core.construction.document import title_from_request
+
+    proposed = " ".join(str(given or "").split())
+    if not proposed:
+        return title_from_request(asked)
+    # A proposal that reads like the asking rather than the subject is
+    # replaced by what the asking is about. Two ways it gives itself away:
+    # something can be stripped from it, or it still carries the count and the
+    # verb that were about HOW to answer.
+    cleaned = title_from_request(proposed)
+    if cleaned and cleaned.lower() != proposed.lower():
+        return cleaned
+    if _READS_LIKE_THE_ASKING.search(proposed):
+        from_request = title_from_request(asked)
+        if from_request and from_request != "Document":
+            return from_request
+    return proposed
+
+
+#: A count or a verb about answering, left inside a title.
+_READS_LIKE_THE_ASKING = re.compile(
+    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\b"
+    r"|\b(?:present|presenting|write|writing|make|making|build|building|draft|"
+    r"drafting|produce|prepare|give|show)\b",
+    re.IGNORECASE,
+)
 
 
 def _sections_asked_for(request: object) -> int:

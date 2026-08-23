@@ -254,7 +254,7 @@ def test_a_page_is_a_shape_not_a_count():
 def test_the_title_names_the_subject_not_the_asking():
     """LIVE, 2026-08-22: "put together a short report on what you found in
     that ledger project" became "Put together short report what you"."""
-    from core.conversation.requested_artifact import _title_from_request
+    from core.construction.document import title_from_request as _title_from_request
 
     assert (
         _title_from_request("put together a short report on what you found in that ledger project")
@@ -319,3 +319,40 @@ def test_a_document_that_cannot_be_built_still_fails():
     out = asyncio.run(BuildDocumentSkill().execute({"title": "", "sections": []}))
     assert out["ok"] is False
     assert "Could not build it" in out["summary"]
+
+
+def test_a_title_that_reads_like_the_asking_is_replaced() -> None:
+    """LIVE, 2026-08-22: a deck titled "Present you funding panel minutes six".
+
+    The model handed back the request's own words in the order it found them.
+    A title names what the document is about, so a proposal still carrying the
+    count and the verb about answering gives way to the subject.
+    """
+    from core.skills.build_document import _title_worth_using
+
+    asked = (
+        "I have to present you to a funding panel in 10 minutes. "
+        "Six slides, no fluff: what you are, what you can actually do today"
+    )
+    assert _title_worth_using("Present you funding panel minutes six", asked) == "What you are"
+    # A title that names a subject is left alone, whoever wrote it.
+    assert _title_worth_using("Aura Luna for Funders", asked) == "Aura Luna for Funders"
+    assert _title_worth_using("Q3 Numbers", "4 slides on the Q3 numbers") == "Q3 Numbers"
+    # With nothing proposed, the request supplies one.
+    assert _title_worth_using("", "write me a one-pager about the API migration") == (
+        "The API migration"
+    )
+
+
+def test_the_subject_after_a_colon_beats_the_speakers_situation() -> None:
+    """"Six slides, no fluff: what you are" states the shape, then the subject."""
+    from core.construction.document import title_from_request
+
+    assert title_from_request(
+        "I have to present you to a funding panel in 10 minutes. "
+        "Six slides, no fluff: what you are, what you can actually do today"
+    ) == "What you are"
+    # With no colon, the request itself is the subject.
+    assert title_from_request(
+        "put together a short report on what you found in that ledger project"
+    ) == "What you found in that ledger project"

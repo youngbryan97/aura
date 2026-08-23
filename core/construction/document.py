@@ -481,3 +481,70 @@ def sections_from_prose(text: object) -> tuple[Section, ...]:
             lines.append(_text(stripped, 240))
     close()
     return tuple(section for section in sections[:_MAX_SECTIONS] if section.title)
+
+
+#: What somebody says before saying what they want.
+_ASKING_PREAMBLE = re.compile(
+    r"^\s*(?:please\s+)?(?:can\s+you\s+|could\s+you\s+|would\s+you\s+|i(?:'d)?\s+"
+    r"(?:want|need|like)\s+(?:you\s+to\s+)?)?"
+    r"(?:put\s+together|write|make|build|create|draft|prepare|produce|generate|"
+    r"give\s+me|send\s+me|knock\s+up)\s+"
+    r"(?:me\s+)?(?:a|an|the|some)?\s*",
+    re.IGNORECASE,
+)
+
+#: The shape words, which name the form rather than the subject.
+_SHAPE_WORDS = re.compile(
+    r"\b(?:short|quick|brief|one[\s-]?page|onepager|one[\s-]?pager|deck|slides?|"
+    r"presentation|report|memo|summary|document|doc|write[\s-]?up)\b",
+    re.IGNORECASE,
+)
+
+
+#: Numbers, spelled or written, that answer "how many" rather than "what".
+_COUNT_WORDS_IN_A_TITLE = frozenset(
+    {
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+        "ten", "eleven", "twelve",
+        *(str(number) for number in range(1, 51)),
+    }
+)
+
+
+def title_from_request(user_message: object) -> str:
+    """A title naming what the document is about, not how it was asked for.
+
+    LIVE, 2026-08-22: "put together a short report on what you found in that
+    ledger project" became "Put together short report what you" — the first
+    six words of the asking, with the subject cut off.
+    """
+    text = str(user_message or "").strip()
+    if not text:
+        return "Document"
+    first = text.split("\n", 1)[0]
+    # "Six slides, no fluff: what you are" says how many before it says what
+    # about, so the subject can sit after the colon rather than before it.
+    # "Six slides, no fluff: what you are" says the shape before the subject,
+    # so what follows a colon is tried first. Without that, the panel request
+    # titled as "I have to present you to a" — the speaker's situation rather
+    # than what the document is about.
+    for candidate in (*first.split(":")[1:], first):
+        body = _ASKING_PREAMBLE.sub("", candidate)
+        body = _SHAPE_WORDS.sub(" ", body)
+        body = re.split(r"[—–:;,.]|\s-\s| but | and then ", body)[0]
+        body = re.sub(
+            r"^\s*(?:on|about|for|of|no|just)\s+", "", body.strip(), flags=re.IGNORECASE
+        )
+        words = [word for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]*", body) if word]
+        # A bare count is how many, not what about, and the preposition it
+        # was hiding goes with it.
+        while words and (
+            words[0].lower() in _COUNT_WORDS_IN_A_TITLE
+            or words[0].lower() in {"on", "about", "for", "of", "no", "just"}
+        ):
+            words = words[1:]
+        if len(words) >= 2:
+            # Only the first letter, so Q3 and API survive.
+            phrase = " ".join(words[:7]).strip()
+            return phrase[:1].upper() + phrase[1:]
+    return "Document"
