@@ -60,6 +60,9 @@ SEGMENTED_STAGE_COMPLETION_SCHEMA = (
 SEGMENT_COMPLETION_SCHEMA = "aura.candidate_cortex_training.segment_completion.v1"
 PHASE_BOUNDARY_SCHEMA = "aura.candidate_cortex_training.phase_boundary.v1"
 MAX_QWEN_HYBRID_SEGMENT_ITERATIONS = 48
+ADAPTER_LOAD_CONTRACT_FIELDS = frozenset(
+    {"fine_tune_type", "num_layers", "lora_parameters"}
+)
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,29 @@ def _strict_document(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CandidateCortexTrainingError("adaptive_document_invalid")
     return value
+
+
+def _adapter_load_contract(path: Path) -> dict[str, Any]:
+    """Return exactly the adapter fields consumed by ``mlx_lm`` at load time."""
+
+    document = _strict_document(path)
+    fine_tune_type = document.get("fine_tune_type")
+    num_layers = document.get("num_layers")
+    lora_parameters = document.get("lora_parameters")
+    if (
+        not ADAPTER_LOAD_CONTRACT_FIELDS.issubset(document)
+        or fine_tune_type not in {"lora", "dora"}
+        or isinstance(num_layers, bool)
+        or not isinstance(num_layers, int)
+        or not isinstance(lora_parameters, Mapping)
+        or not lora_parameters
+    ):
+        raise CandidateCortexTrainingError("adapter_load_contract_invalid")
+    return {
+        "fine_tune_type": fine_tune_type,
+        "num_layers": num_layers,
+        "lora_parameters": dict(lora_parameters),
+    }
 
 
 def _write_once(path: Path, value: Mapping[str, Any], *, source: str) -> None:
@@ -736,8 +762,13 @@ def _publish_checkpoint(
     ):
         gateway = get_file_write_gateway()
         if destination.exists() or destination.is_symlink():
-            raise CandidateCortexTrainingError("stage_checkpoint_conflict")
-        if segment_completions is None:
+            if (
+                destination.is_symlink()
+                or not destination.is_file()
+                or file_sha256(destination) != local["sha256"]
+            ):
+                raise CandidateCortexTrainingError("stage_checkpoint_conflict")
+        elif segment_completions is None:
             gateway.move_path(
                 Path(str(local["path"])),
                 destination,
@@ -749,21 +780,24 @@ def _publish_checkpoint(
                 destination,
                 source="candidate_cortex_adaptive.publish_stage",
             )
+        canonical_config = canonical_root / "adapter_config.json"
         config_created = gateway.write_bytes_if_absent(
-            canonical_root / "adapter_config.json",
+            canonical_config,
             config_payload,
             mode=0o600,
             source="candidate_cortex_adaptive.publish_stage",
         )
         if (
             not config_created
-            and (canonical_root / "adapter_config.json").read_bytes() != config_payload
+            and _adapter_load_contract(canonical_config)
+            != _adapter_load_contract(source_config)
         ):
             raise CandidateCortexTrainingError("stage_adapter_config_conflict")
-        gateway.delete_file(
-            alias,
-            source="candidate_cortex_adaptive.publish_stage",
-        )
+        if alias.exists() or alias.is_symlink():
+            gateway.delete_file(
+                alias,
+                source="candidate_cortex_adaptive.publish_stage",
+            )
     checkpoint = discover_exact_checkpoint(
         canonical_root,
         expected_cumulative_iterations=policy.cumulative_iterations(stage_index),
@@ -880,6 +914,14 @@ def _train_next_segment(
         if completion is None:
             break
         completed.append(completion)
+    if len(completed) == len(segments):
+        return _publish_completed_segmented_stage(
+            plan,
+            stage_index,
+            stage_resume_checkpoint,
+            segments,
+            completed,
+        )
     if not completed:
         segment_root = _stage_parent(plan, stage_index) / "segments"
         if not segment_root.exists():
@@ -951,6 +993,24 @@ def _train_next_segment(
     completed.append(segment_completion)
     if len(completed) < len(segments):
         return None
+    return _publish_completed_segmented_stage(
+        plan,
+        stage_index,
+        stage_resume_checkpoint,
+        segments,
+        completed,
+    )
+
+
+def _publish_completed_segmented_stage(
+    plan: Mapping[str, Any],
+    stage_index: int,
+    stage_resume_checkpoint: Mapping[str, Any] | None,
+    segments: tuple[StageSegment, ...],
+    completed: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    if not segments or len(completed) != len(segments):
+        raise CandidateCortexTrainingError("stage_segments_incomplete")
     aggregate = {
         "sample_count": sum(
             int(item["host_metrics"]["sample_count"]) for item in completed
@@ -985,8 +1045,8 @@ def _train_next_segment(
             resume_checkpoint=stage_resume_checkpoint,
         ),
         aggregate,
-        local_root=_segment_adapter_root(plan, stage_index, segment.index),
-        local_iterations=segment.iterations,
+        local_root=_segment_adapter_root(plan, stage_index, segments[-1].index),
+        local_iterations=segments[-1].iterations,
         segment_completions=tuple(completed),
     )
 

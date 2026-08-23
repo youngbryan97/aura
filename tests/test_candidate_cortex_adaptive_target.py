@@ -341,6 +341,23 @@ def test_segmented_stage_publication_binds_every_durable_segment(
         "sha256": target.file_sha256(prior),
         "lines": 1,
     }
+    canonical_config = {
+        "fine_tune_type": "lora",
+        "num_layers": -1,
+        "lora_parameters": {
+            "dropout": 0.0,
+            "keys": ["self_attn.q_proj"],
+            "rank": 2,
+            "scale": 1.0,
+        },
+        "adapter_path": "prior-stage-output",
+        "iters": 100,
+        "resume_adapter_file": None,
+    }
+    canonical_config_path = (
+        Path(plan["paths"]["adapter_root"]) / "adapter_config.json"
+    )
+    canonical_config_path.write_text(json.dumps(canonical_config), encoding="utf-8")
     completions = []
     for segment in segments:
         root = target._segment_adapter_root(plan, 1, segment.index)
@@ -373,32 +390,75 @@ def test_segmented_stage_publication_binds_every_durable_segment(
                 1,
                 segment,
                 ("python", "-m", "mlx_lm", str(segment.index)),
-                {"sample_count": 1, "min_available_bytes": 100},
+                {
+                    "sample_count": 1,
+                    "min_available_bytes": 100,
+                    "max_used_percent": 10.0,
+                    "max_process_rss_bytes": 50,
+                    "duration_seconds": 1.0,
+                },
             )
         )
 
-    completion = target._publish_checkpoint(
-        plan,
-        1,
-        build_stage_command(
-            plan,
-            stage_index=1,
-            resume_checkpoint=prior_binding,
-        ),
-        {"sample_count": len(segments), "min_available_bytes": 100},
-        local_root=target._segment_adapter_root(plan, 1, segments[-1].index),
-        local_iterations=segments[-1].iterations,
-        segment_completions=tuple(completions),
+    destination = (
+        Path(plan["paths"]["adapter_root"])
+        / f"{StagePolicy(**plan['stages']).cumulative_iterations(1):07d}_adapters.safetensors"
     )
+    destination.write_bytes(payload)
 
+    completion = target._train_next_segment(plan, 1, prior_binding)
+
+    assert completion is not None
     assert completion["schema"] == target.SEGMENTED_STAGE_COMPLETION_SCHEMA
     assert target._validated_completion(plan, 1) == completion
+    assert json.loads(canonical_config_path.read_text()) == canonical_config
     final_optimizer = target._segment_optimizer_path(plan, 1, segments[-1].index)
     final_optimizer.write_bytes(b"tampered")
     with pytest.raises(
         target.CandidateCortexTrainingError, match="segment_artifact_drift"
     ):
         target._validated_completion(plan, 1)
+
+
+def test_adapter_load_contract_ignores_execution_metadata_not_tissue_geometry(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    contract = {
+        "fine_tune_type": "lora",
+        "num_layers": -1,
+        "lora_parameters": {
+            "dropout": 0.0,
+            "keys": ["self_attn.q_proj"],
+            "rank": 2,
+            "scale": 1.0,
+        },
+    }
+    first.write_text(
+        json.dumps({**contract, "iters": 100, "adapter_path": "stage-zero"}),
+        encoding="utf-8",
+    )
+    second.write_text(
+        json.dumps(
+            {
+                **contract,
+                "iters": 8,
+                "adapter_path": "segment-four",
+                "resume_adapter_file": "segment-three",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert target._adapter_load_contract(first) == target._adapter_load_contract(
+        second
+    )
+
+    changed = dict(contract)
+    changed["lora_parameters"] = {**contract["lora_parameters"], "rank": 4}
+    second.write_text(json.dumps(changed), encoding="utf-8")
+    assert target._adapter_load_contract(first) != target._adapter_load_contract(second)
 
 
 def test_phase_boundary_execs_bound_launcher_and_authenticates_restart(
