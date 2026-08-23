@@ -78,8 +78,14 @@ class BuildAppSkill(BaseSkill):
         )
 
         from core.construction.build_app_system import build_app
+        from core.conversation.session_scope import the_persons_own_words
 
-        result = await build_app(params.spec, out_dir=str(out_dir or root))
+        # The requirement is what the person asked for; `spec` is the model's
+        # restatement of it. Reading a requirement from a paraphrase is how a
+        # six-slide request became a three-section deck reported as finished.
+        result = await build_app(
+            the_persons_own_words(params.spec), out_dir=str(out_dir or root)
+        )
         payload = result.to_dict()
         if not result.ok:
             return {

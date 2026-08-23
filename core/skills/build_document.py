@@ -93,19 +93,37 @@ class BuildDocumentSkill(BaseSkill):
                 "summary": f"Could not build it: {'; '.join(problems)}.",
             }
 
-        form = _form_wanted(params.form, params.request)
-        wanted = _sections_asked_for(params.request)
+        # What the PERSON asked for, not what the model echoed back.
+        #
+        # LIVE, 2026-08-22: asked for six slides, the skill received
+        # request="present system funders" — the model's own paraphrase — so
+        # the count reader found nothing, the check had nothing to enforce,
+        # and a three-section deck was built and reported as finished.
+        from core.conversation.session_scope import the_persons_own_words
+
+        asked = the_persons_own_words(params.request)
+        form = _form_wanted(params.form, asked)
+        wanted = _sections_asked_for(asked)
         html = render_document(document, form=form)
         report = await asyncio.to_thread(
             check_document, document, html, wanted=wanted, form=form
         )
+        shortfall = ""
         if not report.ok:
-            return {
-                "ok": False,
-                "skill": self.name,
-                "error": "; ".join(report.problems),
-                "summary": f"Could not build it: {'; '.join(report.problems)}.",
-            }
+            # Fewer sections than asked for is worth saying, not worth
+            # withholding the document over: three slides in hand beat none.
+            missing = [
+                problem for problem in report.problems if "were asked for" in problem
+            ]
+            if missing and len(missing) == len(report.problems):
+                shortfall = " ".join(missing)
+            else:
+                return {
+                    "ok": False,
+                    "skill": self.name,
+                    "error": "; ".join(report.problems),
+                    "summary": f"Could not build it: {'; '.join(report.problems)}.",
+                }
 
         root = (Path(__file__).resolve().parents[2] / "artifacts" / "live_documents").resolve()
         out_dir = payload_path({"out_dir": params.out_dir}, "out_dir", root=root, default=root)
@@ -121,6 +139,7 @@ class BuildDocumentSkill(BaseSkill):
             f"Built a {report.sections}-section {form}, {document.title}, at {target}. "
             + "; ".join(report.checks)
             + "."
+            + (f" {shortfall.capitalize()}." if shortfall else "")
         )
         # A thing that exists is the answer to a request for it.
         #

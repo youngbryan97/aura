@@ -278,3 +278,44 @@ def test_a_shape_ruled_out_is_not_a_shape_asked_for():
     # Nothing ruled out, nothing changes.
     assert _form_wanted("", "six slides for the panel") == "deck"
     assert _form_wanted("", "write me a one-pager") == "page"
+
+
+def test_the_requirement_comes_from_the_person_not_the_paraphrase():
+    """LIVE, 2026-08-22: asked for six slides, the skill received
+    request="present system funders" — the model's own paraphrase — so the
+    count reader found nothing, the check had nothing to enforce, and a
+    three-section deck was reported as finished."""
+    import asyncio
+
+    from core.conversation.session_scope import set_user_question
+    from core.skills.build_document import BuildDocumentSkill
+
+    async def run() -> dict:
+        set_user_question("Six slides, no fluff: what you are, what you can do today.")
+        return await BuildDocumentSkill().execute(
+            {
+                "title": "Panel",
+                "request": "present system funders",
+                "sections": [
+                    {"title": f"Part {index}", "lines": [f"p{index}"]} for index in range(1, 4)
+                ],
+            }
+        )
+
+    out = asyncio.run(run())
+    # Three in hand beat none, and the shortfall is said out loud.
+    assert out["ok"] is True
+    assert out["sections"] == 3
+    assert "6 were asked for and 3" in out["summary"]
+    set_user_question("")
+
+
+def test_a_document_that_cannot_be_built_still_fails():
+    """The shortfall is not an excuse to ship anything at all."""
+    import asyncio
+
+    from core.skills.build_document import BuildDocumentSkill
+
+    out = asyncio.run(BuildDocumentSkill().execute({"title": "", "sections": []}))
+    assert out["ok"] is False
+    assert "Could not build it" in out["summary"]

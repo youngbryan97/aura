@@ -106,6 +106,7 @@ __all__ = [
     "normalize_conversation_id",
     "normalize_conversation_turn_id",
     "record_solved_answer",
+    "the_persons_own_words",
     "solved_answers",
 ]
 
@@ -171,3 +172,21 @@ def evidence_delivered() -> frozenset[str]:
 def current_user_question() -> str:
     """What this turn was asked, or empty outside a turn."""
     return str(user_question_var.get() or "")
+
+
+def the_persons_own_words(fallback: object = "") -> str:
+    """What the person asked, preferring their words over anything restated.
+
+    A skill's arguments are filled in by the model, so a requirement read from
+    them is read from a paraphrase. LIVE, 2026-08-22: asked for six slides,
+    the document builder received request="present system funders" and the
+    count reader found nothing, so the requirement went unchecked and a
+    three-section deck was reported as finished.
+
+    Any capability that reads a REQUIREMENT — how many, what shape, what must
+    be covered — should read it here. Values the model chose, like which path
+    to run or which URL to fetch, are properly its own and belong in the
+    arguments.
+    """
+    asked = current_user_question().strip()
+    return asked or str(fallback or "").strip()
