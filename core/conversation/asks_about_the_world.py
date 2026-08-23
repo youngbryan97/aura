@@ -26,6 +26,9 @@ from __future__ import annotations
 
 import re
 
+from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
+from core.language.model_features import model_hidden_features as _model_hidden_features
+
 __all__ = ["asks_for_sources", "asks_about_a_named_thing", "wants_outside_evidence"]
 
 #: Asking where something came from. An instruction, not a topic.
@@ -114,11 +117,63 @@ def asks_about_a_named_thing(message: object) -> bool:
     return bool(_names(text))
 
 
+#: Whether the answer has to come from outside her.
+#:
+#: The readers above are the floor. This is the mechanism: whether a question
+#: can be answered from memory is a judgement about meaning, and a list of
+#: fact-words will always be the list somebody thought of.
+_NEEDS_OUTSIDE = _LearnedMatcher(
+    name="wants_outside_evidence",
+    positives=(
+        "who founded Hugging Face?",
+        "tell me about Anthropic the company",
+        "what's the background on Cerebras",
+        "how big is Mistral these days",
+        "is that startup still going?",
+        "what did they announce last week",
+    ),
+    negatives=(
+        "how are you feeling today?",
+        "tell me about yourself",
+        "what is 7919 * 6367?",
+        "what do you think about consciousness?",
+        "what have you been working on lately?",
+        "read CONTRIBUTING.md and tell me the first rule",
+    ),
+    features=_model_hidden_features,
+)
+
+
 def wants_outside_evidence(message: object) -> bool:
-    """Whether this turn should not be answered from memory alone."""
+    """Whether this turn should not be answered from memory alone.
+
+    The readers settle what they can and teach the surface as they go, so
+    "is that startup still going?" can reach the same answer as "who founded
+    X" without anyone adding a word to a list.
+    """
     text = str(message or "")
     if not text.strip():
         return False
     if asks_for_sources(text):
+        _teach(text, True)
         return True
-    return asks_about_a_named_thing(text)
+    if asks_about_a_named_thing(text):
+        _teach(text, True)
+        return True
+    # A turn plainly about her, or about this machine, is settled the other
+    # way and is worth teaching too.
+    if _ABOUT_HER.search(text):
+        _teach(text, False)
+        return False
+    try:
+        learned = _NEEDS_OUTSIDE.decide_without_waiting(text)
+    except (RuntimeError, TypeError, ValueError):
+        learned = None
+    return bool(learned)
+
+
+def _teach(text: str, holds: bool) -> None:
+    try:
+        _NEEDS_OUTSIDE.observe(text, holds=holds)
+    except (RuntimeError, TypeError, ValueError):
+        pass

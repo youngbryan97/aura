@@ -23,6 +23,9 @@ from __future__ import annotations
 
 import re
 
+from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
+from core.language.model_features import model_hidden_features as _model_hidden_features
+
 __all__ = ["asks_for_an_artifact", "names_an_artifact"]
 
 #: Things a person asks to be given, that exist after the turn ends.
@@ -67,16 +70,37 @@ def names_an_artifact(message: object) -> bool:
     return bool(_ASKS_FOR.search(text) or _COUNTED_ARTIFACT.search(text))
 
 
-def asks_for_an_artifact(message: object) -> bool:
-    """Whether this turn asks for something to exist when it is over.
+#: Whether the person wants a thing or an answer.
+#:
+#: The words above are the floor. This is the mechanism: a judgement about
+#: what somebody meant belongs to the learned surface, and a list of nouns
+#: will always be a list of the nouns somebody thought of.
+_WANTS_A_THING = _LearnedMatcher(
+    name="artifact_request",
+    positives=(
+        "Six slides, no fluff: what you are and what you can do.",
+        "put together a short report on what you found",
+        "make me a deck for the funding panel",
+        "build me a little web app for tracking water",
+        "can you knock up something I can show them on Thursday",
+        "I need something I can send to the team by five",
+        "give me a checklist for the move",
+    ),
+    negatives=(
+        "what is a deck?",
+        "explain how slides work",
+        "how are you feeling today?",
+        "who founded Hugging Face?",
+        "tell me about Anthropic the company",
+        "what do you think about consciousness?",
+        "why is that test failing?",
+    ),
+    features=_model_hidden_features,
+)
 
-    Software is included, because building software is one way of producing a
-    thing; it is not the only way, which is what the narrower reader could not
-    say.
-    """
-    text = str(message or "")
-    if not text.strip():
-        return False
+
+def _floor_says(text: str) -> bool | None:
+    """What the words settle, or None when they settle nothing."""
     try:
         from core.runtime.desktop_objective_intent import asks_to_build_software
 
@@ -84,8 +108,38 @@ def asks_for_an_artifact(message: object) -> bool:
             return True
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
-    if not names_an_artifact(text):
+    if names_an_artifact(text):
+        # "What is a deck?" names one and asks for nothing.
+        opening = text.strip().split(".", 1)[0]
+        return not _ASKS_ABOUT.match(opening.strip())
+    if _ASKS_ABOUT.match(text.strip()):
         return False
-    # "What is a deck?" names one and asks for nothing.
-    opening = text.strip().split(".", 1)[0]
-    return not _ASKS_ABOUT.match(opening.strip())
+    return None
+
+
+def asks_for_an_artifact(message: object) -> bool:
+    """Whether this turn asks for something to exist when it is over.
+
+    Software is included, because building software is one way of producing a
+    thing; it is not the only way, which is what the narrower reader could not
+    say.
+
+    The words settle what they can and teach the learned surface as they go,
+    so "knock up something I can show them on Thursday" can reach the same
+    answer as "make me a deck" without anyone adding a noun.
+    """
+    text = str(message or "")
+    if not text.strip():
+        return False
+    settled = _floor_says(text)
+    if settled is not None:
+        try:
+            _WANTS_A_THING.observe(text, holds=settled)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+        return settled
+    try:
+        learned = _WANTS_A_THING.decide_without_waiting(text)
+    except (RuntimeError, TypeError, ValueError):
+        learned = None
+    return bool(learned)
