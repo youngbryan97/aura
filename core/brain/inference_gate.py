@@ -45,6 +45,7 @@ from core.brain.llm.model_registry import (
     DEEP_ENDPOINT,
     FALLBACK_ENDPOINT,
     PRIMARY_ENDPOINT,
+    get_active_cortex_serving_limits,
 )
 from core.brain.request_contract import REQUEST_FIELDS, validate_request_context
 from core.conversation.response_reliability import (
@@ -7205,6 +7206,42 @@ class InferenceGate:
         return "simple"
 
     @classmethod
+    def _cortex_serving_lane(
+        cls,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+    ) -> str:
+        """Map the typed turn contract to one qualified serving lane."""
+
+        context = context or {}
+        allowed = {
+            "foreground_simple",
+            "foreground_standard",
+            "foreground_extended",
+            "deep_reasoning",
+            "tool_execution",
+            "code",
+            "document",
+        }
+        explicit = str(context.get("serving_lane") or "").strip().lower()
+        if explicit in allowed:
+            return explicit
+        if bool(context.get("desktop_execution_contract", False)):
+            return "tool_execution"
+        if bool(context.get("coding_request", False)):
+            return "code"
+        if bool(context.get("document_request", False)):
+            return "document"
+        if bool(context.get("deep_mind_probe", False)):
+            return "deep_reasoning"
+        profile = cls._foreground_prompt_profile(prompt, context)
+        if profile == "extended":
+            return "foreground_extended"
+        if profile == "simple":
+            return "foreground_simple"
+        return "foreground_standard"
+
+    @classmethod
     def _foreground_prebuilt_history_limit(
         cls,
         prompt: str,
@@ -9591,6 +9628,7 @@ class InferenceGate:
             from core.brain.llm.model_registry import (
                 PRIMARY_ENDPOINT,
                 bounded_context_window,
+                get_active_cortex_serving_limits,
                 get_lane_context_window,
             )
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
@@ -9615,11 +9653,29 @@ class InferenceGate:
             # here used to be max(4096, ...) with nothing above it, so an
             # AURA_CORTEX_CTX typo flowed straight into the prompt budget this
             # method exists to enforce.
+            qualified_default = 0
+            limits = get_active_cortex_serving_limits()
+            if limits is not None and limits.qualified:
+                standard = limits.lane("foreground_standard")
+                if standard is not None:
+                    qualified_default = int(standard.max_input_tokens)
+            configured_value, configured_source = _FLAG_CORTEX_CTX.value_with_source()
+            configured = str(configured_value or "").strip()
+            configured_is_explicit = not str(configured_source).startswith("default")
+            if configured_is_explicit and configured and qualified_default:
+                selected = min(
+                    bounded_context_window(configured),
+                    qualified_default,
+                )
+            else:
+                selected = (
+                    configured
+                    if configured_is_explicit and configured
+                    else qualified_default or _FOREGROUND_CONTEXT_WINDOW_DEFAULT
+                )
             runtime_window = max(
                 _FOREGROUND_CONTEXT_WINDOW_FLOOR,
-                bounded_context_window(
-                    _FLAG_CORTEX_CTX.value() or _FOREGROUND_CONTEXT_WINDOW_DEFAULT
-                ),
+                bounded_context_window(selected),
             )
         except _INFERENCE_RECOVERABLE_ERRORS:
             runtime_window = _FOREGROUND_CONTEXT_WINDOW_DEFAULT
@@ -12689,6 +12745,33 @@ class InferenceGate:
                 )
                 max_tokens = _plan_floor_final
                 context["max_tokens"] = max_tokens
+
+        serving_lane = self._cortex_serving_lane(
+            initial_visible_user_prompt,
+            context,
+        )
+        serving_limits = get_active_cortex_serving_limits()
+        if serving_limits is not None and serving_limits.qualified:
+            lane_limits = serving_limits.lane(serving_lane)
+            if lane_limits is not None:
+                admitted_tokens = min(max_tokens, lane_limits.max_output_tokens)
+                if admitted_tokens < max_tokens:
+                    logger.info(
+                        "🧠 [SERVING PROFILE] %s output ceiling reduced %d→%d "
+                        "(profile=%s).",
+                        serving_lane,
+                        max_tokens,
+                        admitted_tokens,
+                        serving_limits.profile_sha256[:12],
+                    )
+                max_tokens = max(1, admitted_tokens)
+                context["max_tokens"] = max_tokens
+                context["cortex_serving_lane"] = serving_lane
+                context["cortex_serving_profile_sha256"] = (
+                    serving_limits.profile_sha256
+                )
+                context["cortex_serving_profile_source"] = serving_limits.source
+        morpho_kwargs["serving_lane"] = serving_lane
 
         logger.info(
             "🧭 [GROUNDING] survived to dispatch: %s (sys_prompt=%d)",

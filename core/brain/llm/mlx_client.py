@@ -4544,6 +4544,9 @@ def _build_the_generation_request(
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
+        "serving_lane": str(
+            kwargs.get("serving_lane") or "foreground_standard"
+        ).strip().lower(),
         "temp": kwargs.get(
             "temp",
             kwargs.get("temperature", _bridge_get("temperature", self.temp)),

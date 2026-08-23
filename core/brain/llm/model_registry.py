@@ -198,6 +198,33 @@ class ActiveCortexSpec:
         return self._decode(self._migration_contract_json)
 
 
+@dataclass(frozen=True)
+class CortexServingLaneLimits:
+    """One qualified input/output envelope from the active cortex profile."""
+
+    name: str
+    max_input_tokens: int
+    max_output_tokens: int
+
+
+@dataclass(frozen=True)
+class CortexServingLimits:
+    """Immutable serving limits bound to one exact active model artifact."""
+
+    model_path: Path
+    descriptor_sha256: str
+    profile_sha256: str
+    source: str
+    qualified: bool
+    served_context_tokens: int
+    prefill_chunk_tokens: int
+    lanes: tuple[CortexServingLaneLimits, ...]
+
+    def lane(self, name: str) -> CortexServingLaneLimits | None:
+        normalized = str(name or "").strip().lower()
+        return next((lane for lane in self.lanes if lane.name == normalized), None)
+
+
 _ACTIVE_CORTEX_SPEC_TTL_S = 5.0
 _active_cortex_spec_cache: tuple[float, Path, ActiveCortexSpec | None] | None = None
 
@@ -421,6 +448,89 @@ def get_active_cortex_spec(*, force_refresh: bool = False) -> ActiveCortexSpec |
     observed = _read_active_cortex_spec(manifest)
     _active_cortex_spec_cache = (now, manifest, observed)
     return observed
+
+
+def get_active_cortex_serving_limits(
+    model_path: str | Path | None = None,
+    *,
+    force_refresh: bool = False,
+) -> CortexServingLimits | None:
+    """Return the measured serving envelope for the exact active artifact.
+
+    An old active pointer remains observable as ``legacy_unqualified`` but has
+    no enforceable lane limits. This preserves its existing runtime behavior
+    while making the absence of qualification explicit. A supplied path must
+    identify the active artifact exactly; another local checkpoint cannot
+    borrow its evidence.
+    """
+
+    spec = get_active_cortex_spec(force_refresh=force_refresh)
+    if spec is None:
+        return None
+    active_path = spec.model_path.resolve(strict=False)
+    if model_path is not None:
+        requested_path = Path(str(model_path)).expanduser().resolve(strict=False)
+        if requested_path != active_path:
+            return None
+
+    if not spec.promotion_qualified:
+        descriptor = spec.artifact_descriptor() or {}
+        artifact_profile = descriptor.get("artifact_profile")
+        native_context = 0
+        if isinstance(artifact_profile, dict):
+            try:
+                native_context = int(artifact_profile.get("native_context_window") or 0)
+            except (TypeError, ValueError, OverflowError):
+                native_context = 0
+        return CortexServingLimits(
+            model_path=active_path,
+            descriptor_sha256=spec.descriptor_sha256,
+            profile_sha256="",
+            source="legacy_unqualified",
+            qualified=False,
+            served_context_tokens=max(0, native_context),
+            prefill_chunk_tokens=0,
+            lanes=(),
+        )
+
+    profile = spec.serving_profile()
+    if not isinstance(profile, dict):
+        return None
+    raw_lanes = profile.get("lanes")
+    if not isinstance(raw_lanes, dict):
+        return None
+    lanes: list[CortexServingLaneLimits] = []
+    for name, raw_limits in sorted(raw_lanes.items()):
+        if not isinstance(raw_limits, dict):
+            return None
+        try:
+            lane = CortexServingLaneLimits(
+                name=str(name).strip().lower(),
+                max_input_tokens=int(raw_limits.get("max_input_tokens") or 0),
+                max_output_tokens=int(raw_limits.get("max_output_tokens") or 0),
+            )
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not lane.name or lane.max_input_tokens <= 0 or lane.max_output_tokens <= 0:
+            return None
+        lanes.append(lane)
+    try:
+        served_context = int(profile.get("served_context_tokens") or 0)
+        prefill_chunk = int(profile.get("prefill_chunk_tokens") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if served_context <= 0 or prefill_chunk <= 0 or not lanes:
+        return None
+    return CortexServingLimits(
+        model_path=active_path,
+        descriptor_sha256=spec.descriptor_sha256,
+        profile_sha256=spec.serving_profile_sha256,
+        source="qualified_profile",
+        qualified=True,
+        served_context_tokens=served_context,
+        prefill_chunk_tokens=prefill_chunk,
+        lanes=tuple(lanes),
+    )
 
 
 def read_active_cortex_spec(manifest_path: str | Path) -> ActiveCortexSpec | None:
@@ -1001,7 +1111,13 @@ get_model_context_window.cache_info = _context_window_for_artifact_cached.cache_
 
 
 def get_lane_context_window(endpoint_name: str | None) -> int:
-    return get_model_context_window(get_lane_model_name(endpoint_name))
+    architectural = get_model_context_window(get_lane_model_name(endpoint_name))
+    if (normalize_endpoint_name(endpoint_name) or PRIMARY_ENDPOINT) != PRIMARY_ENDPOINT:
+        return architectural
+    limits = get_active_cortex_serving_limits()
+    if limits is None or not limits.qualified:
+        return architectural
+    return min(architectural, limits.served_context_tokens)
 
 
 def guard_solver_request(

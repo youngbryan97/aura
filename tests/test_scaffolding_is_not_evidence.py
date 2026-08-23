@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from types import SimpleNamespace
 
 import pytest
 
@@ -284,6 +285,103 @@ def test_a_declared_window_needs_no_assumption(tmp_path):
     )
 
     assert worker._load_effective_context_window(str(tmp_path)) == 16384
+
+
+def test_a_qualified_profile_caps_the_exact_artifact_window(tmp_path, monkeypatch):
+    import json as _json
+
+    (tmp_path / "config.json").write_text(
+        _json.dumps({"max_position_embeddings": 262144})
+    )
+    limits = SimpleNamespace(qualified=True, served_context_tokens=32768)
+    monkeypatch.setattr(
+        worker,
+        "_qualified_serving_limits_for_model",
+        lambda model_path: limits if model_path == str(tmp_path) else None,
+    )
+
+    assert worker._load_effective_context_window(str(tmp_path)) == 32768
+
+
+def test_worker_serving_caps_are_lane_specific_and_fail_to_standard(monkeypatch):
+    lanes = {
+        "foreground_simple": SimpleNamespace(
+            name="foreground_simple", max_input_tokens=8192, max_output_tokens=1024
+        ),
+        "foreground_standard": SimpleNamespace(
+            name="foreground_standard", max_input_tokens=24576, max_output_tokens=3072
+        ),
+    }
+    limits = SimpleNamespace(
+        qualified=True,
+        profile_sha256="a" * 64,
+        lane=lambda name: lanes.get(name),
+    )
+    monkeypatch.setattr(
+        worker,
+        "_qualified_serving_limits_for_model",
+        lambda model_path: limits if model_path == "/models/active" else None,
+    )
+
+    assert worker._serving_lane_output_cap(
+        "/models/active", "foreground_simple", 5000
+    ) == 1024
+    assert worker._serving_lane_output_cap(
+        "/models/active", "foreground_standard", 5000
+    ) == 3072
+    assert worker._serving_lane_output_cap(
+        "/models/active", "unknown", 5000
+    ) == 3072
+    assert worker._serving_lane_output_cap(
+        "/models/other", "foreground_simple", 5000
+    ) == 5000
+
+    assert worker._serving_lane_context_window(
+        "/models/active",
+        "foreground_simple",
+        output_reserve=512,
+        architectural_window=32768,
+    ) == 8704
+    assert worker._serving_lane_context_window(
+        "/models/active",
+        "foreground_standard",
+        output_reserve=3072,
+        architectural_window=32768,
+    ) == 27648
+    assert worker._serving_lane_context_window(
+        "/models/active",
+        "unknown",
+        output_reserve=4096,
+        architectural_window=26000,
+    ) == 26000
+    assert worker._serving_lane_context_window(
+        "/models/other",
+        "foreground_simple",
+        output_reserve=512,
+        architectural_window=32768,
+    ) == 32768
+
+
+def test_qualified_prefill_is_an_upper_bound_not_an_expansion(monkeypatch):
+    from core.utils import memory_monitor
+
+    normal = SimpleNamespace(
+        observation_available=True,
+        available_gb=64.0,
+        level="normal",
+    )
+    monkeypatch.setattr(memory_monitor, "get_memory_pressure_snapshot", lambda: normal)
+    profile = SimpleNamespace(qualified=True, prefill_chunk_tokens=64)
+    monkeypatch.setattr(
+        worker,
+        "_qualified_serving_limits_for_model",
+        lambda _model_path: profile,
+    )
+    model_path = "/models/Qwen2.5-32B-Instruct-8bit"
+    assert worker._runtime_prefill_step_size(model_path) == 64
+
+    profile.prefill_chunk_tokens = 2048
+    assert worker._runtime_prefill_step_size(model_path) == 128
 
 
 def test_a_sentinel_tokenizer_length_is_bounded(tmp_path):

@@ -3670,6 +3670,73 @@ def _prefill_step_size_for_model(
     return base_step
 
 
+def _qualified_serving_limits_for_model(model_path: str) -> Any | None:
+    """Resolve measured limits only when they belong to this exact artifact."""
+
+    try:
+        from core.brain.llm.model_registry import get_active_cortex_serving_limits
+
+        limits = get_active_cortex_serving_limits(model_path)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if limits is None or not bool(getattr(limits, "qualified", False)):
+        return None
+    return limits
+
+
+def _serving_lane_output_cap(model_path: str, lane_name: str, requested: int) -> int:
+    """Apply the exact artifact's qualified output ceiling to one request."""
+
+    admitted = max(1, int(requested))
+    limits = _qualified_serving_limits_for_model(model_path)
+    if limits is None:
+        return admitted
+    lane = limits.lane(str(lane_name or "").strip().lower())
+    if lane is None:
+        lane = limits.lane("foreground_standard")
+    if lane is None:
+        return admitted
+    capped = min(admitted, int(lane.max_output_tokens))
+    if capped < admitted:
+        logger.info(
+            "🧠 [WORKER] Qualified %s output ceiling reduced %d→%d "
+            "(profile=%s).",
+            lane.name,
+            admitted,
+            capped,
+            str(getattr(limits, "profile_sha256", ""))[:12],
+        )
+    return capped
+
+
+def _serving_lane_context_window(
+    model_path: str,
+    lane_name: str,
+    *,
+    output_reserve: int,
+    architectural_window: int,
+) -> int:
+    """Return the request window that enforces one lane's input ceiling.
+
+    The existing worker admission compares ``prompt + output reserve`` with a
+    single window. Expressing the lane limit in that same shape keeps the
+    admission and scaffold-trimming paths identical while ensuring the prompt
+    itself cannot exceed the qualified ``max_input_tokens`` contract.
+    """
+
+    window = max(1, int(architectural_window))
+    limits = _qualified_serving_limits_for_model(model_path)
+    if limits is None:
+        return window
+    lane = limits.lane(str(lane_name or "").strip().lower())
+    if lane is None:
+        lane = limits.lane("foreground_standard")
+    if lane is None:
+        return window
+    reserve = max(1, int(output_reserve))
+    return min(window, int(lane.max_input_tokens) + reserve)
+
+
 def _runtime_prefill_step_size(model_path: str) -> int:
     """Select one host-aware prefill chunk from the canonical pressure probe."""
 
@@ -3680,17 +3747,30 @@ def _runtime_prefill_step_size(model_path: str) -> int:
         pressure_snapshot = get_memory_pressure_snapshot()
     except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
         pressure_snapshot = None
-    selected = _prefill_step_size_for_model(
+    pressure_selected = _prefill_step_size_for_model(
         model_path,
         pressure_snapshot=pressure_snapshot,
     )
+    selected = pressure_selected
+    limits = _qualified_serving_limits_for_model(model_path)
+    if limits is not None:
+        profile_selected = min(selected, int(limits.prefill_chunk_tokens))
+        if profile_selected < selected:
+            logger.info(
+                "🧠 [WORKER] Qualified prefill ceiling reduced %d→%d "
+                "(profile=%s).",
+                selected,
+                profile_selected,
+                str(getattr(limits, "profile_sha256", ""))[:12],
+            )
+        selected = profile_selected
     base = _prefill_step_size_for_model(model_path)
-    if selected < base and pressure_snapshot is not None:
+    if pressure_selected < base and pressure_snapshot is not None:
         logger.info(
             "🧠 [WORKER] Prefill chunk reduced %d→%d for host headroom "
             "(level=%s available=%.1fGB).",
             base,
-            selected,
+            pressure_selected,
             str(getattr(pressure_snapshot, "level", "unknown") or "unknown"),
             float(getattr(pressure_snapshot, "available_gb", 0.0) or 0.0),
         )
@@ -5066,7 +5146,9 @@ def _load_effective_context_window(model_path: str) -> int:
             ),
             severity="warning",
         )
-        return _ASSUMED_CONTEXT_WINDOW
+        observed = _ASSUMED_CONTEXT_WINDOW
+        limits = _qualified_serving_limits_for_model(model_path)
+        return min(observed, int(limits.served_context_tokens)) if limits else observed
 
     config_path = path / "config.json"
     tokenizer_config_path = path / "tokenizer_config.json"
@@ -5100,14 +5182,21 @@ def _load_effective_context_window(model_path: str) -> int:
         # allocation, and a malformed tiny value would break every request.
         return max(2048, min(int(window), 262144))
 
+    def _serving_bounded(window: int) -> int:
+        observed = _bounded(window)
+        limits = _qualified_serving_limits_for_model(model_path)
+        if limits is None:
+            return observed
+        return min(observed, int(limits.served_context_tokens))
+
     if max_position_embeddings > 0:
         if use_sliding_window and sliding_window > max_position_embeddings:
-            return _bounded(max(sliding_window, max_position_embeddings))
-        return _bounded(max_position_embeddings)
+            return _serving_bounded(max(sliding_window, max_position_embeddings))
+        return _serving_bounded(max_position_embeddings)
     if use_sliding_window and sliding_window > 0:
-        return _bounded(sliding_window)
+        return _serving_bounded(sliding_window)
     if tokenizer_model_max > 0:
-        return _bounded(tokenizer_model_max)
+        return _serving_bounded(tokenizer_model_max)
     _record_mlx_degradation(
         ValueError(f"context_window_undeclared:{path.name}"),
         action=(
@@ -5118,6 +5207,9 @@ def _load_effective_context_window(model_path: str) -> int:
         ),
         severity="warning",
     )
+    limits = _qualified_serving_limits_for_model(model_path)
+    if limits is not None:
+        return min(_ASSUMED_CONTEXT_WINDOW, int(limits.served_context_tokens))
     return _ASSUMED_CONTEXT_WINDOW
 
 
@@ -6900,6 +6992,11 @@ def _mlx_worker_loop(
                     min_p = max(_safe_float(min_p, 0.03), 0.03)
                     repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.18)
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
+                max_tokens = _serving_lane_output_cap(
+                    model_path,
+                    str(job.get("serving_lane") or "foreground_standard"),
+                    max_tokens,
+                )
                 if operator_evidence_contract:
                     max_tokens = min(max_tokens, 192)
                 hard_output_token_ceiling = _safe_int(
@@ -7314,7 +7411,13 @@ def _mlx_worker_loop(
                                         max(64, _safe_int(kwargs.get("max_tokens"), 512)),
                                         2048,
                                     )
-                                    if len(tokens) + _output_reserve > effective_context_window:
+                                    _request_context_window = _serving_lane_context_window(
+                                        model_path,
+                                        str(job.get("serving_lane") or "foreground_standard"),
+                                        output_reserve=_output_reserve,
+                                        architectural_window=effective_context_window,
+                                    )
+                                    if len(tokens) + _output_reserve > _request_context_window:
                                         # Refusing was the ONLY response here, and
                                         # nothing upstream bounds a prompt against
                                         # the model's real window — so an
@@ -7326,7 +7429,7 @@ def _mlx_worker_loop(
                                             messages=messages,
                                             prompt=prompt,
                                             tokens=tokens,
-                                            window=effective_context_window,
+                                            window=_request_context_window,
                                             output_reserve=_output_reserve,
                                             tokenizer=tokenizer,
                                             tools=tools,
@@ -7336,7 +7439,7 @@ def _mlx_worker_loop(
                                                 RuntimeError(
                                                     "scaffold_exceeded_context_window:"
                                                     f"prompt_tokens={_oversized_tokens}:"
-                                                    f"window={effective_context_window}:"
+                                                    f"window={_request_context_window}:"
                                                     f"trimmed={_trim_note}"
                                                 ),
                                                 action=(
@@ -7350,17 +7453,17 @@ def _mlx_worker_loop(
                                                 "(%d tokens > %d - %d reserve); trimmed to %d tokens "
                                                 "[%s]. The prompt builder should have bounded this.",
                                                 _oversized_tokens,
-                                                effective_context_window,
+                                                _request_context_window,
                                                 _output_reserve,
                                                 len(tokens),
                                                 _trim_note,
                                             )
-                                    if len(tokens) + _output_reserve > effective_context_window:
+                                    if len(tokens) + _output_reserve > _request_context_window:
                                         raise RuntimeError(
                                             "context_window_exceeded:"
                                             f"prompt_tokens={len(tokens)}:"
                                             f"output_reserve={_output_reserve}:"
-                                            f"window={effective_context_window}"
+                                            f"window={_request_context_window}"
                                         )
                                     prompt_token_count = len(tokens)
                                     # These live in mlx_lm.models.cache, not
@@ -8964,18 +9067,29 @@ def _mlx_worker_loop(
                             1,
                             min(2048, _safe_int(job.get("max_tokens"), 512)),
                         )
+                        batch_max_tokens = _serving_lane_output_cap(
+                            model_path,
+                            str(job.get("serving_lane") or "foreground_standard"),
+                            batch_max_tokens,
+                        )
                         # Finite-range temperature: NaN/inf reached the
                         # sampler unchecked through the bare float coercion.
                         batch_temp = min(
                             max(_safe_float(job.get("temperature"), 0.8), 0.0), 2.0
                         )
                         token_ids = tokenizer.encode(batch_prompt)
-                        if len(token_ids) + batch_max_tokens > effective_context_window:
+                        batch_context_window = _serving_lane_context_window(
+                            model_path,
+                            str(job.get("serving_lane") or "foreground_standard"),
+                            output_reserve=batch_max_tokens,
+                            architectural_window=effective_context_window,
+                        )
+                        if len(token_ids) + batch_max_tokens > batch_context_window:
                             raise ValueError(
                                 "context_window_exceeded:"
                                 f"prompt_tokens={len(token_ids)}:"
                                 f"output_reserve={batch_max_tokens}:"
-                                f"window={effective_context_window}"
+                                f"window={batch_context_window}"
                             )
                         watchdog.activity()
                         batch_result = batch_generate(
@@ -9042,6 +9156,11 @@ def _mlx_worker_loop(
                 temp = _admit_sampling_control(job, "temp")
                 top_p = _admit_sampling_control(job, "top_p")
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
+                max_tokens = _serving_lane_output_cap(
+                    model_path,
+                    str(job.get("serving_lane") or "foreground_standard"),
+                    max_tokens,
+                )
                 min_p = _admit_sampling_control(job, "min_p")
                 repetition_penalty = _admit_sampling_control(job, "repetition_penalty")
 
@@ -9215,12 +9334,18 @@ def _mlx_worker_loop(
                                 except (ImportError, AttributeError, TypeError, ValueError):
                                     logger.debug("chars-per-token observation skipped")
                                 _stream_reserve = min(max(64, max_tokens), 2048)
-                                if _stream_prompt_tokens + _stream_reserve > effective_context_window:
+                                _stream_context_window = _serving_lane_context_window(
+                                    model_path,
+                                    str(job.get("serving_lane") or "foreground_standard"),
+                                    output_reserve=_stream_reserve,
+                                    architectural_window=effective_context_window,
+                                )
+                                if _stream_prompt_tokens + _stream_reserve > _stream_context_window:
                                     raise RuntimeError(
                                         "context_window_exceeded:"
                                         f"prompt_tokens={_stream_prompt_tokens}:"
                                         f"output_reserve={_stream_reserve}:"
-                                        f"window={effective_context_window}"
+                                        f"window={_stream_context_window}"
                                     )
 
                                 watchdog.activity()

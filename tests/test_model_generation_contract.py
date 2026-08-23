@@ -242,6 +242,13 @@ def test_active_manifest_exposes_identity_only_for_its_exact_model(tmp_path, mon
     assert spec.model_path == artifact.resolve()
     assert spec.descriptor_sha256 == descriptor["descriptor_sha256"]
 
+    legacy_limits = model_registry.get_active_cortex_serving_limits(artifact)
+    assert legacy_limits is not None
+    assert legacy_limits.qualified is False
+    assert legacy_limits.source == "legacy_unqualified"
+    assert legacy_limits.prefill_chunk_tokens == 0
+    assert legacy_limits.lanes == ()
+
     observed["repository_id"] = "mutated-by-caller"
     assert spec.artifact_descriptor() == descriptor
 
@@ -442,3 +449,23 @@ def test_active_pointer_accepts_one_complete_identity_bound_promotion(
     assert spec.promotion_qualified is True
     assert spec.serving_profile() == serving
     assert spec.migration_contract() == migration
+
+    limits = model_registry.get_active_cortex_serving_limits(artifact)
+    assert limits is not None
+    assert limits.qualified is True
+    assert limits.source == "qualified_profile"
+    assert limits.model_path == artifact.resolve()
+    assert limits.descriptor_sha256 == descriptor["descriptor_sha256"]
+    assert limits.profile_sha256 == serving["profile_sha256"]
+    assert limits.served_context_tokens == 262144
+    assert limits.prefill_chunk_tokens == 2048
+    assert {
+        lane.name: (lane.max_input_tokens, lane.max_output_tokens)
+        for lane in limits.lanes
+    } == {
+        name: (value["max_input_tokens"], value["max_output_tokens"])
+        for name, value in _limits().items()
+    }
+
+    other = _artifact(tmp_path, name="same-width-unqualified-model")
+    assert model_registry.get_active_cortex_serving_limits(other) is None

@@ -17,6 +17,70 @@ from core.utils.deadlines import get_deadline
 _MISSING = object()
 
 
+def test_cortex_serving_lane_uses_typed_turn_contracts():
+    assert InferenceGate._cortex_serving_lane("hello", {}) == "foreground_simple"
+    assert InferenceGate._cortex_serving_lane(
+        "write code", {"coding_request": True}
+    ) == "code"
+    assert InferenceGate._cortex_serving_lane(
+        "make the file", {"document_request": True}
+    ) == "document"
+    assert InferenceGate._cortex_serving_lane(
+        "use the desktop", {"desktop_execution_contract": True}
+    ) == "tool_execution"
+    assert InferenceGate._cortex_serving_lane(
+        "inspect the state", {"deep_mind_probe": True}
+    ) == "deep_reasoning"
+
+
+def test_qualified_profile_supplies_default_foreground_context(monkeypatch):
+    from core.brain.llm import model_registry
+
+    standard = SimpleNamespace(max_input_tokens=24576)
+    limits = SimpleNamespace(
+        qualified=True,
+        lane=lambda name: standard if name == "foreground_standard" else None,
+    )
+    monkeypatch.delenv("AURA_CORTEX_CTX", raising=False)
+    monkeypatch.setattr(
+        model_registry,
+        "get_active_cortex_serving_limits",
+        lambda: limits,
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "get_lane_context_window",
+        lambda _endpoint: 32768,
+    )
+
+    assert InferenceGate._foreground_prompt_context_window() == 24576
+
+
+def test_operator_context_can_lower_but_not_expand_qualified_default(monkeypatch):
+    from core.brain.llm import model_registry
+
+    standard = SimpleNamespace(max_input_tokens=24576)
+    limits = SimpleNamespace(
+        qualified=True,
+        lane=lambda name: standard if name == "foreground_standard" else None,
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "get_active_cortex_serving_limits",
+        lambda: limits,
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "get_lane_context_window",
+        lambda _endpoint: 32768,
+    )
+    monkeypatch.setenv("AURA_CORTEX_CTX", "8192")
+    assert InferenceGate._foreground_prompt_context_window() == 8192
+
+    monkeypatch.setenv("AURA_CORTEX_CTX", "65536")
+    assert InferenceGate._foreground_prompt_context_window() == 24576
+
+
 def _admission_snapshot(**overrides):
     """A memory-admission snapshot shaped the way production makes them.
 

@@ -181,7 +181,10 @@ def test_generation_request_carries_typed_cognitive_mode_to_worker():
         contract_generation_floor=0,
         generation_max_tokens=256,
         hard_output_token_ceiling=None,
-        kwargs={"cognitive_mode": "deliberate"},
+        kwargs={
+            "cognitive_mode": "deliberate",
+            "serving_lane": "tool_execution",
+        },
         prompt="question",
         req_id="request-1",
         requested_output_contract={},
@@ -194,6 +197,7 @@ def test_generation_request_carries_typed_cognitive_mode_to_worker():
     )
 
     assert request["cognitive_mode"] == "deliberate"
+    assert request["serving_lane"] == "tool_execution"
 
 
 def test_mlx_surface_receipt_reports_contract_tokens_and_repair():
