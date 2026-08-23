@@ -1,0 +1,66 @@
+{
+ "artifact_profile": {
+  "architectures": [
+   "Qwen2ForCausalLM"
+  ],
+  "evidence": "index_metadata",
+  "exists": true,
+  "fingerprint": "bb8cdbc4d5eb45032cb9050c6cc565da0c3ba35122370b90cebf1a7d68f555d0",
+  "full_attention_layers": 64,
+  "hidden_size": 5120,
+  "layer_types": [],
+  "linear_attention_layers": 0,
+  "model_type": "qwen2",
+  "native_context_window": 32768,
+  "num_attention_heads": 40,
+  "num_hidden_layers": 64,
+  "num_key_value_heads": 8,
+  "path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "quantization_bits": 4,
+  "size_class": "32b",
+  "total_parameters": 32763876352,
+  "vocab_size": 152064,
+  "weight_bytes": 18431289344
+ },
+ "behavior_identity": {
+  "bundle_sha256": "7eb54f8b670bba6e5b37ae5f9c6d016e9628034951b3ee702ca0096123c5e674",
+  "file_count": 5,
+  "files": [
+   {
+    "path": "chat_template.jinja",
+    "sha256": "d5495a1e5db0611132a97e46a65dbb64a642a499421228b9c8b93229097fa9a4",
+    "size_bytes": 2509
+   },
+   {
+    "path": "config.json",
+    "sha256": "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785",
+    "size_bytes": 867
+   },
+   {
+    "path": "model.safetensors.index.json",
+    "sha256": "8ae48f398d91156dc01a99e58de936e4ddd94c0768f4d0e2e9537170aee60d0b",
+    "size_bytes": 143058
+   },
+   {
+    "path": "tokenizer.json",
+    "sha256": "3fd169731d2cbde95e10bf356d66d5997fd885dd8dbb6fb4684da3f23b2585d8",
+    "size_bytes": 11421892
+   },
+   {
+    "path": "tokenizer_config.json",
+    "sha256": "ee8f6d44bf2353e6d3686c3adaf70e1ccfe9e6ed6822d0ab2f28cafdd7754792",
+    "size_bytes": 729
+   }
+  ]
+ },
+ "canonical_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+ "descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+ "repository_id": "",
+ "revision": "",
+ "schema": "aura.model_artifact_descriptor.v1",
+ "weight_identity": {
+  "files": 4,
+  "fingerprint": "8eae71e73a14d1228a942d4faf84690d70b62148f25b0f924435535f7c550fad",
+  "method": "sha256"
+ }
+}

@@ -1,0 +1,15 @@
+{
+ "breadth_delta": 0.0,
+ "candidate_descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "candidate_label": "candidate",
+ "compared_at": 1787460283.4845078,
+ "critical_gates": {},
+ "current_label": "current",
+ "evaluation_sha256": "4dc039763f3c27d3bf22dd2c9501f81b19504b93acd9b8ac93f6b8dabc29819e",
+ "identity_behavior_changed": true,
+ "identity_note": "a new generation ALWAYS changes identity behavior \u2014 migration (persona retrain + steering re-extraction) is what restores it; this field feeds the migration plan, it does not gate the verdict",
+ "promotion_eligible": false,
+ "reasoning_delta": 0.5833,
+ "schema": "aura.cortex_upgrade.evaluation.v3",
+ "verdict": "PASS"
+}

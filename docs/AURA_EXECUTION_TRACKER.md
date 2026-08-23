@@ -51743,3 +51743,44 @@ progress to model-scale comparisons, then qualify candidate serving memory,
 latency, long-prompt completion, tools and code before any tissue migration or
 active-pointer change. Candidate-native persona, steering, adapters and
 recurrent tissue remain mandatory; old steering vectors remain prohibited.
+
+## Checkpoint 2026-08-22-911: Resume Cortex Evidence Instead of Repeating It
+
+CP911 runs the first matched incumbent/candidate generation comparison and
+removes two avoidable sources of model-scale repetition. Aura's active pointer
+remains unchanged.
+
+- Capability evaluation now commits each breadth, reasoning and identity cell
+  atomically under the exact model descriptor, model path and evaluation-source
+  identity. An interrupted arm resumes at its first missing cell while changed
+  prompts, budgets, models or evaluation semantics fail closed.
+- The standalone model-lane lease now owns the model for its complete load and
+  use lifetime. The earlier CLI released ownership immediately after `load()`,
+  leaving generation unprotected from another resident-model claimant.
+- Factual probes now have a 256-token completion ceiling but still stop on the
+  first accepted evidence. This repaired a measured Qwen3.8 square-root answer
+  that reached the old 96-token ceiling immediately before emitting `12`; it did
+  not increase the decode length of the other evidence-complete cells.
+- Comparison is now a Pareto contract: neither measured axis may regress and at
+  least one must improve. The prior rule required a strict breadth win even when
+  the incumbent was already `24/24`, making any replacement mathematically
+  impossible. A separate re-adjudication command applies comparison changes to
+  frozen receipts without loading or regenerating either model.
+- On exact local artifacts, the incumbent fused Qwen2.5-32B scored `24/24`
+  breadth and `5/12` reasoning in 98.088 seconds. Pinned Qwen3.8-27B scored
+  `24/24` breadth and `12/12` reasoning in 230.656 seconds: breadth delta 0.000,
+  reasoning delta +0.5833, bounded comparison `PASS`. This is candidate-selection
+  evidence, not promotion: identity changed and all model-bound tissue, serving,
+  tools, latency, memory, live-runtime and rollback gates remain mandatory.
+
+The complete batteries, exact descriptors, admission and adjudication are retained
+under `artifacts/closeout/cortex_upgrade/cp911/`. Focused contracts pass `22/22`.
+Canonical smoke passes `121/121` with one environment-dependent skip;
+compilation, Ruff, layering and diff hygiene pass. Governance lint remains
+blocked only by the pre-existing ownership-baseline move between
+`core/diagnosis/repository.py` and `core/diagnosis/experiment.py`, neither
+touched here.
+Next: classify every existing model-bound tissue artifact against the candidate
+descriptor, reuse only architecture-independent data and recipes, build the
+candidate-native identity/steering/recurrent components, and run serving and
+live-user qualification before staging or changing the active pointer.

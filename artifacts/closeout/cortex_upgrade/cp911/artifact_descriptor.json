@@ -1,0 +1,161 @@
+{
+ "artifact_profile": {
+  "architectures": [
+   "Qwen3_5ForConditionalGeneration"
+  ],
+  "evidence": "config_estimate",
+  "exists": true,
+  "fingerprint": "5f93413580b4b83eba28cb48412fb6df6a6adb9c298bdfb0f552232b04ff20d4",
+  "full_attention_layers": 16,
+  "hidden_size": 5120,
+  "layer_types": [
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention"
+  ],
+  "linear_attention_layers": 48,
+  "model_type": "qwen3_5_text",
+  "native_context_window": 262144,
+  "num_attention_heads": 24,
+  "num_hidden_layers": 64,
+  "num_key_value_heads": 4,
+  "path": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+  "quantization_bits": 4,
+  "size_class": "32b",
+  "total_parameters": 23570240853,
+  "vocab_size": 248320,
+  "weight_bytes": 16054262240
+ },
+ "behavior_identity": {
+  "bundle_sha256": "2f70d0a850133fbe936a262b3b1c436af187eab593e54bba1dd8b0a6c8e306e6",
+  "file_count": 11,
+  "files": [
+   {
+    "path": ".gitattributes",
+    "sha256": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",
+    "size_bytes": 1570
+   },
+   {
+    "path": "chat_template.jinja",
+    "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+    "size_bytes": 8952
+   },
+   {
+    "path": "config.json",
+    "sha256": "14b65a0ee06517060a6bbd979bb1a8ff54e7b304b1a1f01d54344b88b8285e85",
+    "size_bytes": 4932
+   },
+   {
+    "path": "generation_config.json",
+    "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+    "size_bytes": 202
+   },
+   {
+    "path": "model.safetensors.index.json",
+    "sha256": "13b840162b4cb35c66fef7df072f7dbb4717908204364f5e5d9f9655a2758fa8",
+    "size_bytes": 218281
+   },
+   {
+    "path": "preprocessor_config.json",
+    "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+    "size_bytes": 390
+   },
+   {
+    "path": "processor_config.json",
+    "sha256": "45fc17c8dd2474af6b493b52483c26c0584b0082d368c480f9fa611e73070040",
+    "size_bytes": 991
+   },
+   {
+    "path": "tokenizer.json",
+    "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "size_bytes": 19989325
+   },
+   {
+    "path": "tokenizer_config.json",
+    "sha256": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b",
+    "size_bytes": 1165
+   },
+   {
+    "path": "video_preprocessor_config.json",
+    "sha256": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+    "size_bytes": 385
+   },
+   {
+    "path": "vocab.json",
+    "sha256": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003",
+    "size_bytes": 6722759
+   }
+  ]
+ },
+ "canonical_path": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+ "descriptor_sha256": "79b8369af238a0d6ab197ecaea6002f9b0224adf4ae4a728bfc73e62b1e0703e",
+ "repository_id": "mlx-community/Qwen3.8-27B-4bit",
+ "revision": "3e6447f082e89cc7f0bc6e5441afd38dfce760ff",
+ "schema": "aura.model_artifact_descriptor.v1",
+ "weight_identity": {
+  "files": 3,
+  "fingerprint": "b475dd05948fe46c8bdb3f5d93e48e08c7bec675ad6e860ea88035e4c1c95f34",
+  "method": "sha256"
+ }
+}

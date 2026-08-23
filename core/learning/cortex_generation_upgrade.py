@@ -42,7 +42,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from core.brain.llm.model_artifact_profile import (
     build_model_artifact_descriptor,
@@ -53,7 +53,8 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 
-EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v2"
+EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v3"
+EVALUATION_PROGRESS_SCHEMA = "aura.cortex_upgrade.evaluation_progress.v1"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
 MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v1"
 STAGING_SCHEMA = "aura.cortex_upgrade.staging.v2"
@@ -81,7 +82,13 @@ ROLLBACK_POINTER_NAME = "active.json.rollback"
 # the load or the guard refuses.
 _LOAD_OVERHEAD_FACTOR = 1.3
 _FREE_MARGIN_GB = 8.0
-_BREADTH_MAX_TOKENS = 96
+# Qwen3.8's non-thinking lane can still spend roughly one hundred tokens on a
+# short derivation before emitting the factual object.  Evidence-matched probes
+# stop as soon as the object appears, so this is a completion ceiling rather
+# than a mandatory decode length.  Keep it aligned with the bounded reasoning
+# envelope instead of silently grading a correct, unfinished derivation as a
+# knowledge regression.
+_BREADTH_MAX_TOKENS = 256
 
 # Breadth probes: factual cloze items with acceptable-answer alternates.
 # Deterministic greedy decoding, case-insensitive containment scoring. These
@@ -200,7 +207,53 @@ def _answer_matches(answer: str, accepted: tuple[str, ...]) -> bool:
     return False
 
 
-def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, Any]:
+def _progress_rows_by_cell(events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    for event in events or ():
+        if (
+            isinstance(event, dict)
+            and event.get("schema") == EVALUATION_PROGRESS_SCHEMA
+            and isinstance(event.get("cell_id"), str)
+            and isinstance(event.get("row"), dict)
+        ):
+            rows[event["cell_id"]] = dict(event["row"])
+    return rows
+
+
+def _emit_battery_progress(
+    callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    label: str,
+    phase: str,
+    cell_id: str,
+    completed: int,
+    total: int,
+    row: dict[str, Any],
+) -> None:
+    if callback is None:
+        return
+    callback(
+        {
+            "schema": EVALUATION_PROGRESS_SCHEMA,
+            "label": label,
+            "phase": phase,
+            "cell_id": cell_id,
+            "completed": completed,
+            "total": total,
+            "row": dict(row),
+            "updated_at": time.time(),
+        }
+    )
+
+
+def capability_battery(
+    model,
+    tokenizer,
+    *,
+    label: str = "model",
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    resume_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Deterministic capability measurement: breadth + reasoning + identity.
 
     Breadth: factual cloze accuracy (compiled knowledge, closed book).
@@ -215,33 +268,70 @@ def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, A
     )
 
     started = time.monotonic()
+    resumed = _progress_rows_by_cell(resume_events)
     breadth_hits = 0
     breadth_rows: list[dict[str, Any]] = []
-    for prompt, accepted in BREADTH_PROBES:
-        answer = _greedy_decode(
-            model,
-            tokenizer,
-            prompt,
-            max_tokens=_BREADTH_MAX_TOKENS,
-            cognitive_mode="reactive",
-            stop_strings=accepted,
-        ).lower()
-        hit = _answer_matches(answer, accepted)
-        breadth_hits += int(hit)
-        breadth_rows.append(
-            {
+    for index, (prompt, accepted) in enumerate(BREADTH_PROBES):
+        cell_id = f"breadth:{index}"
+        row = resumed.get(cell_id)
+        if not (
+            isinstance(row, dict)
+            and row.get("prompt") == prompt
+            and row.get("accepted") == list(accepted)
+            and row.get("max_tokens") == _BREADTH_MAX_TOKENS
+            and isinstance(row.get("answer"), str)
+            and type(row.get("hit")) is bool
+        ):
+            answer = _greedy_decode(
+                model,
+                tokenizer,
+                prompt,
+                max_tokens=_BREADTH_MAX_TOKENS,
+                cognitive_mode="reactive",
+                stop_strings=accepted,
+            ).lower()
+            row = {
                 "prompt": prompt,
-                "answer": answer[:240],
-                "hit": hit,
+                "accepted": list(accepted),
+                "answer": answer[:1000],
+                "hit": _answer_matches(answer, accepted),
                 "max_tokens": _BREADTH_MAX_TOKENS,
             }
-        )
+            _emit_battery_progress(
+                progress_callback,
+                label=label,
+                phase="breadth",
+                cell_id=cell_id,
+                completed=index + 1,
+                total=len(BREADTH_PROBES),
+                row=row,
+            )
+        hit = bool(row["hit"])
+        breadth_hits += int(hit)
+        breadth_rows.append(dict(row))
 
     reasoning_hits = 0
-    reasoning_total = 0
-    for seed in range(6):
-        for task in (modular_chain(3, seed=seed), nested_boolean(3, seed=seed)):
-            reasoning_total += 1
+    reasoning_rows: list[dict[str, Any]] = []
+    reasoning_tasks = [
+        task
+        for seed in range(6)
+        for task in (modular_chain(3, seed=seed), nested_boolean(3, seed=seed))
+    ]
+    reasoning_total = len(reasoning_tasks)
+    for index, task in enumerate(reasoning_tasks):
+        prompt_sha256 = hashlib.sha256(task.prompt.encode("utf-8")).hexdigest()
+        cell_id = f"reasoning:{task.family}:{task.depth}:{task.seed}"
+        row = resumed.get(cell_id)
+        if not (
+            isinstance(row, dict)
+            and row.get("family") == task.family
+            and row.get("depth") == task.depth
+            and row.get("seed") == task.seed
+            and row.get("prompt_sha256") == prompt_sha256
+            and row.get("max_tokens") == 256
+            and isinstance(row.get("answer"), str)
+            and type(row.get("hit")) is bool
+        ):
             answer = _greedy_decode(
                 model,
                 tokenizer,
@@ -249,13 +339,42 @@ def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, A
                 max_tokens=256,
                 cognitive_mode="deliberate",
             )
-            reasoning_hits += int(task.verify(answer))
+            row = {
+                "family": task.family,
+                "depth": task.depth,
+                "seed": task.seed,
+                "prompt_sha256": prompt_sha256,
+                "answer": answer[:4000],
+                "hit": bool(task.verify(answer)),
+                "max_tokens": 256,
+            }
+            _emit_battery_progress(
+                progress_callback,
+                label=label,
+                phase="reasoning",
+                cell_id=cell_id,
+                completed=index + 1,
+                total=reasoning_total,
+                row=row,
+            )
+        reasoning_hits += int(bool(row["hit"]))
+        reasoning_rows.append(dict(row))
 
     try:
         identity_snapshot = snapshot_probe_behavior(
             model, natural_stability_probes(tokenizer)
         )
         identity_digests = [row["digest"] for row in identity_snapshot]
+        for index, row in enumerate(identity_snapshot):
+            _emit_battery_progress(
+                progress_callback,
+                label=label,
+                phase="identity",
+                cell_id=f"identity:{index}",
+                completed=index + 1,
+                total=len(identity_snapshot),
+                row={"digest": row["digest"]},
+            )
     except (ValueError, AttributeError, TypeError, RuntimeError) as exc:
         record_degradation(
             "cortex_upgrade",
@@ -274,6 +393,7 @@ def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, A
         "reasoning_accuracy": round(reasoning_hits / max(1, reasoning_total), 4),
         "reasoning_hits": reasoning_hits,
         "reasoning_total": reasoning_total,
+        "reasoning_rows": reasoning_rows,
         "identity_digests": identity_digests,
         "elapsed_s": round(time.monotonic() - started, 3),
     }
@@ -286,13 +406,21 @@ def compare_batteries(
     candidate_descriptor: dict[str, Any] | None = None,
     critical_gates: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
-    """The upgrade verdict: candidate must WIN breadth and NOT LOSE reasoning."""
+    """Return a Pareto upgrade verdict across breadth and reasoning.
+
+    A strict breadth-win rule makes replacement impossible once the incumbent
+    reaches the finite breadth battery's ceiling.  Promotion evidence instead
+    requires exact non-regression on both measured axes and a strict gain on at
+    least one.  Deployment remains separately blocked by every critical gate.
+    """
     breadth_delta = candidate["breadth_accuracy"] - current["breadth_accuracy"]
     reasoning_delta = candidate["reasoning_accuracy"] - current["reasoning_accuracy"]
     identity_changed = current.get("identity_digests") != candidate.get(
         "identity_digests"
     )
-    verdict = "PASS" if breadth_delta > 0 and reasoning_delta >= -0.05 else "FAIL"
+    no_regression = breadth_delta >= 0.0 and reasoning_delta >= 0.0
+    strict_gain = breadth_delta > 0.0 or reasoning_delta > 0.0
+    verdict = "PASS" if no_regression and strict_gain else "FAIL"
     gates = dict(critical_gates or {})
     all_critical_gates_pass = (
         set(gates) == _REQUIRED_CRITICAL_GATES
@@ -921,6 +1049,7 @@ __all__ = [
     "ACTIVATION_SCHEMA",
     "BREADTH_PROBES",
     "EVALUATION_SCHEMA",
+    "EVALUATION_PROGRESS_SCHEMA",
     "MIGRATION_CONTRACT_SCHEMA",
     "MIGRATION_PLAN_SCHEMA",
     "MemoryGuard",

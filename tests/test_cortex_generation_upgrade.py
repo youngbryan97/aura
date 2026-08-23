@@ -151,21 +151,125 @@ def test_breadth_battery_does_not_reintroduce_ten_token_clipping(monkeypatch):
     breadth_calls = calls[: len(upgrade.BREADTH_PROBES)]
     assert all(max_tokens >= 32 for _prompt, max_tokens, _mode in breadth_calls)
     assert all(mode == "reactive" for _prompt, _max_tokens, mode in breadth_calls)
-    assert all(row["max_tokens"] >= 32 for row in receipt["breadth_rows"])
+    assert all(row["max_tokens"] >= 256 for row in receipt["breadth_rows"])
 
 
-def test_comparison_verdict_requires_breadth_win_without_reasoning_loss():
+def test_battery_resumes_exact_durable_cells_without_repeating_decode(monkeypatch):
+    import core.learning.cortex_generation_upgrade as upgrade
+    import core.learning.interference_battery as interference
+
+    calls = []
+    events = []
+
+    def decode(
+        _model,
+        _tokenizer,
+        prompt,
+        *,
+        max_tokens,
+        cognitive_mode,
+        stop_strings=(),
+    ):
+        calls.append((prompt, max_tokens, cognitive_mode, stop_strings))
+        return "12 true false au darwin tokyo"
+
+    monkeypatch.setattr(upgrade, "_greedy_decode", decode)
+    monkeypatch.setattr(interference, "natural_stability_probes", lambda _tokenizer: [[1]])
+    monkeypatch.setattr(
+        interference,
+        "snapshot_probe_behavior",
+        lambda _model, _probes: [{"digest": "a" * 16}],
+    )
+
+    first = capability_battery(
+        object(),
+        TinyTokenizer(),
+        label="resume",
+        progress_callback=events.append,
+    )
+    assert len(calls) == 36
+    assert len(events) == 37
+
+    calls.clear()
+    second = capability_battery(
+        object(),
+        TinyTokenizer(),
+        label="resume",
+        resume_events=events,
+    )
+
+    assert calls == []
+    assert second["breadth_rows"] == first["breadth_rows"]
+    assert second["reasoning_rows"] == first["reasoning_rows"]
+    assert second["identity_digests"] == first["identity_digests"]
+
+
+def test_battery_recomputes_a_resume_cell_when_its_prompt_binding_changed(monkeypatch):
+    import core.learning.cortex_generation_upgrade as upgrade
+    import core.learning.interference_battery as interference
+
+    events = []
+
+    def decode(
+        _model,
+        _tokenizer,
+        _prompt,
+        *,
+        max_tokens,
+        cognitive_mode,
+        stop_strings=(),
+    ):
+        return "answer"
+
+    monkeypatch.setattr(upgrade, "_greedy_decode", decode)
+    monkeypatch.setattr(interference, "natural_stability_probes", lambda _tokenizer: [[1]])
+    monkeypatch.setattr(
+        interference,
+        "snapshot_probe_behavior",
+        lambda _model, _probes: [{"digest": "b" * 16}],
+    )
+    capability_battery(
+        object(),
+        TinyTokenizer(),
+        label="resume",
+        progress_callback=events.append,
+    )
+    events[0]["row"]["prompt"] = "tampered"
+
+    repeated = []
+    monkeypatch.setattr(
+        upgrade,
+        "_greedy_decode",
+        lambda *args, **kwargs: repeated.append(args[2]) or "answer",
+    )
+    capability_battery(
+        object(),
+        TinyTokenizer(),
+        label="resume",
+        resume_events=events,
+    )
+
+    assert repeated == [upgrade.BREADTH_PROBES[0][0]]
+
+
+def test_comparison_verdict_requires_pareto_gain_without_regression():
     current = {"label": "cur", "breadth_accuracy": 0.5, "reasoning_accuracy": 0.5,
                "identity_digests": ["a"]}
     better = {"label": "cand", "breadth_accuracy": 0.7, "reasoning_accuracy": 0.5,
               "identity_digests": ["b"]}
     worse_reasoning = {"label": "cand", "breadth_accuracy": 0.7,
                        "reasoning_accuracy": 0.3, "identity_digests": ["b"]}
-    no_breadth = {"label": "cand", "breadth_accuracy": 0.5,
-                  "reasoning_accuracy": 0.9, "identity_digests": ["b"]}
+    reasoning_gain = {"label": "cand", "breadth_accuracy": 0.5,
+                      "reasoning_accuracy": 0.9, "identity_digests": ["b"]}
+    unchanged = {"label": "cand", "breadth_accuracy": 0.5,
+                 "reasoning_accuracy": 0.5, "identity_digests": ["b"]}
+    breadth_regression = {"label": "cand", "breadth_accuracy": 0.4,
+                          "reasoning_accuracy": 0.9, "identity_digests": ["b"]}
     assert compare_batteries(current, better)["verdict"] == "PASS"
     assert compare_batteries(current, worse_reasoning)["verdict"] == "FAIL"
-    assert compare_batteries(current, no_breadth)["verdict"] == "FAIL"
+    assert compare_batteries(current, reasoning_gain)["verdict"] == "PASS"
+    assert compare_batteries(current, unchanged)["verdict"] == "FAIL"
+    assert compare_batteries(current, breadth_regression)["verdict"] == "FAIL"
     assert compare_batteries(current, better)["identity_behavior_changed"] is True
 
 
