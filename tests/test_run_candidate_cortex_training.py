@@ -121,3 +121,59 @@ def test_launch_adaptive_resume_is_explicit(tmp_path: Path, monkeypatch) -> None
 
     assert "--resume" in observed
 
+
+def test_adaptive_recovery_execution_gets_distinct_immutable_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    plan, key, _source = _plan(tmp_path)
+    observed: list[str] = []
+    monkeypatch.setattr(
+        controller,
+        "read_authenticated_journal",
+        lambda *_args, **_kwargs: [{"event_type": "canary_admitted"}],
+    )
+    monkeypatch.setattr(
+        controller,
+        "execution_admission",
+        lambda *_args, **_kwargs: {"execution_authorized": True},
+    )
+    monkeypatch.setattr(
+        controller.detached,
+        "main",
+        lambda args: observed.extend(args) or 0,
+    )
+    monkeypatch.setattr(
+        controller.detached,
+        "_status",
+        lambda path: {"state": "running", "run_dir": str(path)},
+    )
+
+    result = controller._launch_adaptive(
+        plan,
+        key,
+        resume=False,
+        execution_id="cp921-recovery",
+    )
+
+    expected = (
+        Path(plan["paths"]["run_root"])
+        / "adaptive-execution"
+        / "executions"
+        / "cp921-recovery"
+        / "detached"
+    )
+    assert result["run_dir"] == str(expected)
+    assert observed[observed.index("--run-dir") + 1] == str(expected)
+    assert observed[observed.index("--name") + 1].endswith("-cp921-recovery")
+    assert "--resume" not in observed
+
+
+def test_adaptive_execution_id_rejects_path_escape(tmp_path: Path) -> None:
+    plan, _key_path, _source = _plan(tmp_path)
+
+    try:
+        controller.stage_detached_root(plan, execution_id="../escape")
+    except controller.CandidateCortexTrainingError as exc:
+        assert str(exc) == "adaptive_execution_id_invalid"
+    else:
+        raise AssertionError("unsafe adaptive execution id was accepted")

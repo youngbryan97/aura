@@ -52097,3 +52097,29 @@ Next: resume stage-0 measurement from immutable CP920 source, continue the
 admitted adaptive schedule, fuse the terminal winner, then rebuild CAA and
 recurrent tissue against the post-fusion descriptor. Multi-hour serving soaks
 remain deferred until all shorter migration and live gates are green.
+
+## Checkpoint 2026-08-23-921: Preserve Failed Execution Evidence During Recovery
+
+CP921 makes a source repair resumable without overwriting the detached evidence
+that exposed it.
+
+- Adaptive launches now accept a bounded execution generation. The original
+  `primary` custody path remains unchanged; a repaired source lineage receives
+  its own immutable detached plan, process evidence, log, heartbeat, attempts
+  and terminal receipt under the same authenticated scientific run.
+- Execution identifiers are path-safe, length-bounded lowercase slugs. They
+  cannot escape the training run or alias the primary evidence directory.
+- A new generation does not request detached retry of the failed CP919 target.
+  The CP920 target reconstructs the authenticated journal, discovers the exact
+  completed 100-update checkpoint, skips optimizer work and crosses the clean
+  process-image boundary directly into measurement.
+- Status is generation-specific, so a terminal failed attempt cannot be
+  mistaken for the state of its recovery and neither result disappears from
+  inspection.
+
+The candidate controller and training contracts pass `25/25`; the broader
+candidate training, measurement, adaptive-target and fusion set passes `47/47`.
+Canonical smoke passes `121/121` with one environment-dependent skip. Ruff,
+compilation, governance ownership, layering and diff hygiene pass. Next: launch
+the CP921 recovery generation from immutable source, admit stage 0, and continue
+the bounded adaptive schedule without repeating its completed optimizer work.

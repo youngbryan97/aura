@@ -226,10 +226,16 @@ def _parser() -> argparse.ArgumentParser:
     adaptive.add_argument("--run-root", type=Path, required=True)
     adaptive.add_argument("--journal-key", type=Path, required=True)
     adaptive.add_argument("--resume", action="store_true")
+    adaptive.add_argument(
+        "--execution-id",
+        default="primary",
+        help="immutable detached execution generation (default: primary)",
+    )
     adaptive_status = commands.add_parser(
         "status-adaptive", help="inspect the detached adaptive campaign"
     )
     adaptive_status.add_argument("--run-root", type=Path, required=True)
+    adaptive_status.add_argument("--execution-id", default="primary")
     return parser
 
 
@@ -343,7 +349,11 @@ def _status_canary(plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def _launch_adaptive(
-    plan: dict[str, Any], journal_key: Path, *, resume: bool
+    plan: dict[str, Any],
+    journal_key: Path,
+    *,
+    resume: bool,
+    execution_id: str = "primary",
 ) -> dict[str, Any]:
     key_path = journal_key.expanduser().resolve(strict=True)
     key = _key(key_path)
@@ -358,13 +368,13 @@ def _launch_adaptive(
     )
     if execution.get("execution_authorized") is not True:
         raise CandidateCortexTrainingError("adaptive_launch_not_authorized")
-    detached_root = stage_detached_root(plan)
+    detached_root = stage_detached_root(plan, execution_id=execution_id)
     launch_args = [
         "launch",
         "--run-dir",
         str(detached_root),
         "--name",
-        f"candidate-cortex-adaptive-{plan['run_id']}",
+        f"candidate-cortex-adaptive-{plan['run_id']}-{execution_id}",
         "--cwd",
         str(_plan_source_root(plan)),
         "--timeout",
@@ -390,8 +400,10 @@ def _launch_adaptive(
     return detached._status(detached_root)
 
 
-def _status_adaptive(plan: dict[str, Any]) -> dict[str, Any]:
-    detached_root = stage_detached_root(plan)
+def _status_adaptive(
+    plan: dict[str, Any], *, execution_id: str = "primary"
+) -> dict[str, Any]:
+    detached_root = stage_detached_root(plan, execution_id=execution_id)
     if not detached_root.exists():
         return {"state": "not_launched", "terminal": False}
     return detached._status(detached_root)
@@ -461,9 +473,10 @@ def main(argv: list[str] | None = None) -> int:
                     plan,
                     args.journal_key,
                     resume=args.resume,
+                    execution_id=args.execution_id,
                 )
             elif args.action == "status-adaptive":
-                payload = _status_adaptive(plan)
+                payload = _status_adaptive(plan, execution_id=args.execution_id)
             else:
                 events = (
                     read_authenticated_journal(

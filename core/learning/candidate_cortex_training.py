@@ -897,9 +897,22 @@ def stage_adapter_root(plan: Mapping[str, Any], stage_index: int) -> Path:
     return root
 
 
-def stage_detached_root(plan: Mapping[str, Any]) -> Path:
+def stage_detached_root(
+    plan: Mapping[str, Any], *, execution_id: str = "primary"
+) -> Path:
     run_root = Path(str(plan["paths"]["run_root"])).resolve(strict=True)
-    root = (run_root / "adaptive-execution" / "detached").resolve(strict=False)
+    if execution_id == "primary":
+        root = (run_root / "adaptive-execution" / "detached").resolve(strict=False)
+    else:
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?", execution_id):
+            _fail("adaptive_execution_id_invalid")
+        root = (
+            run_root
+            / "adaptive-execution"
+            / "executions"
+            / execution_id
+            / "detached"
+        ).resolve(strict=False)
     if not _within(root, run_root):
         _fail("stage_detached_path_escape")
     return root
