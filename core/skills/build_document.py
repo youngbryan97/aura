@@ -147,8 +147,13 @@ class BuildDocumentSkill(BaseSkill):
         }
 
 
-#: The words a person uses for the shape of the thing they asked for.
-_SECTION_UNITS = ("slide", "section", "page", "part", "chapter")
+#: The words a person uses for the parts of the thing they asked for.
+#:
+#: "page" is deliberately absent. LIVE, 2026-08-22: "one page, not slides"
+#: names the FORM, and counting it as a section produced a one-section
+#: document reporting "1 asked for, 1 written". A page is a shape; slides,
+#: sections, parts and chapters are pieces.
+_SECTION_UNITS = ("slide", "section", "part", "chapter")
 
 #: What each form is called when somebody asks for one.
 _FORM_WORDS = {

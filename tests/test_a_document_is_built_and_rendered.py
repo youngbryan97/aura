@@ -235,3 +235,32 @@ def test_one_section_is_not_a_document(tmp_path):
         )
         is None
     )
+
+
+def test_a_page_is_a_shape_not_a_count():
+    """LIVE, 2026-08-22: "one page, not slides" names the FORM, and counting
+    it as a section produced a one-section document reporting "1 asked for,
+    1 written"."""
+    from core.skills.build_document import _form_wanted, _sections_asked_for
+
+    asked = "put together a short report on the ledger. one page, not slides."
+    assert _sections_asked_for(asked) == 0
+    assert _form_wanted("", asked) == "page"
+    # Real counts still count.
+    assert _sections_asked_for("six slides on the ledger") == 6
+    assert _sections_asked_for("break it into four sections") == 4
+
+
+def test_the_title_names_the_subject_not_the_asking():
+    """LIVE, 2026-08-22: "put together a short report on what you found in
+    that ledger project" became "Put together short report what you"."""
+    from core.conversation.requested_artifact import _title_from_request
+
+    assert (
+        _title_from_request("put together a short report on what you found in that ledger project")
+        == "What you found in that ledger project"
+    )
+    # A count says how many, not what about.
+    assert _title_from_request("Six slides, no fluff: what you are") == "What you are"
+    # Capitals in the middle survive.
+    assert _title_from_request("write me a one-pager about the API migration") == "The API migration"
