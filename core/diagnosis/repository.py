@@ -8,30 +8,36 @@ There is a lot of code machinery in this tree and all of it is pointed at her
 own source: repair, refactor, health, the AST analyser, the error intelligence.
 None of it can be aimed at a directory somebody names.
 
-This can. It finds how the project runs its tests, runs them through the
-governed subprocess gateway, reads the failure the runner reports, and pulls
-the source and the stated intent around the line that failed. Everything it
-reports is something it observed. The language model's part comes afterwards
-and is to explain the finding, not to find it.
+This can. It asks the project how it can be run — a test suite, a script —
+runs it through the governed subprocess gateway, and keeps what came back.
+
+LIVE, later the same day: a project with no tests and no traceback, handed over
+with a symptom, got "no test runner was found" and nothing else. A failing test
+is one kind of evidence, not the only kind. So the diagnosis now gathers three,
+each computed: what running the project produced, what the source says survives
+a call (`core/diagnosis/carried_state.py`), and what the project's own README
+claims that contradicts it. Findings are filed as hypotheses with the
+scientific engine, so a diagnosis made in one session can be confirmed in
+another and the belief moves.
+
+Everything it reports is something it observed. The language model's part comes
+afterwards and is to explain the finding, not to find it.
 """
 
 from __future__ import annotations
 
 import ast
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
 __all__ = [
     "Failure",
+    "confirm_diagnosis",
     "RepositoryDiagnosis",
     "diagnose_repository",
     "describe_diagnosis",
 ]
-
-#: A project that takes longer than this to fail is not one a chat turn waits on.
-_RUN_TIMEOUT_S = 120.0
 
 #: How much source to quote around the line that failed.
 _CONTEXT_LINES = 6
@@ -65,18 +71,22 @@ class RepositoryDiagnosis:
     source: str = ""
     called_functions: tuple[str, ...] = ()
     stated_intent: str = ""
+    observations: tuple[object, ...] = field(default_factory=tuple)
+    carried: tuple[object, ...] = field(default_factory=tuple)
+    hypothesis_id: str = ""
     notes: tuple[str, ...] = field(default_factory=tuple)
     error: str = ""
 
-
-def _find_runner(root: Path) -> tuple[list[str], str]:
-    """How this project runs its tests, discovered rather than assumed."""
-    if (root / "tests").is_dir() or list(root.glob("test_*.py")) or list(root.glob("*_test.py")):
-        target = "tests" if (root / "tests").is_dir() else "."
-        return (["-m", "pytest", target, "-q", "--no-header", "-p", "no:cacheprovider"], f"pytest {target}")
-    if (root / "manage.py").is_file():
-        return (["manage.py", "test"], "manage.py test")
-    return ([], "")
+    def evidence_count(self) -> int:
+        """How many independent things agree that something is wrong."""
+        return sum(
+            (
+                bool(self.failures),
+                bool(self.carried),
+                bool(self.stated_intent),
+                any(not getattr(item, "ok", True) for item in self.observations),
+            )
+        )
 
 
 _FAIL_LINE = re.compile(r"^(?P<file>[^\s:]+\.py):(?P<line>\d+):\s*(?P<kind>\w+Error|assert.*)$")
@@ -179,90 +189,170 @@ def _stated_intent(root: Path, names: tuple[str, ...]) -> str:
     return ""
 
 
-def _run(root: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run the project's tests through the governed gateway."""
-    import sys
+def _file_of(finding: object) -> str:
+    """Which file a piece of carried state is in."""
+    return str(getattr(finding, "file", ""))
 
-    from core.governance_context import local_internal_governed_scope
-    from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-    with local_internal_governed_scope("diagnosis.repository"):
-        return get_subprocess_gateway().run(
-            [sys.executable, *argv],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=_RUN_TIMEOUT_S,
-            read_only=False,
-            check=False,
-            source="diagnosis.repository",
-            accelerator_capability="none",
+def _record_hypothesis(diagnosis: RepositoryDiagnosis, claim: str) -> str:
+    """File the finding with the scientific engine so it outlives this turn.
+
+    A diagnosis is a claim that can be wrong. Filed here it carries an expected
+    observable — that acting on it fixes the symptom — which somebody can
+    resolve later, and the belief moves with the answer rather than with how
+    confidently it was said.
+    """
+    try:
+        from core.cognition.scientific_engine import get_scientific_engine
+    except (ImportError, RuntimeError):
+        return ""
+    agreeing = diagnosis.evidence_count()
+    try:
+        engine = get_scientific_engine()
+        hypothesis_id = engine.form_hypothesis(
+            claim,
+            predicted_observable="symptom_resolved",
+            expected=1.0,
+            prior_confidence=min(0.35 + 0.2 * agreeing, 0.95),
         )
+        # The receipt is what makes it an experiment rather than a note: the
+        # ledger scores expected against observed when somebody resolves it.
+        engine.run_experiment(hypothesis_id)
+    except (TypeError, ValueError, RuntimeError, OSError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("diagnosis.repository", exc, action="skipped filing the hypothesis")
+        return ""
+    return hypothesis_id
+
+
+def confirm_diagnosis(hypothesis_id: str, *, worked: bool) -> None:
+    """Resolve a filed diagnosis with what actually happened to the symptom."""
+    if not hypothesis_id:
+        return
+    try:
+        from core.cognition.scientific_engine import get_scientific_engine
+
+        get_scientific_engine().observe(hypothesis_id, 1.0 if worked else 0.0)
+    except (ImportError, TypeError, ValueError, RuntimeError, OSError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("diagnosis.repository", exc, action="left the hypothesis open")
+
+
+def _claim_of(diagnosis: RepositoryDiagnosis) -> str:
+    """The finding stated as something that can turn out to be false."""
+    if diagnosis.carried:
+        first = diagnosis.carried[0]
+        return (
+            f"in {Path(diagnosis.root).name}, {getattr(first, 'name', 'state')} surviving "
+            f"{getattr(first, 'function', 'a call')} explains the symptom"
+        )
+    if diagnosis.failures:
+        return f"in {Path(diagnosis.root).name}, {diagnosis.failures[0].test} fails for the reason reported"
+    return f"something in {Path(diagnosis.root).name} is wrong"
 
 
 def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> RepositoryDiagnosis:
-    """Run the project and report what failed, with the code around it."""
+    """Run the project every way it affords, and report what that showed."""
+    from core.diagnosis.carried_state import carried_state
+    from core.diagnosis.experiment import Affordance, affordances, observe
+
     root = Path(str(path)).expanduser()
     if not root.is_dir():
         return RepositoryDiagnosis(root=str(root), error=f"{root} is not a directory")
-    command, described = (argv, " ".join(argv)) if argv else _find_runner(root)
-    if not command:
+
+    if argv:
+        ways: tuple[Affordance, ...] = (
+            Affordance(kind="given", argv=tuple(argv), described=" ".join(argv),
+                       why="you named this command"),
+        )
+    else:
+        ways = affordances(root)
+    if not ways:
         return RepositoryDiagnosis(
             root=str(root),
-            error="no test runner was found in this project",
-        )
-    try:
-        done = _run(root, command)
-    except (OSError, subprocess.SubprocessError, RuntimeError, ImportError) as exc:
-        return RepositoryDiagnosis(
-            root=str(root), ran=described, error=f"{type(exc).__name__}: {exc}"[:300]
+            error="nothing in this project runs: no tests, and no script that does work when loaded",
         )
 
-    output = f"{done.stdout or ''}\n{done.stderr or ''}"
-    failures, passed, failed = _parse_failures(output)
+    observations = [observe(root, ways[0])]
+    failures, passed, failed = _parse_failures(observations[0].output)
+    # A suite that passes has not accounted for a symptom, so the project is
+    # also run the way a person runs it.
+    if not failures:
+        for way in ways[1:]:
+            if way.kind == "entry point":
+                observations.append(observe(root, way))
+                break
+
+    carried = carried_state(root)
     source, called = ("", ())
     intent = ""
     if failures:
         source, called = _quote_source(root, failures[0])
         intent = _stated_intent(root, called or (failures[0].test,))
-    return RepositoryDiagnosis(
+    elif carried:
+        first = carried[0]
+        source, called = _quote_source(
+            root, Failure(file=_file_of(first), line=int(getattr(first, "line", 0)))
+        )
+        intent = _stated_intent(root, (str(getattr(first, "name", "")), str(getattr(first, "function", ""))))
+
+    diagnosis = RepositoryDiagnosis(
         root=str(root),
-        ran=described,
-        ok=done.returncode == 0,
-        exit_code=done.returncode,
+        ran=" and ".join(item.ran for item in observations),
+        ok=all(item.ok for item in observations) and not failures and not carried,
+        exit_code=observations[0].exit_code,
         passed=passed,
         failed=failed,
         failures=tuple(failures),
         source=source,
         called_functions=called,
         stated_intent=intent,
+        observations=tuple(observations),
+        carried=carried,
     )
+    if not diagnosis.ok:
+        object.__setattr__(diagnosis, "hypothesis_id", _record_hypothesis(diagnosis, _claim_of(diagnosis)))
+    return diagnosis
 
 
 def describe_diagnosis(diagnosis: RepositoryDiagnosis) -> str:
     """The finding as text, or "" when there is nothing to report."""
+    from core.diagnosis.carried_state import describe_carried_state
+
     if diagnosis.error:
         return f"I could not run {diagnosis.root}: {diagnosis.error}"
-    if diagnosis.ok:
-        return f"I ran {diagnosis.ran} in {diagnosis.root}: {diagnosis.passed} passed, nothing failed."
-    if not diagnosis.failures:
-        return (
-            f"I ran {diagnosis.ran} in {diagnosis.root} and it exited "
-            f"{diagnosis.exit_code} without naming a failing test."
-        )
-    first = diagnosis.failures[0]
-    lines = [
-        f"I ran {diagnosis.ran}: {diagnosis.passed} passed, {diagnosis.failed} failed.",
-        f"The failure is {first.test}.",
-    ]
-    if first.assertion:
-        lines.append(f"What the runner reported: {first.assertion}")
-    if first.file and first.line:
-        lines.append(f"It fails at {first.file}:{first.line}.")
+
+    if diagnosis.ok and not diagnosis.carried:
+        counted = f": {diagnosis.passed} passed, nothing failed" if diagnosis.passed else ""
+        return f"I ran {diagnosis.ran} in {diagnosis.root}{counted}."
+
+    lines: list[str] = []
+    if diagnosis.failures:
+        first = diagnosis.failures[0]
+        lines.append(f"I ran {diagnosis.ran}: {diagnosis.passed} passed, {diagnosis.failed} failed.")
+        lines.append(f"The failure is {first.test}.")
+        if first.assertion:
+            lines.append(f"What the runner reported: {first.assertion}")
+        if first.file and first.line:
+            lines.append(f"It fails at {first.file}:{first.line}.")
+    else:
+        for item in diagnosis.observations:
+            ran, output = getattr(item, "ran", ""), getattr(item, "output", "")
+            if getattr(item, "error", ""):
+                lines.append(f"I could not run {ran}: {item.error}")
+            elif output:
+                lines.append(f"I ran {ran} and it printed:\n{output[:1200]}")
+            else:
+                lines.append(f"I ran {ran}; it printed nothing and exited {getattr(item, 'exit_code', 0)}.")
+
+    if diagnosis.carried:
+        lines.append(describe_carried_state(tuple(diagnosis.carried)))
     if diagnosis.source:
         lines.append("Around that line:\n" + diagnosis.source)
     if diagnosis.called_functions:
         lines.append("The failing line calls: " + ", ".join(diagnosis.called_functions) + ".")
     if diagnosis.stated_intent:
         lines.append("What the project says it should do: " + diagnosis.stated_intent)
-    return "\n".join(lines)
+    return "\n".join(line for line in lines if line)

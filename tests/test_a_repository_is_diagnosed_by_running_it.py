@@ -61,10 +61,16 @@ def test_a_directory_that_is_not_one_says_so(tmp_path: Path):
     assert "not a directory" in diagnosis.error
 
 
-def test_a_project_with_no_runner_says_so(tmp_path: Path):
+def test_a_project_that_affords_nothing_says_so(tmp_path: Path):
+    """A directory with no tests AND no script is one there is no way into.
+
+    A project with no tests but a script IS diagnosable — that is the whole
+    point of the entry-point affordance — so "no test runner" stopped being
+    the thing to report.
+    """
     (tmp_path / "notes.txt").write_text("nothing to run here")
     diagnosis = diagnose_repository(tmp_path)
-    assert "no test runner" in diagnosis.error
+    assert "nothing in this project runs" in diagnosis.error
 
 
 def test_it_runs_the_project_and_reports_the_real_failure(project: Path):
