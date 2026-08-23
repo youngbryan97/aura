@@ -22,8 +22,8 @@ Dimensions extracted:
   - warmth        (connected/detached)
 
 Usage:
-    python training/extract_steering_vectors.py --model-path <path>
-    python training/extract_steering_vectors.py  # uses default model
+    python training/extract_steering_vectors.py \
+        --model-path <local-model-path> --output-dir <generation-directory>
 
 Requires MLX and mlx-lm.
 """
@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import logging
 import sys
@@ -47,7 +48,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CAA.Extract")
 
-VECTORS_DIR = Path(__file__).parent / "vectors"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -55,7 +55,13 @@ if str(REPO_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # Default model path (Aura's runtime model)
 # ---------------------------------------------------------------------------
-DEFAULT_MODEL_PATH = "mlx-community/Qwen2.5-32B-Instruct-4bit"
+MODEL_DESCRIPTOR_SCHEMA = "aura.model_artifact_descriptor.v1"
+FUSION_PROVENANCE_FILE = "aura_fusion_provenance.json"
+FUSION_PROVENANCE_SCHEMA = "aura.candidate_cortex_fusion.provenance.v1"
+FUSION_REPRESENTATION_BOUNDARY = (
+    "fused weights define a new model identity; prior steering and recurrent "
+    "tensors are not representation-compatible"
+)
 
 # Target layers as fraction of model depth [lower, upper].
 # Middle layers (40-65% depth) are most effective for affective steering.
@@ -63,6 +69,68 @@ TARGET_LAYER_FRACTION = (0.40, 0.65)
 
 # Explicit fallback layers for a 64-layer model
 DEFAULT_TARGET_LAYERS = list(range(13, 22))  # layers 13-21 inclusive
+
+
+class SteeringExtractionContractError(ValueError):
+    """A stable model or adapter identity failure during CAA extraction."""
+
+
+def _resolve_local_directory(raw: str | Path, *, error: str) -> Path:
+    path = Path(raw).expanduser()
+    if path.is_symlink():
+        raise SteeringExtractionContractError(error)
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise SteeringExtractionContractError(error) from exc
+    if not resolved.is_dir():
+        raise SteeringExtractionContractError(error)
+    return resolved
+
+
+def _fused_model_provenance(model_path: Path) -> dict[str, Any] | None:
+    provenance_path = model_path / FUSION_PROVENANCE_FILE
+    if not provenance_path.exists():
+        return None
+    if provenance_path.is_symlink() or not provenance_path.is_file():
+        raise SteeringExtractionContractError("fusion_provenance_invalid")
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SteeringExtractionContractError("fusion_provenance_invalid") from exc
+    if (
+        not isinstance(provenance, dict)
+        or provenance.get("schema") != FUSION_PROVENANCE_SCHEMA
+        or provenance.get("representation_boundary")
+        != FUSION_REPRESENTATION_BOUNDARY
+    ):
+        raise SteeringExtractionContractError("fusion_provenance_invalid")
+    return provenance
+
+
+def _resolve_extraction_adapter(
+    model_path: str | Path,
+    adapter_path: str | None,
+) -> str | None:
+    """Resolve explicit adapter authority without guessing from a filename."""
+
+    model = _resolve_local_directory(model_path, error="model_artifact_invalid")
+    fused = _fused_model_provenance(model) is not None
+    if adapter_path is None:
+        return None
+    if fused:
+        raise SteeringExtractionContractError("adapter_stacking_on_fused_model")
+    adapter = _resolve_local_directory(
+        adapter_path,
+        error="adapter_artifact_invalid",
+    )
+    if not all(
+        (adapter / name).is_file()
+        and not (adapter / name).is_symlink()
+        for name in ("adapter_config.json", "adapters.safetensors")
+    ):
+        raise SteeringExtractionContractError("adapter_artifact_invalid")
+    return str(adapter)
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -76,34 +144,178 @@ def _sha256_file(path: Path) -> str | None:
         return None
 
 
-def _model_identity(model_path: str) -> dict[str, Any]:
-    path = Path(model_path).expanduser()
-    resolved = str(path.resolve()) if path.exists() else str(model_path)
-    cfg = path / "config.json"
-    descriptor: dict[str, object] | None = None
-    if path.is_dir():
-        try:
-            from core.brain.llm.model_artifact_profile import (
-                build_model_artifact_descriptor,
-            )
+def _load_model_identity(
+    model_path: str | Path,
+    descriptor_path: str | Path,
+) -> dict[str, Any]:
+    """Load the promotion descriptor that names the exact activation geometry."""
 
-            descriptor = build_model_artifact_descriptor(path)
-        except (OSError, RuntimeError, TypeError, ValueError) as exc:
-            logger.warning(
-                "Exact local model identity unavailable; extracted vectors will "
-                "not be promotable: %s",
-                exc,
-            )
+    model = _resolve_local_directory(model_path, error="model_artifact_invalid")
+    descriptor_file = Path(descriptor_path).expanduser()
+    if descriptor_file.is_symlink():
+        raise SteeringExtractionContractError("model_descriptor_invalid")
+    try:
+        descriptor_file = descriptor_file.resolve(strict=True)
+        raw = json.loads(descriptor_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SteeringExtractionContractError("model_descriptor_invalid") from exc
+    if not descriptor_file.is_file() or not isinstance(raw, dict):
+        raise SteeringExtractionContractError("model_descriptor_invalid")
+    try:
+        from core.brain.llm.model_artifact_profile import (
+            validate_model_artifact_descriptor,
+        )
+
+        descriptor = validate_model_artifact_descriptor(
+            raw,
+            model_path=model,
+            verify_full_hash=False,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise SteeringExtractionContractError("model_descriptor_invalid") from exc
+    if descriptor.get("schema") != MODEL_DESCRIPTOR_SCHEMA:
+        raise SteeringExtractionContractError("model_descriptor_invalid")
+    cfg = model / "config.json"
     return {
-        "model_path": resolved,
-        "model_path_input": str(model_path),
+        "model_path": str(model),
         "model_config_sha256": _sha256_file(cfg) if cfg.exists() else None,
         "model_config_path": str(cfg.resolve()) if cfg.exists() else None,
-        "model_descriptor_sha256": str(
-            (descriptor or {}).get("descriptor_sha256") or ""
-        ),
+        "model_descriptor_path": str(descriptor_file),
+        "model_descriptor_file_sha256": _sha256_file(descriptor_file),
+        "model_descriptor_sha256": str(descriptor["descriptor_sha256"]),
         "model_artifact_descriptor": descriptor,
     }
+
+
+def _adapter_identity(adapter_path: str | None) -> dict[str, Any] | None:
+    if adapter_path is None:
+        return None
+    root = Path(adapter_path).resolve(strict=True)
+    bindings = []
+    for name in ("adapter_config.json", "adapters.safetensors"):
+        path = root / name
+        digest = _sha256_file(path)
+        if digest is None:
+            raise SteeringExtractionContractError("adapter_artifact_invalid")
+        bindings.append(
+            {"name": name, "size_bytes": path.stat().st_size, "sha256": digest}
+        )
+    return {"canonical_path": str(root), "files": bindings}
+
+
+def _canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _representation_identity(
+    *,
+    model_identity: dict[str, Any],
+    adapter_identity: dict[str, Any] | None,
+    fusion_provenance: dict[str, Any] | None,
+) -> dict[str, Any]:
+    material = {
+        "schema": "aura.caa.representation_identity.v1",
+        "model_descriptor_sha256": model_identity["model_descriptor_sha256"],
+        "adapter_identity": adapter_identity,
+        "fusion_provenance": fusion_provenance,
+    }
+    return {**material, "representation_sha256": _canonical_sha256(material)}
+
+
+def _npz_payload(**values: Any) -> bytes:
+    buffer = io.BytesIO()
+    np.savez(buffer, **values)
+    return buffer.getvalue()
+
+
+def _reserve_output_generation(
+    out_dir: Path,
+    *,
+    representation_sha256: str,
+    extraction_contract_sha256: str,
+) -> bytes:
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    reservation = json.dumps(
+        {
+            "schema": "aura.caa.extraction_reservation.v1",
+            "representation_sha256": representation_sha256,
+            "extraction_contract_sha256": extraction_contract_sha256,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    source = "caa_steering_extraction.reserve_generation"
+    with local_internal_governed_scope(source, domain="file_write"):
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(out_dir, source=source)
+        existing = {entry.name for entry in out_dir.iterdir()}
+        if "caa_extraction_reservation.json" in existing:
+            raise SteeringExtractionContractError(
+                "output_generation_already_reserved"
+            )
+        if existing:
+            raise SteeringExtractionContractError("output_generation_not_empty")
+        created = gateway.write_bytes_if_absent(
+            out_dir / "caa_extraction_reservation.json",
+            reservation,
+            source=source,
+        )
+    if not created:
+        raise SteeringExtractionContractError("output_generation_already_reserved")
+    return reservation
+
+
+def _publish_vector_generation(
+    out_dir: Path,
+    *,
+    vector_payloads: dict[str, bytes],
+    metadata: dict[str, Any],
+    reservation: bytes,
+) -> None:
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import (
+        DirectoryFileWriteBatchEntry,
+        get_file_write_gateway,
+    )
+
+    metadata_payload = (
+        json.dumps(metadata, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    ).encode("ascii")
+    entries = [
+        DirectoryFileWriteBatchEntry(name=name, payload=payload)
+        for name, payload in sorted(vector_payloads.items())
+    ]
+    entries.extend(
+        [
+            DirectoryFileWriteBatchEntry(
+                name="caa_extraction_reservation.json",
+                payload=reservation,
+            ),
+            DirectoryFileWriteBatchEntry(
+                name="caa_steering_meta.json",
+                payload=metadata_payload,
+            ),
+        ]
+    )
+    names = {entry.name for entry in entries}
+    source = "caa_steering_extraction.publish_generation"
+    with local_internal_governed_scope(source, domain="file_write"):
+        get_file_write_gateway().write_bytes_batch_in_directory(
+            out_dir,
+            entries,
+            allowed_existing_names=names,
+            commit_marker="caa_steering_meta.json",
+            source=source,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +594,8 @@ def _extract_hidden_states(
 # ---------------------------------------------------------------------------
 
 def _extract_steering_vectors_owned(
-    model_path: str = DEFAULT_MODEL_PATH,
+    model_path: str,
+    model_descriptor_path: str | Path,
     adapter_path: str | None = None,
     target_layers: list[int] | None = None,
     output_dir: Path | None = None,
@@ -392,7 +605,8 @@ def _extract_steering_vectors_owned(
     """Extract CAA steering vectors for all affective dimensions.
 
     Args:
-        model_path: HuggingFace model ID or local path (MLX format).
+        model_path: Exact local MLX model artifact.
+        model_descriptor_path: Promotion descriptor for that exact artifact.
         adapter_path: Optional LoRA adapter path.
         target_layers: Explicit layer indices to extract from. If None,
             computed from model depth at 40-65%.
@@ -414,12 +628,65 @@ def _extract_steering_vectors_owned(
         )
         sys.exit(1)
 
-    out_dir = output_dir or VECTORS_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir is None:
+        raise SteeringExtractionContractError("output_generation_required")
+    out_dir = Path(output_dir).expanduser().resolve(strict=False)
+    model_path = str(
+        _resolve_local_directory(model_path, error="model_artifact_invalid")
+    )
+    adapter_path = _resolve_extraction_adapter(model_path, adapter_path)
 
     # -- Load model ----------------------------------------------------------
     logger.info("Loading model: %s", model_path)
-    identity = _model_identity(model_path)
+    identity = _load_model_identity(model_path, model_descriptor_path)
+    adapter_identity = _adapter_identity(adapter_path)
+    fusion_provenance = _fused_model_provenance(Path(identity["model_path"]))
+    representation = _representation_identity(
+        model_identity=identity,
+        adapter_identity=adapter_identity,
+        fusion_provenance=fusion_provenance,
+    )
+    descriptor_profile = identity["model_artifact_descriptor"].get(
+        "artifact_profile"
+    )
+    try:
+        descriptor_layers = int((descriptor_profile or {}).get("num_hidden_layers") or 0)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise SteeringExtractionContractError("model_layer_count_invalid") from exc
+    if descriptor_layers <= 0:
+        raise SteeringExtractionContractError("model_layer_count_invalid")
+    if target_layers is None:
+        target_layers = _compute_target_layers(descriptor_layers)
+    target_layers = [int(value) for value in target_layers]
+    if (
+        not target_layers
+        or len(set(target_layers)) != len(target_layers)
+        or min(target_layers) < 0
+        or max(target_layers) >= descriptor_layers
+    ):
+        raise SteeringExtractionContractError("target_layers_invalid")
+    requested_dimensions = list(dimensions or AFFECTIVE_DIMENSIONS)
+    unknown = sorted(set(requested_dimensions) - set(ALL_AFFECTIVE_DIMENSIONS))
+    if unknown:
+        raise ValueError(f"Unknown CAA dimension(s): {', '.join(unknown)}")
+    extraction_contract_body = {
+        "schema": "aura.caa.extraction_contract.v1",
+        "representation_sha256": representation["representation_sha256"],
+        "target_layers": target_layers,
+        "dimensions": requested_dimensions,
+        "max_prompts_per_polarity": max_prompts_per_polarity,
+    }
+    extraction_contract = {
+        **extraction_contract_body,
+        "extraction_contract_sha256": _canonical_sha256(extraction_contract_body),
+    }
+    reservation = _reserve_output_generation(
+        out_dir,
+        representation_sha256=representation["representation_sha256"],
+        extraction_contract_sha256=extraction_contract[
+            "extraction_contract_sha256"
+        ],
+    )
     load_kwargs: dict[str, Any] = {}
     if adapter_path and Path(adapter_path).exists():
         logger.info("With LoRA adapter: %s", adapter_path)
@@ -439,12 +706,8 @@ def _extract_steering_vectors_owned(
         except (AttributeError, TypeError):
             continue
 
-    if n_layers == 0:
-        logger.warning("Could not determine model depth. Using default layers.")
-        n_layers = 64
-
-    if target_layers is None:
-        target_layers = _compute_target_layers(n_layers)
+    if n_layers != descriptor_layers:
+        raise SteeringExtractionContractError("model_layer_count_mismatch")
 
     logger.info(
         "Model has %d layers. Targeting layers %s for extraction.",
@@ -459,17 +722,13 @@ def _extract_steering_vectors_owned(
 
     # -- Extract per dimension -----------------------------------------------
     all_vectors: dict[str, dict[int, np.ndarray]] = {}
+    vector_payloads: dict[str, bytes] = {}
     meta_dimensions: list[dict[str, Any]] = []
 
-    selected_dimensions = AFFECTIVE_DIMENSIONS
-    if dimensions:
-        unknown = sorted(set(dimensions) - set(ALL_AFFECTIVE_DIMENSIONS))
-        if unknown:
-            raise ValueError(f"Unknown CAA dimension(s): {', '.join(unknown)}")
-        selected_dimensions = {
-            key: ALL_AFFECTIVE_DIMENSIONS[key]
-            for key in dimensions
-        }
+    selected_dimensions = {
+        key: ALL_AFFECTIVE_DIMENSIONS[key]
+        for key in requested_dimensions
+    }
 
     for dim_key, dim_spec in selected_dimensions.items():
         logger.info("=== Extracting dimension: %s ===", dim_key)
@@ -533,10 +792,8 @@ def _extract_steering_vectors_owned(
 
             dim_vectors[lidx] = direction
 
-            # Save individual vector file
             vec_filename = f"{dim_key}_layer{lidx}.npz"
-            np.savez(
-                out_dir / vec_filename,
+            vector_payloads[vec_filename] = _npz_payload(
                 v=direction,
                 source="extracted_caa",
                 extracted=True,
@@ -544,10 +801,10 @@ def _extract_steering_vectors_owned(
                 layer=lidx,
                 model=model_path,
                 model_path=identity["model_path"],
-                model_path_input=identity["model_path_input"],
                 model_config_sha256=identity["model_config_sha256"] or "",
                 model_config_path=identity["model_config_path"] or "",
                 model_descriptor_sha256=identity["model_descriptor_sha256"],
+                representation_sha256=representation["representation_sha256"],
                 derived_at=time.time(),
             )
             logger.info(
@@ -571,7 +828,8 @@ def _extract_steering_vectors_owned(
         "method": "contrastive_activation_addition",
         "model": model_path,
         "model_identity": identity,
-        "adapter": adapter_path,
+        "representation_identity": representation,
+        "extraction_contract": extraction_contract,
         "n_model_layers": n_layers,
         "target_layers": target_layers,
         "target_layer_fraction": list(TARGET_LAYER_FRACTION),
@@ -579,9 +837,28 @@ def _extract_steering_vectors_owned(
         "total_vectors": sum(len(v) for v in all_vectors.values()),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-    meta_path = out_dir / "caa_steering_meta.json"
-    with open(meta_path, "w") as f:
-        json.dump(meta, f, indent=2)
+    meta["vector_files"] = [
+        {
+            "name": name,
+            "size_bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+        for name, payload in sorted(vector_payloads.items())
+    ]
+    meta["generation_sha256"] = _canonical_sha256(
+        {
+            "extraction_contract_sha256": extraction_contract[
+                "extraction_contract_sha256"
+            ],
+            "vector_files": meta["vector_files"],
+        }
+    )
+    _publish_vector_generation(
+        out_dir,
+        vector_payloads=vector_payloads,
+        metadata=meta,
+        reservation=reservation,
+    )
 
     logger.info(
         "Extraction complete. %d total vectors across %d dimensions saved to %s",
@@ -591,7 +868,8 @@ def _extract_steering_vectors_owned(
 
 
 def extract_steering_vectors(
-    model_path: str = DEFAULT_MODEL_PATH,
+    model_path: str,
+    model_descriptor_path: str | Path,
     adapter_path: str | None = None,
     target_layers: list[int] | None = None,
     output_dir: Path | None = None,
@@ -613,6 +891,7 @@ def extract_steering_vectors(
     ):
         return _extract_steering_vectors_owned(
             model_path=model_path,
+            model_descriptor_path=model_descriptor_path,
             adapter_path=adapter_path,
             target_layers=target_layers,
             output_dir=output_dir,
@@ -634,9 +913,14 @@ def main():
     parser.add_argument(
         "--model-path",
         type=str,
-        default=DEFAULT_MODEL_PATH,
-        help="HuggingFace model ID or local path (MLX format). "
-             f"Default: {DEFAULT_MODEL_PATH}",
+        required=True,
+        help="Exact local MLX model artifact. Remote IDs are not admitted.",
+    )
+    parser.add_argument(
+        "--model-descriptor",
+        type=str,
+        required=True,
+        help="Exact promotion descriptor bound to --model-path.",
     )
     parser.add_argument(
         "--adapter-path",
@@ -654,8 +938,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=None,
-        help=f"Output directory for vectors. Default: {VECTORS_DIR}",
+        required=True,
+        help="Generation-specific output directory for extracted vectors.",
     )
     parser.add_argument(
         "--dimensions",
@@ -680,27 +964,15 @@ def main():
     if args.dimensions:
         dimensions = [item.strip() for item in args.dimensions.split(",") if item.strip()]
 
-    output_dir = Path(args.output_dir) if args.output_dir else None
-
-    # Auto-detect adapter if not specified — but never for fused artifacts:
-    # a fused model already contains the personality (and any CRSM delta)
-    # baked into its weights, so stacking the adapter again would extract
-    # vectors from a model state that is not what serves live traffic.
-    adapter_path = args.adapter_path
-    model_is_fused = "fused-model" in str(args.model_path)
-    if adapter_path is None and not model_is_fused:
-        default_adapter = Path(__file__).parent / "adapters" / "aura-personality"
-        if default_adapter.exists():
-            adapter_path = str(default_adapter)
-            logger.info("Auto-detected LoRA adapter: %s", adapter_path)
-    elif adapter_path is None and model_is_fused:
-        logger.info(
-            "Fused model detected; extracting from the fused weights directly "
-            "(no adapter stacking)."
-        )
+    model_path = str(
+        _resolve_local_directory(args.model_path, error="model_artifact_invalid")
+    )
+    output_dir = Path(args.output_dir).expanduser().resolve(strict=False)
+    adapter_path = _resolve_extraction_adapter(model_path, args.adapter_path)
 
     extract_steering_vectors(
-        model_path=args.model_path,
+        model_path=model_path,
+        model_descriptor_path=args.model_descriptor,
         adapter_path=adapter_path,
         target_layers=target_layers,
         output_dir=output_dir,

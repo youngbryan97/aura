@@ -380,6 +380,7 @@ def test_caa_extraction_holds_lane_for_entire_operation(
     )
     result = extract_steering_vectors.extract_steering_vectors(
         model_path="/models/caa",
+        model_descriptor_path=tmp_path / "descriptor.json",
         output_dir=tmp_path,
     )
 
@@ -550,6 +551,7 @@ def test_recurrent_depth_training_holds_entire_lora_main_under_lane(
         str(Path(__file__).resolve().parents[1] / "scripts" / "train_with_recurrent_depth.py"),
         run_name="aura_recurrent_depth_contract",
     )
+    assert namespace["ROOT"] == Path(__file__).resolve().parents[1]
     main = namespace["main"]
     events: list[str] = []
 
