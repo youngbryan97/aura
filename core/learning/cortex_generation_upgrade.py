@@ -38,6 +38,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,6 +81,7 @@ ROLLBACK_POINTER_NAME = "active.json.rollback"
 # the load or the guard refuses.
 _LOAD_OVERHEAD_FACTOR = 1.3
 _FREE_MARGIN_GB = 8.0
+_BREADTH_MAX_TOKENS = 96
 
 # Breadth probes: factual cloze items with acceptable-answer alternates.
 # Deterministic greedy decoding, case-insensitive containment scoring. These
@@ -112,7 +114,15 @@ BREADTH_PROBES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def _greedy_decode(model, tokenizer, prompt: str, *, max_tokens: int = 10) -> str:
+def _greedy_decode(
+    model,
+    tokenizer,
+    prompt: str,
+    *,
+    max_tokens: int = 10,
+    cognitive_mode: str = "reactive",
+    stop_strings: tuple[str, ...] = (),
+) -> str:
     """Architecture-native deterministic decode for battery probes.
 
     Qwen3.8 mixes full-attention and linear-attention blocks. Hand-building a
@@ -124,13 +134,21 @@ def _greedy_decode(model, tokenizer, prompt: str, *, max_tokens: int = 10) -> st
     from mlx_lm.generate import generate_step
 
     try:
-        tokens = list(
-            tokenizer.apply_chat_template(
-                [{"role": "user", "content": prompt}],
-                add_generation_prompt=True,
-                tokenize=True,
-            )
+        from core.brain.llm.chat_format import (
+            render_chat_template,
+            thinking_enabled_for_request,
         )
+
+        rendered = render_chat_template(
+            tokenizer,
+            [{"role": "user", "content": prompt}],
+            add_generation_prompt=True,
+            enable_thinking=thinking_enabled_for_request(
+                None,
+                cognitive_mode=cognitive_mode,
+            ),
+        )
+        tokens = list(tokenizer.encode(rendered))
     except (AttributeError, TypeError, ValueError):
         tokens = list(tokenizer.encode(prompt))
     eos: set[int] = set()
@@ -153,10 +171,33 @@ def _greedy_decode(model, tokenizer, prompt: str, *, max_tokens: int = 10) -> st
         if token in eos:
             break
         out.append(token)
+        if stop_strings:
+            try:
+                partial = str(tokenizer.decode(out))
+            except (TypeError, ValueError, KeyError):
+                partial = ""
+            if _answer_matches(partial, stop_strings):
+                break
     try:
         return str(tokenizer.decode(out))
     except (TypeError, ValueError, KeyError):
         return ""
+
+
+def _answer_matches(answer: str, accepted: tuple[str, ...]) -> bool:
+    """Match factual evidence independent of harmless display markup.
+
+    Model generations commonly render formulas as ``H_2O`` or ``H_{2}O`` and
+    names in Markdown emphasis. The old raw substring scorer counted those as
+    knowledge failures. Compact alphanumeric comparison preserves the old
+    containment contract while removing presentation-only punctuation.
+    """
+    compact_answer = re.sub(r"[^a-z0-9]+", "", str(answer).casefold())
+    for option in accepted:
+        compact_option = re.sub(r"[^a-z0-9]+", "", str(option).casefold())
+        if compact_option and compact_option in compact_answer:
+            return True
+    return False
 
 
 def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, Any]:
@@ -177,17 +218,37 @@ def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, A
     breadth_hits = 0
     breadth_rows: list[dict[str, Any]] = []
     for prompt, accepted in BREADTH_PROBES:
-        answer = _greedy_decode(model, tokenizer, prompt, max_tokens=10).lower()
-        hit = any(option in answer for option in accepted)
+        answer = _greedy_decode(
+            model,
+            tokenizer,
+            prompt,
+            max_tokens=_BREADTH_MAX_TOKENS,
+            cognitive_mode="reactive",
+            stop_strings=accepted,
+        ).lower()
+        hit = _answer_matches(answer, accepted)
         breadth_hits += int(hit)
-        breadth_rows.append({"prompt": prompt, "answer": answer[:60], "hit": hit})
+        breadth_rows.append(
+            {
+                "prompt": prompt,
+                "answer": answer[:240],
+                "hit": hit,
+                "max_tokens": _BREADTH_MAX_TOKENS,
+            }
+        )
 
     reasoning_hits = 0
     reasoning_total = 0
     for seed in range(6):
         for task in (modular_chain(3, seed=seed), nested_boolean(3, seed=seed)):
             reasoning_total += 1
-            answer = _greedy_decode(model, tokenizer, task.prompt, max_tokens=48)
+            answer = _greedy_decode(
+                model,
+                tokenizer,
+                task.prompt,
+                max_tokens=256,
+                cognitive_mode="deliberate",
+            )
             reasoning_hits += int(task.verify(answer))
 
     try:

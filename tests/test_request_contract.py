@@ -137,6 +137,16 @@ def test_a_clean_context_reports_clean():
     assert result.to_dict() == {"rejected": {}, "unknown": []}
 
 
+def test_cognitive_mode_is_a_closed_typed_request_field():
+    for mode in ("reactive", "deliberate", "dreaming", "dormant", "deep"):
+        result = validate_request_context({"cognitive_mode": mode})
+        assert result.clean
+        assert result.context["cognitive_mode"] == mode
+
+    rejected = validate_request_context({"cognitive_mode": "make-it-smart"})
+    assert "cognitive_mode" in rejected.rejected
+
+
 def test_rejection_callback_sees_every_rejection():
     seen = []
     validate_request_context(

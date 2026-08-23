@@ -117,16 +117,19 @@ def stability_probes_for(model, tokenizer=None) -> list[list[int]]:
 def _probe_logits(model, token_ids: list[int]):
     import mlx.core as mx
 
-    inner = model.model
-    vocab = int(inner.embed_tokens.weight.shape[0])
-    tokens = mx.array([[t % vocab for t in token_ids]])
-    h = inner.embed_tokens(tokens)
-    for layer in inner.layers:
-        h = layer(h, None, None)
-    h = inner.norm(h)
-    logits = (
-        model.lm_head(h) if hasattr(model, "lm_head") else inner.embed_tokens.as_linear(h)
-    )[0, -1]
+    # The model wrapper is the architecture contract. Walking ``model.model``
+    # by hand only reproduced Qwen2 and bypassed mixed linear/full-attention
+    # execution in Qwen3.5-family checkpoints. Token ids originate from this
+    # model's tokenizer (or the bounded synthetic fallback), so remapping them
+    # against a guessed embedding table is both unnecessary and incorrect.
+    tokens = mx.array([[int(token) for token in token_ids]], dtype=mx.int32)
+    output = model(tokens)
+    logits = getattr(output, "logits", output)
+    if getattr(logits, "ndim", 0) != 3:
+        raise TypeError(
+            "interference probe model forward must return [batch, sequence, vocab] logits"
+        )
+    logits = logits[0, -1]
     mx.eval(logits)
     return logits
 

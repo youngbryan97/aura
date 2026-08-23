@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib as _hashlib
 import logging
 import os
+import re
 from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger("Aura.ChatFormat")
@@ -323,9 +324,54 @@ def thinking_enabled_for_model(model_name: Optional[str]) -> Optional[bool]:
     name = str(model_name or "").strip().lower()
     if not name:
         return None
-    if "brainstem" in name or "9b" in name or "1.5b" in name or "7b" in name:
+    # Size labels are tokens, not substrings. ``7b in 27b`` is true, which
+    # silently assigned every 27B cortex to the 7B fast policy.
+    fast_size = re.search(r"(?<![0-9.])(?:1\.5|7|9)b(?![0-9])", name)
+    if "brainstem" in name or fast_size is not None:
         return False
     return None
+
+
+_NON_THINKING_COGNITIVE_MODES = frozenset(
+    {"reactive", "dormant", "fast", "quick"}
+)
+_THINKING_COGNITIVE_MODES = frozenset(
+    {
+        "deliberate",
+        "dreaming",
+        "slow",
+        "deep",
+        "reflective",
+        "critical",
+        "creative",
+    }
+)
+
+
+def thinking_enabled_for_request(
+    model_name: Optional[str],
+    *,
+    cognitive_mode: object = None,
+) -> Optional[bool]:
+    """Select native reasoning from Aura's typed cognitive lane.
+
+    CognitiveRouting and CognitiveEngine already select the computation. This
+    carries that decision into tokenization without classifying prompt text or
+    changing the content shown to the model. A fast-role model remains
+    non-thinking even if a caller requests deliberation; role ownership wins.
+    Unknown or absent modes preserve the prior artifact policy.
+    """
+
+    model_policy = thinking_enabled_for_model(model_name)
+    if model_policy is False:
+        return False
+
+    mode = str(cognitive_mode or "").strip().lower()
+    if mode in _NON_THINKING_COGNITIVE_MODES:
+        return False
+    if mode in _THINKING_COGNITIVE_MODES:
+        return True
+    return model_policy
 
 
 def _uses_grok_chat_template(model_name: Optional[str]) -> bool:

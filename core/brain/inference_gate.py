@@ -11423,6 +11423,7 @@ class InferenceGate:
             "schema",
             "benchmark_request",
             "purpose",
+            "cognitive_mode",
             "strict_answer_contract",
             "strict_value_contract",
             "proof_evaluation_contract",

@@ -68,6 +68,25 @@ KNOWN_TIERS: frozenset[str] = frozenset(
     {"primary", "secondary", "tertiary", "api_fast", "api_deep"}
 )
 
+# Both state-level CognitiveMode values and CognitiveEngine ThinkingMode values
+# cross the inference boundary. They describe computation Aura already
+# selected; they are never inferred again from prompt words at the model seam.
+KNOWN_COGNITIVE_MODES: frozenset[str] = frozenset(
+    {
+        "reactive",
+        "deliberate",
+        "dreaming",
+        "dormant",
+        "fast",
+        "quick",
+        "slow",
+        "deep",
+        "reflective",
+        "critical",
+        "creative",
+    }
+)
+
 
 class Kind:
     BOOL = "bool"
@@ -77,6 +96,7 @@ class Kind:
     POSITIVE_INT = "positive_int"
     STRING = "string"
     TIER = "tier"
+    COGNITIVE_MODE = "cognitive_mode"
     STRING_LIST = "string_list"
     MAPPING = "mapping"
     SEQUENCE = "sequence"
@@ -182,6 +202,7 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "recent_context_needed": Field_(Kind.BOOL),
     "origin": Field_(Kind.STRING),
     "purpose": Field_(Kind.STRING),
+    "cognitive_mode": Field_(Kind.COGNITIVE_MODE),
     # ── proof and output contracts (authority-relevant) ─────────────────
     "proof_primary_lane_required": Field_(Kind.BOOL, policy=True),
     "strict_answer_contract": Field_(Kind.BOOL, policy=True),
@@ -305,6 +326,13 @@ def _coerce(spec: Field_, value: Any) -> tuple[Any, str]:
         if resolved_tier is None:
             return None, f"unknown tier: {value!r:.40}"
         return resolved_tier, ""
+    if kind == Kind.COGNITIVE_MODE:
+        if not isinstance(value, str):
+            return None, f"not a cognitive mode string: {type(value).__name__}"
+        resolved_mode = value.strip().lower()
+        if resolved_mode not in KNOWN_COGNITIVE_MODES:
+            return None, f"unknown cognitive mode: {value!r:.40}"
+        return resolved_mode, ""
     if kind in (Kind.FLOAT, Kind.UNIT_FLOAT, Kind.POSITIVE_FLOAT):
         if not is_finite_number(value) and not _numeric_string(value):
             return None, f"not a finite number: {value!r:.40}"
@@ -371,6 +399,7 @@ def _numeric_string(value: Any) -> bool:
 
 
 __all__ = [
+    "KNOWN_COGNITIVE_MODES",
     "KNOWN_TIERS",
     "POLICY_FIELDS",
     "REQUEST_FIELDS",

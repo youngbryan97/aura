@@ -4543,6 +4543,7 @@ def _build_the_generation_request(
         "prompt": prompt,
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
+        "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
         "temp": kwargs.get(
             "temp",
             kwargs.get("temperature", _bridge_get("temperature", self.temp)),

@@ -205,6 +205,42 @@ def test_disruptive_change_fails_battery_and_reverts(tiny_model):
     assert [r["digest"] for r in after] == [r["digest"] for r in baseline]
 
 
+def test_interference_probe_uses_qwen35_public_mixed_attention_forward():
+    """Identity evidence must work for the Qwen3.8 architecture family."""
+    import mlx.core as mx
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    from core.learning.interference_battery import snapshot_probe_behavior
+
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 8,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    model = Model(ModelArgs(model_type="qwen3_5", text_config=text_config))
+    mx.eval(model.parameters())
+
+    rows = snapshot_probe_behavior(model, probes=[[3, 5, 7, 9]])
+
+    assert len(rows) == 1
+    assert len(rows[0]["top8_ids"]) == 8
+    assert len(rows[0]["digest"]) == 16
+
+
 def test_engine_export_lands_valid_candidate_in_queue(tiny_model, tmp_path, monkeypatch):
     """Full loop: episode with export enabled → queue → consumer validates."""
     monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))

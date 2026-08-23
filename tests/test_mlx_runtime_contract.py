@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import types
+from types import SimpleNamespace
 
 import pytest
 
@@ -169,6 +170,30 @@ def test_mlx_main_generation_builds_contract_cap_after_bridge_lookup():
     assert "requested_output_contract" not in inspect.getsource(
         MLXLocalClient.generate_batch_async
     )
+
+
+def test_generation_request_carries_typed_cognitive_mode_to_worker():
+    from core.brain.llm.mlx_client import _build_the_generation_request
+
+    request = _build_the_generation_request(
+        _bridge_get=lambda _name, fallback: fallback,
+        adaptive_suggested_max_tokens=256,
+        contract_generation_floor=0,
+        generation_max_tokens=256,
+        hard_output_token_ceiling=None,
+        kwargs={"cognitive_mode": "deliberate"},
+        prompt="question",
+        req_id="request-1",
+        requested_output_contract={},
+        self=SimpleNamespace(
+            _job_seq_counter=7,
+            temp=0.7,
+            top_p=0.9,
+            max_tokens=512,
+        ),
+    )
+
+    assert request["cognitive_mode"] == "deliberate"
 
 
 def test_mlx_surface_receipt_reports_contract_tokens_and_repair():

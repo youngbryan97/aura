@@ -34,6 +34,8 @@ from core.learning.cortex_generation_upgrade import (  # noqa: E402
     build_migration_plan,
     capability_battery,
     compare_batteries,
+    _answer_matches,
+    _greedy_decode,
     rollback_upgrade,
     stage_upgrade,
 )
@@ -47,6 +49,17 @@ class TinyTokenizer:
 
     def decode(self, ids):
         return " ".join(str(i) for i in ids)
+
+
+class ThinkingTokenizer(TinyTokenizer):
+    chat_template = "{{ enable_thinking }}"
+
+    def __init__(self):
+        self.calls = []
+
+    def apply_chat_template(self, messages, **kwargs):
+        self.calls.append(dict(kwargs))
+        return "think" if kwargs.get("enable_thinking") else "direct"
 
 
 def _model(seed=0):
@@ -88,6 +101,57 @@ def test_battery_discriminates_a_sabotaged_model():
     # Identity behavior MUST move when the weights are wrecked — the battery
     # sees real model behavior, not fixtures.
     assert healthy_receipt["identity_digests"] != wrecked_receipt["identity_digests"]
+
+
+def test_battery_decode_uses_typed_native_thinking_mode():
+    tokenizer = ThinkingTokenizer()
+    model = _model()
+
+    _greedy_decode(model, tokenizer, "simple", max_tokens=1, cognitive_mode="reactive")
+    assert tokenizer.calls[-1]["enable_thinking"] is False
+
+    _greedy_decode(model, tokenizer, "hard", max_tokens=1, cognitive_mode="deliberate")
+    assert tokenizer.calls[-1]["enable_thinking"] is True
+
+
+@pytest.mark.parametrize(
+    ("answer", "accepted", "expected"),
+    [
+        ("The formula is **$H_2O$**.", ("h2o",), True),
+        ("It was Charles Darwin.", ("darwin",), True),
+        ("No relevant fact here.", ("darwin",), False),
+    ],
+)
+def test_breadth_matching_ignores_display_markup(answer, accepted, expected):
+    assert _answer_matches(answer, accepted) is expected
+
+
+def test_breadth_battery_does_not_reintroduce_ten_token_clipping(monkeypatch):
+    import core.learning.cortex_generation_upgrade as upgrade
+
+    calls = []
+
+    def decode(
+        _model,
+        _tokenizer,
+        prompt,
+        *,
+        max_tokens,
+        cognitive_mode,
+        stop_strings=(),
+    ):
+        calls.append((prompt, max_tokens, cognitive_mode))
+        if cognitive_mode == "reactive":
+            assert stop_strings
+        return "no matched answer"
+
+    monkeypatch.setattr(upgrade, "_greedy_decode", decode)
+    receipt = capability_battery(object(), TinyTokenizer(), label="budget-contract")
+
+    breadth_calls = calls[: len(upgrade.BREADTH_PROBES)]
+    assert all(max_tokens >= 32 for _prompt, max_tokens, _mode in breadth_calls)
+    assert all(mode == "reactive" for _prompt, _max_tokens, mode in breadth_calls)
+    assert all(row["max_tokens"] >= 32 for row in receipt["breadth_rows"])
 
 
 def test_comparison_verdict_requires_breadth_win_without_reasoning_loss():

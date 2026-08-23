@@ -6249,6 +6249,11 @@ class UnitaryResponsePhase(Phase):
                 "deep_mind_probe": is_deep_probe_objective,
                 "timeout": request_timeout,
                 "state": new_state,
+                "cognitive_mode": str(
+                    getattr(new_state.cognition.current_mode, "value", None)
+                    or new_state.cognition.current_mode
+                    or ""
+                ).strip().lower(),
             }
             if is_user_facing:
                 llm_kwargs.update(
@@ -7115,6 +7120,11 @@ class UnitaryResponsePhase(Phase):
                     "repetition_penalty": 1.12,
                     "repetition_context_size": 96,
                     "skip_runtime_payload": True,
+                    "cognitive_mode": str(
+                        getattr(new_state.cognition.current_mode, "value", None)
+                        or new_state.cognition.current_mode
+                        or ""
+                    ).strip().lower(),
                 }
                 if operator_evidence_turn:
                     retry_kwargs.update(

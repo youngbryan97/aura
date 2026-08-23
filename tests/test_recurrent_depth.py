@@ -24,6 +24,7 @@ from core.brain.llm.recurrent_depth import (  # noqa: E402
     _restore_recurrent_caches,
     _self_test_cache_snapshot,
     _snapshot_recurrent_caches,
+    apply_recurrent_depth,
     resolve_loops_for_model,
 )
 
@@ -160,6 +161,97 @@ def test_batch_cache_snapshot_owns_arrays_and_restores_both_cursors():
     assert cache.keys.shape[2] == backing_capacity
     assert cache._idx == 755
     assert cache.offset.tolist() == [755, 755]
+
+
+@pytest.mark.hardware
+def test_arrays_cache_snapshot_restores_owned_state_and_batch_coordinates():
+    """Linear-attention state must rewind without aliasing its live list."""
+    import mlx.core as mx
+    from mlx_lm.models.cache import ArraysCache
+
+    cache = ArraysCache(size=2)
+    original_conv = mx.ones((2, 3, 8))
+    original_state = mx.ones((2, 4, 5, 6))
+    cache[0] = original_conv
+    cache[1] = original_state
+    cache.prepare(lengths=[7, 5])
+    snapshot = _snapshot_recurrent_caches([cache], 0, 1)
+
+    cache[0] = mx.zeros_like(original_conv)
+    cache[1] = mx.zeros_like(original_state)
+    cache.advance(2)
+    _restore_recurrent_caches([cache], 0, 1, snapshot)
+
+    assert cache[0] is original_conv
+    assert cache[1] is original_state
+    assert cache.lengths.tolist() == [7, 5]
+
+    # A later write must not mutate the retained snapshot container.
+    cache[0] = mx.zeros_like(original_conv)
+    _restore_recurrent_caches([cache], 0, 1, snapshot)
+    assert cache[0] is original_conv
+
+
+def _tiny_qwen35_model():
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 8,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    return Model(ModelArgs(model_type="qwen3_5", text_config=text_config))
+
+
+@pytest.mark.hardware
+def test_real_qwen35_mixed_cache_recurrence_uses_each_layer_mask_contract():
+    """Qwen3.8-family linear and full-attention caches must recur together."""
+    import mlx.core as mx
+
+    model = _tiny_qwen35_model()
+    assert apply_recurrent_depth(
+        model,
+        n_loops=2,
+        prelude_frac=0.25,
+        coda_frac=0.25,
+        residual_alpha=0.1,
+    )
+    cache = model.make_cache()
+    assert [type(entry).__name__ for entry in cache] == [
+        "ArraysCache",
+        "KVCache",
+        "ArraysCache",
+        "KVCache",
+        "ArraysCache",
+        "KVCache",
+        "ArraysCache",
+        "KVCache",
+    ]
+
+    for tokens in (
+        mx.array([[1, 2, 3, 4]], dtype=mx.int32),
+        mx.array([[5]], dtype=mx.int32),
+    ):
+        output = model(tokens, cache=cache)
+        mx.eval(output)
+        assert output.shape == (1, tokens.shape[1], 128)
+
+    assert [entry.offset for entry in cache if hasattr(entry, "offset")] == [5] * 4
+    assert all(entry[0] is not None for entry in cache if hasattr(entry, "cache"))
 
 
 @pytest.mark.hardware

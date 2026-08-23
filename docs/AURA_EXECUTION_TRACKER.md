@@ -51702,3 +51702,44 @@ measure every model-facing Aura tissue generation on that basis, run matched
 incumbent/candidate quality and systems tests, then stage, activate, restart and
 prove rollback on the live user surface. The broader local-model portfolio and
 original CP895/CP898 live-runtime gates remain open; final soaks remain deferred.
+
+## Checkpoint 2026-08-22-910: Run Mixed-Cache Cortex by Typed Cognitive Lane
+
+CP910 qualifies the first native Qwen3.8 execution boundary without changing
+Aura's active cortex. The immutable candidate remains
+`mlx-community/Qwen3.8-27B-4bit` at revision
+`3e6447f082e89cc7f0bc6e5441afd38dfce760ff`.
+
+- Recurrent execution now discovers each loaded layer's cache and mask
+  topology. Qwen3.8's 48 linear-attention and 16 full-attention layers receive
+  their native masks, while linear `ArraysCache` state and batch lengths are
+  snapshotted as owned containers and restored without cloning immutable MLX
+  tensors. Real installed-MLX mixed-cache and BatchKVCache tests exercise
+  prefill followed by decode rather than accepting a mocked shape contract.
+- Aura's existing typed cognitive mode now crosses the request, inference,
+  client and worker boundaries. Reactive work disables the candidate's native
+  hidden thinking; deliberate work enables it. Fast-role ownership still wins,
+  and model-size detection no longer mistakes `27B` for a `7B` substring. No
+  prompt classifier or injected instruction selects this behavior.
+- The anti-interference battery now calls the loaded architecture's public
+  forward contract instead of manually replaying Qwen2 internals. The factual
+  battery uses formatting-invariant evidence matching and a bounded
+  completion-capable budget, ending early once independently accepted evidence
+  appears.
+- The exact candidate scored `23/24` factual breadth, `12/12` executable
+  reasoning and produced all `11/11` identity fingerprints in 157.629 seconds.
+  The one retained miss was an incomplete square-root response that did not
+  state `12` within 96 tokens; it remains a measured completion/latency defect,
+  not a silently converted pass.
+
+The complete focused set passes `140/140`; canonical smoke passes `121/121`
+with one environment-dependent skip; compilation, Ruff, layering and diff
+hygiene pass. Governance lint remains blocked by the pre-existing ownership
+baseline move between `core/diagnosis/repository.py` and
+`core/diagnosis/experiment.py`, neither touched here.
+
+Next: run the same frozen battery on the incumbent 32B, add durable per-cell
+progress to model-scale comparisons, then qualify candidate serving memory,
+latency, long-prompt completion, tools and code before any tissue migration or
+active-pointer change. Candidate-native persona, steering, adapters and
+recurrent tissue remain mandatory; old steering vectors remain prohibited.

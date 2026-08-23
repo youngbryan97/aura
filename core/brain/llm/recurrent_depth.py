@@ -182,6 +182,7 @@ _CACHE_COORDINATE_ATTRS = (
     "offset",
     "_idx",
     "left_padding",
+    "lengths",
     "_right_padding",
     "start_position",
 )
@@ -224,6 +225,29 @@ def _snapshot_cache_coordinates(cache_entry) -> dict[str, object]:
         for attr in _CACHE_COORDINATE_ATTRS
         if hasattr(cache_entry, attr)
     }
+
+
+def _owned_cache_state(value):
+    """Own mutable state containers while retaining immutable tensor storage.
+
+    MLX cache state is commonly a list or tuple of arrays. ArraysCache returns
+    its live backing list directly, so retaining that object does not retain a
+    rewind point: later ``cache[index] = value`` writes also rewrite the saved
+    list. Copy the container graph and keep the MLX arrays themselves by
+    identity. MLX arrays are immutable values, and cloning recurrent state
+    tensors would add a large, unnecessary memory spike to every extra pass.
+    """
+
+    if isinstance(value, tuple):
+        return tuple(_owned_cache_state(item) for item in value)
+    if isinstance(value, list):
+        return [_owned_cache_state(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            _owned_cache_state(key): _owned_cache_state(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 def _restore_cache_coordinates(cache_entry, coordinates: dict[str, object]) -> None:
@@ -480,7 +504,12 @@ def _snapshot_recurrent_caches(cache, start: int, end: int) -> list:
         # they own no direct K/V buffers.
         if hasattr(c, "state") and hasattr(c, "meta_state"):
             snapshots.append(
-                ("state", c.state, c.meta_state, _snapshot_cache_coordinates(c))
+                (
+                    "state",
+                    _owned_cache_state(c.state),
+                    _owned_cache_state(c.meta_state),
+                    _snapshot_cache_coordinates(c),
+                )
             )
             continue
         raise CacheSnapshotError(
@@ -545,8 +574,8 @@ def _restore_recurrent_caches(cache, start: int, end: int, snapshots: list):
             _restore_cache_coordinates(c, coordinates)
             _verify_cache_coordinates(c, coordinates)
         elif kind == "state":
-            c.state = snap[1]
-            c.meta_state = snap[2]
+            c.state = _owned_cache_state(snap[1])
+            c.meta_state = _owned_cache_state(snap[2])
             coordinates = snap[3] if len(snap) > 3 else {}
             _restore_cache_coordinates(c, coordinates)
             _verify_cache_coordinates(c, coordinates)
@@ -603,6 +632,63 @@ def _self_test_cache_snapshot() -> None:
             "Refusing to patch. Set AURA_RECURRENT_LOOPS=0 or upgrade mlx_lm."
         )
 
+
+def _build_recurrent_layer_masks(inner, hidden_state, cache) -> list[object]:
+    """Reproduce the loaded model's per-layer mask topology.
+
+    Dense-attention models use one causal mask contract. Mixed recurrent
+    architectures such as Qwen3.8 interleave full-attention layers with
+    linear-attention state machines. Their linear caches expose ``make_mask``
+    with a different signature, and the model deliberately derives each mask
+    from a representative cache of the matching family. Discover that
+    topology from the loaded layers and owner indices instead of model names.
+    """
+
+    try:
+        from mlx_lm.models.base import create_attention_mask
+    except ImportError:
+        from mlx_lm.models.qwen2 import create_attention_mask  # type: ignore
+
+    layers = inner.layers
+    linear_indices = [
+        index for index, layer in enumerate(layers) if bool(getattr(layer, "is_linear", False))
+    ]
+    if not linear_indices:
+        mask = create_attention_mask(hidden_state, cache[0])
+        return [mask] * len(layers)
+
+    full_indices = [index for index in range(len(layers)) if index not in linear_indices]
+    if not full_indices:
+        raise CacheSnapshotError(
+            "Mixed recurrent topology exposes no full-attention layer"
+        )
+
+    def representative(attr: str, candidates: list[int]) -> int:
+        raw = getattr(inner, attr, candidates[0])
+        try:
+            index = int(raw)
+        except (TypeError, ValueError):
+            index = candidates[0]
+        return index if index in candidates else candidates[0]
+
+    linear_index = representative("ssm_idx", linear_indices)
+    full_index = representative("fa_idx", full_indices)
+    linear_cache = cache[linear_index]
+    full_cache = cache[full_index]
+    if linear_cache is None:
+        linear_mask = None
+    elif hasattr(linear_cache, "make_mask"):
+        linear_mask = linear_cache.make_mask(hidden_state.shape[1])
+    else:
+        raise CacheSnapshotError(
+            "Linear-attention cache has no make_mask contract: "
+            f"{type(linear_cache).__name__}"
+        )
+    full_mask = create_attention_mask(hidden_state, full_cache)
+    return [
+        linear_mask if index in linear_indices else full_mask
+        for index in range(len(layers))
+    ]
 
 def apply_recurrent_depth(
     model,
@@ -709,17 +795,11 @@ def apply_recurrent_depth(
         if cache is None:
             cache = [None] * len(self.layers)
 
-        # Build attention mask using the model-family-agnostic helper so this
-        # module doesn't break when swapping to Llama / Mistral / etc.
-        try:
-            from mlx_lm.models.base import create_attention_mask
-        except ImportError:
-            from mlx_lm.models.qwen2 import create_attention_mask  # type: ignore
-        mask = create_attention_mask(h, cache[0])
+        masks = _build_recurrent_layer_masks(self, h, cache)
 
         # ── PRELUDE: layers [0..prelude_end) — run once ──────────
         for i in range(prelude_end):
-            h = self.layers[i](h, mask, cache[i])
+            h = self.layers[i](h, masks[i], cache[i])
 
         # ── RECURRENT: layers [prelude_end..coda_start) — run N times ─
         for loop_idx in range(effective_loops):
@@ -734,7 +814,7 @@ def apply_recurrent_depth(
 
             # Run the recurrent block
             for i in range(prelude_end, coda_start):
-                h = self.layers[i](h, mask, cache[i])
+                h = self.layers[i](h, masks[i], cache[i])
 
             # After non-final loops: restore cache (undo K/V append)
             # and inject residual from embedding to stabilize hidden state
@@ -752,7 +832,7 @@ def apply_recurrent_depth(
 
         # ── CODA: layers [coda_start..end) — run once ────────────
         for i in range(coda_start, num_layers):
-            h = self.layers[i](h, mask, cache[i])
+            h = self.layers[i](h, masks[i], cache[i])
 
         return self.norm(h)
 

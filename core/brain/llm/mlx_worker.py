@@ -6792,7 +6792,12 @@ def _mlx_worker_loop(
                         from core.brain.llm.chat_format import (
                             render_chat_continuation_template,
                             render_chat_template,
-                            thinking_enabled_for_model,
+                            thinking_enabled_for_request,
+                        )
+
+                        native_thinking = thinking_enabled_for_request(
+                            model_path,
+                            cognitive_mode=job.get("cognitive_mode"),
                         )
 
                         if job.get("user_surface_continuation_contract", False):
@@ -6800,7 +6805,7 @@ def _mlx_worker_loop(
                                 tokenizer,
                                 messages,
                                 tools=tools,
-                                enable_thinking=thinking_enabled_for_model(model_path),
+                                enable_thinking=native_thinking,
                             )
                         else:
                             prompt = render_chat_template(
@@ -6808,7 +6813,7 @@ def _mlx_worker_loop(
                                 messages,
                                 tools=tools,
                                 add_generation_prompt=True,
-                                enable_thinking=thinking_enabled_for_model(model_path),
+                                enable_thinking=native_thinking,
                             )
                             if tools:
                                 # A tool prompt that ends without an open

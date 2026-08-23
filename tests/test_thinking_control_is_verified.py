@@ -23,6 +23,7 @@ from core.brain.llm.chat_format import (
     render_chat_template,
     template_supports_thinking,
     thinking_enabled_for_model,
+    thinking_enabled_for_request,
 )
 import core.brain.llm.chat_format as chat_format
 
@@ -225,7 +226,36 @@ def test_probe_runs_once_per_template():
 def test_lane_policy_pins_only_the_fast_lanes():
     assert thinking_enabled_for_model("models/Qwen3.5-9B-4bit") is False
     assert thinking_enabled_for_model("models/Qwen2.5-1.5B-Instruct-4bit") is False
+    assert thinking_enabled_for_model("models/Qwen3.8-27B-4bit") is None
     # Deliberation is the point in these two; they keep the artifact default.
     assert thinking_enabled_for_model("models/Qwen2.5-32B-Instruct-8bit") is None
     assert thinking_enabled_for_model("models/Qwen2.5-72B-Instruct-4bit") is None
     assert thinking_enabled_for_model(None) is None
+
+
+def test_request_cognitive_mode_controls_native_thinking_on_cortex():
+    model = "models/Qwen3.8-27B-4bit"
+
+    assert thinking_enabled_for_request(model, cognitive_mode="reactive") is False
+    assert thinking_enabled_for_request(model, cognitive_mode="dormant") is False
+    assert thinking_enabled_for_request(model, cognitive_mode="fast") is False
+    assert thinking_enabled_for_request(model, cognitive_mode="deliberate") is True
+    assert thinking_enabled_for_request(model, cognitive_mode="deep") is True
+    assert thinking_enabled_for_request(model, cognitive_mode="reflective") is True
+
+
+def test_request_cognitive_mode_does_not_turn_a_fast_role_into_a_slow_lane():
+    assert (
+        thinking_enabled_for_request(
+            "models/Qwen3.5-9B-Brainstem-4bit",
+            cognitive_mode="deliberate",
+        )
+        is False
+    )
+
+
+def test_absent_or_unknown_request_mode_keeps_artifact_policy():
+    model = "models/Qwen3.8-27B-4bit"
+
+    assert thinking_enabled_for_request(model, cognitive_mode=None) is None
+    assert thinking_enabled_for_request(model, cognitive_mode="not-a-mode") is None
