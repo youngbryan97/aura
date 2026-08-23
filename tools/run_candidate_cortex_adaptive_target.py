@@ -32,8 +32,8 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     OBSERVATION_SCHEMA,
     CandidateCortexTrainingError,
     StagePolicy,
-    append_authenticated_event,
     adaptive_result_path,
+    append_authenticated_event,
     build_stage_command,
     canonical_json_bytes,
     discover_exact_checkpoint,
@@ -224,7 +224,7 @@ def _validated_completion(
         if not isinstance(segments, list) or len(segments) != len(expected_specs):
             raise CandidateCortexTrainingError("stage_segment_execution_invalid")
         rebuilt: list[dict[str, Any]] = []
-        for spec, claimed_segment in zip(expected_specs, segments):
+        for spec, claimed_segment in zip(expected_specs, segments, strict=True):
             completion = _validated_segment_completion(plan, stage_index, spec)
             if completion is None:
                 raise CandidateCortexTrainingError("stage_segment_execution_invalid")
@@ -363,6 +363,18 @@ def _replace_option(command: list[str], option: str, value: str) -> None:
     command[index + 1] = value
 
 
+def _option_value(command: tuple[str, ...], option: str) -> str:
+    try:
+        index = command.index(option)
+    except ValueError as exc:
+        raise CandidateCortexTrainingError(
+            f"stage_command_option_missing:{option}"
+        ) from exc
+    if index + 1 >= len(command):
+        raise CandidateCortexTrainingError(f"stage_command_option_invalid:{option}")
+    return command[index + 1]
+
+
 def _segment_command(
     plan: Mapping[str, Any],
     *,
@@ -414,9 +426,11 @@ def _iterate_batches_from_stage_offset(
     from mlx_lm.tuner.datasets import CacheDataset
 
     if isinstance(dataset, CacheDataset):
-        len_fn = lambda idx: dataset.itemlen(idx)
+        def len_fn(index: int) -> int:
+            return dataset.itemlen(index)
     else:
-        len_fn = lambda idx: len(dataset[idx][0])
+        def len_fn(index: int) -> int:
+            return len(dataset[index][0])
     indices_by_length = sorted(range(len(dataset)), key=len_fn)
     if len(dataset) < batch_size:
         raise ValueError(
@@ -445,7 +459,7 @@ def _iterate_batches_from_stage_offset(
                 continue
             batch = [dataset[j] for j in batches[batch_position]]
             if len(batch[0]) == 2:
-                batch, offsets = zip(*batch)
+                batch, offsets = zip(*batch, strict=True)
             else:
                 offsets = [0] * len(batch)
             lengths = [len(item) for item in batch]
@@ -461,7 +475,9 @@ def _iterate_batches_from_stage_offset(
                 truncated = min(lengths[item_index], max_seq_length)
                 batch_array[item_index, :truncated] = batch[item_index][:truncated]
                 lengths[item_index] = truncated
-            yield mx.array(batch_array), mx.array(list(zip(offsets, lengths)))
+            yield mx.array(batch_array), mx.array(
+                list(zip(offsets, lengths, strict=True))
+            )
         if not loop:
             break
 
@@ -506,11 +522,18 @@ def _save_optimizer_state(path: Path, optimizer: Any) -> None:
 
 def _restore_optimizer_state(path: Path, optimizer: Any) -> None:
     import mlx.core as mx
+    import numpy as np
     from mlx.utils import tree_unflatten
 
-    values = mx.load(str(path.expanduser().resolve(strict=True)))
-    if not isinstance(values, dict):
+    mapped_values = mx.load(str(path.expanduser().resolve(strict=True)))
+    if not isinstance(mapped_values, dict):
         raise CandidateCortexTrainingError("optimizer_state_invalid")
+    values = {
+        name: mx.array(np.array(value, copy=True))
+        for name, value in mapped_values.items()
+    }
+    mx.eval(*values.values())
+    del mapped_values
     optimizer_items = sorted(
         (
             name.removeprefix("optimizer."),
@@ -533,6 +556,23 @@ def _restore_optimizer_state(path: Path, optimizer: Any) -> None:
     mx.random.state = tree_unflatten(random_items)
 
 
+def _segment_batch_iterator(
+    segment: StageSegment, *, data_seed: int
+):
+    """Return the exact deterministic batch lane for one stage segment."""
+
+    def _iterator(*iterator_args, **iterator_kwargs):
+        loop = bool(iterator_kwargs.get("loop", False))
+        iterator_kwargs["seed"] = data_seed
+        return _iterate_batches_from_stage_offset(
+            *iterator_args,
+            **iterator_kwargs,
+            start_iteration=segment.start_iteration if loop else 0,
+        )
+
+    return _iterator
+
+
 def _run_segment_training(
     command: tuple[str, ...],
     *,
@@ -540,51 +580,128 @@ def _run_segment_training(
     prior_optimizer_state: Path | None,
     optimizer_output: Path,
 ) -> None:
+    import mlx.core as mx
+    import mlx.optimizers as optim
+    import numpy as np
     from mlx_lm import lora
     from mlx_lm.tuner import trainer
+    from mlx_lm.tuner.datasets import CacheDataset
 
-    original_train = lora.train
+    args = _mlx_arguments(command)
+    data_seed = int(_option_value(command, "--seed"))
+    np.random.seed(data_seed)
+    training_callback = lora.get_reporting_callbacks(
+        args.report_to,
+        project_name=args.project_name,
+        log_dir=args.adapter_path,
+        config=vars(args),
+    )
 
-    def _segmented_train(
-        *,
-        model,
-        optimizer,
-        train_dataset,
-        val_dataset=None,
-        args,
-        loss=trainer.default_loss,
-        iterate_batches=trainer.iterate_batches,
-        training_callback=None,
-    ):
-        del iterate_batches
-        if prior_optimizer_state is not None:
-            _restore_optimizer_state(prior_optimizer_state, optimizer)
+    print("Loading pretrained model", flush=True)
+    model, tokenizer = lora.load(
+        args.model,
+        tokenizer_config={"trust_remote_code": True},
+    )
+    print("Loading datasets", flush=True)
+    train_set, valid_set, _test_set = lora.load_dataset(args, tokenizer)
+    print("Training", flush=True)
 
-        def _iterator(*iterator_args, **iterator_kwargs):
-            loop = bool(iterator_kwargs.get("loop", False))
-            return _iterate_batches_from_stage_offset(
-                *iterator_args,
-                **iterator_kwargs,
-                start_iteration=segment.start_iteration if loop else 0,
-            )
-
-        trainer.train(
-            model=model,
-            optimizer=optimizer,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            args=args,
-            loss=loss,
-            iterate_batches=_iterator,
-            training_callback=training_callback,
+    mx.random.seed(data_seed)
+    model.freeze()
+    if args.num_layers > len(model.layers):
+        raise CandidateCortexTrainingError("segment_num_layers_invalid")
+    if args.fine_tune_type == "full":
+        for layer in model.layers[-max(args.num_layers, 0) :]:
+            layer.unfreeze()
+        args.lora_parameters = None
+    elif args.fine_tune_type in {"lora", "dora"}:
+        lora.linear_to_lora_layers(
+            model,
+            args.num_layers,
+            args.lora_parameters,
+            use_dora=args.fine_tune_type == "dora",
         )
-        _save_optimizer_state(optimizer_output, optimizer)
+    else:
+        raise CandidateCortexTrainingError("segment_fine_tune_type_invalid")
+    if args.resume_adapter_file is not None:
+        print(
+            f"Loading fine-tuned weights from {args.resume_adapter_file}",
+            flush=True,
+        )
+        model.load_weights(args.resume_adapter_file, strict=False)
+    lora.print_trainable_parameters(model)
 
-    lora.train = _segmented_train
-    try:
-        lora.run(_mlx_arguments(command))
-    finally:
-        lora.train = original_train
+    adapter_path = Path(args.adapter_path).expanduser().resolve(strict=False)
+    with local_internal_governed_scope(
+        "candidate_cortex_adaptive.segment_config", domain="file_write"
+    ):
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(
+            adapter_path,
+            source="candidate_cortex_adaptive.segment_config",
+        )
+        config = dict(vars(args))
+        config.pop("_name_or_path", None)
+        config.pop("vision_config", None)
+        if "quantization" in config:
+            config["quantization_config"] = config["quantization"]
+        config_payload = json.dumps(dict(sorted(config.items())), indent=4).encode(
+            "utf-8"
+        )
+        config_path = adapter_path / "adapter_config.json"
+        created = gateway.write_bytes_if_absent(
+            config_path,
+            config_payload,
+            mode=0o600,
+            source="candidate_cortex_adaptive.segment_config",
+        )
+        if not created and config_path.read_bytes() != config_payload:
+            raise CandidateCortexTrainingError("segment_adapter_config_conflict")
+
+    training_args = trainer.TrainingArgs(
+        batch_size=args.batch_size,
+        iters=args.iters,
+        val_batches=args.val_batches,
+        steps_per_report=args.steps_per_report,
+        steps_per_eval=args.steps_per_eval,
+        steps_per_save=args.save_every,
+        adapter_file=adapter_path / "adapters.safetensors",
+        max_seq_length=args.max_seq_length,
+        grad_checkpoint=args.grad_checkpoint,
+        grad_accumulation_steps=args.grad_accumulation_steps,
+    )
+    learning_rate = (
+        lora.build_schedule(args.lr_schedule)
+        if args.lr_schedule
+        else args.learning_rate
+    )
+    optimizer_classes = {
+        "adam": optim.Adam,
+        "adamw": optim.AdamW,
+        "muon": optim.Muon,
+        "sgd": optim.SGD,
+        "adafactor": optim.Adafactor,
+    }
+    optimizer_name = args.optimizer.lower()
+    optimizer_class = optimizer_classes.get(optimizer_name)
+    if optimizer_class is None:
+        raise CandidateCortexTrainingError("segment_optimizer_invalid")
+    optimizer = optimizer_class(
+        learning_rate=learning_rate,
+        **args.optimizer_config.get(optimizer_name, {}),
+    )
+    if prior_optimizer_state is not None:
+        _restore_optimizer_state(prior_optimizer_state, optimizer)
+    trainer.train(
+        model=model,
+        optimizer=optimizer,
+        train_dataset=CacheDataset(train_set),
+        val_dataset=CacheDataset(valid_set),
+        args=training_args,
+        iterate_batches=_segment_batch_iterator(segment, data_seed=data_seed),
+        training_callback=training_callback,
+    )
+    _save_optimizer_state(optimizer_output, optimizer)
 
 
 def _publish_checkpoint(

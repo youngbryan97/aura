@@ -9,6 +9,7 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 import pytest
+from mlx.utils import tree_flatten, tree_map
 
 from core.learning.candidate_cortex_training import (
     StagePolicy,
@@ -231,7 +232,7 @@ def test_resumed_batch_iterator_matches_uninterrupted_order() -> None:
         loop=True,
         seed=19,
     )
-    upstream_order = [int(next(upstream)[0][0, 0].item()) for _ in range(14)]
+    upstream_order = [int(next(upstream)[0][0, 0].item()) for _ in range(38)]
     uninterrupted = target._iterate_batches_from_stage_offset(
         dataset,
         batch_size=1,
@@ -240,18 +241,49 @@ def test_resumed_batch_iterator_matches_uninterrupted_order() -> None:
         seed=19,
         start_iteration=0,
     )
-    expected = [int(next(uninterrupted)[0][0, 0].item()) for _ in range(14)]
+    expected = [int(next(uninterrupted)[0][0, 0].item()) for _ in range(38)]
     resumed = target._iterate_batches_from_stage_offset(
         dataset,
         batch_size=1,
         max_seq_length=32,
         loop=True,
         seed=19,
-        start_iteration=9,
+        start_iteration=29,
     )
 
     assert expected == upstream_order
-    assert [int(next(resumed)[0][0, 0].item()) for _ in range(5)] == expected[9:]
+    assert [int(next(resumed)[0][0, 0].item()) for _ in range(9)] == expected[29:]
+
+
+def test_segment_iterator_uses_campaign_seed_and_offsets_only_training() -> None:
+    dataset = [([index, index + 1], 0) for index in range(24)]
+    segment = target.StageSegment(index=1, start_iteration=29, iterations=48)
+    factory = target._segment_batch_iterator(segment, data_seed=731)
+    training = factory(dataset, 1, 32, loop=True)
+    validation = factory(dataset, 1, 32, loop=False)
+    expected_training = target._iterate_batches_from_stage_offset(
+        dataset,
+        1,
+        32,
+        loop=True,
+        seed=731,
+        start_iteration=29,
+    )
+    expected_validation = target._iterate_batches_from_stage_offset(
+        dataset,
+        1,
+        32,
+        loop=False,
+        seed=731,
+        start_iteration=0,
+    )
+
+    assert int(next(training)[0][0, 0].item()) == int(
+        next(expected_training)[0][0, 0].item()
+    )
+    assert int(next(validation)[0][0, 0].item()) == int(
+        next(expected_validation)[0][0, 0].item()
+    )
 
 
 def test_optimizer_and_mlx_rng_state_round_trip(tmp_path: Path) -> None:
@@ -263,8 +295,13 @@ def test_optimizer_and_mlx_rng_state_round_trip(tmp_path: Path) -> None:
         beta_1=None,
     )
     original.init(model.trainable_parameters())
-    original.state["step"] = mx.array(7, mx.uint64)
+    gradients = tree_map(mx.ones_like, model.trainable_parameters())
+    original.update(model, gradients)
+    mx.eval(model.parameters(), original.state)
     rng_before = [np.asarray(value) for value in mx.random.state]
+    optimizer_before = {
+        name: np.asarray(value) for name, value in tree_flatten(original.state)
+    }
     path = tmp_path / "optimizer_state.safetensors"
 
     target._save_optimizer_state(path, original)
@@ -277,10 +314,17 @@ def test_optimizer_and_mlx_rng_state_round_trip(tmp_path: Path) -> None:
     )
     target._restore_optimizer_state(path, restored)
 
-    assert int(restored.state["step"].item()) == 7
+    optimizer_after = {
+        name: np.asarray(value) for name, value in tree_flatten(restored.state)
+    }
+    assert optimizer_after.keys() == optimizer_before.keys()
+    assert all(
+        np.array_equal(optimizer_before[name], optimizer_after[name])
+        for name in optimizer_before
+    )
     assert all(
         np.array_equal(before, np.asarray(after))
-        for before, after in zip(rng_before, mx.random.state)
+        for before, after in zip(rng_before, mx.random.state, strict=True)
     )
 
 
