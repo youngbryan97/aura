@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from collections.abc import Mapping
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +54,23 @@ from tools import run_detached_step as detached  # noqa: E402
 from tools.run_candidate_cortex_canary_target import _mlx_arguments  # noqa: E402
 
 STAGE_COMPLETION_SCHEMA = "aura.candidate_cortex_training.stage_completion.v1"
+SEGMENTED_STAGE_COMPLETION_SCHEMA = (
+    "aura.candidate_cortex_training.stage_completion.v2"
+)
+SEGMENT_COMPLETION_SCHEMA = "aura.candidate_cortex_training.segment_completion.v1"
 PHASE_BOUNDARY_SCHEMA = "aura.candidate_cortex_training.phase_boundary.v1"
+MAX_QWEN_HYBRID_SEGMENT_ITERATIONS = 48
+
+
+@dataclass(frozen=True)
+class StageSegment:
+    index: int
+    start_iteration: int
+    iterations: int
+
+    @property
+    def end_iteration(self) -> int:
+        return self.start_iteration + self.iterations
 
 
 def _key(path: Path) -> bytes:
@@ -80,6 +97,58 @@ def _evidence_path(plan: Mapping[str, Any], stage_index: int) -> Path:
 
 def _detail_path(plan: Mapping[str, Any], stage_index: int) -> Path:
     return _stage_parent(plan, stage_index) / "checkpoint_measurement_detail.json"
+
+
+def _segment_parent(
+    plan: Mapping[str, Any], stage_index: int, segment_index: int
+) -> Path:
+    return (
+        _stage_parent(plan, stage_index)
+        / "segments"
+        / f"segment-{segment_index:04d}"
+    )
+
+
+def _segment_adapter_root(
+    plan: Mapping[str, Any], stage_index: int, segment_index: int
+) -> Path:
+    return _segment_parent(plan, stage_index, segment_index) / "adapter"
+
+
+def _segment_completion_path(
+    plan: Mapping[str, Any], stage_index: int, segment_index: int
+) -> Path:
+    return _segment_parent(plan, stage_index, segment_index) / "segment_completion.json"
+
+
+def _segment_optimizer_path(
+    plan: Mapping[str, Any], stage_index: int, segment_index: int
+) -> Path:
+    return _segment_parent(plan, stage_index, segment_index) / "optimizer_state.safetensors"
+
+
+def _stage_segments(plan: Mapping[str, Any], stage_index: int) -> tuple[StageSegment, ...]:
+    """Bound a hybrid-model stage below the known MLX Metal-handle horizon."""
+
+    policy = StagePolicy(**dict(plan["stages"]))
+    training = dict(plan["training"])
+    accumulation = int(training["gradient_accumulation_steps"])
+    if accumulation <= 0:
+        raise CandidateCortexTrainingError("gradient_accumulation_invalid")
+    horizon = MAX_QWEN_HYBRID_SEGMENT_ITERATIONS
+    horizon -= horizon % accumulation
+    if horizon <= 0:
+        raise CandidateCortexTrainingError("segment_horizon_invalid")
+    total = policy.iterations(stage_index)
+    if total % accumulation:
+        raise CandidateCortexTrainingError("stage_not_optimizer_aligned")
+    segments: list[StageSegment] = []
+    start = 0
+    while start < total:
+        iterations = min(horizon, total - start)
+        segments.append(StageSegment(len(segments), start, iterations))
+        start += iterations
+    return tuple(segments)
 
 
 def _strict_document(path: Path) -> dict[str, Any]:
@@ -112,7 +181,7 @@ def _validated_completion(
     material = dict(document)
     claimed = material.pop("completion_sha256", None)
     policy = StagePolicy(**dict(plan["stages"]))
-    required = {
+    required_v1 = {
         "schema",
         "plan_sha256",
         "stage_index",
@@ -125,9 +194,22 @@ def _validated_completion(
         "host_metrics",
         "completion_sha256",
     }
+    required_v2 = required_v1 | {
+        "segments",
+        "training_execution_sha256",
+    }
+    schema = document.get("schema")
+    required = (
+        required_v2
+        if schema == SEGMENTED_STAGE_COMPLETION_SCHEMA
+        else required_v1
+    )
     if (
         set(document) != required
-        or document.get("schema") != STAGE_COMPLETION_SCHEMA
+        or schema not in {
+            STAGE_COMPLETION_SCHEMA,
+            SEGMENTED_STAGE_COMPLETION_SCHEMA,
+        }
         or document.get("plan_sha256") != plan["plan_sha256"]
         or document.get("stage_index") != stage_index
         or document.get("stage_iterations") != policy.iterations(stage_index)
@@ -136,12 +218,77 @@ def _validated_completion(
         or claimed != document_sha256(material)
     ):
         raise CandidateCortexTrainingError("stage_completion_invalid")
+    if schema == SEGMENTED_STAGE_COMPLETION_SCHEMA:
+        segments = document.get("segments")
+        expected_specs = _stage_segments(plan, stage_index)
+        if not isinstance(segments, list) or len(segments) != len(expected_specs):
+            raise CandidateCortexTrainingError("stage_segment_execution_invalid")
+        rebuilt: list[dict[str, Any]] = []
+        for spec, claimed_segment in zip(expected_specs, segments):
+            completion = _validated_segment_completion(plan, stage_index, spec)
+            if completion is None:
+                raise CandidateCortexTrainingError("stage_segment_execution_invalid")
+            expected_segment = {
+                "segment": asdict(spec),
+                "completion_sha256": completion["completion_sha256"],
+                "command_sha256": completion["command_sha256"],
+                "adapter_sha256": completion["adapter"]["sha256"],
+                "optimizer_state_sha256": completion["optimizer_state"]["sha256"],
+            }
+            if claimed_segment != expected_segment:
+                raise CandidateCortexTrainingError("stage_segment_execution_invalid")
+            rebuilt.append(expected_segment)
+        if document.get("training_execution_sha256") != document_sha256(rebuilt):
+            raise CandidateCortexTrainingError("stage_segment_execution_invalid")
     checkpoint = discover_exact_checkpoint(
         Path(str(plan["paths"]["checkpoint_root"])),
         expected_cumulative_iterations=policy.cumulative_iterations(stage_index),
     )
     if document.get("checkpoint") != checkpoint:
         raise CandidateCortexTrainingError("stage_completion_checkpoint_drift")
+    return document
+
+
+def _validated_segment_completion(
+    plan: Mapping[str, Any], stage_index: int, segment: StageSegment
+) -> dict[str, Any] | None:
+    path = _segment_completion_path(plan, stage_index, segment.index)
+    if not path.is_file():
+        return None
+    document = _strict_document(path)
+    material = dict(document)
+    claimed = material.pop("completion_sha256", None)
+    required = {
+        "schema",
+        "plan_sha256",
+        "stage_index",
+        "segment",
+        "command_sha256",
+        "adapter",
+        "optimizer_state",
+        "host_metrics",
+        "completion_sha256",
+    }
+    if (
+        set(document) != required
+        or document.get("schema") != SEGMENT_COMPLETION_SCHEMA
+        or document.get("plan_sha256") != plan["plan_sha256"]
+        or document.get("stage_index") != stage_index
+        or document.get("segment") != asdict(segment)
+        or claimed != document_sha256(material)
+    ):
+        raise CandidateCortexTrainingError("segment_completion_invalid")
+    for field in ("adapter", "optimizer_state"):
+        binding = document.get(field)
+        if not isinstance(binding, dict):
+            raise CandidateCortexTrainingError("segment_artifact_invalid")
+        artifact = Path(str(binding.get("path"))).resolve(strict=True)
+        if (
+            not artifact.is_file()
+            or file_sha256(artifact) != binding.get("sha256")
+            or artifact.stat().st_size != binding.get("size_bytes")
+        ):
+            raise CandidateCortexTrainingError("segment_artifact_drift")
     return document
 
 
@@ -193,17 +340,269 @@ def _sample_host(stop: threading.Event, state: dict[str, Any]) -> None:
             return
 
 
+def _artifact_binding(path: Path) -> dict[str, Any]:
+    resolved = path.expanduser().resolve(strict=True)
+    if resolved.is_symlink() or not resolved.is_file():
+        raise CandidateCortexTrainingError("segment_artifact_invalid")
+    return {
+        "path": str(resolved),
+        "size_bytes": resolved.stat().st_size,
+        "sha256": file_sha256(resolved),
+    }
+
+
+def _replace_option(command: list[str], option: str, value: str) -> None:
+    try:
+        index = command.index(option)
+    except ValueError as exc:
+        raise CandidateCortexTrainingError(
+            f"stage_command_option_missing:{option}"
+        ) from exc
+    if index + 1 >= len(command):
+        raise CandidateCortexTrainingError(f"stage_command_option_invalid:{option}")
+    command[index + 1] = value
+
+
+def _segment_command(
+    plan: Mapping[str, Any],
+    *,
+    stage_index: int,
+    segment: StageSegment,
+    stage_resume_checkpoint: Mapping[str, Any] | None,
+    actual_resume_checkpoint: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    command = list(
+        build_stage_command(
+            plan,
+            stage_index=stage_index,
+            resume_checkpoint=stage_resume_checkpoint,
+        )
+    )
+    _replace_option(command, "--iters", str(segment.iterations))
+    _replace_option(
+        command,
+        "--adapter-path",
+        str(_segment_adapter_root(plan, stage_index, segment.index)),
+    )
+    _replace_option(command, "--save-every", str(segment.iterations))
+    _replace_option(command, "--steps-per-eval", str(segment.iterations))
+    if actual_resume_checkpoint is not None:
+        path = Path(str(actual_resume_checkpoint.get("path"))).resolve(strict=True)
+        if file_sha256(path) != actual_resume_checkpoint.get("sha256"):
+            raise CandidateCortexTrainingError("segment_resume_checkpoint_drift")
+        if "--resume-adapter-file" in command:
+            _replace_option(command, "--resume-adapter-file", str(path))
+        else:
+            command.extend(("--resume-adapter-file", str(path)))
+    return tuple(command)
+
+
+def _iterate_batches_from_stage_offset(
+    dataset,
+    batch_size,
+    max_seq_length,
+    loop=False,
+    seed=None,
+    comm_group=None,
+    *,
+    start_iteration: int,
+):
+    """Match mlx-lm batching while resuming at an exact stage microstep."""
+
+    import mlx.core as mx
+    import numpy as np
+    from mlx_lm.tuner.datasets import CacheDataset
+
+    if isinstance(dataset, CacheDataset):
+        len_fn = lambda idx: dataset.itemlen(idx)
+    else:
+        len_fn = lambda idx: len(dataset[idx][0])
+    indices_by_length = sorted(range(len(dataset)), key=len_fn)
+    if len(dataset) < batch_size:
+        raise ValueError(
+            f"Dataset must have at least batch_size={batch_size} examples but "
+            f"only has {len(dataset)}."
+        )
+    if comm_group is not None:
+        offset = comm_group.rank()
+        step = comm_group.size()
+    else:
+        offset = 0
+        step = 1
+    if batch_size % step != 0:
+        raise ValueError("The batch size must be divisible by the number of workers")
+    batches = [
+        indices_by_length[i + offset : i + offset + batch_size : step]
+        for i in range(0, len(indices_by_length) - batch_size + 1, batch_size)
+    ]
+    rng = np.random.RandomState(seed)
+    skipped = 0
+    while True:
+        permutation = rng.permutation(len(batches))
+        for batch_position in permutation:
+            if skipped < start_iteration:
+                skipped += 1
+                continue
+            batch = [dataset[j] for j in batches[batch_position]]
+            if len(batch[0]) == 2:
+                batch, offsets = zip(*batch)
+            else:
+                offsets = [0] * len(batch)
+            lengths = [len(item) for item in batch]
+            pad_to = 32
+            padded_length = 1 + pad_to * (
+                (max(lengths) + pad_to - 1) // pad_to
+            )
+            padded_length = min(padded_length, max_seq_length)
+            batch_array = np.zeros(
+                (batch_size // step, padded_length), np.int32
+            )
+            for item_index in range(batch_size // step):
+                truncated = min(lengths[item_index], max_seq_length)
+                batch_array[item_index, :truncated] = batch[item_index][:truncated]
+                lengths[item_index] = truncated
+            yield mx.array(batch_array), mx.array(list(zip(offsets, lengths)))
+        if not loop:
+            break
+
+
+def _save_optimizer_state(path: Path, optimizer: Any) -> None:
+    import mlx.core as mx
+    from mlx.utils import tree_flatten
+
+    values = {
+        f"optimizer.{name}": value
+        for name, value in tree_flatten(optimizer.state)
+    }
+    values.update(
+        {f"mlx_random.{name}": value for name, value in tree_flatten(mx.random.state)}
+    )
+    mx.eval(*values.values())
+    with local_internal_governed_scope(
+        "candidate_cortex_adaptive.optimizer_state", domain="file_write"
+    ):
+        get_file_write_gateway().ensure_directory(
+            path.parent,
+            source="candidate_cortex_adaptive.optimizer_state",
+        )
+    temporary = path.with_name(f".{path.stem}.{os.getpid()}.tmp.safetensors")
+    mx.save_safetensors(str(temporary), values)
+    with local_internal_governed_scope(
+        "candidate_cortex_adaptive.optimizer_state", domain="file_write"
+    ):
+        gateway = get_file_write_gateway()
+        if path.exists() or path.is_symlink():
+            gateway.delete_file(
+                temporary,
+                source="candidate_cortex_adaptive.optimizer_state",
+            )
+            raise CandidateCortexTrainingError("optimizer_state_conflict")
+        gateway.move_path(
+            temporary,
+            path,
+            source="candidate_cortex_adaptive.optimizer_state",
+        )
+
+
+def _restore_optimizer_state(path: Path, optimizer: Any) -> None:
+    import mlx.core as mx
+    from mlx.utils import tree_unflatten
+
+    values = mx.load(str(path.expanduser().resolve(strict=True)))
+    if not isinstance(values, dict):
+        raise CandidateCortexTrainingError("optimizer_state_invalid")
+    optimizer_items = sorted(
+        (
+            name.removeprefix("optimizer."),
+            value,
+        )
+        for name, value in values.items()
+        if name.startswith("optimizer.")
+    )
+    random_items = sorted(
+        (
+            name.removeprefix("mlx_random."),
+            value,
+        )
+        for name, value in values.items()
+        if name.startswith("mlx_random.")
+    )
+    if not optimizer_items or not random_items:
+        raise CandidateCortexTrainingError("optimizer_state_invalid")
+    optimizer.state = tree_unflatten(optimizer_items)
+    mx.random.state = tree_unflatten(random_items)
+
+
+def _run_segment_training(
+    command: tuple[str, ...],
+    *,
+    segment: StageSegment,
+    prior_optimizer_state: Path | None,
+    optimizer_output: Path,
+) -> None:
+    from mlx_lm import lora
+    from mlx_lm.tuner import trainer
+
+    original_train = lora.train
+
+    def _segmented_train(
+        *,
+        model,
+        optimizer,
+        train_dataset,
+        val_dataset=None,
+        args,
+        loss=trainer.default_loss,
+        iterate_batches=trainer.iterate_batches,
+        training_callback=None,
+    ):
+        del iterate_batches
+        if prior_optimizer_state is not None:
+            _restore_optimizer_state(prior_optimizer_state, optimizer)
+
+        def _iterator(*iterator_args, **iterator_kwargs):
+            loop = bool(iterator_kwargs.get("loop", False))
+            return _iterate_batches_from_stage_offset(
+                *iterator_args,
+                **iterator_kwargs,
+                start_iteration=segment.start_iteration if loop else 0,
+            )
+
+        trainer.train(
+            model=model,
+            optimizer=optimizer,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            args=args,
+            loss=loss,
+            iterate_batches=_iterator,
+            training_callback=training_callback,
+        )
+        _save_optimizer_state(optimizer_output, optimizer)
+
+    lora.train = _segmented_train
+    try:
+        lora.run(_mlx_arguments(command))
+    finally:
+        lora.train = original_train
+
+
 def _publish_checkpoint(
     plan: Mapping[str, Any],
     stage_index: int,
     command: tuple[str, ...],
     host_metrics: Mapping[str, Any],
+    *,
+    local_root: Path | None = None,
+    local_iterations: int | None = None,
+    segment_completions: tuple[Mapping[str, Any], ...] | None = None,
 ) -> dict[str, Any]:
     policy = StagePolicy(**dict(plan["stages"]))
-    local_root = stage_adapter_root(plan, stage_index)
+    local_root = local_root or stage_adapter_root(plan, stage_index)
+    local_iterations = local_iterations or policy.iterations(stage_index)
     local = discover_exact_checkpoint(
         local_root,
-        expected_cumulative_iterations=policy.iterations(stage_index),
+        expected_cumulative_iterations=local_iterations,
     )
     alias = local_root / "adapters.safetensors"
     if not alias.is_file() or file_sha256(alias) != local["sha256"]:
@@ -221,11 +620,18 @@ def _publish_checkpoint(
         gateway = get_file_write_gateway()
         if destination.exists() or destination.is_symlink():
             raise CandidateCortexTrainingError("stage_checkpoint_conflict")
-        gateway.move_path(
-            Path(str(local["path"])),
-            destination,
-            source="candidate_cortex_adaptive.publish_stage",
-        )
+        if segment_completions is None:
+            gateway.move_path(
+                Path(str(local["path"])),
+                destination,
+                source="candidate_cortex_adaptive.publish_stage",
+            )
+        else:
+            gateway.copy_path(
+                Path(str(local["path"])),
+                destination,
+                source="candidate_cortex_adaptive.publish_stage",
+            )
         config_created = gateway.write_bytes_if_absent(
             canonical_root / "adapter_config.json",
             config_payload,
@@ -245,8 +651,12 @@ def _publish_checkpoint(
         canonical_root,
         expected_cumulative_iterations=policy.cumulative_iterations(stage_index),
     )
-    body = {
-        "schema": STAGE_COMPLETION_SCHEMA,
+    body: dict[str, Any] = {
+        "schema": (
+            SEGMENTED_STAGE_COMPLETION_SCHEMA
+            if segment_completions is not None
+            else STAGE_COMPLETION_SCHEMA
+        ),
         "plan_sha256": plan["plan_sha256"],
         "stage_index": stage_index,
         "stage_iterations": policy.iterations(stage_index),
@@ -257,6 +667,19 @@ def _publish_checkpoint(
         "target_start_token": detached._process_start_token(os.getpid()),  # noqa: SLF001
         "host_metrics": dict(host_metrics),
     }
+    if segment_completions is not None:
+        segment_values = [
+            {
+                "segment": dict(item["segment"]),
+                "completion_sha256": str(item["completion_sha256"]),
+                "command_sha256": str(item["command_sha256"]),
+                "adapter_sha256": str(item["adapter"]["sha256"]),
+                "optimizer_state_sha256": str(item["optimizer_state"]["sha256"]),
+            }
+            for item in segment_completions
+        ]
+        body["segments"] = segment_values
+        body["training_execution_sha256"] = document_sha256(segment_values)
     completion = {**body, "completion_sha256": document_sha256(body)}
     _write_once(
         _completion_path(plan, stage_index),
@@ -266,19 +689,101 @@ def _publish_checkpoint(
     return completion
 
 
-def _train_stage(
+def _publish_segment_completion(
     plan: Mapping[str, Any],
     stage_index: int,
-    resume_checkpoint: Mapping[str, Any] | None,
+    segment: StageSegment,
+    command: tuple[str, ...],
+    host_metrics: Mapping[str, Any],
 ) -> dict[str, Any]:
+    adapter_root = _segment_adapter_root(plan, stage_index, segment.index)
+    checkpoint = discover_exact_checkpoint(
+        adapter_root,
+        expected_cumulative_iterations=segment.iterations,
+    )
+    alias = adapter_root / "adapters.safetensors"
+    if not alias.is_file() or file_sha256(alias) != checkpoint["sha256"]:
+        raise CandidateCortexTrainingError("segment_final_adapter_mismatch")
+    optimizer = _artifact_binding(
+        _segment_optimizer_path(plan, stage_index, segment.index)
+    )
+    body = {
+        "schema": SEGMENT_COMPLETION_SCHEMA,
+        "plan_sha256": plan["plan_sha256"],
+        "stage_index": stage_index,
+        "segment": asdict(segment),
+        "command_sha256": document_sha256(list(command)),
+        "adapter": checkpoint,
+        "optimizer_state": optimizer,
+        "host_metrics": dict(host_metrics),
+    }
+    completion = {**body, "completion_sha256": document_sha256(body)}
+    _write_once(
+        _segment_completion_path(plan, stage_index, segment.index),
+        completion,
+        source="candidate_cortex_adaptive.segment_completion",
+    )
+    return completion
+
+
+def _reset_incomplete_segment(
+    plan: Mapping[str, Any], stage_index: int, segment_index: int
+) -> None:
+    parent = _segment_parent(plan, stage_index, segment_index)
+    with local_internal_governed_scope(
+        "candidate_cortex_adaptive.reset_segment", domain="file_write"
+    ):
+        gateway = get_file_write_gateway()
+        if parent.exists() or parent.is_symlink():
+            gateway.delete_path(
+                parent,
+                recursive=True,
+                source="candidate_cortex_adaptive.reset_segment",
+            )
+        gateway.ensure_directory(
+            _segment_adapter_root(plan, stage_index, segment_index),
+            source="candidate_cortex_adaptive.reset_segment",
+        )
+
+
+def _train_next_segment(
+    plan: Mapping[str, Any],
+    stage_index: int,
+    stage_resume_checkpoint: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Train one bounded segment; return stage completion only at the end."""
+
     existing = _validated_completion(plan, stage_index)
     if existing is not None:
         return existing
-    _reset_incomplete_stage(plan, stage_index)
-    command = build_stage_command(
+    segments = _stage_segments(plan, stage_index)
+    completed: list[dict[str, Any]] = []
+    for segment in segments:
+        completion = _validated_segment_completion(plan, stage_index, segment)
+        if completion is None:
+            break
+        completed.append(completion)
+    if not completed:
+        segment_root = _stage_parent(plan, stage_index) / "segments"
+        if not segment_root.exists():
+            _reset_incomplete_stage(plan, stage_index)
+    segment = segments[len(completed)]
+    _reset_incomplete_segment(plan, stage_index, segment.index)
+    previous = completed[-1] if completed else None
+    actual_resume = (
+        previous["adapter"] if previous is not None else stage_resume_checkpoint
+    )
+    prior_optimizer = (
+        Path(str(previous["optimizer_state"]["path"]))
+        if previous is not None
+        else None
+    )
+    command = _segment_command(
         plan,
         stage_index=stage_index,
-        resume_checkpoint=resume_checkpoint,
+        segment=segment,
+        stage_resume_checkpoint=stage_resume_checkpoint,
+        actual_resume_checkpoint=actual_resume,
     )
     state: dict[str, Any] = {
         "sample_count": 0,
@@ -306,17 +811,67 @@ def _train_stage(
                 "stage_index": stage_index,
             },
         ):
-            from mlx_lm import lora
-
-            try:
-                lora.run(_mlx_arguments(command))
-            finally:
-                _release_model_memory()
+            _run_segment_training(
+                command,
+                segment=segment,
+                prior_optimizer_state=prior_optimizer,
+                optimizer_output=_segment_optimizer_path(
+                    plan, stage_index, segment.index
+                ),
+            )
     finally:
         stop.set()
         sampler.join(timeout=5.0)
+        _release_model_memory()
     state["duration_seconds"] = max(0.0, time.monotonic() - started)
-    return _publish_checkpoint(plan, stage_index, command, state)
+    segment_completion = _publish_segment_completion(
+        plan,
+        stage_index,
+        segment,
+        command,
+        state,
+    )
+    completed.append(segment_completion)
+    if len(completed) < len(segments):
+        return None
+    aggregate = {
+        "sample_count": sum(
+            int(item["host_metrics"]["sample_count"]) for item in completed
+        ),
+        "min_available_bytes": min(
+            int(item["host_metrics"]["min_available_bytes"])
+            for item in completed
+        ),
+        "max_used_percent": max(
+            float(item["host_metrics"]["max_used_percent"])
+            for item in completed
+        ),
+        "max_process_rss_bytes": max(
+            int(item["host_metrics"]["max_process_rss_bytes"])
+            for item in completed
+        ),
+        "duration_seconds": sum(
+            float(item["host_metrics"]["duration_seconds"])
+            for item in completed
+        ),
+        "segment_count": len(completed),
+        "segment_completion_sha256": [
+            str(item["completion_sha256"]) for item in completed
+        ],
+    }
+    return _publish_checkpoint(
+        plan,
+        stage_index,
+        build_stage_command(
+            plan,
+            stage_index=stage_index,
+            resume_checkpoint=stage_resume_checkpoint,
+        ),
+        aggregate,
+        local_root=_segment_adapter_root(plan, stage_index, segment.index),
+        local_iterations=segment.iterations,
+        segment_completions=tuple(completed),
+    )
 
 
 def _release_model_memory() -> None:
@@ -338,6 +893,7 @@ def _restart_for_clean_model_phase(
     key: bytes,
     stage_index: int,
     next_phase: str,
+    execution_id: str,
 ) -> None:
     """Replace the process image so one model-heavy phase cannot retain another.
 
@@ -347,7 +903,7 @@ def _restart_for_clean_model_phase(
     its trainer-bound sleep inhibitor.
     """
 
-    if next_phase not in {"measure", "decide"}:
+    if next_phase not in {"train", "measure", "decide"}:
         raise CandidateCortexTrainingError("adaptive_phase_invalid")
     launcher = Path(str(plan["python"])).expanduser()
     if not launcher.is_absolute() or not launcher.exists():
@@ -376,6 +932,8 @@ def _restart_for_clean_model_phase(
         str(run_root.expanduser().resolve(strict=True)),
         "--journal-key",
         str(journal_key.expanduser().resolve(strict=True)),
+        "--execution-id",
+        execution_id,
     ]
     os.execve(str(launcher), argv, environment)
     raise CandidateCortexTrainingError("adaptive_phase_exec_returned")
@@ -561,11 +1119,22 @@ def main(argv: list[str] | None = None) -> int:
                     "command_sha256": document_sha256(next_stage["command"]),
                 },
             )
-            completion = _train_stage(
+            completion = _train_next_segment(
                 plan,
                 stage_index,
                 next_stage.get("resume_checkpoint"),
             )
+            if completion is None:
+                _restart_for_clean_model_phase(
+                    plan,
+                    run_root=args.run_root,
+                    journal_key=args.journal_key,
+                    journal=journal,
+                    key=key,
+                    stage_index=stage_index,
+                    next_phase="train",
+                    execution_id=args.execution_id,
+                )
         if trained_in_this_process and (
             not _evidence_path(plan, stage_index).is_file()
             or not _detail_path(plan, stage_index).is_file()
@@ -578,6 +1147,7 @@ def main(argv: list[str] | None = None) -> int:
                 key=key,
                 stage_index=stage_index,
                 next_phase="measure",
+                execution_id=args.execution_id,
             )
         evidence, stage_admission = _measure_stage(plan, stage_index)
         observation = _observation(
@@ -606,6 +1176,7 @@ def main(argv: list[str] | None = None) -> int:
             key=key,
             stage_index=stage_index,
             next_phase="decide",
+            execution_id=args.execution_id,
         )
 
 

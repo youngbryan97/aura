@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import mlx.core as mx
+import mlx.nn as nn
+import mlx.optimizers as optim
+import numpy as np
 import pytest
 
 from core.learning.candidate_cortex_training import (
@@ -163,6 +167,196 @@ def test_reset_incomplete_stage_removes_only_unadmitted_stage_outputs(
     assert previous.read_bytes() == b"admitted"
 
 
+def test_hybrid_stage_is_split_below_descriptor_failure_horizon(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+
+    first = target._stage_segments(plan, 0)
+    second = target._stage_segments(plan, 1)
+
+    assert [(item.start_iteration, item.iterations) for item in first] == [
+        (0, 48),
+        (48, 48),
+        (96, 4),
+    ]
+    assert [(item.start_iteration, item.iterations) for item in second] == [
+        (0, 48),
+        (48, 48),
+        (96, 48),
+        (144, 48),
+        (192, 8),
+    ]
+
+
+def test_segment_command_binds_exact_range_and_resume_artifact(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    previous = Path(plan["paths"]["adapter_root"]) / "0000100_adapters.safetensors"
+    previous.write_bytes(b"previous")
+    binding = {
+        "path": str(previous.resolve()),
+        "size_bytes": previous.stat().st_size,
+        "sha256": target.file_sha256(previous),
+        "lines": 1,
+    }
+    segment = target._stage_segments(plan, 1)[0]
+
+    command = target._segment_command(
+        plan,
+        stage_index=1,
+        segment=segment,
+        stage_resume_checkpoint=binding,
+        actual_resume_checkpoint=binding,
+    )
+
+    assert command[command.index("--iters") + 1] == "48"
+    assert command[command.index("--save-every") + 1] == "48"
+    assert command[command.index("--steps-per-eval") + 1] == "48"
+    assert command[command.index("--resume-adapter-file") + 1] == str(previous)
+    assert command[command.index("--adapter-path") + 1] == str(
+        target._segment_adapter_root(plan, 1, 0)
+    )
+
+
+def test_resumed_batch_iterator_matches_uninterrupted_order() -> None:
+    from mlx_lm.tuner import trainer
+
+    dataset = [([index, index + 1], 0) for index in range(24)]
+    upstream = trainer.iterate_batches(
+        dataset,
+        batch_size=1,
+        max_seq_length=32,
+        loop=True,
+        seed=19,
+    )
+    upstream_order = [int(next(upstream)[0][0, 0].item()) for _ in range(14)]
+    uninterrupted = target._iterate_batches_from_stage_offset(
+        dataset,
+        batch_size=1,
+        max_seq_length=32,
+        loop=True,
+        seed=19,
+        start_iteration=0,
+    )
+    expected = [int(next(uninterrupted)[0][0, 0].item()) for _ in range(14)]
+    resumed = target._iterate_batches_from_stage_offset(
+        dataset,
+        batch_size=1,
+        max_seq_length=32,
+        loop=True,
+        seed=19,
+        start_iteration=9,
+    )
+
+    assert expected == upstream_order
+    assert [int(next(resumed)[0][0, 0].item()) for _ in range(5)] == expected[9:]
+
+
+def test_optimizer_and_mlx_rng_state_round_trip(tmp_path: Path) -> None:
+    model = nn.Linear(3, 2)
+    original = optim.Adafactor(
+        learning_rate=1e-5,
+        relative_step=False,
+        scale_parameter=False,
+        beta_1=None,
+    )
+    original.init(model.trainable_parameters())
+    original.state["step"] = mx.array(7, mx.uint64)
+    rng_before = [np.asarray(value) for value in mx.random.state]
+    path = tmp_path / "optimizer_state.safetensors"
+
+    target._save_optimizer_state(path, original)
+    mx.random.seed(999)
+    restored = optim.Adafactor(
+        learning_rate=1e-5,
+        relative_step=False,
+        scale_parameter=False,
+        beta_1=None,
+    )
+    target._restore_optimizer_state(path, restored)
+
+    assert int(restored.state["step"].item()) == 7
+    assert all(
+        np.array_equal(before, np.asarray(after))
+        for before, after in zip(rng_before, mx.random.state)
+    )
+
+
+def test_segmented_stage_publication_binds_every_durable_segment(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    segments = target._stage_segments(plan, 1)
+    prior = Path(plan["paths"]["adapter_root"]) / "0000100_adapters.safetensors"
+    prior.write_bytes(b"admitted-stage-zero")
+    prior_binding = {
+        "path": str(prior.resolve()),
+        "size_bytes": prior.stat().st_size,
+        "sha256": target.file_sha256(prior),
+        "lines": 1,
+    }
+    completions = []
+    for segment in segments:
+        root = target._segment_adapter_root(plan, 1, segment.index)
+        root.mkdir(parents=True)
+        payload = f"adapter-{segment.index}".encode("ascii")
+        (root / f"{segment.iterations:07d}_adapters.safetensors").write_bytes(
+            payload
+        )
+        (root / "adapters.safetensors").write_bytes(payload)
+        (root / "adapter_config.json").write_text(
+            json.dumps(
+                {
+                    "fine_tune_type": "lora",
+                    "num_layers": -1,
+                    "lora_parameters": {
+                        "dropout": 0.0,
+                        "keys": ["self_attn.q_proj"],
+                        "rank": 2,
+                        "scale": 1.0,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        optimizer = target._segment_optimizer_path(plan, 1, segment.index)
+        optimizer.write_bytes(f"optimizer-{segment.index}".encode("ascii"))
+        completions.append(
+            target._publish_segment_completion(
+                plan,
+                1,
+                segment,
+                ("python", "-m", "mlx_lm", str(segment.index)),
+                {"sample_count": 1, "min_available_bytes": 100},
+            )
+        )
+
+    completion = target._publish_checkpoint(
+        plan,
+        1,
+        build_stage_command(
+            plan,
+            stage_index=1,
+            resume_checkpoint=prior_binding,
+        ),
+        {"sample_count": len(segments), "min_available_bytes": 100},
+        local_root=target._segment_adapter_root(plan, 1, segments[-1].index),
+        local_iterations=segments[-1].iterations,
+        segment_completions=tuple(completions),
+    )
+
+    assert completion["schema"] == target.SEGMENTED_STAGE_COMPLETION_SCHEMA
+    assert target._validated_completion(plan, 1) == completion
+    final_optimizer = target._segment_optimizer_path(plan, 1, segments[-1].index)
+    final_optimizer.write_bytes(b"tampered")
+    with pytest.raises(
+        target.CandidateCortexTrainingError, match="segment_artifact_drift"
+    ):
+        target._validated_completion(plan, 1)
+
+
 def test_phase_boundary_execs_bound_launcher_and_authenticates_restart(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -190,15 +384,18 @@ def test_phase_boundary_execs_bound_launcher_and_authenticates_restart(
             key=key,
             stage_index=0,
             next_phase="measure",
+            execution_id="cp926-recovery",
         )
 
     assert captured["path"] == plan["python"]
     assert captured["argv"][0] == plan["python"]
-    assert captured["argv"][-4:] == [
+    assert captured["argv"][-6:] == [
         "--run-root",
         str(Path(plan["paths"]["run_root"]).resolve()),
         "--journal-key",
         str(journal_key.resolve()),
+        "--execution-id",
+        "cp926-recovery",
     ]
     assert captured["environment"]["AURA_CANDIDATE_CORTEX_PHASE"] == "measure"
     events = read_authenticated_journal(journal, key=key)
