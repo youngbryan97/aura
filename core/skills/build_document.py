@@ -164,7 +164,13 @@ _NOT_THAT_SHAPE = re.compile(
 #: What each form is called when somebody asks for one.
 _FORM_WORDS = {
     "deck": ("slide", "deck", "presentation", "present", "pitch"),
-    "page": ("report", "memo", "one-pager", "onepager", "summary", "write-up", "document"),
+    # "page" earns its place here: "one page, not slides" named the form and
+    # matched nothing, so it fell through to the default and rendered a deck.
+    # "web page" is an app and belongs to build_app, so it is excluded below.
+    "page": (
+        "report", "memo", "one-pager", "onepager", "summary", "write-up",
+        "document", "page",
+    ),
 }
 
 
@@ -223,6 +229,8 @@ def _form_wanted(given: object, request: object) -> str:
     # removing what was ruled out reads that as a request for slides — the
     # same defect as "don't fix it" being read as "fix it".
     lowered = _NOT_THAT_SHAPE.sub(" ", text.lower())
+    # A web page is a program, not a document.
+    lowered = re.sub(r"\b(?:web\s*page|webpage|html\s+page)\b", " ", lowered)
     for form, words in _FORM_WORDS.items():
         if any(re.search(rf"\b{re.escape(word)}s?\b", lowered) for word in words):
             # What the floor is sure of is what the surface learns from.
