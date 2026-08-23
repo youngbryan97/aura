@@ -51660,3 +51660,45 @@ and diff hygiene pass. Live confirmation remains open: install this exact
 revision, repeat the resident long-form reasoning request, and prove the
 CognitiveEngine response is complete without route substitution, recurrent
 cache failure, false heartbeat stall or memory-fuse admission.
+
+## Checkpoint 2026-08-22-909: Bind Model-Facing Tissue to the Exact Cortex Basis
+
+CP909 establishes the fail-closed substrate contract required before Aura can
+evaluate or promote a new cortex generation. It does not download, activate or
+claim superiority for a candidate model.
+
+- Promotion identity now hashes every weight shard and the complete behavioral
+  config/tokenizer bundle, records repository and immutable revision identity,
+  parses nested Qwen3.8 text architecture, and rejects content drift even when
+  model width, layer count and filenames remain unchanged.
+- Serving context, prefill chunks and per-lane input/output envelopes are bound
+  to that exact artifact and require complete-answer, latency and memory
+  evidence. A model receives no larger allowance merely because its model card
+  advertises a larger native window.
+- Persona/CRSM tissue, affective steering, expert adapters and recurrence-native
+  tissue must each be qualified on the candidate basis or explicitly retired
+  where retirement is permitted. Steering is stricter: its extraction protocol,
+  causal evaluation and exact model descriptor are mandatory. Same-dimensional
+  vectors from another checkpoint are rejected.
+- Runtime CAA caches are partitioned by exact descriptor identity. New runtime
+  vectors carry that identity, the model worker resolves it from the validated
+  active promotion manifest, and schema-v3 activation refuses an altered model,
+  a substituted PASS receipt or a stale migration contract.
+- The candidate evaluator now uses MLX-LM's architecture-native generation
+  primitive so mixed linear/full-attention checkpoints construct their own
+  cache topology instead of being forced through a Qwen2-only KV cache.
+
+The focused promotion, registry, steering, extraction, worker and admission set
+passes `138/138`; the final contract subset passes `34/34`; canonical smoke
+passes `121/121` with one environment-dependent skip; Ruff, compilation,
+layering and diff hygiene pass. The aggregate governance gate is separately
+blocked by pre-existing ownership-baseline drift between
+`core/diagnosis/experiment.py` and `core/diagnosis/repository.py`, neither part
+of this checkpoint.
+
+Next: download the exact pinned Qwen3.8-27B artifact without changing the active
+pointer, verify its immutable descriptor and native MLX execution, rebuild and
+measure every model-facing Aura tissue generation on that basis, run matched
+incumbent/candidate quality and systems tests, then stage, activate, restart and
+prove rollback on the live user surface. The broader local-model portfolio and
+original CP895/CP898 live-runtime gates remain open; final soaks remain deferred.

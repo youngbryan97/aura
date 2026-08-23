@@ -34,12 +34,29 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+MODEL_ARTIFACT_DESCRIPTOR_SCHEMA = "aura.model_artifact_descriptor.v1"
+SERVING_PROFILE_SCHEMA = "aura.model_serving_profile.v1"
+SERVING_QUALIFICATION_SCHEMA = "aura.model_serving_qualification.v1"
+
+_REQUIRED_SERVING_LANES = frozenset(
+    {
+        "foreground_simple",
+        "foreground_standard",
+        "foreground_extended",
+        "deep_reasoning",
+        "tool_execution",
+        "code",
+        "document",
+    }
+)
 
 # Parameter-count boundaries for the runtime's weight classes. The classes
 # mirror the lanes the runtime actually provisions for (solver/cortex/
@@ -56,7 +73,7 @@ _CLASS_BOUNDARIES: tuple[tuple[float, str], ...] = (
 _HEAVY_CLASSES = frozenset({"72b", "32b"})
 
 _72B_PATH_TOKENS = ("72b", "solver")
-_32B_PATH_TOKENS = ("32b", "cortex", "zenith")
+_32B_PATH_TOKENS = ("32b", "27b", "cortex", "zenith")
 _14B_PATH_TOKENS = ("14b", "24b", "40b")
 _7B_PATH_TOKENS = ("7b", "brainstem")
 
@@ -71,6 +88,17 @@ class ModelArtifactProfile:
     size_class: str  # "72b" | "32b" | "14b" | "7b" | "small" | "unknown"
     evidence: str  # "index_metadata" | "config_estimate" | "file_sizes" | "path_tokens" | "absent"
     fingerprint: str
+    model_type: str = ""
+    architectures: tuple[str, ...] = ()
+    hidden_size: int = 0
+    num_hidden_layers: int = 0
+    num_attention_heads: int = 0
+    num_key_value_heads: int = 0
+    vocab_size: int = 0
+    native_context_window: int = 0
+    layer_types: tuple[str, ...] = ()
+    linear_attention_layers: int = 0
+    full_attention_layers: int = 0
 
     @property
     def weight_gb(self) -> float:
@@ -92,7 +120,7 @@ _PROFILE_CACHE_MAX = 32
 # Zero-syscall fast path keyed on the RAW path string: computing the
 # mtime-validated key above costs realpath + three stats, and that ran on
 # every call from an event-loop status read.
-_PROFILE_FAST_CACHE: dict[str, tuple[float, "ModelArtifactProfile"]] = {}
+_PROFILE_FAST_CACHE: dict[str, tuple[float, ModelArtifactProfile]] = {}
 _PROFILE_REVALIDATE_INTERVAL_S = 30.0
 
 
@@ -105,13 +133,20 @@ def _class_for_parameters(total_parameters: float) -> str:
 
 def _class_from_path_tokens(model_path: str) -> str:
     lowered = str(model_path or "").lower()
-    if any(token in lowered for token in _72B_PATH_TOKENS):
+
+    def contains(token: str) -> bool:
+        return re.search(
+            rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])",
+            lowered,
+        ) is not None
+
+    if any(contains(token) for token in _72B_PATH_TOKENS):
         return "72b"
-    if any(token in lowered for token in _32B_PATH_TOKENS):
+    if any(contains(token) for token in _32B_PATH_TOKENS):
         return "32b"
-    if any(token in lowered for token in _14B_PATH_TOKENS):
+    if any(contains(token) for token in _14B_PATH_TOKENS):
         return "14b"
-    if any(token in lowered for token in _7B_PATH_TOKENS):
+    if any(contains(token) for token in _7B_PATH_TOKENS):
         return "7b"
     return "small"
 
@@ -122,13 +157,14 @@ def _estimate_parameters_from_config(config: dict) -> int:
     Good to well within one class boundary for the dense decoder families
     this runtime serves (embedding + per-layer attention/MLP terms).
     """
+    text = _text_model_config(config)
     try:
-        hidden = float(config.get("hidden_size") or 0)
-        layers = float(config.get("num_hidden_layers") or 0)
-        inter = float(config.get("intermediate_size") or 0)
-        vocab = float(config.get("vocab_size") or 0)
-        heads = float(config.get("num_attention_heads") or 0)
-        kv_heads = float(config.get("num_key_value_heads") or heads or 1)
+        hidden = float(text.get("hidden_size") or 0)
+        layers = float(text.get("num_hidden_layers") or 0)
+        inter = float(text.get("intermediate_size") or 0)
+        vocab = float(text.get("vocab_size") or 0)
+        heads = float(text.get("num_attention_heads") or 0)
+        kv_heads = float(text.get("num_key_value_heads") or heads or 1)
     except (TypeError, ValueError):
         return 0
     if hidden <= 0 or layers <= 0:
@@ -155,6 +191,63 @@ def _quantization_bits(config: dict) -> int:
             return 0
         return bits if 0 < bits <= 32 else 0
     return 0
+
+
+def _text_model_config(config: dict[str, object]) -> dict[str, object]:
+    text = config.get("text_config")
+    return dict(text) if isinstance(text, dict) else dict(config)
+
+
+def _safe_config_int(config: dict[str, object], *keys: str) -> int:
+    for key in keys:
+        try:
+            value = int(config.get(key) or 0)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if value > 0:
+            return value
+    return 0
+
+
+def _architecture_fields(config: dict[str, object]) -> dict[str, object]:
+    text = _text_model_config(config)
+    raw_architectures = config.get("architectures")
+    architectures = tuple(
+        str(value)
+        for value in (raw_architectures if isinstance(raw_architectures, list) else [])
+        if str(value).strip()
+    )
+    raw_layer_types = text.get("layer_types")
+    layer_types = tuple(
+        str(value)
+        for value in (raw_layer_types if isinstance(raw_layer_types, list) else [])
+    )
+    layers = _safe_config_int(text, "num_hidden_layers", "n_layer", "num_layers")
+    linear = sum(value == "linear_attention" for value in layer_types)
+    full = sum(value == "full_attention" for value in layer_types)
+    if not layer_types and layers:
+        full = layers
+    return {
+        "model_type": str(text.get("model_type") or config.get("model_type") or ""),
+        "architectures": architectures,
+        "hidden_size": _safe_config_int(text, "hidden_size", "d_model", "n_embd"),
+        "num_hidden_layers": layers,
+        "num_attention_heads": _safe_config_int(text, "num_attention_heads", "n_head"),
+        "num_key_value_heads": _safe_config_int(
+            text, "num_key_value_heads", "num_kv_heads"
+        ),
+        "vocab_size": _safe_config_int(text, "vocab_size"),
+        "native_context_window": _safe_config_int(
+            text,
+            "max_position_embeddings",
+            "model_max_length",
+            "seq_length",
+            "max_sequence_length",
+        ),
+        "layer_types": layer_types,
+        "linear_attention_layers": linear,
+        "full_attention_layers": full,
+    }
 
 
 def _cache_key_stamp(config_path: Path, index_path: Path) -> tuple[float, float]:
@@ -349,9 +442,10 @@ def _build_profile(
         json.dumps(index_metadata, sort_keys=True, default=str).encode("utf-8")
     )
     for name, size in weight_files:
-        digest.update(f"{name}:{size}".encode("utf-8"))
+        digest.update(f"{name}:{size}".encode())
     fingerprint = digest.hexdigest() if (config_bytes or weight_files) else ""
 
+    architecture = _architecture_fields(config)
     profile = ModelArtifactProfile(
         path=resolved,
         exists=True,
@@ -361,6 +455,17 @@ def _build_profile(
         size_class=size_class,
         evidence=evidence,
         fingerprint=fingerprint,
+        model_type=str(architecture["model_type"]),
+        architectures=tuple(architecture["architectures"]),
+        hidden_size=int(architecture["hidden_size"]),
+        num_hidden_layers=int(architecture["num_hidden_layers"]),
+        num_attention_heads=int(architecture["num_attention_heads"]),
+        num_key_value_heads=int(architecture["num_key_value_heads"]),
+        vocab_size=int(architecture["vocab_size"]),
+        native_context_window=int(architecture["native_context_window"]),
+        layer_types=tuple(architecture["layer_types"]),
+        linear_attention_layers=int(architecture["linear_attention_layers"]),
+        full_attention_layers=int(architecture["full_attention_layers"]),
     )
     declared = _class_from_path_tokens(resolved)
     if profile.measured and declared != profile.size_class and declared != "small":
@@ -386,3 +491,258 @@ def model_size_class(model_path: str) -> str:
 
 def model_is_heavy(model_path: str) -> bool:
     return get_model_artifact_profile(model_path).is_heavy
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+
+
+def _canonical_digest(value: object) -> str:
+    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def _json_normalize(value: object) -> object:
+    return json.loads(_canonical_json_bytes(value))
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def build_model_artifact_descriptor(
+    model_path: str | Path,
+    *,
+    repository_id: str = "",
+    revision: str = "",
+) -> dict[str, object]:
+    """Build the promotion identity for one immutable local checkpoint.
+
+    The hot-path profile fingerprint is intentionally cheap. Promotion needs
+    the stronger object: every weight shard plus every tokenizer/config byte
+    that changes behavior. This function is offline and may read the complete
+    artifact.
+    """
+
+    root = Path(model_path).expanduser().resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("model_artifact_not_directory")
+    reset_model_artifact_profile_cache()
+    profile = get_model_artifact_profile(str(root))
+    if not profile.exists or not profile.measured:
+        raise ValueError("model_artifact_unmeasured")
+
+    from core.brain.llm.latent_cortex.recurrence_adapter_identity_v2 import (
+        full_weight_checkpoint_identity,
+        model_behavior_bundle_identity,
+    )
+
+    material: dict[str, object] = {
+        "schema": MODEL_ARTIFACT_DESCRIPTOR_SCHEMA,
+        "canonical_path": str(root),
+        "repository_id": str(repository_id).strip(),
+        "revision": str(revision).strip(),
+        "artifact_profile": _json_normalize(asdict(profile)),
+        "weight_identity": full_weight_checkpoint_identity(root),
+        "behavior_identity": model_behavior_bundle_identity(root),
+    }
+    material["descriptor_sha256"] = _canonical_digest(material)
+    return material
+
+
+def validate_model_artifact_descriptor(
+    descriptor: dict[str, object],
+    *,
+    model_path: str | Path | None = None,
+    verify_full_hash: bool = False,
+) -> dict[str, object]:
+    """Validate a descriptor and optionally re-hash the bound checkpoint."""
+
+    if not isinstance(descriptor, dict):
+        raise ValueError("descriptor_schema_invalid")
+    required = {
+        "schema",
+        "canonical_path",
+        "repository_id",
+        "revision",
+        "artifact_profile",
+        "weight_identity",
+        "behavior_identity",
+        "descriptor_sha256",
+    }
+    if set(descriptor) != required or descriptor.get("schema") != MODEL_ARTIFACT_DESCRIPTOR_SCHEMA:
+        raise ValueError("descriptor_schema_invalid")
+    claimed = descriptor.get("descriptor_sha256")
+    material = dict(descriptor)
+    material.pop("descriptor_sha256", None)
+    if not _is_sha256(claimed) or claimed != _canonical_digest(material):
+        raise ValueError("descriptor_digest_invalid")
+
+    profile = descriptor.get("artifact_profile")
+    weights = descriptor.get("weight_identity")
+    behavior = descriptor.get("behavior_identity")
+    if not isinstance(profile, dict) or not isinstance(weights, dict) or not isinstance(behavior, dict):
+        raise ValueError("descriptor_schema_invalid")
+    if not _is_sha256(weights.get("fingerprint")) or weights.get("method") != "sha256":
+        raise ValueError("descriptor_weight_identity_invalid")
+    if not _is_sha256(behavior.get("bundle_sha256")):
+        raise ValueError("descriptor_behavior_identity_invalid")
+
+    if model_path is not None:
+        resolved = Path(model_path).expanduser().resolve(strict=True)
+        if str(resolved) != descriptor.get("canonical_path"):
+            raise ValueError("descriptor_path_mismatch")
+        if verify_full_hash:
+            observed = build_model_artifact_descriptor(
+                resolved,
+                repository_id=str(descriptor.get("repository_id") or ""),
+                revision=str(descriptor.get("revision") or ""),
+            )
+            if observed["descriptor_sha256"] != claimed:
+                raise ValueError("descriptor_mismatch")
+    return descriptor
+
+
+def _validate_serving_qualification(value: dict[str, object]) -> str:
+    required = {
+        "schema",
+        "verdict",
+        "complete_answer_pass",
+        "latency_pass",
+        "memory_pass",
+        "evidence_sha256",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != required
+        or value.get("schema") != SERVING_QUALIFICATION_SCHEMA
+        or value.get("verdict") != "PASS"
+        or value.get("complete_answer_pass") is not True
+        or value.get("latency_pass") is not True
+        or value.get("memory_pass") is not True
+        or not _is_sha256(value.get("evidence_sha256"))
+    ):
+        raise ValueError("serving_qualification_incomplete")
+    return _canonical_digest(value)
+
+
+def build_model_serving_profile(
+    descriptor: dict[str, object],
+    *,
+    served_context_tokens: int,
+    prefill_chunk_tokens: int,
+    lane_limits: dict[str, dict[str, int]],
+    qualification: dict[str, object],
+) -> dict[str, object]:
+    """Bind tested context/output budgets to one exact model artifact.
+
+    A newer checkpoint does not receive larger limits by reputation. The
+    limits become promotable only after complete-answer, latency, and memory
+    evidence all pass for this exact artifact.
+    """
+
+    validate_model_artifact_descriptor(descriptor)
+    qualification_sha256 = _validate_serving_qualification(qualification)
+    artifact_profile = descriptor["artifact_profile"]
+    assert isinstance(artifact_profile, dict)
+    native_context = int(artifact_profile.get("native_context_window") or 0)
+    served = int(served_context_tokens)
+    chunk = int(prefill_chunk_tokens)
+    if native_context <= 0 or served <= 0 or served > native_context:
+        raise ValueError("serving_context_invalid")
+    if chunk < 128 or chunk > min(served, 8192):
+        raise ValueError("serving_prefill_chunk_invalid")
+    if not isinstance(lane_limits, dict) or set(lane_limits) != _REQUIRED_SERVING_LANES:
+        raise ValueError("serving_lanes_incomplete")
+
+    normalized_lanes: dict[str, dict[str, int]] = {}
+    for lane in sorted(_REQUIRED_SERVING_LANES):
+        limits = lane_limits.get(lane)
+        if not isinstance(limits, dict) or set(limits) != {
+            "max_input_tokens",
+            "max_output_tokens",
+        }:
+            raise ValueError(f"serving_lane_invalid:{lane}")
+        maximum_input = int(limits["max_input_tokens"])
+        maximum_output = int(limits["max_output_tokens"])
+        if maximum_input <= 0 or maximum_output <= 0:
+            raise ValueError(f"serving_lane_invalid:{lane}")
+        if maximum_input + maximum_output > served:
+            raise ValueError(f"serving_context_overcommit:{lane}")
+        normalized_lanes[lane] = {
+            "max_input_tokens": maximum_input,
+            "max_output_tokens": maximum_output,
+        }
+
+    material: dict[str, object] = {
+        "schema": SERVING_PROFILE_SCHEMA,
+        "model_descriptor_sha256": descriptor["descriptor_sha256"],
+        "native_context_tokens": native_context,
+        "served_context_tokens": served,
+        "prefill_chunk_tokens": chunk,
+        "lanes": normalized_lanes,
+        "qualification": _json_normalize(qualification),
+        "qualification_sha256": qualification_sha256,
+    }
+    material["profile_sha256"] = _canonical_digest(material)
+    return material
+
+
+def validate_model_serving_profile(
+    profile: dict[str, object],
+    descriptor: dict[str, object],
+) -> dict[str, object]:
+    """Fail closed if a serving profile moved away from its measured model."""
+
+    if not isinstance(profile, dict) or profile.get("schema") != SERVING_PROFILE_SCHEMA:
+        raise ValueError("serving_profile_schema_invalid")
+    if profile.get("model_descriptor_sha256") != descriptor.get("descriptor_sha256"):
+        raise ValueError("serving_profile_model_identity_mismatch")
+    validate_model_artifact_descriptor(descriptor)
+    claimed = profile.get("profile_sha256")
+    material = dict(profile)
+    material.pop("profile_sha256", None)
+    if not _is_sha256(claimed) or claimed != _canonical_digest(material):
+        raise ValueError("serving_profile_digest_invalid")
+    qualification = profile.get("qualification")
+    if not isinstance(qualification, dict):
+        raise ValueError("serving_qualification_incomplete")
+    if _validate_serving_qualification(qualification) != profile.get(
+        "qualification_sha256"
+    ):
+        raise ValueError("serving_qualification_digest_invalid")
+    rebuilt = build_model_serving_profile(
+        descriptor,
+        served_context_tokens=int(profile.get("served_context_tokens") or 0),
+        prefill_chunk_tokens=int(profile.get("prefill_chunk_tokens") or 0),
+        lane_limits=dict(profile.get("lanes") or {}),
+        qualification=qualification,
+    )
+    if rebuilt["profile_sha256"] != claimed:
+        raise ValueError("serving_profile_invalid")
+    return profile
+
+
+__all__ = [
+    "MODEL_ARTIFACT_DESCRIPTOR_SCHEMA",
+    "SERVING_PROFILE_SCHEMA",
+    "SERVING_QUALIFICATION_SCHEMA",
+    "ModelArtifactProfile",
+    "build_model_artifact_descriptor",
+    "build_model_serving_profile",
+    "get_model_artifact_profile",
+    "model_is_heavy",
+    "model_size_class",
+    "reset_model_artifact_profile_cache",
+    "validate_model_artifact_descriptor",
+    "validate_model_serving_profile",
+]

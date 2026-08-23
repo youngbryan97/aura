@@ -80,11 +80,29 @@ def _model_identity(model_path: str) -> dict[str, Any]:
     path = Path(model_path).expanduser()
     resolved = str(path.resolve()) if path.exists() else str(model_path)
     cfg = path / "config.json"
+    descriptor: dict[str, object] | None = None
+    if path.is_dir():
+        try:
+            from core.brain.llm.model_artifact_profile import (
+                build_model_artifact_descriptor,
+            )
+
+            descriptor = build_model_artifact_descriptor(path)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Exact local model identity unavailable; extracted vectors will "
+                "not be promotable: %s",
+                exc,
+            )
     return {
         "model_path": resolved,
         "model_path_input": str(model_path),
         "model_config_sha256": _sha256_file(cfg) if cfg.exists() else None,
         "model_config_path": str(cfg.resolve()) if cfg.exists() else None,
+        "model_descriptor_sha256": str(
+            (descriptor or {}).get("descriptor_sha256") or ""
+        ),
+        "model_artifact_descriptor": descriptor,
     }
 
 
@@ -529,6 +547,7 @@ def _extract_steering_vectors_owned(
                 model_path_input=identity["model_path_input"],
                 model_config_sha256=identity["model_config_sha256"] or "",
                 model_config_path=identity["model_config_path"] or "",
+                model_descriptor_sha256=identity["model_descriptor_sha256"],
                 derived_at=time.time(),
             )
             logger.info(

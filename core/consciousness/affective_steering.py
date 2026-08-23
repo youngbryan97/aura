@@ -486,6 +486,7 @@ class SteeringVectorLibrary:
         self,
         cache_dir: Path | None = None,
         source_dirs: list[Path] | None = None,
+        expected_model_identity: dict[str, object] | None = None,
     ):
         discovered_source_dirs: list[Path] = []
         env_dir = os.environ.get("AURA_STEERING_DIR")
@@ -530,6 +531,14 @@ class SteeringVectorLibrary:
         self._vectors_by_layer: dict[int, dict[str, SteeringVector]] = {}
         self._registry = VectorRegistry()
         self._path_dim_cache: dict[str, int] = {}
+        self._path_meta_cache: dict[str, dict[str, Any]] = {}
+        self._expected_model_identity = dict(expected_model_identity or {})
+        expected_digest = self._expected_model_identity.get("descriptor_sha256")
+        if expected_digest is not None and (
+            not isinstance(expected_digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None
+        ):
+            raise ValueError("steering_model_identity_invalid")
         self._source = self._infer_source()
 
     def _infer_source(self) -> str:
@@ -570,6 +579,27 @@ class SteeringVectorLibrary:
         self._path_dim_cache[cache_key] = dim
         return dim
 
+    def _cached_metadata(self, path: Path) -> dict[str, Any]:
+        cache_key = str(path)
+        cached = self._path_meta_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        _vector, metadata = self._read_cached_array(path)
+        self._path_meta_cache[cache_key] = dict(metadata)
+        return metadata
+
+    def _matches_expected_model(self, path: Path) -> bool:
+        expected = self._expected_model_identity.get("descriptor_sha256")
+        if not expected:
+            return True
+        if path.suffix != ".npz":
+            return False
+        try:
+            observed = self._cached_metadata(path).get("model_descriptor_sha256")
+        except (OSError, ValueError, RuntimeError, TypeError):
+            return False
+        return observed == expected
+
     def _resolve_cached_path(
         self,
         key: str,
@@ -582,7 +612,10 @@ class SteeringVectorLibrary:
         compatible = []
         for layer, path in candidates:
             try:
-                if self._vector_dim_for_path(path) == d_model:
+                if (
+                    self._matches_expected_model(path)
+                    and self._vector_dim_for_path(path) == d_model
+                ):
                     compatible.append((layer, path))
             except (OSError, ValueError, RuntimeError, AttributeError, TypeError) as exc:
                 _emit_affective_fault(
@@ -649,6 +682,9 @@ class SteeringVectorLibrary:
         exact_match: bool,
     ) -> SteeringVector:
         vector, meta = self._read_cached_array(path)
+        expected_identity = self._expected_model_identity.get("descriptor_sha256")
+        if expected_identity and meta.get("model_descriptor_sha256") != expected_identity:
+            raise ValueError(f"vector {path.name} belongs to another model basis")
         vec = np.asarray(vector, dtype=np.float32).reshape(-1)
         if not np.isfinite(vec).all():
             raise ValueError(f"vector {path.name} contains non-finite values")
@@ -736,6 +772,9 @@ class SteeringVectorLibrary:
                 selected_layer=target_layer,
                 selection_reason="runtime_derived",
                 extracted=False,
+                model_descriptor_sha256=str(
+                    self._expected_model_identity.get("descriptor_sha256") or ""
+                ),
             )
             # Atomic commit to avoid partial files surviving a crash
             import shutil
@@ -1935,6 +1974,8 @@ class AffectiveSteeringEngine:
         tokenizer,
         alpha: float | None = None,
         force_rederive: bool = False,
+        model_path: str | Path | None = None,
+        model_identity: dict[str, object] | None = None,
     ):
         """
         Attach the steering engine to a loaded MLX model.
@@ -1963,6 +2004,22 @@ class AffectiveSteeringEngine:
         if alpha is not None:
             self._alpha = alpha
 
+        if model_identity is None and model_path:
+            try:
+                from core.brain.llm.model_registry import (
+                    get_active_model_artifact_descriptor,
+                )
+
+                model_identity = get_active_model_artifact_descriptor(model_path)
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_affective_fault(
+                    exc,
+                    action="disabled cross-model steering cache reuse after active identity lookup failed",
+                    severity="warning",
+                    stage="model_identity",
+                )
+                model_identity = None
+
         # ── Discover model geometry ───────────────────────────────────────────
         n_layers, d_model = self._discover_model_geometry(model)
         if n_layers == 0 or d_model == 0:
@@ -1973,6 +2030,9 @@ class AffectiveSteeringEngine:
             "n_layers": n_layers,
             "d_model": d_model,
             "target_layers": self._compute_target_layers(n_layers),
+            "model_descriptor_sha256": str(
+                (model_identity or {}).get("descriptor_sha256") or ""
+            ),
         }
 
         target_layers = self._model_info["target_layers"]
@@ -1983,7 +2043,12 @@ class AffectiveSteeringEngine:
 
         # ── Load or derive steering vectors ───────────────────────────────────
         self._library = SteeringVectorLibrary(
-            cache_dir=self._runtime_vector_cache_dir(n_layers=n_layers, d_model=d_model)
+            cache_dir=self._runtime_vector_cache_dir(
+                n_layers=n_layers,
+                d_model=d_model,
+                model_identity=model_identity,
+            ),
+            expected_model_identity=model_identity,
         )
         vectors_by_layer = self._library.load_or_derive(
             model=model,
@@ -2153,8 +2218,13 @@ class AffectiveSteeringEngine:
             hook._active = active
 
     @staticmethod
-    def _runtime_vector_cache_dir(*, n_layers: int, d_model: int) -> Path:
-        """Writable runtime CAA cache partitioned by model geometry."""
+    def _runtime_vector_cache_dir(
+        *,
+        n_layers: int,
+        d_model: int,
+        model_identity: dict[str, object] | None = None,
+    ) -> Path:
+        """Writable CAA cache partitioned by geometry and exact model basis."""
         try:
             from core.config import config as aura_config
 
@@ -2169,7 +2239,11 @@ class AffectiveSteeringEngine:
             )
             logger.debug("Runtime steering cache config unavailable, using user cache: %s", exc)
             base = state_root() / "steering_vectors"
-        return base / f"dmodel_{int(d_model)}_layers_{int(n_layers)}"
+        geometry = base / f"dmodel_{int(d_model)}_layers_{int(n_layers)}"
+        digest = str((model_identity or {}).get("descriptor_sha256") or "")
+        if re.fullmatch(r"[0-9a-f]{64}", digest):
+            return geometry / f"model_{digest[:16]}"
+        return geometry
 
     @staticmethod
     def _coerce_hidden_size(candidate: Any) -> int | None:

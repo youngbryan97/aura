@@ -7,7 +7,14 @@ from types import SimpleNamespace
 import numpy as np
 
 
-def _write_vector(path: Path, values: list[float], *, source: str = "extracted_caa", extracted: bool = True) -> None:
+def _write_vector(
+    path: Path,
+    values: list[float],
+    *,
+    source: str = "extracted_caa",
+    extracted: bool = True,
+    model_descriptor_sha256: str = "",
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
         path,
@@ -15,6 +22,7 @@ def _write_vector(path: Path, values: list[float], *, source: str = "extracted_c
         source=source,
         extracted=extracted,
         derived_at=123.0,
+        model_descriptor_sha256=model_descriptor_sha256,
     )
 
 
@@ -55,6 +63,44 @@ def test_steering_vector_library_rejects_wrong_d_model_cache(tmp_path):
     library = SteeringVectorLibrary(cache_dir=cache_dir)
 
     assert library._resolve_cached_path("valence_positive", 25, d_model=4) is None
+
+
+def test_steering_vector_library_rejects_same_width_from_another_model(tmp_path):
+    from core.consciousness.affective_steering import SteeringVectorLibrary
+
+    cache_dir = tmp_path / "vectors"
+    _write_vector(
+        cache_dir / "valence_positive_layer25.npz",
+        [1.0, 0.0, 0.0, 0.0],
+        model_descriptor_sha256="a" * 64,
+    )
+    library = SteeringVectorLibrary(
+        cache_dir=cache_dir,
+        expected_model_identity={"descriptor_sha256": "b" * 64},
+    )
+
+    assert library._resolve_cached_path("valence_positive", 25, d_model=4) is None
+
+
+def test_steering_vector_library_accepts_only_exact_model_basis(tmp_path):
+    from core.consciousness.affective_steering import SteeringVectorLibrary
+
+    cache_dir = tmp_path / "vectors"
+    identity = {"descriptor_sha256": "c" * 64}
+    _write_vector(
+        cache_dir / "valence_positive_layer25.npz",
+        [1.0, 0.0, 0.0, 0.0],
+        model_descriptor_sha256=identity["descriptor_sha256"],
+    )
+    library = SteeringVectorLibrary(
+        cache_dir=cache_dir,
+        expected_model_identity=identity,
+    )
+
+    resolved = library._resolve_cached_path("valence_positive", 25, d_model=4)
+
+    assert resolved is not None
+    assert resolved[0] == 25
 
 
 def test_steering_vector_library_discovers_sources_with_explicit_runtime_cache(
@@ -98,6 +144,25 @@ def test_affective_steering_runtime_cache_is_partitioned_by_geometry():
     assert "dmodel_4096_layers_64" in str(large)
 
 
+def test_affective_steering_runtime_cache_is_partitioned_by_model_identity():
+    from core.consciousness.affective_steering import AffectiveSteeringEngine
+
+    first = AffectiveSteeringEngine._runtime_vector_cache_dir(
+        n_layers=64,
+        d_model=5120,
+        model_identity={"descriptor_sha256": "1" * 64},
+    )
+    second = AffectiveSteeringEngine._runtime_vector_cache_dir(
+        n_layers=64,
+        d_model=5120,
+        model_identity={"descriptor_sha256": "2" * 64},
+    )
+
+    assert first != second
+    assert "model_1111111111111111" in str(first)
+    assert "model_2222222222222222" in str(second)
+
+
 def test_steering_vector_weight_prefers_direct_substrate_index():
     from core.consciousness.affective_steering import SteeringVector
 
@@ -130,8 +195,8 @@ def test_substrate_sync_prefers_shared_state_vector_over_mood_projection():
 
 
 def test_substrate_sync_reads_registered_liquid_substrate_vector(monkeypatch):
-    from core.container import ServiceContainer
     from core.consciousness.affective_steering import SubstrateSyncThread
+    from core.container import ServiceContainer
 
     ServiceContainer.clear()
     substrate = SimpleNamespace(get_state_vector=lambda: np.array([0.5, -0.25], dtype=np.float32))

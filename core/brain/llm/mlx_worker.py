@@ -5884,6 +5884,7 @@ def _attach_affective_steering(
     substrate_mem: Any,
     phi_residual_mem: Any,
     steering_active_flag: Any,
+    model_path: str | None = None,
 ) -> tuple[Any, bool]:
     """The forward arrow: substrate state into the residual stream.
 
@@ -5904,7 +5905,10 @@ def _attach_affective_steering(
         from core.consciousness.affective_steering import get_steering_engine
 
         engine = get_steering_engine()
-        engine.attach(model, tokenizer)
+        if model_path:
+            engine.attach(model, tokenizer, model_path=model_path)
+        else:
+            engine.attach(model, tokenizer)
         if substrate_mem is not None:
             engine.start_substrate_sync(shared_state=substrate_mem)
         if phi_residual_mem is not None:
@@ -6347,7 +6351,12 @@ def _mlx_worker_loop(
 
         # Both arrows of the substrate<->activation coupling.
         engine, _steering_active = _attach_affective_steering(
-            model, tokenizer, substrate_mem, phi_residual_mem, steering_active_flag
+            model,
+            tokenizer,
+            substrate_mem,
+            phi_residual_mem,
+            steering_active_flag,
+            model_path=model_path,
         )
         if engine is not None and getattr(engine, "_model_attached", False):
             latent_bridge = _attach_latent_bridge(model, latent_readout_mem)

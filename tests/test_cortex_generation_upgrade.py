@@ -11,6 +11,7 @@ The pipeline's promises, proven on real machinery:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -20,11 +21,16 @@ pytest.importorskip("mlx_lm")
 
 from mlx_lm.models.qwen2 import Model, ModelArgs  # noqa: E402
 
+from core.brain.llm.model_artifact_profile import (  # noqa: E402
+    build_model_artifact_descriptor,
+    build_model_serving_profile,
+)
 from core.learning.cortex_generation_upgrade import (  # noqa: E402
-    MemoryGuard,
     ROLLBACK_POINTER_NAME,
     STAGED_POINTER_NAME,
+    MemoryGuard,
     activate_upgrade,
+    build_migration_contract,
     build_migration_plan,
     capability_battery,
     compare_batteries,
@@ -156,47 +162,167 @@ def _fused_dir(tmp_path):
         "size": "32B",
         "tag": "current",
     }
+    current_model = tmp_path / "current-model"
+    _write_model_artifact(current_model, b"current-weights", model_type="qwen2")
     (fused / "active.json").write_text(json.dumps(current, indent=2) + "\n")
     candidate = tmp_path / "candidate-model"
-    candidate.mkdir()
-    (candidate / "model.safetensors").write_bytes(b"weights")
+    _write_model_artifact(candidate, b"candidate-weights", model_type="qwen3_5")
     return fused, candidate
+
+
+def _write_model_artifact(path, weights, *, model_type):
+    path.mkdir()
+    config = {
+        "architectures": [
+            "Qwen3_5ForConditionalGeneration"
+            if model_type == "qwen3_5"
+            else "Qwen2ForCausalLM"
+        ],
+        "model_type": model_type,
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 8,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "vocab_size": 128,
+        "max_position_embeddings": 4096,
+        "quantization": {"bits": 4, "group_size": 64},
+    }
+    (path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    (path / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (path / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+    (path / "model.safetensors").write_bytes(weights)
+    (path / "model.safetensors.index.json").write_text(
+        json.dumps(
+            {
+                "metadata": {
+                    "total_parameters": 27_000_000_000,
+                    "total_size": len(weights),
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _digest(label):
+    return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _upgrade_contracts(candidate, *, repository_id="", revision=""):
+    descriptor = build_model_artifact_descriptor(
+        candidate,
+        repository_id=repository_id,
+        revision=revision,
+    )
+    current = {
+        "label": "current",
+        "breadth_accuracy": 0.5,
+        "reasoning_accuracy": 0.5,
+        "identity_digests": ["old"],
+    }
+    proposed = {
+        "label": "candidate",
+        "breadth_accuracy": 0.75,
+        "reasoning_accuracy": 0.75,
+        "identity_digests": ["new"],
+    }
+    evaluation = compare_batteries(
+        current,
+        proposed,
+        candidate_descriptor=descriptor,
+        critical_gates={
+            "complete_answer": True,
+            "tool_contract": True,
+            "code_contract": True,
+            "identity_migration": True,
+            "latency": True,
+            "memory": True,
+        },
+    )
+    serving = build_model_serving_profile(
+        descriptor,
+        served_context_tokens=4096,
+        prefill_chunk_tokens=512,
+        lane_limits={
+            "foreground_simple": {"max_input_tokens": 2048, "max_output_tokens": 256},
+            "foreground_standard": {"max_input_tokens": 2048, "max_output_tokens": 512},
+            "foreground_extended": {"max_input_tokens": 2048, "max_output_tokens": 1024},
+            "deep_reasoning": {"max_input_tokens": 2048, "max_output_tokens": 1024},
+            "tool_execution": {"max_input_tokens": 2048, "max_output_tokens": 512},
+            "code": {"max_input_tokens": 2048, "max_output_tokens": 1024},
+            "document": {"max_input_tokens": 2048, "max_output_tokens": 1024},
+        },
+        qualification={
+            "schema": "aura.model_serving_qualification.v1",
+            "verdict": "PASS",
+            "complete_answer_pass": True,
+            "latency_pass": True,
+            "memory_pass": True,
+            "evidence_sha256": _digest("serving"),
+        },
+    )
+    migration = build_migration_contract(
+        descriptor,
+        components={
+            "persona_crsm": {"status": "qualified", "artifact_sha256": _digest("persona")},
+            "steering": {
+                "status": "qualified",
+                "artifact_sha256": _digest("steering"),
+                "model_descriptor_sha256": descriptor["descriptor_sha256"],
+                "extraction_protocol_sha256": _digest("protocol"),
+                "causal_evaluation_sha256": _digest("caa-eval"),
+            },
+            "expert_adapters": {"status": "retired", "artifact_sha256": _digest("retired")},
+            "recurrence_native": {"status": "qualified", "artifact_sha256": _digest("rlc")},
+        },
+    )
+    return descriptor, evaluation, serving, migration
 
 
 def test_stage_writes_rollback_and_changes_nothing_live(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
     fused, candidate = _fused_dir(tmp_path)
+    descriptor, evaluation, serving, migration = _upgrade_contracts(candidate)
     before = (fused / "active.json").read_bytes()
     receipt = stage_upgrade(
         candidate_model_path=candidate,
         base_model_path="Qwen3-32B",
         tag="qwen3-gen",
         fused_model_dir=fused,
+        evaluation=evaluation,
+        serving_profile=serving,
+        migration_contract=migration,
     )
     assert (fused / "active.json").read_bytes() == before, "staging must not touch live"
     assert (fused / ROLLBACK_POINTER_NAME).read_bytes() == before
     staged = json.loads((fused / STAGED_POINTER_NAME).read_text())
     assert staged["active_model_path"] == str(candidate)
     assert staged["base_model"] == "Qwen3-32B"
+    assert staged["schema_version"] == 3
+    assert staged["artifact_descriptor"]["descriptor_sha256"] == descriptor["descriptor_sha256"]
+    assert staged["serving_profile"]["model_descriptor_sha256"] == descriptor["descriptor_sha256"]
     assert receipt["staged_active_model"] == str(candidate)
 
 
 def test_activation_gates_and_flip(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
     fused, candidate = _fused_dir(tmp_path)
+    _, evaluation, serving, migration = _upgrade_contracts(candidate)
     stage_upgrade(
         candidate_model_path=candidate, base_model_path="Qwen3-32B",
-        tag="qwen3-gen", fused_model_dir=fused,
+        tag="qwen3-gen", fused_model_dir=fused, evaluation=evaluation,
+        serving_profile=serving, migration_contract=migration,
     )
     with pytest.raises(PermissionError, match="authorization"):
         activate_upgrade(fused_model_dir=fused, authorized_by="", 
-                         evaluation={"verdict": "PASS"})
+                         evaluation=evaluation)
     with pytest.raises(PermissionError, match="PASS"):
         activate_upgrade(fused_model_dir=fused, authorized_by="bryan",
                          evaluation={"verdict": "FAIL"})
     receipt = activate_upgrade(
         fused_model_dir=fused, authorized_by="bryan",
-        evaluation={"verdict": "PASS"},
+        evaluation=evaluation,
     )
     active = json.loads((fused / "active.json").read_text())
     assert active["active_model_path"] == str(candidate)
@@ -207,11 +333,13 @@ def test_activation_gates_and_flip(tmp_path, monkeypatch):
 def test_rollback_is_byte_exact(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
     fused, candidate = _fused_dir(tmp_path)
+    _, evaluation, serving, migration = _upgrade_contracts(candidate)
     original = (fused / "active.json").read_bytes()
     stage_upgrade(candidate_model_path=candidate, base_model_path="Qwen3-32B",
-                  tag="qwen3-gen", fused_model_dir=fused)
+                  tag="qwen3-gen", fused_model_dir=fused, evaluation=evaluation,
+                  serving_profile=serving, migration_contract=migration)
     activate_upgrade(fused_model_dir=fused, authorized_by="bryan",
-                     evaluation={"verdict": "PASS"})
+                     evaluation=evaluation)
     assert (fused / "active.json").read_bytes() != original
     receipt = rollback_upgrade(fused_model_dir=fused)
     assert receipt["byte_exact"] is True
@@ -226,3 +354,94 @@ def test_activation_without_staging_refuses(tmp_path, monkeypatch):
                          evaluation={"verdict": "PASS"})
     with pytest.raises(ValueError, match="no rollback"):
         rollback_upgrade(fused_model_dir=fused)
+
+
+def test_stage_rejects_a_steering_receipt_from_same_width_old_model(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    _, evaluation, serving, migration = _upgrade_contracts(candidate)
+    migration["components"]["steering"]["model_descriptor_sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="steering_model_identity_mismatch"):
+        stage_upgrade(
+            candidate_model_path=candidate,
+            base_model_path="Qwen3-32B",
+            tag="qwen3-gen",
+            fused_model_dir=fused,
+            evaluation=evaluation,
+            serving_profile=serving,
+            migration_contract=migration,
+        )
+
+
+def test_activation_rehashes_the_staged_candidate_and_refuses_drift(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    _, evaluation, serving, migration = _upgrade_contracts(candidate)
+    stage_upgrade(
+        candidate_model_path=candidate,
+        base_model_path="Qwen3-32B",
+        tag="qwen3-gen",
+        fused_model_dir=fused,
+        evaluation=evaluation,
+        serving_profile=serving,
+        migration_contract=migration,
+    )
+    (candidate / "model.safetensors").write_bytes(b"candidate-weightS")
+
+    with pytest.raises(ValueError, match="descriptor_mismatch"):
+        activate_upgrade(
+            fused_model_dir=fused,
+            authorized_by="bryan",
+            evaluation=evaluation,
+        )
+
+
+def test_activation_rejects_a_different_pass_receipt(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    _, evaluation, serving, migration = _upgrade_contracts(candidate)
+    stage_upgrade(
+        candidate_model_path=candidate,
+        base_model_path="Qwen3-32B",
+        tag="qwen3-gen",
+        fused_model_dir=fused,
+        evaluation=evaluation,
+        serving_profile=serving,
+        migration_contract=migration,
+    )
+    substituted = dict(evaluation)
+    substituted["compared_at"] = float(evaluation["compared_at"]) + 1.0
+    substituted.pop("evaluation_sha256")
+
+    with pytest.raises(PermissionError, match="staged evaluation"):
+        activate_upgrade(
+            fused_model_dir=fused,
+            authorized_by="bryan",
+            evaluation=substituted,
+        )
+
+
+def test_stage_preserves_revision_pinned_artifact_identity(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    descriptor, evaluation, serving, migration = _upgrade_contracts(
+        candidate,
+        repository_id="mlx-community/Qwen3.8-27B-4bit",
+        revision="3e6447f082e89cc7f0bc6e5441afd38dfce760ff",
+    )
+
+    stage_upgrade(
+        candidate_model_path=candidate,
+        base_model_path="mlx-community/Qwen3.8-27B-4bit",
+        tag="qwen3.8-gen",
+        fused_model_dir=fused,
+        artifact_descriptor=descriptor,
+        evaluation=evaluation,
+        serving_profile=serving,
+        migration_contract=migration,
+    )
+
+    staged = json.loads((fused / STAGED_POINTER_NAME).read_text())
+    assert staged["artifact_descriptor"]["repository_id"] == descriptor["repository_id"]
+    assert staged["artifact_descriptor"]["revision"] == descriptor["revision"]

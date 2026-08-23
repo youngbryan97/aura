@@ -263,8 +263,54 @@ def _resolve_active_fused_model() -> str | None:
             return None
         if not Path(path).exists():
             return None
+        if int(data.get("schema_version") or 0) >= 3:
+            from core.brain.llm.model_artifact_profile import (
+                validate_model_artifact_descriptor,
+            )
+
+            descriptor = data.get("artifact_descriptor")
+            if not isinstance(descriptor, dict):
+                logger.error("Active cortex schema v3 has no artifact descriptor")
+                return None
+            validate_model_artifact_descriptor(descriptor, model_path=path)
         return path
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def get_active_model_artifact_descriptor(
+    model_path: str | Path | None = None,
+) -> dict[str, object] | None:
+    """Return the exact identity bound to the active promoted cortex.
+
+    Schema-v2 pointers predate exact basis identity and honestly return None.
+    Schema-v3 pointers must validate and must name the model the caller has
+    actually loaded; a same-width but different checkpoint is not compatible.
+    """
+
+    manifest = get_fused_model_root() / "active.json"
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or int(payload.get("schema_version") or 0) < 3:
+            return None
+        descriptor = payload.get("artifact_descriptor")
+        if not isinstance(descriptor, dict):
+            raise ValueError("active_model_descriptor_missing")
+        active_path = str(payload.get("active_model_path") or "").strip()
+        requested = Path(model_path or active_path).expanduser().resolve(strict=True)
+        active = Path(active_path).expanduser().resolve(strict=True)
+        if requested != active:
+            raise ValueError("active_model_descriptor_path_mismatch")
+        from core.brain.llm.model_artifact_profile import (
+            validate_model_artifact_descriptor,
+        )
+
+        validate_model_artifact_descriptor(descriptor, model_path=active)
+        return copy.deepcopy(descriptor)
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.error("Active cortex artifact descriptor is invalid: %s", exc)
         return None
 
 

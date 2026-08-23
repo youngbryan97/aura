@@ -43,14 +43,34 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.brain.llm.model_artifact_profile import (
+    build_model_artifact_descriptor,
+    validate_model_artifact_descriptor,
+    validate_model_serving_profile,
+)
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 
-EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v1"
+EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v2"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
-STAGING_SCHEMA = "aura.cortex_upgrade.staging.v1"
-ACTIVATION_SCHEMA = "aura.cortex_upgrade.activation.v1"
+MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v1"
+STAGING_SCHEMA = "aura.cortex_upgrade.staging.v2"
+ACTIVATION_SCHEMA = "aura.cortex_upgrade.activation.v2"
+
+_REQUIRED_CRITICAL_GATES = frozenset(
+    {
+        "complete_answer",
+        "tool_contract",
+        "code_contract",
+        "identity_migration",
+        "latency",
+        "memory",
+    }
+)
+_REQUIRED_MIGRATION_COMPONENTS = frozenset(
+    {"persona_crsm", "steering", "expert_adapters", "recurrence_native"}
+)
 
 STAGED_POINTER_NAME = "active.json.staged"
 ROLLBACK_POINTER_NAME = "active.json.rollback"
@@ -93,10 +113,15 @@ BREADTH_PROBES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 def _greedy_decode(model, tokenizer, prompt: str, *, max_tokens: int = 10) -> str:
-    """Minimal deterministic decode for battery probes (no cache reuse)."""
+    """Architecture-native deterministic decode for battery probes.
+
+    Qwen3.8 mixes full-attention and linear-attention blocks. Hand-building a
+    list of plain KVCache instances silently evaluates a different machine.
+    ``generate_step`` asks the loaded model to construct its own cache and is
+    the same generic primitive MLX-LM uses for normal generation.
+    """
     import mlx.core as mx
-    from mlx_lm.models.base import create_attention_mask
-    from mlx_lm.models.cache import KVCache
+    from mlx_lm.generate import generate_step
 
     try:
         tokens = list(
@@ -115,28 +140,19 @@ def _greedy_decode(model, tokenizer, prompt: str, *, max_tokens: int = 10) -> st
     for extra in getattr(tokenizer, "eos_token_ids", None) or ():
         eos.add(int(extra))
 
-    inner = model.model
-    cache = [KVCache() for _ in inner.layers]
-    h = inner.embed_tokens(mx.array([tokens]))
-    mask = create_attention_mask(h, cache)
-    for index, layer in enumerate(inner.layers):
-        h = layer(h, mask, cache[index])
-    h = inner.norm(h[:, -1:, :])
-    head = getattr(model, "lm_head", None)
-    logits = (head(h) if head is not None else inner.embed_tokens.as_linear(h))[0, -1]
     out: list[int] = []
-    token = int(mx.argmax(logits))
-    for _ in range(max_tokens):
+    prompt_tokens = mx.array(tokens, dtype=mx.int32)
+    for raw_token, _logprobs in generate_step(
+        prompt_tokens,
+        model,
+        max_tokens=max(0, int(max_tokens)),
+        sampler=lambda logits: mx.argmax(logits, axis=-1),
+        prefill_step_size=2048,
+    ):
+        token = int(raw_token)
         if token in eos:
             break
         out.append(token)
-        h = inner.embed_tokens(mx.array([[token]]))
-        mask = create_attention_mask(h, cache)
-        for index, layer in enumerate(inner.layers):
-            h = layer(h, mask, cache[index])
-        h = inner.norm(h)
-        logits = (head(h) if head is not None else inner.embed_tokens.as_linear(h))[0, -1]
-        token = int(mx.argmax(logits))
     try:
         return str(tokenizer.decode(out))
     except (TypeError, ValueError, KeyError):
@@ -203,7 +219,11 @@ def capability_battery(model, tokenizer, *, label: str = "model") -> dict[str, A
 
 
 def compare_batteries(
-    current: dict[str, Any], candidate: dict[str, Any]
+    current: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    candidate_descriptor: dict[str, Any] | None = None,
+    critical_gates: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     """The upgrade verdict: candidate must WIN breadth and NOT LOSE reasoning."""
     breadth_delta = candidate["breadth_accuracy"] - current["breadth_accuracy"]
@@ -212,7 +232,12 @@ def compare_batteries(
         "identity_digests"
     )
     verdict = "PASS" if breadth_delta > 0 and reasoning_delta >= -0.05 else "FAIL"
-    return {
+    gates = dict(critical_gates or {})
+    all_critical_gates_pass = (
+        set(gates) == _REQUIRED_CRITICAL_GATES
+        and all(value is True for value in gates.values())
+    )
+    result = {
         "schema": EVALUATION_SCHEMA,
         "current_label": current["label"],
         "candidate_label": candidate["label"],
@@ -224,9 +249,40 @@ def compare_batteries(
             "(persona retrain + steering re-extraction) is what restores it; "
             "this field feeds the migration plan, it does not gate the verdict"
         ),
+        "candidate_descriptor_sha256": str(
+            (candidate_descriptor or {}).get("descriptor_sha256") or ""
+        ),
+        "critical_gates": gates,
+        "promotion_eligible": verdict == "PASS" and all_critical_gates_pass,
         "verdict": verdict,
         "compared_at": time.time(),
     }
+    result["evaluation_sha256"] = _receipt_digest(result)
+    return result
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+
+
+def _receipt_digest(value: dict[str, Any], *, digest_key: str = "evaluation_sha256") -> str:
+    material = dict(value)
+    material.pop(digest_key, None)
+    return hashlib.sha256(_canonical_json_bytes(material)).hexdigest()
+
+
+def _valid_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
 
 
 class MemoryGuard:
@@ -413,6 +469,166 @@ def build_migration_plan(
     }
 
 
+def build_migration_contract(
+    descriptor: dict[str, object],
+    *,
+    components: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    """Bind every model-facing Aura artifact to one exact representation basis.
+
+    Equal layer counts and hidden widths are not evidence of a shared basis.
+    Persona deltas, steering directions, expert adapters, and recurrent tissue
+    are therefore rebuilt, explicitly retired, or refused before promotion.
+    """
+
+    validate_model_artifact_descriptor(descriptor)
+    if not isinstance(components, dict) or set(components) != _REQUIRED_MIGRATION_COMPONENTS:
+        raise ValueError("migration_components_incomplete")
+    descriptor_sha256 = str(descriptor["descriptor_sha256"])
+    normalized: dict[str, dict[str, object]] = {}
+    for name in sorted(_REQUIRED_MIGRATION_COMPONENTS):
+        raw = components.get(name)
+        if not isinstance(raw, dict):
+            raise ValueError(f"migration_component_invalid:{name}")
+        status = str(raw.get("status") or "")
+        if status not in {"qualified", "retired"}:
+            raise ValueError(f"migration_component_status_invalid:{name}")
+        if name != "expert_adapters" and status != "qualified":
+            raise ValueError(f"migration_component_required:{name}")
+        artifact_sha256 = raw.get("artifact_sha256")
+        if not _valid_sha256(artifact_sha256):
+            raise ValueError(f"migration_component_digest_invalid:{name}")
+        component: dict[str, object] = {
+            "status": status,
+            "artifact_sha256": artifact_sha256,
+            "model_descriptor_sha256": descriptor_sha256,
+        }
+        if name == "steering":
+            supplied_identity = raw.get("model_descriptor_sha256")
+            if supplied_identity != descriptor_sha256:
+                raise ValueError("steering_model_identity_mismatch")
+            for field in ("extraction_protocol_sha256", "causal_evaluation_sha256"):
+                value = raw.get(field)
+                if not _valid_sha256(value):
+                    raise ValueError(f"steering_{field}_invalid")
+                component[field] = value
+        normalized[name] = component
+
+    material: dict[str, object] = {
+        "schema": MIGRATION_CONTRACT_SCHEMA,
+        "model_descriptor_sha256": descriptor_sha256,
+        "components": normalized,
+        "built_at": time.time(),
+    }
+    material["migration_contract_sha256"] = _receipt_digest(
+        material,
+        digest_key="migration_contract_sha256",
+    )
+    return material
+
+
+def _validate_evaluation(
+    evaluation: dict[str, object],
+    *,
+    descriptor_sha256: str,
+) -> dict[str, object]:
+    required = {
+        "schema",
+        "current_label",
+        "candidate_label",
+        "breadth_delta",
+        "reasoning_delta",
+        "identity_behavior_changed",
+        "identity_note",
+        "candidate_descriptor_sha256",
+        "critical_gates",
+        "promotion_eligible",
+        "verdict",
+        "compared_at",
+        "evaluation_sha256",
+    }
+    if (
+        not isinstance(evaluation, dict)
+        or set(evaluation) != required
+        or evaluation.get("schema") != EVALUATION_SCHEMA
+    ):
+        raise ValueError("evaluation_schema_invalid")
+    if evaluation.get("candidate_descriptor_sha256") != descriptor_sha256:
+        raise ValueError("evaluation_model_identity_mismatch")
+    gates = evaluation.get("critical_gates")
+    if (
+        not isinstance(gates, dict)
+        or set(gates) != _REQUIRED_CRITICAL_GATES
+        or any(value is not True for value in gates.values())
+        or evaluation.get("verdict") != "PASS"
+        or evaluation.get("promotion_eligible") is not True
+    ):
+        raise ValueError("evaluation_not_promotion_eligible")
+    claimed = evaluation.get("evaluation_sha256")
+    if not _valid_sha256(claimed) or claimed != _receipt_digest(evaluation):
+        raise ValueError("evaluation_digest_invalid")
+    return evaluation
+
+
+def _validate_migration_contract(
+    contract: dict[str, object],
+    descriptor: dict[str, object],
+) -> dict[str, object]:
+    descriptor_sha256 = str(descriptor.get("descriptor_sha256") or "")
+    if not isinstance(contract, dict):
+        raise ValueError("migration_contract_schema_invalid")
+    components = contract.get("components")
+    if not isinstance(components, dict) or set(components) != _REQUIRED_MIGRATION_COMPONENTS:
+        raise ValueError("migration_components_incomplete")
+    steering = components.get("steering")
+    if (
+        not isinstance(steering, dict)
+        or steering.get("model_descriptor_sha256") != descriptor_sha256
+    ):
+        raise ValueError("steering_model_identity_mismatch")
+    required = {
+        "schema",
+        "model_descriptor_sha256",
+        "components",
+        "built_at",
+        "migration_contract_sha256",
+    }
+    if set(contract) != required or contract.get("schema") != MIGRATION_CONTRACT_SCHEMA:
+        raise ValueError("migration_contract_schema_invalid")
+    if contract.get("model_descriptor_sha256") != descriptor_sha256:
+        raise ValueError("migration_contract_model_identity_mismatch")
+    claimed = contract.get("migration_contract_sha256")
+    if not _valid_sha256(claimed) or claimed != _receipt_digest(
+        contract,
+        digest_key="migration_contract_sha256",
+    ):
+        raise ValueError("migration_contract_digest_invalid")
+
+    rebuilt_inputs: dict[str, dict[str, object]] = {}
+    for name, raw in components.items():
+        if not isinstance(raw, dict):
+            raise ValueError(f"migration_component_invalid:{name}")
+        expected_keys = {"status", "artifact_sha256", "model_descriptor_sha256"}
+        if name == "steering":
+            expected_keys |= {"extraction_protocol_sha256", "causal_evaluation_sha256"}
+        if set(raw) != expected_keys:
+            raise ValueError(f"migration_component_schema_invalid:{name}")
+        if raw.get("model_descriptor_sha256") != descriptor_sha256:
+            if name == "steering":
+                raise ValueError("steering_model_identity_mismatch")
+            raise ValueError(f"migration_component_model_identity_mismatch:{name}")
+        rebuilt_inputs[name] = dict(raw)
+    rebuilt = build_migration_contract(descriptor, components=rebuilt_inputs)
+    rebuilt["built_at"] = contract["built_at"]
+    rebuilt["migration_contract_sha256"] = _receipt_digest(
+        rebuilt,
+        digest_key="migration_contract_sha256",
+    )
+    if rebuilt["migration_contract_sha256"] != claimed:
+        raise ValueError("migration_contract_invalid")
+    return contract
+
+
 def _read_pointer(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or "active_model_path" not in payload:
@@ -436,9 +652,12 @@ def stage_upgrade(
     base_model_path: Path | str,
     tag: str,
     fused_model_dir: Path | str | None = None,
-    evaluation: dict[str, Any] | None = None,
+    evaluation: dict[str, Any],
+    serving_profile: dict[str, Any],
+    migration_contract: dict[str, Any],
+    artifact_descriptor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write the staged pointer + byte-exact rollback. Nothing live changes."""
+    """Write an identity-bound staged pointer and byte-exact rollback."""
     if fused_model_dir is None:
         from core.brain.llm.model_registry import BASE_DIR
 
@@ -447,6 +666,20 @@ def stage_upgrade(
     candidate = Path(candidate_model_path).expanduser()
     if not candidate.is_dir():
         raise ValueError(f"candidate model directory missing: {candidate}")
+    candidate = candidate.resolve(strict=True)
+
+    descriptor = artifact_descriptor or build_model_artifact_descriptor(candidate)
+    validate_model_artifact_descriptor(
+        descriptor,
+        model_path=candidate,
+        verify_full_hash=True,
+    )
+    _validate_evaluation(
+        evaluation,
+        descriptor_sha256=str(descriptor["descriptor_sha256"]),
+    )
+    validate_model_serving_profile(serving_profile, descriptor)
+    _validate_migration_contract(migration_contract, descriptor)
 
     pointer_path = fused_model_dir / "active.json"
     current_bytes = pointer_path.read_bytes()
@@ -456,9 +689,13 @@ def stage_upgrade(
         "active_model_path": str(candidate),
         "base_model": str(base_model_path),
         "fused_at": int(time.time()),
-        "schema_version": 2,
+        "schema_version": 3,
         "size": current.get("size", "32B"),
         "tag": str(tag),
+        "artifact_descriptor": descriptor,
+        "evaluation": evaluation,
+        "serving_profile": serving_profile,
+        "migration_contract": migration_contract,
     }
     staged_bytes = (
         json.dumps(staged_payload, indent=2, sort_keys=True) + "\n"
@@ -481,7 +718,13 @@ def stage_upgrade(
         "staged_active_model": str(candidate),
         "staged_sha256": hashlib.sha256(staged_bytes).hexdigest(),
         "rollback_sha256": hashlib.sha256(current_bytes).hexdigest(),
-        "evaluation_verdict": (evaluation or {}).get("verdict"),
+        "model_descriptor_sha256": descriptor["descriptor_sha256"],
+        "evaluation_sha256": evaluation["evaluation_sha256"],
+        "serving_profile_sha256": serving_profile["profile_sha256"],
+        "migration_contract_sha256": migration_contract[
+            "migration_contract_sha256"
+        ],
+        "evaluation_verdict": evaluation.get("verdict"),
         "staged_at": time.time(),
     }
     logger.info("🧬 Cortex upgrade STAGED: %s → %s", current["active_model_path"], candidate)
@@ -518,14 +761,54 @@ def activate_upgrade(
     if not staged_path.is_file() or not rollback_path.is_file():
         raise ValueError("nothing staged: run stage_upgrade first")
     staged_bytes = staged_path.read_bytes()
-    _read_pointer(staged_path)  # schema check before the flip
+    staged = _read_pointer(staged_path)
+    if staged.get("schema_version") != 3:
+        raise ValueError("staged_pointer_contract_missing")
+    descriptor = staged.get("artifact_descriptor")
+    serving_profile = staged.get("serving_profile")
+    migration_contract = staged.get("migration_contract")
+    staged_evaluation = staged.get("evaluation")
+    if not all(
+        isinstance(value, dict)
+        for value in (descriptor, serving_profile, migration_contract, staged_evaluation)
+    ):
+        raise ValueError("staged_pointer_contract_missing")
+    assert isinstance(descriptor, dict)
+    assert isinstance(serving_profile, dict)
+    assert isinstance(migration_contract, dict)
+    assert isinstance(staged_evaluation, dict)
+    descriptor_sha256 = str(descriptor.get("descriptor_sha256") or "")
+    try:
+        _validate_evaluation(evaluation, descriptor_sha256=descriptor_sha256)
+    except ValueError as exc:
+        raise PermissionError("activation requires the exact staged evaluation") from exc
+    if evaluation.get("evaluation_sha256") != staged_evaluation.get(
+        "evaluation_sha256"
+    ):
+        raise PermissionError("activation requires the exact staged evaluation")
+    _validate_evaluation(staged_evaluation, descriptor_sha256=descriptor_sha256)
+
+    candidate = Path(str(staged["active_model_path"])).expanduser()
+    validate_model_artifact_descriptor(
+        descriptor,
+        model_path=candidate,
+        verify_full_hash=True,
+    )
+    validate_model_serving_profile(serving_profile, descriptor)
+    _validate_migration_contract(migration_contract, descriptor)
     _governed_write(
         fused_model_dir / "active.json", staged_bytes, source="cortex_upgrade.activate"
     )
     receipt = {
         "schema": ACTIVATION_SCHEMA,
-        "activated_model": _read_pointer(staged_path)["active_model_path"],
+        "activated_model": staged["active_model_path"],
         "active_sha256": hashlib.sha256(staged_bytes).hexdigest(),
+        "model_descriptor_sha256": descriptor_sha256,
+        "evaluation_sha256": evaluation["evaluation_sha256"],
+        "serving_profile_sha256": serving_profile["profile_sha256"],
+        "migration_contract_sha256": migration_contract[
+            "migration_contract_sha256"
+        ],
         "authorized_by": authorized_by.strip(),
         "evaluation_verdict": "PASS",
         "effective": "next_boot",
@@ -577,6 +860,7 @@ __all__ = [
     "ACTIVATION_SCHEMA",
     "BREADTH_PROBES",
     "EVALUATION_SCHEMA",
+    "MIGRATION_CONTRACT_SCHEMA",
     "MIGRATION_PLAN_SCHEMA",
     "MemoryGuard",
     "MigrationStep",
@@ -584,6 +868,7 @@ __all__ = [
     "STAGED_POINTER_NAME",
     "STAGING_SCHEMA",
     "activate_upgrade",
+    "build_migration_contract",
     "build_migration_plan",
     "capability_battery",
     "compare_batteries",
