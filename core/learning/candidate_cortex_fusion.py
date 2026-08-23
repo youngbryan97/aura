@@ -303,10 +303,15 @@ def validate_fusion_plan(
         _validate_file_binding(binding, role=f"fusion_source_{name}")
 
     run_root = Path(str(adaptive.get("run_root"))).expanduser().resolve(strict=True)
+    result_binding = adaptive.get("result")
+    if not isinstance(result_binding, Mapping):
+        _fail("fusion_result_binding_invalid")
+    result_path = Path(str(result_binding.get("path")))
     training, result, authority = _adaptive_authority(
         run_root,
         journal_key=_key(journal_key_path),
         verify_full_model=verify_full_model,
+        adaptive_result_path=result_path,
     )
     if raw.get("training_plan_sha256") != training["plan_sha256"]:
         _fail("fusion_training_plan_mismatch")
@@ -337,8 +342,6 @@ def validate_fusion_plan(
         if not isinstance(binding, Mapping):
             _fail(f"fusion_{name}_binding_invalid")
         _validate_file_binding(binding, role=f"fusion_{name}")
-    if adaptive["result"]["path"] != str(run_root / "adaptive_result.json"):
-        _fail("fusion_result_path_mismatch")
     adapter_root = Path(str(training["paths"]["adapter_root"])).resolve(strict=True)
     if Path(str(adaptive["adapter_config"]["path"])).parent != adapter_root:
         _fail("fusion_adapter_config_path_mismatch")

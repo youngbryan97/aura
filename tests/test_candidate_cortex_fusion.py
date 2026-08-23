@@ -152,12 +152,38 @@ def test_fusion_plan_binds_explicit_adaptive_result_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _training, run_root, journal_key, target_source, verifier_source = (
+    training_plan, run_root, journal_key, target_source, verifier_source = (
         _fixture_authority(tmp_path, monkeypatch)
     )
     explicit = run_root / "adaptive-results" / "cp924-recovery.json"
     explicit.parent.mkdir()
     explicit.write_bytes((run_root / "adaptive_result.json").read_bytes())
+    result = json.loads(explicit.read_text(encoding="utf-8"))
+    authority = {
+        "stage_index": 2,
+        "cumulative_iterations": 700,
+        "checkpoint": {
+            "path": str(
+                Path(training_plan["paths"]["adapter_root"])
+                / "0000700_adapters.safetensors"
+            ),
+            "sha256": training.file_sha256(
+                Path(training_plan["paths"]["adapter_root"])
+                / "0000700_adapters.safetensors"
+            ),
+            "size_bytes": (
+                Path(training_plan["paths"]["adapter_root"])
+                / "0000700_adapters.safetensors"
+            ).stat().st_size,
+        },
+    }
+    observed_result_paths: list[Path | None] = []
+
+    def _authority(*_args, adaptive_result_path=None, **_kwargs):
+        observed_result_paths.append(adaptive_result_path)
+        return training_plan, result, authority
+
+    monkeypatch.setattr(fusion, "_adaptive_authority", _authority)
     plan = fusion.prepare_fusion_plan(
         run_root=run_root,
         journal_key_path=journal_key,
@@ -169,6 +195,12 @@ def test_fusion_plan_binds_explicit_adaptive_result_generation(
         verify_full_model=False,
     )
     assert plan["adaptive"]["result"]["path"] == str(explicit.resolve())
+    assert fusion.validate_fusion_plan(
+        plan,
+        journal_key_path=journal_key,
+        verify_full_model=False,
+    ) == plan
+    assert observed_result_paths == [explicit, explicit]
 
 
 def test_fusion_plan_rejects_digest_and_adaptive_identity_drift(
