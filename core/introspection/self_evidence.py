@@ -77,10 +77,13 @@ _SELF_SUBJECT_RE = re.compile(
     r"heartbeats?|degradations?|telemetry|jobs?|cycles?|loops?)\b",
     re.IGNORECASE,
 )
+#: LIVE, 2026-08-22: "off-the-shelf assistants" matched `\boff\b` and a request
+#: for slides was answered with a wall of telemetry. A hyphen joins one word out
+#: of several, so a trouble word inside a compound is a different word.
 _TROUBLE_RE = re.compile(
-    r"\b(?:degraded?|degrading|failing|failed|failures?|broken|breaking|"
+    r"(?<![\w-])(?:degraded?|degrading|failing|failed|failures?|broken|breaking|"
     r"unhealthy|down|erroring|errors?|faults?|wrong|off|struggling|"
-    r"not\s+working|misbehaving|stuck|wedged|repeatedly)\b",
+    r"not\s+working|misbehaving|stuck|wedged|repeatedly)(?![\w-])",
     re.IGNORECASE,
 )
 #: Asking about her state at all, even without a trouble word — "how are your

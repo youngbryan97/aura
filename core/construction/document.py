@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import json
 import re
+
+from core.language.asking_clauses import DELIVERABLE_NOUNS as _DELIVERABLE_NOUNS
 from dataclasses import dataclass, field
 
 __all__ = [
@@ -493,10 +495,10 @@ _ASKING_PREAMBLE = re.compile(
     re.IGNORECASE,
 )
 
-#: The shape words, which name the form rather than the subject.
+#: The shape words, which name the form rather than the subject. The nouns come
+#: from the one place they are listed; only the adjectives are local.
 _SHAPE_WORDS = re.compile(
-    r"\b(?:short|quick|brief|one[\s-]?page|onepager|one[\s-]?pager|deck|slides?|"
-    r"presentation|report|memo|summary|document|doc|write[\s-]?up)\b",
+    r"\b(?:short|quick|brief|little|simple|rough|" + _DELIVERABLE_NOUNS + r")\b",
     re.IGNORECASE,
 )
 
@@ -511,36 +513,61 @@ _COUNT_WORDS_IN_A_TITLE = frozenset(
 )
 
 
+def _names_the_shape(sentence: str) -> int:
+    """How strongly this sentence says what to make: lower is stronger.
+
+    A shape word beats a bare number, because "10 minutes" is a count too and
+    the sentence holding it was the speaker's diary, not the request.
+    """
+    if _SHAPE_WORDS.search(sentence):
+        return 0
+    words = re.findall(r"[A-Za-z0-9]+", sentence.lower())
+    return 1 if any(word in _COUNT_WORDS_IN_A_TITLE for word in words) else 2
+
+
 def title_from_request(user_message: object) -> str:
     """A title naming what the document is about, not how it was asked for.
 
     LIVE, 2026-08-22: "put together a short report on what you found in that
-    ledger project" became "Put together short report what you" — the first
-    six words of the asking, with the subject cut off.
+    ledger project" became "Put together short report what you" — the first six
+    words of the asking, with the subject cut off. Then, once that was fixed,
+    "I've got a slot at a funders' meeting Thursday. Put together five slides
+    for me - who you are..." became "I've got a slot at a funders'", because it
+    read the first sentence and the first sentence was the situation.
+
+    Two structural facts do the work. The sentence that asks is the one naming
+    the shape or the count, and where a person writes a colon or a dash after
+    the shape, what follows it is the subject.
     """
+    from core.language.asking_clauses import asking_part
+
     text = str(user_message or "").strip()
     if not text:
         return "Document"
-    first = text.split("\n", 1)[0]
-    # "Six slides, no fluff: what you are" says how many before it says what
-    # about, so the subject can sit after the colon rather than before it.
-    # "Six slides, no fluff: what you are" says the shape before the subject,
-    # so what follows a colon is tried first. Without that, the panel request
-    # titled as "I have to present you to a" — the speaker's situation rather
-    # than what the document is about.
-    for candidate in (*first.split(":")[1:], first):
+    asking = asking_part(text) or text
+    sentences = [part.strip() for part in re.split(r"(?<=[.?!])\s+", asking) if part.strip()]
+    # The sentence naming the shape or the count is the one doing the asking;
+    # the others are what is going on around it.
+    sentences.sort(key=_names_the_shape)
+    candidates: list[str] = []
+    for sentence in sentences:
+        # A colon or a dash after the shape introduces the subject: "Six
+        # slides, no fluff: what you are".
+        candidates.extend(part for part in re.split(r"[:\u2014\u2013]", sentence)[1:])
+        candidates.append(sentence)
+    for candidate in candidates:
         body = _ASKING_PREAMBLE.sub("", candidate)
         body = _SHAPE_WORDS.sub(" ", body)
-        body = re.split(r"[—–:;,.]|\s-\s| but | and then ", body)[0]
+        body = re.split(r"[\u2014\u2013:;,.]|\s-\s| but | and then ", body)[0]
         body = re.sub(
             r"^\s*(?:on|about|for|of|no|just)\s+", "", body.strip(), flags=re.IGNORECASE
         )
         words = [word for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]*", body) if word]
-        # A bare count is how many, not what about, and the preposition it
-        # was hiding goes with it.
+        # A bare count is how many, not what about, and the preposition it was
+        # hiding goes with it. "for me" says who asked, not what about.
         while words and (
             words[0].lower() in _COUNT_WORDS_IN_A_TITLE
-            or words[0].lower() in {"on", "about", "for", "of", "no", "just"}
+            or words[0].lower() in {"on", "about", "for", "of", "no", "just", "me"}
         ):
             words = words[1:]
         if len(words) >= 2:

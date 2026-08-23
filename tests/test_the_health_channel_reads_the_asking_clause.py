@@ -66,3 +66,49 @@ def test_the_gate_reads_the_clause_that_asks():
     block = source[source.index("def asks_about_own_operational_state") :]
     block = block[: block.index("def self_health_answer")]
     assert "asking_part" in block
+
+
+def test_a_trouble_word_inside_a_compound_is_a_different_word():
+    """LIVE, 2026-08-22: "off-the-shelf assistants" matched the word "off".
+
+    That was the whole reason a request for slides came back as telemetry, and
+    it survived the clause split, which had only been hiding it.
+    """
+    from core.introspection.self_evidence import asks_about_own_operational_state
+
+    assert not asks_about_own_operational_state(
+        "one thing you demonstrably do that off-the-shelf assistants can't"
+    )
+    assert not asks_about_own_operational_state("your down-stream consumers")
+    # The bare word still reads as trouble where a person means it that way.
+    assert asks_about_own_operational_state("is anything off with your runtime?")
+
+
+def test_a_clause_naming_what_to_make_is_a_request():
+    """"Six slides, no fluff: what you are" asks, and nothing recognised it.
+
+    The learned surface is the mechanism, but it abstains on a phrasing it has
+    not seen, so the floor has to settle a count against a named thing.
+    """
+    from core.language.asking_clauses import asking_clauses
+
+    assert asking_clauses("Six slides, no fluff: what you are")
+    assert asking_clauses("Put together five slides for me")
+    assert asking_clauses("write me a one-pager about the migration")
+    # Naming one while talking about it is not asking for it.
+    assert not asking_clauses("we shipped the deck last week and nobody read it.")
+
+
+def test_a_list_item_after_and_is_not_a_separate_request():
+    """LIVE, 2026-08-22: a deck was titled from its own last bullet.
+
+    "Put together five slides — who you are ... and how we'd know it worked"
+    split at the "and", and only the tail was read as the request.
+    """
+    from core.language.asking_clauses import asking_part
+
+    asked = (
+        "I've got a slot at a funders' meeting Thursday. Put together five slides "
+        "for me: who you are, what you can do, and how we'd know it worked."
+    )
+    assert "five slides" in asking_part(asked)
