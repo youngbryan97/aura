@@ -36,6 +36,11 @@ def _parser() -> argparse.ArgumentParser:
     plan = actions.add_parser("plan")
     plan.add_argument("--training-run", type=Path, required=True)
     plan.add_argument("--journal-key", type=Path, required=True)
+    plan.add_argument(
+        "--adaptive-result",
+        type=Path,
+        help="explicit immutable terminal result generation",
+    )
     plan.add_argument("--fusion-root", type=Path, required=True)
     plan.add_argument(
         "--output-root",
@@ -80,6 +85,7 @@ def _plan(args: argparse.Namespace) -> dict[str, Any]:
         output_root=output_root,
         target_source=TARGET,
         verifier_source=VERIFIER,
+        adaptive_result_path=args.adaptive_result,
         verify_full_model=not args.skip_full_model_verify,
     )
     plan_path = fusion_root / FUSION_PLAN_FILE

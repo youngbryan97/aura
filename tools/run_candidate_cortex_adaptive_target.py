@@ -32,6 +32,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     CandidateCortexTrainingError,
     StagePolicy,
     append_authenticated_event,
+    adaptive_result_path,
     build_stage_command,
     canonical_json_bytes,
     discover_exact_checkpoint,
@@ -485,15 +486,29 @@ def _reconcile_partial_admission(
     return observations, [*admissions, admission]
 
 
-def _write_result(plan: Mapping[str, Any], decision: Mapping[str, Any]) -> None:
+def _write_result(
+    plan: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    *,
+    execution_id: str,
+) -> None:
     body = {
         "schema": ADAPTIVE_RESULT_SCHEMA,
         "plan_sha256": plan["plan_sha256"],
         "decision": dict(decision),
     }
     result = {**body, "result_sha256": document_sha256(body)}
+    result_path = adaptive_result_path(plan, execution_id=execution_id)
+    if execution_id != "primary":
+        with local_internal_governed_scope(
+            "candidate_cortex_adaptive.result_generation", domain="file_write"
+        ):
+            get_file_write_gateway().ensure_directory(
+                result_path.parent,
+                source="candidate_cortex_adaptive.result_generation",
+            )
     _write_once(
-        Path(str(plan["paths"]["run_root"])) / "adaptive_result.json",
+        result_path,
         result,
         source="candidate_cortex_adaptive.result",
     )
@@ -503,6 +518,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--journal-key", type=Path, required=True)
+    parser.add_argument("--execution-id", default="primary")
     args = parser.parse_args(argv)
     plan = load_and_verify_plan(args.run_root, verify_full_model=True)
     key = _key(args.journal_key)
@@ -524,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
             admissions=admissions,
         )
         if next_stage.get("decision") != "CONTINUE":
-            _write_result(plan, next_stage)
+            _write_result(plan, next_stage, execution_id=args.execution_id)
             print(json.dumps(next_stage, indent=2, sort_keys=True), flush=True)
             return 0
         stage_index = int(next_stage["stage_index"])

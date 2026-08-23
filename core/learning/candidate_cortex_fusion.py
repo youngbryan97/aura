@@ -107,9 +107,17 @@ def _adaptive_authority(
     *,
     journal_key: bytes,
     verify_full_model: bool,
+    adaptive_result_path: Path | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     plan = load_and_verify_plan(run_root, verify_full_model=verify_full_model)
-    result = _strict_json(run_root / "adaptive_result.json", role="adaptive_result")
+    result_path = (
+        adaptive_result_path.expanduser().resolve(strict=True)
+        if adaptive_result_path is not None
+        else run_root / "adaptive_result.json"
+    )
+    if result_path.parent not in {run_root, run_root / "adaptive-results"}:
+        _fail("adaptive_result_path_escape")
+    result = _strict_json(result_path, role="adaptive_result")
     events = read_authenticated_journal(
         Path(str(plan["paths"]["journal"])),
         key=journal_key,
@@ -130,6 +138,7 @@ def prepare_fusion_plan(
     output_root: Path,
     target_source: Path,
     verifier_source: Path,
+    adaptive_result_path: Path | None = None,
     verify_full_model: bool = True,
 ) -> dict[str, Any]:
     """Build a content-addressed fusion plan from one admitted final stage."""
@@ -140,6 +149,12 @@ def prepare_fusion_plan(
         run_root,
         journal_key=key,
         verify_full_model=verify_full_model,
+        adaptive_result_path=adaptive_result_path,
+    )
+    result_path = (
+        adaptive_result_path.expanduser().resolve(strict=True)
+        if adaptive_result_path is not None
+        else run_root / "adaptive_result.json"
     )
     adapter_root = Path(str(training["paths"]["adapter_root"])).resolve(strict=True)
     adapter_config = adapter_root / "adapter_config.json"
@@ -191,7 +206,7 @@ def prepare_fusion_plan(
         },
         "adaptive": {
             "run_root": str(run_root),
-            "result": _file_binding(run_root / "adaptive_result.json"),
+            "result": _file_binding(result_path),
             "result_sha256": result["result_sha256"],
             "stage_index": authority["stage_index"],
             "cumulative_iterations": authority["cumulative_iterations"],

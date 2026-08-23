@@ -14,6 +14,7 @@ from core.learning.candidate_cortex_reconciliation import (
 )
 from core.learning.candidate_cortex_training import (
     STAGE_RECONCILIATION_SCHEMA,
+    adaptive_result_path,
     document_sha256,
     effective_stage_evidence,
 )
@@ -201,3 +202,14 @@ def test_effective_stage_evidence_applies_bound_reconciliation(tmp_path: Path) -
     )
     assert observations == [observation]
     assert admissions == [result["admission"]]
+
+
+def test_adaptive_result_generations_do_not_overwrite_primary(tmp_path: Path) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    plan = {"paths": {"run_root": str(root)}}
+    assert adaptive_result_path(plan) == root / "adaptive_result.json"
+    assert (
+        adaptive_result_path(plan, execution_id="cp924-recovery")
+        == root / "adaptive-results" / "cp924-recovery.json"
+    )

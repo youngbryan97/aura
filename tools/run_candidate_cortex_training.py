@@ -269,7 +269,9 @@ def _plan_source_root(plan: dict[str, Any]) -> Path:
     return root
 
 
-def _adaptive_target_command(plan: dict[str, Any], journal_key: Path) -> list[str]:
+def _adaptive_target_command(
+    plan: dict[str, Any], journal_key: Path, *, execution_id: str
+) -> list[str]:
     return [
         str(plan["python"]),
         str((REPO_ROOT / "tools" / "run_candidate_cortex_adaptive_target.py").resolve()),
@@ -277,6 +279,8 @@ def _adaptive_target_command(plan: dict[str, Any], journal_key: Path) -> list[st
         str(plan["paths"]["run_root"]),
         "--journal-key",
         str(journal_key.expanduser().resolve(strict=True)),
+        "--execution-id",
+        execution_id,
     ]
 
 
@@ -389,7 +393,9 @@ def _launch_adaptive(
     ]
     if resume:
         launch_args.append("--resume")
-    launch_args.extend(("--", *_adaptive_target_command(plan, key_path)))
+    launch_args.extend(
+        ("--", *_adaptive_target_command(plan, key_path, execution_id=execution_id))
+    )
     captured = io.StringIO()
     with redirect_stdout(captured):
         return_code = detached.main(launch_args)

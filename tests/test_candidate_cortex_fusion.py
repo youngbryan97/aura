@@ -148,6 +148,29 @@ def test_fusion_plan_binds_complete_authority_and_exact_identity(
     assert plan["output"]["generation_id"] in plan["output"]["path"]
 
 
+def test_fusion_plan_binds_explicit_adaptive_result_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _training, run_root, journal_key, target_source, verifier_source = (
+        _fixture_authority(tmp_path, monkeypatch)
+    )
+    explicit = run_root / "adaptive-results" / "cp924-recovery.json"
+    explicit.parent.mkdir()
+    explicit.write_bytes((run_root / "adaptive_result.json").read_bytes())
+    plan = fusion.prepare_fusion_plan(
+        run_root=run_root,
+        journal_key_path=journal_key,
+        fusion_root=tmp_path / "fusion-control",
+        output_root=tmp_path / "fused-models",
+        target_source=target_source,
+        verifier_source=verifier_source,
+        adaptive_result_path=explicit,
+        verify_full_model=False,
+    )
+    assert plan["adaptive"]["result"]["path"] == str(explicit.resolve())
+
+
 def test_fusion_plan_rejects_digest_and_adaptive_identity_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

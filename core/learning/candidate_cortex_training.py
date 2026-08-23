@@ -54,6 +54,7 @@ LOCK_FILE: Final = ".training.lock"
 MAX_DOCUMENT_BYTES: Final = 16 * 1024 * 1024
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _CHECKPOINT = re.compile(r"(?P<step>[0-9]+)_adapters\.safetensors")
+_EXECUTION_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
 _TRAIN_REPORT = re.compile(
     r"^Iter (?P<iteration>[0-9]+): Train loss (?P<loss>[0-9.eE+-]+), "
     r"Learning Rate (?P<learning_rate>[0-9.eE+-]+), "
@@ -136,6 +137,19 @@ def file_sha256(path: Path) -> str:
     except OSError as exc:
         raise CandidateCortexTrainingError("bound_file_unreadable") from exc
     return digest.hexdigest()
+
+
+def adaptive_result_path(
+    plan: Mapping[str, Any], *, execution_id: str = "primary"
+) -> Path:
+    """Immutable terminal-result location for one detached execution."""
+
+    if not isinstance(execution_id, str) or _EXECUTION_ID.fullmatch(execution_id) is None:
+        _fail("adaptive_execution_id_invalid")
+    root = Path(str(plan["paths"]["run_root"])).expanduser().resolve(strict=True)
+    if execution_id == "primary":
+        return root / "adaptive_result.json"
+    return root / "adaptive-results" / f"{execution_id}.json"
 
 
 def _launcher_binding(path: Path) -> dict[str, Any]:
@@ -1831,6 +1845,7 @@ __all__ = [
     "StagePolicy",
     "TrainingConfig",
     "append_authenticated_event",
+    "adaptive_result_path",
     "admitted_adaptive_checkpoint",
     "adjudicate_canary",
     "build_canary_command",
@@ -1841,6 +1856,7 @@ __all__ = [
     "decide_after_stage",
     "discover_exact_checkpoint",
     "document_sha256",
+    "effective_stage_evidence",
     "execution_admission",
     "file_sha256",
     "load_and_verify_plan",
