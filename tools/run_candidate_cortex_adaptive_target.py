@@ -36,6 +36,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     canonical_json_bytes,
     discover_exact_checkpoint,
     document_sha256,
+    effective_stage_evidence,
     execution_admission,
     file_sha256,
     load_and_verify_plan,
@@ -454,17 +455,7 @@ def _observation(
 def _stage_events(
     events: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    observations = [
-        dict(event["payload"])
-        for event in events
-        if event.get("event_type") == "stage_observed"
-    ]
-    admissions = [
-        dict(event["payload"])
-        for event in events
-        if event.get("event_type") == "stage_admitted"
-    ]
-    return observations, admissions
+    return effective_stage_evidence(events)
 
 
 def _reconcile_partial_admission(

@@ -43,6 +43,9 @@ CANARY_OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.canary_observ
 CANARY_ADMISSION_SCHEMA: Final = "aura.candidate_cortex_training.canary_admission.v1"
 CANARY_HOST_METRICS_SCHEMA: Final = "aura.candidate_cortex_training.host_metrics.v1"
 ADAPTIVE_RESULT_SCHEMA: Final = "aura.candidate_cortex_training.adaptive_result.v1"
+STAGE_RECONCILIATION_SCHEMA: Final = (
+    "aura.candidate_cortex_training.stage_reconciliation.v1"
+)
 PLAN_FILE: Final = "training_plan.json"
 CONFIG_FILE: Final = "mlx_lora_config.json"
 IDENTITY_FILE: Final = "adapter_identity.json"
@@ -1575,16 +1578,7 @@ def admitted_adaptive_checkpoint(
     if adaptive_result.get("plan_sha256") != plan.get("plan_sha256"):
         _fail("adaptive_result_plan_mismatch")
 
-    observations: list[dict[str, Any]] = []
-    admissions: list[dict[str, Any]] = []
-    for event in authenticated_events:
-        payload = event.get("payload")
-        if not isinstance(payload, Mapping):
-            continue
-        if event.get("event_type") == "stage_observed":
-            observations.append(dict(payload))
-        elif event.get("event_type") == "stage_admitted":
-            admissions.append(dict(payload))
+    observations, admissions = effective_stage_evidence(authenticated_events)
     if not observations or len(observations) != len(admissions):
         _fail("adaptive_stage_evidence_incomplete")
 
@@ -1634,6 +1628,103 @@ def admitted_adaptive_checkpoint(
         "decision": decision,
         "adaptive_result_sha256": str(adaptive_result["result_sha256"]),
     }
+
+
+def effective_stage_evidence(
+    authenticated_events: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Resolve append-only stage evidence, including explicit corrections.
+
+    A reconciliation never deletes or edits the original admission. It must
+    name that exact admission and its evidence digest before a corrected
+    admission can supersede it. Multiple unrelated admissions for one stage or
+    an out-of-order correction fail closed.
+    """
+
+    observations: dict[int, dict[str, Any]] = {}
+    admissions: dict[int, dict[str, Any]] = {}
+    for event in authenticated_events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        event_type = event.get("event_type")
+        if event_type == "stage_observed":
+            stage_index = payload.get("stage_index")
+            if (
+                isinstance(stage_index, bool)
+                or not isinstance(stage_index, int)
+                or stage_index < 0
+                or stage_index in observations
+            ):
+                _fail("stage_observation_journal_conflict")
+            observations[stage_index] = dict(payload)
+        elif event_type == "stage_admitted":
+            stage_index = payload.get("stage_index")
+            if (
+                isinstance(stage_index, bool)
+                or not isinstance(stage_index, int)
+                or stage_index < 0
+                or stage_index in admissions
+            ):
+                _fail("stage_admission_journal_conflict")
+            admissions[stage_index] = dict(payload)
+        elif event_type == "stage_reconciled":
+            required = {
+                "schema",
+                "plan_sha256",
+                "stage_index",
+                "prior_admission_sha256",
+                "prior_evidence_sha256",
+                "detail_sha256",
+                "evaluator_source_sha256",
+                "reconciled_evidence_sha256",
+                "admission",
+                "reconciliation_sha256",
+            }
+            material = dict(payload)
+            claimed = material.pop("reconciliation_sha256", None)
+            stage_index = payload.get("stage_index")
+            prior = admissions.get(stage_index) if isinstance(stage_index, int) else None
+            corrected = payload.get("admission")
+            if (
+                set(payload) != required
+                or payload.get("schema") != STAGE_RECONCILIATION_SCHEMA
+                or claimed != document_sha256(material)
+                or isinstance(stage_index, bool)
+                or not isinstance(stage_index, int)
+                or prior is None
+                or not isinstance(corrected, Mapping)
+                or payload.get("prior_admission_sha256") != document_sha256(prior)
+                or payload.get("prior_evidence_sha256") != prior.get("evidence_sha256")
+                or corrected.get("stage_index") != stage_index
+                or corrected.get("evidence_sha256")
+                != payload.get("reconciled_evidence_sha256")
+                or not all(
+                    _is_sha256(payload.get(field))
+                    for field in (
+                        "detail_sha256",
+                        "evaluator_source_sha256",
+                        "reconciled_evidence_sha256",
+                    )
+                )
+            ):
+                _fail("stage_reconciliation_invalid")
+            admissions[stage_index] = dict(corrected)
+
+    if set(observations) != set(admissions):
+        if not (
+            len(observations) == len(admissions) + 1
+            and set(admissions) == set(range(len(admissions)))
+            and set(observations) == set(range(len(observations)))
+        ):
+            _fail("adaptive_stage_evidence_incomplete")
+    expected = set(range(len(observations)))
+    if set(observations) != expected or set(admissions) not in (expected, expected - {len(expected) - 1}):
+        _fail("adaptive_stage_evidence_order_invalid")
+    return (
+        [observations[index] for index in sorted(observations)],
+        [admissions[index] for index in sorted(admissions)],
+    )
 
 
 def run_admission_callback(

@@ -27,6 +27,7 @@ from core.learning.candidate_cortex_training import (  # noqa: E402
     TrainingConfig,
     adjudicate_canary,
     execution_admission,
+    effective_stage_evidence,
     load_and_verify_plan,
     next_stage_plan,
     prepare_training_run,
@@ -425,17 +426,7 @@ def _adjudicate_canary(plan: dict[str, Any], journal_key: Path) -> dict[str, Any
 
 
 def _journal_evidence(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    observations: list[dict[str, Any]] = []
-    admissions: list[dict[str, Any]] = []
-    for event in events:
-        payload = event.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        if event.get("event_type") == "stage_observed":
-            observations.append(payload)
-        elif event.get("event_type") == "stage_admitted":
-            admissions.append(payload)
-    return observations, admissions
+    return effective_stage_evidence(events)
 
 
 def main(argv: list[str] | None = None) -> int:
