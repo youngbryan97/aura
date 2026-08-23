@@ -212,6 +212,7 @@ class CognitiveIntegrationPhase(Phase):
         # Quick health check — detect degrading subsystems and schedule
         # repairs if needed.
         await self._run_autopoiesis(new_state)
+        self._run_survival_watch(new_state)
 
         # ── 9. Criticality Regulation (Wolfram/CA research) ─────────────
         # Tune the neural mesh toward the edge of chaos — the critical
@@ -560,16 +561,55 @@ class CognitiveIntegrationPhase(Phase):
             )
             logger.error("Topology evolution failed: %s", exc, exc_info=True)
 
+    def _run_survival_watch(self, state: AuraState) -> None:
+        """Ask the endogenous fitness whether the system is crossing a line.
+
+        The service was fetched into `self._endogenous_fitness` at construction
+        and then never touched — instantiated, registered, and with no consumer
+        anywhere. It is the consumer now: six live readings against the
+        thresholds it already declares, on the background tick.
+        """
+        if not self._endogenous_fitness:
+            return
+        try:
+            watch = self._endogenous_fitness.current_crisis()
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            _record_cognitive_degradation(
+                exc,
+                method="_run_survival_watch",
+                action="continued tick without a survival reading",
+                severity="degraded",
+                state=state,
+            )
+            return
+        state.response_modifiers["survival_watch"] = watch
+        if watch.get("crisis"):
+            logger.warning(
+                "Endogenous fitness: %s (measured %s, defaulted %s).",
+                watch["crisis"],
+                ",".join(watch.get("measured", ())) or "nothing",
+                ",".join(watch.get("defaulted", ())) or "nothing",
+            )
+
     async def _run_autopoiesis(self, state: AuraState) -> None:
         if not self._autopoiesis:
             return
         try:
+            # Advance it before reading it.
+            #
+            # `get_autopoiesis_engine()` says in its own docstring that it does
+            # not start the background loop, and nothing in the tree called
+            # `start()`. So `_recompute_vitality` never ran: this read returned
+            # the constructor's number for the life of the process, and the
+            # warning below announced a repair cycle that could not happen.
+            # Driving one cycle from the phase that reads it means the number
+            # is fresh by construction, with no second loop to drift.
+            await self._autopoiesis.tick()
             vitality = self._autopoiesis.get_vitality()
             state.response_modifiers["autopoiesis_vitality"] = vitality
             if vitality < 0.3:
                 logger.warning(
-                    "Autopoiesis: vitality critically low (%.2f). "
-                    "Repair cycle may be needed.",
+                    "Autopoiesis: vitality critically low (%.2f) after a repair cycle.",
                     vitality,
                 )
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:

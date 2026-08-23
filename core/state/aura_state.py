@@ -531,6 +531,10 @@ class CognitiveContext:
     attention_focus: str | None = None   # What is Aura attending to right now
     phenomenal_state: PhenomenalField | str | None = None  # Layer 8: Structured phenomenal claim
     unity_state: UnityState | None = None
+    # What the selfhood layers were advanced on this tick, and what could not
+    # be read. Empty readings mean they were not advanced, which is a different
+    # thing from advanced-on-defaults.
+    selfhood_reading: dict = field(default_factory=dict)
     mind_moment: Any | None = None       # One reconstructible active-present frame
     current_objective: str | None = None # The specific goal of the current cognitive cycle
     current_origin: str = "system"        # Source of the current objective (user, motivation, etc.)

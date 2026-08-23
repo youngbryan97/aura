@@ -504,6 +504,11 @@ class EndogenousFitness:
 
         # Async lock for evaluation serialization (only one eval at a time)
         self._eval_lock = asyncio.Lock()
+        # Streaks for the per-tick survival check. An evaluation keeps its own,
+        # so a long experiment and the live watch never contaminate each other.
+        self._live_streaks: dict[str, int] = {"threat": 0, "free_energy": 0, "phi_zero": 0}
+        self._live_samples = 0
+        self._last_sourced: frozenset[str] = frozenset()
 
         # Behavioral genome — the FCM that evolves alongside structural genes
         self._behavioral_genome = BehavioralGenome(rng=self._rng)
@@ -642,47 +647,19 @@ class EndogenousFitness:
             # that caused it is unfit. Period.
             # ----------------------------------------------------------
 
-            # 1. Energy depletion (starvation)
-            if energy < self.cfg.energy_critical:
-                crisis_reason = CrisisReason.ENERGY_DEPLETED
+            streaks = {
+                "threat": threat_streak,
+                "free_energy": free_energy_streak,
+                "phi_zero": phi_zero_streak,
+            }
+            crisis_reason = self._crisis_from(state, streaks)
+            threat_streak = streaks["threat"]
+            free_energy_streak = streaks["free_energy"]
+            phi_zero_streak = streaks["phi_zero"]
+            if crisis_reason is not None:
                 break
-
-            # 2. Vitality collapse (autopoiesis failure)
-            if vitality < self.cfg.vitality_critical:
-                crisis_reason = CrisisReason.VITALITY_COLLAPSED
-                break
-
-            # 3. Sustained threat (predation)
-            if threat > self.cfg.threat_sustained_threshold:
-                threat_streak += 1
-            else:
-                threat_streak = 0
-            if threat_streak >= self.cfg.threat_sustained_ticks:
-                crisis_reason = CrisisReason.SUSTAINED_THREAT
-                break
-
-            # 4. Sustained free energy (confusion death)
-            if free_energy > self.cfg.free_energy_sustained_threshold:
-                free_energy_streak += 1
-            else:
-                free_energy_streak = 0
-            if free_energy_streak >= self.cfg.free_energy_sustained_ticks:
-                crisis_reason = CrisisReason.SUSTAINED_FREE_ENERGY
-                break
-
-            # 5. Entropy overflow (heat death)
-            if entropy > self.cfg.entropy_max_fraction * self.cfg.max_entropy:
-                crisis_reason = CrisisReason.ENTROPY_OVERFLOW
-                break
-
-            # 6. Phi zero for too long (brain death)
-            if phi <= 0.0:
-                phi_zero_streak += 1
-            else:
-                phi_zero_streak = 0
-            if phi_zero_streak >= self.cfg.phi_zero_ticks:
-                crisis_reason = CrisisReason.PHI_ZERO
-                break
+            # Named above only to keep the accounting below readable.
+            _ = (energy, vitality, threat, free_energy, entropy, phi)
 
         # ----------------------------------------------------------
         # Compute fitness from survival + bonuses
@@ -789,6 +766,65 @@ class EndogenousFitness:
     # System state sampling
     # ------------------------------------------------------------------
 
+    def _crisis_from(
+        self, state: dict[str, float], streaks: dict[str, int]
+    ) -> CrisisReason | None:
+        """Which survival threshold this sample crosses, if any.
+
+        The thresholds lived inside the evaluation loop, which is why the only
+        way to ask "is the system dying right now" was to start an evaluation
+        and wait out its window. They are here so a tick can ask cheaply, and
+        the loop calls the same code, so there is one set of thresholds rather
+        than two that drift.
+
+        `streaks` is advanced in place: the sustained crises need to know how
+        many samples in a row crossed, and a caller keeps its own counters.
+        """
+        if state["energy"] < self.cfg.energy_critical:
+            return CrisisReason.ENERGY_DEPLETED
+        if state["vitality"] < self.cfg.vitality_critical:
+            return CrisisReason.VITALITY_COLLAPSED
+
+        crossing = state["threat_level"] > self.cfg.threat_sustained_threshold
+        streaks["threat"] = streaks.get("threat", 0) + 1 if crossing else 0
+        if streaks["threat"] >= self.cfg.threat_sustained_ticks:
+            return CrisisReason.SUSTAINED_THREAT
+
+        crossing = state["free_energy"] > self.cfg.free_energy_sustained_threshold
+        streaks["free_energy"] = streaks.get("free_energy", 0) + 1 if crossing else 0
+        if streaks["free_energy"] >= self.cfg.free_energy_sustained_ticks:
+            return CrisisReason.SUSTAINED_FREE_ENERGY
+
+        if state["entropy"] > self.cfg.entropy_max_fraction * self.cfg.max_entropy:
+            return CrisisReason.ENTROPY_OVERFLOW
+
+        streaks["phi_zero"] = streaks.get("phi_zero", 0) + 1 if state["phi"] <= 0.0 else 0
+        if streaks["phi_zero"] >= self.cfg.phi_zero_ticks:
+            return CrisisReason.PHI_ZERO
+        return None
+
+    def current_crisis(self) -> dict[str, Any]:
+        """Whether the live system is crossing a survival threshold right now.
+
+        An external reader found this class instantiated, registered, and with
+        no production consumer at all — the one module that would have used it
+        computes its own fitness from hand-weighted coefficients and is not
+        driven either. This is the consumer: six live readings against declared
+        thresholds, cheap enough to run every background tick.
+        """
+        sampled = self._sample_system_state()
+        crisis = self._crisis_from(sampled, self._live_streaks)
+        self._live_samples += 1
+        sourced = self._last_sourced
+        return {
+            "crisis": crisis.value if crisis is not None else "",
+            "readings": {name: round(float(value), 4) for name, value in sampled.items()},
+            "measured": sorted(sourced),
+            "defaulted": sorted(set(sampled) - sourced),
+            "streaks": dict(self._live_streaks),
+            "samples": self._live_samples,
+        }
+
     def _sample_system_state(self) -> dict[str, float]:
         """Read the current system state from live services.
 
@@ -806,6 +842,8 @@ class EndogenousFitness:
             "phi": 1.0,           # safe default: integrated
         }
 
+        sourced: set[str] = set()
+
         # Energy from the liquid substrate
         try:
             substrate = ServiceContainer.get("liquid_substrate", default=None)
@@ -818,6 +856,7 @@ class EndogenousFitness:
                     getattr(substrate, "idx_energy", 5)
                 ])
                 state["energy"] = raw_energy * 100.0  # scale to 0-100 range
+                sourced.add("energy")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("endogenous_fitness", exc)
             logger.debug("EndogenousFitness energy sample failed: %s", exc)
@@ -827,6 +866,7 @@ class EndogenousFitness:
             homeostasis = ServiceContainer.get("homeostasis", default=None)
             if homeostasis is not None:
                 state["vitality"] = float(homeostasis.compute_vitality())
+                sourced.add("vitality")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("endogenous_fitness", exc)
             logger.debug("EndogenousFitness vitality sample failed: %s", exc)
@@ -836,10 +876,12 @@ class EndogenousFitness:
             ice = ServiceContainer.get("ice_layer", default=None)
             if ice is not None:
                 state["threat_level"] = float(getattr(ice, "_threat_level", 0.0))
+                sourced.add("threat_level")
             else:
                 anomaly = ServiceContainer.get("anomaly_detector", default=None)
                 if anomaly is not None and hasattr(anomaly, "get_threat_level"):
                     state["threat_level"] = float(anomaly.get_threat_level())
+                    sourced.add("threat_level")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("endogenous_fitness", exc)
             logger.debug("EndogenousFitness threat sample failed: %s", exc)
@@ -855,6 +897,7 @@ class EndogenousFitness:
                     state["free_energy"] = float(
                         getattr(fe_engine, "_smoothed_fe", 0.3)
                     )
+                sourced.add("free_energy")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("endogenous_fitness", exc)
             logger.debug("EndogenousFitness free-energy sample failed: %s", exc)
@@ -866,15 +909,22 @@ class EndogenousFitness:
                 phi_status = phi_core.get_status()
                 state["entropy"] = float(phi_status.get("entropy", 4.0))
                 state["phi"] = float(phi_status.get("phi", 0.0))
+                sourced.update({"entropy", "phi"})
             else:
                 # Fallback: read phi from substrate
                 substrate = ServiceContainer.get("liquid_substrate", default=None)
                 if substrate is not None:
                     state["phi"] = float(getattr(substrate, "_current_phi", 1.0))
+                    sourced.add("phi")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("endogenous_fitness", exc)
             logger.debug("EndogenousFitness phi/entropy sample failed: %s", exc)
 
+        # Which of these are readings and which are the "innocent until proven
+        # dead" defaults. Without this the crisis check reports a healthy
+        # system when it has read nothing at all, which is the same defect one
+        # layer down from the one this class was found to have.
+        self._last_sourced = frozenset(sourced)
         return state
 
     def _get_behavioral_state_vector(self) -> np.ndarray:

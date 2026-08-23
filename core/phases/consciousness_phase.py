@@ -3,9 +3,14 @@ from typing import Any, Optional
 from . import BasePhase
 from ..state.aura_state import AuraState
 from core.consciousness.integration import get_consciousness_integration
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger(__name__)
+
+_CONSCIOUSNESS_PHASE_ERRORS = (
+    AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError,
+)
 
 class ConsciousnessPhase(BasePhase):
     """
@@ -42,7 +47,30 @@ class ConsciousnessPhase(BasePhase):
                 else:
                     new_state.cognition.causal_reasoning = causal_context
                 logger.debug("🧶 ConsciousnessPhase: Causal world cascades injected.")
-        
+
+        # Advance the selfhood layers.
+        #
+        # MinimalSelfhood.update() had no caller anywhere in the tree, so its
+        # state was None for the life of the process while get_priority_bias()
+        # returned a zero vector that read like a measurement. The second-order
+        # kernels had no writer either. This is the caller, and it refuses to
+        # tick on inputs it could not read.
+        try:
+            from core.consciousness.selfhood_tick import drive_selfhood
+
+            reading = drive_selfhood(new_state)
+            new_state.cognition.selfhood_reading = reading.as_dict()
+            if reading.skipped:
+                logger.debug("🪞 ConsciousnessPhase: selfhood not advanced — %s", reading.skipped)
+            else:
+                logger.debug(
+                    "🪞 ConsciousnessPhase: selfhood advanced on %d readings (%s).",
+                    len(reading.readings),
+                    reading.selfhood.get("dominant_deficit", "?"),
+                )
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation("consciousness_phase", exc, action="selfhood layers not advanced")
+
         return new_state
 
 
