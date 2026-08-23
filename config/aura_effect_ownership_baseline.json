@@ -4353,6 +4353,14 @@
       "scope": "<module>._write_jsonl"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/candidate_cortex_fusion.py",
+      "scope": "<module>.ensure_clean_directory"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -11942,6 +11950,22 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/runtime/file_write_gateway.py",
+      "scope": "<module>.FileWriteGateway.copy_path"
+    },
+    {
+      "callee": "shutil.copytree",
+      "canonical_owner": true,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/runtime/file_write_gateway.py",
+      "scope": "<module>.FileWriteGateway.copy_path"
+    },
+    {
+      "callee": "shutil.copy2",
+      "canonical_owner": true,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/runtime/file_write_gateway.py",
       "scope": "<module>.FileWriteGateway.copy_path_async._copy"
     },
     {
@@ -15826,6 +15850,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "83808e1a20c37fb63ce02a674a0d7176a66ac2549b44249fe077ceed7c2ff43a",
+  "inventory_sha256": "369aae2b9648f57e3f04f29df48f9d9bfd009c841788e4d1ce4d9e03d7c394f0",
   "schema_version": 1
 }

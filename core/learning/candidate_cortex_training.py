@@ -42,6 +42,7 @@ SUPERVISION_SCHEMA: Final = "aura.candidate_cortex_training.supervision.v1"
 CANARY_OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.canary_observation.v1"
 CANARY_ADMISSION_SCHEMA: Final = "aura.candidate_cortex_training.canary_admission.v1"
 CANARY_HOST_METRICS_SCHEMA: Final = "aura.candidate_cortex_training.host_metrics.v1"
+ADAPTIVE_RESULT_SCHEMA: Final = "aura.candidate_cortex_training.adaptive_result.v1"
 PLAN_FILE: Final = "training_plan.json"
 CONFIG_FILE: Final = "mlx_lora_config.json"
 IDENTITY_FILE: Final = "adapter_identity.json"
@@ -1533,6 +1534,95 @@ def next_stage_plan(
     }
 
 
+def admitted_adaptive_checkpoint(
+    plan: Mapping[str, Any],
+    *,
+    authenticated_events: Sequence[Mapping[str, Any]],
+    adaptive_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the only checkpoint authorized for post-training fusion.
+
+    Fusion changes the model's representation identity. It cannot infer a
+    winner from filenames or accept the newest checkpoint merely because a
+    trainer stopped. The authenticated observations, model-free admissions,
+    terminal decision, and current checkpoint bytes must all name one stage.
+    """
+
+    if set(adaptive_result) != {
+        "schema",
+        "plan_sha256",
+        "decision",
+        "result_sha256",
+    } or adaptive_result.get("schema") != ADAPTIVE_RESULT_SCHEMA:
+        _fail("adaptive_result_invalid")
+    material = dict(adaptive_result)
+    claimed = material.pop("result_sha256", None)
+    if claimed != document_sha256(material):
+        _fail("adaptive_result_digest_invalid")
+    if adaptive_result.get("plan_sha256") != plan.get("plan_sha256"):
+        _fail("adaptive_result_plan_mismatch")
+
+    observations: list[dict[str, Any]] = []
+    admissions: list[dict[str, Any]] = []
+    for event in authenticated_events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        if event.get("event_type") == "stage_observed":
+            observations.append(dict(payload))
+        elif event.get("event_type") == "stage_admitted":
+            admissions.append(dict(payload))
+    if not observations or len(observations) != len(admissions):
+        _fail("adaptive_stage_evidence_incomplete")
+
+    policy = StagePolicy(**dict(plan["stages"]))
+    decision = decide_after_stage(
+        policy=policy,
+        observations=observations,
+        admissions=admissions,
+    )
+    if adaptive_result.get("decision") != decision:
+        _fail("adaptive_result_decision_mismatch")
+    if decision.get("decision") != "COMPLETE":
+        _fail("adaptive_result_not_complete")
+    stage_index = decision.get("stage")
+    if isinstance(stage_index, bool) or not isinstance(stage_index, int):
+        _fail("adaptive_result_stage_invalid")
+    if stage_index != len(observations) - 1:
+        _fail("adaptive_result_stage_mismatch")
+
+    admission = _validated_admission(
+        admissions[stage_index],
+        stage_index=stage_index,
+        policy=policy,
+    )
+    if (
+        admission["persona_score"] < policy.persona_floor
+        or admission["retention_score"] < policy.retention_floor
+        or admission["no_regression_score"] < policy.no_regression_floor
+        or admission["regressions"] != 0
+    ):
+        _fail("adaptive_final_stage_not_admitted")
+
+    checkpoint = observations[stage_index].get("checkpoint")
+    if not isinstance(checkpoint, Mapping):
+        _fail("adaptive_final_checkpoint_invalid")
+    expected = discover_exact_checkpoint(
+        Path(str(plan["paths"]["checkpoint_root"])),
+        expected_cumulative_iterations=policy.cumulative_iterations(stage_index),
+    )
+    if dict(checkpoint) != expected:
+        _fail("adaptive_final_checkpoint_drift")
+    return {
+        "stage_index": stage_index,
+        "cumulative_iterations": policy.cumulative_iterations(stage_index),
+        "checkpoint": expected,
+        "admission": admission,
+        "decision": decision,
+        "adaptive_result_sha256": str(adaptive_result["result_sha256"]),
+    }
+
+
 def run_admission_callback(
     callback: Callable[[Mapping[str, Any]], Mapping[str, Any]],
     context: Mapping[str, Any],
@@ -1617,6 +1707,7 @@ def execution_admission(
 
 
 __all__ = [
+    "ADAPTIVE_RESULT_SCHEMA",
     "ADAPTER_IDENTITY_SCHEMA",
     "ADMISSION_SCHEMA",
     "CANARY_ADMISSION_SCHEMA",
@@ -1636,6 +1727,7 @@ __all__ = [
     "StagePolicy",
     "TrainingConfig",
     "append_authenticated_event",
+    "admitted_adaptive_checkpoint",
     "adjudicate_canary",
     "build_canary_command",
     "build_stage_command",

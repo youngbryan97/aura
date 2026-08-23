@@ -1370,6 +1370,38 @@ class FileWriteGateway:
         durable_replace(src, dst)
         return str(dst)
 
+    def copy_path(
+        self,
+        path: PathLike,
+        destination: PathLike,
+        *,
+        source: str = "unknown",
+    ) -> str:
+        """Copy a file or directory through the governed synchronous lane.
+
+        This counterpart to :meth:`copy_path_async` is for offline tooling and
+        detached workers. Runtime coroutines must use the async form so a large
+        artifact copy cannot block the event loop.
+        """
+
+        src = _coerce_path_allow_dir(path)
+        dst = _coerce_path_allow_dir(destination)
+        if src.is_symlink() or dst.is_symlink():
+            raise OSError("refusing governed copy involving a symlink")
+        if governance_runtime_active():
+            require_governance(
+                f"file_write_gateway.copy_path:{source}",
+                strict=True,
+                allowed_domains=self._allowed_domains,
+            )
+        if not os.path.lexists(src):
+            raise FileNotFoundError(f"copy source does not exist: {src}")
+        import shutil
+
+        if src.is_dir():
+            return str(shutil.copytree(str(src), str(dst), symlinks=True))
+        return str(shutil.copy2(str(src), str(dst), follow_symlinks=False))
+
     async def append_text_async(
         self, path: PathLike, text: str, *, encoding: str = "utf-8", source: str = "unknown"
     ) -> None:

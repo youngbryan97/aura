@@ -4,9 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from core.learning.candidate_cortex_training import (
     StagePolicy,
     build_stage_command,
+    read_authenticated_journal,
 )
 from tools import run_candidate_cortex_adaptive_target as target
 from tools import run_detached_step as detached
@@ -158,6 +161,51 @@ def test_reset_incomplete_stage_removes_only_unadmitted_stage_outputs(
     assert stage.is_dir() and not list(stage.iterdir())
     assert not canonical.exists()
     assert previous.read_bytes() == b"admitted"
+
+
+def test_phase_boundary_execs_bound_launcher_and_authenticates_restart(
+    tmp_path: Path, monkeypatch
+) -> None:
+    plan = _plan(tmp_path)
+    journal = Path(plan["paths"]["run_root"]) / "training_journal.jsonl"
+    journal_key = tmp_path / "journal.key"
+    key = b"k" * 64
+    journal_key.write_bytes(key)
+    captured: dict[str, Any] = {}
+
+    class ExecRequestedError(RuntimeError):
+        pass
+
+    def _execve(path: str, argv: list[str], environment: dict[str, str]) -> None:
+        captured.update(path=path, argv=argv, environment=environment)
+        raise ExecRequestedError
+
+    monkeypatch.setattr(target.os, "execve", _execve)
+    with pytest.raises(ExecRequestedError):
+        target._restart_for_clean_model_phase(
+            plan,
+            run_root=Path(plan["paths"]["run_root"]),
+            journal_key=journal_key,
+            journal=journal,
+            key=key,
+            stage_index=0,
+            next_phase="measure",
+        )
+
+    assert captured["path"] == plan["python"]
+    assert captured["argv"][0] == plan["python"]
+    assert captured["argv"][-4:] == [
+        "--run-root",
+        str(Path(plan["paths"]["run_root"]).resolve()),
+        "--journal-key",
+        str(journal_key.resolve()),
+    ]
+    assert captured["environment"]["AURA_CANDIDATE_CORTEX_PHASE"] == "measure"
+    events = read_authenticated_journal(journal, key=key)
+    assert len(events) == 1
+    assert events[0]["event_type"] == "phase_restart_requested"
+    assert events[0]["payload"]["stage_index"] == 0
+    assert events[0]["payload"]["next_phase"] == "measure"
 
 
 def test_resume_verdict_matches_detached_consumer(

@@ -621,3 +621,118 @@ def test_run_root_is_private_and_content_addressed(tmp_path: Path) -> None:
         verify_full_model=False,
     )
     assert second["run_id"] == first["run_id"]
+
+
+def _adaptive_result(
+    plan: dict[str, Any], decision: dict[str, Any]
+) -> dict[str, Any]:
+    body = {
+        "schema": training.ADAPTIVE_RESULT_SCHEMA,
+        "plan_sha256": plan["plan_sha256"],
+        "decision": decision,
+    }
+    return {**body, "result_sha256": training.document_sha256(body)}
+
+
+def _adaptive_events(
+    observations: list[dict[str, Any]], admissions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for observation, admission in zip(observations, admissions, strict=True):
+        events.extend(
+            (
+                {"event_type": "stage_observed", "payload": observation},
+                {"event_type": "stage_admitted", "payload": admission},
+            )
+        )
+    return events
+
+
+def test_admitted_adaptive_checkpoint_accepts_exact_completed_authority(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    policy = training.StagePolicy(**plan["stages"])
+    final_iterations = policy.cumulative_iterations(2)
+    checkpoint_path = (
+        Path(plan["paths"]["checkpoint_root"])
+        / f"{final_iterations:07d}_adapters.safetensors"
+    )
+    checkpoint_path.write_bytes(b"admitted-stage-two")
+    checkpoint = training.discover_exact_checkpoint(
+        checkpoint_path.parent,
+        expected_cumulative_iterations=final_iterations,
+    )
+    observations = [
+        _observation(0, 1.0),
+        _observation(1, 0.999),
+        _observation(2, 0.9985, checkpoint),
+    ]
+    admissions = [_admission(index) for index in range(3)]
+    decision = training.decide_after_stage(
+        policy=policy,
+        observations=observations,
+        admissions=admissions,
+    )
+
+    authority = training.admitted_adaptive_checkpoint(
+        plan,
+        authenticated_events=_adaptive_events(observations, admissions),
+        adaptive_result=_adaptive_result(plan, decision),
+    )
+
+    assert authority["stage_index"] == 2
+    assert authority["cumulative_iterations"] == final_iterations
+    assert authority["checkpoint"] == checkpoint
+    assert authority["decision"] == decision
+    assert authority["admission"]["regressions"] == 0
+
+
+def test_admitted_adaptive_checkpoint_rejects_tampered_result(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    result = _adaptive_result(
+        plan,
+        {"decision": "COMPLETE", "reason": "convergence_patience_pass", "stage": 2},
+    )
+    result["decision"] = {
+        "decision": "REJECT",
+        "reason": "admission_regression",
+        "stage": 2,
+    }
+
+    with pytest.raises(
+        training.CandidateCortexTrainingError,
+        match="adaptive_result_digest_invalid",
+    ):
+        training.admitted_adaptive_checkpoint(
+            plan,
+            authenticated_events=[],
+            adaptive_result=result,
+        )
+
+
+def test_admitted_adaptive_checkpoint_rejects_non_complete_result(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    policy = training.StagePolicy(**plan["stages"])
+    observations = [_observation(0, 1.0)]
+    admissions = [_admission(0)]
+    decision = training.decide_after_stage(
+        policy=policy,
+        observations=observations,
+        admissions=admissions,
+    )
+    assert decision["decision"] == "CONTINUE"
+
+    with pytest.raises(
+        training.CandidateCortexTrainingError,
+        match="adaptive_result_not_complete",
+    ):
+        training.admitted_adaptive_checkpoint(
+            plan,
+            authenticated_events=_adaptive_events(observations, admissions),
+            adaptive_result=_adaptive_result(plan, decision),
+        )

@@ -25,6 +25,7 @@ from core.learning.candidate_cortex_admission import (  # noqa: E402
     adjudicate_checkpoint_evidence,
 )
 from core.learning.candidate_cortex_training import (  # noqa: E402
+    ADAPTIVE_RESULT_SCHEMA,
     ADMISSION_SCHEMA,
     JOURNAL_FILE,
     OBSERVATION_SCHEMA,
@@ -50,7 +51,7 @@ from tools import run_detached_step as detached  # noqa: E402
 from tools.run_candidate_cortex_canary_target import _mlx_arguments  # noqa: E402
 
 STAGE_COMPLETION_SCHEMA = "aura.candidate_cortex_training.stage_completion.v1"
-ADAPTIVE_RESULT_SCHEMA = "aura.candidate_cortex_training.adaptive_result.v1"
+PHASE_BOUNDARY_SCHEMA = "aura.candidate_cortex_training.phase_boundary.v1"
 
 
 def _key(path: Path) -> bytes:
@@ -326,6 +327,58 @@ def _release_model_memory() -> None:
         pass
 
 
+def _restart_for_clean_model_phase(
+    plan: Mapping[str, Any],
+    *,
+    run_root: Path,
+    journal_key: Path,
+    journal: Path,
+    key: bytes,
+    stage_index: int,
+    next_phase: str,
+) -> None:
+    """Replace the process image so one model-heavy phase cannot retain another.
+
+    MLX cache clearing only releases allocations no Python object still owns.
+    Training and checkpoint measurement intentionally use different process
+    images, while ``execve`` preserves the detached supervisor's target PID and
+    its trainer-bound sleep inhibitor.
+    """
+
+    if next_phase not in {"measure", "decide"}:
+        raise CandidateCortexTrainingError("adaptive_phase_invalid")
+    launcher = Path(str(plan["python"])).expanduser()
+    if not launcher.is_absolute() or not launcher.exists():
+        raise CandidateCortexTrainingError("adaptive_phase_launcher_invalid")
+    script = Path(__file__).resolve(strict=True)
+    append_authenticated_event(
+        journal,
+        key=key,
+        event_type="phase_restart_requested",
+        payload={
+            "schema": PHASE_BOUNDARY_SCHEMA,
+            "plan_sha256": plan["plan_sha256"],
+            "stage_index": stage_index,
+            "next_phase": next_phase,
+            "target_pid": os.getpid(),
+            "target_start_token": detached._process_start_token(os.getpid()),  # noqa: SLF001
+        },
+    )
+    environment = dict(os.environ)
+    environment["AURA_CANDIDATE_CORTEX_PHASE"] = next_phase
+    environment["AURA_CANDIDATE_CORTEX_STAGE"] = str(stage_index)
+    argv = [
+        str(launcher),
+        str(script),
+        "--run-root",
+        str(run_root.expanduser().resolve(strict=True)),
+        "--journal-key",
+        str(journal_key.expanduser().resolve(strict=True)),
+    ]
+    os.execve(str(launcher), argv, environment)
+    raise CandidateCortexTrainingError("adaptive_phase_exec_returned")
+
+
 def _measure_stage(
     plan: Mapping[str, Any], stage_index: int
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -487,22 +540,38 @@ def main(argv: list[str] | None = None) -> int:
         current_plan = load_and_verify_plan(args.run_root, verify_full_model=True)
         if current_plan != plan:
             raise CandidateCortexTrainingError("adaptive_plan_or_input_drift")
-        append_authenticated_event(
-            journal,
-            key=key,
-            event_type="stage_started",
-            payload={
-                "stage_index": stage_index,
-                "target_pid": os.getpid(),
-                "target_start_token": detached._process_start_token(os.getpid()),  # noqa: SLF001
-                "command_sha256": document_sha256(next_stage["command"]),
-            },
-        )
-        completion = _train_stage(
-            plan,
-            stage_index,
-            next_stage.get("resume_checkpoint"),
-        )
+        completion = _validated_completion(plan, stage_index)
+        trained_in_this_process = completion is None
+        if completion is None:
+            append_authenticated_event(
+                journal,
+                key=key,
+                event_type="stage_started",
+                payload={
+                    "stage_index": stage_index,
+                    "target_pid": os.getpid(),
+                    "target_start_token": detached._process_start_token(os.getpid()),  # noqa: SLF001
+                    "command_sha256": document_sha256(next_stage["command"]),
+                },
+            )
+            completion = _train_stage(
+                plan,
+                stage_index,
+                next_stage.get("resume_checkpoint"),
+            )
+        if trained_in_this_process and (
+            not _evidence_path(plan, stage_index).is_file()
+            or not _detail_path(plan, stage_index).is_file()
+        ):
+            _restart_for_clean_model_phase(
+                plan,
+                run_root=args.run_root,
+                journal_key=args.journal_key,
+                journal=journal,
+                key=key,
+                stage_index=stage_index,
+                next_phase="measure",
+            )
         evidence, stage_admission = _measure_stage(plan, stage_index)
         observation = _observation(
             plan,
@@ -521,6 +590,15 @@ def main(argv: list[str] | None = None) -> int:
             key=key,
             event_type="stage_admitted",
             payload=stage_admission,
+        )
+        _restart_for_clean_model_phase(
+            plan,
+            run_root=args.run_root,
+            journal_key=args.journal_key,
+            journal=journal,
+            key=key,
+            stage_index=stage_index,
+            next_phase="decide",
         )
 
 

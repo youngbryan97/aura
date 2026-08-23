@@ -396,6 +396,40 @@ def test_gateway_delete_move_copy_async(tmp_path):
     asyncio.get_event_loop_policy().new_event_loop().run_until_complete(scenario())
 
 
+def test_gateway_copy_path_sync_is_governed_and_refuses_symlinks(
+    tmp_path,
+    monkeypatch,
+):
+    import core.runtime.file_write_gateway as gateway_module
+
+    governed_calls = []
+    monkeypatch.setattr(gateway_module, "governance_runtime_active", lambda: True)
+    monkeypatch.setattr(
+        gateway_module,
+        "require_governance",
+        lambda action, **kwargs: governed_calls.append((action, kwargs)),
+    )
+    gateway = gateway_module.FileWriteGateway()
+    source = tmp_path / "source.txt"
+    source.write_text("payload", encoding="utf-8")
+    destination = tmp_path / "destination.txt"
+
+    copied = gateway.copy_path(source, destination, source="fusion-test")
+
+    assert copied == str(destination)
+    assert destination.read_text(encoding="utf-8") == "payload"
+    assert governed_calls == [
+        (
+            "file_write_gateway.copy_path:fusion-test",
+            {"strict": True, "allowed_domains": gateway._allowed_domains},
+        )
+    ]
+    symlink = tmp_path / "source-link"
+    symlink.symlink_to(source)
+    with pytest.raises(OSError, match="symlink"):
+        gateway.copy_path(symlink, tmp_path / "refused.txt", source="fusion-test")
+
+
 def test_file_operation_write_returns_effect_evidence(tmp_path):
     import hashlib
 

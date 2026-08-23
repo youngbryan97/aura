@@ -52008,3 +52008,92 @@ and compilation pass. Next: run one rank-32 factored-state canary. A pass
 authorizes the adaptive executor and exact base-versus-checkpoint measurement
 lane; a failure changes the training-state architecture again rather than
 lowering the resource threshold or shortening Aura's reasoning surface.
+
+## Checkpoint 2026-08-23-918: Measure Each Candidate Checkpoint Once
+
+CP918 makes candidate checkpoint evaluation an exact, reusable comparison
+against the frozen base rather than repeatedly paying for or silently changing
+the baseline.
+
+- The measurement lane computes additive per-example negative-log-likelihood
+  and deterministic behavior outcomes for persona and retention surfaces. It
+  pairs rows by immutable sample/probe identity and rejects duplicates,
+  incomplete pairings and non-finite evidence.
+- The frozen-base measurement is bound to the training plan, tokenized
+  measurement contract and model descriptor. A later stage may reuse it only
+  when every binding still matches; mutating any baseline row or contract
+  digest invalidates reuse.
+- Candidate weights are attached to the already-loaded base only after the
+  baseline is complete. The model-free CP916 adjudicator receives paired
+  evidence, while the detailed artifact retains the exact checkpoint and row
+  provenance needed to reproduce the result.
+- The rank-32 Adafactor canary passed the unchanged resource gates: validation
+  loss fell from `2.850` to `1.491`, peak MLX memory was `34.617 GB`, and
+  minimum host availability remained `4.105 GiB`.
+
+The focused measurement and training contracts pass, and the passing canary
+authorizes bounded adaptive execution. Next: execute candidate-native stages
+from durable cumulative checkpoints and admit each one independently.
+
+## Checkpoint 2026-08-23-919: Make Candidate Adaptation Resumable by Stage
+
+CP919 turns the candidate trainer into a detached adaptive campaign with
+authenticated, independently measurable stage boundaries.
+
+- Each stage trains in an isolated adapter directory and atomically publishes
+  exactly one cumulative checkpoint. A partial stage can be discarded without
+  touching any previously admitted checkpoint.
+- Authenticated journal events separate stage start, observation and admission.
+  The next schedule decision is reconstructed from those events; directory
+  order or the newest filename has no authority.
+- Stage growth is bounded (`100`, `200`, `400`, ... optimizer iterations), with
+  minimum-stage, convergence-patience, persona, retention and exact
+  no-regression floors. The schedule cannot shorten itself by prose or by a
+  model judge.
+- Detached resume requires an attempt-bound verifier over the exact prior
+  journal head and admitted-stage count. The supervisor, target process group
+  and trainer-bound `caffeinate` remain independently observable.
+
+The source-bound campaign launched from the CP919 lineage with the admitted
+Adafactor canary and exact Qwen3.8-27B descriptor. Next: admit the measured
+adaptive winner, then fuse only that checkpoint into a new model identity.
+
+## Checkpoint 2026-08-23-920: Make Fusion and Model-Heavy Phase Handoffs Exact
+
+CP920 closes the path from an authenticated adaptive result to a distinct fused
+candidate model, and repairs a lifecycle defect exposed by the first full
+adaptive stage.
+
+- Fusion accepts only an `adaptive_result` whose terminal `COMPLETE` decision
+  can be recomputed from authenticated observations and model-free admissions.
+  It re-discovers the exact cumulative checkpoint and rejects a merely newest,
+  rejected or incomplete adapter.
+- A source-bound detached fusion controller binds the training plan, Python
+  environment, base descriptor and model, admitted checkpoint, target and
+  verifier sources, output generation, disk budget and resume state.
+- The fusion target counts and fuses actual MLX adapter modules in process. A
+  zero-module repackaging cannot publish a model. Publication moves a complete
+  staging tree atomically, emits exact provenance and rebuilds the full model
+  descriptor before an immutable receipt can pass.
+- Governed synchronous tree copying now lives in the canonical file-write
+  gateway, preserves internal symlinks, rejects a symlink as the requested
+  source root and records the expanded ownership surface in the governance
+  ratchet.
+- Adaptive stage 0 completed all 100 updates and published its exact checkpoint.
+  Validation loss moved `3.107 -> 1.923 -> 1.809 -> 1.780 -> 1.666`; peak MLX
+  memory was `41.652 GB`. Measurement then correctly failed closed because the
+  same Python process retained training memory and could not satisfy the next
+  27B admission.
+- Model-heavy boundaries now use an authenticated `execve` handoff through the
+  plan-bound virtualenv launcher. The detached PID, supervisor and sleep
+  inhibitor survive, while the entire Python and Metal address space is
+  replaced before measurement and before the next training stage. The saved
+  checkpoint is reused; no optimizer work is repeated and no headroom floor is
+  weakened.
+
+Focused adaptive, fusion, training, controller and governance contracts pass
+`58/58`; canonical smoke passes `121/121` with one environment-dependent skip.
+Next: resume stage-0 measurement from immutable CP920 source, continue the
+admitted adaptive schedule, fuse the terminal winner, then rebuild CAA and
+recurrent tissue against the post-fusion descriptor. Multi-hour serving soaks
+remain deferred until all shorter migration and live gates are green.
