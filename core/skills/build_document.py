@@ -117,6 +117,23 @@ class BuildDocumentSkill(BaseSkill):
         await gateway.ensure_directory_async(str(target.parent), source="build_document")
         await gateway.write_text_async(str(target), html, source="build_document")
 
+        summary = (
+            f"Built a {report.sections}-section {form}, {document.title}, at {target}. "
+            + "; ".join(report.checks)
+            + "."
+        )
+        # A thing that exists is the answer to a request for it.
+        #
+        # LIVE, 2026-08-22: all six sections were built and written to disk in
+        # 57 milliseconds, and the reply re-narrated three of them as prose
+        # and never mentioned the file. The same loss as a diagnosis that ran
+        # and was replaced by an apology.
+        try:
+            from core.conversation.session_scope import record_solved_answer
+
+            record_solved_answer("built_artifact", summary)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         return {
             "ok": True,
             "skill": self.name,
@@ -126,11 +143,7 @@ class BuildDocumentSkill(BaseSkill):
             "sections": report.sections,
             "checks": list(report.checks),
             "repairs": list(document.repairs),
-            "summary": (
-                f"Built a {report.sections}-section {form}, {document.title}, at {target}. "
-                + "; ".join(report.checks)
-                + "."
-            ),
+            "summary": summary,
         }
 
 

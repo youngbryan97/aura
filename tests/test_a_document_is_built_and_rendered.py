@@ -134,3 +134,45 @@ def test_an_explicit_form_is_never_second_guessed():
     assert _form_wanted("deck", "write me a report") == "deck"
     # An unknown form falls back to reading the request.
     assert _form_wanted("hologram", "write me a report") == "page"
+
+
+def test_a_built_document_becomes_the_turns_answer(tmp_path):
+    """LIVE, 2026-08-22: all six sections were built and written to disk in 57
+    milliseconds, and the reply re-narrated three of them as prose and never
+    mentioned the file. Somebody who asked for a deck cannot use a paragraph
+    about one."""
+    import asyncio
+
+    from core.conversation.session_scope import set_user_question, solved_answers
+    from core.skills.build_document import BuildDocumentSkill
+
+    async def run() -> str:
+        set_user_question("six slides for the panel")
+        await BuildDocumentSkill().execute(
+            {
+                "title": "Panel",
+                "request": "six slides for the panel",
+                "out_dir": "",
+                "sections": [
+                    {"title": f"Part {index}", "lines": [f"point {index}"]}
+                    for index in range(1, 7)
+                ],
+            }
+        )
+        return solved_answers().get("built_artifact", "")
+
+    recorded = asyncio.run(run())
+    assert "6-section" in recorded
+    assert ".html" in recorded
+
+
+def test_the_reply_says_where_the_file_is():
+    import core.conversation.session_scope as scope
+    from interface.routes.chat import _serve_built_artifact
+
+    scope.set_user_question("six slides")
+    scope.record_solved_answer("built_artifact", "Built a 6-section deck at /tmp/panel.html.")
+    served = str(_serve_built_artifact("Here is what I put on them."))
+    assert "/tmp/panel.html" in served
+    assert served.index("/tmp/panel.html") < served.index("Here is what")
+    scope.set_user_question("")

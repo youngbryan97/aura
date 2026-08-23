@@ -15129,6 +15129,41 @@ def _compose(
     return compose_measured(user_message, reply, measured, matches, refute=refute)
 
 
+def _serve_built_artifact(reply: object) -> object:
+    """Say where the thing is, when a thing was made.
+
+    LIVE, 2026-08-22: asked for a six-slide deck, the runtime planned it,
+    laid it out, checked it and wrote all six sections to disk in 57
+    milliseconds — and the reply re-narrated three of them as prose and never
+    mentioned the file. Somebody who asked for a deck cannot use a paragraph
+    about one.
+    """
+    try:
+        from core.conversation.session_scope import solved_answers
+
+        built = solved_answers().get("built_artifact", "").strip()
+        if not built:
+            return reply
+        written = str(reply or "").strip()
+        if not written or built in written:
+            return built
+        from core.conversation.reply_provenance import ReplyProvenance, declared_provenance
+
+        if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
+            return built
+        logger.info("📄 Said where the built file is.")
+        return f"{built}\n\n{written}"
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.built_artifact",
+            exc,
+            severity="debug",
+            action="left the reply without naming the file",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_repo_diagnosis(reply: object) -> object:
     """Put what running the project showed in front of what was said about it.
 
@@ -17176,6 +17211,7 @@ async def _recorded_answer_corrections(
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
     corrected = str(await _serve_solved_game(user_message, corrected) or corrected)
     corrected = str(_serve_repo_diagnosis(corrected) or corrected)
+    corrected = str(_serve_built_artifact(corrected) or corrected)
     return corrected, corrected.strip() != body.strip()
 
 
