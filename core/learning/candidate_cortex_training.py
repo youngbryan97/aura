@@ -1,8 +1,8 @@
 """Candidate-bound, staged LoRA training control without model imports.
 
-This module plans and verifies training.  It deliberately does not import MLX
-or start a process.  A caller may hand the emitted command to Aura's durable
-model-lane supervisor only after that supervisor has proved its own custody.
+This module owns immutable plan, canary, checkpoint, and stage evidence.  It
+deliberately does not import MLX or start a process; the CLI adapter hands its
+exact commands to Aura's detached model-lane supervisor.
 """
 
 from __future__ import annotations
@@ -38,6 +38,9 @@ OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.stage_observation.v1
 ADMISSION_SCHEMA: Final = "aura.candidate_cortex_training.admission.v1"
 ADAPTER_IDENTITY_SCHEMA: Final = "aura.candidate_cortex_training.adapter_identity.v1"
 SUPERVISION_SCHEMA: Final = "aura.candidate_cortex_training.supervision.v1"
+CANARY_OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.canary_observation.v1"
+CANARY_ADMISSION_SCHEMA: Final = "aura.candidate_cortex_training.canary_admission.v1"
+CANARY_HOST_METRICS_SCHEMA: Final = "aura.candidate_cortex_training.host_metrics.v1"
 PLAN_FILE: Final = "training_plan.json"
 CONFIG_FILE: Final = "mlx_lora_config.json"
 IDENTITY_FILE: Final = "adapter_identity.json"
@@ -46,6 +49,18 @@ LOCK_FILE: Final = ".training.lock"
 MAX_DOCUMENT_BYTES: Final = 16 * 1024 * 1024
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _CHECKPOINT = re.compile(r"(?P<step>[0-9]+)_adapters\.safetensors")
+_TRAIN_REPORT = re.compile(
+    r"^Iter (?P<iteration>[0-9]+): Train loss (?P<loss>[0-9.eE+-]+), "
+    r"Learning Rate (?P<learning_rate>[0-9.eE+-]+), "
+    r"It/sec (?P<iterations_per_second>[0-9.eE+-]+), "
+    r"Tokens/sec (?P<tokens_per_second>[0-9.eE+-]+), "
+    r"Trained Tokens (?P<trained_tokens>[0-9.eE+-]+), "
+    r"Peak mem (?P<peak_memory_gb>[0-9.eE+-]+) GB$"
+)
+_VAL_REPORT = re.compile(
+    r"^Iter (?P<iteration>[0-9]+): Val loss (?P<loss>[0-9.eE+-]+), "
+    r"Val took (?P<duration_seconds>[0-9.eE+-]+)s$"
+)
 
 
 class CandidateCortexTrainingError(ValueError):
@@ -281,7 +296,10 @@ class StagePolicy:
             _fail("stage_threshold_non_finite")
         if self.min_loss_improvement < 0 or self.max_loss_regression_fraction < 0:
             _fail("stage_threshold_invalid")
-        if any(not 0 <= value <= 1 for value in finite[2:]) or self.min_eval_samples <= 0:
+        if (
+            any(not 0 <= value <= 1 for value in finite[2:])
+            or self.min_eval_samples <= 0
+        ):
             _fail("admission_threshold_invalid")
 
     def iterations(self, stage_index: int) -> int:
@@ -291,6 +309,38 @@ class StagePolicy:
 
     def cumulative_iterations(self, stage_index: int) -> int:
         return sum(self.iterations(index) for index in range(stage_index + 1))
+
+
+@dataclass(frozen=True)
+class CanaryPolicy:
+    """A production-shaped resource and checkpoint gate before real training."""
+
+    optimizer_steps: int = 10
+    validation_batches: int = 4
+    validation_interval_optimizer_steps: int = 5
+    timeout_seconds: int = 7200
+    min_host_available_gb: float = 4.0
+    max_peak_mlx_gb: float = 40.0
+    max_validation_loss_ratio: float = 1.5
+
+    def validate(self) -> None:
+        positive = (
+            self.optimizer_steps,
+            self.validation_batches,
+            self.validation_interval_optimizer_steps,
+            self.timeout_seconds,
+        )
+        if any(value <= 0 for value in positive):
+            _fail("canary_integer_invalid")
+        if self.validation_interval_optimizer_steps > self.optimizer_steps:
+            _fail("canary_validation_interval_invalid")
+        finite = (
+            self.min_host_available_gb,
+            self.max_peak_mlx_gb,
+            self.max_validation_loss_ratio,
+        )
+        if any(not math.isfinite(value) or value <= 0 for value in finite):
+            _fail("canary_threshold_invalid")
 
 
 def validate_candidate_descriptor(
@@ -411,14 +461,17 @@ def prepare_training_run(
     admission_command: Sequence[str],
     config: TrainingConfig | None = None,
     policy: StagePolicy | None = None,
+    canary_policy: CanaryPolicy | None = None,
     verify_full_model: bool = True,
 ) -> dict[str, Any]:
     """Validate immutable inputs and publish one content-addressed plan."""
 
     config = config or TrainingConfig()
     policy = policy or StagePolicy()
+    canary_policy = canary_policy or CanaryPolicy()
     config.validate()
     policy.validate()
+    canary_policy.validate()
     descriptor, model_root = validate_candidate_descriptor(
         descriptor_path,
         expected_descriptor_sha256=expected_descriptor_sha256,
@@ -440,6 +493,7 @@ def prepare_training_run(
         "dataset_receipt_sha256": dataset["receipt_sha256"],
         "training": asdict(config),
         "stages": asdict(policy),
+        "canary": asdict(canary_policy),
         "python": str(python),
         "admission": admission,
     }
@@ -452,6 +506,7 @@ def prepare_training_run(
     _ensure_directory(run_root.parent)
     _ensure_directory(run_root)
     data_root = Path(str(dataset["data_root"])).resolve(strict=True)
+    canary_execution_root = run_root / "canary-execution"
     paths = {
         "run_root": str(run_root),
         "data_root": str(data_root),
@@ -460,6 +515,12 @@ def prepare_training_run(
         "journal": str(run_root / JOURNAL_FILE),
         "adapter_identity": str(run_root / IDENTITY_FILE),
         "mlx_config": str(run_root / CONFIG_FILE),
+        "canary_execution_root": str(canary_execution_root),
+        "canary_adapter_root": str(canary_execution_root / "adapter"),
+        "canary_detached_root": str(canary_execution_root / "detached"),
+        "canary_host_metrics": str(canary_execution_root / "host_metrics.json"),
+        "canary_observation": str(canary_execution_root / "canary_observation.json"),
+        "canary_admission": str(canary_execution_root / "canary_admission.json"),
     }
     plan_material: dict[str, Any] = {
         "schema": PLAN_SCHEMA,
@@ -479,6 +540,7 @@ def prepare_training_run(
         },
         "training": asdict(config),
         "stages": asdict(policy),
+        "canary": asdict(canary_policy),
         "python": str(python),
         "admission": admission,
         "paths": paths,
@@ -490,7 +552,8 @@ def prepare_training_run(
             "accelerator_capability": "model",
             "detached_supervisor": "tools/run_detached_step.py",
             "sleep_inhibitor": "/usr/bin/caffeinate -i -w <trainer-pid>",
-            "execution_adapter_available": False,
+            "execution_adapter_available": True,
+            "execution_adapter": "tools/run_candidate_cortex_training.py:launch-canary",
         },
     }
     plan_material["plan_sha256"] = document_sha256(plan_material)
@@ -501,6 +564,7 @@ def prepare_training_run(
         "dataset_receipt_sha256": dataset["receipt_sha256"],
         "training_identity_sha256": document_sha256(asdict(config)),
         "stage_policy_sha256": document_sha256(asdict(policy)),
+        "canary_policy_sha256": document_sha256(asdict(canary_policy)),
     }
     mlx_config = _training_config_document(config)
     lock_path = run_root.parent / LOCK_FILE
@@ -515,6 +579,8 @@ def prepare_training_run(
                 if path.read_bytes() != encoded:
                     _fail(conflict)
         _ensure_directory(run_root / "adapter")
+        _ensure_directory(canary_execution_root)
+        _ensure_directory(canary_execution_root / "adapter")
     return plan_material
 
 
@@ -558,8 +624,10 @@ def load_and_verify_plan(
         _fail("training_dataset_receipt_drift")
     config = TrainingConfig(**plan["training"])
     policy = StagePolicy(**plan["stages"])
+    canary_policy = CanaryPolicy(**plan["canary"])
     config.validate()
     policy.validate()
+    canary_policy.validate()
     if _strict_json(root / CONFIG_FILE, role="mlx_config") != _training_config_document(config):
         _fail("mlx_config_drift")
     expected_identity = {
@@ -569,6 +637,7 @@ def load_and_verify_plan(
         "dataset_receipt_sha256": dataset["receipt_sha256"],
         "training_identity_sha256": document_sha256(asdict(config)),
         "stage_policy_sha256": document_sha256(asdict(policy)),
+        "canary_policy_sha256": document_sha256(asdict(canary_policy)),
     }
     if _strict_json(root / IDENTITY_FILE, role="adapter_identity") != expected_identity:
         _fail("adapter_identity_mismatch")
@@ -700,6 +769,7 @@ def build_stage_command(
         str(plan["dataset"]["data_root"]),
         "--fine-tune-type",
         "lora",
+        "--mask-prompt",
         "-c",
         str(plan["paths"]["mlx_config"]),
         "--num-layers",
@@ -731,6 +801,378 @@ def build_stage_command(
     if resume_checkpoint is not None:
         command.extend(("--resume-adapter-file", str(resume_checkpoint["path"])))
     return tuple(command)
+
+
+def canary_micro_iterations(
+    config: TrainingConfig,
+    policy: CanaryPolicy,
+) -> int:
+    """Return microsteps needed to execute exactly N optimizer updates.
+
+    One extra microstep triggers MLX-LM's pre-step validation after the final
+    accumulated update.  Because that remainder never reaches an optimizer
+    boundary, final adapter weights still represent exactly ``optimizer_steps``
+    updates rather than an under-measured approximation.
+    """
+
+    config.validate()
+    policy.validate()
+    return config.gradient_accumulation_steps * policy.optimizer_steps + 1
+
+
+def canary_checkpoint_iteration(
+    config: TrainingConfig,
+    policy: CanaryPolicy,
+) -> int:
+    config.validate()
+    policy.validate()
+    return config.gradient_accumulation_steps * policy.optimizer_steps
+
+
+def build_canary_command(plan: Mapping[str, Any]) -> tuple[str, ...]:
+    """Build the production-shaped canary command bound by ``plan``."""
+
+    config = TrainingConfig(**dict(plan["training"]))
+    policy = CanaryPolicy(**dict(plan["canary"]))
+    config.validate()
+    policy.validate()
+    checkpoint_iteration = canary_checkpoint_iteration(config, policy)
+    validation_interval = (
+        config.gradient_accumulation_steps * policy.validation_interval_optimizer_steps
+    )
+    return (
+        str(plan["python"]),
+        "-m",
+        "mlx_lm",
+        "lora",
+        "--model",
+        str(plan["model"]["canonical_path"]),
+        "--train",
+        "--data",
+        str(plan["dataset"]["data_root"]),
+        "--fine-tune-type",
+        "lora",
+        "--mask-prompt",
+        "-c",
+        str(plan["paths"]["mlx_config"]),
+        "--num-layers",
+        str(config.num_layers),
+        "--batch-size",
+        str(config.batch_size),
+        "--iters",
+        str(canary_micro_iterations(config, policy)),
+        "--val-batches",
+        str(policy.validation_batches),
+        "--learning-rate",
+        format(config.learning_rate, ".17g"),
+        "--steps-per-report",
+        str(config.gradient_accumulation_steps),
+        "--steps-per-eval",
+        str(validation_interval),
+        "--grad-accumulation-steps",
+        str(config.gradient_accumulation_steps),
+        "--adapter-path",
+        str(plan["paths"]["canary_adapter_root"]),
+        "--save-every",
+        str(checkpoint_iteration),
+        "--max-seq-length",
+        str(config.max_seq_length),
+        "--grad-checkpoint",
+        "--seed",
+        str(config.seed),
+    )
+
+
+def _finite_report_value(raw: str, *, role: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise CandidateCortexTrainingError(f"{role}_invalid") from exc
+    if not math.isfinite(value):
+        _fail(f"{role}_non_finite")
+    return value
+
+
+def parse_canary_training_log(
+    payload: bytes,
+    *,
+    config: TrainingConfig,
+    policy: CanaryPolicy,
+) -> dict[str, Any]:
+    """Parse MLX-LM's measured reports without treating prose as evidence."""
+
+    config.validate()
+    policy.validate()
+    try:
+        lines = payload.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise CandidateCortexTrainingError("canary_log_utf8_invalid") from exc
+    train_reports: dict[int, dict[str, Any]] = {}
+    validation_reports: dict[int, dict[str, Any]] = {}
+    for line in lines:
+        train_match = _TRAIN_REPORT.fullmatch(line.strip())
+        if train_match:
+            iteration = int(train_match.group("iteration"))
+            if iteration in train_reports:
+                _fail("canary_train_report_duplicate")
+            train_reports[iteration] = {
+                "iteration": iteration,
+                "loss": _finite_report_value(train_match.group("loss"), role="train_loss"),
+                "learning_rate": _finite_report_value(
+                    train_match.group("learning_rate"), role="train_learning_rate"
+                ),
+                "iterations_per_second": _finite_report_value(
+                    train_match.group("iterations_per_second"), role="train_throughput"
+                ),
+                "tokens_per_second": _finite_report_value(
+                    train_match.group("tokens_per_second"), role="token_throughput"
+                ),
+                "trained_tokens": _finite_report_value(
+                    train_match.group("trained_tokens"), role="trained_tokens"
+                ),
+                "peak_memory_gb": _finite_report_value(
+                    train_match.group("peak_memory_gb"), role="peak_memory"
+                ),
+            }
+            continue
+        validation_match = _VAL_REPORT.fullmatch(line.strip())
+        if validation_match:
+            iteration = int(validation_match.group("iteration"))
+            if iteration in validation_reports:
+                _fail("canary_validation_report_duplicate")
+            validation_reports[iteration] = {
+                "iteration": iteration,
+                "loss": _finite_report_value(
+                    validation_match.group("loss"), role="validation_loss"
+                ),
+                "duration_seconds": _finite_report_value(
+                    validation_match.group("duration_seconds"),
+                    role="validation_duration",
+                ),
+            }
+    checkpoint_iteration = canary_checkpoint_iteration(config, policy)
+    expected_optimizer_reports = tuple(
+        config.gradient_accumulation_steps * index
+        for index in range(1, policy.optimizer_steps + 1)
+    )
+    if any(iteration not in train_reports for iteration in expected_optimizer_reports):
+        _fail("canary_optimizer_report_missing")
+    final_iteration = canary_micro_iterations(config, policy)
+    if 1 not in validation_reports or final_iteration not in validation_reports:
+        _fail("canary_validation_endpoint_missing")
+    ordered_train = [train_reports[index] for index in sorted(train_reports)]
+    ordered_validation = [
+        validation_reports[index] for index in sorted(validation_reports)
+    ]
+    return {
+        "micro_iterations": final_iteration,
+        "checkpoint_iteration": checkpoint_iteration,
+        "optimizer_steps": policy.optimizer_steps,
+        "optimizer_update_reports": [
+            train_reports[index] for index in expected_optimizer_reports
+        ],
+        "all_training_reports": ordered_train,
+        "validation_reports": ordered_validation,
+        "initial_validation_loss": validation_reports[1]["loss"],
+        "final_validation_loss": validation_reports[final_iteration]["loss"],
+        "peak_mlx_memory_gb": max(
+            report["peak_memory_gb"] for report in ordered_train
+        ),
+    }
+
+
+def adjudicate_canary(
+    plan: Mapping[str, Any],
+    *,
+    detached_receipt: Mapping[str, Any],
+    expected_target_command: Sequence[str],
+    detached_log_path: Path,
+    host_metrics_path: Path,
+    journal_key: bytes,
+    verify_full_model: bool = True,
+) -> dict[str, Any]:
+    """Verify and publish one immutable canary observation and admission."""
+
+    verified_plan = load_and_verify_plan(
+        Path(str(plan["paths"]["run_root"])),
+        verify_full_model=verify_full_model,
+    )
+    if verified_plan.get("plan_sha256") != plan.get("plan_sha256"):
+        _fail("canary_plan_drift")
+    plan = verified_plan
+    receipt_body = dict(detached_receipt)
+    claimed_receipt_sha = receipt_body.pop("receipt_sha256", None)
+    if claimed_receipt_sha != document_sha256(receipt_body):
+        _fail("canary_detached_receipt_digest_invalid")
+    if (
+        detached_receipt.get("command") != list(expected_target_command)
+        or detached_receipt.get("status") != "passed"
+        or detached_receipt.get("passed") is not True
+        or detached_receipt.get("returncode") != 0
+        or detached_receipt.get("restart_count") != 0
+        or detached_receipt.get("containment_verified") is not True
+        or detached_receipt.get("process_group_empty") is not True
+        or detached_receipt.get("lineage_empty") is not True
+    ):
+        _fail("canary_detached_execution_invalid")
+    log_binding = _file_binding(detached_log_path)
+    parsed = parse_canary_training_log(
+        detached_log_path.read_bytes(),
+        config=TrainingConfig(**dict(plan["training"])),
+        policy=CanaryPolicy(**dict(plan["canary"])),
+    )
+    metrics = _strict_json(host_metrics_path, role="canary_host_metrics")
+    metrics_required = {
+        "schema",
+        "plan_sha256",
+        "model_descriptor_sha256",
+        "dataset_receipt_sha256",
+        "training_command_sha256",
+        "target_pid",
+        "started_at_unix",
+        "finished_at_unix",
+        "duration_seconds",
+        "sample_count",
+        "min_available_bytes",
+        "max_used_percent",
+        "max_process_rss_bytes",
+    }
+    if set(metrics) != metrics_required or metrics.get("schema") != CANARY_HOST_METRICS_SCHEMA:
+        _fail("canary_host_metrics_schema_invalid")
+    command = build_canary_command(plan)
+    if (
+        metrics.get("plan_sha256") != plan["plan_sha256"]
+        or metrics.get("model_descriptor_sha256")
+        != plan["model"]["descriptor_sha256"]
+        or metrics.get("dataset_receipt_sha256")
+        != plan["dataset"]["receipt_sha256"]
+        or metrics.get("training_command_sha256") != document_sha256(list(command))
+        or metrics.get("target_pid") != detached_receipt.get("child_pid")
+    ):
+        _fail("canary_host_metrics_identity_mismatch")
+    integer_metrics = (
+        metrics.get("sample_count"),
+        metrics.get("min_available_bytes"),
+        metrics.get("max_process_rss_bytes"),
+    )
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in integer_metrics):
+        _fail("canary_host_metrics_invalid")
+    for field in ("started_at_unix", "finished_at_unix", "duration_seconds", "max_used_percent"):
+        value = metrics.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            _fail("canary_host_metrics_invalid")
+    if (
+        float(metrics["duration_seconds"]) <= 0
+        or float(metrics["finished_at_unix"]) < float(metrics["started_at_unix"])
+        or not 0 <= float(metrics["max_used_percent"]) <= 100
+    ):
+        _fail("canary_host_metrics_invalid")
+    config = TrainingConfig(**dict(plan["training"]))
+    policy = CanaryPolicy(**dict(plan["canary"]))
+    checkpoint = discover_exact_checkpoint(
+        Path(str(plan["paths"]["canary_adapter_root"])),
+        expected_cumulative_iterations=canary_checkpoint_iteration(config, policy),
+    )
+    final_adapter = _file_binding(
+        Path(str(plan["paths"]["canary_adapter_root"])) / "adapters.safetensors"
+    )
+    observation_body = {
+        "schema": CANARY_OBSERVATION_SCHEMA,
+        "plan_sha256": plan["plan_sha256"],
+        "model_descriptor_sha256": plan["model"]["descriptor_sha256"],
+        "dataset_receipt_sha256": plan["dataset"]["receipt_sha256"],
+        "training_command": list(command),
+        "training_command_sha256": document_sha256(list(command)),
+        "detached_receipt_sha256": claimed_receipt_sha,
+        "detached_duration_seconds": detached_receipt["duration_s"],
+        "trainer_pid": detached_receipt["child_pid"],
+        "trainer_start_token": detached_receipt["child_start_token"],
+        "log": log_binding,
+        "host_metrics": metrics,
+        "training_reports": parsed,
+        "checkpoint": checkpoint,
+        "final_adapter": final_adapter,
+    }
+    observation = {
+        **observation_body,
+        "observation_sha256": document_sha256(observation_body),
+    }
+    initial_loss = float(parsed["initial_validation_loss"])
+    final_loss = float(parsed["final_validation_loss"])
+    min_available_gb = float(metrics["min_available_bytes"]) / float(1024**3)
+    checks = {
+        "optimizer_updates_complete": len(parsed["optimizer_update_reports"])
+        == policy.optimizer_steps,
+        "checkpoint_exact": checkpoint["size_bytes"] > 0,
+        "final_adapter_present": final_adapter["size_bytes"] > 0,
+        "mlx_peak_within_bound": float(parsed["peak_mlx_memory_gb"])
+        <= policy.max_peak_mlx_gb,
+        "host_headroom_within_bound": min_available_gb
+        >= policy.min_host_available_gb,
+        "validation_stable": final_loss
+        <= initial_loss * policy.max_validation_loss_ratio,
+    }
+    failed = sorted(key for key, value in checks.items() if not value)
+    admission_body = {
+        "schema": CANARY_ADMISSION_SCHEMA,
+        "plan_sha256": plan["plan_sha256"],
+        "observation_sha256": observation["observation_sha256"],
+        "status": "PASS" if not failed else "REJECT",
+        "failed_checks": failed,
+        "checks": checks,
+        "optimizer_steps": policy.optimizer_steps,
+        "initial_validation_loss": initial_loss,
+        "final_validation_loss": final_loss,
+        "validation_loss_ratio": final_loss / initial_loss if initial_loss else None,
+        "peak_mlx_memory_gb": parsed["peak_mlx_memory_gb"],
+        "min_host_available_gb": min_available_gb,
+        "detached_duration_seconds": detached_receipt["duration_s"],
+    }
+    admission = {
+        **admission_body,
+        "admission_sha256": document_sha256(admission_body),
+    }
+    for path, payload, conflict in (
+        (
+            Path(str(plan["paths"]["canary_observation"])),
+            observation,
+            "canary_observation_conflict",
+        ),
+        (
+            Path(str(plan["paths"]["canary_admission"])),
+            admission,
+            "canary_admission_conflict",
+        ),
+    ):
+        encoded = canonical_json_bytes(payload) + b"\n"
+        if not _write_bytes_if_absent(path, encoded) and path.read_bytes() != encoded:
+            _fail(conflict)
+    journal_path = Path(str(plan["paths"]["journal"]))
+    events = read_authenticated_journal(journal_path, key=journal_key)
+    if not events:
+        append_authenticated_event(
+            journal_path,
+            key=journal_key,
+            event_type="canary_observed",
+            payload=observation,
+        )
+        append_authenticated_event(
+            journal_path,
+            key=journal_key,
+            event_type="canary_admitted",
+            payload=admission,
+        )
+    else:
+        expected = [
+            ("canary_observed", observation),
+            ("canary_admitted", admission),
+        ]
+        if len(events) != 2 or any(
+            event.get("event_type") != event_type or event.get("payload") != payload
+            for event, (event_type, payload) in zip(events, expected, strict=True)
+        ):
+            _fail("canary_journal_conflict")
+    return {"observation": observation, "admission": admission}
 
 
 def _validated_admission(
@@ -930,21 +1372,81 @@ def run_admission_callback(
     return _validated_admission(result, stage_index=stage_index, policy=policy)
 
 
-def execution_admission(plan: Mapping[str, Any], *, execute: bool) -> dict[str, Any]:
-    """Return dry-run status or refuse unsupported durable execution."""
+def execution_admission(
+    plan: Mapping[str, Any],
+    *,
+    execute: bool,
+    authenticated_events: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """Return whether the detached canary adapter is available.
+
+    Adaptive stages remain unauthorized until the independently adjudicated
+    canary is present and admitted; callers cannot skip this transition by
+    passing ``execute=True``.
+    """
 
     supervision = plan.get("supervision")
     if not execute:
         return {"status": "DRY_RUN", "execution_authorized": False}
     if not isinstance(supervision, dict) or supervision.get("execution_adapter_available") is not True:
         _fail("durable_supervision_adapter_unavailable")
-    _fail("durable_supervision_adapter_unimplemented")
+    admission_path = Path(str(plan["paths"]["canary_admission"]))
+    if not admission_path.exists():
+        return {
+            "status": "CANARY_REQUIRED",
+            "execution_authorized": False,
+            "canary_launch_authorized": True,
+        }
+    admission = _strict_json(admission_path, role="canary_admission")
+    material = dict(admission)
+    claimed = material.pop("admission_sha256", None)
+    if (
+        admission.get("schema") != CANARY_ADMISSION_SCHEMA
+        or claimed != document_sha256(material)
+        or admission.get("plan_sha256") != plan.get("plan_sha256")
+        or admission.get("status") != "PASS"
+    ):
+        _fail("canary_admission_invalid")
+    observation = _strict_json(
+        Path(str(plan["paths"]["canary_observation"])),
+        role="canary_observation",
+    )
+    observed_events = [
+        event
+        for event in authenticated_events
+        if event.get("event_type") in {"canary_observed", "canary_admitted"}
+    ]
+    if not observed_events:
+        return {
+            "status": "CANARY_AUTHENTICATION_REQUIRED",
+            "execution_authorized": False,
+            "canary_launch_authorized": False,
+        }
+    expected = [
+        ("canary_observed", observation),
+        ("canary_admitted", admission),
+    ]
+    if len(observed_events) != 2 or any(
+        event.get("event_type") != event_type or event.get("payload") != payload
+        for event, (event_type, payload) in zip(observed_events, expected, strict=True)
+    ):
+        _fail("canary_authenticated_evidence_mismatch")
+    return {
+        "status": "CANARY_PASSED",
+        "execution_authorized": True,
+        "canary_launch_authorized": False,
+        "canary_admission_sha256": claimed,
+    }
 
 
 __all__ = [
     "ADAPTER_IDENTITY_SCHEMA",
     "ADMISSION_SCHEMA",
+    "CANARY_ADMISSION_SCHEMA",
+    "CANARY_HOST_METRICS_SCHEMA",
+    "CANARY_OBSERVATION_SCHEMA",
     "CONFIG_FILE",
+    "CanaryPolicy",
     "CandidateCortexTrainingError",
     "DATASET_SCHEMA",
     "IDENTITY_FILE",
@@ -955,7 +1457,11 @@ __all__ = [
     "StagePolicy",
     "TrainingConfig",
     "append_authenticated_event",
+    "adjudicate_canary",
+    "build_canary_command",
     "build_stage_command",
+    "canary_checkpoint_iteration",
+    "canary_micro_iterations",
     "canonical_json_bytes",
     "decide_after_stage",
     "discover_exact_checkpoint",
@@ -964,6 +1470,7 @@ __all__ = [
     "file_sha256",
     "load_and_verify_plan",
     "next_stage_plan",
+    "parse_canary_training_log",
     "prepare_training_run",
     "read_authenticated_journal",
     "run_admission_callback",

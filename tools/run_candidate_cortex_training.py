@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import secrets
 import subprocess
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
 
@@ -14,17 +17,22 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.governance_context import local_internal_governed_scope  # noqa: E402
 from core.learning.candidate_cortex_training import (  # noqa: E402
     JOURNAL_FILE,
+    CanaryPolicy,
     CandidateCortexTrainingError,
     StagePolicy,
     TrainingConfig,
+    adjudicate_canary,
     execution_admission,
     load_and_verify_plan,
     next_stage_plan,
     prepare_training_run,
     read_authenticated_journal,
 )
+from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
+from tools import run_detached_step as detached  # noqa: E402
 
 
 def _json_list(value: str) -> tuple[str, ...]:
@@ -82,9 +90,22 @@ def _policy(args: argparse.Namespace) -> StagePolicy:
     )
 
 
+def _canary_policy(args: argparse.Namespace) -> CanaryPolicy:
+    return CanaryPolicy(
+        optimizer_steps=args.canary_optimizer_steps,
+        validation_batches=args.canary_validation_batches,
+        validation_interval_optimizer_steps=args.canary_validation_interval,
+        timeout_seconds=args.canary_timeout_seconds,
+        min_host_available_gb=args.canary_min_host_available_gb,
+        max_peak_mlx_gb=args.canary_max_peak_mlx_gb,
+        max_validation_loss_ratio=args.canary_max_validation_loss_ratio,
+    )
+
+
 def _add_plan_arguments(parser: argparse.ArgumentParser) -> None:
     defaults = TrainingConfig()
     stages = StagePolicy()
+    canary = CanaryPolicy()
     parser.add_argument("--descriptor", type=Path, required=True)
     parser.add_argument("--descriptor-sha256", required=True)
     parser.add_argument("--dataset-receipt", type=Path, required=True)
@@ -128,6 +149,35 @@ def _add_plan_arguments(parser: argparse.ArgumentParser) -> None:
         "--no-regression-floor", type=float, default=stages.no_regression_floor
     )
     parser.add_argument("--min-eval-samples", type=int, default=stages.min_eval_samples)
+    parser.add_argument(
+        "--canary-optimizer-steps", type=int, default=canary.optimizer_steps
+    )
+    parser.add_argument(
+        "--canary-validation-batches", type=int, default=canary.validation_batches
+    )
+    parser.add_argument(
+        "--canary-validation-interval",
+        type=int,
+        default=canary.validation_interval_optimizer_steps,
+    )
+    parser.add_argument(
+        "--canary-timeout-seconds", type=int, default=canary.timeout_seconds
+    )
+    parser.add_argument(
+        "--canary-min-host-available-gb",
+        type=float,
+        default=canary.min_host_available_gb,
+    )
+    parser.add_argument(
+        "--canary-max-peak-mlx-gb",
+        type=float,
+        default=canary.max_peak_mlx_gb,
+    )
+    parser.add_argument(
+        "--canary-max-validation-loss-ratio",
+        type=float,
+        default=canary.max_validation_loss_ratio,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -145,7 +195,100 @@ def _parser() -> argparse.ArgumentParser:
     resume.add_argument("--run-root", type=Path, required=True)
     resume.add_argument("--journal-key", type=Path, required=True)
     resume.add_argument("--execute", action="store_true")
+    key = commands.add_parser("init-key", help="create one private journal key")
+    key.add_argument("--path", type=Path, required=True)
+    launch = commands.add_parser(
+        "launch-canary", help="launch the exact canary under detached custody"
+    )
+    launch.add_argument("--run-root", type=Path, required=True)
+    status = commands.add_parser("status-canary", help="inspect the detached canary")
+    status.add_argument("--run-root", type=Path, required=True)
+    adjudicate = commands.add_parser(
+        "adjudicate-canary", help="verify and publish the terminal canary evidence"
+    )
+    adjudicate.add_argument("--run-root", type=Path, required=True)
+    adjudicate.add_argument("--journal-key", type=Path, required=True)
     return parser
+
+
+def _target_command(plan: dict[str, Any]) -> list[str]:
+    return [
+        str(plan["python"]),
+        str((REPO_ROOT / "tools" / "run_candidate_cortex_canary_target.py").resolve()),
+        "--run-root",
+        str(plan["paths"]["run_root"]),
+    ]
+
+
+def _init_key(path: Path) -> dict[str, Any]:
+    absolute = path.expanduser().resolve(strict=False)
+    with local_internal_governed_scope(
+        "candidate_cortex_training.init_key", domain="file_write"
+    ):
+        get_file_write_gateway().ensure_directory(
+            absolute.parent,
+            source="candidate_cortex_training.init_key",
+        )
+        created = get_file_write_gateway().write_bytes_if_absent(
+            absolute,
+            secrets.token_bytes(64),
+            mode=0o600,
+            source="candidate_cortex_training.init_key",
+        )
+    if not created:
+        _key(absolute)
+    return {"path": str(absolute), "created": created}
+
+
+def _launch_canary(plan: dict[str, Any]) -> dict[str, Any]:
+    execution = execution_admission(plan, execute=True)
+    if execution.get("canary_launch_authorized") is not True:
+        raise CandidateCortexTrainingError("canary_launch_not_authorized")
+    policy = CanaryPolicy(**dict(plan["canary"]))
+    launch_args = [
+        "launch",
+        "--run-dir",
+        str(plan["paths"]["canary_detached_root"]),
+        "--name",
+        f"candidate-cortex-canary-{plan['run_id']}",
+        "--cwd",
+        str(REPO_ROOT),
+        "--timeout",
+        str(policy.timeout_seconds),
+        "--execution-output-root",
+        str(plan["paths"]["canary_execution_root"]),
+        "--",
+        *_target_command(plan),
+    ]
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        return_code = detached.main(launch_args)
+    if return_code != 0:
+        detail = captured.getvalue().strip()
+        raise CandidateCortexTrainingError(f"canary_detached_launch_failed:{detail[:500]}")
+    return detached._status(Path(str(plan["paths"]["canary_detached_root"])))
+
+
+def _status_canary(plan: dict[str, Any]) -> dict[str, Any]:
+    detached_root = Path(str(plan["paths"]["canary_detached_root"]))
+    if not detached_root.exists():
+        return {"state": "not_launched", "terminal": False}
+    return detached._status(detached_root)
+
+
+def _adjudicate_canary(plan: dict[str, Any], journal_key: Path) -> dict[str, Any]:
+    status = _status_canary(plan)
+    if status.get("terminal") is not True or not isinstance(status.get("receipt"), dict):
+        raise CandidateCortexTrainingError("canary_not_terminal")
+    return adjudicate_canary(
+        plan,
+        detached_receipt=status["receipt"],
+        expected_target_command=_target_command(plan),
+        detached_log_path=Path(str(plan["paths"]["canary_detached_root"]))
+        / detached.LOG_FILE,
+        host_metrics_path=Path(str(plan["paths"]["canary_host_metrics"])),
+        journal_key=_key(journal_key),
+    )
 
 
 def _journal_evidence(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -165,7 +308,9 @@ def _journal_evidence(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.action == "plan":
+        if args.action == "init-key":
+            payload = _init_key(args.path)
+        elif args.action == "plan":
             plan = prepare_training_run(
                 descriptor_path=args.descriptor,
                 expected_descriptor_sha256=args.descriptor_sha256,
@@ -175,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
                 admission_command=args.admission_command,
                 config=_config(args),
                 policy=_policy(args),
+                canary_policy=_canary_policy(args),
                 verify_full_model=True,
             )
             stage = next_stage_plan(plan, observations=[], admissions=[])
@@ -182,27 +328,38 @@ def main(argv: list[str] | None = None) -> int:
             payload = {"plan": plan, "next_stage": stage, "execution": execution}
         else:
             plan = load_and_verify_plan(args.run_root, verify_full_model=True)
-            events = (
-                read_authenticated_journal(
-                    Path(str(plan["paths"]["run_root"])) / JOURNAL_FILE,
-                    key=_key(args.journal_key),
+            if args.action == "launch-canary":
+                payload = _launch_canary(plan)
+            elif args.action == "status-canary":
+                payload = _status_canary(plan)
+            elif args.action == "adjudicate-canary":
+                payload = _adjudicate_canary(plan, args.journal_key)
+            else:
+                events = (
+                    read_authenticated_journal(
+                        Path(str(plan["paths"]["run_root"])) / JOURNAL_FILE,
+                        key=_key(args.journal_key),
+                    )
+                    if args.journal_key
+                    else []
                 )
-                if args.journal_key
-                else []
-            )
-            observations, admissions = _journal_evidence(events)
-            payload = {
-                "plan_sha256": plan["plan_sha256"],
-                "run_id": plan["run_id"],
-                "journal_events": len(events),
-                "next_stage": next_stage_plan(
-                    plan,
-                    observations=observations,
-                    admissions=admissions,
-                ),
-            }
-            if args.action == "resume":
-                payload["execution"] = execution_admission(plan, execute=args.execute)
+                observations, admissions = _journal_evidence(events)
+                payload = {
+                    "plan_sha256": plan["plan_sha256"],
+                    "run_id": plan["run_id"],
+                    "journal_events": len(events),
+                    "next_stage": next_stage_plan(
+                        plan,
+                        observations=observations,
+                        admissions=admissions,
+                    ),
+                }
+                if args.action == "resume":
+                    payload["execution"] = execution_admission(
+                        plan,
+                        execute=args.execute,
+                        authenticated_events=events,
+                    )
     except (
         CandidateCortexTrainingError,
         FileNotFoundError,

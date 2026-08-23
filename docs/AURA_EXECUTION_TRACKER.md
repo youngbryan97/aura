@@ -51886,3 +51886,37 @@ use its loss, memory and step-time evidence to set the bounded adaptive
 schedule, train candidate-native persona/CRSM tissue, then rebuild CAA and
 recurrent tissue, fuse once, stage, restart and prove the exact live rollback
 path. Final multi-hour soaks remain deferred.
+
+## Checkpoint 2026-08-23-914: Make the Candidate Canary Executable and Measurable
+
+CP914 replaces the candidate trainer's dry-run-only execution placeholder with
+one source-bound, detached canary path. It does not claim training success and
+does not change Aura's active cortex.
+
+- Every MLX-LM stage now uses prompt-masked loss. The prior emitted command
+  omitted `--mask-prompt`, which would have optimized user text despite the
+  compact kernel's assistant-response contract.
+- The canary counts optimizer updates rather than mislabeled microsteps. With
+  the production accumulation factor of four, it executes 40 microsteps for ten
+  updates, saves the exact step-40 checkpoint, and uses one non-updating step to
+  measure validation after update ten.
+- The target acquires Aura's exclusive standalone model lane before importing
+  MLX, permits owner eviction under the current training authority, samples
+  host availability and process RSS throughout load and training, and runs
+  under the existing no-fork detached supervisor and trainer-bound
+  `caffeinate` assertion.
+- Adjudication verifies the detached PID/start token, zero-restart receipt,
+  empty process lineage, exact model/data/command identities, all ten optimizer
+  reports, finite pre/post validation, MLX peak, host headroom, exact checkpoint
+  and final adapter. Self-hashed files alone cannot authorize adaptive
+  training; the observation and PASS admission must also match the
+  host-private authenticated journal.
+- Canary output is isolated from the adaptive adapter root, so a rejected or
+  interrupted resource probe cannot become training state or a fusion input.
+
+Focused candidate-training contracts pass `13/13`; canonical smoke passes
+`121/121` with one environment-dependent skip. Ruff, compilation, governance
+ownership, layering and diff hygiene pass. Next: launch and adjudicate this
+exact committed Qwen3.8 canary, use its measured loss/memory/throughput to
+derive the bounded adaptive schedule, then train and independently evaluate
+candidate-native tissue.

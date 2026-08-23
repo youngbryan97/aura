@@ -256,6 +256,7 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
     assert command[command.index("--steps-per-eval") + 1] == "10"
     assert command[command.index("--steps-per-report") + 1] == "2"
     assert command[command.index("--grad-accumulation-steps") + 1] == "8"
+    assert "--mask-prompt" in command
     assert "--grad-checkpoint" in command
     assert "90000" not in command
     mlx_config = json.loads(Path(plan["paths"]["mlx_config"]).read_text())
@@ -340,17 +341,146 @@ def test_non_finite_missing_eval_and_stale_process_are_rejected(tmp_path: Path) 
             )
 
 
-def test_execution_is_dry_run_by_default_and_refuses_fake_detachedness(tmp_path: Path) -> None:
+def test_execution_requires_the_real_canary_before_adaptive_training(tmp_path: Path) -> None:
     plan = _plan(tmp_path)
     assert training.execution_admission(plan, execute=False) == {
         "status": "DRY_RUN",
         "execution_authorized": False,
     }
-    with pytest.raises(
-        training.CandidateCortexTrainingError,
-        match="durable_supervision_adapter_unavailable",
-    ):
-        training.execution_admission(plan, execute=True)
+    assert training.execution_admission(plan, execute=True) == {
+        "status": "CANARY_REQUIRED",
+        "execution_authorized": False,
+        "canary_launch_authorized": True,
+    }
+
+
+def _canary_log(config: training.TrainingConfig, policy: training.CanaryPolicy) -> bytes:
+    lines = ["Loading pretrained model"]
+    final_iteration = training.canary_micro_iterations(config, policy)
+    validation_iterations = {1, final_iteration}
+    interval = (
+        config.gradient_accumulation_steps
+        * policy.validation_interval_optimizer_steps
+    )
+    validation_iterations.update(range(interval, final_iteration, interval))
+    for iteration in range(1, final_iteration + 1):
+        if iteration in validation_iterations:
+            loss = 2.0 if iteration == 1 else 1.8
+            lines.append(f"Iter {iteration}: Val loss {loss:.3f}, Val took 1.250s")
+        if (
+            iteration % config.gradient_accumulation_steps == 0
+            or iteration == final_iteration
+        ):
+            lines.append(
+                f"Iter {iteration}: Train loss 1.750, Learning Rate 1.000e-05, "
+                "It/sec 0.500, Tokens/sec 100.000, Trained Tokens 400, "
+                "Peak mem 25.000 GB"
+            )
+    lines.append("Saved final weights to adapters.safetensors.")
+    return ("\n".join(lines) + "\n").encode()
+
+
+def test_canary_is_ten_optimizer_updates_with_post_update_validation(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    config = training.TrainingConfig(**plan["training"])
+    policy = training.CanaryPolicy(**plan["canary"])
+    command = training.build_canary_command(plan)
+    assert "--mask-prompt" in command
+    assert command[command.index("--iters") + 1] == "41"
+    assert command[command.index("--save-every") + 1] == "40"
+    assert command[command.index("--steps-per-report") + 1] == "4"
+    parsed = training.parse_canary_training_log(
+        _canary_log(config, policy),
+        config=config,
+        policy=policy,
+    )
+    assert parsed["optimizer_steps"] == 10
+    assert [item["iteration"] for item in parsed["optimizer_update_reports"]] == list(
+        range(4, 41, 4)
+    )
+    assert parsed["validation_reports"][-1]["iteration"] == 41
+
+
+def test_canary_adjudication_binds_detached_resource_and_checkpoint_evidence(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    config = training.TrainingConfig(**plan["training"])
+    policy = training.CanaryPolicy(**plan["canary"])
+    adapter_root = Path(plan["paths"]["canary_adapter_root"])
+    checkpoint_iteration = training.canary_checkpoint_iteration(config, policy)
+    (adapter_root / f"{checkpoint_iteration:07d}_adapters.safetensors").write_bytes(
+        b"checkpoint"
+    )
+    (adapter_root / "adapters.safetensors").write_bytes(b"final")
+    log_path = Path(plan["paths"]["canary_execution_root"]) / "detached.log"
+    log_path.write_bytes(_canary_log(config, policy))
+    target_command = [str(Path(sys.executable).resolve()), "canary.py", "--run-root", plan["paths"]["run_root"]]
+    receipt_body = {
+        "command": target_command,
+        "status": "passed",
+        "passed": True,
+        "returncode": 0,
+        "restart_count": 0,
+        "containment_verified": True,
+        "process_group_empty": True,
+        "lineage_empty": True,
+        "duration_s": 120.0,
+        "child_pid": 123,
+        "child_start_token": "123:456",
+    }
+    receipt = {
+        **receipt_body,
+        "receipt_sha256": training.document_sha256(receipt_body),
+    }
+    metrics = {
+        "schema": training.CANARY_HOST_METRICS_SCHEMA,
+        "plan_sha256": plan["plan_sha256"],
+        "model_descriptor_sha256": plan["model"]["descriptor_sha256"],
+        "dataset_receipt_sha256": plan["dataset"]["receipt_sha256"],
+        "training_command_sha256": training.document_sha256(
+            list(training.build_canary_command(plan))
+        ),
+        "target_pid": 123,
+        "started_at_unix": 100.0,
+        "finished_at_unix": 220.0,
+        "duration_seconds": 120.0,
+        "sample_count": 240,
+        "min_available_bytes": 10 * 1024**3,
+        "max_used_percent": 84.0,
+        "max_process_rss_bytes": 30 * 1024**3,
+    }
+    metrics_path = Path(plan["paths"]["canary_host_metrics"])
+    _write_json(metrics_path, metrics)
+    evidence = training.adjudicate_canary(
+        plan,
+        detached_receipt=receipt,
+        expected_target_command=target_command,
+        detached_log_path=log_path,
+        host_metrics_path=metrics_path,
+        journal_key=b"j" * 64,
+        verify_full_model=False,
+    )
+    assert evidence["admission"]["status"] == "PASS"
+    assert evidence["admission"]["optimizer_steps"] == 10
+    assert (
+        training.execution_admission(plan, execute=True)["status"]
+        == "CANARY_AUTHENTICATION_REQUIRED"
+    )
+    events = training.read_authenticated_journal(
+        Path(plan["paths"]["journal"]), key=b"j" * 64
+    )
+    assert len(events) == 2
+    assert (
+        training.execution_admission(
+            plan,
+            execute=True,
+            authenticated_events=events,
+        )["status"]
+        == "CANARY_PASSED"
+    )
 
 
 def test_run_root_is_private_and_content_addressed(tmp_path: Path) -> None:
