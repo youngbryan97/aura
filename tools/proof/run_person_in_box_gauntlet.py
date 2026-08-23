@@ -80,6 +80,24 @@ _CHILD_BOUNDARY_ERRORS = (
 )
 
 
+def _browser_unavailable_errors() -> tuple[type[BaseException], ...]:
+    """Every way this machine says it has no browser to drive.
+
+    Playwright's own Error is included when it can be imported, and left out
+    when it cannot — which is itself an ImportError and already covered.
+    """
+    errors: list[type[BaseException]] = [ImportError, RuntimeError, OSError, TimeoutError]
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+    except ImportError:
+        return tuple(errors)
+    errors.append(PlaywrightError)
+    return tuple(errors)
+
+
+_BROWSER_UNAVAILABLE = _browser_unavailable_errors()
+
+
 @dataclass
 class TaskResult:
     task_id: str
@@ -1011,6 +1029,12 @@ class PersonBoxGauntlet:
         )
         screenshot_path = self.out_dir / "SCREENSHOT_TRACE" / "browser_ui_probe.txt"
         try:
+            # Playwright raises its own Error class when the browser binary is
+            # missing, and that is the ordinary way this probe is unavailable.
+            # The handler below was written for exactly that case and caught
+            # four types, none of them this one, so the honest-block path could
+            # never run and the whole gauntlet aborted on a missing download.
+            # _BROWSER_UNAVAILABLE carries that class now.
             from playwright.sync_api import sync_playwright
 
             with sync_playwright() as p:
@@ -1023,7 +1047,7 @@ class PersonBoxGauntlet:
                 browser.close()
             self.append_jsonl("BROWSER_TRACE.jsonl", {"task_id": task_id, "receipt_id": receipt_id, "url": html_path.as_uri(), "status": "ok", "screenshot": str(png_path)})
             return "pass", True, "Browser UI path executed and screenshot captured.", receipt_id
-        except (ImportError, RuntimeError, OSError, TimeoutError) as exc:
+        except _BROWSER_UNAVAILABLE as exc:
             self.record_failure(task_id, "browser_runtime_unavailable", repr(exc))
             self.record_recovery(task_id, "classify_browser_block_without_raw_bypass", True, "Playwright/browser unavailable in this environment.")
             screenshot_path.write_text("browser runtime unavailable; block classified honestly\n", encoding="utf-8")

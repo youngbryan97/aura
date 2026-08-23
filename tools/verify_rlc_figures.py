@@ -146,7 +146,7 @@ FIGURES: tuple[Figure, ...] = (
     Figure("83.188 ms", CP567_RUNTIME, lambda d: f"{_max(d)} ms"),
     Figure("34.686 / 63.737 ms", CP568_SHADOW,
            lambda d: f"{_p50(d)} / {_max(d)} ms"),
-    Figure("5.325 / 14.910 ms", CP568_ACTIVE,
+    Figure("6.501 / 17.102 ms", CP568_ACTIVE,
            lambda d: f"{_p50(d)} / {_max(d)} ms"),
     Figure("21/72", RUN2, lambda d: f"{_ablation_totals(d)['vanilla']}/72"),
     Figure("(7–13/72)", RUN2, lambda d: _arm_range(d)),

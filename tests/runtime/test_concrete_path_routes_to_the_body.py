@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import pytest
 
-from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+from core.runtime.desktop_objective_intent import (
+    looks_like_desktop_objective,
+    looks_like_filesystem_observation,
+)
 
 from pathlib import Path
 # Derived from the checkout rather than hard-coded to one machine's home.
@@ -53,6 +56,55 @@ _CLAUDE_MD = str(REPO_ROOT / "CLAUDE.md")
     ],
 )
 def test_path_operations_reach_the_body(message: str) -> None:
+    """One of the two lanes has to claim it. Neither is the defect.
+
+    This asserted `looks_like_desktop_objective` alone, from when there was one
+    lane. There are two now, and correctly so: a pure read goes to
+    file_operation, because asking the screen driver to verify a read means
+    verifying an effect no screen will ever show. The guarantee that matters is
+    unchanged — a request naming a real path never reaches a lane that answers
+    it from nothing.
+    """
+    claimed = (
+        looks_like_desktop_objective(message),
+        looks_like_filesystem_observation(message),
+    )
+    assert any(claimed), f"no lane claimed {message!r}"
+    assert not all(claimed), f"both lanes claimed {message!r}"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "list the contents of ~/Documents",
+        "what's in /etc/hosts",
+        "how many .py files are in /tmp?",
+        "read ~/notes.txt and summarise it",
+    ],
+)
+def test_a_pure_read_goes_to_the_lane_that_can_read(message: str) -> None:
+    """2026-08-22: this needed a verb somebody had listed.
+
+    "list the contents of ~/Documents" was an observation and "what's in
+    /etc/hosts" was not — the same request, one of them phrased without a verb.
+    Asking about a path is asking to look at it.
+    """
+    assert looks_like_filesystem_observation(message) is True
+    assert looks_like_desktop_objective(message) is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "write hello into ~/Documents/x.txt",
+        "delete everything in ~/Downloads",
+        "rename ~/Documents/old.txt to new.txt",
+        "read ~/config.toml and fix the port",
+    ],
+)
+def test_anything_that_changes_disk_is_not_an_observation(message: str) -> None:
+    """Only the lane that can write can finish a request that writes."""
+    assert looks_like_filesystem_observation(message) is False
     assert looks_like_desktop_objective(message) is True
 
 

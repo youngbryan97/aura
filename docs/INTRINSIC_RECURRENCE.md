@@ -173,7 +173,7 @@ was 120/120 exact and 120/120 lesion-disrupted, with unsupported language
 refused. Latency is per package, and each one carries its own measurement:
 the CP567 qualification ran a median 46.160 ms and a maximum 83.188 ms, the
 CP568 shadow 34.686 / 63.737 ms, and the active `r1` package that serves today
-5.325 / 14.910 ms. `make rlc-figures` recomputes every one of those from the
+6.501 / 17.102 ms. `make rlc-figures` recomputes every one of those from the
 retained verification files.
 
 CP824 removed the last thing keeping it out of reach: admission had been

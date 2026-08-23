@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger("Aura.DesktopIntent")
 
@@ -679,6 +680,58 @@ def asks_to_build_software(user_message: str) -> bool:
     return bool(_BUILDS_SOFTWARE_RE.search(text))
 
 
+#: Asking what is at a path, with no verb at all: "what's in /etc/hosts",
+#: "how many .py files are in <path>?", "is there a README in <path>". A
+#: question about a path is a request to look at it.
+_ASKS_ABOUT_A_PATH_RE = re.compile(
+    r"^\s*(?:so\s+|and\s+|ok(?:ay)?,?\s+|hey,?\s+)?"
+    r"(?:what|what's|whats|which|how\s+many|how\s+much|how\s+big|is\s+there|"
+    r"are\s+there|does\s+\w+\s+(?:have|contain)|do\s+you\s+see|anything)\b",
+    re.IGNORECASE,
+)
+
+#: Whether this turn is asking to look at something on disk.
+#:
+#: The verbs and the question openings above are the floor. This is the
+#: mechanism, because which phrasings mean "look" is a judgement about meaning
+#: and a verb list is always the verbs one person thought of.
+_WANTS_TO_LOOK: Any = None
+
+
+def _looking_surface() -> Any:
+    """The learned surface, built once and registered on first consultation."""
+    global _WANTS_TO_LOOK
+    if _WANTS_TO_LOOK is not None:
+        return _WANTS_TO_LOOK
+    try:
+        from core.language.learned_matcher import LearnedMatcher, embed_sentences
+
+        _WANTS_TO_LOOK = LearnedMatcher(
+            name="filesystem_observation",
+            positives=(
+                "what's in /etc/hosts",
+                "how many .py files are in that directory?",
+                "list the contents of ~/Documents",
+                "read the config file and tell me what it says",
+                "is there a README in there?",
+                "show me what that folder holds",
+                "have a look at ~/Downloads and tell me what's there",
+            ),
+            negatives=(
+                "write hello into ~/Documents/x.txt",
+                "delete everything in ~/Downloads",
+                "move that file to the desktop",
+                "what should I do with ~/Documents?",
+                "open Notes and write something",
+                "rename the folder to archive",
+            ),
+            features=embed_sentences,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        _WANTS_TO_LOOK = None
+    return _WANTS_TO_LOOK
+
+
 def looks_like_filesystem_observation(user_message: str) -> bool:
     """True when the turn asks to READ something on disk and report back.
 
@@ -688,6 +741,12 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
 
     A turn that also asks for a change ("read it and fix the bug") is not an
     observation: only the lane that can write can finish it.
+
+    2026-08-22: this required a verb somebody had listed, so "what's in
+    /etc/hosts" and "how many .py files are in <path>?" — both plain reads with
+    no verb in them at all — went to the screen driver, while "list the
+    contents of ~/Documents" did not. A question about a path is a request to
+    look at it, whether or not it names the looking.
     """
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
@@ -695,9 +754,26 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
     if not _CONCRETE_PATH_RE.search(text) and not _NAMED_ON_SURFACE_RE.search(text):
         return False
     sanitized = strip_negated_action_spans(text).lower()
-    if not _FILESYSTEM_OBSERVATION_RE.search(sanitized):
+    # Asking for a change is not observing, whichever way it is phrased.
+    if _FILESYSTEM_MUTATION_RE.search(sanitized):
         return False
-    return not _FILESYSTEM_MUTATION_RE.search(sanitized)
+    settled = bool(
+        _FILESYSTEM_OBSERVATION_RE.search(sanitized)
+        or _ASKS_ABOUT_A_PATH_RE.match(sanitized)
+    )
+    surface = _looking_surface()
+    if surface is None:
+        return settled
+    if settled:
+        try:
+            surface.observe(user_message, holds=True)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+        return True
+    try:
+        return bool(surface.decide_without_waiting(user_message))
+    except (RuntimeError, TypeError, ValueError):
+        return False
 
 
 def looks_like_screen_observation(user_message: str) -> bool:

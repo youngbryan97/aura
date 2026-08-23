@@ -3497,6 +3497,21 @@ class LatentCortexEngine:
     ) -> LatentReasoningResult:
         if type(capture_decode_logprobs) is not bool:
             raise TypeError("capture_decode_logprobs must be boolean")
+        # An incumbent artifact under a latent-owned policy is a contradiction
+        # in the CALL, not a failure of the episode, and it needs nothing from
+        # the runtime to detect.
+        #
+        # It used to be checked after the receipt existed, so `reason()` read
+        # it as an admission failure and returned ok=False. Worse, a
+        # serving-identity failure raised first and swallowed it, which meant
+        # the guard against a latent-owned answer smuggling an ordinary-decode
+        # artifact did not run at all on the path that would smuggle one.
+        if incumbent_artifact is not None and (
+            self.config.decode_incumbent_policy != "vanilla_incumbent"
+        ):
+            raise ValueError(
+                "an incumbent artifact requires decode_incumbent_policy=vanilla_incumbent"
+            )
         if decode_sentence_grace_tokens is not None and (
             type(decode_sentence_grace_tokens) is not int
             or not 0 <= decode_sentence_grace_tokens <= 4096
@@ -3716,10 +3731,8 @@ class LatentCortexEngine:
         receipt.checkpoint_file_count = int(self.invariant.file_receipt.get("files", 0) or 0)
         validated_incumbent = None
         if incumbent_artifact is not None:
-            if self.config.decode_incumbent_policy != "vanilla_incumbent":
-                raise ValueError(
-                    "an incumbent artifact requires decode_incumbent_policy=vanilla_incumbent"
-                )
+            # The policy contradiction is refused at the call boundary above,
+            # before anything runs; this is what still needs the runtime.
             if self.tokenizer is None:
                 raise ValueError("an incumbent artifact requires the serving tokenizer")
             from core.brain.llm.latent_cortex.incumbent_artifact import (

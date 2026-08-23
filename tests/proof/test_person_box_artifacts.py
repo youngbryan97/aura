@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from tools.proof.run_person_in_box_gauntlet import _build_model_comparison_from_dnu
 from tools.proof.score_person_box_run import score_run
@@ -301,3 +303,20 @@ def test_full_person_box_claim_uses_live_model_and_runtime_lift(tmp_path):
     assert proof["final_verdict"]["full_claim_passed"] is True
     assert proof["final_verdict"]["claim_supported"] == "unified_governed_software_operator"
     assert proof["final_verdict"]["runtime_lift_over_raw_model"] == 0.7
+
+
+def test_the_browser_block_can_catch_what_a_missing_browser_raises() -> None:
+    """The honest-block path could never run.
+
+    The handler catches ImportError, RuntimeError, OSError and TimeoutError,
+    written for exactly the case where this machine has no browser. Playwright
+    raises its own Error class for a missing binary, which is none of those, so
+    a missing download aborted the whole gauntlet instead of being classified.
+    """
+    from tools.proof.run_person_in_box_gauntlet import _BROWSER_UNAVAILABLE
+
+    assert ImportError in _BROWSER_UNAVAILABLE
+    playwright = pytest.importorskip("playwright.sync_api")
+    assert playwright.Error in _BROWSER_UNAVAILABLE, (
+        "the class playwright raises for a missing browser is not caught"
+    )
