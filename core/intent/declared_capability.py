@@ -555,6 +555,50 @@ def rank_declaration_matches(
 _FOUNDATIONAL_DOMAINS: tuple[str, ...] = ("file", "code", "web")
 
 
+def producing_capabilities(
+    catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+) -> list[str]:
+    """The primitives that make something that exists afterwards.
+
+    Chosen the same way the foundational and computation sets are: by what a
+    skill declares it does, so one registered tomorrow joins by describing
+    itself.
+
+    LIVE, 2026-08-22. "Six slides, no fluff" ranked nothing, because ranking
+    reads a verb acting on an object and that request is a noun with a count
+    in front of it. The reader that decides whether a thing was asked for had
+    already said yes; nothing turned that into an offer, so the model was
+    handed code_repl, diagnose_repo and quantum_lab, and invented a tool to
+    call.
+    """
+    making = set(verb_class_of("build")) | {
+        "build", "builds", "make", "makes", "create", "creates", "write",
+        "writes", "generate", "generates", "render", "renders", "produce",
+        "produces", "compile", "compiles",
+    }
+    scored: list[tuple[int, str]] = []
+    for name, (verbs, objects) in catalogue.items():
+        if not set(_fold(word) for word in verbs) & {_fold(word) for word in making}:
+            continue
+        # It has to say where the result goes, or it is making something that
+        # never leaves the turn.
+        produced = {
+            _fold(word)
+            for word in (
+                "file", "files", "disk", "document", "deck", "slides", "page",
+                "report", "app", "artifact", "image", "chart",
+            )
+        }
+        overlap = len({_fold(word) for word in objects} & produced)
+        if not overlap:
+            continue
+        # Ordered by how much of what it declares is about the thing it makes,
+        # so a builder comes before something that writes a file in passing.
+        scored.append((overlap, name))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [name for _overlap, name in scored]
+
+
 def computation_capabilities(
     catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
 ) -> list[str]:

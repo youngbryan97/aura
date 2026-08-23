@@ -39,6 +39,35 @@ __all__ = ["DEFAULT_CAPABILITY_SET", "select_capabilities"]
 DEFAULT_CAPABILITY_SET = 5
 
 
+def _asks_for_a_thing(text: str) -> bool:
+    """Whether the turn asks for something that exists when it is over."""
+    try:
+        from core.intent.artifact_request import asks_for_an_artifact
+
+        return bool(asks_for_an_artifact(text))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
+def _wants_more_than_an_answer(text: str) -> bool:
+    """Whether the turn needs something the reply alone cannot be.
+
+    Two ways that happens, and each cost a live turn on 2026-08-22. The
+    request points at something only looking can answer — a path on this disk,
+    an address. Or it asks for a thing that exists afterwards: "Six slides, no
+    fluff" was read as a request for prose, so not one capability was offered
+    and the model invented a tool to call.
+    """
+    if _points_at_something_real(text):
+        return True
+    try:
+        from core.intent.artifact_request import asks_for_an_artifact
+
+        return bool(asks_for_an_artifact(text))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def _points_at_something_real(text: str) -> bool:
     """Whether the request names an artifact the answer depends on.
 
@@ -112,7 +141,7 @@ def select_capabilities(
     # The grammar was right: it does ask to be told something. What it asks to
     # be told is not knowable without running the project. A named address or
     # a path on this disk is the difference between answering and looking.
-    if looks_like_inline_answer_request(text) and not _points_at_something_real(text):
+    if looks_like_inline_answer_request(text) and not _wants_more_than_an_answer(text):
         return []
 
     from core.intent.declared_capability import (
@@ -121,6 +150,7 @@ def select_capabilities(
         distinctive_objects,
         foundational_capabilities,
         looks_like_a_request,
+        producing_capabilities,
         rank_declaration_matches,
         requested_foundational_domains,
         settles_by_computation,
@@ -148,12 +178,25 @@ def select_capabilities(
     # LIVE, 2026-08-22: "why is the test failing in <path>" is not imperative,
     # so nothing foundational was offered and the turn was left with no way to
     # look at the thing it was asked about.
-    if looks_like_a_request(text) or _points_at_something_real(text):
+    if looks_like_a_request(text) or _wants_more_than_an_answer(text):
         domains = requested_foundational_domains(text)
         for name in foundational_capabilities(catalogue, domains):
             if name not in ordered:
                 ordered.append(name)
-    elif settles_by_computation(text):
+    if _asks_for_a_thing(text):
+        # A thing asked for by name. Not an `elif`: a request can both look
+        # like a request and ask for something to exist, and the first
+        # arrangement of this made the foundational branch swallow it.
+        #
+        # LIVE, 2026-08-22: "Six slides, no fluff" ranked nothing, because
+        # ranking reads a verb acting on an object and that is a noun with a
+        # count in front of it. The reader that decides whether a thing was
+        # asked for had already said yes and nothing turned that into an
+        # offer, so the model invented a tool to call.
+        for name in producing_capabilities(catalogue):
+            if name not in ordered:
+                ordered.append(name)
+    if not ordered and settles_by_computation(text):
         # A problem to work out asks for no capability by name, so the mood
         # gate above leaves it with nothing — and a finite constraint problem
         # is exactly the case where enumeration is not a heuristic but the

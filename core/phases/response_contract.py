@@ -1083,9 +1083,21 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     The ceiling above says what a turn may do WITHOUT the person having asked
     for that effect. Asking for a page to exist is asking for that effect.
     """
-    from core.runtime.desktop_objective_intent import asks_to_build_software
+    # The principle in the docstring above is general; the reader was not.
+    #
+    # LIVE, 2026-08-22: "Six slides, no fluff..." ran under the self-service
+    # ceiling, so every capability that produces a file was filtered out
+    # before it could be offered. build_document was ranked FIRST by the
+    # selector and dropped by the ceiling — the same way build_app was on
+    # 2026-08-20, for the same reason. The model was handed code_repl,
+    # diagnose_repo and quantum_lab, invented a tool called generate_slides,
+    # and wrote one slide of six as prose.
+    #
+    # A deck is not software. Asking for one is exactly as much a request for
+    # a thing to exist.
+    from core.intent.artifact_request import asks_for_an_artifact
 
-    if asks_to_build_software(str(objective or "")):
+    if asks_for_an_artifact(str(objective or "")):
         return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
 
