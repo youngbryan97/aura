@@ -264,3 +264,17 @@ def test_the_title_names_the_subject_not_the_asking():
     assert _title_from_request("Six slides, no fluff: what you are") == "What you are"
     # Capitals in the middle survive.
     assert _title_from_request("write me a one-pager about the API migration") == "The API migration"
+
+
+def test_a_shape_ruled_out_is_not_a_shape_asked_for():
+    """"one page, not slides" asks for a page. Reading the shape words without
+    removing what was ruled out reads that as a request for slides — the same
+    defect as "don't fix it" being read as "fix it"."""
+    from core.skills.build_document import _form_wanted
+
+    assert _form_wanted("", "one page, not slides") == "page"
+    assert _form_wanted("", "make me a deck, not a report") == "deck"
+    assert _form_wanted("", "a write-up rather than a deck") == "page"
+    # Nothing ruled out, nothing changes.
+    assert _form_wanted("", "six slides for the panel") == "deck"
+    assert _form_wanted("", "write me a one-pager") == "page"

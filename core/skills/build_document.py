@@ -155,6 +155,12 @@ class BuildDocumentSkill(BaseSkill):
 #: sections, parts and chapters are pieces.
 _SECTION_UNITS = ("slide", "section", "part", "chapter")
 
+#: A shape the person ruled out.
+_NOT_THAT_SHAPE = re.compile(
+    r"\b(?:not|no|rather\s+than|instead\s+of|without|don'?t\s+(?:want|make|use))\s+"
+    r"(?:a\s+|an\s+|the\s+)?[a-z-]+", re.IGNORECASE
+)
+
 #: What each form is called when somebody asks for one.
 _FORM_WORDS = {
     "deck": ("slide", "deck", "presentation", "present", "pitch"),
@@ -213,7 +219,10 @@ def _form_wanted(given: object, request: object) -> str:
     if named in RENDERERS:
         return named
     text = str(request or "")
-    lowered = text.lower()
+    # "one page, not slides" asks for a page. Reading the shape words without
+    # removing what was ruled out reads that as a request for slides — the
+    # same defect as "don't fix it" being read as "fix it".
+    lowered = _NOT_THAT_SHAPE.sub(" ", text.lower())
     for form, words in _FORM_WORDS.items():
         if any(re.search(rf"\b{re.escape(word)}s?\b", lowered) for word in words):
             # What the floor is sure of is what the surface learns from.
