@@ -247,6 +247,33 @@ def _identity_for_manifest(manifest_path: Path) -> dict[str, Any]:
     }
 
 
+def _manifest_identity_matches_activation(
+    *,
+    expected: dict[str, Any],
+    current: dict[str, Any],
+    selected_model: Path,
+) -> bool:
+    """Accept an exact manifest or a verified identity-only normalization."""
+
+    if current == expected:
+        return True
+    try:
+        from core.brain.llm.model_registry import read_active_cortex_spec
+
+        spec = read_active_cortex_spec(str(expected["path"]))
+        return bool(
+            spec is not None
+            and spec.identity_transition_verified
+            and spec.predecessor_pointer_sha256 == expected.get("sha256")
+            and spec.manifest_path == Path(str(expected["path"])).resolve(strict=True)
+            and spec.pointer_sha256 == current.get("sha256")
+            and spec.model_path == selected_model
+            and current.get("active_model_path") == expected.get("active_model_path")
+        )
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def _relative_evidence_path(repo_root: Path, path: Path) -> str:
     resolved = path.expanduser().resolve(strict=True)
     try:
@@ -643,7 +670,11 @@ def semantic_neural_activation_errors(
                 if model_path is not None
                 else Path(str(expected_model["path"])).resolve(strict=True)
             )
-            if current_manifest != manifest_identity:
+            if not _manifest_identity_matches_activation(
+                expected=manifest_identity,
+                current=current_manifest,
+                selected_model=selected_model,
+            ):
                 errors.append("resident_manifest_drift")
             if _identity_for_model(selected_model) != expected_model:
                 errors.append("model_identity_drift")
@@ -671,6 +702,16 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         evidence = activation["evidence"]
         resident_identity = activation["resident_manifest_identity"]
         selected_model = Path(model_path).expanduser().resolve(strict=True)
+        resident_manifest = Path(resident_identity["path"])
+        resident_pointer, _resident_raw = _read_bounded_json(
+            resident_manifest,
+            maximum_bytes=64 * 1024,
+        )
+        resident_dependencies = [resident_manifest]
+        if isinstance(resident_pointer.get("identity_transition"), dict):
+            resident_dependencies.append(
+                resident_manifest.with_name("active.json.identity-backup")
+            )
         runtime_qualification = activation.get("runtime_qualification")
         runtime_dependencies = (
             (_resolve_evidence_path(root, runtime_qualification["path"]),)
@@ -685,7 +726,7 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
             _resolve_evidence_path(root, evidence["verification_path"]),
             _resolve_evidence_path(root, evidence["adjudication_path"]),
             *runtime_dependencies,
-            Path(resident_identity["path"]),
+            *resident_dependencies,
             selected_model / "config.json",
             selected_model / "model.safetensors.index.json",
         )

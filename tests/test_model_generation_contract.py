@@ -16,6 +16,11 @@ from core.brain.llm.model_artifact_profile import (
     validate_model_artifact_descriptor,
     validate_model_serving_profile,
 )
+from core.learning.cortex_generation_upgrade import (
+    build_migration_contract,
+    compare_batteries,
+    normalize_active_pointer_identity,
+)
 
 
 def _sha(label: str) -> str:
@@ -187,10 +192,228 @@ def test_active_manifest_exposes_identity_only_for_its_exact_model(tmp_path, mon
         encoding="utf-8",
     )
     monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
 
     observed = model_registry.get_active_model_artifact_descriptor(artifact)
     assert observed == descriptor
+    spec = model_registry.get_active_cortex_spec(force_refresh=True)
+    assert spec is not None
+    assert spec.exact_identity is True
+    assert spec.promotion_qualified is False
+    assert spec.model_path == artifact.resolve()
+    assert spec.descriptor_sha256 == descriptor["descriptor_sha256"]
+
+    observed["repository_id"] = "mutated-by-caller"
+    assert spec.artifact_descriptor() == descriptor
 
     other = _artifact(tmp_path, name="same-width-other-model")
     (other / "model.safetensors").write_bytes(b"different-weights")
     assert model_registry.get_active_model_artifact_descriptor(other) is None
+
+
+def test_legacy_active_pointer_resolves_without_claiming_exact_identity(
+    tmp_path,
+    monkeypatch,
+):
+    from core.brain.llm import model_registry
+
+    artifact = _artifact(tmp_path)
+    promotion_root = tmp_path / "promotion"
+    promotion_root.mkdir()
+    (promotion_root / "active.json").write_text(
+        json.dumps({"active_model_path": str(artifact)}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
+
+    spec = model_registry.get_active_cortex_spec(force_refresh=True)
+
+    assert spec is not None
+    assert spec.model_path == artifact.resolve()
+    assert spec.exact_identity is False
+    assert spec.promotion_qualified is False
+    assert model_registry.get_active_model_artifact_descriptor(artifact) is None
+
+
+def test_identity_transition_refuses_any_change_beyond_exact_normalization(
+    tmp_path,
+    monkeypatch,
+):
+    from core.brain.llm import model_registry
+
+    artifact = _artifact(tmp_path)
+    promotion_root = tmp_path / "promotion"
+    promotion_root.mkdir()
+    (promotion_root / "active.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "active_model_path": str(artifact),
+                "base_model": "incumbent",
+                "tag": "incumbent",
+            }
+        ),
+        encoding="utf-8",
+    )
+    descriptor = build_model_artifact_descriptor(artifact)
+    normalize_active_pointer_identity(
+        artifact_descriptor=descriptor,
+        fused_model_dir=promotion_root,
+    )
+    monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
+
+    spec = model_registry.get_active_cortex_spec(force_refresh=True)
+    assert spec is not None
+    assert spec.identity_transition_verified is True
+
+    pointer = json.loads((promotion_root / "active.json").read_text())
+    pointer["unqualified_runtime_override"] = True
+    (promotion_root / "active.json").write_text(json.dumps(pointer), encoding="utf-8")
+    model_registry.reset_model_registry_caches_for_test()
+
+    assert model_registry.get_active_cortex_spec(force_refresh=True) is None
+
+
+def test_active_pointer_rejects_partial_promotion_contract(tmp_path, monkeypatch):
+    from core.brain.llm import model_registry
+
+    artifact = _artifact(tmp_path)
+    descriptor = build_model_artifact_descriptor(artifact)
+    promotion_root = tmp_path / "promotion"
+    promotion_root.mkdir()
+    (promotion_root / "active.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "active_model_path": str(artifact),
+                "artifact_descriptor": descriptor,
+                "serving_profile": {"schema": SERVING_PROFILE_SCHEMA},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
+
+    assert model_registry.get_active_cortex_spec(force_refresh=True) is None
+    assert model_registry._resolve_active_fused_model() is None
+
+
+def test_active_pointer_rejects_malformed_complete_promotion_contract(
+    tmp_path,
+    monkeypatch,
+):
+    from core.brain.llm import model_registry
+
+    artifact = _artifact(tmp_path)
+    descriptor = build_model_artifact_descriptor(artifact)
+    promotion_root = tmp_path / "promotion"
+    promotion_root.mkdir()
+    (promotion_root / "active.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "active_model_path": str(artifact),
+                "artifact_descriptor": descriptor,
+                "serving_profile": "not-an-object",
+                "migration_contract": {},
+                "evaluation": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
+
+    assert model_registry.get_active_cortex_spec(force_refresh=True) is None
+
+
+def test_active_pointer_accepts_one_complete_identity_bound_promotion(
+    tmp_path,
+    monkeypatch,
+):
+    from core.brain.llm import model_registry
+
+    artifact = _artifact(tmp_path)
+    descriptor = build_model_artifact_descriptor(artifact)
+    evaluation = compare_batteries(
+        {
+            "label": "incumbent",
+            "breadth_accuracy": 1.0,
+            "reasoning_accuracy": 0.4,
+            "identity_digests": ["incumbent"],
+        },
+        {
+            "label": "candidate",
+            "breadth_accuracy": 1.0,
+            "reasoning_accuracy": 1.0,
+            "identity_digests": ["candidate"],
+        },
+        candidate_descriptor=descriptor,
+        critical_gates={
+            "complete_answer": True,
+            "tool_contract": True,
+            "code_contract": True,
+            "identity_migration": True,
+            "latency": True,
+            "memory": True,
+        },
+    )
+    serving = build_model_serving_profile(
+        descriptor,
+        served_context_tokens=262144,
+        prefill_chunk_tokens=2048,
+        lane_limits=_limits(),
+        qualification=_qualification(),
+    )
+    migration = build_migration_contract(
+        descriptor,
+        components={
+            "persona_crsm": {
+                "status": "qualified",
+                "artifact_sha256": _sha("persona"),
+            },
+            "steering": {
+                "status": "qualified",
+                "artifact_sha256": _sha("steering"),
+                "model_descriptor_sha256": descriptor["descriptor_sha256"],
+                "extraction_protocol_sha256": _sha("protocol"),
+                "causal_evaluation_sha256": _sha("steering-eval"),
+            },
+            "expert_adapters": {
+                "status": "retired",
+                "artifact_sha256": _sha("retired"),
+            },
+            "recurrence_native": {
+                "status": "qualified",
+                "artifact_sha256": _sha("recurrence"),
+            },
+        },
+    )
+    promotion_root = tmp_path / "promotion"
+    promotion_root.mkdir()
+    (promotion_root / "active.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "active_model_path": str(artifact),
+                "artifact_descriptor": descriptor,
+                "serving_profile": serving,
+                "migration_contract": migration,
+                "evaluation": evaluation,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "get_fused_model_root", lambda: promotion_root)
+    model_registry.reset_model_registry_caches_for_test()
+
+    spec = model_registry.get_active_cortex_spec(force_refresh=True)
+
+    assert spec is not None
+    assert spec.exact_identity is True
+    assert spec.promotion_qualified is True
+    assert spec.serving_profile() == serving
+    assert spec.migration_contract() == migration

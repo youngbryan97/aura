@@ -6,12 +6,14 @@ This module is the single source of truth for:
   - the active local backend selection, forced to MLX for live Aura
 """
 import copy
+import hashlib
 import json
 import logging
 import os
 import re
 import threading
 import time
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -148,6 +150,285 @@ def get_fused_model_root() -> Path:
     return BASE_DIR / "training" / "fused-model"
 
 
+@dataclass(frozen=True)
+class ActiveCortexSpec:
+    """Immutable, validated view of the one active cortex pointer.
+
+    JSON dictionaries are retained as canonical strings so callers cannot
+    mutate the registry's cached authority object.  Accessors return fresh
+    values when a subsystem needs the complete contract.
+    """
+
+    manifest_path: Path
+    pointer_sha256: str
+    schema_version: int
+    model_path: Path
+    base_model: str
+    tag: str
+    size_class: str
+    descriptor_sha256: str
+    repository_id: str
+    revision: str
+    serving_profile_sha256: str
+    migration_contract_sha256: str
+    evaluation_sha256: str
+    exact_identity: bool
+    promotion_qualified: bool
+    predecessor_pointer_sha256: str = ""
+    identity_transition_sha256: str = ""
+    identity_transition_verified: bool = False
+    _artifact_descriptor_json: str = ""
+    _serving_profile_json: str = ""
+    _migration_contract_json: str = ""
+
+    @staticmethod
+    def _decode(value: str) -> dict[str, object] | None:
+        if not value:
+            return None
+        decoded = json.loads(value)
+        return decoded if isinstance(decoded, dict) else None
+
+    def artifact_descriptor(self) -> dict[str, object] | None:
+        return self._decode(self._artifact_descriptor_json)
+
+    def serving_profile(self) -> dict[str, object] | None:
+        return self._decode(self._serving_profile_json)
+
+    def migration_contract(self) -> dict[str, object] | None:
+        return self._decode(self._migration_contract_json)
+
+
+_ACTIVE_CORTEX_SPEC_TTL_S = 5.0
+_active_cortex_spec_cache: tuple[float, Path, ActiveCortexSpec | None] | None = None
+
+
+def _canonical_contract_json(value: dict[str, object] | None) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+
+
+def _contract_digest(value: dict[str, object], *, digest_key: str) -> str:
+    material = dict(value)
+    material.pop(digest_key, None)
+    return hashlib.sha256(_canonical_contract_json(material).encode("ascii")).hexdigest()
+
+
+def _validate_identity_transition(
+    *,
+    manifest: Path,
+    pointer: dict[str, object],
+    active: Path,
+    descriptor_sha256: str,
+) -> tuple[str, str, bool]:
+    transition = pointer.get("identity_transition")
+    if transition is None:
+        return "", "", False
+    required = {
+        "schema",
+        "kind",
+        "previous_pointer_sha256",
+        "active_model_path",
+        "model_descriptor_sha256",
+        "transition_sha256",
+    }
+    if not isinstance(transition, dict) or set(transition) != required:
+        raise ValueError("active_cortex_identity_transition_schema_invalid")
+    previous_sha256 = str(transition.get("previous_pointer_sha256") or "")
+    transition_sha256 = str(transition.get("transition_sha256") or "")
+    if (
+        transition.get("schema") != "aura.cortex_upgrade.identity_transition.v1"
+        or transition.get("kind") != "model_identity_normalization"
+        or not re.fullmatch(r"[0-9a-f]{64}", previous_sha256)
+        or not re.fullmatch(r"[0-9a-f]{64}", transition_sha256)
+        or transition_sha256
+        != _contract_digest(transition, digest_key="transition_sha256")
+        or transition.get("active_model_path") != str(active)
+        or transition.get("model_descriptor_sha256") != descriptor_sha256
+    ):
+        raise ValueError("active_cortex_identity_transition_invalid")
+
+    backup = manifest.with_name("active.json.identity-backup")
+    if not backup.is_file() or backup.is_symlink() or backup.stat().st_size > 64 * 1024:
+        raise ValueError("active_cortex_identity_backup_invalid")
+    predecessor_raw = backup.read_bytes()
+    if hashlib.sha256(predecessor_raw).hexdigest() != previous_sha256:
+        raise ValueError("active_cortex_identity_backup_digest_mismatch")
+    predecessor = json.loads(predecessor_raw)
+    if not isinstance(predecessor, dict):
+        raise ValueError("active_cortex_identity_backup_invalid")
+    predecessor_raw_path = str(predecessor.get("active_model_path") or "").strip()
+    if not predecessor_raw_path:
+        raise ValueError("active_cortex_identity_backup_model_missing")
+    predecessor_active = Path(predecessor_raw_path).expanduser().resolve(strict=True)
+    if predecessor_active != active:
+        raise ValueError("active_cortex_identity_backup_model_mismatch")
+
+    stripped = dict(pointer)
+    stripped.pop("artifact_descriptor", None)
+    stripped.pop("identity_transition", None)
+    stripped["schema_version"] = predecessor.get("schema_version")
+    if stripped != predecessor:
+        raise ValueError("active_cortex_identity_transition_not_narrow")
+    return previous_sha256, transition_sha256, True
+
+
+def _read_active_cortex_spec(manifest: Path | None = None) -> ActiveCortexSpec | None:
+    manifest = manifest or (get_fused_model_root() / "active.json")
+    try:
+        raw = manifest.read_bytes()
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("active_cortex_pointer_not_object")
+        active_raw = str(payload.get("active_model_path") or "").strip()
+        if not active_raw:
+            raise ValueError("active_cortex_path_missing")
+        active = Path(active_raw).expanduser().resolve(strict=True)
+        if not active.is_dir():
+            raise ValueError("active_cortex_path_not_directory")
+
+        schema_version = int(payload.get("schema_version") or 0)
+        descriptor: dict[str, object] | None = None
+        descriptor_sha256 = ""
+        repository_id = ""
+        revision = ""
+        exact_identity = False
+        if schema_version >= 3:
+            candidate = payload.get("artifact_descriptor")
+            if not isinstance(candidate, dict):
+                raise ValueError("active_model_descriptor_missing")
+            from core.brain.llm.model_artifact_profile import (
+                validate_model_artifact_descriptor,
+            )
+
+            validate_model_artifact_descriptor(candidate, model_path=active)
+            descriptor = copy.deepcopy(candidate)
+            descriptor_sha256 = str(descriptor.get("descriptor_sha256") or "")
+            repository_id = str(descriptor.get("repository_id") or "")
+            revision = str(descriptor.get("revision") or "")
+            exact_identity = True
+
+        (
+            predecessor_pointer_sha256,
+            identity_transition_sha256,
+            identity_transition_verified,
+        ) = _validate_identity_transition(
+            manifest=manifest,
+            pointer=payload,
+            active=active,
+            descriptor_sha256=descriptor_sha256,
+        )
+
+        serving = payload.get("serving_profile")
+        migration = payload.get("migration_contract")
+        evaluation = payload.get("evaluation")
+        promotion_qualified = False
+        contract_keys = tuple(
+            name in payload
+            for name in ("serving_profile", "migration_contract", "evaluation")
+        )
+        contract_presence = tuple(
+            isinstance(value, dict) for value in (serving, migration, evaluation)
+        )
+        if any(contract_keys) and not all(contract_keys):
+            raise ValueError("active_cortex_promotion_contract_partial")
+        if all(contract_keys) and not all(contract_presence):
+            raise ValueError("active_cortex_promotion_contract_invalid")
+        if all(isinstance(value, dict) for value in (descriptor, serving, migration, evaluation)):
+            assert isinstance(descriptor, dict)
+            assert isinstance(serving, dict)
+            assert isinstance(migration, dict)
+            assert isinstance(evaluation, dict)
+            from core.brain.llm.model_artifact_profile import (
+                validate_model_serving_profile,
+            )
+            from core.learning.cortex_generation_upgrade import (
+                validate_migration_contract,
+                validate_upgrade_evaluation,
+            )
+
+            validate_model_serving_profile(serving, descriptor)
+            validate_migration_contract(migration, descriptor)
+            validate_upgrade_evaluation(
+                evaluation,
+                descriptor_sha256=descriptor_sha256,
+            )
+            promotion_qualified = True
+
+        return ActiveCortexSpec(
+            manifest_path=manifest.resolve(strict=False),
+            pointer_sha256=hashlib.sha256(raw).hexdigest(),
+            schema_version=schema_version,
+            model_path=active,
+            base_model=str(payload.get("base_model") or ""),
+            tag=str(payload.get("tag") or active.name),
+            size_class=str(payload.get("size") or ""),
+            descriptor_sha256=descriptor_sha256,
+            repository_id=repository_id,
+            revision=revision,
+            serving_profile_sha256=str(
+                serving.get("profile_sha256") if isinstance(serving, dict) else ""
+            ),
+            migration_contract_sha256=str(
+                migration.get("migration_contract_sha256")
+                if isinstance(migration, dict)
+                else ""
+            ),
+            evaluation_sha256=str(
+                evaluation.get("evaluation_sha256")
+                if isinstance(evaluation, dict)
+                else ""
+            ),
+            exact_identity=exact_identity,
+            promotion_qualified=promotion_qualified,
+            predecessor_pointer_sha256=predecessor_pointer_sha256,
+            identity_transition_sha256=identity_transition_sha256,
+            identity_transition_verified=identity_transition_verified,
+            _artifact_descriptor_json=_canonical_contract_json(descriptor),
+            _serving_profile_json=_canonical_contract_json(
+                serving if isinstance(serving, dict) else None
+            ),
+            _migration_contract_json=_canonical_contract_json(
+                migration if isinstance(migration, dict) else None
+            ),
+        )
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.error("Active cortex pointer is invalid: %s", exc)
+        return None
+
+
+def get_active_cortex_spec(*, force_refresh: bool = False) -> ActiveCortexSpec | None:
+    """Return the single validated active-cortex authority object."""
+    global _active_cortex_spec_cache
+    manifest = get_fused_model_root() / "active.json"
+    now = time.monotonic()
+    cached = _active_cortex_spec_cache
+    if (
+        not force_refresh
+        and cached is not None
+        and cached[1] == manifest
+        and (now - cached[0]) < _ACTIVE_CORTEX_SPEC_TTL_S
+    ):
+        return cached[2]
+    observed = _read_active_cortex_spec(manifest)
+    _active_cortex_spec_cache = (now, manifest, observed)
+    return observed
+
+
+def read_active_cortex_spec(manifest_path: str | Path) -> ActiveCortexSpec | None:
+    """Validate one explicit pointer without consulting process-global roots."""
+
+    return _read_active_cortex_spec(Path(manifest_path).expanduser())
+
+
 PRIMARY_ENDPOINT = "Cortex"
 DEEP_ENDPOINT = "Solver"
 BRAINSTEM_ENDPOINT = "Brainstem"
@@ -253,29 +534,8 @@ def _resolve_active_fused_model() -> str | None:
     editing .env. An explicit AURA_LLM__MLX_MODEL_PATH still wins, so
     operators can pin a specific build for diagnostics.
     """
-    manifest = get_fused_model_root() / "active.json"
-    try:
-        if not manifest.exists():
-            return None
-        data = json.loads(manifest.read_text())
-        path = str(data.get("active_model_path") or "").strip()
-        if not path:
-            return None
-        if not Path(path).exists():
-            return None
-        if int(data.get("schema_version") or 0) >= 3:
-            from core.brain.llm.model_artifact_profile import (
-                validate_model_artifact_descriptor,
-            )
-
-            descriptor = data.get("artifact_descriptor")
-            if not isinstance(descriptor, dict):
-                logger.error("Active cortex schema v3 has no artifact descriptor")
-                return None
-            validate_model_artifact_descriptor(descriptor, model_path=path)
-        return path
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return None
+    spec = get_active_cortex_spec()
+    return str(spec.model_path) if spec is not None else None
 
 
 def get_active_model_artifact_descriptor(
@@ -288,30 +548,17 @@ def get_active_model_artifact_descriptor(
     actually loaded; a same-width but different checkpoint is not compatible.
     """
 
-    manifest = get_fused_model_root() / "active.json"
+    spec = get_active_cortex_spec()
+    if spec is None or not spec.exact_identity:
+        return None
     try:
-        payload = json.loads(manifest.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict) or int(payload.get("schema_version") or 0) < 3:
-            return None
-        descriptor = payload.get("artifact_descriptor")
-        if not isinstance(descriptor, dict):
-            raise ValueError("active_model_descriptor_missing")
-        active_path = str(payload.get("active_model_path") or "").strip()
-        requested = Path(model_path or active_path).expanduser().resolve(strict=True)
-        active = Path(active_path).expanduser().resolve(strict=True)
-        if requested != active:
-            raise ValueError("active_model_descriptor_path_mismatch")
-        from core.brain.llm.model_artifact_profile import (
-            validate_model_artifact_descriptor,
-        )
-
-        validate_model_artifact_descriptor(descriptor, model_path=active)
-        return copy.deepcopy(descriptor)
-    except FileNotFoundError:
+        requested = Path(model_path or spec.model_path).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError):
         return None
-    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        logger.error("Active cortex artifact descriptor is invalid: %s", exc)
+    if requested != spec.model_path:
+        logger.error("Active cortex artifact descriptor path mismatch: %s", requested)
         return None
+    return spec.artifact_descriptor()
 
 
 _CORTEX_NAME = "Qwen2.5-32B-Instruct-8bit"
@@ -880,8 +1127,9 @@ _LANE_AUDIT_CACHE: dict[str, Any] = {"key": None, "at": 0.0, "result": None}
 
 
 def reset_model_registry_caches_for_test() -> None:
-    global _EXTERNAL_CORTEX_QUERIED, _cortex_path_cache
+    global _EXTERNAL_CORTEX_QUERIED, _active_cortex_spec_cache, _cortex_path_cache
     _EXTERNAL_CORTEX_QUERIED = False
+    _active_cortex_spec_cache = None
     _cortex_path_cache = None
     get_model_context_window.cache_clear()
     with _LANE_AUDIT_CACHE_LOCK:

@@ -51784,3 +51784,46 @@ Next: classify every existing model-bound tissue artifact against the candidate
 descriptor, reuse only architecture-independent data and recipes, build the
 candidate-native identity/steering/recurrent components, and run serving and
 live-user qualification before staging or changing the active pointer.
+
+## Checkpoint 2026-08-22-912: Give the Active Cortex One Exact Identity
+
+CP912 removes the split authority between a loosely named active model and the
+exact artifact contracts used for cortex promotion. It does not activate the
+Qwen3.8 candidate. Aura's active path remains on the fused Qwen2.5-32B
+incumbent.
+
+- The model registry now exposes one immutable `ActiveCortexSpec`. It validates
+  the active directory, exact artifact descriptor, serving profile, migration
+  contract and evaluation receipt before any subsystem can claim a qualified
+  promotion. Callers receive fresh contract values and cannot mutate the
+  registry's cached authority object.
+- Legacy pointers still resolve for rollback continuity, but they cannot claim
+  exact representation identity. A schema-3 pointer with only part of its
+  promotion bundle fails closed instead of appearing partly qualified.
+- Upgrade planning, staging, activation, rollback, CLI status and runtime model
+  selection now share the configured fused-model root. A worktree can no longer
+  plan against one promotion tree while the live runtime reads another.
+- The incumbent pointer was normalized in place after a full artifact rehash.
+  The active model path did not change. Its previous pointer bytes are retained
+  at `active.json.identity-backup`, and the governed receipt is stored under
+  `artifacts/closeout/cortex_upgrade/cp912/`.
+- Identity normalization carries a digest-bound predecessor transition. The
+  bounded-WOW loader accepts that narrow transition only after the central
+  registry proves the backup bytes, complete predecessor payload, active path
+  and exact model descriptor still agree. Any additional pointer change keeps
+  the surface dark. The original CP568 activation and CP566 evidence were not
+  resealed; the proven semantic surface remained valid because the model did
+  not change.
+
+The exact incumbent descriptor remains
+`b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054`.
+The focused promotion and registry set passes `47/47`; the positive and
+negative active-pointer subset passes `10/10`; the bounded-WOW live alarm passes
+`5/5` with one diagnostic skip; canonical smoke passes `121/121` with one
+environment-dependent skip. Ruff, compilation, layering and diff hygiene pass.
+The aggregate governance gate remains blocked only by the pre-existing
+ownership-baseline move between `core/diagnosis/repository.py` and
+`core/diagnosis/experiment.py`, neither touched here. Next: measure the Qwen3.8
+candidate's serving envelope and prepare
+candidate-native persona/CRSM, steering and recurrent tissue in independent
+lanes. Old same-width steering and trained model-facing deltas remain invalid.

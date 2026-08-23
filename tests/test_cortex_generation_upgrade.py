@@ -3,7 +3,7 @@
 The pipeline's promises, proven on real machinery:
 - the capability battery runs real decodes and DISCRIMINATES (a sabotaged
   model scores measurably worse than its healthy twin);
-- the comparison verdict demands breadth wins without reasoning losses;
+- the comparison verdict demands a Pareto gain without either-axis regression;
 - the memory guard refuses candidates the host cannot afford;
 - staging writes a byte-exact rollback and changes nothing live;
 - activation is impossible without operator authorization + PASS verdict;
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -26,16 +27,18 @@ from core.brain.llm.model_artifact_profile import (  # noqa: E402
     build_model_serving_profile,
 )
 from core.learning.cortex_generation_upgrade import (  # noqa: E402
+    IDENTITY_BACKUP_POINTER_NAME,
     ROLLBACK_POINTER_NAME,
     STAGED_POINTER_NAME,
     MemoryGuard,
+    _answer_matches,
+    _greedy_decode,
     activate_upgrade,
     build_migration_contract,
     build_migration_plan,
     capability_battery,
     compare_batteries,
-    _answer_matches,
-    _greedy_decode,
+    normalize_active_pointer_identity,
     rollback_upgrade,
     stage_upgrade,
 )
@@ -446,6 +449,44 @@ def _upgrade_contracts(candidate, *, repository_id="", revision=""):
         },
     )
     return descriptor, evaluation, serving, migration
+
+
+def test_active_identity_normalization_is_exact_idempotent_and_model_preserving(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, _candidate = _fused_dir(tmp_path)
+    original = (fused / "active.json").read_bytes()
+    active = Path(json.loads(original)["active_model_path"])
+    descriptor = build_model_artifact_descriptor(active)
+
+    first = normalize_active_pointer_identity(
+        artifact_descriptor=descriptor,
+        fused_model_dir=fused,
+    )
+    normalized = json.loads((fused / "active.json").read_text())
+
+    assert first["changed"] is True
+    assert normalized["schema_version"] == 3
+    assert normalized["active_model_path"] == str(active)
+    assert normalized["artifact_descriptor"] == descriptor
+    assert normalized["identity_transition"] == {
+        "schema": "aura.cortex_upgrade.identity_transition.v1",
+        "kind": "model_identity_normalization",
+        "previous_pointer_sha256": hashlib.sha256(original).hexdigest(),
+        "active_model_path": str(active),
+        "model_descriptor_sha256": descriptor["descriptor_sha256"],
+        "transition_sha256": first["identity_transition_sha256"],
+    }
+    assert (fused / IDENTITY_BACKUP_POINTER_NAME).read_bytes() == original
+
+    second = normalize_active_pointer_identity(
+        artifact_descriptor=descriptor,
+        fused_model_dir=fused,
+    )
+    assert second["changed"] is False
+    assert second["after_sha256"] == first["after_sha256"]
 
 
 def test_stage_writes_rollback_and_changes_nothing_live(tmp_path, monkeypatch):

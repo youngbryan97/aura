@@ -1,0 +1,12 @@
+{
+ "active_model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+ "after_sha256": "661b408466590d903e3a4d6568c7596fcb0550e6b81297f0fc58e55df8bd0c85",
+ "backup_path": "/Users/bryan/.aura/live-source/training/fused-model/active.json.identity-backup",
+ "before_sha256": "3854276346b5437db5a02c685b085ea800b686c266ca12d1529e3b6e93202806",
+ "changed": true,
+ "identity_transition_sha256": "923a7e9b797b6b2da8c66fbff621ce53229d49847cc3edd5d3da605cc2e5cbac",
+ "model_descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+ "normalized_at": 1787462079.1986198,
+ "predecessor_pointer_sha256": "05b4a40e57251651b2c31a99390c6babb69fe57862e702112e6ac574c8a6b83f",
+ "schema": "aura.cortex_upgrade.identity_normalization.v1"
+}

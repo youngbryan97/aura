@@ -40,9 +40,10 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.brain.llm.model_artifact_profile import (
     build_model_artifact_descriptor,
@@ -59,6 +60,8 @@ MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
 MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v1"
 STAGING_SCHEMA = "aura.cortex_upgrade.staging.v2"
 ACTIVATION_SCHEMA = "aura.cortex_upgrade.activation.v2"
+IDENTITY_NORMALIZATION_SCHEMA = "aura.cortex_upgrade.identity_normalization.v1"
+IDENTITY_TRANSITION_SCHEMA = "aura.cortex_upgrade.identity_transition.v1"
 
 _REQUIRED_CRITICAL_GATES = frozenset(
     {
@@ -76,6 +79,7 @@ _REQUIRED_MIGRATION_COMPONENTS = frozenset(
 
 STAGED_POINTER_NAME = "active.json.staged"
 ROLLBACK_POINTER_NAME = "active.json.rollback"
+IDENTITY_BACKUP_POINTER_NAME = "active.json.identity-backup"
 
 # Memory guard: candidate projected RSS = on-disk weight bytes × this factor
 # (activation buffers, cache); the host must retain this many GB free AFTER
@@ -583,9 +587,9 @@ def build_migration_plan(
     Each step names its lane; nothing here pretends migration is a copy.
     """
     if fused_model_dir is None:
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_registry import get_fused_model_root
 
-        fused_model_dir = Path(BASE_DIR) / "training" / "fused-model"
+        fused_model_dir = get_fused_model_root()
     if data_dir is None:
         from core.config import DATA_DIR
 
@@ -759,6 +763,18 @@ def _validate_evaluation(
     return evaluation
 
 
+def validate_upgrade_evaluation(
+    evaluation: dict[str, object],
+    *,
+    descriptor_sha256: str,
+) -> dict[str, object]:
+    """Public exact-receipt validator used by the central cortex registry."""
+    return _validate_evaluation(
+        evaluation,
+        descriptor_sha256=descriptor_sha256,
+    )
+
+
 def _validate_migration_contract(
     contract: dict[str, object],
     descriptor: dict[str, object],
@@ -818,6 +834,14 @@ def _validate_migration_contract(
     return contract
 
 
+def validate_migration_contract(
+    contract: dict[str, object],
+    descriptor: dict[str, object],
+) -> dict[str, object]:
+    """Public exact-basis validator used by the central cortex registry."""
+    return _validate_migration_contract(contract, descriptor)
+
+
 def _read_pointer(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or "active_model_path" not in payload:
@@ -835,6 +859,110 @@ def _governed_write(path: Path, payload: bytes, *, source: str) -> None:
         gateway.write_bytes(path, payload, source=source)
 
 
+def normalize_active_pointer_identity(
+    *,
+    artifact_descriptor: dict[str, Any],
+    fused_model_dir: Path | str | None = None,
+) -> dict[str, Any]:
+    """Upgrade the current pointer to exact schema 3 without changing its model.
+
+    This is an identity migration, not a cortex promotion.  The original bytes
+    are retained once, the descriptor is fully re-hashed against the already
+    active artifact, and every existing pointer field is preserved.
+    """
+    if fused_model_dir is None:
+        from core.brain.llm.model_registry import get_fused_model_root
+
+        fused_model_dir = get_fused_model_root()
+    fused_model_dir = Path(fused_model_dir)
+    pointer_path = fused_model_dir / "active.json"
+    current_bytes = pointer_path.read_bytes()
+    current = _read_pointer(pointer_path)
+    active = Path(str(current["active_model_path"])).expanduser().resolve(strict=True)
+    validate_model_artifact_descriptor(
+        artifact_descriptor,
+        model_path=active,
+        verify_full_hash=True,
+    )
+
+    backup_path = fused_model_dir / IDENTITY_BACKUP_POINTER_NAME
+    if backup_path.exists():
+        predecessor_bytes = backup_path.read_bytes()
+        predecessor = json.loads(predecessor_bytes)
+        if not isinstance(predecessor, dict):
+            raise ValueError("active_pointer_identity_backup_invalid")
+        stripped_current = dict(current)
+        stripped_current.pop("artifact_descriptor", None)
+        stripped_current.pop("identity_transition", None)
+        stripped_current["schema_version"] = predecessor.get("schema_version")
+        if stripped_current != predecessor:
+            raise ValueError("active_pointer_identity_transition_not_narrow")
+    else:
+        predecessor_bytes = current_bytes
+        predecessor = dict(current)
+
+    predecessor_raw_path = str(predecessor.get("active_model_path") or "").strip()
+    if not predecessor_raw_path:
+        raise ValueError("active_pointer_identity_backup_model_missing")
+    predecessor_active = Path(predecessor_raw_path).expanduser().resolve(strict=True)
+    if predecessor_active != active:
+        raise ValueError("active_pointer_identity_backup_model_mismatch")
+
+    predecessor_sha256 = hashlib.sha256(predecessor_bytes).hexdigest()
+    transition: dict[str, object] = {
+        "schema": IDENTITY_TRANSITION_SCHEMA,
+        "kind": "model_identity_normalization",
+        "previous_pointer_sha256": predecessor_sha256,
+        "active_model_path": str(active),
+        "model_descriptor_sha256": artifact_descriptor["descriptor_sha256"],
+    }
+    transition["transition_sha256"] = _receipt_digest(
+        transition,
+        digest_key="transition_sha256",
+    )
+
+    existing = current.get("artifact_descriptor")
+    if existing is not None and existing != artifact_descriptor:
+        raise ValueError("active_pointer_descriptor_conflict")
+    existing_transition = current.get("identity_transition")
+    if existing_transition is not None and existing_transition != transition:
+        raise ValueError("active_pointer_identity_transition_conflict")
+
+    normalized = dict(predecessor)
+    normalized["schema_version"] = 3
+    normalized["artifact_descriptor"] = artifact_descriptor
+    normalized["identity_transition"] = transition
+    normalized_bytes = (
+        json.dumps(normalized, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    changed = normalized_bytes != current_bytes
+    if changed:
+        if not backup_path.exists():
+            _governed_write(
+                backup_path,
+                predecessor_bytes,
+                source="cortex_upgrade.normalize_identity_backup",
+            )
+        _governed_write(
+            pointer_path,
+            normalized_bytes,
+            source="cortex_upgrade.normalize_identity",
+        )
+
+    return {
+        "schema": IDENTITY_NORMALIZATION_SCHEMA,
+        "active_model_path": str(active),
+        "model_descriptor_sha256": artifact_descriptor["descriptor_sha256"],
+        "predecessor_pointer_sha256": predecessor_sha256,
+        "identity_transition_sha256": transition["transition_sha256"],
+        "before_sha256": hashlib.sha256(current_bytes).hexdigest(),
+        "after_sha256": hashlib.sha256(normalized_bytes).hexdigest(),
+        "backup_path": str(backup_path),
+        "changed": changed,
+        "normalized_at": time.time(),
+    }
+
+
 def stage_upgrade(
     *,
     candidate_model_path: Path | str,
@@ -848,9 +976,9 @@ def stage_upgrade(
 ) -> dict[str, Any]:
     """Write an identity-bound staged pointer and byte-exact rollback."""
     if fused_model_dir is None:
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_registry import get_fused_model_root
 
-        fused_model_dir = Path(BASE_DIR) / "training" / "fused-model"
+        fused_model_dir = get_fused_model_root()
     fused_model_dir = Path(fused_model_dir)
     candidate = Path(candidate_model_path).expanduser()
     if not candidate.is_dir():
@@ -941,9 +1069,9 @@ def activate_upgrade(
             "cortex activation requires a PASS capability-comparison verdict"
         )
     if fused_model_dir is None:
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_registry import get_fused_model_root
 
-        fused_model_dir = Path(BASE_DIR) / "training" / "fused-model"
+        fused_model_dir = get_fused_model_root()
     fused_model_dir = Path(fused_model_dir)
     staged_path = fused_model_dir / STAGED_POINTER_NAME
     rollback_path = fused_model_dir / ROLLBACK_POINTER_NAME
@@ -1013,9 +1141,9 @@ def activate_upgrade(
 def rollback_upgrade(*, fused_model_dir: Path | str | None = None) -> dict[str, Any]:
     """Restore the rollback pointer byte-exactly, verified by digest."""
     if fused_model_dir is None:
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_registry import get_fused_model_root
 
-        fused_model_dir = Path(BASE_DIR) / "training" / "fused-model"
+        fused_model_dir = get_fused_model_root()
     fused_model_dir = Path(fused_model_dir)
     rollback_path = fused_model_dir / ROLLBACK_POINTER_NAME
     if not rollback_path.is_file():
@@ -1050,6 +1178,9 @@ __all__ = [
     "BREADTH_PROBES",
     "EVALUATION_SCHEMA",
     "EVALUATION_PROGRESS_SCHEMA",
+    "IDENTITY_BACKUP_POINTER_NAME",
+    "IDENTITY_NORMALIZATION_SCHEMA",
+    "IDENTITY_TRANSITION_SCHEMA",
     "MIGRATION_CONTRACT_SCHEMA",
     "MIGRATION_PLAN_SCHEMA",
     "MemoryGuard",
@@ -1062,6 +1193,9 @@ __all__ = [
     "build_migration_plan",
     "capability_battery",
     "compare_batteries",
+    "normalize_active_pointer_identity",
     "rollback_upgrade",
     "stage_upgrade",
+    "validate_migration_contract",
+    "validate_upgrade_evaluation",
 ]

@@ -23,6 +23,8 @@ running mind is never hot-swapped.
         --serving-qualification artifacts/current/cortex_upgrade/serving_qualification.json \
         --migration-components artifacts/current/cortex_upgrade/migration_components.json
     .venv/bin/python tools/cortex_generation_upgrade.py plan
+    .venv/bin/python tools/cortex_generation_upgrade.py normalize-active \
+        --descriptor artifacts/current/cortex_upgrade/artifact_descriptor_current.json
     .venv/bin/python tools/cortex_generation_upgrade.py stage \
         --candidate ~/models/Qwen3.8-27B-4bit --base Qwen3.8-27B --tag qwen3.8 \
         --descriptor artifacts/current/cortex_upgrade/artifact_descriptor.json \
@@ -320,6 +322,22 @@ def cmd_plan(args) -> int:
     return 0
 
 
+def cmd_normalize_active(args) -> int:
+    from core.learning.cortex_generation_upgrade import (
+        normalize_active_pointer_identity,
+    )
+
+    descriptor = json.loads(Path(args.descriptor).read_text(encoding="utf-8"))
+    if not isinstance(descriptor, dict):
+        raise ValueError("descriptor_must_be_json_object")
+    receipt = normalize_active_pointer_identity(
+        artifact_descriptor=descriptor,
+        fused_model_dir=args.fused_root or None,
+    )
+    _write(Path(args.out), "identity_normalization.json", receipt)
+    return 0
+
+
 def cmd_stage(args) -> int:
     from core.learning.cortex_generation_upgrade import stage_upgrade
 
@@ -361,13 +379,13 @@ def cmd_rollback(args) -> int:
 
 
 def cmd_status(args) -> int:
-    from core.brain.llm.model_registry import BASE_DIR
+    from core.brain.llm.model_registry import get_fused_model_root
     from core.learning.cortex_generation_upgrade import (
         ROLLBACK_POINTER_NAME,
         STAGED_POINTER_NAME,
     )
 
-    fused = Path(BASE_DIR) / "training" / "fused-model"
+    fused = get_fused_model_root()
     status = {
         "active": json.loads((fused / "active.json").read_text())
         if (fused / "active.json").is_file()
@@ -418,6 +436,12 @@ def main() -> int:
     plan = sub.add_parser("plan")
     plan.add_argument("--out", default="artifacts/current/cortex_upgrade")
     plan.set_defaults(func=cmd_plan)
+
+    normalize_active = sub.add_parser("normalize-active")
+    normalize_active.add_argument("--descriptor", required=True)
+    normalize_active.add_argument("--fused-root", default="")
+    normalize_active.add_argument("--out", default="artifacts/current/cortex_upgrade")
+    normalize_active.set_defaults(func=cmd_normalize_active)
 
     stage = sub.add_parser("stage")
     stage.add_argument("--candidate", required=True)
