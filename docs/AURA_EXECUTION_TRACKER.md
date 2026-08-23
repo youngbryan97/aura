@@ -51920,3 +51920,30 @@ ownership, layering and diff hygiene pass. Next: launch and adjudicate this
 exact committed Qwen3.8 canary, use its measured loss/memory/throughput to
 derive the bounded adaptive schedule, then train and independently evaluate
 candidate-native tissue.
+
+## Checkpoint 2026-08-23-915: Preserve the Training Environment, Not Just Its Binary
+
+The first contained CP914 canary attempt failed in 1.5 seconds before importing
+MLX or changing any weight. Its plan had resolved the requested virtualenv
+launcher to Homebrew's bare Python binary. Although the executable bytes were
+correct, Python therefore lost virtualenv discovery and could not import the
+declared runtime dependencies.
+
+- Candidate training plans now retain the exact launcher invocation path and
+  independently bind its resolved binary, file type, mode, symlink target and
+  `pyvenv.cfg`. Plan reload rejects drift in any of those surfaces.
+- The same launcher contract covers an absolute admission executable. A
+  virtualenv cannot silently become a different Python environment between
+  planning, canary execution and later admission.
+- The plan schema advances to v2. Failed v1 attempts cannot be resumed as if
+  they had executed under the repaired environment.
+- A focused contract proves that the emitted MLX command invokes the virtualenv
+  launcher, that the environment marker is recorded, and that mutating it
+  invalidates the plan.
+
+Focused candidate-training contracts pass `14/14`; canonical smoke passes
+`121/121` with one environment-dependent skip. Ruff, compilation, governance
+ownership, layering and diff hygiene pass. No model was loaded and no optimizer
+step ran in the rejected attempt. Next: launch the ten-update resource canary
+from a fresh source-bound CP915 worktree, while the primary worktree builds the
+deterministic candidate admission and adaptive-stage custody path.

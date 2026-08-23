@@ -76,12 +76,13 @@ def _dataset(tmp_path: Path, descriptor: Path, descriptor_sha: str) -> Path:
 def _plan(tmp_path: Path, **kwargs: Any) -> dict[str, Any]:
     descriptor, descriptor_sha = _descriptor(tmp_path)
     receipt = _dataset(tmp_path, descriptor, descriptor_sha)
+    python_executable = kwargs.pop("python_executable", Path(sys.executable))
     return training.prepare_training_run(
         descriptor_path=descriptor,
         expected_descriptor_sha256=descriptor_sha,
         dataset_receipt_path=receipt,
         output_root=tmp_path / "runs",
-        python_executable=Path(sys.executable),
+        python_executable=python_executable,
         admission_command=(sys.executable, "admit.py"),
         verify_full_model=False,
         **kwargs,
@@ -242,7 +243,7 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
     plan = _plan(tmp_path, config=config)
     command = training.build_stage_command(plan, stage_index=0, resume_checkpoint=None)
     assert command[:4] == (
-        str(Path(sys.executable).resolve()),
+        str(Path(sys.executable).absolute()),
         "-m",
         "mlx_lm",
         "lora",
@@ -270,6 +271,34 @@ def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
     }
 
 
+def test_venv_launcher_and_environment_are_preserved_and_reverified(
+    tmp_path: Path,
+) -> None:
+    venv = tmp_path / "isolated"
+    launcher = venv / "bin" / "python"
+    launcher.parent.mkdir(parents=True)
+    launcher.symlink_to(Path(sys.executable))
+    pyvenv = venv / "pyvenv.cfg"
+    pyvenv.write_text("home = /frozen/python\n", encoding="ascii")
+
+    plan_root = tmp_path / "plan"
+    plan_root.mkdir()
+    plan = _plan(plan_root, python_executable=launcher)
+    assert plan["python"] == str(launcher)
+    assert plan["python_binding"]["invocation_kind"] == "symlink"
+    assert plan["python_binding"]["pyvenv"]["path"] == str(pyvenv)
+    assert training.build_canary_command(plan)[0] == str(launcher)
+    training.load_and_verify_plan(Path(plan["paths"]["run_root"]), verify_full_model=False)
+
+    pyvenv.write_text("home = /mutated/python\n", encoding="ascii")
+    with pytest.raises(
+        training.CandidateCortexTrainingError,
+        match="python_executable_binding_drift",
+    ):
+        training.load_and_verify_plan(
+            Path(plan["paths"]["run_root"]),
+            verify_full_model=False,
+        )
 def test_journal_tamper_and_adapter_identity_drift_fail_closed(tmp_path: Path) -> None:
     plan = _plan(tmp_path)
     journal = Path(plan["paths"]["journal"])

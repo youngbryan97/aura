@@ -31,7 +31,7 @@ from core.learning.candidate_cortex_kernel import (
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.file_write_gateway import get_file_write_gateway
 
-PLAN_SCHEMA: Final = "aura.candidate_cortex_training.plan.v1"
+PLAN_SCHEMA: Final = "aura.candidate_cortex_training.plan.v2"
 DATASET_SCHEMA: Final = KERNEL_RECEIPT_SCHEMA
 JOURNAL_EVENT_SCHEMA: Final = "aura.candidate_cortex_training.journal_event.v1"
 OBSERVATION_SCHEMA: Final = "aura.candidate_cortex_training.stage_observation.v1"
@@ -131,6 +131,60 @@ def file_sha256(path: Path) -> str:
     except OSError as exc:
         raise CandidateCortexTrainingError("bound_file_unreadable") from exc
     return digest.hexdigest()
+
+
+def _launcher_binding(path: Path) -> dict[str, Any]:
+    """Bind an executable without erasing virtual-environment selection.
+
+    Python discovers ``pyvenv.cfg`` from the launcher path. Resolving a venv's
+    ``bin/python`` symlink before execution therefore changes the environment,
+    even when the target binary bytes are identical. Keep the invocation path
+    and independently freeze the target and environment marker.
+    """
+
+    launcher = path.expanduser().absolute()
+    try:
+        launcher_stat = launcher.lstat()
+        resolved = launcher.resolve(strict=True)
+    except OSError as exc:
+        raise CandidateCortexTrainingError("python_executable_unavailable") from exc
+    if not (stat.S_ISREG(launcher_stat.st_mode) or stat.S_ISLNK(launcher_stat.st_mode)):
+        _fail("python_executable_invalid")
+    if not resolved.is_file() or not os.access(launcher, os.X_OK):
+        _fail("python_executable_invalid")
+    pyvenv_path = launcher.parent.parent / "pyvenv.cfg"
+    pyvenv: dict[str, Any] | None = None
+    if pyvenv_path.exists() or pyvenv_path.is_symlink():
+        if pyvenv_path.is_symlink() or not pyvenv_path.is_file():
+            _fail("python_environment_invalid")
+        pyvenv = {
+            "path": str(pyvenv_path),
+            "sha256": file_sha256(pyvenv_path),
+            "size_bytes": pyvenv_path.stat().st_size,
+        }
+    body = {
+        "invocation_path": str(launcher),
+        "invocation_kind": (
+            "symlink" if stat.S_ISLNK(launcher_stat.st_mode) else "file"
+        ),
+        "invocation_mode": stat.S_IMODE(launcher_stat.st_mode),
+        "symlink_target": (
+            os.readlink(launcher) if stat.S_ISLNK(launcher_stat.st_mode) else None
+        ),
+        "resolved_path": str(resolved),
+        "resolved_sha256": file_sha256(resolved),
+        "pyvenv": pyvenv,
+    }
+    return {**body, "binding_sha256": document_sha256(body)}
+
+
+def _verify_launcher_binding(raw: Mapping[str, Any], path: Path) -> dict[str, Any]:
+    if not isinstance(raw, Mapping):
+        _fail("python_executable_binding_missing")
+    current = _launcher_binding(path)
+    if dict(raw) != current:
+        _fail("python_executable_binding_drift")
+    return current
 
 
 def _strict_json(path: Path, *, role: str) -> dict[str, Any]:
@@ -436,18 +490,9 @@ def _admission_command_identity(command: Sequence[str]) -> dict[str, Any]:
         _fail("admission_command_invalid")
     executable = Path(command[0]).expanduser()
     if executable.is_absolute():
-        try:
-            resolved = executable.resolve(strict=True)
-        except OSError as exc:
-            raise CandidateCortexTrainingError("admission_executable_unavailable") from exc
-        if not resolved.is_file() or resolved.is_symlink():
-            _fail("admission_executable_invalid")
-        executable_binding: dict[str, Any] = {
-            "path": str(resolved),
-            "sha256": file_sha256(resolved),
-        }
+        executable_binding: dict[str, Any] = _launcher_binding(executable)
     else:
-        executable_binding = {"path": command[0], "sha256": None}
+        executable_binding = {"invocation_path": command[0], "binding_sha256": None}
     return {"argv": list(command), "executable": executable_binding}
 
 
@@ -481,12 +526,8 @@ def prepare_training_run(
         dataset_receipt_path,
         expected_descriptor_sha256=expected_descriptor_sha256,
     )
-    try:
-        python = python_executable.expanduser().resolve(strict=True)
-    except OSError as exc:
-        raise CandidateCortexTrainingError("python_executable_unavailable") from exc
-    if not python.is_file() or python.is_symlink() or not os.access(python, os.X_OK):
-        _fail("python_executable_invalid")
+    python_binding = _launcher_binding(python_executable)
+    python = Path(str(python_binding["invocation_path"]))
     admission = _admission_command_identity(admission_command)
     identity_material = {
         "model_descriptor_sha256": expected_descriptor_sha256,
@@ -494,7 +535,7 @@ def prepare_training_run(
         "training": asdict(config),
         "stages": asdict(policy),
         "canary": asdict(canary_policy),
-        "python": str(python),
+        "python": python_binding,
         "admission": admission,
     }
     run_id = document_sha256(identity_material)[:24]
@@ -542,6 +583,7 @@ def prepare_training_run(
         "stages": asdict(policy),
         "canary": asdict(canary_policy),
         "python": str(python),
+        "python_binding": python_binding,
         "admission": admission,
         "paths": paths,
         "supervision": {
@@ -611,6 +653,19 @@ def load_and_verify_plan(
     for value in paths.values():
         if not _within(Path(str(value)), root) and value != paths.get("data_root"):
             _fail("training_plan_path_escape")
+    _verify_launcher_binding(
+        plan.get("python_binding"),
+        Path(str(plan.get("python") or "")),
+    )
+    admission = plan.get("admission")
+    if not isinstance(admission, Mapping):
+        _fail("admission_command_invalid")
+    admission_argv = admission.get("argv")
+    if not isinstance(admission_argv, list) or not admission_argv:
+        _fail("admission_command_invalid")
+    admission_executable = Path(str(admission_argv[0])).expanduser()
+    if admission_executable.is_absolute():
+        _verify_launcher_binding(admission.get("executable"), admission_executable)
     validate_candidate_descriptor(
         Path(str(model.get("descriptor_path"))),
         expected_descriptor_sha256=str(model.get("descriptor_sha256")),
