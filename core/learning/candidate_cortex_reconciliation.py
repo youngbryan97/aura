@@ -20,6 +20,7 @@ from core.learning.recurrent_sft_behavior_canaries import (
 )
 
 DETAIL_SCHEMA: Final = "aura.candidate_cortex_training.checkpoint_measurement_detail.v1"
+DETAIL_SCHEMA_V2: Final = "aura.candidate_cortex_training.checkpoint_measurement_detail.v2"
 
 
 class CandidateCortexReconciliationError(ValueError):
@@ -55,11 +56,14 @@ def _validate_detail(
         "evidence_sha256",
         "detail_sha256",
     }
+    schema = detail.get("schema")
+    if schema == DETAIL_SCHEMA_V2:
+        required.add("measurement_contract_sha256")
     material = dict(detail)
     claimed = material.pop("detail_sha256", None)
     if (
         set(detail) != required
-        or detail.get("schema") != DETAIL_SCHEMA
+        or schema not in {DETAIL_SCHEMA, DETAIL_SCHEMA_V2}
         or detail.get("plan_sha256") != plan.get("plan_sha256")
         or detail.get("stage_index") != stage_index
         or claimed != document_sha256(material)
@@ -67,7 +71,11 @@ def _validate_detail(
         _fail("reconciliation_detail_invalid")
     for role in ("persona_rows", "retention_rows", "baseline_behavior", "candidate_behavior"):
         rows = detail.get(role)
-        if not isinstance(rows, list) or not rows or any(not isinstance(row, Mapping) for row in rows):
+        if (
+            not isinstance(rows, list)
+            or not rows
+            or any(not isinstance(row, Mapping) for row in rows)
+        ):
             _fail("reconciliation_detail_rows_invalid")
     return dict(detail)
 
@@ -191,6 +199,14 @@ def reconcile_preserved_measurement(
         list(validated["baseline_behavior"]),
         list(validated["candidate_behavior"]),
     )
+    baseline_binding = (
+        {
+            "measurement_contract_sha256": str(validated["measurement_contract_sha256"]),
+            "baseline_sha256": str(validated["baseline_sha256"]),
+        }
+        if validated["schema"] == DETAIL_SCHEMA_V2
+        else {}
+    )
     rebuilt_original = compile_checkpoint_evidence(
         plan=plan,
         stage_index=stage_index,
@@ -198,6 +214,7 @@ def reconcile_preserved_measurement(
         persona_rows=list(validated["persona_rows"]),
         retention_rows=list(validated["retention_rows"]),
         behavior_rows=old_behavior,
+        **baseline_binding,
     )
     if rebuilt_original != dict(original_evidence):
         _fail("reconciliation_original_replay_mismatch")
@@ -218,6 +235,7 @@ def reconcile_preserved_measurement(
         persona_rows=list(validated["persona_rows"]),
         retention_rows=list(validated["retention_rows"]),
         behavior_rows=_paired_behavior(baseline, candidate),
+        **baseline_binding,
     )
     admission = adjudicate_checkpoint_evidence(
         corrected_evidence,

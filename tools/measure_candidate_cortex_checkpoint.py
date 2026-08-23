@@ -7,7 +7,8 @@ import argparse
 import gc
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -38,9 +39,14 @@ from core.learning.recurrent_sft_behavior_canaries import (  # noqa: E402
 from core.learning.recurrent_sft_retention import build_retention_rows  # noqa: E402
 from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
 from core.runtime.model_lane_control import standalone_model_lane  # noqa: E402
+from core.runtime.secure_path_custody import (  # noqa: E402
+    DirectoryCustody,
+    SecurePathCustodyError,
+)
 
-DETAIL_SCHEMA = "aura.candidate_cortex_training.checkpoint_measurement_detail.v1"
+DETAIL_SCHEMA = "aura.candidate_cortex_training.checkpoint_measurement_detail.v2"
 BASELINE_SCHEMA = "aura.candidate_cortex_training.baseline_measurement.v1"
+_BASELINE_GENERATIONS_DIR = "baseline-measurements"
 _MAX_JSONL_BYTES = 64 * 1024 * 1024
 _GENERATION_TOKENS = 160
 
@@ -49,11 +55,7 @@ def _fail(code: str) -> None:
     raise CandidateCortexMeasurementError(code)
 
 
-def _strict_json(path: Path, *, max_bytes: int = 16 * 1024 * 1024) -> Any:
-    resolved = path.expanduser().resolve(strict=True)
-    if resolved.is_symlink() or not resolved.is_file():
-        _fail("measurement_input_not_regular")
-    raw = resolved.read_bytes()
+def _strict_json_bytes(raw: bytes, *, max_bytes: int = 16 * 1024 * 1024) -> Any:
     if not raw or len(raw) > max_bytes:
         _fail("measurement_input_size_invalid")
 
@@ -61,6 +63,13 @@ def _strict_json(path: Path, *, max_bytes: int = 16 * 1024 * 1024) -> Any:
         return json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicates)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CandidateCortexMeasurementError("measurement_input_json_invalid") from exc
+
+
+def _strict_json(path: Path, *, max_bytes: int = 16 * 1024 * 1024) -> Any:
+    resolved = path.expanduser().resolve(strict=True)
+    if resolved.is_symlink() or not resolved.is_file():
+        _fail("measurement_input_not_regular")
+    return _strict_json_bytes(resolved.read_bytes(), max_bytes=max_bytes)
 
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
@@ -75,9 +84,7 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
         if not line:
             _fail("measurement_jsonl_blank_line")
         try:
-            value = json.loads(
-                line.decode("utf-8"), object_pairs_hook=_reject_duplicates
-            )
+            value = json.loads(line.decode("utf-8"), object_pairs_hook=_reject_duplicates)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise CandidateCortexMeasurementError("measurement_jsonl_invalid") from exc
         if not isinstance(value, dict):
@@ -427,11 +434,76 @@ def _validate_baseline_document(
         _fail("measurement_baseline_identity_invalid")
     for role in ("persona", "retention", "behavior"):
         rows = raw.get(role)
-        if not isinstance(rows, list) or not rows or any(
-            not isinstance(row, Mapping) for row in rows
+        if (
+            not isinstance(rows, list)
+            or not rows
+            or any(not isinstance(row, Mapping) for row in rows)
         ):
             _fail("measurement_baseline_rows_invalid")
     return dict(raw)
+
+
+def _baseline_relative_path(contract_sha256: str) -> Path:
+    if len(contract_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in contract_sha256
+    ):
+        _fail("measurement_contract_digest_invalid")
+    return Path(_BASELINE_GENERATIONS_DIR) / contract_sha256 / "baseline_measurement.json"
+
+
+def _load_or_create_addressed_baseline(
+    *,
+    run_root: Path,
+    plan: Mapping[str, Any],
+    contract_sha256: str,
+    producer: Callable[[], dict[str, Any]],
+) -> tuple[dict[str, Any], Path, bool]:
+    """Load or publish the immutable baseline generation for one evaluator."""
+
+    root = run_root.expanduser().resolve(strict=True)
+    relative = _baseline_relative_path(contract_sha256)
+    lock_relative = relative.with_name("baseline.lock")
+    with DirectoryCustody.acquire(root, private=True) as custody:
+        with custody.file_lock(lock_relative):
+            if custody.file_exists(relative):
+                baseline = _validate_baseline_document(
+                    _strict_json_bytes(custody.read_bytes(relative, max_bytes=16 * 1024 * 1024)),
+                    plan=plan,
+                    contract_sha256=contract_sha256,
+                )
+                return baseline, root / relative, True
+            baseline = _validate_baseline_document(
+                producer(), plan=plan, contract_sha256=contract_sha256
+            )
+            payload = canonical_json_bytes(baseline) + b"\n"
+            if not custody.write_bytes_once(relative, payload, mode=0o600):
+                retained = custody.read_bytes(relative, max_bytes=16 * 1024 * 1024)
+                if retained != payload:
+                    _fail("measurement_output_conflict")
+            retained_baseline = _validate_baseline_document(
+                _strict_json_bytes(custody.read_bytes(relative, max_bytes=16 * 1024 * 1024)),
+                plan=plan,
+                contract_sha256=contract_sha256,
+            )
+            return retained_baseline, root / relative, False
+
+
+def _measure_baseline_document(
+    model: Any,
+    tokenizer: Any,
+    *,
+    plan: Mapping[str, Any],
+    contract_sha256: str,
+    persona_tokens: Sequence[Mapping[str, Any]],
+    retention_tokens: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    return _baseline_document(
+        plan=plan,
+        contract_sha256=contract_sha256,
+        persona=_loss_rows(model, persona_tokens),
+        retention=_loss_rows(model, retention_tokens),
+        behavior=_behavior_rows(model, tokenizer),
+    )
 
 
 def _adapter_spec(adapter_root: Path) -> tuple[int, dict[str, Any], bool]:
@@ -574,42 +646,46 @@ def main(argv: list[str] | None = None) -> int:
             )
             persona_tokens = _tokenize_samples(tokenizer, persona)
             retention_tokens = _tokenize_samples(tokenizer, retention)
-            contract_sha256 = _measurement_contract_sha256(
-                plan, persona_tokens, retention_tokens
+            contract_sha256 = _measurement_contract_sha256(plan, persona_tokens, retention_tokens)
+
+            produce_baseline = partial(
+                _measure_baseline_document,
+                model,
+                tokenizer,
+                plan=plan,
+                contract_sha256=contract_sha256,
+                persona_tokens=persona_tokens,
+                retention_tokens=retention_tokens,
             )
-            baseline_path = (
-                args.baseline_cache.expanduser().resolve(strict=False)
-                if args.baseline_cache is not None
-                else args.run_root.expanduser().resolve(strict=True)
-                / "baseline_measurement.json"
-            )
-            if baseline_path.is_file():
-                baseline = _validate_baseline_document(
-                    _strict_json(baseline_path),
+
+            if args.baseline_cache is None:
+                baseline, baseline_path, baseline_reused = _load_or_create_addressed_baseline(
+                    run_root=args.run_root,
                     plan=plan,
                     contract_sha256=contract_sha256,
+                    producer=produce_baseline,
                 )
-                baseline_persona = list(baseline["persona"])
-                baseline_retention = list(baseline["retention"])
-                baseline_behavior = list(baseline["behavior"])
-                baseline_reused = True
             else:
-                baseline_persona = _loss_rows(model, persona_tokens)
-                baseline_retention = _loss_rows(model, retention_tokens)
-                baseline_behavior = _behavior_rows(model, tokenizer)
-                baseline = _baseline_document(
-                    plan=plan,
-                    contract_sha256=contract_sha256,
-                    persona=baseline_persona,
-                    retention=baseline_retention,
-                    behavior=baseline_behavior,
-                )
-                _write_once(
-                    baseline_path,
-                    baseline,
-                    source="candidate_cortex_measurement.baseline",
-                )
-                baseline_reused = False
+                baseline_path = args.baseline_cache.expanduser().resolve(strict=False)
+                if baseline_path.is_file():
+                    baseline = _validate_baseline_document(
+                        _strict_json(baseline_path),
+                        plan=plan,
+                        contract_sha256=contract_sha256,
+                    )
+                    baseline_reused = True
+                else:
+                    baseline = produce_baseline()
+                    _write_once(
+                        baseline_path,
+                        baseline,
+                        source="candidate_cortex_measurement.baseline",
+                    )
+                    baseline_reused = False
+            del produce_baseline
+            baseline_persona = list(baseline["persona"])
+            baseline_retention = list(baseline["retention"])
+            baseline_behavior = list(baseline["behavior"])
 
             _attach_checkpoint(
                 model,
@@ -635,6 +711,8 @@ def main(argv: list[str] | None = None) -> int:
             persona_rows=persona_rows,
             retention_rows=retention_rows,
             behavior_rows=behavior_rows,
+            measurement_contract_sha256=contract_sha256,
+            baseline_sha256=str(baseline["baseline_sha256"]),
         )
         detail_material = {
             "schema": DETAIL_SCHEMA,
@@ -648,6 +726,7 @@ def main(argv: list[str] | None = None) -> int:
             "baseline_path": str(baseline_path.resolve(strict=True)),
             "baseline_sha256": baseline["baseline_sha256"],
             "baseline_reused": baseline_reused,
+            "measurement_contract_sha256": contract_sha256,
             "evidence_sha256": evidence["measurement_sha256"],
         }
         detail = {**detail_material, "detail_sha256": document_sha256(detail_material)}
@@ -676,6 +755,7 @@ def main(argv: list[str] | None = None) -> int:
         CandidateCortexTrainingError,
         FileNotFoundError,
         OSError,
+        SecurePathCustodyError,
         TypeError,
         ValueError,
     ) as exc:

@@ -61,6 +61,39 @@ def test_measurement_compiler_uses_token_weighted_losses_and_canonical_order() -
     assert len(evidence["measurement_sha256"]) == 64
 
 
+def test_measurement_compiler_binds_current_baseline_generation() -> None:
+    evidence = measurement.compile_checkpoint_evidence(
+        plan=_plan(),
+        stage_index=0,
+        checkpoint_sha256="4" * 64,
+        persona_rows=[_loss("p", "voice", 2.0, 1.0, 2)],
+        retention_rows=[_loss("r", "retention", 2.0, 1.0, 2)],
+        behavior_rows=[_behavior("b")],
+        measurement_contract_sha256="6" * 64,
+        baseline_sha256="7" * 64,
+    )
+
+    assert evidence["schema"].endswith(".v2")
+    assert evidence["measurement_contract_sha256"] == "6" * 64
+    assert evidence["baseline_sha256"] == "7" * 64
+
+
+def test_measurement_compiler_rejects_partial_baseline_binding() -> None:
+    with pytest.raises(
+        measurement.CandidateCortexMeasurementError,
+        match="baseline_binding_incomplete",
+    ):
+        measurement.compile_checkpoint_evidence(
+            plan=_plan(),
+            stage_index=0,
+            checkpoint_sha256="4" * 64,
+            persona_rows=[_loss("p", "voice", 2.0, 1.0, 2)],
+            retention_rows=[_loss("r", "retention", 2.0, 1.0, 2)],
+            behavior_rows=[_behavior("b")],
+            measurement_contract_sha256="6" * 64,
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "reason"),
     [

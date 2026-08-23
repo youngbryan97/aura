@@ -13,7 +13,7 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
-from core.learning.candidate_cortex_admission import EVIDENCE_SCHEMA
+from core.learning.candidate_cortex_admission import EVIDENCE_SCHEMA, EVIDENCE_SCHEMA_V2
 from core.learning.candidate_cortex_training import document_sha256
 
 LOSS_ROW_SCHEMA: Final = "aura.candidate_cortex_training.loss_row.v1"
@@ -170,6 +170,8 @@ def compile_checkpoint_evidence(
     persona_rows: Sequence[Mapping[str, Any]],
     retention_rows: Sequence[Mapping[str, Any]],
     behavior_rows: Sequence[Mapping[str, Any]],
+    measurement_contract_sha256: str | None = None,
+    baseline_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Compile additive measurements into one canonical evidence document."""
 
@@ -180,8 +182,11 @@ def compile_checkpoint_evidence(
     dataset = plan.get("dataset")
     if not isinstance(model, Mapping) or not isinstance(dataset, Mapping):
         _fail("plan_identity_invalid")
+    if (measurement_contract_sha256 is None) != (baseline_sha256 is None):
+        _fail("baseline_binding_incomplete")
+    schema = EVIDENCE_SCHEMA_V2 if measurement_contract_sha256 is not None else EVIDENCE_SCHEMA
     material = {
-        "schema": EVIDENCE_SCHEMA,
+        "schema": schema,
         "stage_index": stage_index,
         "plan_sha256": plan_sha,
         "model_descriptor_sha256": _sha256(
@@ -190,13 +195,21 @@ def compile_checkpoint_evidence(
         "dataset_receipt_sha256": _sha256(
             dataset.get("receipt_sha256"), code="dataset_digest_invalid"
         ),
-        "checkpoint_sha256": _sha256(
-            checkpoint_sha256, code="checkpoint_digest_invalid"
-        ),
+        "checkpoint_sha256": _sha256(checkpoint_sha256, code="checkpoint_digest_invalid"),
         "persona": _loss_surface(persona_rows, role="persona"),
         "retention": _loss_surface(retention_rows, role="retention"),
         "behavior": _behavior_rows(behavior_rows),
     }
+    if measurement_contract_sha256 is not None and baseline_sha256 is not None:
+        material.update(
+            {
+                "measurement_contract_sha256": _sha256(
+                    measurement_contract_sha256,
+                    code="measurement_contract_digest_invalid",
+                ),
+                "baseline_sha256": _sha256(baseline_sha256, code="baseline_digest_invalid"),
+            }
+        )
     return {**material, "measurement_sha256": document_sha256(material)}
 
 

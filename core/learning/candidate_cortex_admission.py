@@ -19,6 +19,7 @@ from core.learning.candidate_cortex_training import (
 )
 
 EVIDENCE_SCHEMA: Final = "aura.candidate_cortex_training.checkpoint_evidence.v1"
+EVIDENCE_SCHEMA_V2: Final = "aura.candidate_cortex_training.checkpoint_evidence.v2"
 
 
 class CandidateCortexAdmissionError(ValueError):
@@ -163,19 +164,23 @@ def adjudicate_checkpoint_evidence(
         "behavior",
         "measurement_sha256",
     }
+    schema = raw.get("schema") if isinstance(raw, Mapping) else None
+    if schema == EVIDENCE_SCHEMA_V2:
+        required |= {"measurement_contract_sha256", "baseline_sha256"}
     if not isinstance(raw, Mapping) or set(raw) != required:
         _fail("checkpoint_evidence_schema_invalid")
-    if raw.get("schema") != EVIDENCE_SCHEMA or raw.get("stage_index") != stage_index:
+    if schema not in {EVIDENCE_SCHEMA, EVIDENCE_SCHEMA_V2} or raw.get("stage_index") != stage_index:
         _fail("checkpoint_evidence_identity_invalid")
     if (
         raw.get("plan_sha256") != plan.get("plan_sha256")
-        or raw.get("model_descriptor_sha256")
-        != plan.get("model", {}).get("descriptor_sha256")
-        or raw.get("dataset_receipt_sha256")
-        != plan.get("dataset", {}).get("receipt_sha256")
+        or raw.get("model_descriptor_sha256") != plan.get("model", {}).get("descriptor_sha256")
+        or raw.get("dataset_receipt_sha256") != plan.get("dataset", {}).get("receipt_sha256")
     ):
         _fail("checkpoint_evidence_binding_mismatch")
-    for field in ("checkpoint_sha256", "measurement_sha256"):
+    digest_fields = ["checkpoint_sha256", "measurement_sha256"]
+    if schema == EVIDENCE_SCHEMA_V2:
+        digest_fields.extend(["measurement_contract_sha256", "baseline_sha256"])
+    for field in digest_fields:
         value = raw.get(field)
         if (
             not isinstance(value, str)
@@ -192,15 +197,9 @@ def adjudicate_checkpoint_evidence(
     retention = _loss_surface(raw.get("retention"), role="retention")
     behavior = _behavior_rows(raw.get("behavior"))
     baseline_successes = [row for row in behavior if row["baseline_passed"]]
-    regressions = [
-        row["probe_id"]
-        for row in baseline_successes
-        if not row["candidate_passed"]
-    ]
+    regressions = [row["probe_id"] for row in baseline_successes if not row["candidate_passed"]]
     preserved = len(baseline_successes) - len(regressions)
-    no_regression_score = (
-        preserved / len(baseline_successes) if baseline_successes else 1.0
-    )
+    no_regression_score = preserved / len(baseline_successes) if baseline_successes else 1.0
     checks = persona["samples"] + retention["samples"] + len(behavior)
     policy = StagePolicy(**dict(plan["stages"]))
     if checks < policy.min_eval_samples:
@@ -227,6 +226,7 @@ def adjudicate_checkpoint_evidence(
 
 __all__ = [
     "EVIDENCE_SCHEMA",
+    "EVIDENCE_SCHEMA_V2",
     "CandidateCortexAdmissionError",
     "adjudicate_checkpoint_evidence",
 ]

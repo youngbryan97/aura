@@ -70,9 +70,7 @@ def test_adapter_spec_rejects_ambiguous_geometry(
 def test_jsonl_rejects_duplicate_keys(tmp_path: Path) -> None:
     path = tmp_path / "rows.jsonl"
     path.write_text('{"messages":[],"messages":[]}\n', encoding="utf-8")
-    with pytest.raises(
-        CandidateCortexMeasurementError, match="measurement_input_duplicate_key"
-    ):
+    with pytest.raises(CandidateCortexMeasurementError, match="measurement_input_duplicate_key"):
         measure._jsonl(path)
 
 
@@ -135,9 +133,9 @@ def test_baseline_document_is_bound_and_reusable() -> None:
     )
 
     assert (
-        measure._validate_baseline_document(
-            baseline, plan=plan, contract_sha256="4" * 64
-        )["baseline_sha256"]
+        measure._validate_baseline_document(baseline, plan=plan, contract_sha256="4" * 64)[
+            "baseline_sha256"
+        ]
         == baseline["baseline_sha256"]
     )
 
@@ -155,9 +153,7 @@ def test_baseline_document_rejects_tampering_and_contract_drift() -> None:
     with pytest.raises(
         CandidateCortexMeasurementError, match="measurement_baseline_identity_invalid"
     ):
-        measure._validate_baseline_document(
-            baseline, plan=plan, contract_sha256="4" * 64
-        )
+        measure._validate_baseline_document(baseline, plan=plan, contract_sha256="4" * 64)
 
     baseline["baseline_sha256"] = document_sha256(
         {key: value for key, value in baseline.items() if key != "baseline_sha256"}
@@ -165,6 +161,122 @@ def test_baseline_document_rejects_tampering_and_contract_drift() -> None:
     with pytest.raises(
         CandidateCortexMeasurementError, match="measurement_baseline_identity_invalid"
     ):
-        measure._validate_baseline_document(
-            baseline, plan=plan, contract_sha256="5" * 64
+        measure._validate_baseline_document(baseline, plan=plan, contract_sha256="5" * 64)
+
+
+def _baseline(plan: dict[str, object], contract: str, *, loss: float = 1.0) -> dict:
+    return measure._baseline_document(
+        plan=plan,
+        contract_sha256=contract,
+        persona=[{"sample_id": "p", "nll_sum": loss, "tokens": 2}],
+        retention=[{"sample_id": "r", "nll_sum": 2.0, "tokens": 3}],
+        behavior=[{"probe_id": "b", "passed": True}],
+    )
+
+
+def test_default_baseline_generations_are_addressed_by_measurement_contract(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    old_contract = "4" * 64
+    current_contract = "5" * 64
+    legacy = _baseline(plan, old_contract)
+    (tmp_path / "baseline_measurement.json").write_text(json.dumps(legacy), encoding="utf-8")
+    calls = 0
+
+    def produce() -> dict:
+        nonlocal calls
+        calls += 1
+        return _baseline(plan, current_contract)
+
+    baseline, path, reused = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=current_contract,
+        producer=produce,
+    )
+
+    assert calls == 1
+    assert reused is False
+    assert path == (
+        tmp_path / "baseline-measurements" / current_contract / "baseline_measurement.json"
+    )
+    assert baseline["measurement_contract_sha256"] == current_contract
+    assert json.loads((tmp_path / "baseline_measurement.json").read_text()) == legacy
+
+
+def test_matching_addressed_baseline_is_reused_without_remeasurement(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    contract = "4" * 64
+    expected = _baseline(plan, contract)
+    first, path, first_reused = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=contract,
+        producer=lambda: expected,
+    )
+
+    def should_not_run() -> dict:
+        raise AssertionError("matching generation must be reused")
+
+    second, second_path, second_reused = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=contract,
+        producer=should_not_run,
+    )
+
+    assert first == second == expected
+    assert path == second_path
+    assert first_reused is False
+    assert second_reused is True
+
+
+def test_tampered_addressed_baseline_fails_closed(tmp_path: Path) -> None:
+    plan = _plan()
+    contract = "4" * 64
+    _, path, _ = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=contract,
+        producer=lambda: _baseline(plan, contract),
+    )
+    tampered = json.loads(path.read_text())
+    tampered["persona"][0]["nll_sum"] = 9.0
+    path.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(
+        CandidateCortexMeasurementError, match="measurement_baseline_identity_invalid"
+    ):
+        measure._load_or_create_addressed_baseline(
+            run_root=tmp_path,
+            plan=plan,
+            contract_sha256=contract,
+            producer=lambda: _baseline(plan, contract),
         )
+
+
+def test_different_measurement_contracts_get_distinct_immutable_generations(
+    tmp_path: Path,
+) -> None:
+    plan = _plan()
+    first_contract = "4" * 64
+    second_contract = "5" * 64
+    first, first_path, _ = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=first_contract,
+        producer=lambda: _baseline(plan, first_contract, loss=1.0),
+    )
+    second, second_path, _ = measure._load_or_create_addressed_baseline(
+        run_root=tmp_path,
+        plan=plan,
+        contract_sha256=second_contract,
+        producer=lambda: _baseline(plan, second_contract, loss=2.0),
+    )
+
+    assert first_path != second_path
+    assert first["baseline_sha256"] != second["baseline_sha256"]
+    assert first_path.is_file() and second_path.is_file()

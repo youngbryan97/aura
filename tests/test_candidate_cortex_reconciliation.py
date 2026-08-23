@@ -10,6 +10,7 @@ from core.learning.candidate_cortex_measurement import (
 )
 from core.learning.candidate_cortex_reconciliation import (
     DETAIL_SCHEMA,
+    DETAIL_SCHEMA_V2,
     reconcile_preserved_measurement,
 )
 from core.learning.candidate_cortex_training import (
@@ -165,6 +166,50 @@ def test_preserved_measurement_reconciliation_corrects_only_the_grader(tmp_path:
         )
     ]
     assert len(changed) == 1
+
+
+def test_v2_reconciliation_preserves_exact_baseline_generation_binding(
+    tmp_path: Path,
+) -> None:
+    plan, detail, evidence, _prior = _fixture()
+    evidence_body = dict(evidence)
+    evidence_body.pop("measurement_sha256")
+    evidence_body.update(
+        {
+            "schema": "aura.candidate_cortex_training.checkpoint_evidence.v2",
+            "measurement_contract_sha256": "7" * 64,
+            "baseline_sha256": detail["baseline_sha256"],
+        }
+    )
+    evidence = {
+        **evidence_body,
+        "measurement_sha256": document_sha256(evidence_body),
+    }
+    detail_body = dict(detail)
+    detail_body.pop("detail_sha256")
+    detail_body.update(
+        {
+            "schema": DETAIL_SCHEMA_V2,
+            "measurement_contract_sha256": "7" * 64,
+            "evidence_sha256": evidence["measurement_sha256"],
+        }
+    )
+    detail = {**detail_body, "detail_sha256": document_sha256(detail_body)}
+    prior = adjudicate_checkpoint_evidence(evidence, plan=plan, stage_index=0)
+    source = tmp_path / "evaluator.py"
+    source.write_text("corrected evaluator\n", encoding="utf-8")
+
+    result = reconcile_preserved_measurement(
+        plan=plan,
+        stage_index=0,
+        detail=detail,
+        original_evidence=evidence,
+        prior_admission=prior,
+        evaluator_source_path=source,
+    )
+
+    assert result["corrected_evidence"]["measurement_contract_sha256"] == "7" * 64
+    assert result["corrected_evidence"]["baseline_sha256"] == "6" * 64
 
 
 def test_effective_stage_evidence_applies_bound_reconciliation(tmp_path: Path) -> None:

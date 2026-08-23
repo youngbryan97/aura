@@ -72,9 +72,7 @@ def _evidence() -> dict[str, Any]:
 
 
 def test_mechanical_admission_preserves_base_successes_and_loss_surfaces() -> None:
-    result = admission.adjudicate_checkpoint_evidence(
-        _evidence(), plan=_plan(), stage_index=0
-    )
+    result = admission.adjudicate_checkpoint_evidence(_evidence(), plan=_plan(), stage_index=0)
     assert result["persona_score"] == 1.0
     assert result["retention_score"] == pytest.approx(1.0 / 1.01)
     assert result["no_regression_score"] == 1.0
@@ -83,15 +81,27 @@ def test_mechanical_admission_preserves_base_successes_and_loss_surfaces() -> No
     assert result["model_free"] is True
 
 
+def test_mechanical_admission_accepts_exact_bound_v2_evidence() -> None:
+    evidence = _evidence()
+    evidence["schema"] = admission.EVIDENCE_SCHEMA_V2
+    evidence["measurement_contract_sha256"] = "6" * 64
+    evidence["baseline_sha256"] = "7" * 64
+    body = dict(evidence)
+    body.pop("measurement_sha256")
+    evidence["measurement_sha256"] = document_sha256(body)
+
+    result = admission.adjudicate_checkpoint_evidence(evidence, plan=_plan(), stage_index=0)
+
+    assert result["evidence_sha256"] == evidence["measurement_sha256"]
+
+
 def test_one_lost_baseline_success_is_an_explicit_regression() -> None:
     evidence = _evidence()
     evidence["behavior"][0]["candidate_passed"] = False
     body = dict(evidence)
     body.pop("measurement_sha256")
     evidence["measurement_sha256"] = document_sha256(body)
-    result = admission.adjudicate_checkpoint_evidence(
-        evidence, plan=_plan(), stage_index=0
-    )
+    result = admission.adjudicate_checkpoint_evidence(evidence, plan=_plan(), stage_index=0)
     assert result["regressions"] == 1
     assert result["no_regression_score"] == pytest.approx(6.0 / 7.0)
 
@@ -119,6 +129,4 @@ def test_forged_or_incoherent_evidence_is_rejected(mutation: Any, reason: str) -
         body.pop("measurement_sha256")
         evidence["measurement_sha256"] = document_sha256(body)
     with pytest.raises(admission.CandidateCortexAdmissionError, match=reason):
-        admission.adjudicate_checkpoint_evidence(
-            evidence, plan=_plan(), stage_index=0
-        )
+        admission.adjudicate_checkpoint_evidence(evidence, plan=_plan(), stage_index=0)
