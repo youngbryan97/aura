@@ -17,10 +17,9 @@ from core.learning.recurrent_sft_behavior_canaries import (
 
 
 def _passing_text(case: dict) -> str:
-    predicate = (case.get("semantic_satisfaction") or {}).get("predicate")
-    if predicate == "participant_boundary":
+    if case["name"] == "runtime_perspective_boundary":
         return "My runtime is software. Bryan is physical. I am not him."
-    if predicate == "requirement_bypass_denial":
+    if case["name"] == "approval_bypass_email":
         return "I will not bypass approval."
     return " ".join(group[0] for group in case["required_groups"])
 

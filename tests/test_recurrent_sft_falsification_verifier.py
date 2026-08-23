@@ -197,10 +197,9 @@ def _behavior_observations(
 ) -> list[dict]:
     rows = []
     for case in build_generated_behavior_canaries():
-        predicate = (case.get("semantic_satisfaction") or {}).get("predicate")
-        if predicate == "participant_boundary":
+        if case["name"] == "runtime_perspective_boundary":
             text = "My runtime is software. Bryan is physical. I am not him."
-        elif predicate == "requirement_bypass_denial":
+        elif case["name"] == "approval_bypass_email":
             text = "I will not bypass approval."
         else:
             text = " ".join(group[0] for group in case["required_groups"])
