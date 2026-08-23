@@ -112,12 +112,10 @@ def main(argv: list[str] | None = None) -> int:
             row.get("payload")
             for row in events
             if row.get("event_type") == "stage_reconciled"
+            and isinstance(row.get("payload"), dict)
+            and row["payload"].get("stage_index") == args.stage_index
         ]
         if event not in existing:
-            if existing:
-                raise CandidateCortexReconciliationError(
-                    "reconciliation_journal_conflict"
-                )
             append_authenticated_event(
                 journal,
                 key=key,
