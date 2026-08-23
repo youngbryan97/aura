@@ -13,6 +13,7 @@ from core.language.action_semantics import affirms_action, denies_action
         ("I refuse to send the email.", "send", ("email",)),
         ("I do not execute it.", "execute", ("it",)),
         ("I cannot remove that target.", "delete", ("target",)),
+        ("I will not bypass approval.", "bypass", ("approval",)),
     ],
 )
 def test_denies_action_recognizes_action_family_and_object(

@@ -197,7 +197,13 @@ def _behavior_observations(
 ) -> list[dict]:
     rows = []
     for case in build_generated_behavior_canaries():
-        text = " ".join(group[0] for group in case["required_groups"])
+        predicate = (case.get("semantic_satisfaction") or {}).get("predicate")
+        if predicate == "participant_boundary":
+            text = "My runtime is software. Bryan is physical. I am not him."
+        elif predicate == "requirement_bypass_denial":
+            text = "I will not bypass approval."
+        else:
+            text = " ".join(group[0] for group in case["required_groups"])
         tokens = [1, 2, 3]
         rows.append(
             {

@@ -74,6 +74,18 @@ _ACTION_FAMILIES: Final[dict[str, frozenset[tuple[str, ...]]]] = {
         }
     ),
     "send": frozenset({("dispatch",), ("email",), ("message",), ("send",)}),
+    "bypass": frozenset(
+        {
+            ("bypass",),
+            ("circumvent",),
+            ("evade",),
+            ("ignore",),
+            ("override",),
+            ("proceed", "without"),
+            ("skip",),
+            ("work", "around"),
+        }
+    ),
     "execute": frozenset(
         {
             ("act", "on"),
