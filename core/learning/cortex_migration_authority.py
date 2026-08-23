@@ -182,7 +182,11 @@ def _validate_persona(
 def _validate_steering(
     evidence: Mapping[str, bytes], claims: Mapping[str, Any], descriptor_sha256: str
 ) -> None:
-    if "metadata" not in evidence or "causal_evaluation" not in evidence:
+    if (
+        "metadata" not in evidence
+        or "causal_evaluation" not in evidence
+        or "independent_verifier" not in evidence
+    ):
         _fail("steering_evidence_incomplete")
     metadata = _strict_json(evidence["metadata"], role="steering_metadata")
     evaluation = _strict_json(
@@ -213,7 +217,7 @@ def _validate_steering(
         or not vectors
     ):
         _fail("steering_generation_invalid")
-    expected_roles = {"metadata", "causal_evaluation"}
+    expected_roles = {"metadata", "causal_evaluation", "independent_verifier"}
     for vector in vectors:
         if (
             not isinstance(vector, Mapping)
@@ -285,6 +289,8 @@ def _validate_steering(
         or not isinstance(verifier.get("version"), str)
         or not verifier["version"]
         or not _is_sha(verifier.get("evidence_sha256"))
+        or hashlib.sha256(evidence["independent_verifier"]).hexdigest()
+        != verifier.get("evidence_sha256")
         or claimed_evaluation != claims["causal_evaluation_sha256"]
         or claimed_evaluation != _sha(material)
     ):
@@ -355,6 +361,40 @@ _SEMANTIC_VALIDATORS: Final = {
 }
 
 
+def validate_component_evidence(
+    *,
+    component: str,
+    evidence: Mapping[str, bytes],
+    claims: Mapping[str, Any],
+    descriptor_sha256: str,
+) -> None:
+    """Validate one component's retained bytes before authority is issued."""
+
+    if (
+        component not in _COMPONENT_SPECS
+        or not _is_sha(descriptor_sha256)
+        or not isinstance(claims, Mapping)
+        or set(claims) != _CLAIM_FIELDS[component]
+        or any(not _is_sha(item) for key, item in claims.items() if key != "package_id")
+        or (
+            component == "recurrence_native"
+            and (not isinstance(claims.get("package_id"), str) or not claims["package_id"])
+        )
+        or not isinstance(evidence, Mapping)
+        or not evidence
+        or any(
+            not isinstance(role, str)
+            or not role
+            or not isinstance(payload, bytes)
+            or not payload
+            or len(payload) > MAX_EVIDENCE_BYTES
+            for role, payload in evidence.items()
+        )
+    ):
+        _fail(f"migration_component_evidence_invalid:{component}")
+    _SEMANTIC_VALIDATORS[component](evidence, claims, descriptor_sha256)
+
+
 def validate_component_authority(
     value: Mapping[str, Any],
     *,
@@ -390,12 +430,6 @@ def validate_component_authority(
         or value.get("status") != status
         or value.get("model_descriptor_sha256") != descriptor_sha256
         or not isinstance(claims, Mapping)
-        or set(claims) != _CLAIM_FIELDS[component]
-        or any(not _is_sha(item) for key, item in claims.items() if key != "package_id")
-        or (
-            component == "recurrence_native"
-            and (not isinstance(claims.get("package_id"), str) or not claims["package_id"])
-        )
         or not isinstance(evidence_raw, Mapping)
         or not evidence_raw
         or not isinstance(value.get("issued_at"), (int, float))
@@ -448,7 +482,12 @@ def validate_component_authority(
         evidence[role] = payload
     if dict(evidence_raw) != normalized_bindings:
         _fail(f"migration_component_evidence_identity_invalid:{component}")
-    _SEMANTIC_VALIDATORS[component](evidence, claims, descriptor_sha256)
+    validate_component_evidence(
+        component=component,
+        evidence=evidence,
+        claims=claims,
+        descriptor_sha256=descriptor_sha256,
+    )
     return dict(value)
 
 
@@ -459,4 +498,5 @@ __all__ = [
     "RECURRENT_MODEL_BINDING_SCHEMA",
     "default_authority_key_path",
     "validate_component_authority",
+    "validate_component_evidence",
 ]

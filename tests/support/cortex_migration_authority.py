@@ -131,6 +131,10 @@ def build_signed_migration_authorities(
     steering_path, steering_bytes = _write_json(
         custody, "steering-metadata", steering_metadata
     )
+    independent_bytes = b"independent-causal-evaluation-evidence"
+    independent_path = custody / "independent-verifier.evidence"
+    independent_path.write_bytes(independent_bytes)
+    os.chmod(independent_path, 0o600)
     evaluation_body = {
         "schema": CAA_EVALUATION_SCHEMA,
         "model_descriptor_sha256": descriptor_sha256,
@@ -146,7 +150,7 @@ def build_signed_migration_authorities(
         "independent_verifier": {
             "name": "test-independent-verifier",
             "version": "1",
-            "evidence_sha256": _sha("independent-evidence"),
+            "evidence_sha256": hashlib.sha256(independent_bytes).hexdigest(),
         },
     }
     evaluation = {**evaluation_body, "evaluation_sha256": _sha(evaluation_body)}
@@ -193,6 +197,7 @@ def build_signed_migration_authorities(
         "steering": {
             "metadata": (steering_path, steering_bytes),
             "causal_evaluation": (evaluation_path, evaluation_bytes),
+            "independent_verifier": (independent_path, independent_bytes),
             f"vector:{vector_path.name}": (vector_path, vector_bytes),
         },
         "expert_adapters": {
