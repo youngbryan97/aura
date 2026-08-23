@@ -77,13 +77,15 @@ def _plan(tmp_path: Path, **kwargs: Any) -> dict[str, Any]:
     descriptor, descriptor_sha = _descriptor(tmp_path)
     receipt = _dataset(tmp_path, descriptor, descriptor_sha)
     python_executable = kwargs.pop("python_executable", Path(sys.executable))
+    admission_source = tmp_path / "admit.py"
+    admission_source.write_text("raise SystemExit(0)\n", encoding="ascii")
     return training.prepare_training_run(
         descriptor_path=descriptor,
         expected_descriptor_sha256=descriptor_sha,
         dataset_receipt_path=receipt,
         output_root=tmp_path / "runs",
         python_executable=python_executable,
-        admission_command=(sys.executable, "admit.py"),
+        admission_command=(sys.executable, str(admission_source)),
         verify_full_model=False,
         **kwargs,
     )
@@ -114,6 +116,8 @@ def _observation(stage: int, loss: float, checkpoint: dict[str, Any] | None = No
 def test_rejects_descriptor_identity_drift(tmp_path: Path) -> None:
     descriptor, descriptor_sha = _descriptor(tmp_path)
     receipt = _dataset(tmp_path, descriptor, descriptor_sha)
+    admission_source = tmp_path / "admit.py"
+    admission_source.write_text("raise SystemExit(0)\n", encoding="ascii")
     with pytest.raises(training.CandidateCortexTrainingError, match="not_admitted"):
         training.prepare_training_run(
             descriptor_path=descriptor,
@@ -121,7 +125,7 @@ def test_rejects_descriptor_identity_drift(tmp_path: Path) -> None:
             dataset_receipt_path=receipt,
             output_root=tmp_path / "runs",
             python_executable=Path(sys.executable),
-            admission_command=(sys.executable, "admit.py"),
+            admission_command=(sys.executable, str(admission_source)),
             verify_full_model=False,
         )
 
@@ -299,6 +303,22 @@ def test_venv_launcher_and_environment_are_preserved_and_reverified(
             Path(plan["paths"]["run_root"]),
             verify_full_model=False,
         )
+
+
+def test_admission_program_is_source_bound(tmp_path: Path) -> None:
+    plan = _plan(tmp_path)
+    source = Path(plan["admission"]["inputs"][0]["path"])
+    source.write_text("raise SystemExit(1)\n", encoding="ascii")
+    with pytest.raises(
+        training.CandidateCortexTrainingError,
+        match="admission_source_drift",
+    ):
+        training.load_and_verify_plan(
+            Path(plan["paths"]["run_root"]),
+            verify_full_model=False,
+        )
+
+
 def test_journal_tamper_and_adapter_identity_drift_fail_closed(tmp_path: Path) -> None:
     plan = _plan(tmp_path)
     journal = Path(plan["paths"]["journal"])
@@ -525,7 +545,7 @@ def test_run_root_is_private_and_content_addressed(tmp_path: Path) -> None:
         dataset_receipt_path=receipt,
         output_root=tmp_path / "runs",
         python_executable=Path(sys.executable),
-        admission_command=(sys.executable, "admit.py"),
+        admission_command=tuple(first["admission"]["argv"]),
         verify_full_model=False,
     )
     assert second["run_id"] == first["run_id"]

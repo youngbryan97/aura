@@ -51947,3 +51947,31 @@ ownership, layering and diff hygiene pass. No model was loaded and no optimizer
 step ran in the rejected attempt. Next: launch the ten-update resource canary
 from a fresh source-bound CP915 worktree, while the primary worktree builds the
 deterministic candidate admission and adaptive-stage custody path.
+
+## Checkpoint 2026-08-23-916: Make Checkpoint Admission Mechanical
+
+CP916 separates model-heavy checkpoint measurement from the authority that
+decides whether adaptive training may continue. Generated prose and model
+judges have no admission role.
+
+- The model-free adjudicator accepts exact-bound persona and retention
+  teacher-forced losses, per-domain sample/token totals and deterministic
+  base-versus-adapter behavioral outcomes.
+- Persona and retention scores are explicit frozen-baseline loss ratios.
+  Behavioral non-regression is stricter: every exact probe solved by the base
+  checkpoint must remain solved by the adapter. One lost success becomes one
+  visible regression rather than disappearing into an average.
+- Evidence is bound to the plan, model descriptor, compact-kernel receipt,
+  stage, checkpoint and complete measurement digest. Duplicate probes,
+  incoherent domain totals, underpowered batteries and any identity or digest
+  drift fail closed.
+- The admission program itself is now a bound plan input. Changing its source
+  after planning invalidates the run; binding only the Python executable is no
+  longer accepted as evaluator identity.
+
+The combined candidate trainer and admission contracts pass `21/21`; canonical
+smoke passes `121/121` with one environment-dependent skip. Ruff, compilation
+and diff hygiene pass. The independent CP915 resource canary remains detached
+and source-stable while this checkpoint advances `main`. Next: finish and
+adjudicate that canary, then add the exclusive-lane measurement target which
+produces these exact checkpoint evidence surfaces during adaptive stages.

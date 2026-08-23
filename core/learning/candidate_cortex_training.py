@@ -493,7 +493,18 @@ def _admission_command_identity(command: Sequence[str]) -> dict[str, Any]:
         executable_binding: dict[str, Any] = _launcher_binding(executable)
     else:
         executable_binding = {"invocation_path": command[0], "binding_sha256": None}
-    return {"argv": list(command), "executable": executable_binding}
+    inputs: list[dict[str, Any]] = []
+    for value in command[1:]:
+        candidate = Path(value).expanduser()
+        if candidate.is_absolute() and (candidate.exists() or candidate.is_symlink()):
+            inputs.append(_file_binding(candidate))
+        elif candidate.suffix.lower() in {".py", ".sh"}:
+            _fail("admission_source_unavailable")
+    return {
+        "argv": list(command),
+        "executable": executable_binding,
+        "inputs": inputs,
+    }
 
 
 def prepare_training_run(
@@ -661,11 +672,25 @@ def load_and_verify_plan(
     if not isinstance(admission, Mapping):
         _fail("admission_command_invalid")
     admission_argv = admission.get("argv")
-    if not isinstance(admission_argv, list) or not admission_argv:
+    admission_inputs = admission.get("inputs")
+    if (
+        not isinstance(admission_argv, list)
+        or not admission_argv
+        or not isinstance(admission_inputs, list)
+    ):
         _fail("admission_command_invalid")
     admission_executable = Path(str(admission_argv[0])).expanduser()
     if admission_executable.is_absolute():
         _verify_launcher_binding(admission.get("executable"), admission_executable)
+    current_inputs = []
+    for value in admission_argv[1:]:
+        candidate = Path(str(value)).expanduser()
+        if candidate.is_absolute() and (candidate.exists() or candidate.is_symlink()):
+            current_inputs.append(_file_binding(candidate))
+        elif candidate.suffix.lower() in {".py", ".sh"}:
+            _fail("admission_source_unavailable")
+    if current_inputs != admission_inputs:
+        _fail("admission_source_drift")
     validate_candidate_descriptor(
         Path(str(model.get("descriptor_path"))),
         expected_descriptor_sha256=str(model.get("descriptor_sha256")),
