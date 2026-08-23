@@ -7,11 +7,49 @@ import pytest
 
 from scripts.export_ai_audit_bundle import (
     AuditExportError,
+    _run_git,
     export_bundle,
     require_clean_source_snapshot,
     select_files,
     verify_bundle,
 )
+
+
+def test_git_export_probe_declares_no_accelerator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    class _Completed:
+        returncode = 0
+        stdout = "tracked.py\n"
+        stderr = ""
+
+    class _Gateway:
+        def run(self, command: list[str], **kwargs: object) -> _Completed:
+            calls.append((command, kwargs))
+            return _Completed()
+
+    monkeypatch.setattr(
+        "scripts.export_ai_audit_bundle.get_subprocess_gateway",
+        lambda: _Gateway(),
+    )
+
+    assert _run_git(tmp_path, "ls-files") == "tracked.py\n"
+    assert calls == [
+        (
+            ["git", "ls-files"],
+            {
+                "cwd": tmp_path,
+                "timeout": 30.0,
+                "read_only": True,
+                "accelerator_capability": "none",
+                "source": "maintenance_tooling:ai_audit_export",
+                "check": False,
+                "capture_output": True,
+            },
+        )
+    ]
 
 
 def _write(root: Path, relative_path: str, text: str) -> None:

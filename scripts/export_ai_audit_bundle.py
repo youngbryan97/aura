@@ -159,6 +159,7 @@ def _run_git(root: Path, *args: str) -> str:
         cwd=root,
         timeout=30.0,
         read_only=True,
+        accelerator_capability="none",
         source="maintenance_tooling:ai_audit_export",
         check=False,
         capture_output=True,
