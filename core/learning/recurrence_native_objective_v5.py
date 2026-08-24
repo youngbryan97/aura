@@ -650,10 +650,12 @@ def _cached_branch_loss_from_final_states(
     weight_total: float,
 ) -> Any:
     import mlx.core as mx
-    from mlx_lm.models.cache import KVCache
 
-    layers = tuple(model.model.layers)
-    cache = [KVCache() for _layer in layers]
+    from core.brain.llm.decoder_topology import decoder_layers
+    from core.learning.intrinsic_recurrence import model_layer_caches
+
+    layers = tuple(decoder_layers(model))
+    cache = model_layer_caches(model)
     _cached_causal_layers(model, prompt_embeddings, cache)
     with recurrent_branch_index(branch_index), recurrence_adapter_scope():
         _cached_causal_layers(
@@ -694,12 +696,19 @@ def _cached_branch_loss_from_final_states(
     return -mx.sum(logprobs * weight_tensor) / weight_total
 
 
-def _cache_from_state(state: tuple[tuple[Any, Any], ...]) -> list[Any]:
-    from mlx_lm.models.cache import KVCache
+def _cache_from_state(model: Any, state: tuple[tuple[Any, Any], ...]) -> list[Any]:
+    """Rebuild a per-layer cache from a saved boundary.
 
-    cache = [KVCache() for _entry in state]
-    for entry, (keys, values) in zip(cache, state, strict=True):
-        entry.state = (keys, values)
+    Takes the model because the cache OBJECT differs per layer on a hybrid
+    decoder: an attention layer holds K/V, a gated-delta layer holds a
+    recurrent state. Constructing KVCache for every entry restores the values
+    into the wrong container at three layers in four, and nothing raises.
+    """
+    from core.learning.intrinsic_recurrence import model_layer_caches
+
+    cache = model_layer_caches(model)
+    for entry, saved in zip(cache, state, strict=True):
+        entry.state = saved
     return cache
 
 
@@ -716,11 +725,12 @@ def _initial_decoder_state(
 ) -> tuple[tuple[tuple[Any, Any], ...], Any]:
     """Build the cache and logits that predict the first tail token."""
 
-    from mlx_lm.models.cache import KVCache
+    from core.brain.llm.decoder_topology import decoder_layers
+    from core.learning.intrinsic_recurrence import model_layer_caches
 
     model.update(parameter_tree)
-    layers = tuple(model.model.layers)
-    cache = [KVCache() for _layer in layers]
+    layers = tuple(decoder_layers(model))
+    cache = model_layer_caches(model)
     _cached_causal_layers(model, prompt_embeddings, cache)
     with recurrent_branch_index(branch_index), recurrence_adapter_scope():
         _cached_causal_layers(
@@ -758,7 +768,7 @@ def _decoder_transition(
     import mlx.core as mx
 
     model.update(parameter_tree)
-    cache = _cache_from_state(cache_state)
+    cache = _cache_from_state(model, cache_state)
     hidden = model.model.embed_tokens(mx.array([[token]]))
     hidden = _cached_causal_layers(model, hidden, cache)
     return tuple(entry.state for entry in cache), _logits(model, hidden)[0, -1]

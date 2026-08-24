@@ -782,7 +782,6 @@ def _decode_frozen_recurrent_state(
     import mlx.core as mx
     import numpy as np
     from mlx_lm.models.base import create_attention_mask
-    from mlx_lm.models.cache import KVCache
 
     from core.brain.llm.latent_cortex.recurrence import WindowRunner
     from core.brain.llm.latent_cortex.recurrence_adapter import (
@@ -801,9 +800,15 @@ def _decode_frozen_recurrent_state(
     if type(depth) is not int or depth < 0:
         raise ValueError("decode depth must be non-negative")
 
-    inner = model.model
-    layers = tuple(inner.layers)
-    cache = [KVCache() for _ in layers]
+    from core.brain.llm.decoder_topology import (
+        decoder_layers,
+        resolve_language_model,
+    )
+    from core.learning.intrinsic_recurrence import model_layer_caches
+
+    inner = resolve_language_model(model).model
+    layers = tuple(decoder_layers(model))
+    cache = model_layer_caches(model)
     prompt = tuple(prompt_tokens)
     hidden = inner.embed_tokens(mx.array([list(prompt)]))
     mask = create_attention_mask(hidden, cache)

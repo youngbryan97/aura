@@ -2355,10 +2355,11 @@ def _cached_live_path_initial_logits(
 ) -> tuple[tuple[Any, ...], list[Any], Any]:
     """Create the exact resident cache and first lexical distribution."""
 
-    from mlx_lm.models.cache import KVCache
 
+    from core.brain.llm.decoder_topology import decoder_layers
     from core.brain.llm.latent_cortex.recurrence import WindowRunner
     from core.brain.llm.latent_cortex.types import ComputeBudget
+    from core.learning.intrinsic_recurrence import model_layer_caches
 
     if type(decode_token_budget) is not int or not 1 <= decode_token_budget <= 32_768:
         raise ValueError("decode_token_budget must be inside [1, 32768]")
@@ -2390,8 +2391,8 @@ def _cached_live_path_initial_logits(
                 coda_start,
             )
 
-        layers = tuple(model.model.layers)
-        cache = [KVCache() for _ in layers]
+        layers = tuple(decoder_layers(model))
+        cache = model_layer_caches(model)
         _cached_causal_layers(model, prompt_embeddings, cache)
 
         budget = ComputeBudget(
