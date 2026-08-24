@@ -37,11 +37,24 @@ def _reseal(bundle):
     return {**body, "campaign_sha256": prepare._sha(body)}
 
 
-def test_an_untouched_bundle_may_launch(bundle):
+@pytest.fixture
+def quiet_host(monkeypatch):
+    """Neutralise the environmental guards.
+
+    Host memory and lane ownership are real launch blockers and are tested on
+    their own below. A bundle-integrity test that also depended on how much RAM
+    happened to be free would fail for reasons that say nothing about the
+    bundle.
+    """
+    monkeypatch.setattr(preflight, "_resource_findings", lambda b, m: [])
+    monkeypatch.setattr(preflight, "_ownership_findings", list)
+
+
+def test_an_untouched_bundle_may_launch(bundle, quiet_host):
     assert preflight.check(bundle) == []
 
 
-def test_a_tampered_bundle_is_refused_before_anything_else(bundle):
+def test_a_tampered_bundle_is_refused_before_anything_else(bundle, quiet_host):
     damaged = dict(bundle)
     damaged["futility_gates"] = []
     # Digest not recomputed: this is what editing a frozen bundle looks like.
@@ -145,3 +158,96 @@ def test_a_misaligned_window_is_refused(bundle):
     mapping["window"] = [15, 48]
     damaged = _reseal({**bundle, "recurrence_layer_mapping": mapping})
     assert "window_misaligned" in _kinds(damaged)
+
+
+# ── Host and ownership guards ───────────────────────────────────────────
+# An out-of-memory kill mid-training loses the residency and leaves a partial
+# journal that a resume then has to adjudicate. Refusing up front is cheaper
+# than deciding whether half a campaign is scientifically resumable.
+
+
+def test_a_host_without_room_is_refused(bundle, monkeypatch):
+    monkeypatch.setattr(
+        preflight,
+        "_resource_findings",
+        lambda b, m: [{"kind": "insufficient_ram", "detail": "not enough"}],
+    )
+    assert "insufficient_ram" in _kinds(bundle)
+
+
+def test_unmeasured_memory_is_refused_rather_than_assumed_fine(monkeypatch):
+    import sys
+
+    module = type(sys)("core.runtime.mlx_memory_guard")
+    module.host_pressure = lambda: {}
+    monkeypatch.setitem(sys.modules, "core.runtime.mlx_memory_guard", module)
+    findings = preflight._resource_findings(
+        {"target_checkpoint": {"weight_bytes": 1}}, Path("/")
+    )
+    assert any(f["kind"] == "ram_unmeasured" for f in findings)
+
+
+def test_free_and_reclaimable_are_both_counted(monkeypatch):
+    import sys
+
+    module = type(sys)("core.runtime.mlx_memory_guard")
+    # macOS "Pages free" excludes pages the kernel hands back on demand, so
+    # counting only free_gb would refuse a host that is actually fine.
+    module.host_pressure = lambda: {
+        "free_gb": 1.0,
+        "reclaimable_gb": 60.0,
+        "under_pressure": False,
+    }
+    monkeypatch.setitem(sys.modules, "core.runtime.mlx_memory_guard", module)
+    findings = preflight._resource_findings(
+        {"target_checkpoint": {"weight_bytes": 15 * 1024**3}}, Path("/")
+    )
+    assert not any(f["kind"] == "insufficient_ram" for f in findings)
+
+
+def test_a_host_under_pressure_is_flagged_even_with_room(monkeypatch):
+    import sys
+
+    module = type(sys)("core.runtime.mlx_memory_guard")
+    module.host_pressure = lambda: {
+        "free_gb": 1.0,
+        "reclaimable_gb": 60.0,
+        "under_pressure": True,
+        "pressure_reasons": ["compressor_high"],
+    }
+    monkeypatch.setitem(sys.modules, "core.runtime.mlx_memory_guard", module)
+    findings = preflight._resource_findings(
+        {"target_checkpoint": {"weight_bytes": 15 * 1024**3}}, Path("/")
+    )
+    assert any(f["kind"] == "host_under_memory_pressure" for f in findings)
+
+
+def test_an_owned_model_lane_is_refused(bundle, monkeypatch):
+    monkeypatch.setattr(
+        preflight,
+        "_ownership_findings",
+        lambda: [{"kind": "model_lane_already_owned", "detail": "trainer-7"}],
+    )
+    # Two campaigns on one 64 GB host is the failure that takes the machine down.
+    assert "model_lane_already_owned" in _kinds(bundle)
+
+
+def test_evidence_aimed_at_the_legacy_namespace_is_refused(bundle):
+    damaged = _reseal(
+        {
+            **bundle,
+            "evidence_paths": [
+                "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/result.json"
+            ],
+        }
+    )
+    assert "stale_evidence_root" in _kinds(damaged)
+
+
+def test_evidence_in_the_recovery_namespace_is_accepted(bundle, monkeypatch):
+    monkeypatch.setattr(preflight, "_resource_findings", lambda b, m: [])
+    monkeypatch.setattr(preflight, "_ownership_findings", list)
+    damaged = _reseal(
+        {**bundle, "evidence_paths": ["artifacts/migration/27b/recovery/canary.json"]}
+    )
+    assert "stale_evidence_root" not in _kinds(damaged)

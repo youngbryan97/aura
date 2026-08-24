@@ -1,5 +1,5 @@
 {
- "campaign_sha256": "2992c20e909129466b125c43a4990dacbc6dd5aef85f85831eac0f3895d61ddb",
+ "campaign_sha256": "9f76af56e0b6f566de484906e25902c37139f185f031d07a4aed13fa84c65274",
  "experiments": {
   "generalization": {
    "authorizes": "a wider bounded claim if it passes; never ordinary chat and never global serving",
@@ -287,7 +287,7 @@
   "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
   "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
   "core/brain/llm/unified_recurrent_transfer_decode.py": "7bc2d7e0fe741b0760775a39449b33db506b0a6fd76cb9e3667951d9a67b4a78",
-  "core/learning/hybrid_recurrence_geometry.py": "aab1dcbc52781a3554513fa4d54117c1f201b80ebbf9fe139eea2a867dc65236",
+  "core/learning/hybrid_recurrence_geometry.py": "53ed91687545b2d0533ce6b990e820a087d46c113e0255df640b6fab4c8b57e6",
   "core/learning/intrinsic_recurrence.py": "e0d28f37116a19acba02782102855e9829e13218e814749302f332ae4886e931",
   "core/learning/recurrence_checkpoint_migration.py": "c07f06fc2848852b94637f686e4971137b6220b9b243539c66fd298f61a86cf2",
   "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",

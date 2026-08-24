@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,137 @@ from tools.prepare_27b_recurrence_campaign import (  # noqa: E402
     _sha,
     _sha_file,
 )
+
+#: Headroom over the checkpoint's own bytes, for KV, optimizer state, and the
+#: host's own working set. Measured against CP566's residency rather than
+#: chosen: a 15 GB checkpoint ran a 300-decode campaign on this host with the
+#: desktop up, and the campaign needs room for training state on top.
+_RAM_HEADROOM_BYTES = 12 * 1024**3
+
+#: Export, adapters, journals and receipts for one campaign.
+_DISK_HEADROOM_BYTES = 20 * 1024**3
+
+
+def _resource_findings(bundle: dict[str, Any], model: Path) -> list[dict[str, str]]:
+    """Refuse a launch the host cannot finish.
+
+    An out-of-memory kill mid-training loses the residency and leaves a partial
+    journal that a resume must then decide about. Refusing up front is cheaper
+    than deciding whether half a campaign is scientifically resumable.
+    """
+    findings: list[dict[str, str]] = []
+    weight_bytes = int(bundle.get("target_checkpoint", {}).get("weight_bytes") or 0)
+    required = weight_bytes + _RAM_HEADROOM_BYTES
+
+    try:
+        from core.runtime.mlx_memory_guard import host_pressure
+
+        pressure = host_pressure()
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pressure = {}
+    # host_pressure reports gigabytes and separates free from reclaimable,
+    # because macOS "Pages free" excludes pages the kernel hands back on
+    # demand. Both count toward what a load can actually use.
+    free_gb = pressure.get("free_gb")
+    reclaimable_gb = pressure.get("reclaimable_gb")
+    if isinstance(free_gb, (int, float)) and isinstance(reclaimable_gb, (int, float)):
+        available = (float(free_gb) + float(reclaimable_gb)) * 1024**3
+        if available < required:
+            findings.append(
+                {
+                    "kind": "insufficient_ram",
+                    "detail": (
+                        f"{available / 1024**3:.1f} GiB free plus reclaimable, "
+                        f"{required / 1024**3:.1f} GiB needed"
+                    ),
+                }
+            )
+        elif pressure.get("under_pressure"):
+            findings.append(
+                {
+                    "kind": "host_under_memory_pressure",
+                    "detail": (
+                        "reasons: "
+                        + ", ".join(str(r) for r in pressure.get("pressure_reasons", []))
+                    ),
+                }
+            )
+    else:
+        findings.append(
+            {
+                "kind": "ram_unmeasured",
+                "detail": "host pressure could not be read; refusing rather than guessing",
+            }
+        )
+
+    try:
+        usage = shutil.disk_usage(model.parent if model.exists() else Path.home())
+    except OSError as exc:
+        findings.append({"kind": "disk_unmeasured", "detail": str(exc)})
+        return findings
+    if usage.free < _DISK_HEADROOM_BYTES:
+        findings.append(
+            {
+                "kind": "insufficient_disk",
+                "detail": (
+                    f"{usage.free / 1024**3:.1f} GiB free, "
+                    f"{_DISK_HEADROOM_BYTES / 1024**3:.0f} GiB needed for export"
+                ),
+            }
+        )
+    return findings
+
+
+def _ownership_findings() -> list[dict[str, str]]:
+    """Refuse while another process owns the model lane.
+
+    Two campaigns on one 64 GB host is the failure that takes the machine down,
+    and the lane controller already knows who holds it.
+    """
+    try:
+        from core.runtime.model_lane_control import get_model_lane_controller
+
+        controller = get_model_lane_controller()
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        return [
+            {
+                "kind": "lane_ownership_unmeasured",
+                "detail": f"could not read the model lane controller: {exc}",
+            }
+        ]
+    try:
+        owners = list(controller.observed_owners())
+    except (AttributeError, OSError, RuntimeError, ValueError):
+        owners = []
+    live = [
+        owner
+        for owner in owners
+        if getattr(owner, "alive", True) and getattr(owner, "owner_id", None)
+    ]
+    return [
+        {
+            "kind": "model_lane_already_owned",
+            "detail": f"{getattr(owner, 'owner_id', 'unknown')} holds the lane",
+        }
+        for owner in live
+    ]
+
+
+def _evidence_namespace_findings(bundle: dict[str, Any]) -> list[dict[str, str]]:
+    """Refuse a campaign aimed at the namespace holding the old verdict."""
+    try:
+        from core.learning.recovery_package_identity import (
+            evidence_namespace_errors,
+        )
+    except ImportError:
+        return []
+    paths = list(bundle.get("evidence_paths") or [])
+    if not paths:
+        return []
+    return [
+        {"kind": "stale_evidence_root", "detail": error}
+        for error in evidence_namespace_errors(paths)
+    ]
 
 
 def check(bundle: dict[str, Any]) -> list[dict[str, str]]:
@@ -102,6 +234,10 @@ def check(bundle: dict[str, Any]) -> list[dict[str, str]]:
             active = None
         if active and Path(active).resolve() != model.resolve():
             fail("active_model_moved", f"runtime now points at {active}")
+
+    findings.extend(_resource_findings(bundle, model))
+    findings.extend(_ownership_findings())
+    findings.extend(_evidence_namespace_findings(bundle))
 
     geometry = LayerGeometry.from_config(json.loads(config_path.read_text()))
     committed = bundle.get("recurrence_layer_mapping", {})

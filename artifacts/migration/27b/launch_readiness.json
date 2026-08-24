@@ -1,0 +1,33 @@
+{
+ "blocker_counts": {
+  "environmental": 1,
+  "package": 0
+ },
+ "blockers": [
+  {
+   "class": "environmental",
+   "detail": "21.1 GiB free plus reclaimable, 26.1 GiB needed",
+   "kind": "insufficient_ram",
+   "remedy": "free memory, or wait for the resident model to unload"
+  }
+ ],
+ "bundle": "artifacts/migration/27b/campaign_bundle.json",
+ "launch_command": null,
+ "measured_workload": {
+  "basis": "CP566 on the 32B: 300 decodes over 60 tasks in 4,814.53 s",
+  "decode_seconds": 4814.53,
+  "training_note": "no retained receipt records a training wall time; unmeasured rather than estimated",
+  "training_seconds": null
+ },
+ "model_active_stages": [
+  "calibration",
+  "training",
+  "canary",
+  "lesion_arms",
+  "export"
+ ],
+ "package": "artifacts/migration/27b/recovery/package.json",
+ "ready_to_launch": false,
+ "schema": "aura.rlc.27b_launch_readiness.v1",
+ "source_commit": "6b3889f5d0e5685cefebbc62cdf17afc4e3c8d4b"
+}
