@@ -6,6 +6,7 @@ import asyncio
 import pytest
 
 from benchmarks.reasoning import ReasoningBenchmark, default_suite
+from benchmarks.reasoning import run as reasoning_run
 
 
 @pytest.fixture(scope="module")
@@ -48,3 +49,32 @@ def test_result_serialization(result):
                 "hallucination_catch_rate", "mean_latency_ms"):
         assert key in d
     assert isinstance(result.summary(), str)
+
+
+def test_live_benchmark_resolves_the_promoted_cortex(monkeypatch, tmp_path):
+    from core.brain.llm import model_registry
+
+    artifact = tmp_path / "promoted-cortex"
+    artifact.mkdir()
+    monkeypatch.setattr(model_registry, "ACTIVE_MODEL", "Aura-Cortex")
+    monkeypatch.setattr(
+        model_registry,
+        "get_runtime_model_path",
+        lambda model_name: str(artifact) if model_name == "Aura-Cortex" else "",
+    )
+
+    assert reasoning_run._resolve_model("") == str(artifact)
+
+
+def test_live_benchmark_refuses_an_unmaterialized_default(monkeypatch):
+    from core.brain.llm import model_registry
+
+    monkeypatch.setattr(model_registry, "ACTIVE_MODEL", "Aura-Cortex")
+    monkeypatch.setattr(
+        model_registry,
+        "get_runtime_model_path",
+        lambda _model_name: "mlx-community/unmaterialized-cortex",
+    )
+
+    with pytest.raises(FileNotFoundError, match="not a local model directory"):
+        reasoning_run._resolve_model("")

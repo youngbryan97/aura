@@ -4,7 +4,8 @@
 set -euo pipefail
 
 export AURA_TEST_MODE=1
-export AURA_MODEL=Qwen2.5-32B-Instruct-8bit
+: "${AURA_MODEL:=Aura-Cortex}"
+export AURA_MODEL
 export AURA_LOCAL_BACKEND=mlx
 export AURA_NETHACK_LOG=~/.aura/logs/nethack/kernel_trace.jsonl
 : "${AURA_NETHACK_STEPS:=5000}"

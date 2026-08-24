@@ -31,6 +31,15 @@ def test_config_models_have_no_remote_model_credentials_or_teacher_controls():
     }.isdisjoint(SecurityConfig.model_fields)
 
 
+def test_config_fallbacks_name_runtime_roles_instead_of_retired_artifacts():
+    llm = LLMConfig()
+
+    assert llm.fast_model == "Aura-Cortex"
+    assert llm.deep_model == "Aura-Cortex"
+    assert llm.vision_model == "Aura-Cortex"
+    assert llm.chat_model == "Qwen3.5-9B-4bit"
+
+
 def test_boot_configuration_never_reads_the_retired_gemini_secret():
     config_source = (ROOT / "core/config.py").read_text(encoding="utf-8")
     baseline_source = (
@@ -62,6 +71,15 @@ def test_first_run_wizard_has_no_remote_model_control():
     assert "cloud_fallback" not in source
     assert "cloud provider" not in source
     assert "available local model lanes" in source
+    assert "Models/Aura-Cortex" in source
+    assert "Qwen2.5-32B" not in source
+
+
+def test_nethack_runner_defaults_to_the_runtime_cortex_role():
+    source = (ROOT / "scripts/nethack_runner.sh").read_text(encoding="utf-8")
+
+    assert '${AURA_MODEL:=Aura-Cortex}' in source
+    assert "Qwen2.5-32B" not in source
 
 
 def test_retired_provider_implementation_and_offload_router_are_absent():

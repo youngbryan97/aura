@@ -96,8 +96,11 @@ class BodyRuntime:
         memory_usage = self._bounded_float(status.get("memory", 50.0), default=50.0)
         cpu_usage = self._bounded_float(status.get("cpu", 10.0), default=10.0)
         temp = self._bounded_float(status.get("temperature", 42.0), default=42.0, upper=130.0)
-        cortex_model = os.getenv("AURA_DEFAULT_CORTEX_MODEL", "Qwen2.5-32B-Instruct-8bit")
-        pressure_model = os.getenv("AURA_PRESSURE_MODEL", "Qwen2.5-7B-Instruct-4bit")
+        from core.config import get_config
+
+        llm_config = get_config().llm
+        cortex_model = os.getenv("AURA_DEFAULT_CORTEX_MODEL", llm_config.fast_model)
+        pressure_model = os.getenv("AURA_PRESSURE_MODEL", llm_config.chat_model)
 
         # Base targets
         scaling = {

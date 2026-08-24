@@ -29,21 +29,18 @@ from .harness import ReasoningBenchmark, write_results
 MIN_PASS_RATE = 0.60
 MIN_HALLUCINATION_CATCH_RATE = 1.0
 
-_DEFAULT_MODELS = (
-    "models/Qwen2.5-7B-Instruct-4bit",
-    "models/Qwen2.5-1.5B-Instruct-4bit",
-    "models/Qwen2.5-32B-Instruct-4bit",
-)
-
-
 def _resolve_model(explicit: str) -> str:
     if explicit:
         return explicit
-    root = Path(__file__).resolve().parents[2]
-    for rel in _DEFAULT_MODELS:
-        if (root / rel).exists():
-            return str(root / rel)
-    return "mlx-community/Qwen2.5-7B-Instruct-4bit"  # let mlx_lm fetch/resolve
+    from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
+
+    model_path = get_runtime_model_path(ACTIVE_MODEL)
+    if not Path(model_path).expanduser().is_dir():
+        raise FileNotFoundError(
+            "The active Cortex is not a local model directory. "
+            "Promote a local artifact or pass --model PATH."
+        )
+    return model_path
 
 
 async def _mlx_generator(model_path: str):

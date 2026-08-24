@@ -39,6 +39,10 @@ DEFAULT_OUT = PROJECT_ROOT / "artifacts" / "current" / "aura_sovereignty_proof_b
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.brain.llm.model_registry import (  # noqa: E402
+    CORTEX_LOGICAL_NAME,
+    get_runtime_model_path,
+)
 from core.runtime.flags import FlagKind as _FlagKind  # noqa: E402
 from core.runtime.flags import declare as _declare_flag  # noqa: E402
 from core.runtime.sqlite_support import connecting  # noqa: E402
@@ -274,11 +278,13 @@ class SovereignReconstitutionGauntlet:
             "seed": self.seed,
         }
         _write_json(self.out_dir / "environment.json", environment)
+        aura_model = str(os.environ.get("AURA_MODEL", "") or CORTEX_LOGICAL_NAME)
         _write_json(
             self.out_dir / "model_info.json",
             {
                 "schema": "aura.sovereignty.model_info.v1",
-                "aura_model": os.environ.get("AURA_MODEL", "Qwen2.5-32B-Instruct-8bit"),
+                "aura_model": aura_model,
+                "aura_model_artifact": get_runtime_model_path(aura_model),
                 "aura_local_backend": _FLAG_LOCAL_BACKEND.value(),
                 "live_runtime_enabled": self.live_runtime,
                 "claim_boundary": "model metadata only unless live runtime is enabled",

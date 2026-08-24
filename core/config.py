@@ -397,8 +397,8 @@ class LLMConfig(BaseModel):
     # Tier 1: Brainstem (Heartbeat, telemetry, background tasks)
     chat_model: str = "Qwen3.5-9B-4bit"
 
-    # Tier 2: Cortex (daily interaction — 32B primary conversation lane)
-    fast_model: str = "Qwen2.5-32B-Instruct-8bit"
+    # Tier 2: Cortex. The registry binds this stable role to one exact artifact.
+    fast_model: str = "Aura-Cortex"
     fast_max_tokens: int = Field(default=8192, gt=0)
     # 2.0 is the sampling contract's ceiling, not a taste call: above it the
     # softmax is effectively uniform and "temperature" stops naming anything.
@@ -406,11 +406,11 @@ class LLMConfig(BaseModel):
 
     # Deep work stays on the resident systems-intelligence path unless a
     # distinct local specialist is explicitly configured and admitted.
-    deep_model: str = "Qwen2.5-32B-Instruct-8bit"
+    deep_model: str = "Aura-Cortex"
     deep_max_tokens: int = Field(default=8192, gt=0)
     deep_temperature: float = Field(default=0.4, ge=0.0, le=2.0, allow_inf_nan=False)
 
-    vision_model: str = "Qwen2.5-32B-Instruct-8bit"  # Use cortex-aligned model for vision
+    vision_model: str = "Aura-Cortex"
     whisper_model: str = "small.en"
     embedding_model: str = "nomic-embed-text"
     local_cortex_path: str | None = None

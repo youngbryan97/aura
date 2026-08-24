@@ -76,7 +76,7 @@
         panel.innerHTML = `
           <h2>Local model</h2>
           <label>Path on disk to the local model directory.</label>
-          <input id="model_path" placeholder="/Users/you/Models/Qwen2.5-32B-Instruct-8bit" value="${cur}" />`;
+          <input id="model_path" placeholder="/Users/you/Models/Aura-Cortex" value="${cur}" />`;
         break;
       }
       case "memory_location":
