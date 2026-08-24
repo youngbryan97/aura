@@ -91,6 +91,26 @@ def test_inactive_live_affect_is_reported_not_silent():
     assert diagnostics["affect_pulses"] == 0
 
 
+def test_intentionally_neutral_generation_has_no_missing_steering_fault(monkeypatch):
+    degradations = []
+    monkeypatch.setattr(
+        "core.brain.llm.token_sentinel.record_degradation",
+        lambda *args, **kwargs: degradations.append((args, kwargs)),
+    )
+    sentinel = TokenSentinel(
+        affect_interval=1,
+        substrate_mem=None,
+        steering_hooks=[],
+        affect_expected=False,
+    )
+
+    sentinel.feed("one")
+    sentinel.feed("two")
+
+    assert degradations == []
+    assert sentinel.get_diagnostics()["live_affect_expected"] is False
+
+
 def test_ontology_degradation_is_visible(monkeypatch):
     """An import/runtime failure was folded into an empty match, so generation
     continued as though the semantic check had PASSED when it never ran."""

@@ -13804,7 +13804,12 @@ class MLXLocalClient:
         except (TypeError, ValueError, IndexError, OSError):
             return False
 
-    def _emit_steering_status(self, origin: str | None):
+    def _emit_steering_status(
+        self,
+        origin: str | None,
+        *,
+        requested_alpha: object = None,
+    ) -> None:
         """Log steering status on user-facing generations (max once per 60s)."""
         now = time.time()
         last = getattr(self, "_last_steering_status_log", 0.0)
@@ -13812,6 +13817,14 @@ class MLXLocalClient:
             return
         self._last_steering_status_log = now
         active = self._check_steering_liveness()
+        try:
+            neutral_requested = bool(
+                requested_alpha is not None
+                and math.isfinite(float(requested_alpha))
+                and float(requested_alpha) <= 0.0
+            )
+        except (TypeError, ValueError, OverflowError):
+            neutral_requested = False
         if active is None:
             logger.debug(
                 "⏳ [STEERING] Liveness pending first worker receipt (origin=%s)",
@@ -13823,6 +13836,13 @@ class MLXLocalClient:
             # 76cfcf09). Say what was measured.
             logger.debug(
                 "✅ [STEERING] Liveness flag set by this worker (origin=%s, gen=%s)",
+                origin,
+                int(getattr(self, "_worker_generation", 0) or 0),
+            )
+        elif neutral_requested:
+            logger.debug(
+                "⏸️ [STEERING] Intentionally neutral for this generation "
+                "(origin=%s, gen=%s, alpha=0).",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
             )
@@ -14191,7 +14211,12 @@ class MLXLocalClient:
         try:
             # Check steering liveness
             if not request_is_background:
-                self._emit_steering_status(origin_label)
+                self._emit_steering_status(
+                    origin_label,
+                    requested_alpha=kwargs.get(
+                        "clean_user_surface_steering_alpha"
+                    ),
+                )
 
             # Collect the residual-stream states this generation produced in
             # the worker. Cheap (a deque append per sampled token) and the

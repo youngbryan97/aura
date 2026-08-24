@@ -13,6 +13,24 @@ import pytest
 from core.runtime.shutdown_coordinator import clear_shutdown_request, request_shutdown
 
 
+def test_neutral_steering_request_does_not_report_liveness_failure(
+    monkeypatch,
+    caplog,
+):
+    from core.brain.llm.mlx_client import MLXLocalClient
+
+    client = object.__new__(MLXLocalClient)
+    client._last_steering_status_log = 0.0
+    client._worker_generation = 7
+    monkeypatch.setattr(client, "_check_steering_liveness", lambda: False)
+
+    with caplog.at_level(logging.DEBUG, logger="LLM.MLX"):
+        client._emit_steering_status("test", requested_alpha=0.0)
+
+    assert "Intentionally neutral" in caplog.text
+    assert not any(record.levelno >= logging.WARNING for record in caplog.records)
+
+
 def test_setup_worker_env_not_called_at_import():
     """_setup_worker_env must NOT run when the module is imported.
 

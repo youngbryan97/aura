@@ -920,10 +920,24 @@ def live_mind_influence_receipt(source: str) -> InfluenceReceipt:
 def _bind_live_mind_generation_contract(context: dict[str, Any]) -> dict[str, Any]:
     """Bind one authoritative mind-state control contract to a cognitive turn."""
 
+    from core.conversation.user_surface_contract import resolve_user_surface_prompt
+
+    surface_prompt = resolve_user_surface_prompt(context)
+    existing_controls = context.get("live_mind_generation_controls")
+    existing_prompt_sha256 = str(
+        context.get("live_mind_generation_controls_prompt_sha256") or ""
+    )
+    if (
+        isinstance(existing_controls, dict)
+        and existing_prompt_sha256
+        and existing_prompt_sha256 == surface_prompt.sha256
+    ):
+        return dict(existing_controls)
+
     live_mind_context = context.get("live_mind_context")
     generation_controls = _live_mind_generation_controls(
         live_mind_context,
-        user_message=context.get("visible_user_message"),
+        user_message=surface_prompt.prompt or context.get("visible_user_message"),
     )
     if generation_controls:
         from core.brain.llm.user_surface_recurrence import (
@@ -954,6 +968,7 @@ def _bind_live_mind_generation_contract(context: dict[str, Any]) -> dict[str, An
     )
 
     context["live_mind_generation_controls"] = dict(generation_controls)
+    context["live_mind_generation_controls_prompt_sha256"] = surface_prompt.sha256
     context["live_mind_controls_bound"] = controls_bound
     # Travels with the binding, so nothing downstream reads these numbers as
     # a calibrated policy.
@@ -3219,7 +3234,6 @@ class CognitiveEngine:
         if not isinstance(context, dict):
             context = {}
         foreground_turn_objective = str(objective or "")
-        _bind_live_mind_generation_contract(context)
         from core.conversation.user_surface_contract import (
             bind_user_surface_prompt,
             resolve_user_surface_prompt,
@@ -3233,6 +3247,7 @@ class CognitiveEngine:
                 source="cognitive_engine.visible_user_message",
                 overwrite=True,
             )
+        _bind_live_mind_generation_contract(context)
 
         append_user_message = True
         append_user_message = not bool(
@@ -4624,19 +4639,20 @@ class CognitiveEngine:
         live_speech_frame = context.get("live_speech_grounding_frame")
         live_mind_context = context.get("live_mind_context")
         live_mind_required = bool(context.get("live_mind_context_required", False))
-        live_mind_generation_controls = _live_mind_generation_controls(
-            live_mind_context,
-            user_message=visible_user_message,
-        )
-        if not live_mind_generation_controls and isinstance(
-            context.get("live_mind_generation_controls"), dict
-        ):
-            live_mind_generation_controls = dict(context["live_mind_generation_controls"])
+        # The visible request is bound before the cognitive loop starts. Use
+        # that turn-owned control contract here instead of deriving a second
+        # one from a later view of the same context. Two derivations produced
+        # requested-depth=2 in the parent and applied-depth=1 in the worker on
+        # one live turn, so neither receipt described the execution it judged.
+        live_mind_generation_controls = _bind_live_mind_generation_contract(context)
         # The spiking model's temperature and top-p deltas reach the sampler
         # here. Before this they were computed every turn and dropped, leaving
         # a prompt sentence as the neurodynamics' only actuator.
         live_mind_generation_controls = _apply_neurodynamic_sampling_bias(
             live_mind_generation_controls, advice
+        )
+        context["live_mind_generation_controls"] = dict(
+            live_mind_generation_controls
         )
         live_mind_controls_bound = _live_mind_controls_bound(
             live_mind_context,

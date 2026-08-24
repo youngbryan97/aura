@@ -183,6 +183,7 @@ class TokenSentinel:
         prompt: str | None = None,
         generation_purpose: str | None = None,
         user_surface: bool = False,
+        affect_expected: bool = True,
     ):
         """
         Args:
@@ -194,6 +195,7 @@ class TokenSentinel:
             prompt: Bound caller prompt used only as grounding context
             generation_purpose: Declared worker purpose for diagnostics
             user_surface: Whether this generation may reach the user
+            affect_expected: Whether this generation requested affect steering
         """
         # These are used as modulo divisors on EVERY generated token. A zero
         # raised ZeroDivisionError straight out of the token loop — taking down
@@ -209,6 +211,7 @@ class TokenSentinel:
         self._prompt = str(prompt or "")
         self._generation_purpose = str(generation_purpose or "unspecified")
         self._user_surface = bool(user_surface)
+        self._affect_expected = bool(affect_expected)
 
         #: True when either interval had to be corrected, so status() can report
         #: that the sentinel is not running on the cadence it was asked for.
@@ -449,6 +452,8 @@ class TokenSentinel:
         hooks use stale state. This pulse syncs them.
         """
         if not self._substrate_mem or not self._steering_hooks:
+            if not self._affect_expected:
+                return
             # The advertised live-affect path can be entirely inactive while
             # diagnostics merely show zero pulses — indistinguishable from "no
             # pulse was due yet". Record it once so the absence is visible
@@ -503,6 +508,7 @@ class TokenSentinel:
             # path is not wired at all", and a clean ontology result from "the
             # semantic check could not run". Both absences are now stated.
             "live_affect_available": bool(self._substrate_mem and self._steering_hooks),
+            "live_affect_expected": self._affect_expected,
             "ontology_check_degraded": self._ontology_check_degraded,
             "ontology_pending_checks": self._ontology_pending_checks,
             "ontology_last_pending_match": self._last_pending_match,

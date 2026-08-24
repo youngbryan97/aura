@@ -98,6 +98,62 @@ def test_bound_live_mind_contract_honors_measured_depth_opt_in(monkeypatch):
     assert controls["clean_user_surface_recurrent_loops"] == 2
 
 
+def test_bound_live_mind_contract_is_derived_once_per_visible_request(monkeypatch):
+    from core.brain import cognitive_engine
+    from core.conversation.user_surface_contract import bind_user_surface_prompt
+
+    calls: list[str] = []
+
+    def derive(_live_mind_context, *, user_message=None):
+        calls.append(str(user_message or ""))
+        return {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "clean_user_surface_recurrent_loops": 1,
+            "clean_user_surface_steering_alpha": 0.0,
+        }
+
+    monkeypatch.setattr(cognitive_engine, "_live_mind_generation_controls", derive)
+    context = {"live_mind_context": _ready_live_mind_context()}
+    bind_user_surface_prompt(context, "Explain Dijkstra.", source="test")
+
+    first = cognitive_engine._bind_live_mind_generation_contract(context)
+    second = cognitive_engine._bind_live_mind_generation_contract(context)
+
+    assert first == second
+    assert calls == ["Explain Dijkstra."]
+
+
+def test_bound_live_mind_contract_rebinds_for_a_different_visible_request(monkeypatch):
+    from core.brain import cognitive_engine
+    from core.conversation.user_surface_contract import bind_user_surface_prompt
+
+    calls: list[str] = []
+
+    def derive(_live_mind_context, *, user_message=None):
+        calls.append(str(user_message or ""))
+        return {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "clean_user_surface_recurrent_loops": 1,
+            "clean_user_surface_steering_alpha": 0.0,
+        }
+
+    monkeypatch.setattr(cognitive_engine, "_live_mind_generation_controls", derive)
+    context = {"live_mind_context": _ready_live_mind_context()}
+    bind_user_surface_prompt(context, "First request.", source="test")
+    cognitive_engine._bind_live_mind_generation_contract(context)
+    bind_user_surface_prompt(
+        context,
+        "Second request.",
+        source="test",
+        overwrite=True,
+    )
+    cognitive_engine._bind_live_mind_generation_contract(context)
+
+    assert calls == ["First request.", "Second request."]
+
+
 def test_live_mind_surface_receipt_normalizes_stale_worker_bound_flag():
     from core.brain.live_mind_contract import (
         normalize_live_mind_surface_control_receipt,
@@ -280,7 +336,7 @@ async def test_desktop_quick_reply_passes_live_mind_controls_to_router(monkeypat
                     "surface_validation_prompt_present": True,
                     "surface_alpha_applied": 0.30,
                     "surface_alpha_applied_ok": True,
-                    "recurrent_runtime_loops_applied": 2,
+                    "recurrent_runtime_loops_applied": 1,
                     "recurrent_runtime_loops_applied_ok": True,
                     "surface_quality_gate_enabled": True,
                     "surface_quality_gate_passed": True,
@@ -320,7 +376,7 @@ async def test_desktop_quick_reply_passes_live_mind_controls_to_router(monkeypat
     router_kwargs = calls[0]
     assert router_kwargs["temperature"] > 0.58
     assert router_kwargs["top_p"] <= 0.94
-    assert router_kwargs["clean_user_surface_recurrent_loops"] == 2
+    assert router_kwargs["clean_user_surface_recurrent_loops"] == 1
     assert router_kwargs["clean_user_surface_steering_alpha"] == 0.0
     assert router_kwargs["clean_user_surface_contract"] is True
     assert router_kwargs["user_surface_completion_floor"] == 512

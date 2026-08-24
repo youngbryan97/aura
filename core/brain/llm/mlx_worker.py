@@ -7817,6 +7817,15 @@ def _mlx_worker_loop(
                                                     False,
                                                 )
                                             ),
+                                            affect_expected=(
+                                                _safe_float(
+                                                    job.get(
+                                                        "clean_user_surface_steering_alpha"
+                                                    ),
+                                                    1.0,
+                                                )
+                                                > 0.0
+                                            ),
                                         )
                                     except (ImportError, AttributeError, RuntimeError) as _sent_exc:
                                         if bool(job.get("clean_user_surface_contract", False)):
@@ -9967,6 +9976,15 @@ def _mlx_worker_loop(
                                         affect_interval=16,
                                         substrate_mem=substrate_mem,
                                         steering_hooks=_active_steering_hooks(engine),
+                                        affect_expected=(
+                                            _safe_float(
+                                                job.get(
+                                                    "clean_user_surface_steering_alpha"
+                                                ),
+                                                1.0,
+                                            )
+                                            > 0.0
+                                        ),
                                     )
                                 except (ImportError, AttributeError, RuntimeError) as _stream_sent_exc:
                                     if bool(job.get("clean_user_surface_contract", False)):
