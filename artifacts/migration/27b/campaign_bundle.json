@@ -1,0 +1,423 @@
+{
+ "campaign_sha256": "2992c20e909129466b125c43a4990dacbc6dd5aef85f85831eac0f3895d61ddb",
+ "experiments": {
+  "generalization": {
+   "authorizes": "a wider bounded claim if it passes; never ordinary chat and never global serving",
+   "cohort": "held-out families, frozen before the recovery run is read",
+   "goal": "whether the recovered gain reaches families it was not trained on",
+   "precondition": "recovery adjudicated positive"
+  },
+  "never_authorized_by_training_completion": [
+   "ordinary_chat_authorized",
+   "arbitrary_reasoning_authorized",
+   "global runtime promotion",
+   "static weight fusion",
+   "frontier performance"
+  ],
+  "recovery": {
+   "arms": [
+    "treatment",
+    "ordinary_base",
+    "matched_wire_base",
+    "coefficient_lesion",
+    "matched_wrong_state"
+   ],
+   "authorizes": "a bounded 27B claim on these four executable families and nothing else",
+   "cohort": "frozen four-domain semantic cohort, 15 tasks per family",
+   "decodes": 300,
+   "goal": "re-earn the CP566 bounded claim on the 27B, on the same frozen four-domain cohort and the same arm structure",
+   "success": "treatment beats ordinary_base with zero regressions, every family separates under lesion, paired one-sided exact p < 0.01",
+   "task_count": 60
+  }
+ },
+ "futility_gates": [
+  {
+   "after": "calibration",
+   "measure": "ordinary_base_parsed_fraction",
+   "reason": "if ordinary decode cannot even produce parseable answers on the cohort, a gain over it is not a reasoning result",
+   "stops_when": "< 0.2"
+  },
+  {
+   "after": "calibration",
+   "measure": "grounding_contract_status",
+   "reason": "an ungrounded tokenizer makes every typed comparison meaningless",
+   "stops_when": "!= complete"
+  },
+  {
+   "after": "training",
+   "measure": "heldout_state_accuracy_delta_vs_initialization",
+   "reason": "trained parameters that do not beat their own initialization control have nothing to serve",
+   "stops_when": "<= 0"
+  },
+  {
+   "after": "canary",
+   "measure": "treatment_exact",
+   "reason": "no gain to adjudicate; stop before spending the lesion arms",
+   "stops_when": "<= ordinary_base_exact"
+  },
+  {
+   "after": "lesion_arms",
+   "measure": "families_separating_under_lesion",
+   "reason": "a gain that survives its own lesion is a decode-budget effect, not a claim about trained coefficients",
+   "stops_when": "< all"
+  }
+ ],
+ "geometry": {
+  "alignment_errors": [],
+  "attention_layers_in_window": [
+   19,
+   23,
+   27,
+   31,
+   35,
+   39,
+   43,
+   47
+  ],
+  "expected_adapter_site_count": 48,
+  "expected_adapter_sites": [
+   "model.layers.16.mlp.down_proj",
+   "model.layers.17.mlp.down_proj",
+   "model.layers.18.mlp.down_proj",
+   "model.layers.19.self_attn.o_proj",
+   "model.layers.19.self_attn.v_proj",
+   "model.layers.19.mlp.down_proj",
+   "model.layers.20.mlp.down_proj",
+   "model.layers.21.mlp.down_proj",
+   "model.layers.22.mlp.down_proj",
+   "model.layers.23.self_attn.o_proj",
+   "model.layers.23.self_attn.v_proj",
+   "model.layers.23.mlp.down_proj",
+   "model.layers.24.mlp.down_proj",
+   "model.layers.25.mlp.down_proj",
+   "model.layers.26.mlp.down_proj",
+   "model.layers.27.self_attn.o_proj",
+   "model.layers.27.self_attn.v_proj",
+   "model.layers.27.mlp.down_proj",
+   "model.layers.28.mlp.down_proj",
+   "model.layers.29.mlp.down_proj",
+   "model.layers.30.mlp.down_proj",
+   "model.layers.31.self_attn.o_proj",
+   "model.layers.31.self_attn.v_proj",
+   "model.layers.31.mlp.down_proj",
+   "model.layers.32.mlp.down_proj",
+   "model.layers.33.mlp.down_proj",
+   "model.layers.34.mlp.down_proj",
+   "model.layers.35.self_attn.o_proj",
+   "model.layers.35.self_attn.v_proj",
+   "model.layers.35.mlp.down_proj",
+   "model.layers.36.mlp.down_proj",
+   "model.layers.37.mlp.down_proj",
+   "model.layers.38.mlp.down_proj",
+   "model.layers.39.self_attn.o_proj",
+   "model.layers.39.self_attn.v_proj",
+   "model.layers.39.mlp.down_proj",
+   "model.layers.40.mlp.down_proj",
+   "model.layers.41.mlp.down_proj",
+   "model.layers.42.mlp.down_proj",
+   "model.layers.43.self_attn.o_proj",
+   "model.layers.43.self_attn.v_proj",
+   "model.layers.43.mlp.down_proj",
+   "model.layers.44.mlp.down_proj",
+   "model.layers.45.mlp.down_proj",
+   "model.layers.46.mlp.down_proj",
+   "model.layers.47.self_attn.o_proj",
+   "model.layers.47.self_attn.v_proj",
+   "model.layers.47.mlp.down_proj"
+  ],
+  "full_attention_interval": 4,
+  "is_hybrid": true,
+  "linear_layers_in_window": [
+   16,
+   17,
+   18,
+   20,
+   21,
+   22,
+   24,
+   25,
+   26,
+   28,
+   29,
+   30,
+   32,
+   33,
+   34,
+   36,
+   37,
+   38,
+   40,
+   41,
+   42,
+   44,
+   45,
+   46
+  ],
+  "num_hidden_layers": 64,
+  "schema": "aura.hybrid_recurrence_geometry.v1",
+  "targets": [
+   "o_proj",
+   "v_proj",
+   "down_proj"
+  ],
+  "targets_reaching_every_window_layer": [
+   "down_proj"
+  ],
+  "window": [
+   16,
+   48
+  ],
+  "window_size": 32
+ },
+ "legacy_claim": {
+  "adjudication": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/adjudication.json",
+  "authority_over_this_campaign": "none",
+  "checkpoint": "Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "verdict": "BOUNDED_WOW_SIGNAL",
+  "why": "measured on a different checkpoint; equal layer count and hidden size are not equal representational geometry"
+ },
+ "lifecycle_owner": {
+  "note": "this bundle is the campaign's definition; the runner above is its lifecycle. Neither reimplements the other.",
+  "provides": [
+   "authenticated heartbeat",
+   "independent watchdog",
+   "caffeinate custody",
+   "durable resume journal",
+   "append-only attempt ledger",
+   "campaign and model-lane locks"
+  ],
+  "runner": "tools/run_unified_intrinsic_resident_campaign.py"
+ },
+ "model_active_stages": [
+  "calibration",
+  "training",
+  "canary",
+  "lesion_arms",
+  "export"
+ ],
+ "portable_tissue": {
+  "core/brain/llm/latent_cortex/assets/mathematics_memory_tissue_v1/weights.safetensors": "cd7d4cc1f1be1843ffd462309d013131a4d6635fe8922f9dfd7bc553cc8cf483",
+  "core/brain/llm/latent_cortex/assets/neural_transition_tissue_v1/weights.safetensors": "53939996943eec45f4a5a3643a70dbc9ab9a66a718ffd8f0ce1adc7743cbb6bc",
+  "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7"
+ },
+ "recurrence_layer_mapping": {
+  "attention_layer_indices": [
+   3,
+   7,
+   11,
+   15,
+   19,
+   23,
+   27,
+   31,
+   35,
+   39,
+   43,
+   47,
+   51,
+   55,
+   59,
+   63
+  ],
+  "full_attention_interval": 4,
+  "linear_attention_layer_indices": [
+   0,
+   1,
+   2,
+   4,
+   5,
+   6,
+   8,
+   9,
+   10,
+   12,
+   13,
+   14,
+   16,
+   17,
+   18,
+   20,
+   21,
+   22,
+   24,
+   25,
+   26,
+   28,
+   29,
+   30,
+   32,
+   33,
+   34,
+   36,
+   37,
+   38,
+   40,
+   41,
+   42,
+   44,
+   45,
+   46,
+   48,
+   49,
+   50,
+   52,
+   53,
+   54,
+   56,
+   57,
+   58,
+   60,
+   61,
+   62
+  ],
+  "why_aligned": "each group of four ends in the attention layer that mixes across tokens, so an aligned window ends every iteration on one rather than on a positionwise update",
+  "window": [
+   16,
+   48
+  ]
+ },
+ "schema": "aura.rlc.27b_recurrence_campaign.v1",
+ "single_residency": {
+  "independence_comes_from": "re-reading exported artifacts in a separate process, not from reloading the weights",
+  "load_before": "calibration",
+  "unload_after": "export"
+ },
+ "source_freeze": {
+  "core/brain/llm/latent_cortex/frontier_tasks.py": "bef80d1a49ce9d062544dbf29a89d11f018751a85658e1d4ce44b0d7c1020780",
+  "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
+  "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+  "core/brain/llm/unified_recurrent_transfer_decode.py": "7bc2d7e0fe741b0760775a39449b33db506b0a6fd76cb9e3667951d9a67b4a78",
+  "core/learning/hybrid_recurrence_geometry.py": "aab1dcbc52781a3554513fa4d54117c1f201b80ebbf9fe139eea2a867dc65236",
+  "core/learning/intrinsic_recurrence.py": "e0d28f37116a19acba02782102855e9829e13218e814749302f332ae4886e931",
+  "core/learning/recurrence_checkpoint_migration.py": "c07f06fc2848852b94637f686e4971137b6220b9b243539c66fd298f61a86cf2",
+  "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
+  "core/learning/recurrent_answer_emission.py": "81db4286197cedb2e3eb9f80e58a866580bc5aba895811e233e49015cb2412cb",
+  "core/learning/recurrent_literal_grounding.py": "90136639c375faaa51ed1bd904d2363cf2edc12c628e0ea266ac54c3c697708b",
+  "core/learning/recurrent_opcode_grounding.py": "7e8be450a4310fc77d166bad37781d39d795b49e11c934910d94534e96c77d0d",
+  "core/learning/recurrent_state_schema.py": "56101d04275a76bc4106b7c7d2365e60d777abc759e8734218885830b7a2b79d",
+  "core/learning/semantic_neural_controls.py": "890305b703704de20d004f69cd2bd9a87cea29c3975c00bab3de5a90e8b3b689",
+  "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+  "core/learning/unified_intrinsic_objective.py": "b8dd69d577eac804bc5a405577ca54d52fb21b75d33bb3795a9a559f5eaad961",
+  "core/learning/unified_intrinsic_recurrence.py": "a513ea50f4c5e8cca2500e0322432245d2696e5a6a985f1cbfdfd7a4559d97c5",
+  "tools/prepare_27b_recurrence_campaign.py": "745e6e394a334981d3e3e2b3269b836fe79b81a1cf0e5ccf8c04270bc147cb95",
+  "tools/run_semantic_neural_decode_canary.py": "43aef0838e30abc51e23eb7c11b79815073a4b185e2ade80531fb9ccf7489286",
+  "tools/run_unified_recurrent_broad_canary.py": "e042a233b995a903ccc1adfd9b8023fa537bc479c0e3c5fe6e34d0dde2a2e62d",
+  "tools/train_unified_intrinsic_recurrence.py": "d25b47d5caa06a955b313a0df39a85ab7609c39ae705cb02a3b2cef70ca58703"
+ },
+ "stages": [
+  {
+   "does": "verify source digests, checkpoint identity, geometry, and window alignment; refuse on any drift",
+   "model_active": false,
+   "name": "preflight",
+   "produces": [
+    "preflight.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "regenerate tokenizer-bound grounding contracts against the 27B vocabulary; the 32B digit and opcode ids are retired",
+   "model_active": false,
+   "name": "regrounding",
+   "note": "vocabulary moved 152,064 -> 248,320, so every recorded token id is stale and the contracts fail closed until rebuilt",
+   "produces": [
+    "grounding.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "measure ordinary decode on the frozen cohort and record the equal-compute baseline before anything is trained",
+   "model_active": true,
+   "name": "calibration",
+   "produces": [
+    "baseline.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "train the controller over window [16, 48] on typed traces",
+   "model_active": true,
+   "name": "training",
+   "produces": [
+    "adapter/",
+    "resume_journal.jsonl"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "the frozen bounded behavioral canary",
+   "model_active": true,
+   "name": "canary",
+   "produces": [
+    "canary.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "coefficient lesion, syntax-matched wire base, and same-family wrong-state control on the identical cohort",
+   "model_active": true,
+   "name": "lesion_arms",
+   "produces": [
+    "lesions.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "write every receipt and tensor while the weights are still up",
+   "model_active": true,
+   "name": "export",
+   "produces": [
+    "export/"
+   ],
+   "resumable": false
+  },
+  {
+   "does": "release the model lane; nothing after this may reload it",
+   "model_active": false,
+   "name": "unload",
+   "produces": [],
+   "resumable": false
+  },
+  {
+   "does": "a separate process regrades every raw response from disk and recomputes each receipt; it never sees the weights",
+   "model_active": false,
+   "name": "independent_verification",
+   "produces": [
+    "verification.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "the fixed adjudicator renders a verdict and its limitations",
+   "model_active": false,
+   "name": "adjudication",
+   "produces": [
+    "adjudication.json"
+   ],
+   "resumable": true
+  },
+  {
+   "does": "seal a content-addressed package bound to THIS checkpoint; refuse if the evidence names another model",
+   "model_active": false,
+   "name": "activation_materialization",
+   "produces": [
+    "activation.json"
+   ],
+   "resumable": true
+  }
+ ],
+ "target_checkpoint": {
+  "architectures": [
+   "Qwen3_5ForConditionalGeneration"
+  ],
+  "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+  "fusion_provenance_sha256": "5228cee8e3be4c0389d68f02e6bf3dc60bbd8774a94420fc289e0639d3c6897e",
+  "max_position_embeddings": 262144,
+  "model_type": "qwen3_5",
+  "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+  "vocab_size": 248320,
+  "weight_bytes": 15133043513,
+  "weight_file_count": 3,
+  "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+ }
+}
