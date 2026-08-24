@@ -65,6 +65,20 @@ def test_semantic_activation_rejects_resealed_source_or_evidence_drift():
     )
 
 
+def test_semantic_activation_rejects_resealed_model_substitution():
+    activation = _activation()
+    activation["model_identity"] = {
+        **activation["model_identity"],
+        "config_sha256": "0" * 64,
+    }
+    _reseal(activation)
+
+    assert "evidence_drift" in semantic_neural_activation_errors(
+        activation,
+        verify_live_identity=False,
+    )
+
+
 def test_semantic_activation_rejects_resealed_authority_broadening():
     activation = _activation()
     activation["allowed_surface_profiles"].append("free_form")

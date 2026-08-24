@@ -374,6 +374,9 @@ def _verify_resident_evidence(
     exact_by_arm = verification.get("independent_exact_by_arm")
     task_count = verification.get("task_count")
     claim = str(adjudication.get("claim") or "")
+    adjudication_checks = adjudication.get("checks")
+    if not isinstance(adjudication_checks, dict):
+        adjudication_checks = {}
     model_identity = result.get("model_identity")
     manifest_identity = result.get("resident_manifest_identity")
     identities_match = (
@@ -387,8 +390,8 @@ def _verify_resident_evidence(
             identities_match
             and adjudication.get("model_identity") == model_identity
             and adjudication.get("resident_manifest_identity") == manifest_identity
-            and adjudication.get("checks", {}).get("model_identity_match") is True
-            and adjudication.get("checks", {}).get("resident_manifest_identity_match") is True
+            and adjudication_checks.get("model_identity_match") is True
+            and adjudication_checks.get("resident_manifest_identity_match") is True
         )
     elif claim == LEGACY_ADJUDICATION_CLAIM:
         legacy_activation, _legacy_raw = _read_bounded_json(
