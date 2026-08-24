@@ -1,0 +1,121 @@
+{
+ "blockers": [
+  {
+   "class": "environmental",
+   "detail": "12.2 GiB free plus reclaimable, 26.1 GiB needed",
+   "kind": "insufficient_ram",
+   "remedy": "free memory, or wait for the resident model to unload",
+   "source": "launch_readiness"
+  }
+ ],
+ "capability_dispositions": {
+  "gated_outside_the_contract": [
+   "episodic_plasticity",
+   "fast_weight_surfaces",
+   "grounding_contracts",
+   "qualified_rlc_serving"
+  ],
+  "portable": [
+   "persona_crsm"
+  ],
+  "retired": [
+   "expert_adapters"
+  ],
+  "retrain_required": [
+   "recurrence_native",
+   "steering"
+  ]
+ },
+ "decode_calls": {
+  "measured_reference": 364,
+  "note": "unchanged from the reference on purpose: every adopted optimization is outside the model's own work",
+  "planned": 364
+ },
+ "launch_command": null,
+ "measured_durations": {
+  "decode_basis": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/result.json",
+  "decode_checkpoint": "Qwen2.5-32B fuse (the only measured run of this shape)",
+  "decode_seconds": 4814.533,
+  "training_note": "no retained receipt records a training wall time; reported absent rather than estimated",
+  "training_seconds": null
+ },
+ "promotion_command": null,
+ "promotion_precondition": "independent verification and adjudication must both have run on the exported artifacts, after unload; training completing is not authorization to serve",
+ "ready_to_launch": false,
+ "remaining_model_active_stages": [
+  "calibration",
+  "training",
+  "canary",
+  "lesion_arms",
+  "export"
+ ],
+ "remaining_model_loads": 1,
+ "schema": "aura.rlc.27b_critical_path.v1",
+ "stage_concurrency": [
+  {
+   "may_run_concurrently_with": [
+    "regrounding"
+   ],
+   "needs_model": false,
+   "stage": "preflight"
+  },
+  {
+   "may_run_concurrently_with": [
+    "preflight"
+   ],
+   "needs_model": false,
+   "stage": "regrounding"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": true,
+   "stage": "calibration"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": true,
+   "stage": "training"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": true,
+   "stage": "canary"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": true,
+   "stage": "lesion_arms"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": true,
+   "stage": "export"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": false,
+   "stage": "unload"
+  },
+  {
+   "may_run_concurrently_with": [
+    "adjudication_inputs_hashing"
+   ],
+   "needs_model": false,
+   "stage": "independent_verification"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": false,
+   "stage": "adjudication"
+  },
+  {
+   "may_run_concurrently_with": [],
+   "needs_model": false,
+   "stage": "activation_materialization"
+  }
+ ],
+ "train_steps": {
+  "note": "set by the training stage's own schedule; not fixed here",
+  "planned": null
+ }
+}
