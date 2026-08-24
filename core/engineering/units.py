@@ -658,6 +658,14 @@ def engineering_text(value: float, symbol: str, *, digits: int = 3) -> str:
         return f"{value:g} {symbol}".strip()
     if symbol in {"", "1"}:
         return _round_text(value, digits)
+    if symbol == "kg":
+        # The SI base unit for mass already carries a prefix, so prefixing it
+        # again produces "mkg". Small masses are written in grams, which is
+        # what a person says anyway.
+        if abs(value) < 1.0:
+            return engineering_text(value * 1000.0, "g", digits=digits)
+        if abs(value) >= 1000.0:
+            return f"{_round_text(value / 1000.0, digits)} t"
     magnitude = abs(value)
     for step, prefix in _ENGINEERING_STEPS:
         if magnitude >= step:
