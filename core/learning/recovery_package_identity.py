@@ -116,6 +116,31 @@ def package_id(descriptor: DescriptorIdentity, *, campaign: str) -> str:
     return f"{campaign}-{descriptor.fingerprint()[:20]}"
 
 
+def _behavior_file_sha256(behavior: dict[str, Any], name: str) -> str:
+    files = behavior.get("files")
+    if not isinstance(files, list):
+        raise RecoveryPackageError("descriptor behavior identity carries no files")
+    matches = [
+        record
+        for record in files
+        if isinstance(record, dict) and record.get("path") == name
+    ]
+    if len(matches) != 1:
+        raise RecoveryPackageError(
+            f"descriptor behavior identity must name {name} exactly once"
+        )
+    digest = matches[0].get("sha256")
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise RecoveryPackageError(
+            f"descriptor behavior identity has an invalid {name} digest"
+        )
+    return digest
+
+
 def descriptor_from_manifest(manifest: dict[str, Any]) -> DescriptorIdentity:
     descriptor = manifest.get("artifact_descriptor")
     if not isinstance(descriptor, dict):
@@ -123,17 +148,17 @@ def descriptor_from_manifest(manifest: dict[str, Any]) -> DescriptorIdentity:
     profile = descriptor.get("artifact_profile")
     if not isinstance(profile, dict):
         raise RecoveryPackageError("descriptor carries no artifact_profile")
-    weights = descriptor.get("weight_identity") or {}
-    behaviour = descriptor.get("behavior_identity") or {}
+    behaviour = descriptor.get("behavior_identity")
+    if not isinstance(behaviour, dict):
+        raise RecoveryPackageError("descriptor carries no behavior_identity")
     return DescriptorIdentity(
         path=str(profile.get("path") or manifest.get("active_model_path") or ""),
-        config_sha256=str(
-            behaviour.get("config_sha256") or profile.get("fingerprint") or ""
+        config_sha256=_behavior_file_sha256(behaviour, "config.json"),
+        weights_index_sha256=_behavior_file_sha256(
+            behaviour,
+            "model.safetensors.index.json",
         ),
-        weights_index_sha256=str(
-            weights.get("weights_index_sha256") or profile.get("fingerprint") or ""
-        ),
-        tokenizer_sha256=str(behaviour.get("tokenizer_sha256") or ""),
+        tokenizer_sha256=_behavior_file_sha256(behaviour, "tokenizer.json"),
         model_type=str(profile.get("model_type") or ""),
         num_hidden_layers=int(profile.get("num_hidden_layers") or 0),
         hidden_size=int(profile.get("hidden_size") or 0),

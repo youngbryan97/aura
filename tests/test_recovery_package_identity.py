@@ -48,11 +48,76 @@ def _descriptor(**overrides) -> DescriptorIdentity:
     return DescriptorIdentity(**base)
 
 
+def _manifest() -> dict:
+    return {
+        "active_model_path": "/models/target",
+        "artifact_descriptor": {
+            "artifact_profile": {
+                "path": "/models/target",
+                "model_type": "qwen3_5_text",
+                "num_hidden_layers": 64,
+                "hidden_size": 5120,
+                "vocab_size": 248320,
+                "full_attention_layers": 16,
+                "linear_attention_layers": 48,
+            },
+            "behavior_identity": {
+                "files": [
+                    {"path": "config.json", "sha256": "a" * 64},
+                    {
+                        "path": "model.safetensors.index.json",
+                        "sha256": "b" * 64,
+                    },
+                    {"path": "tokenizer.json", "sha256": "c" * 64},
+                ]
+            },
+        },
+    }
+
+
 def test_the_id_is_derived_from_the_checkpoint_not_chosen():
     one = package_id(_descriptor(), campaign="rlc-27b-recovery")
     two = package_id(_descriptor(config_sha256="d" * 64), campaign="rlc-27b-recovery")
     assert one != two
     assert one.startswith("rlc-27b-recovery-")
+
+
+def test_manifest_descriptor_uses_exact_signed_behavior_file_hashes():
+    descriptor = descriptor_from_manifest(_manifest())
+
+    assert descriptor.config_sha256 == "a" * 64
+    assert descriptor.weights_index_sha256 == "b" * 64
+    assert descriptor.tokenizer_sha256 == "c" * 64
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ("config.json", "model.safetensors.index.json", "tokenizer.json"),
+)
+def test_manifest_descriptor_refuses_a_missing_behavior_file(missing):
+    manifest = _manifest()
+    files = manifest["artifact_descriptor"]["behavior_identity"]["files"]
+    manifest["artifact_descriptor"]["behavior_identity"]["files"] = [
+        record for record in files if record["path"] != missing
+    ]
+
+    with pytest.raises(RecoveryPackageError, match="exactly once"):
+        descriptor_from_manifest(manifest)
+
+
+def test_manifest_descriptor_refuses_duplicate_or_malformed_hashes():
+    manifest = _manifest()
+    files = manifest["artifact_descriptor"]["behavior_identity"]["files"]
+    files.append(dict(files[0]))
+    with pytest.raises(RecoveryPackageError, match="exactly once"):
+        descriptor_from_manifest(manifest)
+
+    manifest = _manifest()
+    manifest["artifact_descriptor"]["behavior_identity"]["files"][0][
+        "sha256"
+    ] = "not-a-hash"
+    with pytest.raises(RecoveryPackageError, match="invalid config.json digest"):
+        descriptor_from_manifest(manifest)
 
 
 def test_moving_a_checkpoint_does_not_change_its_identity():

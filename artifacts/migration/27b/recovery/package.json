@@ -1,17 +1,17 @@
 {
  "authorizes": [],
  "descriptor_identity": {
-  "config_sha256": "198e60c71915c501e8273103f348d1508d8ce4c10d34a810c5db5ff5c6250c6b",
-  "fingerprint": "8e26c4733aa8c41d180c62191ded81edd2d5987a56c43438816bf0467e426a80",
+  "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+  "fingerprint": "05346acd618d1c925f1619b30d6bdec50794095e967dea1b3f16ac471dbe9bf4",
   "full_attention_layers": 16,
   "hidden_size": 5120,
   "linear_attention_layers": 48,
   "model_type": "qwen3_5_text",
   "num_hidden_layers": 64,
   "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
-  "tokenizer_sha256": "",
+  "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
   "vocab_size": 248320,
-  "weights_index_sha256": "198e60c71915c501e8273103f348d1508d8ce4c10d34a810c5db5ff5c6250c6b"
+  "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
  },
  "evidence": {
   "measured_on_this_checkpoint": false
@@ -32,8 +32,8 @@
   "static weight fusion",
   "frontier performance"
  ],
- "package_id": "rlc-27b-recovery-8e26c4733aa8c41d180c",
- "package_sha256": "f202af1034e47233f99d3c7fcb9d21f048d9202e729df9688ff251e555c12de9",
+ "package_id": "rlc-27b-recovery-05346acd618d1c925f16",
+ "package_sha256": "c3e931147092eec3d0b9c9ec1f955075168629d4ab73323e60ae813a9b7a5ea1",
  "schema": "aura.rlc.bounded_recovery_package.v1",
  "verdict": null
 }
