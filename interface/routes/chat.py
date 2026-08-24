@@ -21090,7 +21090,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     status="self_condition",
                 )
 
-        if allow_chat_fastpaths:
+        # Verified self-evidence is a typed runtime read, not a model-authored
+        # shortcut. Desktop-origin turns disable ordinary chat fast paths so
+        # the full mind owns authored prose; that must not force a model call
+        # to restate signed measurements it can only make less accurate.
+        if not is_benchmark:
             try:
                 from core.brain.cortex_self_evidence import render_cortex_evidence_reply
 

@@ -16587,6 +16587,20 @@ async def test_stabilizer_replaces_subjective_cortex_story_with_typed_evidence(m
     assert "tighter workspace" not in result
 
 
+def test_desktop_cortex_evidence_is_not_guarded_by_authored_fastpath_policy():
+    """A signed measurement remains a read when the desktop requires full-mind prose."""
+    from interface.routes import chat as chat_routes
+
+    source = chat_lane_source()
+    marker = "Verified self-evidence is a typed runtime read"
+    start = source.index(marker)
+    block = source[start : start + 1_200]
+
+    assert "if not is_benchmark:" in block
+    assert "if allow_chat_fastpaths:" not in block
+    assert 'status="cortex_self_evidence"' in block
+
+
 @pytest.mark.asyncio
 async def test_stabilize_private_cognitive_model_uses_grounded_reply_before_tail_completion(monkeypatch):
     from interface.routes import chat as chat_routes
