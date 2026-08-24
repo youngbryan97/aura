@@ -6961,7 +6961,7 @@ def _mlx_worker_loop(
                                     ],
                                     prompt[-90:] if isinstance(prompt, str) else type(prompt),
                                 )
-                    except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+                    except Exception as e:  # noqa: BLE001 - one bad job must not kill the resident model
                         if tools:
                             # A tool-calling contract cannot degrade to prose:
                             # the model would answer without the tool schema
@@ -6971,9 +6971,18 @@ def _mlx_worker_loop(
                                 action="failed generation because tool template could not render",
                                 severity="error",
                             )
-                            raise RuntimeError(
-                                f"chat_template_failed_with_tools:{e}"
-                            ) from e
+                            ipc_writer.put(
+                                {
+                                    "id": job.get("id"),
+                                    "action": "generate",
+                                    "status": "error",
+                                    "message": (
+                                        "chat_template_failed_with_tools:"
+                                        f"{type(e).__name__}:{e}"
+                                    ),
+                                }
+                            )
+                            continue
                         _record_mlx_degradation(
                             e,
                             action="continued generation with role-labeled fallback after native chat template failed",

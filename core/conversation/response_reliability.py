@@ -2759,10 +2759,10 @@ def _compact_output_style_requested(user_message: Any) -> bool:
         return False
     pattern = re.compile(
         r"\b(?:briefly|be brief|be concise|keep (?:it|this) (?:brief|concise|short)|"
-        r"(?:brief|concise|short|plain|direct) (?:answer|reply|response|sentence)|"
-        r"(?:brief|concise|short|plain|direct) sentences?|"
-        r"in (?:a|one) (?:brief|concise|short|plain|direct) sentence|"
-        r"answer directly|reply directly|respond directly|include nothing else|nothing else)\b"
+        r"(?:brief|concise|short) (?:answer|reply|response|sentence)|"
+        r"(?:brief|concise|short) sentences?|"
+        r"in (?:a|one) (?:brief|concise|short) sentence|"
+        r"include nothing else|nothing else)\b"
     )
     return any(
         _constraint_match_is_actionable(text, match)
@@ -4608,8 +4608,8 @@ def _explicit_brevity_requested(user_message: Any) -> bool:
     direct_brevity = (
         r"\b(?:briefly|be brief|be concise|keep (?:it|this) (?:brief|concise|short)|"
         r"concise (?:answer|reply|response|sentence)|short (?:answer|reply|response|sentence)|"
-        r"in (?:a|one) (?:brief|concise|short) sentence|answer directly|reply directly|"
-        r"respond directly|include nothing else|nothing else|"
+        r"in (?:a|one) (?:brief|concise|short) sentence|"
+        r"include nothing else|nothing else|"
         # "Just the name." / "Just the digits." — a recall probe that asks for
         # the bare value IS an explicit length constraint, and a correct
         # one-word answer must not be failed as too_short_for_user_turn.

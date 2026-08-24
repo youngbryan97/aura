@@ -962,6 +962,19 @@ def test_output_contract_caps_exact_sentence_and_large_word_requests():
     ) + 16
 
 
+def test_directness_does_not_invent_a_length_ceiling_for_a_complete_answer():
+    from core.conversation.response_reliability import requested_output_contract
+
+    contract = requested_output_contract(
+        "Explain Dijkstra's algorithm in one complete response. Include its "
+        "invariant, numbered pseudocode, a worked example, both complexity "
+        "bounds, and the negative-weight alternative. Answer directly without tools."
+    )
+
+    assert contract.kind == "none"
+    assert contract.hard_token_ceiling is None
+
+
 @pytest.mark.parametrize(
     "prompt",
     [

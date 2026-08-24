@@ -162,8 +162,43 @@ def _record_inert_thinking_flag(template: str) -> None:
 
 
 
+def _message_role(message: object) -> str:
+    if isinstance(message, dict):
+        return _normalize_role(message.get("role"))
+    return _normalize_role(getattr(message, "role", ""))
+
+
+def _message_content(message: object) -> object:
+    if isinstance(message, dict):
+        return message.get("content")
+    return getattr(message, "content", "")
+
+
+def _merged_system_content(messages: list[object]) -> object:
+    contents = [_message_content(message) for message in messages]
+    if all(content is None or isinstance(content, str) for content in contents):
+        return "\n\n".join(
+            str(content).strip()
+            for content in contents
+            if str(content or "").strip()
+        )
+
+    blocks: list[object] = []
+    for content in contents:
+        if content is None:
+            continue
+        if isinstance(content, str):
+            if content.strip():
+                blocks.append({"type": "text", "text": content})
+        elif isinstance(content, (list, tuple)):
+            blocks.extend(content)
+        else:
+            blocks.append(content)
+    return blocks
+
+
 def system_first(messages: object) -> object:
-    """The same conversation with any system messages at the front.
+    """Return a transcript with one canonical system block at index zero.
 
     Chat templates disagree about where a system message may appear, and some
     raise rather than cope: "System message must be at the beginning." That
@@ -175,29 +210,46 @@ def system_first(messages: object) -> object:
     stand behind."
 
     A misordered list is a caller's mistake, and the cost of it should be a
-    reordered list rather than a dead model. Order among the system messages
-    is kept, order among the rest is kept, and nothing is dropped or merged —
-    so a template that does accept them later sees the same content.
+    normalized transcript rather than a dead model. Some templates reject a
+    second system message even when every system message is at the front, and
+    many do not recognize the provider-neutral ``developer`` role. Authority
+    messages are therefore coalesced in original order into one system block;
+    all non-authority messages keep their original order.
     """
-    if not isinstance(messages, list) or len(messages) < 2:
+    if not isinstance(messages, (list, tuple)) or not messages:
         return messages
     system: list[object] = []
     rest: list[object] = []
     for message in messages:
-        role = ""
-        if isinstance(message, dict):
-            role = str(message.get("role") or "").strip().lower()
-        else:
-            role = str(getattr(message, "role", "") or "").strip().lower()
-        (system if role == "system" else rest).append(message)
-    if not system or messages[: len(system)] == system:
+        (system if _message_role(message) == "system" else rest).append(message)
+    if not system:
         return messages
+
+    if len(system) == 1 and not isinstance(system[0], dict):
+        raw_role = str(getattr(system[0], "role", "") or "").strip().lower()
+        if raw_role == "system":
+            if system[0] is messages[0]:
+                return messages
+            return [system[0], *rest]
+
+    if (
+        len(system) == 1
+        and system[0] is messages[0]
+        and isinstance(system[0], dict)
+        and str(system[0].get("role") or "").strip().lower() == "system"
+    ):
+        return messages
+
+    first = system[0]
+    canonical = dict(first) if isinstance(first, dict) else {}
+    canonical["role"] = "system"
+    canonical["content"] = _merged_system_content(system)
     logger.info(
-        "Moved %d system message(s) to the front of a %d-message conversation.",
+        "Canonicalized %d authority message(s) at the front of a %d-message conversation.",
         len(system),
         len(messages),
     )
-    return system + rest
+    return [canonical, *rest]
 
 
 def render_chat_template(

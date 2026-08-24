@@ -1782,6 +1782,8 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         precompile_kwargs = probe.await_args_list[0].kwargs
         self.assertTrue(precompile_kwargs["warmup_precompile"])
         self.assertEqual(precompile_kwargs["max_tokens"], 1)
+        self.assertTrue(precompile_kwargs["foreground_request"])
+        self.assertFalse(precompile_kwargs["request_is_background"])
         readiness_kwargs = probe.await_args_list[1].kwargs
         self.assertTrue(readiness_kwargs["health_probe"])
         self.assertTrue(readiness_kwargs["disable_prompt_cache"])

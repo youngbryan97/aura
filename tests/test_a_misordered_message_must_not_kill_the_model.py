@@ -31,8 +31,8 @@ def test_a_system_message_arriving_late_is_moved_to_the_front():
     assert [message["role"] for message in moved] == ["system", "user", "user"]
 
 
-def test_nothing_is_dropped_or_merged():
-    """A template that does accept them later must see the same content."""
+def test_multiple_system_messages_become_one_canonical_system_block():
+    """Strict templates permit one system message, not merely a system prefix."""
     original = [
         {"role": "user", "content": "a"},
         {"role": "system", "content": "s1"},
@@ -40,8 +40,45 @@ def test_nothing_is_dropped_or_merged():
         {"role": "system", "content": "s2"},
     ]
     moved = system_first(original)
-    assert len(moved) == len(original)
-    assert [message["content"] for message in moved] == ["s1", "s2", "a", "b"]
+    assert len(moved) == 3
+    assert [message["role"] for message in moved] == ["system", "user", "assistant"]
+    assert moved[0]["content"] == "s1\n\ns2"
+    assert [message["content"] for message in moved[1:]] == ["a", "b"]
+
+
+def test_developer_authority_is_folded_into_the_canonical_system_block():
+    moved = system_first(
+        [
+            {"role": "system", "content": "identity"},
+            {"role": "user", "content": "question"},
+            {"role": "developer", "content": "runtime state"},
+        ]
+    )
+    assert moved == [
+        {"role": "system", "content": "identity\n\nruntime state"},
+        {"role": "user", "content": "question"},
+    ]
+
+
+def test_strict_single_system_template_accepts_the_normalized_transcript():
+    class _StrictTokenizer:
+        def apply_chat_template(self, messages, **_kwargs):
+            assert messages[0]["role"] == "system"
+            assert all(message["role"] != "system" for message in messages[1:])
+            assert all(message["role"] != "developer" for message in messages)
+            return "rendered"
+
+    from core.brain.llm.chat_format import render_chat_template
+
+    rendered = render_chat_template(
+        _StrictTokenizer(),
+        [
+            {"role": "system", "content": "identity"},
+            {"role": "user", "content": "question"},
+            {"role": "system", "content": "runtime state"},
+        ],
+    )
+    assert rendered == "rendered"
 
 
 def test_a_conversation_already_in_order_is_returned_untouched():
@@ -125,3 +162,17 @@ def test_the_trimmer_cannot_kill_the_worker_with_a_template_error():
     body = source[where : where + 1200]
     assert "system_first(" in body, "the trimmer renders without normalising order"
     assert "except Exception" in body, "a template refusal still escapes the trimmer"
+
+
+def test_native_template_failure_cannot_escape_the_generation_job():
+    import inspect
+
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker._mlx_worker_loop)
+    start = source.index('logger.info("🎯 [WORKER] Rendering native chat/tool template.")')
+    body = source[start : start + 4200]
+    assert "except Exception" in body
+    assert '"chat_template_failed_with_tools:"' in body
+    assert '"status": "error"' in body
+    assert "continue" in body

@@ -15253,7 +15253,7 @@ class MLXLocalClient:
                         "Hello",
                         _retry=True,
                         request_is_background=request_is_background,
-                        foreground_request=False,
+                        foreground_request=foreground_request,
                         owner_label=owner_name,
                         max_tokens=1,
                         warmup_precompile=True,
