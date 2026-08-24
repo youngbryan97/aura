@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.brain.llm.semantic_neural_serving import (  # noqa: E402
-    DEFAULT_ACTIVATION_PATH,
+    ACTIVE_ACTIVATION_PATH,
     RESIDENT_ADJUDICATION_PATH,
     RESIDENT_RESULT_PATH,
     RESIDENT_VERIFICATION_PATH,
@@ -36,7 +36,7 @@ def main() -> int:
     parser.add_argument("--result", type=Path, default=RESIDENT_RESULT_PATH)
     parser.add_argument("--verification", type=Path, default=RESIDENT_VERIFICATION_PATH)
     parser.add_argument("--adjudication", type=Path, default=RESIDENT_ADJUDICATION_PATH)
-    parser.add_argument("--out", type=Path, default=DEFAULT_ACTIVATION_PATH)
+    parser.add_argument("--out", type=Path, default=ACTIVE_ACTIVATION_PATH)
     parser.add_argument("--runtime-verification", type=Path)
     args = parser.parse_args()
 

@@ -27,6 +27,10 @@ EXPECTED_ARMS: Final = (
     "coefficient_lesion",
     "matched_wrong_state",
 )
+MODEL_BOUND_CLAIM: Final = (
+    "replicated lesion-dependent resident-model effective reasoning gain over "
+    "ordinary decode on the frozen four-domain semantic cohort"
+)
 
 
 def _sha(value: Any) -> str:
@@ -106,6 +110,10 @@ def adjudicate(
     matrix, decode_count = _journal_matrix(journal_path)
 
     task_count = int(result.get("task_count") or 0)
+    result_model_identity = result.get("model_identity")
+    verification_model_identity = verification.get("model_identity")
+    result_manifest_identity = result.get("resident_manifest_identity")
+    verification_manifest_identity = verification.get("resident_manifest_identity")
     per_family = task_count // len(EXPECTED_FAMILIES) if task_count else 0
     gains_by_family = {
         family: matrix[family]["treatment"] - matrix[family]["ordinary_base"]
@@ -123,6 +131,10 @@ def adjudicate(
         "producer_admitted": result.get("admitted") is True,
         "independent_verifier_passed": verification.get("verified") is True,
         "resident_manifest_bound": isinstance(result.get("resident_manifest_identity"), dict),
+        "model_identity_match": isinstance(result_model_identity, dict)
+        and result_model_identity == verification_model_identity,
+        "resident_manifest_identity_match": isinstance(result_manifest_identity, dict)
+        and result_manifest_identity == verification_manifest_identity,
         "frozen_profile": result.get("surface_profile") == "mixed_multidomain_v1",
         "four_domain_identity": tuple(result.get("domains") or ()) == EXPECTED_DOMAINS,
         "powered_complete_matrix": task_count == 60 and decode_count == 300,
@@ -171,10 +183,9 @@ def adjudicate(
             "verification": verification["verification_receipt_sha256"],
             "supervisor": supervisor["receipt_sha256"],
         },
-        "claim": (
-            "replicated lesion-dependent resident-32B effective reasoning gain over "
-            "ordinary decode on the frozen four-domain semantic cohort"
-        ),
+        "model_identity": result_model_identity,
+        "resident_manifest_identity": result_manifest_identity,
+        "claim": MODEL_BOUND_CLAIM,
         "limitations": (
             "bounded executable families; not open-domain general reasoning, static fusion, "
             "frontier performance, consciousness evidence, or unrestricted runtime promotion"

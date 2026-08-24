@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tools.adjudicate_semantic_neural_wow import EXPECTED_FAMILIES, _sha
+from tools.adjudicate_semantic_neural_wow import (
+    EXPECTED_FAMILIES,
+    MODEL_BOUND_CLAIM,
+    _sha,
+)
 
 
 def test_adjudication_receipt_hash_is_canonical():
@@ -19,3 +23,9 @@ def test_expected_family_contract_covers_all_four_domains():
         "frontier_misleading_premise",
         "frontier_scientific_inference",
     )
+
+
+def test_adjudication_claim_is_model_bound_without_relabeling_a_size():
+    assert "resident-model" in MODEL_BOUND_CLAIM
+    assert "32B" not in MODEL_BOUND_CLAIM
+    assert "27B" not in MODEL_BOUND_CLAIM

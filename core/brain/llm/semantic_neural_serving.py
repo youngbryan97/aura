@@ -12,16 +12,29 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Final
 
+from core.learning.recovery_package_identity import (
+    DescriptorIdentity,
+    descriptor_from_manifest,
+    evidence_namespace_errors,
+)
+from core.learning.recovery_package_identity import (
+    package_id as recovery_package_id,
+)
+
 SEMANTIC_NEURAL_SERVING_SCHEMA: Final = "aura.semantic_neural_serving.v2"
 SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA: Final = (
     "aura.semantic_neural_runtime_verification.v3"
 )
 SEMANTIC_NEURAL_SERVING_MODE: Final = "qualified_exact_semantic_v1"
 PACKAGE_ID: Final = "cp568-resident-semantic-neural-active-r1"
+RECOVERY_PACKAGE_CAMPAIGN: Final = "rlc-27b-recovery"
 PROMOTION_MODE: Final = "active"
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_ACTIVATION_PATH: Final = (
     REPO_ROOT / "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/activation.json"
+)
+ACTIVE_ACTIVATION_PATH: Final = (
+    REPO_ROOT / "training/fused-model/semantic-neural-active.json"
 )
 RESIDENT_RESULT_PATH: Final = (
     REPO_ROOT
@@ -88,6 +101,14 @@ ACTIVATION_CLAIM_BOUNDARY: Final = (
     "reasoning gain over ordinary decode on the frozen four-domain semantic cohort; "
     "bounded executable families only, not open-domain general reasoning, static "
     "fusion, frontier performance, consciousness evidence, or unrestricted promotion"
+)
+LEGACY_ADJUDICATION_CLAIM: Final = (
+    "replicated lesion-dependent resident-32B effective reasoning gain over "
+    "ordinary decode on the frozen four-domain semantic cohort"
+)
+MODEL_BOUND_ADJUDICATION_CLAIM: Final = (
+    "replicated lesion-dependent resident-model effective reasoning gain over "
+    "ordinary decode on the frozen four-domain semantic cohort"
 )
 _FALSE_VALUES: Final = frozenset({"0", "false", "no", "off", "disabled"})
 _OPTIONAL_AST_FIELDS: Final = frozenset({"type_params"})
@@ -247,6 +268,39 @@ def _identity_for_manifest(manifest_path: Path) -> dict[str, Any]:
     }
 
 
+def _recovery_descriptor(value: Any) -> DescriptorIdentity:
+    if not isinstance(value, dict):
+        raise RuntimeError("semantic recovery descriptor is missing")
+    body = {key: item for key, item in value.items() if key != "fingerprint"}
+    try:
+        descriptor = DescriptorIdentity(**body)
+    except (TypeError, ValueError):
+        raise RuntimeError("semantic recovery descriptor is invalid") from None
+    if value.get("fingerprint") != descriptor.fingerprint():
+        raise RuntimeError("semantic recovery descriptor fingerprint is invalid")
+    return descriptor
+
+
+def _activation_claim_boundary(claim: str) -> str:
+    if claim == LEGACY_ADJUDICATION_CLAIM:
+        return ACTIVATION_CLAIM_BOUNDARY
+    if claim != MODEL_BOUND_ADJUDICATION_CLAIM:
+        raise RuntimeError("semantic adjudication claim is not recognized")
+    return (
+        "runtime qualification of a replicated lesion-dependent resident-model "
+        "effective reasoning gain over ordinary decode on the frozen four-domain "
+        "semantic cohort; bounded executable families only, not open-domain general "
+        "reasoning, static fusion, frontier performance, consciousness evidence, or "
+        "unrestricted promotion"
+    )
+
+
+def active_semantic_neural_activation_path() -> Path:
+    """Resolve the operational activation without rewriting historical evidence."""
+
+    return ACTIVE_ACTIVATION_PATH if ACTIVE_ACTIVATION_PATH.exists() else DEFAULT_ACTIVATION_PATH
+
+
 def _manifest_identity_matches_activation(
     *,
     expected: dict[str, Any],
@@ -319,17 +373,40 @@ def _verify_resident_evidence(
     }
     exact_by_arm = verification.get("independent_exact_by_arm")
     task_count = verification.get("task_count")
+    claim = str(adjudication.get("claim") or "")
+    model_identity = result.get("model_identity")
+    manifest_identity = result.get("resident_manifest_identity")
+    identities_match = (
+        isinstance(model_identity, dict)
+        and model_identity == verification.get("model_identity")
+        and isinstance(manifest_identity, dict)
+        and manifest_identity == verification.get("resident_manifest_identity")
+    )
+    if claim == MODEL_BOUND_ADJUDICATION_CLAIM:
+        identities_match = bool(
+            identities_match
+            and adjudication.get("model_identity") == model_identity
+            and adjudication.get("resident_manifest_identity") == manifest_identity
+            and adjudication.get("checks", {}).get("model_identity_match") is True
+            and adjudication.get("checks", {}).get("resident_manifest_identity_match") is True
+        )
+    elif claim == LEGACY_ADJUDICATION_CLAIM:
+        legacy_activation, _legacy_raw = _read_bounded_json(
+            DEFAULT_ACTIVATION_PATH,
+            maximum_bytes=512 * 1024,
+        )
+        identities_match = bool(
+            identities_match and model_identity == legacy_activation.get("model_identity")
+        )
+    else:
+        identities_match = False
     if (
         result.get("receipt_sha256") != _sha(result_body)
         or verification.get("verification_receipt_sha256") != _sha(verification_body)
         or adjudication.get("adjudication_receipt_sha256") != _sha(adjudication_body)
         or adjudication.get("passed") is not True
         or adjudication.get("verdict") != "BOUNDED_WOW_SIGNAL"
-        or adjudication.get("claim")
-        != (
-            "replicated lesion-dependent resident-32B effective reasoning gain over "
-            "ordinary decode on the frozen four-domain semantic cohort"
-        )
+        or not identities_match
         or "not open-domain general reasoning" not in str(adjudication.get("limitations") or "")
         or adjudication.get("input_receipts", {}).get("result") != result.get("receipt_sha256")
         or adjudication.get("input_receipts", {}).get("verification")
@@ -406,9 +483,24 @@ def build_semantic_neural_activation(
         or manifest_identity["active_model_path"] != model_identity["path"]
     ):
         raise RuntimeError("semantic serving resident identity differs from evidence")
+    manifest_payload, _manifest_raw = _read_bounded_json(
+        resident_manifest_path,
+        maximum_bytes=512 * 1024,
+    )
+    adjudication_claim = str(adjudication.get("claim") or "")
+    if adjudication_claim == LEGACY_ADJUDICATION_CLAIM:
+        serving_package_id = PACKAGE_ID
+        descriptor_identity = None
+    else:
+        descriptor = descriptor_from_manifest(manifest_payload)
+        serving_package_id = recovery_package_id(
+            descriptor,
+            campaign=RECOVERY_PACKAGE_CAMPAIGN,
+        )
+        descriptor_identity = descriptor.as_dict()
     body: dict[str, Any] = {
         "schema": SEMANTIC_NEURAL_SERVING_SCHEMA,
-        "package_id": PACKAGE_ID,
+        "package_id": serving_package_id,
         "mode": SEMANTIC_NEURAL_SERVING_MODE,
         "promotion_mode": PROMOTION_MODE,
         "active_by_default": True,
@@ -443,8 +535,10 @@ def build_semantic_neural_activation(
                 "coefficient_lesion_contract_verified"
             ],
         },
-        "claim_boundary": ACTIVATION_CLAIM_BOUNDARY,
+        "claim_boundary": _activation_claim_boundary(adjudication_claim),
     }
+    if descriptor_identity is not None:
+        body["descriptor_identity"] = descriptor_identity
     if runtime_verification_path is not None:
         runtime_verification, runtime_raw = _read_bounded_json(
             runtime_verification_path,
@@ -472,7 +566,7 @@ def build_semantic_neural_activation(
             or runtime_verification.get("verification_receipt_sha256") != _sha(runtime_body)
             or not isinstance(runtime_receipt, dict)
             or runtime_receipt.get("activation_sha256") != candidate_activation_sha256
-            or runtime_receipt.get("package_id") != PACKAGE_ID
+            or runtime_receipt.get("package_id") != serving_package_id
             or runtime_receipt.get("promotion_mode") != PROMOTION_MODE
         ):
             raise RuntimeError("semantic runtime qualification is not admissible")
@@ -510,11 +604,27 @@ def semantic_neural_activation_errors(
     """Recompute every mutable dependency of a serving activation."""
 
     errors: list[str] = []
+    recovery_descriptor: DescriptorIdentity | None = None
     body = {key: value for key, value in activation.items() if key != "activation_sha256"}
     if activation.get("schema") != SEMANTIC_NEURAL_SERVING_SCHEMA:
         errors.append("schema")
-    if activation.get("package_id") != PACKAGE_ID:
-        errors.append("package_id")
+    package = activation.get("package_id")
+    claim = str((activation.get("evidence") or {}).get("adjudication_claim") or "")
+    if package == PACKAGE_ID:
+        if claim != LEGACY_ADJUDICATION_CLAIM or "descriptor_identity" in activation:
+            errors.append("package_id")
+    else:
+        try:
+            recovery_descriptor = _recovery_descriptor(
+                activation.get("descriptor_identity")
+            )
+            if package != recovery_package_id(
+                recovery_descriptor,
+                campaign=RECOVERY_PACKAGE_CAMPAIGN,
+            ):
+                errors.append("package_id")
+        except RuntimeError:
+            errors.append("package_id")
     if activation.get("mode") != SEMANTIC_NEURAL_SERVING_MODE:
         errors.append("mode")
     if activation.get("promotion_mode") != PROMOTION_MODE:
@@ -525,7 +635,11 @@ def semantic_neural_activation_errors(
         errors.append("allowed_families")
     if activation.get("allowed_surface_profiles") != list(ALLOWED_SURFACE_PROFILES):
         errors.append("allowed_surface_profiles")
-    if activation.get("claim_boundary") != ACTIVATION_CLAIM_BOUNDARY:
+    try:
+        expected_claim_boundary = _activation_claim_boundary(claim)
+    except RuntimeError:
+        expected_claim_boundary = None
+    if activation.get("claim_boundary") != expected_claim_boundary:
         errors.append("claim_boundary")
     if activation.get("activation_sha256") != _sha(body):
         errors.append("activation_sha256")
@@ -593,6 +707,8 @@ def semantic_neural_activation_errors(
                 or runtime_verification.get("verification_receipt_sha256") != _sha(runtime_body)
                 or not isinstance(runtime_receipt, dict)
                 or runtime_receipt.get("activation_sha256") != _sha(candidate_body)
+                or runtime_receipt.get("package_id") != package
+                or runtime_receipt.get("promotion_mode") != PROMOTION_MODE
                 or runtime_qualification.get("candidate_activation_sha256") != _sha(candidate_body)
                 or runtime_verification.get("verified") is not True
                 or runtime_verification.get("task_count") != 120
@@ -629,6 +745,12 @@ def semantic_neural_activation_errors(
                 root,
                 evidence["adjudication_path"],
             )
+            relative_evidence_paths = [
+                _relative_evidence_path(root, path)
+                for path in (result_path, verification_path, adjudication_path)
+            ]
+            if package != PACKAGE_ID and evidence_namespace_errors(relative_evidence_paths):
+                raise RuntimeError("semantic recovery evidence namespace is invalid")
             (
                 result,
                 verification,
@@ -656,6 +778,9 @@ def semantic_neural_activation_errors(
                 or adjudication.get("verdict") != evidence.get("adjudication_verdict")
                 or adjudication.get("claim") != evidence.get("adjudication_claim")
                 or adjudication.get("limitations") != evidence.get("adjudication_limitations")
+                or activation.get("model_identity") != verification.get("model_identity")
+                or activation.get("resident_manifest_identity")
+                != verification.get("resident_manifest_identity")
             ):
                 errors.append("evidence_drift")
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
@@ -664,6 +789,10 @@ def semantic_neural_activation_errors(
         try:
             manifest_identity = activation["resident_manifest_identity"]
             current_manifest = _identity_for_manifest(Path(manifest_identity["path"]))
+            current_manifest_payload, _current_manifest_raw = _read_bounded_json(
+                Path(manifest_identity["path"]),
+                maximum_bytes=512 * 1024,
+            )
             expected_model = activation["model_identity"]
             selected_model = (
                 Path(model_path).expanduser().resolve(strict=True)
@@ -678,6 +807,12 @@ def semantic_neural_activation_errors(
                 errors.append("resident_manifest_drift")
             if _identity_for_model(selected_model) != expected_model:
                 errors.append("model_identity_drift")
+            if (
+                recovery_descriptor is not None
+                and descriptor_from_manifest(current_manifest_payload).fingerprint()
+                != recovery_descriptor.fingerprint()
+            ):
+                errors.append("descriptor_identity_drift")
             if current_manifest["active_model_path"] != str(selected_model):
                 errors.append("active_model_mismatch")
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
@@ -694,8 +829,9 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
             "reason": "semantic_neural_serving_disabled",
         }
     try:
+        activation_path = active_semantic_neural_activation_path()
         activation, _raw = _read_bounded_json(
-            DEFAULT_ACTIVATION_PATH,
+            activation_path,
             maximum_bytes=512 * 1024,
         )
         root = REPO_ROOT.resolve(strict=True)
@@ -719,7 +855,7 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
             else ()
         )
         dependencies = (
-            DEFAULT_ACTIVATION_PATH,
+            activation_path,
             *tuple(root / relative for relative in ACTIVATION_SOURCE_FILES),
             *tuple(root / relative for relative in INTEGRATION_SOURCE_FILES),
             _resolve_evidence_path(root, evidence["result_path"]),
@@ -746,6 +882,7 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         return deepcopy(
             _cached_semantic_neural_serving_status(
                 str(selected_model),
+                str(activation_path.expanduser().resolve(strict=True)),
                 tuple(signature_items),
             )
         )
@@ -769,8 +906,9 @@ def semantic_neural_default_serving_status(
     """
 
     try:
+        activation_path = active_semantic_neural_activation_path()
         activation, _raw = _read_bounded_json(
-            DEFAULT_ACTIVATION_PATH,
+            activation_path,
             maximum_bytes=512 * 1024,
         )
         model_identity = activation.get("model_identity")
@@ -851,10 +989,11 @@ def semantic_neural_default_serving_status(
 @lru_cache(maxsize=8)
 def _cached_semantic_neural_serving_status(
     model_path: str,
+    activation_path: str,
     _dependency_signature: tuple[tuple[str, int, int, int, int], ...],
 ) -> dict[str, Any]:
     activation, _raw = _read_bounded_json(
-        DEFAULT_ACTIVATION_PATH,
+        Path(activation_path),
         maximum_bytes=512 * 1024,
     )
     errors = semantic_neural_activation_errors(
@@ -894,6 +1033,7 @@ def _cached_semantic_neural_serving_status(
 
 __all__ = [
     "ACTIVATION_CLAIM_BOUNDARY",
+    "ACTIVE_ACTIVATION_PATH",
     "ACTIVATION_SOURCE_FILES",
     "ALLOWED_FAMILIES",
     "ALLOWED_SURFACE_PROFILES",
@@ -908,6 +1048,7 @@ __all__ = [
     "RESIDENT_VERIFICATION_PATH",
     "SEMANTIC_NEURAL_SERVING_MODE",
     "SEMANTIC_NEURAL_SERVING_SCHEMA",
+    "active_semantic_neural_activation_path",
     "build_semantic_neural_activation",
     "semantic_neural_activation_errors",
     "semantic_neural_default_serving_status",

@@ -34,8 +34,8 @@ from core.brain.llm.qualified_recurrent_ingress import (  # noqa: E402
     execute_qualified_recurrent_objective,
 )
 from core.brain.llm.semantic_neural_serving import (  # noqa: E402
-    DEFAULT_ACTIVATION_PATH,
     SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA,
+    active_semantic_neural_activation_path,
     semantic_neural_serving_status,
 )
 from core.learning.frontier_process_supervision import (  # noqa: E402
@@ -60,7 +60,6 @@ RUNTIME_FAMILIES = (
     "frontier_scientific_inference",
 )
 RUNTIME_DIFFICULTIES = (1, 2, 3)
-RUNTIME_PACKAGE_ID = "cp568-resident-semantic-neural-active-r1"
 VERIFIER_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -116,7 +115,8 @@ def _expected_state(task: Any, *, machine: Any = None) -> tuple[Any, str | None]
 
 
 async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
-    activation = json.loads(DEFAULT_ACTIVATION_PATH.read_text(encoding="utf-8"))
+    activation_path = active_semantic_neural_activation_path()
+    activation = json.loads(activation_path.read_text(encoding="utf-8"))
     model_path = str(activation["model_identity"]["path"])
     status = semantic_neural_serving_status(model_path)
     if status.get("active") is not True:
@@ -124,7 +124,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
     activation_receipt = status.get("receipt")
     if (
         not isinstance(activation_receipt, dict)
-        or activation_receipt.get("package_id") != RUNTIME_PACKAGE_ID
+        or activation_receipt.get("package_id") != activation.get("package_id")
         or tuple(activation_receipt.get("allowed_families") or ()) != RUNTIME_FAMILIES
         or tuple(activation_receipt.get("allowed_surface_profiles") or ())
         != SEMANTIC_SURFACE_PROFILES
@@ -291,8 +291,8 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         "rows": rows,
         "claim_boundary": (
             "qualified canonical and less-constrained scientific-surface runtime integration "
-            "on the CP568 active requalification bound to the CP566 bounded WOW evidence; not "
-            "open-domain, broad reasoning, static fusion, or frontier performance"
+            "on the descriptor-bound active requalification and its bounded-WOW evidence; "
+            "not open-domain, broad reasoning, static fusion, or frontier performance"
         ),
     }
     return {**body, "verification_receipt_sha256": _sha(body)}

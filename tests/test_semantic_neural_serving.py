@@ -4,11 +4,17 @@ import copy
 import hashlib
 import json
 
+from core.brain.llm import semantic_neural_serving
 from core.brain.llm.semantic_neural_serving import (
     DEFAULT_ACTIVATION_PATH,
+    MODEL_BOUND_ADJUDICATION_CLAIM,
+    RECOVERY_PACKAGE_CAMPAIGN,
+    _activation_claim_boundary,
+    _recovery_descriptor,
     semantic_neural_activation_errors,
     semantic_neural_serving_status,
 )
+from core.learning.recovery_package_identity import DescriptorIdentity, package_id
 
 
 def _activation():
@@ -123,3 +129,44 @@ def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):
         "active": False,
         "reason": "semantic_neural_serving_disabled",
     }
+
+
+def test_recovery_activation_identity_is_descriptor_derived():
+    expected = DescriptorIdentity(
+        path="/models/target",
+        config_sha256="a" * 64,
+        weights_index_sha256="b" * 64,
+        tokenizer_sha256="c" * 64,
+        model_type="qwen3_5_text",
+        num_hidden_layers=64,
+        hidden_size=5120,
+        vocab_size=248320,
+        full_attention_layers=16,
+        linear_attention_layers=48,
+    )
+    descriptor = _recovery_descriptor(expected.as_dict())
+    # The fingerprint is part of the signed descriptor, not optional caller prose.
+    assert package_id(descriptor, campaign=RECOVERY_PACKAGE_CAMPAIGN).startswith(
+        "rlc-27b-recovery-"
+    )
+
+
+def test_model_bound_claim_boundary_does_not_relabel_a_checkpoint_size():
+    boundary = _activation_claim_boundary(MODEL_BOUND_ADJUDICATION_CLAIM)
+    assert "resident-model" in boundary
+    assert "32B" not in boundary
+    assert "27B" not in boundary
+
+
+def test_operational_activation_precedes_but_does_not_replace_history(
+    monkeypatch,
+    tmp_path,
+):
+    operational = tmp_path / "semantic-neural-active.json"
+    monkeypatch.setattr(semantic_neural_serving, "ACTIVE_ACTIVATION_PATH", operational)
+    assert semantic_neural_serving.active_semantic_neural_activation_path() == (
+        DEFAULT_ACTIVATION_PATH
+    )
+
+    operational.write_text("{}", encoding="utf-8")
+    assert semantic_neural_serving.active_semantic_neural_activation_path() == operational
