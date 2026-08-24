@@ -14,6 +14,10 @@ from core.runtime.control_plane import (
     get_runtime_control_plane,
     reset_runtime_control_plane,
 )
+from core.runtime.model_runtime_assignment import (
+    ModelRuntimeAssignment,
+    locator_identity,
+)
 
 
 def _arbitrator(*, lock_path=None):
@@ -39,8 +43,27 @@ def test_default_facade_resolves_the_control_plane_admission_singleton():
 
 def test_runtime_worker_labels_normalize_to_model_load_lanes():
     assert ResourceArbitrator._worker_lane("MLX-Cortex") == "cortex"
-    assert ResourceArbitrator._worker_lane("/models/qwen-7b-brainstem") == "brainstem"
+    assert ResourceArbitrator._worker_lane("mlx_brainstem") == "brainstem"
     assert ResourceArbitrator._worker_lane("custom-provider") == "custom-provider"
+
+
+def test_suggestive_model_path_cannot_claim_a_lane_after_load():
+    path = "/models/qwen-70b-solver"
+    assert ResourceArbitrator._worker_lane(path) == path
+
+
+def test_runtime_assignment_is_the_authority_for_model_lane():
+    path = "/models/qwen-70b-solver"
+    assignment = ModelRuntimeAssignment.issue(
+        model_path=path,
+        artifact_identity=locator_identity(path),
+        artifact_identity_kind="canonical_locator_sha256",
+        artifact_identity_exact=False,
+        role="auxiliary",
+        purpose="serve",
+        authority_source="test",
+    )
+    assert ResourceArbitrator._worker_lane(assignment) == "auxiliary"
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ eviction order, the envelope-breach refusal, and the mlx_client spawn seam.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from types import SimpleNamespace
 
@@ -20,6 +21,7 @@ from core.brain.lane_admission import (
     get_lane_admission_controller,
     lane_budget_gb,
 )
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
 pytestmark = pytest.mark.unit
 
@@ -54,6 +56,17 @@ class TestLaneClassification:
             "trainer",
             QoSClass.BEST_EFFORT,
         )
+
+    @pytest.mark.parametrize(
+        "purpose",
+        ["training", "evaluation", "proof", "measurement", "benchmark_evaluation"],
+    )
+    def test_workload_aliases_cannot_inherit_serving_qos(self, purpose):
+        assert classify_lane(
+            "/models/registered-cortex",
+            purpose=purpose,
+            role="cortex",
+        ) == ("trainer", QoSClass.BEST_EFFORT)
 
     def test_unknown_paths_are_best_effort_auxiliary(self):
         assert classify_lane("/models/whisper-large") == ("auxiliary", QoSClass.BEST_EFFORT)
@@ -264,10 +277,25 @@ class TestSpawnSeam:
     """The mlx_client integration: observed lanes + the spawn consult."""
 
     class _FakeClient:
-        def __init__(self, model_path, alive=True, last_user_facing=0.0):
+        def __init__(
+            self,
+            model_path,
+            alive=True,
+            last_user_facing=0.0,
+            role="auxiliary",
+        ):
             self.model_path = model_path
             self._alive = alive
             self._last_user_facing_completed_at = last_user_facing
+            self.runtime_assignment = ModelRuntimeAssignment.issue(
+                model_path=model_path,
+                artifact_identity=hashlib.sha256(model_path.encode("utf-8")).hexdigest(),
+                artifact_identity_kind="canonical_locator_sha256",
+                artifact_identity_exact=False,
+                role=role,
+                purpose="serve",
+                authority_source="test_model_registry",
+            )
 
         def is_alive(self):
             return self._alive
@@ -283,18 +311,11 @@ class TestSpawnSeam:
 
     def test_observed_lanes_exclude_self_and_dead(self, monkeypatch, budget_46):
         from core.brain.llm import mlx_client as mc
-        from core.brain.llm import model_registry
-
-        me = self._FakeClient("/m/Aura-32B-cortex")
-        other = self._FakeClient("/m/qwen-7b")
+        me = self._FakeClient("/m/Aura-32B-cortex", role="cortex")
+        other = self._FakeClient("/m/qwen-7b", role="brainstem")
         dead = self._FakeClient("/m/Deep-72B", alive=False)
         monkeypatch.setattr(
             mc, "_CLIENTS", {c.model_path: c for c in (me, other, dead)}
-        )
-        monkeypatch.setattr(
-            model_registry,
-            "get_model_lane_role",
-            lambda path: "brainstem" if path == other.model_path else None,
         )
         lanes = mc._observed_active_lanes(exclude_client=me)
         assert [lane.lane for lane in lanes] == ["brainstem"]
@@ -348,7 +369,7 @@ class TestSpawnSeam:
         )
         monkeypatch.setattr(mc, "_CLIENTS", {})
 
-        candidate = self._FakeClient("/m/Aura-32B-cortex")
+        candidate = self._FakeClient("/m/Aura-32B-cortex", role="cortex")
         candidate._warmup_timeout = lambda: 60.0
         candidate._handshake_timeout = lambda: 300.0
         candidate._process = SimpleNamespace(

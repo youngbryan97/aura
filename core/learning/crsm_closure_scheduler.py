@@ -699,6 +699,9 @@ class CRSMClosureScheduler:
 
     def _model_lane_claim(self) -> Any:
         from core.runtime.model_lane_control import LaneClaim
+        from core.runtime.model_runtime_assignment import (
+            issue_unqualified_model_runtime_assignment,
+        )
 
         model_path = str(self._base_model_path())
         request_gb = self._model_request_gb_cache
@@ -714,6 +717,11 @@ class CRSMClosureScheduler:
             reservation_ttl_s=self.train_timeout_s + 60.0,
             owner_lease_ttl_s=self.train_timeout_s + 60.0,
             request_id=request_id,
+            runtime_assignment=issue_unqualified_model_runtime_assignment(
+                model_path=model_path,
+                purpose="compound",
+                authority_source="crsm_closure_scheduler",
+            ),
             metadata={
                 "source": AUTHORITY_SOURCE,
                 "pipeline": "crsm_delta_train_fuse_publish",

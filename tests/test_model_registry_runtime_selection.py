@@ -72,6 +72,74 @@ def test_model_lane_role_comes_from_exact_registry_assignment(monkeypatch):
     assert model_registry.get_model_lane_role("/models/emergency-renamed") == "reflex"
 
 
+def test_runtime_assignment_binds_active_cortex_descriptor(monkeypatch, tmp_path):
+    model = tmp_path / "resident"
+    model.mkdir()
+    descriptor_sha = "a" * 64
+    pointer_sha = "b" * 64
+    monkeypatch.setattr(model_registry, "get_model_path", lambda _value=None: str(model))
+    monkeypatch.setattr(model_registry, "get_model_lane_role", lambda _path: "cortex")
+    monkeypatch.setattr(
+        model_registry,
+        "get_active_cortex_spec",
+        lambda: SimpleNamespace(
+            model_path=model,
+            exact_identity=True,
+            descriptor_sha256=descriptor_sha,
+            pointer_sha256=pointer_sha,
+        ),
+    )
+
+    assignment = model_registry.get_model_runtime_assignment(str(model))
+
+    assert assignment.model_path == str(model.resolve())
+    assert assignment.role == "cortex"
+    assert assignment.qos == "guaranteed"
+    assert assignment.artifact_identity == descriptor_sha
+    assert assignment.artifact_identity_exact is True
+    assert assignment.evidence_receipt_id == pointer_sha
+
+
+def test_runtime_assignment_does_not_promote_unregistered_heavy_model(
+    monkeypatch, tmp_path
+):
+    model = tmp_path / "Definitely-999B-Cortex-Solver"
+    model.mkdir()
+    monkeypatch.setattr(model_registry, "get_model_path", lambda _value=None: str(model))
+    monkeypatch.setattr(model_registry, "get_model_lane_role", lambda _path: None)
+    monkeypatch.setattr(model_registry, "get_active_cortex_spec", lambda: None)
+    monkeypatch.setattr(
+        "core.brain.llm.model_artifact_profile.get_model_artifact_profile",
+        lambda _path: SimpleNamespace(
+            measured=True,
+            fingerprint="c" * 64,
+        ),
+    )
+
+    assignment = model_registry.get_model_runtime_assignment(str(model))
+
+    assert assignment.role == "auxiliary"
+    assert assignment.lane == "auxiliary"
+    assert assignment.qos == "best_effort"
+    assert assignment.artifact_identity_kind == "artifact_profile_fingerprint"
+
+
+def test_runtime_assignment_for_training_cannot_inherit_serving_role(
+    monkeypatch, tmp_path
+):
+    model = tmp_path / "resident"
+    model.mkdir()
+    monkeypatch.setattr(model_registry, "get_model_path", lambda _value=None: str(model))
+    monkeypatch.setattr(model_registry, "get_model_lane_role", lambda _path: "cortex")
+    monkeypatch.setattr(model_registry, "get_active_cortex_spec", lambda: None)
+
+    assignment = model_registry.get_model_runtime_assignment(str(model), purpose="train")
+
+    assert assignment.role == "trainer"
+    assert assignment.lane == "trainer"
+    assert assignment.qos == "best_effort"
+
+
 def test_model_size_or_name_does_not_assign_a_serving_role(monkeypatch):
     monkeypatch.setattr(
         model_registry,

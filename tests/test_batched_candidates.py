@@ -10,11 +10,28 @@ import asyncio
 
 import core.brain.llm.batch_candidates as bc
 from core.brain.generation_provenance import attributed_text, generation_metadata_of
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment, locator_identity
 
 
 class _Client:
-    def __init__(self, model_path: str, alive: bool = True, texts=None):
+    def __init__(
+        self,
+        model_path: str,
+        alive: bool = True,
+        texts=None,
+        *,
+        role: str = "cortex",
+    ):
         self.model_path = model_path
+        self.runtime_assignment = ModelRuntimeAssignment.issue(
+            model_path=model_path,
+            artifact_identity=locator_identity(model_path),
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role=role,
+            purpose="serve",
+            authority_source="unit_test_registry",
+        )
         self._alive = alive
         self.calls: list[dict] = []
         self._texts = texts if texts is not None else ["a", "b", "c"]
@@ -37,16 +54,25 @@ def test_single_sample_never_batches(monkeypatch):
     assert asyncio.run(bc.generate_candidates_batched("p", 1)) is None
 
 
-def test_prefers_heavy_lane_client(monkeypatch):
+def test_prefers_registry_assigned_cortex_client(monkeypatch):
     monkeypatch.setenv("AURA_BATCHED_CANDIDATES", "1")
-    light = _Client("/models/Qwen2.5-1.5B-Instruct-4bit")
-    heavy = _Client("/models/Qwen2.5-32B-Instruct-4bit")
+    light = _Client("/models/Qwen2.5-1.5B-Instruct-4bit", role="reflex")
+    heavy = _Client("/models/renamed-resident", role="cortex")
     monkeypatch.setattr(
         "core.brain.llm.mlx_client._CLIENTS", {"l": light, "h": heavy}
     )
     out = asyncio.run(bc.generate_candidates_batched("p", 4))
     assert out == ["a", "b", "c"]
     assert heavy.calls and not light.calls
+
+
+def test_large_or_solver_named_client_cannot_impersonate_cortex(monkeypatch):
+    monkeypatch.setenv("AURA_BATCHED_CANDIDATES", "1")
+    impostor = _Client("/models/999B-Cortex-Solver", role="auxiliary")
+    monkeypatch.setattr("core.brain.llm.mlx_client._CLIENTS", {"x": impostor})
+
+    assert asyncio.run(bc.generate_candidates_batched("p", 4)) is None
+    assert not impostor.calls
 
 
 def test_dead_clients_yield_serial_fallback(monkeypatch):

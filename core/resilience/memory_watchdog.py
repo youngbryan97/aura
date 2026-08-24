@@ -101,16 +101,20 @@ def _model_worker_reclaim_order(process: Any) -> tuple[int, int]:
     """
 
     try:
-        from core.brain.lane_admission import QoSClass, classify_lane
+        from core.brain.lane_admission import QoSClass
         from core.brain.llm.mlx_client import clients_snapshot
+        from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
         process_pid = int(getattr(process, "pid", 0) or 0)
-        for model_path, client in clients_snapshot():
+        for _model_path, client in clients_snapshot():
             candidate = getattr(client, "_process", None)
             candidate_pid = int(getattr(candidate, "pid", 0) or 0)
             if candidate is not process and (process_pid <= 0 or candidate_pid != process_pid):
                 continue
-            _lane, qos = classify_lane(str(model_path))
+            assignment = getattr(client, "runtime_assignment", None)
+            if not isinstance(assignment, ModelRuntimeAssignment):
+                return 2, 0
+            qos = QoSClass(assignment.qos)
             qos_rank = {
                 QoSClass.BEST_EFFORT: 0,
                 QoSClass.BURSTABLE: 1,

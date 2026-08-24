@@ -1,6 +1,6 @@
 """Batched candidate generation for verifier-selection reasoning.
 
-Resolves the primary (heaviest live) MLX client and decodes N sampled
+Resolves the registry-assigned Cortex MLX client and decodes N sampled
 candidates in one batched worker pass. Every failure degrades to None/[] so
 callers keep their serial-sampling fallback — this module only ever makes
 best-of-N cheaper, never a new failure mode.
@@ -27,16 +27,14 @@ def _resolve_primary_client() -> Any | None:
         from core.brain.llm.mlx_client import clients_snapshot
     except ImportError:
         return None
-    best = None
     # Snapshot first: iterating the live registry races registration.
     for _path, client in clients_snapshot():
         if not getattr(client, "is_alive", lambda: False)():
             continue
-        path = str(getattr(client, "model_path", "") or "").lower()
-        if any(k in path for k in ("32b", "72b", "zenith", "cortex", "solver")):
+        assignment = getattr(client, "runtime_assignment", None)
+        if getattr(assignment, "role", "") == "cortex":
             return client
-        best = best or client
-    return best
+    return None
 
 
 async def generate_candidates_batched(

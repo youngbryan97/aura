@@ -280,6 +280,8 @@ class MLXVisionClient:
             try:
                 if self.readiness_status()["ready"]:
                     return True
+                from core.brain.llm.model_registry import get_model_runtime_assignment
+
                 claim = LaneClaim(
                     owner_id=self._lane_owner_id,
                     model_path=self.model_path,
@@ -292,6 +294,7 @@ class MLXVisionClient:
                     preemptible=True,
                     foreground=True,
                     request_id=f"vision-model-{uuid.uuid4()}",
+                    runtime_assignment=get_model_runtime_assignment(self.model_path),
                     metadata={"owner": "MLXVisionClient", "modality": "vision"},
                 )
                 lane_controller, lane_decision = await prepare_model_lane_claim(

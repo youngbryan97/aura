@@ -23,7 +23,7 @@ import threading
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Iterator, Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
@@ -40,6 +40,11 @@ from core.runtime.atomic_writer import (
     read_json_envelope,
 )
 from core.runtime.flags import FlagKind, declare
+from core.runtime.model_runtime_assignment import (
+    ModelRuntimeAssignment,
+    issue_unqualified_model_runtime_assignment,
+    locator_identity,
+)
 from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.state_ownership import state_root
@@ -250,6 +255,7 @@ class LaneOwnerObservation:
     preemptible: bool = True
     last_user_facing_age_s: float | None = None
     lease_ttl_s: float = 0.0
+    runtime_assignment: ModelRuntimeAssignment | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -266,6 +272,11 @@ class LaneOwnerObservation:
             raise ValueError("lane observed_gb must be finite and non-negative")
         if not math.isfinite(lease_ttl_s) or lease_ttl_s < 0.0:
             raise ValueError("lane lease_ttl_s must be finite and non-negative")
+        if self.runtime_assignment is not None:
+            self.runtime_assignment.assert_bound_to(
+                model_path=self.model_path,
+                purpose=self.purpose,
+            )
 
 
 @dataclass(frozen=True)
@@ -286,6 +297,7 @@ class LaneClaim:
     reservation_ttl_s: float = 0.0
     owner_lease_ttl_s: float = 0.0
     request_id: str = field(default_factory=lambda: f"lane-{uuid.uuid4()}")
+    runtime_assignment: ModelRuntimeAssignment | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -307,6 +319,11 @@ class LaneClaim:
             raise ValueError("lane claim owner_lease_ttl_s must be finite and non-negative")
         if not str(self.request_id).strip():
             raise ValueError("lane claim request_id must be non-empty")
+        if self.runtime_assignment is not None:
+            self.runtime_assignment.assert_bound_to(
+                model_path=self.model_path,
+                purpose=self.purpose,
+            )
 
 
 @dataclass(frozen=True)
@@ -326,6 +343,7 @@ class LaneTransactionDecision:
     committed_gb: float
     reserved_gb: float
     budget_gb: float
+    runtime_assignment: ModelRuntimeAssignment | None = None
     observation_source: str = "unavailable"
     observation_scenario_id: str = ""
     resource_observation_available: bool = False
@@ -338,9 +356,110 @@ class LaneTransactionDecision:
         payload = asdict(self)
         payload["state"] = self.state.value
         payload["qos"] = self.qos.value
+        payload["runtime_assignment"] = (
+            self.runtime_assignment.to_dict() if self.runtime_assignment is not None else None
+        )
         payload["evict_owner_ids"] = list(self.evict_owner_ids)
         payload["evicted_owner_ids"] = list(self.evicted_owner_ids)
         return payload
+
+
+def _assignment_from_payload(value: object) -> ModelRuntimeAssignment | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ModelLaneControlError("model_runtime_assignment_record_invalid")
+    try:
+        return ModelRuntimeAssignment.from_dict(value)
+    except ValueError as exc:
+        raise ModelLaneControlError("model_runtime_assignment_record_invalid") from exc
+
+
+def _runtime_assignment_for_claim(
+    value: ModelRuntimeAssignment | Mapping[str, Any] | None,
+    *,
+    model_path: str,
+    purpose: str,
+    authority_source: str,
+) -> ModelRuntimeAssignment:
+    if value is None:
+        assignment = issue_unqualified_model_runtime_assignment(
+            model_path=model_path,
+            purpose=purpose,
+            authority_source=authority_source,
+        )
+    elif isinstance(value, ModelRuntimeAssignment):
+        assignment = value
+    elif isinstance(value, Mapping):
+        try:
+            assignment = ModelRuntimeAssignment.from_dict(value)
+        except ValueError as exc:
+            raise ModelLaneControlError("model_runtime_assignment_claim_invalid") from exc
+    else:
+        raise ModelLaneControlError("model_runtime_assignment_claim_invalid")
+    try:
+        assignment.assert_bound_to(model_path=model_path, purpose=purpose)
+    except ValueError as exc:
+        raise ModelLaneControlError("model_runtime_assignment_claim_mismatch") from exc
+    return assignment
+
+
+def _freeze_legacy_runtime_assignment(
+    *,
+    model_path: str,
+    purpose: str,
+    authority_source: str,
+    stored_lane: str = "",
+) -> ModelRuntimeAssignment:
+    """Freeze one trusted legacy boundary instead of reclassifying on replay."""
+
+    lane = str(stored_lane or "").strip().lower()
+    if not lane:
+        lane = classify_lane(model_path, purpose=purpose)[0]
+    role = lane if lane in {"cortex", "solver", "brainstem", "reflex"} else "auxiliary"
+    return ModelRuntimeAssignment.issue(
+        model_path=model_path,
+        artifact_identity=locator_identity(model_path),
+        artifact_identity_kind="canonical_locator_sha256",
+        artifact_identity_exact=False,
+        role=role,
+        purpose=purpose,
+        authority_source=authority_source,
+    )
+
+
+def _assignment_from_record(
+    record: Mapping[str, Any],
+    *,
+    authority_source: str,
+) -> ModelRuntimeAssignment:
+    assignment = _assignment_from_payload(record.get("runtime_assignment"))
+    if assignment is not None:
+        return assignment
+    return _freeze_legacy_runtime_assignment(
+        model_path=str(record.get("model_path") or ""),
+        purpose=str(record.get("purpose") or "serve"),
+        stored_lane=str(record.get("lane") or ""),
+        authority_source=authority_source,
+    )
+
+
+def _assigned_lane_policy(
+    assignment: ModelRuntimeAssignment | None,
+    *,
+    model_path: str,
+    purpose: str,
+) -> tuple[str, QoSClass]:
+    if assignment is None:
+        # Legacy records may predate immutable assignments. Replaying one must
+        # never re-query today's registry and silently gain authority. Unknown
+        # serving artifacts are auxiliary; workload purposes remain trainers.
+        return classify_lane(model_path, purpose=purpose, role="auxiliary")
+    try:
+        assignment.assert_bound_to(model_path=model_path, purpose=purpose)
+        return assignment.lane, QoSClass(assignment.qos)
+    except ValueError as exc:
+        raise ModelLaneControlError("model_runtime_assignment_policy_invalid") from exc
 
 
 EvictCallback = Callable[[LaneOwnerObservation, str], bool | Awaitable[bool]]
@@ -777,6 +896,11 @@ def infer_model_process_claim(
         for path in descriptor.model_paths
     )
     request_id = f"model-process-{uuid.uuid4()}"
+    runtime_assignment = issue_unqualified_model_runtime_assignment(
+        model_path=model_path,
+        purpose=purpose,
+        authority_source="inferred_model_process",
+    )
     return LaneClaim(
         owner_id=f"subprocess:{os.getpid()}:{request_id}",
         model_path=model_path,
@@ -788,6 +912,7 @@ def infer_model_process_claim(
         reservation_ttl_s=max(60.0, float(timeout_s) + 30.0),
         owner_lease_ttl_s=max(60.0, float(timeout_s) + 30.0),
         request_id=request_id,
+        runtime_assignment=runtime_assignment,
         metadata={
             "source": source,
             "command": list(argv),
@@ -853,6 +978,11 @@ def declared_model_process_claim(
         for path in model_paths
     )
     request_id = f"declared-model-process-{uuid.uuid4()}"
+    runtime_assignment = issue_unqualified_model_runtime_assignment(
+        model_path=model_paths[0],
+        purpose=purpose,
+        authority_source="declared_model_process",
+    )
     return LaneClaim(
         owner_id=f"subprocess:{os.getpid()}:{request_id}",
         model_path=model_paths[0],
@@ -864,6 +994,7 @@ def declared_model_process_claim(
         reservation_ttl_s=max(60.0, float(timeout_s) + 30.0),
         owner_lease_ttl_s=max(60.0, float(timeout_s) + 30.0),
         request_id=request_id,
+        runtime_assignment=runtime_assignment,
         metadata={
             "source": source,
             "command": list(argv),
@@ -936,6 +1067,8 @@ def discover_external_model_processes(
                 "\0".join(command).encode("utf-8", errors="replace")
             ).hexdigest()
             observations.append(
+                # Process discovery establishes resource ownership, not model
+                # authority. The conservative assignment survives replay.
                 LaneOwnerObservation(
                     owner_id=f"external-model:{pid}:{int(started_at * 1_000_000)}",
                     model_path=model_path,
@@ -946,6 +1079,11 @@ def discover_external_model_processes(
                     priority=90 if descriptor.purpose == "serve" else 70,
                     preemptible=False,
                     lease_ttl_s=30.0,
+                    runtime_assignment=issue_unqualified_model_runtime_assignment(
+                        model_path=model_path,
+                        purpose=descriptor.purpose,
+                        authority_source="external_model_process_discovery",
+                    ),
                     metadata={
                         "externally_discovered": True,
                         "model_identity_status": identity_status,
@@ -1658,8 +1796,23 @@ class ModelLaneController:
                 and self._process_liveness(process) is not ProcessLiveness.ALIVE
             ):
                 continue
-            lane, qos = classify_lane(observation.model_path, purpose=observation.purpose)
             existing = state["owners"].get(observation.owner_id, {})
+            runtime_assignment = observation.runtime_assignment
+            if runtime_assignment is None and isinstance(existing, Mapping):
+                runtime_assignment = _assignment_from_payload(
+                    existing.get("runtime_assignment")
+                )
+            if runtime_assignment is None:
+                runtime_assignment = _freeze_legacy_runtime_assignment(
+                    model_path=observation.model_path,
+                    purpose=observation.purpose,
+                    authority_source="legacy_model_owner_observation",
+                )
+            lane, qos = _assigned_lane_policy(
+                runtime_assignment,
+                model_path=observation.model_path,
+                purpose=observation.purpose,
+            )
             state["owners"][observation.owner_id] = {
                 "owner_id": observation.owner_id,
                 "model_path": observation.model_path,
@@ -1682,6 +1835,9 @@ class ModelLaneController:
                 "fencing_token": int(existing.get("fencing_token") or 0),
                 "eviction_requested_by": str(existing.get("eviction_requested_by") or ""),
                 "eviction_fencing_token": int(existing.get("eviction_fencing_token") or 0),
+                "runtime_assignment": (
+                    runtime_assignment.to_dict()
+                ),
                 "metadata": _json_metadata(observation.metadata),
             }
 
@@ -1701,6 +1857,10 @@ class ModelLaneController:
                 0.0,
                 float(record.get("lease_ttl_s") or 0.0)
                 or float(record.get("lease_expires_at") or 0.0) - self._clock(),
+            ),
+            runtime_assignment=_assignment_from_record(
+                record,
+                authority_source="legacy_model_owner_record",
             ),
             metadata=dict(record.get("metadata") or {}),
         )
@@ -1728,6 +1888,12 @@ class ModelLaneController:
             == float(claim.reservation_ttl_s or 0.0)
             and float(record.get("requested_owner_lease_ttl_s") or 0.0)
             == float(claim.owner_lease_ttl_s or 0.0)
+            and record.get("runtime_assignment")
+            == (
+                claim.runtime_assignment.to_dict()
+                if claim.runtime_assignment is not None
+                else None
+            )
             and dict(record.get("metadata") or {}) == _json_metadata(claim.metadata)
         )
 
@@ -1744,6 +1910,11 @@ class ModelLaneController:
             "preemptible": observation.preemptible,
             "last_user_facing_age_s": observation.last_user_facing_age_s,
             "lease_ttl_s": observation.lease_ttl_s,
+            "runtime_assignment": (
+                observation.runtime_assignment.to_dict()
+                if observation.runtime_assignment is not None
+                else None
+            ),
             "metadata": _json_metadata(observation.metadata),
         }
 
@@ -1766,8 +1937,13 @@ class ModelLaneController:
     @staticmethod
     def _record_to_decision(record: Mapping[str, Any], *, replayed: bool = False) -> LaneTransactionDecision:
         state = LaneTransactionState(str(record.get("state") or LaneTransactionState.REFUSED.value))
-        lane, qos = classify_lane(
-            str(record.get("model_path") or ""),
+        runtime_assignment = _assignment_from_record(
+            record,
+            authority_source="legacy_model_reservation_replay",
+        )
+        lane, qos = _assigned_lane_policy(
+            runtime_assignment,
+            model_path=str(record.get("model_path") or ""),
             purpose=str(record.get("purpose") or "serve"),
         )
         return LaneTransactionDecision(
@@ -1791,6 +1967,7 @@ class ModelLaneController:
             committed_gb=float(record.get("committed_gb") or 0.0),
             reserved_gb=float(record.get("reserved_gb") or 0.0),
             budget_gb=float(record.get("budget_gb") or 0.0),
+            runtime_assignment=runtime_assignment,
             observation_source=str(record.get("observation_source") or "unavailable"),
             observation_scenario_id=str(record.get("observation_scenario_id") or ""),
             resource_observation_available=bool(
@@ -1892,7 +2069,11 @@ class ModelLaneController:
             request_id=str(reservation.get("request_id") or ""),
             owner=owner.owner_id,
             work_class="model_lane_eviction",
-            lane=classify_lane(owner.model_path, purpose=owner.purpose)[0],
+            lane=_assigned_lane_policy(
+                owner.runtime_assignment,
+                model_path=owner.model_path,
+                purpose=owner.purpose,
+            )[0],
             priority=int(owner.priority),
             decision=outcome,
             reason=reason,
@@ -2201,6 +2382,15 @@ class ModelLaneController:
         *,
         observations: Iterable[LaneOwnerObservation] = (),
     ) -> LaneTransactionDecision:
+        if claim.runtime_assignment is None:
+            claim = replace(
+                claim,
+                runtime_assignment=_freeze_legacy_runtime_assignment(
+                    model_path=claim.model_path,
+                    purpose=claim.purpose,
+                    authority_source="legacy_direct_lane_claim",
+                ),
+            )
         self._refresh_external_owners(force=True)
         now = self._clock()
         terminal = False
@@ -2227,7 +2417,11 @@ class ModelLaneController:
                 decision = self._record_to_decision(existing, replayed=True)
                 terminal = decision.state.value in _TERMINAL_RESERVATION_STATES
             else:
-                lane, qos = classify_lane(claim.model_path, purpose=claim.purpose)
+                lane, qos = _assigned_lane_policy(
+                    claim.runtime_assignment,
+                    model_path=claim.model_path,
+                    purpose=claim.purpose,
+                )
                 committed, reserved = self._capacity_totals(
                     state,
                     exclude_request_id=claim.request_id,
@@ -2293,6 +2487,12 @@ class ModelLaneController:
                     active=active,
                     purpose=claim.purpose,
                     allow_disruptive_eviction=claim.allow_disruptive_eviction,
+                    qos=qos,
+                    role=(
+                        claim.runtime_assignment.role
+                        if claim.runtime_assignment is not None
+                        else None
+                    ),
                 )
                 evict_owner_ids = tuple(
                     owner_id
@@ -2420,6 +2620,11 @@ class ModelLaneController:
                     "created_at": now,
                     "expires_at": now + self._reservation_ttl(claim),
                     "owner_lease_ttl_s": self._owner_lease_ttl(claim),
+                    "runtime_assignment": (
+                        claim.runtime_assignment.to_dict()
+                        if claim.runtime_assignment is not None
+                        else None
+                    ),
                     "metadata": _json_metadata(claim.metadata),
                     "terminal_at": now if not admitted else 0.0,
                     "terminal_receipt_id": "",
@@ -2807,6 +3012,10 @@ class ModelLaneController:
             reservation_ttl_s=float(record.get("reservation_ttl_s") or 0.0),
             owner_lease_ttl_s=float(record.get("requested_owner_lease_ttl_s") or 0.0),
             request_id=str(record.get("request_id") or ""),
+            runtime_assignment=_assignment_from_record(
+                record,
+                authority_source="legacy_model_reservation_claim",
+            ),
             metadata=dict(record.get("metadata") or {}),
         )
 
@@ -2894,8 +3103,13 @@ class ModelLaneController:
                 raise ModelLaneControlError(
                     f"lane_commit_blocked_by_exclusive_owner:{exclusive_owner}"
                 )
-            lane, qos = classify_lane(
-                decision.model_path,
+            runtime_assignment = _assignment_from_record(
+                record,
+                authority_source="legacy_model_commit_record",
+            )
+            lane, qos = _assigned_lane_policy(
+                runtime_assignment,
+                model_path=decision.model_path,
                 purpose=str(record.get("purpose") or "serve"),
             )
             state["owners"][decision.owner_id] = {
@@ -2918,6 +3132,11 @@ class ModelLaneController:
                 "fencing_token": decision.fencing_token,
                 "eviction_requested_by": "",
                 "eviction_fencing_token": 0,
+                "runtime_assignment": (
+                    runtime_assignment.to_dict()
+                    if runtime_assignment is not None
+                    else None
+                ),
                 "metadata": {
                     **dict(record.get("metadata") or {}),
                     **_json_metadata(metadata or {}),
@@ -3967,12 +4186,19 @@ def acquire_synchronous_in_process_model_lane(
     evict: EvictCallback | None = None,
     compensate: CompensateCallback | None = None,
     metadata: Mapping[str, Any] | None = None,
+    runtime_assignment: ModelRuntimeAssignment | Mapping[str, Any] | None = None,
     controller: ModelLaneController | None = None,
 ) -> SynchronousInProcessModelLaneLease:
     if is_shutdown_requested():
         raise ModelLaneControlError("sync_in_process_model_admission_refused:runtime_shutdown")
     lane_controller = controller or get_model_lane_controller()
     stable_owner_id = f"in-process-sync:{os.getpid()}:{owner_id}"
+    assignment = _runtime_assignment_for_claim(
+        runtime_assignment,
+        model_path=model_path,
+        purpose=purpose,
+        authority_source="synchronous_in_process_model_lane",
+    )
     claim = LaneClaim(
         owner_id=stable_owner_id,
         model_path=model_path,
@@ -3987,6 +4213,7 @@ def acquire_synchronous_in_process_model_lane(
         preemptible=bool(preemptible),
         owner_lease_ttl_s=max(15.0, float(owner_lease_ttl_s)),
         request_id=f"sync-in-process-model-{uuid.uuid4()}",
+        runtime_assignment=assignment,
         metadata={
             **_json_metadata(metadata or {}),
             "lease_mode": "heartbeat",
@@ -4061,12 +4288,19 @@ async def acquire_in_process_model_lane(
     evict: EvictCallback | None = None,
     compensate: CompensateCallback | None = None,
     metadata: Mapping[str, Any] | None = None,
+    runtime_assignment: ModelRuntimeAssignment | Mapping[str, Any] | None = None,
     controller: ModelLaneController | None = None,
 ) -> InProcessModelLaneLease:
     if is_shutdown_requested():
         raise ModelLaneControlError("in_process_model_admission_refused:runtime_shutdown")
     lane_controller = controller or get_model_lane_controller()
     stable_owner_id = f"in-process:{os.getpid()}:{owner_id}"
+    assignment = _runtime_assignment_for_claim(
+        runtime_assignment,
+        model_path=model_path,
+        purpose=purpose,
+        authority_source="asynchronous_in_process_model_lane",
+    )
     claim = LaneClaim(
         owner_id=stable_owner_id,
         model_path=model_path,
@@ -4080,6 +4314,7 @@ async def acquire_in_process_model_lane(
         preemptible=bool(preemptible),
         owner_lease_ttl_s=max(15.0, float(owner_lease_ttl_s)),
         request_id=f"in-process-model-{uuid.uuid4()}",
+        runtime_assignment=assignment,
         metadata={
             **_json_metadata(metadata or {}),
             "lease_mode": "heartbeat",
@@ -4218,6 +4453,7 @@ def acquire_standalone_model_lane(
     require_exclusive: bool = False,
     allow_owner_eviction: bool = True,
     metadata: Mapping[str, Any] | None = None,
+    runtime_assignment: ModelRuntimeAssignment | Mapping[str, Any] | None = None,
     controller: ModelLaneController | None = None,
 ) -> StandaloneModelLaneLease:
     if is_shutdown_requested():
@@ -4250,6 +4486,12 @@ def acquire_standalone_model_lane(
             inherited=True,
         )
 
+    assignment = _runtime_assignment_for_claim(
+        runtime_assignment,
+        model_path=model_path,
+        purpose=purpose,
+        authority_source="standalone_model_lane",
+    )
     claim = LaneClaim(
         owner_id=f"standalone:{os.getpid()}:{owner_id}",
         model_path=model_path,
@@ -4265,6 +4507,7 @@ def acquire_standalone_model_lane(
         reservation_ttl_s=300.0,
         owner_lease_ttl_s=300.0,
         request_id=f"standalone-model-{uuid.uuid4()}",
+        runtime_assignment=assignment,
         metadata={
             **_json_metadata(metadata or {}),
             "standalone_model_tool": True,

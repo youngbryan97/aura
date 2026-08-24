@@ -27,6 +27,12 @@ from core.brain.llm.context_window_evidence import (
 )
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
+from core.runtime.model_runtime_assignment import (
+    ModelRuntimeAssignment,
+    canonical_model_locator,
+    locator_identity,
+    normalize_model_runtime_purpose,
+)
 from core.runtime.runtime_settings import get_runtime_setting
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
@@ -1216,6 +1222,76 @@ def get_model_lane_role(model_path: str | Path | None) -> str | None:
         if assigned and candidate == assigned:
             return role
     return None
+
+
+def get_model_runtime_assignment(
+    model_path: str | Path | None = None,
+    *,
+    purpose: str = "serve",
+) -> ModelRuntimeAssignment:
+    """Issue the immutable semantic/resource contract for one model runtime.
+
+    A serving role comes only from this registry's exact locator assignment.
+    Artifact shape and parameter count remain resource evidence; they never
+    confer Cortex or specialist authority. The active promoted Cortex carries
+    its full descriptor identity. Other measured artifacts carry the cheaper
+    profile fingerprint and explicitly state that it is not a full weight
+    identity.
+    """
+
+    resolved = (
+        get_runtime_model_path()
+        if model_path is None
+        else get_model_path(str(model_path))
+    )
+    locator = canonical_model_locator(resolved)
+    normalized_purpose = normalize_model_runtime_purpose(purpose)
+    serving = normalized_purpose == "serve"
+    role = get_model_lane_role(locator) if serving else "trainer"
+    role = str(role or "auxiliary")
+
+    artifact_identity = ""
+    artifact_identity_kind = ""
+    artifact_identity_exact = False
+    evidence_receipt_id = ""
+    authority_source = "model_registry" if role != "auxiliary" else "unassigned_artifact"
+
+    active = get_active_cortex_spec()
+    if (
+        active is not None
+        and active.exact_identity
+        and active.descriptor_sha256
+        and canonical_model_locator(active.model_path) == locator
+    ):
+        artifact_identity = active.descriptor_sha256
+        artifact_identity_kind = "model_descriptor_sha256"
+        artifact_identity_exact = True
+        evidence_receipt_id = active.pointer_sha256
+        authority_source = "active_cortex_pointer"
+    else:
+        try:
+            from core.brain.llm.model_artifact_profile import get_model_artifact_profile
+
+            profile = get_model_artifact_profile(locator)
+            if profile.measured and profile.fingerprint:
+                artifact_identity = profile.fingerprint
+                artifact_identity_kind = "artifact_profile_fingerprint"
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            artifact_identity = ""
+    if not artifact_identity:
+        artifact_identity = locator_identity(locator)
+        artifact_identity_kind = "canonical_locator_sha256"
+
+    return ModelRuntimeAssignment.issue(
+        model_path=locator,
+        artifact_identity=artifact_identity,
+        artifact_identity_kind=artifact_identity_kind,
+        artifact_identity_exact=artifact_identity_exact,
+        role=role,
+        purpose=normalized_purpose,
+        authority_source=authority_source,
+        evidence_receipt_id=evidence_receipt_id,
+    )
 
 
 def _artifact_signature(model_path: Path) -> tuple:

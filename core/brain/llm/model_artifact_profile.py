@@ -267,7 +267,7 @@ def get_model_artifact_profile(model_path: str) -> ModelArtifactProfile:
     key was itself the expensive part: ``exists()`` + ``resolve()`` (realpath
     walks every path component) + two ``stat()`` calls ran on EVERY call,
     including cache hits. That put four-plus filesystem syscalls on a hot
-    status read — ``get_lane_status`` -> ``_model_is_deep_solver_lane`` ->
+    status read — ``get_lane_status`` used to reclassify the artifact through
     ``model_size_class`` — which the background compute-budget policy calls
     from the event loop on every tick. Measured live: TICK STALL, background
     mean 19,823ms, with the event-loop stack sitting in ``posixpath.realpath``

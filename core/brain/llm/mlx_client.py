@@ -33,6 +33,7 @@ from core.runtime import resource_psutil as psutil
 
 if TYPE_CHECKING:
     from core.brain.lane_admission import ActiveLane
+    from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
 from core.brain.llm.measured_admission import record_generation
 from core.conversation.continuation import continuation_state_text
@@ -202,29 +203,6 @@ def _model_is_heavy_lane(model_path: str | None) -> bool:
     lowered = os.path.basename(path).lower()
     named = any(token in lowered for token in _HEAVY_LANE_NAME_TOKENS)
     return measured or named
-
-
-def _model_is_deep_solver_lane(model_path: str | None) -> bool:
-    """Whether the registry assigned this exact artifact to Solver."""
-    if not str(model_path or "").strip():
-        return False
-    try:
-        from core.brain.llm.model_registry import get_model_lane_role
-
-        return get_model_lane_role(model_path) == "solver"
-    except (ImportError, AttributeError, OSError, RuntimeError, ValueError, TypeError) as exc:
-        _record_mlx_degradation(
-            exc,
-            action="model registry unavailable; optional specialist role stayed unassigned",
-            severity="debug",
-        )
-        return False
-
-
-def _model_path_is_deep_solver(model_path: str | None) -> bool:
-    """Compatibility alias for exact registry role resolution."""
-
-    return _model_is_deep_solver_lane(model_path)
 
 
 #: Ceilings for a single worker-supplied progress value. Progress is a
@@ -842,6 +820,22 @@ def _clients_snapshot() -> list[tuple[str, Any]]:
     """
     with _CLIENTS_LOCK:
         return list(_CLIENTS.items())
+
+
+def _client_lane_policy(client: Any) -> tuple[str, Any]:
+    """Read lane/QoS from the immutable assignment carried by the client."""
+
+    from core.brain.lane_admission import QoSClass
+    from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
+
+    assignment = getattr(client, "runtime_assignment", None)
+    if not isinstance(assignment, ModelRuntimeAssignment):
+        raise RuntimeError("mlx_client_runtime_assignment_missing")
+    assignment.assert_bound_to(model_path=getattr(client, "model_path", ""), purpose="serve")
+    try:
+        return assignment.lane, QoSClass(assignment.qos)
+    except ValueError as exc:
+        raise RuntimeError("mlx_client_runtime_assignment_qos_invalid") from exc
 
 
 def clients_snapshot() -> list[tuple[str, Any]]:
@@ -1596,7 +1590,7 @@ def _observed_active_lanes(exclude_client: Any = None) -> list[ActiveLane]:
     candidate's own client is excluded so a worker recycle never counts its
     old footprint against its own respawn.
     """
-    from core.brain.lane_admission import ActiveLane, classify_lane
+    from core.brain.lane_admission import ActiveLane
 
     lanes: list[ActiveLane] = []
     for path, client in _clients_snapshot():
@@ -1607,7 +1601,7 @@ def _observed_active_lanes(exclude_client: Any = None) -> list[ActiveLane]:
                 continue
         except (AttributeError, RuntimeError, OSError, ValueError):
             continue
-        lane, qos = classify_lane(path)
+        lane, qos = _client_lane_policy(client)
         last = float(getattr(client, "_last_user_facing_completed_at", 0.0) or 0.0)
         lanes.append(
             ActiveLane(
@@ -1648,7 +1642,7 @@ def _model_lane_owner_id(client: Any) -> str:
 def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
     """Return process-identified MLX owners for durable lane accounting."""
 
-    from core.brain.lane_admission import QoSClass, classify_lane
+    from core.brain.lane_admission import QoSClass
     from core.runtime.model_lane_control import (
         LaneOwnerObservation,
         process_identity_for_pid,
@@ -1665,7 +1659,7 @@ def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
             pid = int(getattr(process, "pid", 0) or 0)
             if pid <= 0:
                 continue
-            lane, qos = classify_lane(path)
+            lane, qos = _client_lane_policy(client)
             last = float(getattr(client, "_last_user_facing_completed_at", 0.0) or 0.0)
             observed_gb = float(_observed_process_rss_bytes(pid)) / float(1024**3)
             owners.append(
@@ -1684,6 +1678,7 @@ def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
                         )
                     ),
                     last_user_facing_age_s=(time.time() - last) if last > 0.0 else None,
+                    runtime_assignment=client.runtime_assignment,
                     metadata={
                         "runtime_pid": os.getpid(),
                         "lane": lane,
@@ -1926,10 +1921,9 @@ def _note_lane_worker_death(client: Any, reason: str) -> None:
     # never loaded all night while RAM sat at 40%). Same seam as the K4
     # report, same never-throws contract.
     try:
-        from core.brain.lane_admission import classify_lane
         from core.runtime.control_plane import WorkClass, get_runtime_control_plane
 
-        lane, _qos = classify_lane(client.model_path)
+        lane, _qos = _client_lane_policy(client)
         reaped = get_runtime_control_plane().admission.reap_dead_holder_leases_sync(
             lane=lane,
             work_class=WorkClass.MODEL_LOAD,
@@ -2085,7 +2079,6 @@ async def _model_load_admission_context(
     """
 
     try:
-        from core.brain.lane_admission import classify_lane
         from core.runtime.control_plane import (
             AdmissionPriority,
             AdmissionRequest,
@@ -2105,7 +2098,7 @@ async def _model_load_admission_context(
         )
         raise _ModelLoadAdmissionDeniedError("resource_admission_unavailable") from exc
 
-    lane, qos = classify_lane(client.model_path)
+    lane, qos = _client_lane_policy(client)
     # Off-loop: the footprint projection stats the whole model directory,
     # and doing that on the event loop during a concurrent 20GB model read
     # produced the recorded 5.5-8.6s admission stalls. The walk is also
@@ -2214,6 +2207,7 @@ async def _model_load_admission_context(
         allow_last_warm_eviction=is_primary_cortex or disruptive_deep_handoff,
         reservation_ttl_s=model_load_lease_ttl_s,
         request_id=f"model-lane-{request.request_id}",
+        runtime_assignment=client.runtime_assignment,
         metadata={
             "scheduling_lease_id": decision.lease_id,
             "scheduling_receipt_id": decision.receipt_id,
@@ -4627,8 +4621,28 @@ class MLXLocalClient:
     Manages the lifecycle, health, and communication with the ForkServer process.
     """
 
-    def __init__(self, model_path: str, device: str = "gpu", max_tokens: int = 4096):
-        self.model_path = model_path
+    def __init__(
+        self,
+        model_path: str,
+        device: str = "gpu",
+        max_tokens: int = 4096,
+        runtime_assignment: ModelRuntimeAssignment | Mapping[str, Any] | None = None,
+    ):
+        from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
+
+        if runtime_assignment is None:
+            from core.brain.llm.model_registry import get_model_runtime_assignment
+
+            assignment = get_model_runtime_assignment(model_path)
+        elif isinstance(runtime_assignment, ModelRuntimeAssignment):
+            assignment = runtime_assignment
+        elif isinstance(runtime_assignment, Mapping):
+            assignment = ModelRuntimeAssignment.from_dict(runtime_assignment)
+        else:
+            raise TypeError("mlx_client_runtime_assignment_invalid")
+        assignment.assert_bound_to(model_path=model_path, purpose="serve")
+        self.runtime_assignment = assignment
+        self.model_path = assignment.model_path
         self.device = device
         self.max_tokens = max_tokens
         self.temp = 0.7
@@ -4911,13 +4925,9 @@ class MLXLocalClient:
         return _model_is_heavy_lane(self.model_path)
 
     def _is_primary_lane(self) -> bool:
-        """Whether the registry assigned this exact artifact to Cortex."""
-        try:
-            from core.brain.llm.model_registry import get_model_lane_role
+        """Whether this loaded client was immutably assigned to Cortex."""
 
-            return get_model_lane_role(self.model_path) == "cortex"
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
-            return False
+        return self.runtime_assignment.role == "cortex"
 
     def _can_run_resident_background_health_probe(
         self,
@@ -4934,7 +4944,7 @@ class MLXLocalClient:
         )
 
     def _is_deep_solver_lane(self) -> bool:
-        return _model_path_is_deep_solver(self.model_path)
+        return self.runtime_assignment.role == "solver"
 
     @staticmethod
     def _model_load_admission_backoff_seconds(reason: str, count: int) -> float:
@@ -6037,7 +6047,7 @@ class MLXLocalClient:
         still arriving (worker is alive, just slow) was the #1 cause of
         'cortex died and never came back'.  As long as heartbeats arrive,
         the worker is alive — let it finish."""
-        if _model_is_deep_solver_lane(self.model_path):
+        if self._is_deep_solver_lane():
             if foreground_request and during_generation:
                 return 45.0
             return 90.0 if during_generation else 45.0
@@ -6124,7 +6134,7 @@ class MLXLocalClient:
         # _last_generation_completed_at is zero until a real generation has
         # finished; we use that as the cold-start signal.
         is_cold_start = float(getattr(self, "_last_generation_completed_at", 0.0) or 0.0) <= 0.0
-        if _model_is_deep_solver_lane(self.model_path):
+        if self._is_deep_solver_lane():
             if foreground_request:
                 base = 52.0 if is_cold_start else 32.0
                 return _with_prompt_eval_headroom(
@@ -6171,7 +6181,7 @@ class MLXLocalClient:
         envelope so the caller still has time to recover or use another lane.
         """
 
-        if _model_is_deep_solver_lane(self.model_path):
+        if self._is_deep_solver_lane():
             default = 165.0 if foreground_request else 120.0
         elif _model_is_heavy_lane(self.model_path):
             default = 120.0 if foreground_request else 90.0
@@ -6358,7 +6368,7 @@ class MLXLocalClient:
 
     def _token_stall_after(self, *, foreground_request: bool = False) -> float:
         stretch, _ = self._pressure_adaptive_stretch()
-        if _model_is_deep_solver_lane(self.model_path):
+        if self._is_deep_solver_lane():
             return (18.0 if foreground_request else 25.0) * stretch
         if _model_is_heavy_lane(self.model_path):
             # [RESILIENCE] Reverted from 10s — recurrent depth can cause
@@ -10354,7 +10364,31 @@ class MLXLocalClient:
         """
         previous = self.model_path
         proof = verdict.as_receipt() if verdict is not None else {}
-        self.model_path = target
+        try:
+            from core.brain.llm.model_registry import get_model_runtime_assignment
+
+            next_assignment = get_model_runtime_assignment(target)
+            if next_assignment.role != self.runtime_assignment.role:
+                raise RuntimeError(
+                    "promoted_artifact_runtime_role_changed:"
+                    f"{self.runtime_assignment.role}->{next_assignment.role}"
+                )
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            _record_mlx_degradation(
+                exc,
+                action="refused promoted artifact without a source-bound runtime assignment",
+                severity="error",
+            )
+            return {
+                "ok": False,
+                "state": "rejected",
+                "reason": str(exc),
+                "previous": previous,
+                "artifact": target,
+                **proof,
+            }
+        self.runtime_assignment = next_assignment
+        self.model_path = next_assignment.model_path
         self._expert_adapter_path = None  # adapters belong to the old weights
         self._pending_promotion = None
         try:
@@ -10373,7 +10407,7 @@ class MLXLocalClient:
                 "artifact": target,
                 **proof,
             }
-        _rebind_client_registry_key(previous, target, self)
+        _rebind_client_registry_key(previous, self.model_path, self)
         logger.info(
             "🧬 [MLX] Promoted artifact is now this lane's serving identity: %s "
             "(worker unloaded; it loads on next use).",
@@ -16119,12 +16153,21 @@ class MLXLocalClient:
                 log("MLX client finalizer could not close cleanly: %s", exc)
 
 
-def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
+def get_mlx_client(
+    model_path: str | None = None,
+    *,
+    runtime_assignment: ModelRuntimeAssignment | Mapping[str, Any] | None = None,
+    origin: str = "mlx_client",
+    **kwargs,
+) -> MLXLocalClient:
     """Compatibility factory for Aura's active local backend."""
+    from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
+
     from .model_registry import (
         ACTIVE_MODEL,
         get_local_backend,
         get_model_path,
+        get_model_runtime_assignment,
         get_runtime_model_path,
     )
 
@@ -16140,13 +16183,23 @@ def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
         runtime_path = resolved_model_path
         client_key = resolved_model_path
 
+    if runtime_assignment is None:
+        assignment = get_model_runtime_assignment(runtime_path)
+    elif isinstance(runtime_assignment, ModelRuntimeAssignment):
+        assignment = runtime_assignment
+    elif isinstance(runtime_assignment, Mapping):
+        assignment = ModelRuntimeAssignment.from_dict(runtime_assignment)
+    else:
+        raise TypeError("mlx_client_runtime_assignment_invalid")
+    assignment.assert_bound_to(model_path=runtime_path, purpose="serve")
+
     try:
         from core.runtime.proof_policy import proof_model_tier, proof_run_active
 
         from .model_registry import model_identities_compatible
 
         if (
-            proof_run_active(origin=kwargs.get("origin", "mlx_client"))
+            proof_run_active(origin=origin)
             and proof_model_tier() == "primary"
         ):
             primary_path = _real_model_path(get_model_path(ACTIVE_MODEL))
@@ -16199,7 +16252,7 @@ def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
             action="could not import proof policy for primary-lane enforcement",
             severity="error",
         )
-        if _proof_run_requested(kwargs.get("origin", "mlx_client")):
+        if _proof_run_requested(origin):
             raise RuntimeError(
                 "proof_policy_unavailable: refusing to build an unenforced model "
                 "client for a proof run"
@@ -16218,10 +16271,19 @@ def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
             _CLIENTS.pop(client_key, None)
             existing = None
     if existing is not None:
+        existing_assignment = getattr(existing, "runtime_assignment", None)
+        if not isinstance(existing_assignment, ModelRuntimeAssignment):
+            raise RuntimeError("mlx_client_existing_runtime_assignment_missing")
+        if existing_assignment.assignment_sha256 != assignment.assignment_sha256:
+            raise RuntimeError("mlx_client_runtime_assignment_conflict")
         return existing
     # Construction happens outside the lock (it can be slow), then a
     # last-writer check keeps a concurrent creator from being discarded.
-    created = MLXLocalClient(model_path=runtime_path, **kwargs)
+    created = MLXLocalClient(
+        model_path=runtime_path,
+        runtime_assignment=assignment,
+        **kwargs,
+    )
     with _CLIENTS_LOCK:
         existing = _CLIENTS.get(client_key)
         if existing is not None and getattr(existing, "_closed", False):
@@ -16230,6 +16292,13 @@ def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
         if existing is None:
             _CLIENTS[client_key] = created
             return created
+        existing_assignment = getattr(existing, "runtime_assignment", None)
+        if not isinstance(existing_assignment, ModelRuntimeAssignment):
+            created.close()
+            raise RuntimeError("mlx_client_existing_runtime_assignment_missing")
+        if existing_assignment.assignment_sha256 != assignment.assignment_sha256:
+            created.close()
+            raise RuntimeError("mlx_client_runtime_assignment_conflict")
     # A concurrent constructor won the registry race. Do not strand a second
     # worker/model allocation outside registry ownership.
     created.close()
@@ -16998,3 +17067,10 @@ async def scavenge_idle_model_vram(
             unloaded += 1
         results.append(entry)
     return {"enabled": True, "unloaded": unloaded, "lanes": results}
+
+
+# Import after the client registry and snapshot API exist. Registration is the
+# invariant module's only import-time effect.
+from core.brain.llm import (  # noqa: E402,F401
+    model_runtime_invariants as _model_runtime_invariants,
+)

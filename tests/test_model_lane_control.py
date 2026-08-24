@@ -11,6 +11,9 @@ from types import SimpleNamespace
 
 import pytest
 
+import core.runtime.model_lane_control as model_lane_control
+from core.brain.lane_admission import QoSClass
+from core.brain.llm import model_registry
 from core.runtime.model_lane_control import (
     InProcessModelLaneLease,
     LaneClaim,
@@ -35,9 +38,34 @@ from core.runtime.model_lane_control import (
     register_model_lane_owner_adapter,
     unregister_model_lane_owner_adapter,
 )
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment, locator_identity
 from core.runtime.receipts import ReceiptStore
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _register_test_lane_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give the controller fixtures the registry assignments their paths denote.
+
+    Production classification never infers these roles from names. These are
+    synthetic registered artifacts used to exercise eviction arithmetic, so
+    the test registry supplies their authority explicitly.
+    """
+
+    def _role(path: object) -> str | None:
+        normalized = str(path or "").lower()
+        if "aura-32b" in normalized:
+            return "cortex"
+        if "deep-72b" in normalized:
+            return "solver"
+        if "1.5b" in normalized:
+            return "reflex"
+        if "7b" in normalized:
+            return "brainstem"
+        return None
+
+    monkeypatch.setattr(model_registry, "get_model_lane_role", _role)
 
 
 def test_frozen_controller_training_uses_its_measured_workload_class(
@@ -387,6 +415,45 @@ def test_request_replay_rejects_changed_capacity_or_disruption_claim(tmp_path: P
         )
 
 
+def test_request_replay_preserves_original_runtime_assignment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, AliveTable())
+    path = "/m/renamed-model"
+    assignment = ModelRuntimeAssignment.issue(
+        model_path=path,
+        artifact_identity=locator_identity(path),
+        artifact_identity_kind="canonical_locator_sha256",
+        artifact_identity_exact=False,
+        role="cortex",
+        purpose="serve",
+        authority_source="unit_test_registry",
+    )
+    claim = LaneClaim(
+        owner_id="mlx:assignment-replay",
+        model_path=path,
+        request_gb=5.0,
+        request_id="assignment-replay",
+        runtime_assignment=assignment,
+    )
+
+    initial = controller.reserve_sync(claim)
+    monkeypatch.setattr(
+        model_lane_control,
+        "classify_lane",
+        lambda *_args, **_kwargs: ("auxiliary", QoSClass.BEST_EFFORT),
+    )
+    replay = controller.reserve_sync(claim)
+
+    assert initial.lane == "cortex"
+    assert initial.qos is QoSClass.GUARANTEED
+    assert replay.replayed is True
+    assert replay.lane == "cortex"
+    assert replay.qos is QoSClass.GUARANTEED
+    assert replay.runtime_assignment == assignment
+
+
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
 def test_model_lane_resource_claims_reject_non_finite_values(invalid: float) -> None:
     with pytest.raises(ValueError, match="request_gb"):
@@ -490,7 +557,14 @@ async def test_required_eviction_completes_before_reservation_becomes_ready(tmp_
     assert ready.state is LaneTransactionState.READY
     assert ready.ready_to_spawn is True
     assert ready.evicted_owner_ids == ("trainer:nightly",)
-    assert reclaimed_claims == [claim]
+    assert len(reclaimed_claims) == 1
+    reclaimed = reclaimed_claims[0]
+    assert reclaimed.owner_id == claim.owner_id
+    assert reclaimed.model_path == claim.model_path
+    assert reclaimed.request_id == claim.request_id
+    assert reclaimed.runtime_assignment is not None
+    assert reclaimed.runtime_assignment.role == "solver"
+    assert reclaimed.runtime_assignment.qos == "burstable"
     snapshot = controller.snapshot()
     assert {owner["owner_id"] for owner in snapshot["owners"]} == {
         "mlx:cortex",
@@ -1684,6 +1758,15 @@ def test_external_nonpreemptible_process_is_included_without_explicit_observatio
             model_path="/models/candidate-7b",
             request_gb=5.0,
             request_id="external-owner-blocks",
+            runtime_assignment=ModelRuntimeAssignment.issue(
+                model_path="/models/candidate-7b",
+                artifact_identity=locator_identity("/models/candidate-7b"),
+                artifact_identity_kind="canonical_locator_sha256",
+                artifact_identity_exact=False,
+                role="cortex",
+                purpose="serve",
+                authority_source="unit_test_registry",
+            ),
         )
     )
 
@@ -2038,9 +2121,15 @@ def test_synchronous_in_process_lease_counts_until_release(
     )
 
     assert claims[0].transient_runtime_gb == pytest.approx(0.75)
+    assert claims[0].runtime_assignment is not None
+    assert claims[0].runtime_assignment.role == "auxiliary"
+    assert claims[0].runtime_assignment.qos == "best_effort"
     owner = controller.snapshot()["owners"][0]
     assert owner["declared_gb"] == pytest.approx(0.25)
     assert owner["metadata"]["synchronous_loader"] is True
+    assert owner["runtime_assignment"]["assignment_sha256"] == (
+        claims[0].runtime_assignment.assignment_sha256
+    )
     assert lease.set_preemptible(False) is True
     assert controller.snapshot()["owners"][0]["preemptible"] is False
     assert lease.set_preemptible(True) is True

@@ -65,6 +65,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.runtime.flags import FlagKind, declare
+from core.runtime.model_runtime_assignment import normalize_model_runtime_purpose
 from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 
 logger = logging.getLogger("Aura.LaneAdmission")
@@ -144,7 +145,7 @@ def classify_lane(
     an unknown artifact remains auxiliary and best-effort. Measured artifact
     properties still size the resource request elsewhere.
     """
-    if purpose in {"train", "compound", "fuse", "benchmark", "evaluate", "eval"}:
+    if normalize_model_runtime_purpose(purpose) != "serve":
         lane = "trainer"
         inferred_qos = QoSClass.BEST_EFFORT
     else:

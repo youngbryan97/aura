@@ -62,6 +62,9 @@ def test_model_process_claim_inference_requires_identity_and_sizes_peak() -> Non
     assert claim.purpose == "train"
     assert claim.request_gb >= 9.0
     assert claim.preemptible is True
+    assert claim.runtime_assignment is not None
+    assert claim.runtime_assignment.role == "trainer"
+    assert claim.runtime_assignment.qos == "best_effort"
 
 
 def test_model_process_claim_inference_fails_closed_without_model_path() -> None:
@@ -150,6 +153,8 @@ def test_auto_declaration_attributes_renamed_model_loader(
     assert claim is not None
     assert claim.model_path == "/models/qwen-7b"
     assert claim.metadata["declared_model_process"] is True
+    assert claim.runtime_assignment is not None
+    assert claim.runtime_assignment.role == "auxiliary"
 
 
 def test_auto_declaration_refuses_uninspectable_dynamic_python() -> None:

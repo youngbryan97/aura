@@ -13,8 +13,8 @@ import logging
 import os
 import threading
 import time
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator, Optional
 
 from core.runtime.control_plane import (
     AdmissionPriority,
@@ -24,6 +24,7 @@ from core.runtime.control_plane import (
     get_runtime_control_plane,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.ResourceArbitrator")
@@ -44,7 +45,7 @@ class ResourceArbitrator:
         self._inference_leases: dict[str, list[str]] = {}
         self._evolution_lease_id = ""
         self._evolution_request_id = ""
-        self._mp_fd: Optional[int] = None
+        self._mp_fd: int | None = None
 
     @property
     def admission(self) -> ResourceAdmissionController:
@@ -53,16 +54,26 @@ class ResourceArbitrator:
         return self._admission
 
     @staticmethod
-    def _worker_lane(worker: Optional[str]) -> str:
+    def _worker_lane(worker: str | ModelRuntimeAssignment | None) -> str:
+        if isinstance(worker, ModelRuntimeAssignment):
+            return worker.lane
         raw = str(worker or "default").strip() or "default"
-        try:
-            from core.brain.lane_admission import classify_lane
-
-            lane, _qos = classify_lane(raw)
-            if lane != "auxiliary":
-                return lane
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        # These are protocol labels emitted by InferenceGate, not model
+        # locators. Only exact labels normalize here: paths and suggestive
+        # names cannot acquire serving authority after a model has loaded.
+        exact_labels = {
+            "cortex": "cortex",
+            "mlx-cortex": "cortex",
+            "solver": "solver",
+            "mlx-solver": "solver",
+            "brainstem": "brainstem",
+            "mlx-brainstem": "brainstem",
+            "reflex": "reflex",
+            "mlx-reflex": "reflex",
+        }
+        normalized = raw.casefold().replace("_", "-")
+        if normalized in exact_labels:
+            return exact_labels[normalized]
         return raw
 
     def _get_mp_lock(self) -> int | None:
@@ -81,11 +92,11 @@ class ResourceArbitrator:
             logger.error("Failed to open VRAM lock file: %s", exc)
             return None
 
-    async def acquire_inference(
+    async def acquire_inference(  # noqa: ASYNC109 - compatibility API names this budget timeout
         self,
         priority: bool = False,
-        timeout: Optional[float] = None,
-        worker: Optional[str] = None,
+        timeout: float | None = None,  # noqa: ASYNC109 - compatibility API
+        worker: str | ModelRuntimeAssignment | None = None,
     ) -> bool:
         lane = self._worker_lane(worker)
         effective_timeout = (
@@ -127,7 +138,10 @@ class ResourceArbitrator:
         )
         return True
 
-    async def release_inference(self, worker: Optional[str] = None) -> None:
+    async def release_inference(
+        self,
+        worker: str | ModelRuntimeAssignment | None = None,
+    ) -> None:
         lane = self._worker_lane(worker)
         with self._state_lock:
             leases = self._inference_leases.get(lane, [])
@@ -142,7 +156,10 @@ class ResourceArbitrator:
         except KeyError:
             logger.warning("Inference lease expired before release worker=%s lease=%s", lane, lease_id)
 
-    async def acquire_evolution(self, timeout: float = 300.0) -> bool:
+    async def acquire_evolution(  # noqa: ASYNC109 - compatibility API
+        self,
+        timeout: float = 300.0,  # noqa: ASYNC109 - compatibility API
+    ) -> bool:
         effective_timeout = max(0.0, float(timeout))
         request = AdmissionRequest(
             owner="resource_arbitrator.evolution",
@@ -264,11 +281,11 @@ class ResourceArbitrator:
         }
 
     @contextlib.asynccontextmanager
-    async def inference_context(
+    async def inference_context(  # noqa: ASYNC109 - compatibility API
         self,
         priority: bool = False,
-        worker: Optional[str] = None,
-        timeout: Optional[float] = None,
+        worker: str | ModelRuntimeAssignment | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109 - compatibility API
     ) -> AsyncGenerator[None, None]:
         acquired = await self.acquire_inference(
             priority=priority,
@@ -276,16 +293,16 @@ class ResourceArbitrator:
             worker=worker,
         )
         if not acquired:
-            raise asyncio.TimeoutError(f"inference_token_timeout:{worker or 'default'}")
+            raise TimeoutError(f"inference_token_timeout:{worker or 'default'}")
         try:
             yield
         finally:
             await self.release_inference(worker=worker)
 
     @contextlib.asynccontextmanager
-    async def evolution_context(
+    async def evolution_context(  # noqa: ASYNC109 - compatibility API
         self,
-        timeout: float = 300.0,
+        timeout: float = 300.0,  # noqa: ASYNC109 - compatibility API
     ) -> AsyncGenerator[bool, None]:
         acquired = await self.acquire_evolution(timeout)
         try:

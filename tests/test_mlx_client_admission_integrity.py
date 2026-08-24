@@ -13,19 +13,24 @@
 * ``34c42774`` — any dict with status=ok committed READY before the worker
   identity or the required recurrent depth had been validated.
 """
+
 from __future__ import annotations
 
+import hashlib
 import inspect
 import os
 import stat
+from types import SimpleNamespace
 
 import pytest
 
+from core.brain.lane_admission import QoSClass
 from core.brain.llm import mlx_client
 from core.brain.llm.unified_recurrent_shadow_contract import (
     LOAD_SCHEMA,
     seal_shadow_load_receipt,
 )
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
 
 def _inactive_shadow_receipt():
@@ -133,7 +138,8 @@ class TestHeavyLaneClassification:
             raise OSError("no config.json")
 
         monkeypatch.setattr(
-            "core.brain.llm.model_artifact_profile.model_is_heavy", _boom,
+            "core.brain.llm.model_artifact_profile.model_is_heavy",
+            _boom,
         )
         assert mlx_client._model_is_heavy_lane("/models/aura-32b") is True
         assert mlx_client._model_is_heavy_lane("/models/tiny") is False
@@ -153,28 +159,108 @@ class TestHeavyLaneClassification:
         assert '"32b" in lowered' not in source
         assert '"72b" in lowered' not in source
 
-    def test_the_solver_predicate_uses_the_registry_role(self):
-        source = inspect.getsource(mlx_client._model_is_deep_solver_lane)
-        assert "get_model_lane_role" in source
-        assert "model_size_class" not in source
-        assert "72b" not in source.lower()
-
-    def test_solver_classification(self, monkeypatch):
-        from core.brain.llm import model_registry
-
-        monkeypatch.setattr(
-            model_registry,
-            "get_model_lane_role",
-            lambda path: "solver" if path == "/models/assigned-specialist" else None,
+    def test_solver_and_primary_checks_use_the_frozen_assignment(self):
+        solver = SimpleNamespace(
+            runtime_assignment=TestRuntimeAssignmentIntegrity._assignment(
+                "/models/assigned-specialist",
+                "solver",
+            )
         )
-        assert mlx_client._model_is_deep_solver_lane("/models/assigned-specialist") is True
-        assert mlx_client._model_is_deep_solver_lane("/models/qwen-72b-solver") is False
-        assert mlx_client._model_is_deep_solver_lane("/models/aura-32b") is False
-        assert mlx_client._model_is_deep_solver_lane("") is False
+        cortex = SimpleNamespace(
+            runtime_assignment=TestRuntimeAssignmentIntegrity._assignment(
+                "/models/qwen-72b-solver",
+                "cortex",
+            )
+        )
+
+        assert mlx_client.MLXLocalClient._is_deep_solver_lane(solver) is True
+        assert mlx_client.MLXLocalClient._is_primary_lane(solver) is False
+        assert mlx_client.MLXLocalClient._is_deep_solver_lane(cortex) is False
+        assert mlx_client.MLXLocalClient._is_primary_lane(cortex) is True
 
     def test_the_request_deadline_uses_the_measured_class(self):
         source = inspect.getsource(mlx_client)
         assert "is_heavy = _model_is_heavy_lane(self.model_path)" in source
+
+
+class TestRuntimeAssignmentIntegrity:
+    @staticmethod
+    def _assignment(path, role):
+        return ModelRuntimeAssignment.issue(
+            model_path=path,
+            artifact_identity=hashlib.sha256(str(path).encode()).hexdigest(),
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role=role,
+            purpose="serve",
+            authority_source="unit_test_registry",
+        )
+
+    def test_client_carries_the_registry_assignment(self, monkeypatch, tmp_path):
+        model = tmp_path / "renamed"
+        model.mkdir()
+        assignment = self._assignment(model, "cortex")
+        monkeypatch.setattr(mlx_client, "_CLIENTS", {})
+        monkeypatch.setattr(
+            "core.brain.llm.model_registry.get_model_runtime_assignment",
+            lambda _path: assignment,
+        )
+
+        client = mlx_client.get_mlx_client(str(model))
+
+        assert client.runtime_assignment == assignment
+        assert mlx_client._client_lane_policy(client) == (
+            "cortex",
+            QoSClass.GUARANTEED,
+        )
+        client.close()
+
+    def test_existing_path_refuses_a_different_assignment(self, monkeypatch, tmp_path):
+        model = tmp_path / "same-path"
+        model.mkdir()
+        cortex = self._assignment(model, "cortex")
+        auxiliary = self._assignment(model, "auxiliary")
+        monkeypatch.setattr(mlx_client, "_CLIENTS", {})
+
+        client = mlx_client.get_mlx_client(str(model), runtime_assignment=cortex)
+        with pytest.raises(RuntimeError, match="runtime_assignment_conflict"):
+            mlx_client.get_mlx_client(str(model), runtime_assignment=auxiliary)
+        client.close()
+
+    def test_runtime_invariant_rejects_an_unassigned_loaded_client(self, monkeypatch):
+        from core.brain.llm.model_runtime_invariants import (
+            loaded_model_clients_have_immutable_assignments,
+        )
+
+        monkeypatch.setattr(
+            mlx_client,
+            "_CLIENTS",
+            {"/models/unassigned": SimpleNamespace(model_path="/models/unassigned")},
+        )
+
+        violations = list(loaded_model_clients_have_immutable_assignments())
+
+        assert len(violations) == 1
+        assert "no immutable model runtime assignment" in violations[0].message
+
+    def test_runtime_invariant_accepts_a_bound_assignment(self, monkeypatch):
+        from core.brain.llm.model_runtime_invariants import (
+            loaded_model_clients_have_immutable_assignments,
+        )
+
+        path = "/models/assigned"
+        monkeypatch.setattr(
+            mlx_client,
+            "_CLIENTS",
+            {
+                path: SimpleNamespace(
+                    model_path=path,
+                    runtime_assignment=self._assignment(path, "cortex"),
+                )
+            },
+        )
+
+        assert list(loaded_model_clients_have_immutable_assignments()) == []
 
 
 class TestLastKnownGoodBridgeIsBounded:
@@ -212,7 +298,9 @@ class TestLatentProgressDropsAreCounted:
         client._latent_progress_dropped_unknown = 0
         client._latent_progress_evicted = 0
         assert client.latent_progress_counters() == {
-            "tracked": 0, "dropped_unknown": 0, "evicted": 0,
+            "tracked": 0,
+            "dropped_unknown": 0,
+            "evicted": 0,
         }
 
     def test_an_uncorrelated_id_is_counted(self):
@@ -251,10 +339,7 @@ class TestReadyRequiresAValidatedReceipt:
 
         calibration = {
             "schema": tbe.CALIBRATION_SCHEMA,
-            "observations": [
-                {"chars": 300, "tokens": 100}
-                for _ in range(tbe.MIN_OBSERVATIONS)
-            ],
+            "observations": [{"chars": 300, "tokens": 100} for _ in range(tbe.MIN_OBSERVATIONS)],
         }
         errors = self._client()._init_receipt_errors(
             {"status": "ok", "token_budget_calibration": calibration}
@@ -279,14 +364,18 @@ class TestReadyRequiresAValidatedReceipt:
 
     def test_required_recurrence_must_be_proven(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 2,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 2,
         )
         errors = self._client()._init_receipt_errors({"status": "ok"})
         assert "missing_recurrent_depth_receipt" in errors
 
     def test_inactive_recurrence_is_rejected(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 2,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 2,
         )
         errors = self._client()._init_receipt_errors(
             {"status": "ok", "recurrent_depth": {"active": False, "loops": 2}},
@@ -295,7 +384,9 @@ class TestReadyRequiresAValidatedReceipt:
 
     def test_a_depth_mismatch_is_rejected(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 4,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 4,
         )
         errors = self._client()._init_receipt_errors(
             {"status": "ok", "recurrent_depth": {"active": True, "loops": 2}},
@@ -304,7 +395,9 @@ class TestReadyRequiresAValidatedReceipt:
 
     def test_a_lane_needing_no_depth_does_not_demand_a_receipt(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 1,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 1,
         )
         errors = self._client()._init_receipt_errors(
             {"status": "ok", "unified_recurrent_shadow": _inactive_shadow_receipt()}
@@ -313,7 +406,9 @@ class TestReadyRequiresAValidatedReceipt:
 
     def test_shadow_receipt_is_mandatory_even_when_inactive(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 1,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 1,
         )
         errors = self._client()._init_receipt_errors({"status": "ok"})
 
@@ -321,7 +416,9 @@ class TestReadyRequiresAValidatedReceipt:
 
     def test_shadow_serving_authority_is_rejected_at_handshake(self, monkeypatch):
         monkeypatch.setattr(
-            mlx_client, "_expected_recurrent_loops_from_model_path", lambda _p: 1,
+            mlx_client,
+            "_expected_recurrent_loops_from_model_path",
+            lambda _p: 1,
         )
         receipt = _inactive_shadow_receipt()
         receipt["serving_authority"] = True
@@ -391,8 +488,8 @@ def test_artifact_profile_hot_path_does_no_filesystem_work(tmp_path):
 
     `exists()` + `resolve()` (realpath walks every path component) + two
     `stat()` calls ran on EVERY call, cache hits included. That put four-plus
-    filesystem syscalls on a hot status read — get_lane_status ->
-    _model_is_deep_solver_lane -> model_size_class — which the background
+    filesystem syscalls on a hot status read — get_lane_status used to
+    reclassify the artifact through model_size_class — which the background
     compute-budget policy calls from the EVENT LOOP on every tick. Measured
     live: TICK STALL, background mean 19,823ms, event-loop stack sitting in
     posixpath.realpath underneath this function.

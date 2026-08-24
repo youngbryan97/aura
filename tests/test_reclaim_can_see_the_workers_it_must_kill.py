@@ -154,6 +154,21 @@ def test_reclaim_policy_reads_live_mlx_client_role_and_activity(
     live_tree, monkeypatch
 ) -> None:
     import core.brain.llm.mlx_client as mlx_client
+    from core.runtime.model_runtime_assignment import (
+        ModelRuntimeAssignment,
+        locator_identity,
+    )
+
+    def assignment(path: str, role: str) -> ModelRuntimeAssignment:
+        return ModelRuntimeAssignment.issue(
+            model_path=path,
+            artifact_identity=locator_identity(path),
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role=role,
+            purpose="serve",
+            authority_source="test",
+        )
 
     cortex = live_tree[0]
     brainstem = live_tree[1]
@@ -162,11 +177,13 @@ def test_reclaim_policy_reads_live_mlx_client_role_and_activity(
             _process=cortex,
             _active_generations=1,
             _current_gen_future=None,
+            runtime_assignment=assignment("/models/Aura-32B-fused", "cortex"),
         ),
         "/models/Qwen3.5-9B-4bit": SimpleNamespace(
             _process=brainstem,
             _active_generations=0,
             _current_gen_future=None,
+            runtime_assignment=assignment("/models/Qwen3.5-9B-4bit", "brainstem"),
         ),
     }
     monkeypatch.setattr(mlx_client, "_CLIENTS", clients)

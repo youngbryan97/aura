@@ -26,6 +26,9 @@ from core.runtime.model_lane_control import (  # noqa: E402
     LaneClaim,
     estimate_model_job_footprint_gb,
 )
+from core.runtime.model_runtime_assignment import (  # noqa: E402
+    issue_unqualified_model_runtime_assignment,
+)
 from core.runtime.subprocess_gateway import get_subprocess_gateway  # noqa: E402
 
 ADAPTER_DIR = TRAINING_DIR / "adapters" / "aura-personality"
@@ -47,6 +50,11 @@ def _conversion_claim(*, source: str) -> LaneClaim:
         preemptible=True,
         reservation_ttl_s=timeout + 30.0,
         owner_lease_ttl_s=timeout + 30.0,
+        runtime_assignment=issue_unqualified_model_runtime_assignment(
+            model_path=str(MODEL_DIR),
+            purpose="fuse",
+            authority_source=source,
+        ),
         metadata={"source": source},
     )
 

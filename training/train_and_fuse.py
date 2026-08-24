@@ -46,6 +46,9 @@ from core.runtime.model_lane_control import (  # noqa: E402
     LaneClaim,
     estimate_model_job_footprint_gb,
 )
+from core.runtime.model_runtime_assignment import (  # noqa: E402
+    issue_unqualified_model_runtime_assignment,
+)
 from core.runtime.resource_observation import (  # noqa: E402
     ResourceObserver,
     get_resource_observer,
@@ -198,6 +201,11 @@ def _training_lane_claim(base_model: Path, *, source: str) -> LaneClaim:
         preemptible=True,
         reservation_ttl_s=timeout + 30.0,
         owner_lease_ttl_s=timeout + 30.0,
+        runtime_assignment=issue_unqualified_model_runtime_assignment(
+            model_path=str(base_model),
+            purpose="train",
+            authority_source=source,
+        ),
         metadata={"source": source, "pipeline": "train_and_fuse"},
     )
 
@@ -765,6 +773,11 @@ def verify_load(fused_path: Path) -> None:
         preemptible=True,
         reservation_ttl_s=timeout + 30.0,
         owner_lease_ttl_s=timeout + 30.0,
+        runtime_assignment=issue_unqualified_model_runtime_assignment(
+            model_path=str(fused_path),
+            purpose="benchmark",
+            authority_source="training_tooling:verify_fused_model",
+        ),
         metadata={"source": "training_tooling:verify_fused_model"},
     )
     rc = _run(

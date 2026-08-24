@@ -37,6 +37,11 @@ from core.runtime.model_lane_control import (  # noqa: E402
     ModelLaneController,
     ProcessIdentity,
 )
+from core.runtime.model_runtime_assignment import (  # noqa: E402
+    ModelRuntimeAssignment,
+    issue_unqualified_model_runtime_assignment,
+    locator_identity,
+)
 from core.runtime.receipts import ReceiptStore  # noqa: E402
 from core.runtime.resource_observation import (  # noqa: E402
     HostResourceObserver,
@@ -197,12 +202,22 @@ def _run_reservation_race(
             model_path="/proof/auxiliary-a",
             request_gb=budget_gb * 0.60,
             request_id="live-pressure-race-a",
+            runtime_assignment=issue_unqualified_model_runtime_assignment(
+                model_path="/proof/auxiliary-a",
+                purpose="serve",
+                authority_source="live_resource_pressure_proof",
+            ),
         ),
         LaneClaim(
             owner_id="live-pressure-race-b",
             model_path="/proof/auxiliary-b",
             request_gb=budget_gb * 0.60,
             request_id="live-pressure-race-b",
+            runtime_assignment=issue_unqualified_model_runtime_assignment(
+                model_path="/proof/auxiliary-b",
+                purpose="serve",
+                authority_source="live_resource_pressure_proof",
+            ),
         ),
     )
     try:
@@ -273,6 +288,11 @@ async def _run_physical_lane_sequence(
             request_gb=budget_gb * 0.55,
             purpose="train",
             request_id="live-pressure-trainer",
+            runtime_assignment=issue_unqualified_model_runtime_assignment(
+                model_path="/proof/trainer",
+                purpose="train",
+                authority_source="live_resource_pressure_proof",
+            ),
             metadata={"in_process_model_owner": True, "bounded_live_proof": True},
         )
         trainer_decision = controller.reserve_sync(trainer_claim)
@@ -306,6 +326,15 @@ async def _run_physical_lane_sequence(
             model_path="/proof/Aura-32B-cortex",
             request_gb=budget_gb * 0.55,
             request_id="live-pressure-cortex",
+            runtime_assignment=ModelRuntimeAssignment.issue(
+                model_path="/proof/Aura-32B-cortex",
+                artifact_identity=locator_identity("/proof/Aura-32B-cortex"),
+                artifact_identity_kind="canonical_locator_sha256",
+                artifact_identity_exact=False,
+                role="cortex",
+                purpose="serve",
+                authority_source="live_resource_pressure_proof",
+            ),
             metadata={"in_process_model_owner": True, "bounded_live_proof": True},
         )
         candidate_decision = controller.reserve_sync(candidate_claim)
