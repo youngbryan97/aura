@@ -354,3 +354,86 @@ def test_the_window_sees_a_consistent_depth_index_per_pass():
         model, TOKENS, RecurrentDepthPlan(prelude_end=2, coda_start=6, iterations=4)
     )
     assert seen == [(0, 0), (1, 1), (2, 2), (3, 3)]
+
+
+# ── Hybrid checkpoints: the cache type is per layer ──────────────────────
+# Qwen3.8-27B is 16 attention layers and 48 linear-attention layers. A linear
+# layer holds a recurrent state, not K/V, and mlx_lm defers to the model's own
+# ``make_cache`` for exactly that reason. Both of Aura's cache builders used to
+# construct 64 plain KVCaches, which is the wrong object at three layers in
+# four — and reads as a working decode until the linear layers carry nothing.
+
+
+class _LinearState:
+    """Stands in for ``ArraysCache``: what a gated-delta layer holds."""
+
+
+class _HybridModel:
+    """A model whose layers do not all want the same cache, as qwen3_5 is."""
+
+    def __init__(self, total: int = 8, full_interval: int = 4):
+        self._total = total
+        self._interval = full_interval
+
+        class _Inner:
+            layers = [object()] * total
+
+        self.model = _Inner()
+
+    def make_cache(self):
+        import mlx_lm.models.cache as cache_module
+
+        return [
+            cache_module.KVCache()
+            if (index + 1) % self._interval == 0
+            else _LinearState()
+            for index in range(self._total)
+        ]
+
+
+def test_hybrid_caches_keep_each_layers_own_type():
+    from core.learning.intrinsic_recurrence import model_layer_caches
+
+    caches = model_layer_caches(_HybridModel())
+    kinds = [type(c).__name__ for c in caches]
+    assert kinds.count("_LinearState") == 6
+    assert kinds.count("KVCache") == 2
+
+
+def test_recurrent_caches_partition_a_hybrid_model_by_layer():
+    from core.learning.intrinsic_recurrence import make_recurrent_caches
+
+    plan = RecurrentDepthPlan(prelude_end=2, coda_start=6, iterations=3)
+    caches = make_recurrent_caches(_HybridModel(), plan)
+
+    assert len(caches["prelude"]) == 2
+    assert len(caches["coda"]) == 2
+    assert len(caches["window"]) == 3
+    assert all(len(window) == 4 for window in caches["window"])
+
+    # Layer 3 (0-indexed) is the full-attention one inside the window, and it
+    # has to be the KVCache in every iteration — not merely somewhere.
+    for window in caches["window"]:
+        assert type(window[1]).__name__ == "KVCache"
+        assert all(type(window[i]).__name__ == "_LinearState" for i in (0, 2, 3))
+
+
+def test_each_window_iteration_still_gets_its_own_cache_objects():
+    from core.learning.intrinsic_recurrence import make_recurrent_caches
+
+    plan = RecurrentDepthPlan(prelude_end=2, coda_start=6, iterations=3)
+    caches = make_recurrent_caches(_HybridModel(), plan)
+    identities = [id(c) for window in caches["window"] for c in window]
+    assert len(set(identities)) == len(identities)
+
+
+def test_a_dense_model_without_make_cache_still_gets_kv_caches():
+    from core.learning.intrinsic_recurrence import model_layer_caches
+
+    class _Dense:
+        class model:
+            layers = [object()] * 5
+
+    caches = model_layer_caches(_Dense())
+    assert len(caches) == 5
+    assert {type(c).__name__ for c in caches} == {"KVCache"}

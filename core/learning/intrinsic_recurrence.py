@@ -255,6 +255,27 @@ def _run(layers: Any, hidden: Any, caches: Any = None) -> Any:
     return hidden
 
 
+def model_layer_caches(model: Any) -> list[Any]:
+    """One cache object per layer, of the type that layer actually needs.
+
+    A hybrid checkpoint interleaves attention layers, which hold K/V, with
+    linear-attention layers, which hold a recurrent state instead. Qwen3.8-27B
+    is 16 of the former and 48 of the latter, and ``mlx_lm`` defers to the
+    model's own ``make_cache`` for exactly that reason. Building 64 plain
+    ``KVCache`` objects hands the loop the wrong object at three layers in
+    four -- the shape that reads as a working decode right up until the
+    linear layers silently carry no state.
+    """
+    factory = getattr(model, "make_cache", None)
+    if callable(factory):
+        return list(factory())
+    inner = getattr(model, "model", None)
+    layers = getattr(inner, "layers", None) or ()
+    from mlx_lm.models.cache import KVCache
+
+    return [KVCache() for _ in range(len(layers))]
+
+
 def make_recurrent_caches(model: Any, plan: RecurrentDepthPlan) -> dict[str, Any]:
     """Per-iteration KV caches for an intrinsically-recurrent decode.
 
@@ -265,21 +286,19 @@ def make_recurrent_caches(model: Any, plan: RecurrentDepthPlan) -> dict[str, Any
     makes decode O(n) instead of O(n^2); the unbounded quadratic version is
     what drove this host to 103 GB.
     """
-    from mlx_lm.models.cache import KVCache
-
     inner = getattr(model, "model", None)
     layers = getattr(inner, "layers", None)
     if not layers:
         raise ValueError("model has no transformer layers")
     if plan.coda_start > len(layers):
         raise ValueError("plan's coda_start exceeds the model's layer count")
-    window = plan.window_size()
     return {
-        "prelude": [KVCache() for _ in range(plan.prelude_end)],
+        "prelude": model_layer_caches(model)[: plan.prelude_end],
         "window": [
-            [KVCache() for _ in range(window)] for _ in range(plan.iterations)
+            model_layer_caches(model)[plan.prelude_end : plan.coda_start]
+            for _ in range(plan.iterations)
         ],
-        "coda": [KVCache() for _ in range(len(layers) - plan.coda_start)],
+        "coda": model_layer_caches(model)[plan.coda_start :],
     }
 
 

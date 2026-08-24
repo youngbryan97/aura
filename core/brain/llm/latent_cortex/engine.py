@@ -2160,9 +2160,22 @@ class LatentCortexEngine:
 
     # ── Model plumbing ──────────────────────────────────────────────────
     def _fresh_cache(self):
-        from mlx_lm.models.cache import KVCache
+        """One cache per layer, of the type each layer actually needs.
 
-        return [KVCache() for _ in range(self.n_layers)]
+        A hybrid checkpoint interleaves attention layers holding K/V with
+        linear-attention layers holding a recurrent state; Qwen3.8-27B is 16
+        of the former and 48 of the latter. ``mlx_lm`` defers to the model's
+        own ``make_cache`` for that reason, and a list of 64 plain
+        ``KVCache`` objects is the wrong object at three layers in four.
+        """
+        from core.learning.intrinsic_recurrence import model_layer_caches
+
+        caches = model_layer_caches(self.model)
+        if len(caches) != self.n_layers:
+            from mlx_lm.models.cache import KVCache
+
+            return [KVCache() for _ in range(self.n_layers)]
+        return caches
 
     def _fresh_verifier_generation(
         self,
