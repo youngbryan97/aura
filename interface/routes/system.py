@@ -834,17 +834,23 @@ def _mark_runtime_service_progress(source: str) -> None:
 def _fallback_conversation_lane_status(reason: str) -> dict[str, Any]:
     desired_endpoint: str | None = None
     background_endpoint: str | None = None
+    desired_model = "Cortex"
     try:
-        from core.brain.llm.model_registry import BRAINSTEM_ENDPOINT, PRIMARY_ENDPOINT
+        from core.brain.llm.model_registry import (
+            BRAINSTEM_ENDPOINT,
+            PRIMARY_ENDPOINT,
+            lane_display_label,
+        )
 
         desired_endpoint = PRIMARY_ENDPOINT
         background_endpoint = BRAINSTEM_ENDPOINT
+        desired_model = lane_display_label(PRIMARY_ENDPOINT)
     except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation("system", exc)
         logger.debug("Conversation lane fallback endpoint lookup failed: %s", exc)
 
     return {
-        "desired_model": "Cortex (32B)",
+        "desired_model": desired_model,
         "desired_endpoint": desired_endpoint,
         "foreground_endpoint": desired_endpoint,
         "background_endpoint": background_endpoint,
@@ -856,7 +862,7 @@ def _fallback_conversation_lane_status(reason: str) -> dict[str, Any]:
         "last_transition_at": time.time(),
         "warmup_attempted": False,
         "warmup_in_flight": False,
-        "expected_model": "Cortex (32B)",
+        "expected_model": desired_model,
         "detected_models": [],
         "runtime_identity_ok": False,
         "kernel_tick_age_s": None,

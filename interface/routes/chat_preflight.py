@@ -1297,12 +1297,16 @@ def _collect_conversation_lane_status(
     *,
     observe_only: bool = False,
 ) -> dict[str, Any]:
-    from core.brain.llm.model_registry import BRAINSTEM_ENDPOINT, PRIMARY_ENDPOINT
+    from core.brain.llm.model_registry import (
+        BRAINSTEM_ENDPOINT,
+        PRIMARY_ENDPOINT,
+        lane_display_label,
+    )
 
     service_lookup = ServiceContainer.peek if observe_only else ServiceContainer.get
 
     lane: dict[str, Any] = {
-        "desired_model": "Cortex (32B)",
+        "desired_model": lane_display_label(PRIMARY_ENDPOINT),
         "desired_endpoint": PRIMARY_ENDPOINT,
         "foreground_endpoint": None,
         "background_endpoint": BRAINSTEM_ENDPOINT,

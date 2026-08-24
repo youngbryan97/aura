@@ -46,6 +46,7 @@ from core.brain.llm.model_registry import (
     FALLBACK_ENDPOINT,
     PRIMARY_ENDPOINT,
     get_active_cortex_serving_limits,
+    lane_display_label,
 )
 from core.brain.request_contract import REQUEST_FIELDS, validate_request_context
 from core.conversation.response_reliability import (
@@ -4697,7 +4698,7 @@ class InferenceGate:
         # when something is actually in flight. Prevents zombie warming state.
         _default_state = "failed" if self._init_error else "cold"
         lane = {
-            "desired_model": "Cortex (32B)",
+            "desired_model": lane_display_label(PRIMARY_ENDPOINT),
             "desired_endpoint": PRIMARY_ENDPOINT,
             "foreground_endpoint": None,
             "background_endpoint": BRAINSTEM_ENDPOINT,

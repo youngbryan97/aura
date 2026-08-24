@@ -362,7 +362,8 @@ def test_runtime_fact_status_reply_uses_canonical_lane(monkeypatch):
         cognitive_engine_handled=True,
     )
 
-    assert "Cortex (32B)" in reply
+    assert "Cortex" in reply
+    assert "Cortex (32B)" not in reply
     assert "active foreground lane" in reply
     assert "CognitiveEngine handled this turn: yes" in reply
     assert "governed tools available: yes" in reply
@@ -401,7 +402,8 @@ def test_runtime_fact_status_reply_recaps_current_route_probe(monkeypatch):
     )
 
     assert reply.startswith("You asked me to identify the current request")
-    assert "Cortex (32B)" in reply
+    assert "Cortex" in reply
+    assert "Cortex (32B)" not in reply
     assert "active foreground lane" in reply
     assert "CognitiveEngine handled this turn: yes" in reply
     assert "governed tools available: yes" in reply
@@ -1758,7 +1760,7 @@ def test_foreground_timeout_for_cold_or_recovering_lane(monkeypatch):
 
 def test_dense_foreground_timeout_accepts_measured_32b_completion_cost(monkeypatch):
     from core.brain.llm import measured_admission
-    from core.runtime.structured_input import answer_surface_token_floor
+    from core.runtime.structured_input import answer_surface_planning_tokens
     from interface import server as server_module
 
     observed = {}
@@ -1779,7 +1781,7 @@ def test_dense_foreground_timeout_accepts_measured_32b_completion_cost(monkeypat
     )
 
     assert outer == 432.0
-    assert observed["decode_tokens"] == answer_surface_token_floor(message)
+    assert observed["decode_tokens"] == answer_surface_planning_tokens(message)
     assert observed["maximum_seconds"] == pytest.approx(484.0)
     assert server_module._desktop_required_cognitive_budget(
         foreground_timeout=outer
@@ -3045,7 +3047,8 @@ async def test_required_capability_inventory_binds_catalog_after_weak_engine_rep
     assert calls
     assert calls[0]["context"]["capability_inventory_contract"] is True
     assert "cognitiveengine" in lowered or "cognitive engine" in lowered
-    assert "cortex/32b" in lowered or "32b" in lowered
+    assert "cortex" in lowered
+    assert "32b" not in lowered
     assert "program dna" in lowered
     assert "browser/web research" in lowered
     assert trace["engine_think_invoked"] is True
@@ -7588,7 +7591,8 @@ async def test_api_chat_desktop_runtime_path_no_reply_uses_grounded_route_truth(
     assert "desktop ui" in lowered
     assert "/api/chat" in lowered
     assert "cognitiveengine" in lowered
-    assert "cortex (32b)" in lowered
+    assert "cortex" in lowered
+    assert "cortex (32b)" not in lowered
     assert "claude" not in lowered
     assert kernel_calls == []
     assert len(completed_exchanges) == 1
@@ -9170,6 +9174,7 @@ async def test_api_chat_desktop_required_does_not_start_second_full_mind_owner(m
 @pytest.mark.asyncio
 async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
+    from core.brain.llm import model_registry
     from interface.routes import chat as chat_routes
 
     calls = []
@@ -9202,6 +9207,11 @@ async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch
             return await operation()
 
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        model_registry,
+        "lane_display_label",
+        lambda endpoint: f"{endpoint} (27B)" if endpoint == "Cortex" else endpoint,
+    )
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -9238,7 +9248,7 @@ async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch
     assert "Runtime path contract" in calls[0]["objective"]
     assert calls[0]["context"]["runtime_fact_status_contract"] is True
     assert calls[0]["context"]["grounded_runtime_status_contract"] is True
-    assert "Cortex (32B)" in calls[0]["context"]["grounded_runtime_status_context"]
+    assert "Cortex (27B)" in calls[0]["context"]["grounded_runtime_status_context"]
     assert "active foreground lane" in calls[0]["context"]["grounded_runtime_status_context"]
     assert calls[0]["context"]["cognitive_engine_required"] is True
     assert trace["engine_think_invoked"] is True
@@ -9246,7 +9256,7 @@ async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch
     assert trace["response_path"] == "cognitive_engine_runtime_fact_grounding"
     assert trace.get("bounded_contract_used") is not True
     assert reply.startswith("You asked me to identify the current request")
-    assert "Cortex (32B)" in reply
+    assert "Cortex (27B)" in reply
     assert "active foreground lane" in reply
     assert "CognitiveEngine handled this turn: yes" in reply
     assert "governed tools available: yes" in reply
@@ -13045,8 +13055,10 @@ async def test_progressive_continuation_accepts_complete_deadline_segment(monkey
 
 
 def test_multipart_continuation_budget_tracks_parsed_obligations():
+    from interface.routes import chat as chat_routes
     from interface.routes.chat_common import (
         _MAX_USER_SURFACE_CONTINUATIONS,
+        _continuation_made_semantic_progress,
         _user_surface_continuation_budget,
     )
 
@@ -13056,6 +13068,16 @@ def test_multipart_continuation_budget_tracks_parsed_obligations():
         _user_surface_continuation_budget(SimpleNamespace(numbered_parts=100))
         == _MAX_USER_SURFACE_CONTINUATIONS
     )
+
+    prompt = chat_routes.analyze_prompt_shape(
+        "Explain Dijkstra. Include: (1) the invariant, (2) pseudocode, "
+        "(3) a worked example, (4) complexity, and (5) a failure case."
+    )
+    first = "1. The invariant fixes the shortest unsettled distance. 2. Pseudocode follows."
+    repeated = first + " This remains important to the explanation."
+    advanced = repeated + " 3. Worked example: A connects to B with weight 2."
+    assert _continuation_made_semantic_progress(first, repeated, prompt) is False
+    assert _continuation_made_semantic_progress(first, advanced, prompt) is True
 
 
 @pytest.mark.asyncio
@@ -14219,7 +14241,8 @@ async def test_desktop_required_runtime_status_invokes_engine_then_grounds(monke
     assert surface_prompt.prompt == user_message
     assert surface_prompt.source == "desktop_chat.visible_user_message"
     assert reply
-    assert "Cortex (32B)" in reply
+    assert "Cortex" in reply
+    assert "Cortex (32B)" not in reply
     assert "active foreground lane" in reply
     assert "CognitiveEngine handled this turn: yes" in reply
     assert "governed tools available: yes" in reply
@@ -14271,7 +14294,8 @@ async def test_desktop_required_cognitive_fusion_status_invokes_engine_then_grou
     assert calls[0]["context"]["runtime_fact_status_contract"] is True
     assert calls[0]["context"]["cognitive_engine_required"] is True
     assert reply
-    assert "Cortex (32B)" in reply
+    assert "Cortex" in reply
+    assert "Cortex (32B)" not in reply
     assert "active foreground lane" in reply
     assert "CognitiveEngine handled this turn: yes" in reply
     assert "governed tools available: yes" in reply
@@ -16109,7 +16133,7 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"local 32B runtime could not start cleanly" in response.body
+    assert b"local Cortex runtime could not start cleanly" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert b"\"state\":\"failed\"" in response.body
 
@@ -16174,7 +16198,7 @@ async def test_api_chat_skips_protected_foreground_rescue_under_memory_warning(m
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"local 32B runtime could not start cleanly" in response.body
+    assert b"local Cortex runtime could not start cleanly" in response.body
     assert b"\"status\":\"conversation_unavailable\"" in response.body
     assert generate_calls == []
 
@@ -17716,7 +17740,7 @@ def test_conversation_lane_user_message_reports_local_runtime_failure():
         }
     )
 
-    assert "local 32B runtime could not start cleanly" in message
+    assert "local Cortex runtime could not start cleanly" in message
 
 
 def test_feedback_observer_imports_cleanly_on_fresh_load():

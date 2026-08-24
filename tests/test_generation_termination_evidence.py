@@ -4,6 +4,7 @@ import pytest
 
 from core.brain.llm.mlx_worker import (
     _classify_generation_stop_reason,
+    _continuation_resume_unavailable_reason,
     _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
     _semantic_terminal_grace_eligible,
@@ -44,6 +45,34 @@ def test_worker_reports_the_exact_decode_termination(overrides, expected):
     state.update(overrides)
 
     assert _classify_generation_stop_reason(**state) == expected
+
+
+def test_complete_deadline_answer_does_not_claim_resume_failure() -> None:
+    assert (
+        _continuation_resume_unavailable_reason(
+            semantic_completion_incomplete=False,
+            cache_lru_available=False,
+            cache_disabled=True,
+            final_cache_available=False,
+            sentinel_aborted=False,
+            response_present=True,
+        )
+        == ""
+    )
+
+
+def test_incomplete_deadline_answer_names_missing_resume_cache() -> None:
+    assert (
+        _continuation_resume_unavailable_reason(
+            semantic_completion_incomplete=True,
+            cache_lru_available=False,
+            cache_disabled=False,
+            final_cache_available=False,
+            sentinel_aborted=False,
+            response_present=True,
+        )
+        == "cache_lru_unavailable"
+    )
 
 
 UNPUNCTUATED_COMPLETE_PROSE = (

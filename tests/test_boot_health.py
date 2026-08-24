@@ -144,7 +144,7 @@ def test_boot_health_separates_system_ready_from_conversation_ready():
     assert payload["system_ready"] is True
     assert payload["conversation_ready"] is False
     assert payload["boot_phase"] == "conversation_warming"
-    assert payload["status_message"] == "Warming local Cortex (32B)…"
+    assert payload["status_message"] == "Warming local Cortex…"
     assert payload["progress"] == 78
     assert "conversation_ready" in payload["blockers"]
 
@@ -291,7 +291,7 @@ def test_boot_health_treats_cold_standby_lane_as_not_conversation_ready():
     assert payload["system_ready"] is True
     assert payload["boot_phase"] == "conversation_warming"
     assert payload["conversation_ready"] is False
-    assert payload["status_message"] == "Warming local Cortex (32B)…"
+    assert payload["status_message"] == "Warming local Cortex…"
     assert "conversation_ready" in payload["blockers"]
 
 
@@ -361,7 +361,9 @@ def test_boot_health_reports_hard_conversation_failure():
     assert payload["system_ready"] is True
     assert payload["conversation_ready"] is False
     assert payload["boot_phase"] == "conversation_failed"
-    assert payload["status_message"] == "Local Cortex (32B) is unavailable: Aura's managed backend failed during startup."
+    assert payload["status_message"] == (
+        "Local Cortex is unavailable: Aura's managed backend failed during startup."
+    )
     assert "conversation_failed" in payload["blockers"]
 
 

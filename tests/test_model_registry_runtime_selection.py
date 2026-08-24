@@ -21,6 +21,27 @@ def test_no_distinct_solver_is_configured_by_default(monkeypatch):
     )
 
 
+def test_measurement_key_resolves_the_lane_alias_to_the_promoted_checkpoint(
+    monkeypatch,
+):
+    monkeypatch.setattr(model_registry, "ACTIVE_MODEL", "Aura-Cortex")
+    monkeypatch.setattr(
+        model_registry,
+        "get_runtime_model_path",
+        lambda _name=None: "/models/Aura-Qwen3.8-27B-persona-deadbeef",
+    )
+
+    assert model_registry.runtime_model_measurement_key() == (
+        "Aura-Qwen3.8-27B-persona-deadbeef"
+    )
+    assert model_registry.runtime_model_measurement_key("Aura-Cortex") == (
+        "Aura-Qwen3.8-27B-persona-deadbeef"
+    )
+    assert model_registry.runtime_model_measurement_key("Specialist-70B") == (
+        "Specialist-70B"
+    )
+
+
 def test_an_explicit_distinct_solver_keeps_its_own_identity(monkeypatch, tmp_path):
     solver = tmp_path / "specialist"
     solver.mkdir()

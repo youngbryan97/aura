@@ -162,6 +162,38 @@ def test_completion_length_converges_to_observed_p90() -> None:
     assert samples == 30
 
 
+def test_deadline_cut_samples_measure_speed_without_teaching_a_short_completion() -> None:
+    from core.brain.llm.measured_admission import (
+        get_throughput_estimator,
+        record_generation,
+    )
+
+    for _ in range(30):
+        record_generation(
+            model="Qwen3.8-27B-persona",
+            prompt_tokens=2048,
+            generated_tokens=180,
+            prefill_seconds=1.0,
+            decode_seconds=30.0,
+            completion_observed=False,
+        )
+
+    shape = TaskShape(
+        "Qwen3.8-27B-persona",
+        TaskShape.bucket_for(2048),
+        False,
+        True,
+    )
+    assert get_throughput_estimator().confidence(shape) == (Confidence.MEASURED, 30)
+    tokens, confidence, samples = recommended_completion_tokens(
+        model="Qwen3.8-27B-persona",
+        prompt_tokens=2048,
+        maximum_tokens=2560,
+        prior_tokens=1280,
+    )
+    assert (tokens, confidence, samples) == (1280, Confidence.NO_SAMPLES, 0)
+
+
 def test_it_gets_less_wrong_as_it_measures():
     before = admit(
         model="q32b", prompt_tokens=1200, requested_decode_tokens=500,
@@ -410,6 +442,38 @@ def test_the_mlx_client_samples_every_completed_generation():
         and node.func.attr == "_record_throughput_sample"
     ]
     assert callers, "nothing calls _record_throughput_sample; the estimator is fed nothing"
+
+
+def test_mlx_sample_uses_worker_tokens_exact_model_and_uncensored_completion(
+    monkeypatch,
+) -> None:
+    import time
+
+    from core.brain.llm import mlx_client
+
+    observed = {}
+    client = object.__new__(mlx_client.MLXLocalClient)
+    client.model_path = "/models/Aura-Qwen3.8-27B-persona-deadbeef"
+    client._current_request_started_at = time.time() - 10.0
+    monkeypatch.setattr(mlx_client, "record_generation", lambda **kwargs: observed.update(kwargs))
+
+    client._record_throughput_sample(
+        {
+            "tokens_used": 100,
+            "prompt_tokenization": {"chars": 4000, "tokens": 1561},
+            "prompt_cache_reused_tokens": 0,
+            "generation_stop_reason": "deadline_exceeded",
+            "surface_control_receipt": {
+                "semantic_completion_satisfied": False,
+            },
+        },
+        prompt="x" * 4000,
+    )
+
+    assert observed["model"] == "Aura-Qwen3.8-27B-persona-deadbeef"
+    assert observed["prompt_tokens"] == 1561
+    assert observed["cache_warm"] is False
+    assert observed["completion_observed"] is False
 
 
 def test_a_bad_sample_can_never_fail_a_turn_that_worked():

@@ -1324,6 +1324,32 @@ def _classify_generation_stop_reason(
     return "eos"
 
 
+def _continuation_resume_unavailable_reason(
+    *,
+    semantic_completion_incomplete: bool,
+    cache_lru_available: bool,
+    cache_disabled: bool,
+    final_cache_available: bool,
+    sentinel_aborted: bool,
+    response_present: bool,
+) -> str:
+    """Name a failed required resume, or return empty when none was required."""
+
+    if not semantic_completion_incomplete:
+        return ""
+    if not cache_lru_available:
+        return "cache_lru_unavailable"
+    if cache_disabled:
+        return "cache_disabled_by_contract"
+    if not final_cache_available:
+        return "final_cache_unavailable"
+    if sentinel_aborted:
+        return "sentinel_aborted"
+    if not response_present:
+        return "empty_partial"
+    return "cache_retention_refused"
+
+
 def _capability_inventory_minimum_grounding(
     response_text: Any,
 ) -> tuple[bool, dict[str, bool]]:
@@ -9634,24 +9660,23 @@ def _mlx_worker_loop(
                             one_token_rollback=continuation_cache_rollback,
                         )
                     if resumable_stop and not continuation_resume_handle:
-                        if prompt_cache_lru is None:
-                            resume_unavailable_reason = "cache_lru_unavailable"
-                        elif disable_prompt_cache:
-                            resume_unavailable_reason = "cache_disabled_by_contract"
-                        elif final_prompt_cache is None:
-                            resume_unavailable_reason = "final_cache_unavailable"
-                        elif sentinel_aborted:
-                            resume_unavailable_reason = "sentinel_aborted"
-                        elif not bool(response_text.strip()):
-                            resume_unavailable_reason = "empty_partial"
-                        elif not bool(
-                            semantic_completion_state[
-                                "semantic_completion_incomplete"
-                            ]
-                        ):
-                            resume_unavailable_reason = "semantic_contract_complete"
-                        else:
-                            resume_unavailable_reason = "cache_retention_refused"
+                        resume_unavailable_reason = (
+                            _continuation_resume_unavailable_reason(
+                                semantic_completion_incomplete=bool(
+                                    semantic_completion_state[
+                                        "semantic_completion_incomplete"
+                                    ]
+                                ),
+                                cache_lru_available=prompt_cache_lru is not None,
+                                cache_disabled=bool(disable_prompt_cache),
+                                final_cache_available=final_prompt_cache is not None,
+                                sentinel_aborted=bool(sentinel_aborted),
+                                response_present=bool(response_text.strip()),
+                            )
+                        )
+                    else:
+                        resume_unavailable_reason = ""
+                    if resume_unavailable_reason:
                         surface_control_state[
                             "continuation_resume_failure_reason"
                         ] = resume_unavailable_reason
@@ -9682,6 +9707,10 @@ def _mlx_worker_loop(
                             "tokens": prompt_token_count,
                             "generated_tokens": total_generated_tokens,
                         },
+                        "prompt_cache_reused_tokens": max(
+                            0,
+                            int(prompt_token_count) - int(prefill_tokens),
+                        ),
                         # The parent's OOM footprint probe must not cost an IPC
                         # round trip, so the size rides along with every result.
                         "prompt_cache_bytes": (

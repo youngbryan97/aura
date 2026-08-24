@@ -5587,23 +5587,46 @@ class MLXLocalClient:
             generated = max(0, int(response.get("tokens_used") or 0))
             if generated <= 0 or elapsed <= 0.0:
                 return
-            prompt_tokens = max(1, len(str(prompt or "")) // 4)
+            tokenization = response.get("prompt_tokenization")
+            prompt_tokens = max(
+                1,
+                int(
+                    (tokenization or {}).get("tokens")
+                    if isinstance(tokenization, dict)
+                    else 0
+                )
+                or len(str(prompt or "")) // 4,
+            )
             # The worker reports prompt-cache retention, so a generation that
             # kept a cache is a WARM sample. Mixing warm and cold makes both
             # predictions wrong, which is why the shape carries it.
-            cache_warm = bool(int(response.get("prompt_cache_bytes") or 0) > 0)
+            cache_warm = bool(int(response.get("prompt_cache_reused_tokens") or 0) > 0)
             # Prefill is not reported separately; attribute a bounded share of
             # the elapsed time to it rather than inventing a number, and let
             # the estimator's percentiles absorb the split.
             prefill = min(elapsed * 0.25, prompt_tokens * 1.0e-3)
+            stop_reason = str(response.get("generation_stop_reason") or "").lower()
+            surface_receipt = response.get("surface_control_receipt")
+            semantic_complete = bool(
+                isinstance(surface_receipt, dict)
+                and surface_receipt.get("semantic_completion_satisfied") is True
+            )
+            completion_observed = semantic_complete or stop_reason in {
+                "configured_stop",
+                "eos",
+                "semantic_contract_satisfied",
+            }
+            from .model_registry import runtime_model_measurement_key
+
             record_generation(
-                model=os.path.basename(self.model_path or "unknown"),
+                model=runtime_model_measurement_key(self.model_path),
                 prompt_tokens=prompt_tokens,
                 generated_tokens=generated,
                 prefill_seconds=prefill,
                 decode_seconds=max(1e-6, elapsed - prefill),
                 cache_warm=cache_warm,
                 foreground=bool(foreground_request),
+                completion_observed=completion_observed,
             )
         except (ArithmeticError, AttributeError, TypeError, ValueError) as exc:
             _record_mlx_degradation(

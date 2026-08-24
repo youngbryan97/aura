@@ -62,13 +62,13 @@ def _latent_episode_seconds(objective: str, *, floor_s: float) -> float:
 
     try:
         from core.brain.llm.measured_admission import recommended_foreground_deadline
-        from core.brain.llm.model_registry import ACTIVE_MODEL
-        from core.runtime.structured_input import answer_surface_token_floor
+        from core.brain.llm.model_registry import runtime_model_measurement_key
+        from core.runtime.structured_input import answer_surface_planning_tokens
 
         needed, _confidence, _samples = recommended_foreground_deadline(
-            model=ACTIVE_MODEL,
+            model=runtime_model_measurement_key(),
             prompt_tokens=max(2048, 1800 + len(str(objective or "")) // 4),
-            decode_tokens=max(1, answer_surface_token_floor(str(objective or ""))),
+            decode_tokens=max(1, answer_surface_planning_tokens(str(objective or ""))),
             minimum_seconds=float(floor_s),
             maximum_seconds=float(USER_FACING_COMPLETION_DEADLINE_MAX_S),
         )

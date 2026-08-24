@@ -8,6 +8,7 @@ away. The inference gate's protected-lane log line did the same thing.
 """
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -61,11 +62,23 @@ def test_a_missing_descriptor_does_not_invent_a_cortex_size(monkeypatch):
 
 
 def test_chat_no_longer_matches_a_parameter_count_to_pick_a_label():
-    text = (HERE / "interface/routes/chat.py").read_text()
-    # The literal appears once more, inside the comment recording why it went.
-    for literal in ('"Cortex (32B)"', '"Solver (72B)"', '"Brainstem (7B)"'):
-        assert f"return {literal}" not in text
-    assert "lane_display_label" in text
+    production_surfaces = (
+        HERE / "interface/routes/chat.py",
+        HERE / "interface/routes/chat_preflight.py",
+        HERE / "interface/routes/system.py",
+        HERE / "core/brain/inference_gate.py",
+        HERE / "core/health/boot_status.py",
+    )
+    for path in production_surfaces:
+        text = path.read_text()
+        literals = {
+            node.value
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        for literal in ('"Cortex (32B)"', '"Solver (72B)"', '"Brainstem (7B)"'):
+            assert literal[1:-1] not in literals, path
+    assert "lane_display_label" in (HERE / "interface/routes/chat.py").read_text()
 
 
 def test_the_inference_gate_log_line_carries_the_signed_label():

@@ -181,21 +181,32 @@ class _Samples:
         decode: float,
         overhead: float,
         generated_tokens: int,
+        *,
+        completion_observed: bool,
     ) -> None:
         for series, value in (
             (self.prefill_s_per_token, prefill),
             (self.decode_s_per_token, decode),
             (self.overhead_s, overhead),
-            (self.generated_tokens, float(generated_tokens)),
         ):
             if value >= 0.0 and math.isfinite(value):
                 series.append(float(value))
                 if len(series) > _WINDOW:
                     series.pop(0)
+        if completion_observed:
+            value = float(generated_tokens)
+            if value >= 0.0 and math.isfinite(value):
+                self.generated_tokens.append(value)
+                if len(self.generated_tokens) > _WINDOW:
+                    self.generated_tokens.pop(0)
 
     @property
     def count(self) -> int:
         return len(self.decode_s_per_token)
+
+    @property
+    def completion_count(self) -> int:
+        return len(self.generated_tokens)
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -263,6 +274,7 @@ class ThroughputEstimator:
         prefill_seconds: float,
         decode_seconds: float,
         overhead_seconds: float = 0.0,
+        completion_observed: bool = True,
     ) -> None:
         """Feed one completed generation back in.
 
@@ -279,6 +291,7 @@ class ThroughputEstimator:
                 max(0.0, decode_seconds) / max(1, int(generated_tokens)),
                 max(0.0, overhead_seconds),
                 generated_tokens,
+                completion_observed=bool(completion_observed),
             )
 
     def confidence(self, shape: TaskShape) -> tuple[Confidence, int]:
@@ -330,13 +343,21 @@ class ThroughputEstimator:
     ) -> tuple[int, Confidence, int]:
         """Return observed p90 completion length, bounded by granted capacity."""
 
-        confidence, count = self.confidence(shape)
         maximum = max(1, int(maximum_tokens))
         prior = max(1, min(maximum, int(prior_tokens)))
-        if confidence is Confidence.NO_SAMPLES:
-            return prior, confidence, 0
         with self._lock:
-            observed = _percentile(self._shapes[shape.key()].generated_tokens, 0.90)
+            samples = self._shapes.get(shape.key())
+            count = samples.completion_count if samples is not None else 0
+            observed = (
+                _percentile(samples.generated_tokens, 0.90)
+                if samples is not None
+                else 0.0
+            )
+        if count == 0:
+            return prior, Confidence.NO_SAMPLES, 0
+        confidence = (
+            Confidence.MEASURED if count >= _MEASURED_SAMPLES else Confidence.SPARSE
+        )
         predicted = max(prior, int(math.ceil(observed))) if confidence is Confidence.SPARSE else int(math.ceil(observed))
         return max(1, min(maximum, predicted)), confidence, count
 
@@ -348,6 +369,7 @@ class ThroughputEstimator:
                 "shapes": {
                     key: {
                         "samples": samples.count,
+                        "completion_samples": samples.completion_count,
                         "decode_s_per_token_p50": round(
                             _percentile(samples.decode_s_per_token, 0.50), 6
                         ),
@@ -493,6 +515,7 @@ def record_generation(
     overhead_seconds: float = 0.0,
     cache_warm: bool = False,
     foreground: bool = True,
+    completion_observed: bool = True,
 ) -> None:
     """Report a completed generation. Never raises into the response path."""
     try:
@@ -508,6 +531,7 @@ def record_generation(
             prefill_seconds=prefill_seconds,
             decode_seconds=decode_seconds,
             overhead_seconds=overhead_seconds,
+            completion_observed=completion_observed,
         )
     except (ArithmeticError, TypeError, ValueError) as exc:
         record_degradation(

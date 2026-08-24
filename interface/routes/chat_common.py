@@ -326,6 +326,33 @@ def _user_surface_continuation_budget(prompt_shape: object | None) -> int:
     )
     return min(_MAX_USER_SURFACE_CONTINUATIONS, max(2, obligations + 1))
 
+
+def _continuation_made_semantic_progress(
+    previous: object,
+    candidate: object,
+    prompt_shape: object | None,
+) -> bool:
+    """Return whether an append-only retry retired a typed obligation.
+
+    Character growth remains meaningful for a single open sentence. A
+    multipart request has a stronger state contract: another segment must
+    reduce the set of unanswered parts. This prevents repeated preamble from
+    consuming one retry per requested section while making no semantic
+    progress.
+    """
+
+    try:
+        from core.conversation.request_coverage import unanswered_question_parts
+
+        before = frozenset(unanswered_question_parts(previous, prompt_shape))
+        after = frozenset(unanswered_question_parts(candidate, prompt_shape))
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        before = frozenset()
+        after = frozenset()
+    if before:
+        return after < before
+    return len(str(candidate or "").rstrip()) > len(str(previous or "").rstrip())
+
 _ORGAN_ABSENCE_STREAKS: dict[str, int] = {}
 
 _SEARCH_SKILL_NAMES = {"web_search", "search_web", "free_search", "grounded_search"}

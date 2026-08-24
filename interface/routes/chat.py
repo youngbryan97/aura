@@ -442,6 +442,7 @@ from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: 
 from interface.routes.chat_common import (  # noqa: E402
     _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
     _ORGAN_ABSENCE_STREAKS,  # noqa: F401
+    _continuation_made_semantic_progress,
     _user_surface_continuation_budget,
 )
 from interface.routes.chat_turn_contract import (  # noqa: E402
@@ -4323,11 +4324,11 @@ def _canonical_runtime_model_label(lane: dict[str, Any] | None) -> str:
             return lane_display_label(FALLBACK_ENDPOINT)
         if "cortex" in joined:
             return lane_display_label(PRIMARY_ENDPOINT)
-    return str(
-        lane.get("desired_model")
-        or lane.get("foreground_endpoint")
-        or "the configured foreground model"
-    )
+    if lane.get("desired_model") or lane.get("foreground_endpoint"):
+        return str(lane.get("desired_model") or lane.get("foreground_endpoint"))
+    if lane_display_label is not None:
+        return lane_display_label(PRIMARY_ENDPOINT)
+    return "Cortex"
 
 
 def _build_runtime_fact_status_fastpath_reply(
@@ -7187,7 +7188,11 @@ async def _run_cognitive_engine_chat_turn(
                 count_foreground_generation=False,
             )
         if retry_still_incomplete:
-            made_progress = len(retry_text.rstrip()) > len(str(rejected_reply or "").rstrip())
+            made_progress = _continuation_made_semantic_progress(
+                rejected_reply,
+                retry_text,
+                shape,
+            )
             if made_progress and completion_attempt + 1 < continuation_attempt_budget:
                 next_reasons = tuple(sorted(retry_failure_reasons)) or ("truncated_tail",)
                 logger.warning(
@@ -9309,14 +9314,24 @@ def _foreground_timeout_for_lane(
         ):
             try:
                 from core.brain.llm.measured_admission import (
+                    recommended_completion_tokens,
                     recommended_foreground_deadline,
                 )
-                from core.brain.llm.model_registry import ACTIVE_MODEL
+                from core.brain.llm.model_registry import runtime_model_measurement_key
+                from core.runtime.structured_input import answer_surface_planning_tokens
 
                 prompt_tokens = max(2048, 1800 + len(str(user_message or "")) // 4)
-                answer_tokens = answer_surface_token_floor(user_message)
+                answer_capacity = answer_surface_token_floor(user_message)
+                answer_tokens, _length_confidence, _length_samples = (
+                    recommended_completion_tokens(
+                        model=runtime_model_measurement_key(),
+                        prompt_tokens=prompt_tokens,
+                        maximum_tokens=answer_capacity,
+                        prior_tokens=answer_surface_planning_tokens(user_message),
+                    )
+                )
                 deadline, _confidence, _samples = recommended_foreground_deadline(
-                    model=ACTIVE_MODEL,
+                    model=runtime_model_measurement_key(),
                     prompt_tokens=prompt_tokens,
                     decode_tokens=answer_tokens,
                     minimum_seconds=ready_timeout,
@@ -9857,7 +9872,11 @@ def _lane_status_message_body(
 
     # Hard infrastructure failures — keep these explicit for debugging
     if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
-        return "The local 32B runtime could not start cleanly. I should not fake a normal answer; the launcher logs have the failure details."
+        model_label = _canonical_runtime_model_label(lane)
+        return (
+            f"The local {model_label} runtime could not start cleanly. I should not "
+            "fake a normal answer; the launcher logs have the failure details."
+        )
     if (
         "memory_pressure_refused_worker_spawn" in failure_reason
         or "projected_process_tree_rss" in failure_reason

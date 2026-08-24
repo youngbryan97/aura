@@ -5260,14 +5260,14 @@ class LatentCortexService:
                         recommended_completion_tokens,
                         recommended_foreground_deadline,
                     )
-                    from core.brain.llm.model_registry import ACTIVE_MODEL
+                    from core.brain.llm.model_registry import runtime_model_measurement_key
 
                     prompt_tokens = max(
                         2048, 1800 + len(str(visible_objective or "")) // 4
                     )
                     target_decode_tokens, length_confidence, length_samples = (
                         recommended_completion_tokens(
-                            model=ACTIVE_MODEL,
+                            model=runtime_model_measurement_key(),
                             prompt_tokens=prompt_tokens,
                             maximum_tokens=capacity_decode_tokens,
                             prior_tokens=target_decode_tokens,
@@ -5275,7 +5275,7 @@ class LatentCortexService:
                     )
                     required_wall_clock_s = 65.0 + (0.26 * target_decode_tokens)
                     measured_s, _confidence, samples = recommended_foreground_deadline(
-                        model=ACTIVE_MODEL,
+                        model=runtime_model_measurement_key(),
                         prompt_tokens=prompt_tokens,
                         decode_tokens=max(1, target_decode_tokens),
                         minimum_seconds=0.0,

@@ -1680,6 +1680,25 @@ def get_runtime_model_path(model_name: str | None = None) -> str:
     return get_model_path(name)
 
 
+def runtime_model_measurement_key(model_name_or_path: str | Path | None = None) -> str:
+    """Return the checkpoint identity shared by runtime measurement producers.
+
+    ``ACTIVE_MODEL`` is a stable lane alias. It deliberately does not change
+    when the promoted checkpoint changes, which makes it unsuitable as a
+    throughput key. Resolve that alias to the exact runtime artifact; preserve
+    explicit specialist names and paths so independent lanes do not borrow the
+    resident cortex's measurements.
+    """
+
+    raw = str(model_name_or_path or ACTIVE_MODEL).strip() or ACTIVE_MODEL
+    if raw == ACTIVE_MODEL:
+        raw = get_runtime_model_path(ACTIVE_MODEL)
+    path = Path(raw).expanduser()
+    if path.name and (path.is_absolute() or "/" in raw or "\\" in raw):
+        return path.name
+    return raw
+
+
 def get_runtime_download_target(model_name: str | None = None) -> dict[str, str]:
     _ = model_name
     return {}

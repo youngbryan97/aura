@@ -123,6 +123,12 @@ def _boot_status_message(
     normalized = str(boot_phase or "").strip().lower()
     lane = conversation_lane if isinstance(conversation_lane, dict) else {}
     endpoint = str(lane.get("foreground_endpoint", "") or _PRIMARY_ENDPOINT_NAME)
+    model_label = str(
+        lane.get("desired_model")
+        or lane.get("expected_model")
+        or endpoint
+        or _PRIMARY_ENDPOINT_NAME
+    )
     failure_reason = str(lane.get("last_failure_reason", "") or lane.get("last_error", "") or "")
 
     if normalized == "proxy_ready":
@@ -137,17 +143,20 @@ def _boot_status_message(
         return "Aura is answering through the live conversation lane."
     if normalized == "conversation_recovering":
         if "cortex" in endpoint.lower():
-            return "Recovering local Cortex (32B)…"
+            return f"Recovering local {model_label}…"
         return "Recovering Aura's conversation lane…"
     if normalized == "conversation_failed":
         if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
-            return "Local Cortex (32B) is unavailable: Aura's managed backend failed during startup."
+            return (
+                f"Local {model_label} is unavailable: Aura's managed backend "
+                "failed during startup."
+            )
         if "cortex" in endpoint.lower():
-            return "Local Cortex (32B) is unavailable."
+            return f"Local {model_label} is unavailable."
         return "Aura's conversation lane is unavailable."
     if normalized == "conversation_warming":
         if "cortex" in endpoint.lower():
-            return "Warming local Cortex (32B)…"
+            return f"Warming local {model_label}…"
         return "Warming Aura's conversation lane…"
     if normalized == "kernel_warming":
         if "runtime_integrity" in blockers:
