@@ -997,17 +997,28 @@ def _observable_dispatch_markers() -> tuple[tuple[str, str], ...]:
 
 
 def local_deep_solver_enabled(total_gb: float | None = None) -> bool:
-    """Whether a 72B second lane can exist on this host at all.
+    """Whether a distinct local reasoning specialist can serve on this host.
 
-    Read before anything is built on the answer. The lane was registered
-    unconditionally and the check lived downstream, so a 64GB machine carried
-    an endpoint whose model needed 48.4GB beside a resident 25.3GB cortex
-    against a 46.1GB budget. Every route that reached it spent a load attempt
-    on an admission that could not be granted, and returned nothing.
+    Deep reasoning itself does not depend on this answer; the resident cortex
+    and Aura's reasoning systems always provide that role. This predicate owns
+    only the optional second model. It requires explicit distinct
+    configuration, a measured complete artifact, operator enablement, and the
+    host memory class. An environment flag cannot waive physical admission.
     """
+    try:
+        from core.brain.llm.model_registry import (
+            deep_solver_artifact_is_ready,
+            deep_solver_is_distinctly_configured,
+        )
+
+        if not deep_solver_is_distinctly_configured():
+            return False
+        if not deep_solver_artifact_is_ready():
+            return False
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+
     setting = str(_FLAG_ENABLE_LOCAL_DEEP_SOLVER.value()).strip().lower()
-    if setting in {"1", "true", "yes", "on"}:
-        return True
     if setting in {"0", "false", "no", "off"}:
         return False
     try:
@@ -7232,6 +7243,8 @@ class InferenceGate:
             return "code"
         if bool(context.get("document_request", False)):
             return "document"
+        if str(context.get("reasoning_mode") or "").strip().lower() == "deep":
+            return "deep_reasoning"
         if bool(context.get("deep_mind_probe", False)):
             return "deep_reasoning"
         profile = cls._foreground_prompt_profile(prompt, context)
@@ -10867,6 +10880,18 @@ class InferenceGate:
                 # must carry an explicit origin such as api/user/voice.
                 is_background = True
         deep_handoff = bool(context.get("deep_handoff", False))
+        deep_reasoning_requested = bool(
+            str(context.get("reasoning_mode") or "").strip().lower() == "deep"
+            or str(context.get("serving_lane") or "").strip().lower() == "deep_reasoning"
+            or deep_handoff
+            or requested_tier == "secondary"
+        )
+        if deep_reasoning_requested:
+            # Reasoning depth belongs to the turn contract, not to one model.
+            # A specialist handoff may be inadmissible while the resident
+            # cortex, RLC, verifiers, tools, and memory still execute the deep
+            # systems lane. Preserve that mode across provider fallback.
+            context["reasoning_mode"] = "deep"
         desktop_cognitive_engine_contract = bool(
             context.get("cognitive_engine_required", False)
             or context.get("desktop_cognitive_engine_required", False)

@@ -972,7 +972,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         try:
             with replace_dotted("core.brain.llm.model_registry.ACTIVE_MODEL", "Qwen2.5-32B-Instruct-8bit"), \
-                 replace_dotted("core.brain.llm.model_registry.DEEP_MODEL", "Qwen2.5-72B-Instruct-4bit"), \
+                 replace_dotted("core.brain.llm.model_registry.get_deep_model_path", lambda: deep_path), \
                  replace_dotted("core.brain.llm.model_registry.get_model_path", lambda name=None: primary_path if "32B" in str(name) or name is None else deep_path), \
                  replace_dotted("core.brain.llm.mlx_client.os.path.realpath", lambda path, *_args, **_kwargs: path), \
                  replace_dotted("core.brain.llm.mlx_client._declared_mlx_worker_footprint_gb", lambda _path: 40.0), \
@@ -2170,7 +2170,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         try:
             sleep_probe = AsyncCallProbe()
             with replace_dotted("core.brain.llm.model_registry.ACTIVE_MODEL", "Qwen2.5-32B-Instruct-8bit"), \
-                 replace_dotted("core.brain.llm.model_registry.DEEP_MODEL", "Qwen2.5-72B-Instruct-4bit"), \
+                 replace_dotted("core.brain.llm.model_registry.get_deep_model_path", lambda: deep_path), \
                  replace_dotted("core.brain.llm.model_registry.get_model_path", lambda name=None: primary_path if "32B" in str(name) or name is None else deep_path), \
                  replace_dotted("core.brain.llm.mlx_client.os.path.realpath", lambda path, *_args, **_kwargs: path), \
                  replace_dotted("core.brain.llm.mlx_client._declared_mlx_worker_footprint_gb", lambda _path: 40.0), \
@@ -2216,7 +2216,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         try:
             sleep_probe = AsyncCallProbe()
             with replace_dotted("core.brain.llm.model_registry.ACTIVE_MODEL", "Qwen2.5-32B-Instruct-8bit"), \
-                 replace_dotted("core.brain.llm.model_registry.DEEP_MODEL", "Qwen2.5-72B-Instruct-4bit"), \
+                 replace_dotted("core.brain.llm.model_registry.get_deep_model_path", lambda: deep_path), \
                  replace_dotted("core.brain.llm.model_registry.get_model_path", lambda name=None: primary_path if "32B" in str(name) or name is None else deep_path), \
                  replace_dotted("core.brain.llm.mlx_client.os.path.realpath", lambda path, *_args, **_kwargs: path), \
                  replace_dotted("core.brain.llm.mlx_client.time.time", lambda: 105.0), \

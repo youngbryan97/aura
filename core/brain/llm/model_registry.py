@@ -550,10 +550,10 @@ FALLBACK_ENDPOINT = "Reflex"
 # This is the core architectural change: the model iterates on its hidden
 # representation instead of doing a single pass through all layers.
 RECURRENT_DEPTH_DEFAULTS = {
-    PRIMARY_ENDPOINT:   2,   # Cortex (32B) — 2 loops, meaningful improvement
-    DEEP_ENDPOINT:      1,   # Solver (72B) — standard pass by default on 64GB-class desktops
-    BRAINSTEM_ENDPOINT: 1,   # Brainstem (7B) — standard pass, too small to benefit
-    FALLBACK_ENDPOINT:  1,   # Reflex (1.5B) — standard pass, speed is priority
+    PRIMARY_ENDPOINT:   2,   # Resident cortex; serving qualification owns the live ceiling.
+    DEEP_ENDPOINT:      1,   # Optional specialist starts conservative until measured.
+    BRAINSTEM_ENDPOINT: 1,   # Background lane; standard pass is the latency contract.
+    FALLBACK_ENDPOINT:  1,   # Emergency lane; speed and availability take priority.
 }
 
 LEGACY_ENDPOINT_ALIASES = {
@@ -616,15 +616,15 @@ def normalize_runtime_model_name(model_name: str | None, *, backend: str | None 
 
 def _default_deep_model_name(*, backend: str | None = None) -> str:
     _normalize_backend_name(backend)
-    return "Qwen2.5-72B-Instruct-4bit"
+    # Deep reasoning is a cognition contract, not a parameter-count tier. The
+    # resident cortex and Aura's reasoning systems own it unless an operator
+    # deliberately configures a distinct local specialist.
+    return str(_FLAG_MODEL.value() or "Qwen2.5-32B-Instruct-8bit")
 
 
-# 32B Q5 as Cortex (fast, stable ~20s responses); 72B Q4 as Solver (deep reasoning, hot-swap)
-# 72B Q4 is too slow (~84s) for primary use with Aura's background task architecture
-# [STABILITY v53.9] Use 8-bit base model + LoRA adapter at runtime.
-# Re-quantized fused models degrade quality (repetition loops, wrong answers).
-# The separate adapter has intermittent float32 errors but most generations
-# succeed — the worker catches and retries on failure.
+# The logical name remains stable while the promoted artifact pointer changes.
+# Deep reasoning defaults to this same resident model; a separate specialist is
+# opt-in and must have a distinct model or artifact identity.
 ACTIVE_MODEL = _FLAG_MODEL.value() or "Qwen2.5-32B-Instruct-8bit"
 DEEP_MODEL = normalize_runtime_model_name(
     _FLAG_DEEP_MODEL.value() or _default_deep_model_name()
@@ -937,10 +937,90 @@ def get_lane_model_name(endpoint_name: str | None) -> str:
     if normalized == PRIMARY_ENDPOINT:
         return ACTIVE_MODEL
     if normalized == DEEP_ENDPOINT:
-        return DEEP_MODEL
+        return get_deep_model_name()
     if normalized == BRAINSTEM_ENDPOINT:
         return BRAINSTEM_MODEL
     return FALLBACK_MODEL
+
+
+def _configured_deep_model_name() -> str:
+    return normalize_runtime_model_name(str(_FLAG_DEEP_MODEL.value() or "").strip())
+
+
+def _configured_deep_model_path() -> str:
+    configured = str(_FLAG_LLM__MLX_DEEP_MODEL_PATH.value() or "").strip()
+    if not configured:
+        configured = str(get_runtime_setting("model.deep_path", "") or "").strip()
+    return configured
+
+
+def get_deep_model_name() -> str:
+    """Return the distinct specialist name, or the resident model role.
+
+    The old registry always returned a 72B name, which made lifecycle and
+    health code treat that optional 38GB artifact as part of every Aura
+    installation. An absent specialist now means resident deep reasoning.
+    """
+
+    configured_name = _configured_deep_model_name()
+    if configured_name:
+        return configured_name
+    configured_path = _configured_deep_model_path()
+    if configured_path:
+        return Path(configured_path).name or ACTIVE_MODEL
+    return ACTIVE_MODEL
+
+
+def _canonical_model_locator(value: str | Path | None) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    path = Path(text).expanduser()
+    if path.is_absolute() or path.exists():
+        try:
+            return str(path.resolve(strict=False))
+        except (OSError, RuntimeError):
+            return str(path)
+    return text.lower()
+
+
+def deep_solver_is_distinctly_configured() -> bool:
+    """Whether a second local model was deliberately assigned to deep work."""
+
+    configured_name = _configured_deep_model_name()
+    configured_path = _configured_deep_model_path()
+    if not configured_name and not configured_path:
+        return False
+
+    active_path = _canonical_model_locator(get_runtime_model_path(ACTIVE_MODEL))
+    candidate_path = _canonical_model_locator(
+        configured_path
+        or get_runtime_model_path(configured_name)
+    )
+    if candidate_path and active_path and candidate_path == active_path:
+        return False
+    if configured_name and configured_name.lower() == ACTIVE_MODEL.lower() and not configured_path:
+        return False
+    return bool(candidate_path or configured_name)
+
+
+def deep_solver_artifact_is_ready() -> bool:
+    """Whether the configured specialist is a measured local model artifact."""
+
+    if not deep_solver_is_distinctly_configured():
+        return False
+    try:
+        from core.brain.llm.model_artifact_profile import get_model_artifact_profile
+
+        profile = get_model_artifact_profile(get_deep_model_path())
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+    return bool(
+        profile.exists
+        and profile.measured
+        and profile.weight_bytes > 0
+        and profile.total_parameters > 0
+    )
 
 
 def get_lane_runtime_model_path(endpoint_name: str | None) -> str:
@@ -1144,18 +1224,30 @@ def get_endpoint_name_for_model(model_name: str | None) -> str:
     name = str(model_name or ACTIVE_MODEL)
     lowered = name.lower()
 
-    # Match against configured tier assignments (not hardcoded sizes)
+    # Exact identity wins. Size alone is not a role: two unrelated checkpoints
+    # can have the same parameter count, and a newer smaller resident can be
+    # more useful than an older larger specialist.
     active_lower = ACTIVE_MODEL.lower()
-    deep_lower = DEEP_MODEL.lower()
+    deep_name = get_deep_model_name()
+    deep_lower = deep_name.lower()
     brainstem_lower = BRAINSTEM_MODEL.lower()
     fallback_lower = FALLBACK_MODEL.lower()
+
+    if lowered == active_lower:
+        return PRIMARY_ENDPOINT
+    if deep_solver_is_distinctly_configured() and lowered == deep_lower:
+        return DEEP_ENDPOINT
+    if lowered == brainstem_lower:
+        return BRAINSTEM_ENDPOINT
+    if lowered == fallback_lower:
+        return FALLBACK_ENDPOINT
 
     # Extract the core model identifier (e.g. "72b" from "qwen2.5-72b-instruct-q3_k_m-00001...")
     size_match = re.search(r'(\d+\.?\d*b)', lowered)
     model_size = size_match.group(1) if size_match else ""
 
     active_size = _extract_size_tag(ACTIVE_MODEL)
-    deep_size = _extract_size_tag(DEEP_MODEL)
+    deep_size = _extract_size_tag(deep_name) if deep_solver_is_distinctly_configured() else ""
     brainstem_size = _extract_size_tag(BRAINSTEM_MODEL)
     fallback_size = _extract_size_tag(FALLBACK_MODEL)
 
@@ -1167,16 +1259,6 @@ def get_endpoint_name_for_model(model_name: str | None) -> str:
     if model_size and model_size == brainstem_size:
         return BRAINSTEM_ENDPOINT
     if model_size and model_size == fallback_size:
-        return FALLBACK_ENDPOINT
-
-    # Exact name match fallback
-    if lowered == active_lower:
-        return PRIMARY_ENDPOINT
-    if lowered == deep_lower:
-        return DEEP_ENDPOINT
-    if lowered == brainstem_lower:
-        return BRAINSTEM_ENDPOINT
-    if lowered == fallback_lower:
         return FALLBACK_ENDPOINT
 
     return PRIMARY_ENDPOINT
@@ -1192,7 +1274,7 @@ def _user_model_path_override(name: str) -> str | None:
     """
     if name == ACTIVE_MODEL:
         key = "model.local_path"
-    elif name == DEEP_MODEL:
+    elif deep_solver_is_distinctly_configured() and name == get_deep_model_name():
         key = "model.deep_path"
     else:
         return None
@@ -1224,8 +1306,16 @@ def get_brainstem_path() -> str:
 
 
 def get_deep_model_path() -> str:
-    """Resolve path for the deep solver (72B) model."""
-    return get_runtime_model_path(DEEP_MODEL)
+    """Resolve a distinct specialist, or return the resident cortex path."""
+
+    configured_path = _configured_deep_model_path()
+    if configured_path:
+        path = Path(configured_path).expanduser()
+        return str(path.resolve()) if path.exists() else str(path)
+    configured_name = _configured_deep_model_name()
+    if configured_name:
+        return get_runtime_model_path(configured_name)
+    return get_runtime_model_path(ACTIVE_MODEL)
 
 
 def get_fallback_path() -> str:
@@ -1269,7 +1359,7 @@ def audit_lane_assignments(*, force_refresh: bool = False) -> dict[str, Any]:
     swapping (observed in stall dumps during the 110GB incident).
     """
     cache_key = "|".join(
-        f"{endpoint}={get_lane_model_name(endpoint)}"
+        f"{endpoint}={get_lane_model_name(endpoint)}@{get_lane_runtime_model_path(endpoint)}"
         for endpoint in (
             PRIMARY_ENDPOINT,
             DEEP_ENDPOINT,
@@ -1311,10 +1401,19 @@ def _audit_lane_assignments_uncached() -> dict[str, Any]:
     ):
         model_name = get_lane_model_name(endpoint_name)
         runtime_path = get_lane_runtime_model_path(endpoint_name)
+        active = endpoint_name != DEEP_ENDPOINT or deep_solver_is_distinctly_configured()
         lanes[endpoint_name] = {
             "model": model_name,
             "runtime_path": runtime_path,
             "size_tag": _extract_size_tag(model_name),
+            "active": active,
+            "role_mode": (
+                "distinct_specialist"
+                if endpoint_name == DEEP_ENDPOINT and active
+                else "resident_systems"
+                if endpoint_name == DEEP_ENDPOINT
+                else "model_lane"
+            ),
         }
 
     issues: list[dict[str, Any]] = []
@@ -1322,6 +1421,8 @@ def _audit_lane_assignments_uncached() -> dict[str, Any]:
     seen_paths: dict[str, str] = {}
 
     for endpoint_name, payload in lanes.items():
+        if not bool(payload.get("active", True)):
+            continue
         model_key = str(payload["model"]).strip().lower()
         if model_key:
             other_lane = seen_models.get(model_key)
@@ -1352,7 +1453,12 @@ def _audit_lane_assignments_uncached() -> dict[str, Any]:
 
     cortex_size = str(lanes[PRIMARY_ENDPOINT].get("size_tag") or "")
     solver_size = str(lanes[DEEP_ENDPOINT].get("size_tag") or "")
-    if cortex_size and solver_size and cortex_size == solver_size:
+    if (
+        bool(lanes[DEEP_ENDPOINT].get("active", False))
+        and cortex_size
+        and solver_size
+        and cortex_size == solver_size
+    ):
         issues.append(
             {
                 "kind": "cortex_solver_size_collision",

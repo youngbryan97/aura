@@ -4762,7 +4762,9 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         return router
 
-    # Deep solver (72B) — on-demand secondary lane, where one can exist.
+    # Optional local reasoning specialist — registered only when a distinct,
+    # complete artifact can be admitted. Resident deep reasoning remains on
+    # Cortex when this endpoint does not exist.
     #
     # LIVE, 2026-08-20. Registered unconditionally on a 64GB host, where the
     # 72B needs 48.4GB beside a resident 25.3GB cortex against a 46.1GB lane
@@ -4797,7 +4799,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             client=LazyLocalClient(deep_model_path),
             failure_threshold=3,
         )
-        logger.info("✅ %s registered with lazy 72B client.", DEEP_ENDPOINT)
+        logger.info("✅ %s registered with an admitted local specialist.", DEEP_ENDPOINT)
     except _DeepLaneUnavailable:
         pass
     except (ImportError, AttributeError, RuntimeError) as e:

@@ -2364,6 +2364,10 @@ class TestTheSwapCooldownDoesNotConvoy:
             "core.brain.llm.model_registry.get_model_path",
             lambda name=None: primary if "32B" in str(name) else deep,
         )
+        monkeypatch.setattr(
+            "core.brain.llm.model_registry.get_deep_model_path",
+            lambda: deep,
+        )
         assert await solver._await_swap_cooldown() == 0.0
 
     @pytest.mark.asyncio
@@ -2379,6 +2383,10 @@ class TestTheSwapCooldownDoesNotConvoy:
         monkeypatch.setattr(
             "core.brain.llm.model_registry.get_model_path",
             lambda name=None: primary if "32B" in str(name) else deep,
+        )
+        monkeypatch.setattr(
+            "core.brain.llm.model_registry.get_deep_model_path",
+            lambda: deep,
         )
         monkeypatch.setattr(mod, "_shutdown_blocks_model_work", lambda *a, **k: True)
 
@@ -2397,6 +2405,10 @@ class TestTheSwapCooldownDoesNotConvoy:
         monkeypatch.setattr(
             "core.brain.llm.model_registry.get_model_path",
             lambda name=None: primary if "32B" in str(name) else deep,
+        )
+        monkeypatch.setattr(
+            "core.brain.llm.model_registry.get_deep_model_path",
+            lambda: deep,
         )
         assert await solver._await_swap_cooldown(skip_swap_cooldown=True) == 0.0
 

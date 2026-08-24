@@ -42,8 +42,9 @@ _LIFECYCLE_RECOVERABLE_ERRORS = (
     ValueError,
 )
 
-# Canonical HF repos for the downloadable base models (incl. the -Q4 alias the
-# deep solver uses). Source of truth for "where does a missing model come from".
+# Canonical HF repos for downloadable local model artifacts. Optional
+# specialists remain fetchable when explicitly requested, but they are not
+# part of Aura's default installation plan.
 DEFAULT_REPO_MAP: dict[str, str] = {
     "Qwen2.5-1.5B-Instruct-4bit": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
     "Qwen3.5-9B-4bit": "mlx-community/Qwen3.5-9B-4bit",
@@ -245,12 +246,14 @@ class ModelLifecycleManager:
     def _default_plan() -> dict[str, str]:
         from core.brain.llm import model_registry as r
 
-        return {
+        plan = {
             "fallback": r.FALLBACK_MODEL,
             "brainstem": r.BRAINSTEM_MODEL,
             "cortex": r.ACTIVE_MODEL,
-            "solver": r.DEEP_MODEL,
         }
+        if r.deep_solver_is_distinctly_configured():
+            plan["solver"] = r.get_deep_model_name()
+        return plan
 
     @staticmethod
     def _default_resolver() -> Callable[[str], str]:

@@ -308,6 +308,33 @@ def test_runtime_capabilities_expose_neurodynamic_status():
     assert "bifurcation_pressure" in status["stability"]
 
 
+@pytest.mark.parametrize(
+    ("admitted", "expected_mode"),
+    [(False, "resident_systems"), (True, "distinct_specialist")],
+)
+def test_runtime_capabilities_distinguish_configured_from_admitted_solver(
+    monkeypatch,
+    admitted,
+    expected_mode,
+):
+    from core.brain import inference_gate
+    from core.brain.llm import model_registry
+    from interface.routes.system import _collect_runtime_capabilities
+
+    monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
+    monkeypatch.setattr(model_registry, "get_deep_model_name", lambda: "Local-Specialist")
+    monkeypatch.setattr(inference_gate, "local_deep_solver_enabled", lambda: admitted)
+
+    payload = _collect_runtime_capabilities(
+        {"conversation_ready": True, "state": "ready", "desired_model": "cortex"}
+    )
+
+    assert payload["solver_configured"] is True
+    assert payload["solver_active"] is admitted
+    assert payload["deep_reasoning_mode"] == expected_mode
+    assert payload["solver_model"] == "Local-Specialist"
+
+
 @pytest.mark.asyncio
 async def test_desktop_quick_path_consumes_neurodynamic_advisory():
     ServiceContainer.clear()

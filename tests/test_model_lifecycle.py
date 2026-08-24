@@ -60,6 +60,17 @@ def test_inventory_marks_present_and_missing(tmp_path):
     assert inv["Qwen2.5-32B-Instruct-8bit"].source_repo == "mlx-community/Qwen2.5-32B-Instruct-8bit"
 
 
+def test_default_plan_does_not_download_a_second_model_for_deep_reasoning(monkeypatch):
+    from core.brain.llm import model_registry
+
+    monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: False)
+
+    plan = ModelLifecycleManager._default_plan()
+
+    assert "solver" not in plan
+    assert plan["cortex"] == model_registry.ACTIVE_MODEL
+
+
 def test_missing_lists_only_absent_with_source(tmp_path):
     mgr = _manager(tmp_path, present={"Qwen2.5-1.5B-Instruct-4bit"})
     names = {s.name for s in mgr.missing()}

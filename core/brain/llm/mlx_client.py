@@ -12298,11 +12298,11 @@ class MLXLocalClient:
         Returns the seconds actually waited. Stops early on shutdown rather
         than making a terminating runtime sit out the full cooldown.
         """
-        from .model_registry import ACTIVE_MODEL, DEEP_MODEL, get_model_path
+        from .model_registry import ACTIVE_MODEL, get_deep_model_path, get_model_path
 
         target_path = _real_model_path(self.model_path)
         primary_path = _real_model_path(get_model_path(ACTIVE_MODEL))
-        deep_path = _real_model_path(get_model_path(DEEP_MODEL))
+        deep_path = _real_model_path(get_deep_model_path())
         if target_path not in (primary_path, deep_path):
             return 0.0
         if not _GLOBAL_LAST_HEAVY_MODEL or _GLOBAL_LAST_HEAVY_MODEL == target_path:
@@ -12374,10 +12374,10 @@ class MLXLocalClient:
         init_future: SharedFuture | None = None
 
         # [PIPELINE HARDENING] 12s Swap Cooldown
-        from .model_registry import ACTIVE_MODEL, DEEP_MODEL, get_model_path
+        from .model_registry import ACTIVE_MODEL, get_deep_model_path, get_model_path
 
         primary_path = _real_model_path(get_model_path(ACTIVE_MODEL))
-        deep_path = _real_model_path(get_model_path(DEEP_MODEL))
+        deep_path = _real_model_path(get_deep_model_path())
         target_path = _real_model_path(self.model_path)
 
         global _GLOBAL_LAST_SWAP_TIME, _GLOBAL_LAST_HEAVY_MODEL

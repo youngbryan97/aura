@@ -3774,16 +3774,25 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
         from core.brain.llm.model_registry import (
             ACTIVE_MODEL,
             BRAINSTEM_MODEL,
-            DEEP_MODEL,
             FALLBACK_MODEL,
+            deep_solver_is_distinctly_configured,
+            get_deep_model_name,
             get_local_backend,
         )
+        from core.brain.inference_gate import local_deep_solver_enabled
 
+        distinct_solver = deep_solver_is_distinctly_configured()
+        admitted_solver = distinct_solver and local_deep_solver_enabled()
         payload.update(
             {
                 "local_backend": get_local_backend(),
                 "cortex_model": ACTIVE_MODEL,
-                "solver_model": DEEP_MODEL,
+                "solver_model": get_deep_model_name() if distinct_solver else None,
+                "solver_configured": distinct_solver,
+                "solver_active": admitted_solver,
+                "deep_reasoning_mode": (
+                    "distinct_specialist" if admitted_solver else "resident_systems"
+                ),
                 "brainstem_model": BRAINSTEM_MODEL,
                 "fallback_model": FALLBACK_MODEL,
             }

@@ -15,6 +15,18 @@ import pytest
 from core.brain.inference_gate import local_deep_solver_enabled
 
 
+@pytest.fixture(autouse=True)
+def _configured_solver(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.deep_solver_is_distinctly_configured",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.deep_solver_artifact_is_ready",
+        lambda: True,
+    )
+
+
 def test_a_64gb_host_cannot_host_the_deep_solver() -> None:
     assert local_deep_solver_enabled(64.0) is False
 
@@ -24,9 +36,9 @@ def test_a_large_host_can() -> None:
 
 
 @pytest.mark.parametrize("setting", ["1", "true", "on", "yes"])
-def test_an_explicit_yes_overrides_the_memory_class(monkeypatch, setting: str) -> None:
+def test_an_explicit_yes_does_not_override_the_memory_class(monkeypatch, setting: str) -> None:
     monkeypatch.setenv("AURA_ENABLE_LOCAL_DEEP_SOLVER", setting)
-    assert local_deep_solver_enabled(8.0) is True
+    assert local_deep_solver_enabled(8.0) is False
 
 
 @pytest.mark.parametrize("setting", ["0", "false", "off", "no"])
@@ -40,7 +52,7 @@ def test_the_router_registration_asks_before_it_builds() -> None:
     from pathlib import Path
 
     source = Path("core/brain/llm_health_router.py").read_text(encoding="utf-8")
-    registration = source[source.index("# Deep solver (72B)") :]
+    registration = source[source.index("# Optional local reasoning specialist") :]
     registration = registration[: registration.index("# Brainstem")]
     assert "local_deep_solver_enabled" in registration
     assert registration.index("local_deep_solver_enabled") < registration.index(
@@ -77,3 +89,33 @@ def test_a_refused_deep_handoff_falls_back_to_the_resident_lane() -> None:
     block = block[: block.index("if deep_handoff and not explicit_background:")]
     assert "deep_handoff = False" in block
     assert 'requested_tier = "primary"' in block
+
+
+def test_no_configuration_means_no_specialist_even_on_a_large_host(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.deep_solver_is_distinctly_configured",
+        lambda: False,
+    )
+    assert local_deep_solver_enabled(512.0) is False
+
+
+def test_an_incomplete_artifact_is_not_a_runtime_lane(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.deep_solver_artifact_is_ready",
+        lambda: False,
+    )
+    assert local_deep_solver_enabled(512.0) is False
+
+
+def test_autonomous_brain_uses_the_same_specialist_admission_contract() -> None:
+    from pathlib import Path
+
+    source = Path("core/brain/llm/autonomous_brain_integration.py").read_text(
+        encoding="utf-8"
+    )
+    registration = source[source.index("# Optional local reasoning specialist") :]
+    registration = registration[: registration.index("# ── LOCAL TERTIARY")]
+    assert "local_deep_solver_enabled" in registration
+    assert registration.index("local_deep_solver_enabled") < registration.index(
+        "get_deep_model_path"
+    )

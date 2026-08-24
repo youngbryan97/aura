@@ -746,10 +746,13 @@ async def test_background_requests_wait_when_cortex_has_failed():
 
 
 @pytest.mark.asyncio
-async def test_deep_handoff_uses_solver_then_returns_response():
-    # The local deep solver is auto-disabled on <96GB hosts (memory-
-    # class policy). Force-enable so the tier logic under test is
-    # actually exercised regardless of the machine running the suite.
+async def test_deep_handoff_uses_solver_then_returns_response(monkeypatch):
+    # This test supplies an already-qualified specialist lane so it can focus
+    # on handoff behavior rather than artifact and host admission.
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_enabled",
+        lambda *_args, **_kwargs: True,
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
 
@@ -790,10 +793,11 @@ async def test_deep_handoff_uses_solver_then_returns_response():
 
 
 @pytest.mark.asyncio
-async def test_deep_handoff_failure_still_schedules_primary_restore():
-    # The local deep solver is auto-disabled on <96GB hosts (memory-
-    # class policy). Force-enable so the tier logic under test is
-    # actually exercised regardless of the machine running the suite.
+async def test_deep_handoff_failure_still_schedules_primary_restore(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_enabled",
+        lambda *_args, **_kwargs: True,
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
 
@@ -1996,10 +2000,11 @@ def test_grounding_budget_prioritizes_contract_and_task_over_ambient_state():
 
 
 @pytest.mark.asyncio
-async def test_user_facing_secondary_uses_compact_foreground_context_builders():
-    # The local deep solver is auto-disabled on <96GB hosts (memory-
-    # class policy). Force-enable so the tier logic under test is
-    # actually exercised regardless of the machine running the suite.
+async def test_user_facing_secondary_uses_compact_foreground_context_builders(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_enabled",
+        lambda *_args, **_kwargs: True,
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
 
@@ -3896,10 +3901,11 @@ def test_headroom_snapshot_blocks_primary_when_process_tree_exceeds_limit(monkey
 
 
 @pytest.mark.asyncio
-async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
-    # The local deep solver is auto-disabled on <96GB hosts (memory-
-    # class policy). Force-enable so the tier logic under test is
-    # actually exercised regardless of the machine running the suite.
+async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_enabled",
+        lambda *_args, **_kwargs: True,
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
 
@@ -3940,21 +3946,51 @@ async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
                     with replace("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
                         with replace("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
                             with replace("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                                context = {
+                                    "origin": "user",
+                                    "prefer_tier": "secondary",
+                                    "deep_handoff": True,
+                                }
                                 result = await gate.generate(
                                     "Do a deep architecture audit.",
-                                    context={"origin": "user", "prefer_tier": "secondary", "deep_handoff": True},
+                                    context=context,
                                 )
 
         assert result == cortex_reply
         assert cortex.deadlines
         assert not solver.deadlines
+        assert context["reasoning_mode"] == "deep"
         gate._restore_primary_after_deep_handoff.assert_not_awaited()
     finally:
         os.environ.pop("AURA_ENABLE_LOCAL_DEEP_SOLVER", None)
 
 
+def test_deep_reasoning_mode_uses_resident_systems_lane_without_provider_handoff():
+    assert (
+        InferenceGate._cortex_serving_lane(
+            "Compare the failure modes and derive a repair.",
+            {"reasoning_mode": "deep"},
+        )
+        == "deep_reasoning"
+    )
+
+
+def test_specific_capability_lane_precedes_deep_reasoning_mode():
+    assert (
+        InferenceGate._cortex_serving_lane(
+            "Repair this module and run its tests.",
+            {"coding_request": True, "reasoning_mode": "deep"},
+        )
+        == "code"
+    )
+
+
 @pytest.mark.asyncio
-async def test_secondary_request_fails_safe_to_primary_when_coexistence_probe_errors():
+async def test_secondary_request_fails_safe_to_primary_when_coexistence_probe_errors(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_enabled",
+        lambda *_args, **_kwargs: True,
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
         gate = InferenceGate()

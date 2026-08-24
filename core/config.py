@@ -404,8 +404,9 @@ class LLMConfig(BaseModel):
     # softmax is effectively uniform and "temperature" stops naming anything.
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, allow_inf_nan=False)
 
-    # Tier 3: Deep Solver (72B hot-swap lane for complex reasoning)
-    deep_model: str = "Qwen2.5-72B-Instruct-4bit"
+    # Deep work stays on the resident systems-intelligence path unless a
+    # distinct local specialist is explicitly configured and admitted.
+    deep_model: str = "Qwen2.5-32B-Instruct-8bit"
     deep_max_tokens: int = Field(default=8192, gt=0)
     deep_temperature: float = Field(default=0.4, ge=0.0, le=2.0, allow_inf_nan=False)
 
@@ -549,17 +550,21 @@ class AuraConfig(BaseSettings):
             from core.brain.llm.model_registry import (
                 ACTIVE_MODEL,
                 BRAINSTEM_MODEL,
-                DEEP_MODEL,
                 audit_lane_assignments,
+                deep_solver_is_distinctly_configured,
+                get_deep_model_name,
+                get_deep_model_path,
                 get_runtime_model_path,
             )
 
             self.llm.chat_model = BRAINSTEM_MODEL
             self.llm.fast_model = ACTIVE_MODEL
-            self.llm.deep_model = DEEP_MODEL
+            self.llm.deep_model = get_deep_model_name()
             self.llm.vision_model = ACTIVE_MODEL
             self.llm.local_cortex_path = get_runtime_model_path(ACTIVE_MODEL)
-            self.llm.local_solver_path = get_runtime_model_path(DEEP_MODEL)
+            self.llm.local_solver_path = (
+                get_deep_model_path() if deep_solver_is_distinctly_configured() else None
+            )
             self.llm.local_brainstem_path = get_runtime_model_path(BRAINSTEM_MODEL)
 
             audit = audit_lane_assignments()

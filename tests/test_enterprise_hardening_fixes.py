@@ -2048,7 +2048,10 @@ def test_primary_proof_boot_skips_non_primary_llm_tiers_without_degradation():
     assert 'primary_proof_lane = bool(proof_run_active(origin="llm_tier_initialization")' in source
     assert "allow_non_primary_tiers = not primary_proof_lane" in source
     assert "Proof-primary lane active — non-primary local LLM endpoints are not registered." in source
-    assert "allow_non_primary_tiers and solver_model_path" in source
+    assert "allow_non_primary_tiers\n            and specialist_enabled" in source
+    assert source.index("local_deep_solver_enabled") < source.index(
+        "solver_model_path = get_deep_model_path()"
+    )
     assert "allow_non_primary_tiers and brainstem_model_path" in source
     # `fallback_model` became `fallback_path` (CP126 953459cc): the branch was
     # GATED on brainstem-or-cortex being present but LOADED FALLBACK_MODEL, so

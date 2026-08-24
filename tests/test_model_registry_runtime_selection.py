@@ -3,8 +3,51 @@ import pytest
 import core.brain.llm.model_registry as model_registry
 
 
-def test_default_deep_model_prefers_mlx_artifact_for_mlx_backend():
-    assert model_registry._default_deep_model_name(backend="mlx") == "Qwen2.5-72B-Instruct-4bit"
+def test_default_deep_reasoning_role_uses_the_resident_cortex():
+    assert model_registry._default_deep_model_name(backend="mlx") == model_registry.ACTIVE_MODEL
+
+
+def test_no_distinct_solver_is_configured_by_default(monkeypatch):
+    monkeypatch.delenv("AURA_DEEP_MODEL", raising=False)
+    monkeypatch.delenv("AURA_LLM__MLX_DEEP_MODEL_PATH", raising=False)
+    monkeypatch.setattr(model_registry, "get_runtime_setting", lambda *_args, **_kwargs: "")
+
+    assert model_registry.deep_solver_is_distinctly_configured() is False
+    assert model_registry.get_deep_model_name() == model_registry.ACTIVE_MODEL
+    assert model_registry.get_deep_model_path() == model_registry.get_runtime_model_path(
+        model_registry.ACTIVE_MODEL
+    )
+
+
+def test_an_explicit_distinct_solver_keeps_its_own_identity(monkeypatch, tmp_path):
+    solver = tmp_path / "specialist"
+    solver.mkdir()
+    monkeypatch.setenv("AURA_DEEP_MODEL", "Specialist-34B-4bit")
+    monkeypatch.setenv("AURA_LLM__MLX_DEEP_MODEL_PATH", str(solver))
+    monkeypatch.setattr(model_registry, "get_runtime_setting", lambda *_args, **_kwargs: "")
+
+    assert model_registry.deep_solver_is_distinctly_configured() is True
+    assert model_registry.get_deep_model_name() == "Specialist-34B-4bit"
+    assert model_registry.get_deep_model_path() == str(solver.resolve())
+
+
+def test_resident_deep_role_is_not_a_duplicate_model_lane(monkeypatch):
+    monkeypatch.setattr(model_registry, "_configured_deep_model_name", lambda: "")
+    monkeypatch.setattr(model_registry, "_configured_deep_model_path", lambda: "")
+    _reset_lane_audit_cache()
+    try:
+        audit = model_registry.audit_lane_assignments(force_refresh=True)
+    finally:
+        _reset_lane_audit_cache()
+
+    deep = audit["lanes"][model_registry.DEEP_ENDPOINT]
+    assert deep["active"] is False
+    assert deep["role_mode"] == "resident_systems"
+    assert not any(
+        issue.get("kind") in {"duplicate_model", "duplicate_runtime_path"}
+        and model_registry.DEEP_ENDPOINT in issue.get("lanes", ())
+        for issue in audit["issues"]
+    )
 
 
 @pytest.mark.parametrize(

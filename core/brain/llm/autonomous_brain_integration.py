@@ -486,9 +486,9 @@ class AutonomousCognitiveEngine:
         """Standardizes Aura's managed multi-tier local runtime hierarchy.
 
         v6.0 "The Unshackling" — M5 Pro 64GB Local-First Architecture
-        - Cortex (32B): Primary local brain for daily use
-        - Solver (72B): Hot-swap deep solver for complex tasks
-        - Brainstem (7B): Background tasks, heartbeat, cheap calls
+        - Cortex: Resident brain and default deep-reasoning substrate
+        - Solver: Optional distinct local reasoning specialist
+        - Brainstem: Background tasks, heartbeat, cheap calls
         - Reflex (1.5B): Emergency CPU-friendly last resort
 
         Strategy: every inference lane is local.
@@ -500,10 +500,11 @@ class AutonomousCognitiveEngine:
             BRAINSTEM_ENDPOINT,
             BRAINSTEM_MODEL,
             DEEP_ENDPOINT,
-            DEEP_MODEL,
             FALLBACK_ENDPOINT,
             FALLBACK_MODEL,
             PRIMARY_ENDPOINT,
+            get_deep_model_name,
+            get_deep_model_path,
             get_runtime_model_path,
         )
         
@@ -512,11 +513,6 @@ class AutonomousCognitiveEngine:
             getattr(config.llm, "local_cortex_path", None)
             or getattr(config.llm, "mlx_model_path", None)
             or get_runtime_model_path(ACTIVE_MODEL)
-        )
-        solver_model_path = (
-            getattr(config.llm, "local_solver_path", None)
-            or getattr(config.llm, "mlx_deep_model_path", None)
-            or get_runtime_model_path(DEEP_MODEL)
         )
         brainstem_model_path = (
             getattr(config.llm, "local_brainstem_path", None)
@@ -574,12 +570,31 @@ class AutonomousCognitiveEngine:
                 )
                 logger.error("Failed to register %s pathway: %s", PRIMARY_ENDPOINT, e)
 
-        # ── LOCAL SECONDARY: Solver (72B) — Hot-swap deep thinker ──
+        # Optional local reasoning specialist. Ask the canonical admission
+        # contract before resolving or constructing the model client.
         if primary_proof_lane:
             logger.info("🛡️ Proof-primary lane active — non-primary local LLM endpoints are not registered.")
-        if allow_non_primary_tiers and solver_model_path and DEEP_ENDPOINT not in getattr(self.llm_router, "endpoints", {}):
+        specialist_enabled = False
+        if allow_non_primary_tiers:
+            try:
+                from core.brain.inference_gate import local_deep_solver_enabled
+
+                specialist_enabled = local_deep_solver_enabled()
+            except BRAIN_RECOVERABLE_ERRORS as exc:
+                _record_brain_degradation(
+                    exc,
+                    action="kept the optional reasoning specialist disabled after admission failed",
+                    kind="local_omission",
+                )
+        if (
+            allow_non_primary_tiers
+            and specialist_enabled
+            and DEEP_ENDPOINT not in getattr(self.llm_router, "endpoints", {})
+        ):
             try:
                 from .mlx_client import get_mlx_client
+                solver_model_path = get_deep_model_path()
+                deep_model_name = get_deep_model_name()
                 solver_client = get_mlx_client(
                     model_path=solver_model_path,
                     max_tokens=4096,
@@ -589,14 +604,18 @@ class AutonomousCognitiveEngine:
                     tier=LLMTier.SECONDARY,  # Moved to SECONDARY to prevent accidental promotion
                     model_name=solver_model_path.split("/")[-1],
                     client=solver_client,
-                    timeout=300.0,  # 72B needs more time to load/generate
+                    timeout=300.0,
                 ))
-                logger.info("🧠 SECONDARY Tier registered: %s (%s) — Deep Thinker (Hot-Swap)", DEEP_ENDPOINT, DEEP_MODEL)
+                logger.info(
+                    "🧠 SECONDARY Tier registered: %s (%s) — local reasoning specialist",
+                    DEEP_ENDPOINT,
+                    deep_model_name,
+                )
             except BRAIN_RECOVERABLE_ERRORS as e:
                 _record_brain_degradation(
                     e,
                     action="continued tier initialization without secondary Solver endpoint",
-                    extra={"endpoint": DEEP_ENDPOINT, "model": DEEP_MODEL},
+                    extra={"endpoint": DEEP_ENDPOINT, "model": get_deep_model_name()},
                 )
                 logger.error("Failed to register %s pathway: %s", DEEP_ENDPOINT, e)
 
