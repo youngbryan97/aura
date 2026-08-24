@@ -3533,19 +3533,26 @@ async def test_think_exports_request_metadata_across_parent_wait_for_boundary(mo
     resume_handle = "f" * 32
 
     async def _generate(*_args, **_kwargs):
-        gate._publish_generation_metadata(
-            {
-                "ok": True,
-                "surface_control_receipt": {
+        async def _client_generation_task():
+            gate._publish_generation_metadata(
+                {
+                    "ok": True,
+                    "surface_control_receipt": {
+                        "continuation_resume_available": True,
+                        "continuation_resume_handle": resume_handle,
+                    },
+                },
+                {
                     "continuation_resume_available": True,
                     "continuation_resume_handle": resume_handle,
                 },
-            },
-            {
-                "continuation_resume_available": True,
-                "continuation_resume_handle": resume_handle,
-            },
-        )
+            )
+
+        # The production gate awaits client work through asyncio.wait_for, which
+        # runs it in a child task. ContextVar writes in that task are deliberately
+        # invisible here; only the caller-owned sink can cross this boundary.
+        await asyncio.create_task(_client_generation_task())
+        assert gate.get_last_generation_metadata() == {}
         return "partial answer"
 
     async def _skip_post_inference(*_args, **_kwargs):
@@ -3567,6 +3574,12 @@ async def test_think_exports_request_metadata_across_parent_wait_for_boundary(mo
     assert metadata_sink["surface_control_receipt"][
         "continuation_resume_handle"
     ] == resume_handle
+
+    gate._publish_generation_metadata(
+        {"ok": True, "surface_control_receipt": {"later": True}},
+        {"later": True},
+    )
+    assert "later" not in metadata_sink["surface_control_receipt"]
 
 
 def test_inference_gate_records_stabilization_without_prior_provider_receipt():

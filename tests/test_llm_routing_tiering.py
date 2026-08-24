@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from core.brain.inference_gate import InferenceGate
 from core.brain.llm_health_router import HealthAwareLLMRouter
 
 
@@ -361,6 +362,69 @@ async def test_router_uses_request_sink_when_client_context_receipt_cannot_escap
             _generation_metadata_sink=metadata_sink,
         ),
         timeout=1.0,
+    )
+
+    assert text == "retained partial answer"
+    assert metadata_sink["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+
+
+@pytest.mark.asyncio
+async def test_router_and_inference_gate_preserve_child_task_resume_capability(monkeypatch):
+    resume_handle = "9" * 32
+    gate = InferenceGate()
+
+    async def _generate(*_args, **_kwargs):
+        async def _worker_result_task():
+            gate._publish_generation_metadata(
+                {
+                    "ok": True,
+                    "surface_control_receipt": {
+                        "continuation_resume_available": True,
+                        "continuation_resume_handle": resume_handle,
+                    },
+                },
+                {
+                    "continuation_resume_available": True,
+                    "continuation_resume_handle": resume_handle,
+                },
+            )
+
+        await asyncio.create_task(_worker_result_task())
+        assert gate.get_last_generation_metadata() == {}
+        return "retained partial answer"
+
+    async def _skip_post_inference(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(gate, "generate", _generate)
+    monkeypatch.setattr(gate, "_schedule_post_inference_update", _skip_post_inference)
+    monkeypatch.setattr(
+        gate,
+        "get_conversation_status",
+        lambda: {"conversation_ready": True, "state": "ready"},
+    )
+    monkeypatch.setattr(gate, "is_available", lambda: True, raising=False)
+
+    router = HealthAwareLLMRouter()
+    router.register(
+        name="Cortex",
+        url="internal",
+        model="cortex-27b",
+        is_local=True,
+        tier="local",
+        client=gate,
+    )
+    metadata_sink = {}
+
+    text = await router.think(
+        "Continue the exact generation.",
+        prefer_tier="primary",
+        origin="user",
+        foreground_request=True,
+        skip_runtime_payload=True,
+        _generation_metadata_sink=metadata_sink,
     )
 
     assert text == "retained partial answer"

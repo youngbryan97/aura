@@ -2033,14 +2033,12 @@ class HealthAwareLLMRouter:
         system_prompt: str | None = None,
         prefer_tier: str | None = None,
         schema: dict | None = None,
+        *,
+        _generation_metadata_sink: dict[str, Any] | None = None,
         **kwargs,
     ) -> str | None:
-        """
-        Unified interface for non-chat callers. Routes through the health-aware
-        endpoint selection, then normalises to Optional[str].
-        [FIX #1-Harden] Supports 'messages' keyword for cognitive pipeline compatibility.
-        """
-        metadata_sink = kwargs.pop("_generation_metadata_sink", None)
+        """Bind caller-owned evidence transport for exactly one router call."""
+
         sink_slot = getattr(self, "_generation_metadata_sink_context", None)
         if sink_slot is None:
             sink_slot = ContextVar(
@@ -2048,7 +2046,35 @@ class HealthAwareLLMRouter:
                 default=None,
             )
             self._generation_metadata_sink_context = sink_slot
-        sink_slot.set(metadata_sink if isinstance(metadata_sink, dict) else None)
+        sink_token = sink_slot.set(
+            _generation_metadata_sink
+            if isinstance(_generation_metadata_sink, dict)
+            else None
+        )
+        try:
+            return await self._think_with_generation_metadata_sink(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                prefer_tier=prefer_tier,
+                schema=schema,
+                **kwargs,
+            )
+        finally:
+            sink_slot.reset(sink_token)
+
+    async def _think_with_generation_metadata_sink(
+        self,
+        prompt: str | None = None,
+        system_prompt: str | None = None,
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
+        **kwargs,
+    ) -> str | None:
+        """
+        Unified interface for non-chat callers. Routes through the health-aware
+        endpoint selection, then normalises to Optional[str].
+        [FIX #1-Harden] Supports 'messages' keyword for cognitive pipeline compatibility.
+        """
         self._publish_generation_metadata({})
         kwargs.pop("_contract_tool_handoff", False)
         if not prompt and "messages" in kwargs:

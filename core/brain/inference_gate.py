@@ -2409,6 +2409,20 @@ class InferenceGate:
             self._surface_control_receipt_context = slot
         return slot
 
+    def _generation_metadata_sink_slot(
+        self,
+    ) -> ContextVar[dict[str, Any] | None]:
+        """Caller-owned evidence transport across child asyncio tasks."""
+
+        slot = getattr(self, "_generation_metadata_sink_context", None)
+        if slot is None:
+            slot = ContextVar(
+                f"aura_inference_gate_generation_metadata_sink_{id(self)}",
+                default=None,
+            )
+            self._generation_metadata_sink_context = slot
+        return slot
+
     def _publish_generation_metadata(
         self,
         metadata: dict[str, Any],
@@ -2434,6 +2448,10 @@ class InferenceGate:
         receipt_snapshot = _deep_snapshot(receipt)
         self._generation_metadata_slot().set(metadata_snapshot)
         self._surface_control_receipt_slot().set(receipt_snapshot)
+        sink = self._generation_metadata_sink_slot().get()
+        if isinstance(sink, dict):
+            sink.clear()
+            sink.update(_deep_snapshot(metadata_snapshot))
         # The ContextVar slots are per-task and need no lock. These two are
         # process-wide and were written from every concurrent generation, so
         # a diagnostic reader could see metadata from one request beside the
@@ -14152,6 +14170,32 @@ class InferenceGate:
         _generation_metadata_sink: dict[str, Any] | None = None,
         **kwargs,
     ) -> str | None:
+        """Bind per-request evidence transport around the unified think path."""
+
+        sink_slot = self._generation_metadata_sink_slot()
+        sink_token = sink_slot.set(
+            _generation_metadata_sink
+            if isinstance(_generation_metadata_sink, dict)
+            else None
+        )
+        try:
+            return await self._think_with_generation_metadata_sink(
+                prompt,
+                system_prompt,
+                _generation_metadata_sink=_generation_metadata_sink,
+                **kwargs,
+            )
+        finally:
+            sink_slot.reset(sink_token)
+
+    async def _think_with_generation_metadata_sink(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        *,
+        _generation_metadata_sink: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> str | None:
         """Unified thinking interface for cognitive components.
 
         Preserve standard LLM adapter semantics:
@@ -14253,8 +14297,10 @@ class InferenceGate:
             # Publish into a caller-owned mutable object while we are still in
             # the request task; this is evidence transport, not process-wide
             # "last call" telemetry.
-            _generation_metadata_sink.clear()
-            _generation_metadata_sink.update(self.get_last_generation_metadata())
+            task_metadata = self.get_last_generation_metadata()
+            if task_metadata:
+                _generation_metadata_sink.clear()
+                _generation_metadata_sink.update(task_metadata)
         if isinstance(result, str) and result.strip():
             # Close the bidirectional causal loop AFTER the answer is on its
             # way, not in front of it.
