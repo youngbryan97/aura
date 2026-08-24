@@ -1502,6 +1502,27 @@ def decide_after_stage(
 ) -> dict[str, Any]:
     if len(observations) != len(admissions) or not observations:
         _fail("stage_evidence_incomplete")
+
+    def reject_or_rollback(*, reason: str, failed_stage: int) -> dict[str, Any]:
+        """Reject the failed stage without discarding prior admitted tissue.
+
+        Once the schedule has already produced ``min_stages`` consecutive
+        admitted checkpoints, the next measured regression is a stopping
+        signal. The regressing checkpoint never becomes authoritative; the
+        immediately preceding checkpoint is the only deterministic rollback
+        target. Earlier or arbitrary checkpoints are never searched, so this
+        cannot become post-hoc best-checkpoint selection.
+        """
+
+        if failed_stage >= policy.min_stages:
+            return {
+                "decision": "COMPLETE",
+                "reason": f"rollback_before_{reason}",
+                "stage": failed_stage - 1,
+                "rejected_stage": failed_stage,
+            }
+        return {"decision": "REJECT", "reason": reason, "stage": failed_stage}
+
     for index, (observation, admission) in enumerate(zip(observations, admissions, strict=True)):
         if observation.get("stage_index") != index or admission.get("stage_index") != index:
             _fail("stage_evidence_order_invalid")
@@ -1512,12 +1533,18 @@ def decide_after_stage(
             or validated["no_regression_score"] < policy.no_regression_floor
             or validated["regressions"] > 0
         ):
-            return {"decision": "REJECT", "reason": "admission_regression", "stage": index}
+            return reject_or_rollback(
+                reason="admission_regression",
+                failed_stage=index,
+            )
         if index:
             previous = float(observations[index - 1]["validation_loss"])
             current = float(observation["validation_loss"])
             if current > previous * (1.0 + policy.max_loss_regression_fraction):
-                return {"decision": "REJECT", "reason": "validation_loss_regression", "stage": index}
+                return reject_or_rollback(
+                    reason="validation_loss_regression",
+                    failed_stage=index,
+                )
     plateau = 0
     for previous, current in zip(observations, observations[1:], strict=False):
         improvement = float(previous["validation_loss"]) - float(current["validation_loss"])
@@ -1609,7 +1636,18 @@ def admitted_adaptive_checkpoint(
     stage_index = decision.get("stage")
     if isinstance(stage_index, bool) or not isinstance(stage_index, int):
         _fail("adaptive_result_stage_invalid")
-    if stage_index != len(observations) - 1:
+    rejected_stage = decision.get("rejected_stage")
+    rollback = str(decision.get("reason", "")).startswith("rollback_before_")
+    if rollback:
+        if (
+            isinstance(rejected_stage, bool)
+            or not isinstance(rejected_stage, int)
+            or rejected_stage != len(observations) - 1
+            or stage_index != rejected_stage - 1
+            or rejected_stage < policy.min_stages
+        ):
+            _fail("adaptive_result_rollback_mismatch")
+    elif rejected_stage is not None or stage_index != len(observations) - 1:
         _fail("adaptive_result_stage_mismatch")
 
     admission = _validated_admission(

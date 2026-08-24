@@ -227,6 +227,51 @@ def test_regression_rejects_without_weakening_thresholds() -> None:
     assert loss_verdict["reason"] == "validation_loss_regression"
 
 
+def test_late_regression_rolls_back_to_last_admitted_stage() -> None:
+    policy = replace(training.StagePolicy(), min_stages=3)
+    observations = [
+        _observation(0, 1.0),
+        _observation(1, 0.9),
+        _observation(2, 0.8),
+        _observation(3, 0.7),
+    ]
+    admissions = [_admission(index) for index in range(4)]
+    admissions[3] = _admission(3, retention=0.97)
+
+    verdict = training.decide_after_stage(
+        policy=policy,
+        observations=observations,
+        admissions=admissions,
+    )
+
+    assert verdict == {
+        "decision": "COMPLETE",
+        "reason": "rollback_before_admission_regression",
+        "stage": 2,
+        "rejected_stage": 3,
+    }
+
+
+def test_late_loss_regression_rolls_back_without_admitting_bad_weights() -> None:
+    policy = replace(training.StagePolicy(), min_stages=2)
+    verdict = training.decide_after_stage(
+        policy=policy,
+        observations=[
+            _observation(0, 1.0),
+            _observation(1, 0.9),
+            _observation(2, 1.0),
+        ],
+        admissions=[_admission(index) for index in range(3)],
+    )
+
+    assert verdict == {
+        "decision": "COMPLETE",
+        "reason": "rollback_before_validation_loss_regression",
+        "stage": 1,
+        "rejected_stage": 2,
+    }
+
+
 def test_command_binds_every_requested_training_setting(tmp_path: Path) -> None:
     config = training.TrainingConfig(
         rank=16,
@@ -685,6 +730,46 @@ def test_admitted_adaptive_checkpoint_accepts_exact_completed_authority(
     assert authority["cumulative_iterations"] == final_iterations
     assert authority["checkpoint"] == checkpoint
     assert authority["decision"] == decision
+    assert authority["admission"]["regressions"] == 0
+
+
+def test_admitted_adaptive_checkpoint_accepts_exact_rollback_authority(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(tmp_path)
+    policy = training.StagePolicy(**plan["stages"])
+    checkpoint_path = (
+        Path(plan["paths"]["checkpoint_root"])
+        / f"{policy.cumulative_iterations(2):07d}_adapters.safetensors"
+    )
+    checkpoint_path.write_bytes(b"last-admitted-before-regression")
+    checkpoint = training.discover_exact_checkpoint(
+        checkpoint_path.parent,
+        expected_cumulative_iterations=policy.cumulative_iterations(2),
+    )
+    observations = [
+        _observation(0, 1.0),
+        _observation(1, 0.9),
+        _observation(2, 0.8, checkpoint),
+        _observation(3, 0.7),
+    ]
+    admissions = [_admission(index) for index in range(4)]
+    admissions[3] = _admission(3, retention=0.97)
+    decision = training.decide_after_stage(
+        policy=policy,
+        observations=observations,
+        admissions=admissions,
+    )
+
+    authority = training.admitted_adaptive_checkpoint(
+        plan,
+        authenticated_events=_adaptive_events(observations, admissions),
+        adaptive_result=_adaptive_result(plan, decision),
+    )
+
+    assert authority["stage_index"] == 2
+    assert authority["checkpoint"] == checkpoint
+    assert authority["decision"]["rejected_stage"] == 3
     assert authority["admission"]["regressions"] == 0
 
 
