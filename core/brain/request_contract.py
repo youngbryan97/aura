@@ -45,6 +45,7 @@ authority check is enumerated rather than rediscovered.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -95,6 +96,7 @@ class Kind:
     FLOAT = "float"
     POSITIVE_INT = "positive_int"
     STRING = "string"
+    HEX_CAPABILITY_128 = "hex_capability_128"
     TIER = "tier"
     COGNITIVE_MODE = "cognitive_mode"
     STRING_LIST = "string_list"
@@ -224,6 +226,10 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "user_surface_completion_retry": Field_(Kind.BOOL),
     "user_surface_continuation_contract": Field_(Kind.BOOL),
     "user_surface_continuation_partial": Field_(Kind.STRING),
+    # This is a bearer capability into the worker's bounded, process-local
+    # resume cache. Preserve exactly 128 bits; arbitrary strings never become
+    # cache selectors.
+    "user_surface_continuation_resume_handle": Field_(Kind.HEX_CAPABILITY_128),
     "semantic_completion_contract": Field_(Kind.BOOL),
     # ── live-mind readiness claims (authority-relevant) ─────────────────
     "live_mind_controls_bound": Field_(Kind.BOOL, policy=True),
@@ -369,6 +375,13 @@ def _coerce(spec: Field_, value: Any) -> tuple[Any, str]:
         if not isinstance(value, str):
             return None, f"not a string: {type(value).__name__}"
         return value, ""
+    if kind == Kind.HEX_CAPABILITY_128:
+        if not isinstance(value, str):
+            return None, f"not a capability string: {type(value).__name__}"
+        capability = value.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{32}", capability):
+            return None, "not a 128-bit hexadecimal capability"
+        return capability, ""
     if kind == Kind.STRING_LIST:
         if isinstance(value, str):
             return [value], ""

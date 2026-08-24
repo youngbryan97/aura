@@ -378,8 +378,10 @@ async def test_router_uses_request_sink_when_client_context_receipt_cannot_escap
 async def test_router_and_inference_gate_preserve_child_task_resume_capability(monkeypatch):
     resume_handle = "9" * 32
     gate = InferenceGate()
+    generation_calls = []
 
-    async def _generate(*_args, **_kwargs):
+    async def _generate(*_args, **kwargs):
+        generation_calls.append(kwargs)
         async def _worker_result_task():
             gate._publish_generation_metadata(
                 {
@@ -420,6 +422,14 @@ async def test_router_and_inference_gate_preserve_child_task_resume_capability(m
         tier="local",
         client=gate,
     )
+    endpoint_calls = []
+    original_call_endpoint = router._call_endpoint
+
+    async def _observed_call_endpoint(*args, **kwargs):
+        endpoint_calls.append(kwargs)
+        return await original_call_endpoint(*args, **kwargs)
+
+    monkeypatch.setattr(router, "_call_endpoint", _observed_call_endpoint)
     metadata_sink = {}
 
     text = await router.think(
@@ -428,10 +438,23 @@ async def test_router_and_inference_gate_preserve_child_task_resume_capability(m
         origin="user",
         foreground_request=True,
         skip_runtime_payload=True,
+        semantic_completion_contract=True,
+        user_surface_continuation_contract=True,
+        user_surface_continuation_partial="A retained partial answer from the",
+        user_surface_continuation_resume_handle=resume_handle,
         _generation_metadata_sink=metadata_sink,
     )
 
     assert text == "retained partial answer"
+    assert endpoint_calls[0].get("user_surface_continuation_resume_handle") == resume_handle
+    assert generation_calls[0]["context"]["semantic_completion_contract"] is True
+    assert generation_calls[0]["context"]["user_surface_continuation_contract"] is True
+    assert generation_calls[0]["context"]["user_surface_continuation_partial"].endswith(
+        "from the"
+    )
+    assert generation_calls[0]["context"].get(
+        "user_surface_continuation_resume_handle"
+    ) == resume_handle, sorted(generation_calls[0]["context"])
     assert metadata_sink["surface_control_receipt"][
         "continuation_resume_handle"
     ] == resume_handle
