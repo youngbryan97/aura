@@ -380,7 +380,7 @@ def test_explicit_promotion_root_wins_from_worktree_source(monkeypatch, tmp_path
     monkeypatch.setenv("AURA_FUSED_MODEL_ROOT", str(promotion_root))
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
 
-    assert model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit") == str(
+    assert model_registry.get_model_path(model_registry.CORTEX_LOGICAL_NAME) == str(
         promoted_model.resolve()
     )
 

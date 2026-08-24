@@ -52,6 +52,12 @@ def test_promotion_is_visible_without_restart(registry_sandbox, monkeypatch):
     assert after.endswith("gen1")
 
 
+def test_cortex_role_name_is_independent_of_model_generation():
+    assert CORTEX == "Aura-Cortex"
+    assert "qwen" not in CORTEX.lower()
+    assert "32b" not in CORTEX.lower()
+
+
 def test_next_generation_supersedes_previous(registry_sandbox, monkeypatch):
     tmp_path, manifest = registry_sandbox
     _publish(manifest, tmp_path / "fused" / "gen1")
@@ -61,6 +67,32 @@ def test_next_generation_supersedes_previous(registry_sandbox, monkeypatch):
     _publish(manifest, tmp_path / "fused" / "gen2")
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
     assert model_registry.get_model_path(CORTEX).endswith("gen2")
+
+
+def test_context_evidence_follows_the_promoted_artifact(
+    registry_sandbox,
+    monkeypatch,
+):
+    tmp_path, manifest = registry_sandbox
+    first = tmp_path / "fused" / "gen1"
+    _publish(manifest, first)
+    (first / "config.json").write_text(
+        json.dumps({"max_position_embeddings": 8192}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
+    model_registry.get_model_context_window.cache_clear()
+    assert model_registry.get_model_context_window(CORTEX) == 8192
+
+    second = tmp_path / "fused" / "gen2"
+    _publish(manifest, second)
+    (second / "config.json").write_text(
+        json.dumps({"text_config": {"max_position_embeddings": 65536}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
+
+    assert model_registry.get_model_context_window(CORTEX) == 65536
 
 
 def test_operator_env_pin_beats_manifest(registry_sandbox, monkeypatch):
@@ -99,3 +131,17 @@ def test_missing_everything_falls_back_to_hf_repo(registry_sandbox):
     _tmp_path, _manifest = registry_sandbox
     resolved = model_registry.get_model_path(CORTEX)
     assert resolved == "mlx-community/Qwen2.5-32B-Instruct-8bit"
+
+
+def test_explicit_legacy_artifact_does_not_borrow_active_pointer(
+    registry_sandbox,
+    monkeypatch,
+):
+    tmp_path, manifest = registry_sandbox
+    _publish(manifest, tmp_path / "fused" / "new-generation")
+    monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
+
+    assert model_registry.get_model_path(CORTEX).endswith("new-generation")
+    assert model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit") == (
+        "mlx-community/Qwen2.5-32B-Instruct-8bit"
+    )

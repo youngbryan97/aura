@@ -89,6 +89,27 @@ def test_registry_reports_measured_for_a_real_config(tmp_path, monkeypatch):
     assert mr.get_model_context_window("FakeModel") == 8192
 
 
+def test_registry_reads_nested_text_model_context(tmp_path, monkeypatch):
+    from core.brain.llm import model_registry as mr
+
+    model_dir = tmp_path / "NestedTextModel"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "model_type": "multimodal_wrapper",
+                "text_config": {"max_position_embeddings": 262144},
+            }
+        )
+    )
+    monkeypatch.setitem(mr.MODEL_PATHS, "NestedTextModel", model_dir)
+    mr.get_model_context_window.cache_clear()
+
+    ev = mr.get_context_window_evidence("NestedTextModel")
+    assert ev.source is WindowSource.MEASURED
+    assert ev.tokens == 262144
+
+
 def test_registry_marks_an_unreadable_artifact_assumed(tmp_path, monkeypatch):
     from core.brain.llm import model_registry as mr
 
@@ -130,9 +151,8 @@ def test_live_active_model_window_is_measured_not_guessed():
 
     from core.brain.llm import model_registry as mr
 
-    name = mr.normalize_runtime_model_name(mr.ACTIVE_MODEL)
-    path = mr.MODEL_PATHS.get(name, mr.BASE_DIR / "models" / str(name))
-    if not isinstance(path, Path) or not (path / "config.json").exists():
+    path = Path(mr.get_runtime_model_path(mr.ACTIVE_MODEL))
+    if not (path / "config.json").exists():
         pytest.skip("active model artifact is not present in this checkout")
     ev = mr.get_context_window_evidence()
     assert ev.is_measured, f"live context budget is a guess: {ev.detail}"

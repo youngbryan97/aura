@@ -581,6 +581,13 @@ DEEP_ENDPOINT = "Solver"
 BRAINSTEM_ENDPOINT = "Brainstem"
 FALLBACK_ENDPOINT = "Reflex"
 
+# Runtime code addresses a stable cognitive role. The active pointer supplies
+# the concrete model generation, while this legacy artifact remains only the
+# compatibility fallback for installations that have not promoted one yet.
+CORTEX_LOGICAL_NAME = "Aura-Cortex"
+_LEGACY_CORTEX_ARTIFACT_NAME = "Qwen2.5-32B-Instruct-8bit"
+_LEGACY_CORTEX_REPOSITORY_ID = "mlx-community/Qwen2.5-32B-Instruct-8bit"
+
 # ── Recurrent Depth: Mythos-inspired layer looping per lane ──────────────
 # Controls how many times the middle transformer layers loop before output.
 # Higher loops = more "thinking" time in latent space before committing.
@@ -656,13 +663,15 @@ def _default_deep_model_name(*, backend: str | None = None) -> str:
     # Deep reasoning is a cognition contract, not a parameter-count tier. The
     # resident cortex and Aura's reasoning systems own it unless an operator
     # deliberately configures a distinct local specialist.
-    return str(_FLAG_MODEL.value() or "Qwen2.5-32B-Instruct-8bit")
+    return str(_FLAG_MODEL.value() or CORTEX_LOGICAL_NAME)
 
 
 # The logical name remains stable while the promoted artifact pointer changes.
 # Deep reasoning defaults to this same resident model; a separate specialist is
 # opt-in and must have a distinct model or artifact identity.
-ACTIVE_MODEL = _FLAG_MODEL.value() or "Qwen2.5-32B-Instruct-8bit"
+ACTIVE_MODEL = normalize_runtime_model_name(
+    str(_FLAG_MODEL.value() or CORTEX_LOGICAL_NAME)
+)
 DEEP_MODEL = normalize_runtime_model_name(
     _FLAG_DEEP_MODEL.value() or _default_deep_model_name()
 )
@@ -708,7 +717,7 @@ def get_active_model_artifact_descriptor(
     return spec.artifact_descriptor()
 
 
-_CORTEX_NAME = "Qwen2.5-32B-Instruct-8bit"
+_CORTEX_NAME = CORTEX_LOGICAL_NAME
 _CORTEX_MANIFEST_TTL_S = 5.0
 _cortex_path_cache: tuple[float, Path] | None = None
 
@@ -716,7 +725,7 @@ HF_FALLBACKS = {
     "Qwen2.5-1.5B-Instruct-4bit": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
     "Qwen3.5-9B-4bit": "mlx-community/Qwen3.5-9B-4bit",
     "Qwen2.5-7B-Instruct-4bit": "mlx-community/Qwen2.5-7B-Instruct-4bit",
-    "Qwen2.5-32B-Instruct-8bit": "mlx-community/Qwen2.5-32B-Instruct-8bit",
+    _LEGACY_CORTEX_ARTIFACT_NAME: _LEGACY_CORTEX_REPOSITORY_ID,
     "Qwen2.5-32B-Instruct-4bit": "mlx-community/Qwen2.5-32B-Instruct-4bit",
     "Qwen2.5-72B-Instruct-4bit": "mlx-community/Qwen2.5-72B-Instruct-4bit",
     "Qwen2.5-72B-Instruct-Q4": "mlx-community/Qwen2.5-72B-Instruct-4bit",
@@ -759,7 +768,7 @@ def _current_cortex_path() -> Path:
     resolved = Path(
         _FLAG_LLM__MLX_MODEL_PATH.value()
         or _resolve_active_fused_model()
-        or str(get_models_dir() / _CORTEX_NAME)
+        or str(get_models_dir() / _LEGACY_CORTEX_ARTIFACT_NAME)
     )
     _cortex_path_cache = (now, resolved)
     return resolved
@@ -780,7 +789,7 @@ MODEL_PATHS = {
     "Qwen3.5-9B-4bit":            _BRAINSTEM_PATH,
     "Qwen2.5-7B-Instruct-4bit":   BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit",  # legacy
     "Qwen2.5-14B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-14B-Instruct-4bit",
-    "Qwen2.5-32B-Instruct-8bit":  _CORTEX_PATH,
+    _LEGACY_CORTEX_ARTIFACT_NAME: get_models_dir() / _LEGACY_CORTEX_ARTIFACT_NAME,
     "Qwen2.5-32B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-32B-Instruct-4bit",  # legacy
     "Qwen2.5-72B-Instruct-4bit":  _SOLVER_PATH,
     "QwQ-32B-4bit":               BASE_DIR / "models" / "QwQ-32B-4bit",
@@ -833,6 +842,15 @@ def _safe_positive_int(value: Any) -> int:
     except (TypeError, ValueError, OverflowError):
         return 0
     return parsed if parsed > 0 else 0
+
+
+def _context_config_value(payload: dict[str, Any], key: str) -> Any:
+    """Read a text-model setting from flat or multimodal config layouts."""
+
+    text_config = payload.get("text_config")
+    if isinstance(text_config, dict) and key in text_config:
+        return text_config.get(key)
+    return payload.get(key)
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -921,7 +939,7 @@ def get_model_path(model_name: str | None = None) -> str:
         cortex = _current_cortex_path().expanduser()
         if cortex.exists():
             return str(cortex.resolve())
-        return HF_FALLBACKS.get(name, str(cortex))
+        return _LEGACY_CORTEX_REPOSITORY_ID
 
     local_path = MODEL_PATHS.get(name, get_models_dir() / name)
 
@@ -1345,10 +1363,23 @@ def get_context_window_evidence(model_name: str | None = None) -> ContextWindowE
     the difference legible.
     """
     name = normalize_runtime_model_name(model_name or ACTIVE_MODEL)
-    model_path = MODEL_PATHS.get(name, BASE_DIR / "models" / str(name))
-    if not isinstance(model_path, Path):
+    resolved = get_runtime_model_path(name)
+    if is_model_repository_id(resolved):
         return note_assumption(
-            assumed(_DEFAULT_CONTEXT_WINDOW, model=name, detail="model path is not a filesystem path")
+            assumed(
+                _DEFAULT_CONTEXT_WINDOW,
+                model=name,
+                detail="model artifact is remote and has no local config evidence",
+            )
+        )
+    model_path = Path(resolved).expanduser()
+    if not model_path.is_absolute() and not model_path.exists():
+        return note_assumption(
+            assumed(
+                _DEFAULT_CONTEXT_WINDOW,
+                model=name,
+                detail="model path is not a local filesystem artifact",
+            )
         )
     return _context_window_evidence_for_artifact(name, _artifact_signature(model_path))
 
@@ -1371,13 +1402,17 @@ def _context_window_for_artifact_cached(name: str, signature: tuple) -> ContextW
             if not isinstance(config_payload, dict):
                 raise ValueError("model config.json is not an object")
             max_position_embeddings = _safe_positive_int(
-                config_payload.get("max_position_embeddings")
+                _context_config_value(config_payload, "max_position_embeddings")
             )
-            sliding_window = _safe_positive_int(config_payload.get("sliding_window"))
+            sliding_window = _safe_positive_int(
+                _context_config_value(config_payload, "sliding_window")
+            )
             # JSON carries these as real booleans OR as strings. bool("false")
             # is True, so a string-valued flag silently ENABLED sliding-window
             # expansion and the registry then advertised the larger window.
-            use_sliding_window = _coerce_bool(config_payload.get("use_sliding_window"))
+            use_sliding_window = _coerce_bool(
+                _context_config_value(config_payload, "use_sliding_window")
+            )
     except (
         OSError,
         ConnectionError,
