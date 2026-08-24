@@ -26,6 +26,7 @@ import math
 import os
 import time
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -420,6 +421,27 @@ def _check_the_latent_optimiser_contract(
                 accepted_steps=int(receipt.get("latent_opt_steps") or 0),
             ):
                 errors.append("latent_optimization_verifier_receipt_invalid")
+
+
+def _recurrence_halt_reason(receipt: Mapping[str, Any]) -> str:
+    """Why the episode stopped short, when it recorded a reason.
+
+    The stop gate writes ``halt_reason`` per branch. An episode that halted for
+    a named reason ran its recurrence and chose to stop; an episode with no
+    reason at all did not run it. Only the second is a fault, and telling them
+    apart is what stops an adaptive halt reading as a broken request.
+    """
+    gate = receipt.get("stop_gate")
+    branches = gate.get("branches") if isinstance(gate, Mapping) else None
+    if not isinstance(branches, (list, tuple)):
+        return ""
+    reasons = [
+        str(branch.get("halt_reason") or "")
+        for branch in branches
+        if isinstance(branch, Mapping) and branch.get("halt_reason")
+    ]
+    return reasons[0] if reasons else ""
+
 
 
 class LatentCortexService:
@@ -1642,13 +1664,25 @@ class LatentCortexService:
                 )
             ):
                 errors.append("affective_steering_alpha_mismatch")
+            # A depth request the episode HALTED below is not the same thing
+            # as a depth request that was never applied. Adaptive halting is a
+            # designed feature -- convergence, an invariant, or the learned
+            # stop policy can all end an episode at one step -- and reporting
+            # that as "unproven" made a correct outcome indistinguishable from
+            # a dropped request, on every turn where affect asked for two.
             if (
                 type(expected_loops) is not int
                 or expected_loops <= 0
                 or not positive_int(receipt, "steps_taken")
-                or receipt["steps_taken"] < expected_loops
             ):
                 errors.append("live_recurrence_depth_unproven")
+            elif receipt["steps_taken"] < expected_loops and not _recurrence_halt_reason(
+                receipt
+            ):
+                # Halting below the request with a named reason is the policy
+                # working; halting with no reason recorded means the depth was
+                # never applied. Only the second is a fault.
+                errors.append("live_recurrence_depth_not_applied")
         # CP126 f22c4ed8: this checked only that the field LOOKED like a
         # 64-character hex digest. The facade never hashed the actual
         # question, messages, config or budget, so a receipt could describe a
@@ -3779,6 +3813,39 @@ class LatentCortexService:
                     f"its statistics remain biased toward successes ({reason})"
                 ),
             )
+
+    def recurrence_depth_status(
+        self, requested_loops: int | None = None
+    ) -> dict[str, Any]:
+        """What the last turn asked recurrence for, and what it did.
+
+        Derived from the stored receipt rather than recorded during
+        verification, because the verifier is a static method and mutating
+        service state from it would tie a pure check to one instance.
+
+        A surface that asks for two loops and gets one every turn is worth
+        seeing even when the halt was correct, which is why an adaptive halt is
+        reported here instead of disappearing once it stopped being an error.
+        """
+        receipt = self._last_receipt or {}
+        steps = receipt.get("steps_taken")
+        if not isinstance(steps, int) or isinstance(steps, bool) or steps < 0:
+            return {"measured": False}
+        halt_reason = _recurrence_halt_reason(receipt)
+        status: dict[str, Any] = {
+            "measured": True,
+            "steps_taken": steps,
+            "halt_reason": halt_reason,
+        }
+        if isinstance(requested_loops, int) and not isinstance(requested_loops, bool):
+            status["requested_loops"] = requested_loops
+            if steps < requested_loops:
+                status["state"] = "halted_early" if halt_reason else "depth_not_applied"
+                status["expected"] = bool(halt_reason)
+            else:
+                status["state"] = "served_requested_depth"
+                status["expected"] = True
+        return status
 
     def _record_failure(
         self, reason: str, *, stage: str = "", evidence: dict[str, Any] | None = None
