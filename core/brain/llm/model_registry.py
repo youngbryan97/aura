@@ -138,7 +138,55 @@ _FLAG_MODEL = _declare_flag(
 
 logger = logging.getLogger("Aura.ModelRegistry")
 
-BASE_DIR = Path(os.getenv("AURA_ROOT", Path(__file__).resolve().parents[3]))
+def resolve_installation_root(checkout: Path) -> Path:
+    """The installation this source is running inside, not the source itself.
+
+    ``get_models_dir`` and ``get_fused_model_root`` both already say that the
+    model inventory and the promotion pointer belong to the running
+    installation rather than to one source checkout. The base directory did not
+    honour that: it resolved to the directory holding this file, so a linked
+    worktree looked for models and for the active cortex manifest underneath
+    itself, found neither, and reported the pointer invalid.
+
+    A linked worktree's ``.git`` is a file reading
+    ``gitdir: <primary>/.git/worktrees/<name>``, so the primary checkout is
+    recoverable without running git and without knowing anybody's home
+    directory. A primary checkout has a ``.git`` directory and is already the
+    answer.
+
+    Falls back to the checkout whenever the marker is missing, unreadable,
+    shaped differently, or names a directory that is not there -- a wrong path
+    that exists is worse than the local one, and this runs at import.
+    """
+    marker = checkout / ".git"
+    try:
+        if not marker.is_file():
+            return checkout
+        text = marker.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return checkout
+    if not text.startswith("gitdir:"):
+        return checkout
+    raw = text.split(":", 1)[1].strip()
+    if not raw:
+        return checkout
+    gitdir = Path(raw)
+    if not gitdir.is_absolute():
+        gitdir = (checkout / gitdir).resolve()
+    for parent in gitdir.parents:
+        if parent.name == ".git":
+            primary = parent.parent
+            return primary if primary.is_dir() else checkout
+    return checkout
+
+
+_SOURCE_CHECKOUT = Path(__file__).resolve().parents[3]
+_configured_root = str(os.getenv("AURA_ROOT", "")).strip()
+BASE_DIR = (
+    Path(_configured_root).expanduser()
+    if _configured_root
+    else resolve_installation_root(_SOURCE_CHECKOUT)
+)
 LOCAL_BACKEND = str(_FLAG_LOCAL_BACKEND.value()).strip().lower()
 
 
@@ -819,6 +867,24 @@ MODEL_PATHS = {
     "Qwen2.5-72B-Instruct-Q4":    BASE_DIR / "models" / "Qwen2.5-72B-Instruct-Q4",
 }
 
+#: Where MODEL_PATHS was baked. The table above is built once at import, so a
+#: models directory configured or resolved afterwards would never reach it --
+#: which is why patching BASE_DIR alone never moved a lookup. Entries that sit
+#: under this directory are rebased at call time; entries pointing elsewhere
+#: came from explicit configuration and are left exactly where they were put.
+_IMPORT_MODELS_DIR = BASE_DIR / "models"
+
+
+def _configured_model_location(name: str) -> Any:
+    """Where this model lives, honouring a models directory set after import."""
+    baked = MODEL_PATHS.get(name)
+    if baked is None:
+        return get_models_dir() / name
+    if isinstance(baked, Path) and baked.parent == _IMPORT_MODELS_DIR:
+        return get_models_dir() / baked.name
+    return baked
+
+
 ADAPTER_PATH = BASE_DIR / "data" / "adapters"
 
 
@@ -961,7 +1027,7 @@ def get_model_path(model_name: str | None = None) -> str:
             return str(cortex.resolve())
         return _LEGACY_CORTEX_REPOSITORY_ID
 
-    local_path = MODEL_PATHS.get(name, get_models_dir() / name)
+    local_path = _configured_model_location(name)
 
     # If it's a Path object, check if it exists
     if isinstance(local_path, Path):
@@ -1668,6 +1734,19 @@ def _lane_audit_cache_ttl_s() -> float:
         return 30.0
 
 
+def _active_cortex_pointer_digest() -> str:
+    """The promoted cortex pointer, or empty when there is none.
+
+    Read through the registry's own short-TTL spec cache, so asking costs a
+    stat rather than a directory walk.
+    """
+    try:
+        spec = get_active_cortex_spec()
+    except (OSError, ValueError, RuntimeError):
+        return ""
+    return spec.pointer_sha256 if spec is not None else ""
+
+
 def audit_lane_assignments(*, force_refresh: bool = False) -> dict[str, Any]:
     """Detect role drift so callers can surface it in health before runtime churn begins.
 
@@ -1677,14 +1756,25 @@ def audit_lane_assignments(*, force_refresh: bool = False) -> dict[str, Any]:
     blocking disk work that takes seconds exactly when the host is
     swapping (observed in stall dumps during the 110GB incident).
     """
+    # The key must be cheaper than the work it guards. Resolving each lane's
+    # runtime PATH here did a realpath per lane on every call, cache hit
+    # included -- the same blocking disk work the cache exists to avoid. It
+    # went unnoticed because it only costs anything when the model directories
+    # are actually present. Lane NAMES are flag lookups, and the active cortex
+    # pointer digest already carries any promotion that would move a path.
     cache_key = "|".join(
-        f"{endpoint}={get_lane_model_name(endpoint)}@{get_lane_runtime_model_path(endpoint)}"
-        for endpoint in (
-            PRIMARY_ENDPOINT,
-            DEEP_ENDPOINT,
-            BRAINSTEM_ENDPOINT,
-            FALLBACK_ENDPOINT,
-        )
+        [
+            *(
+                f"{endpoint}={get_lane_model_name(endpoint)}"
+                for endpoint in (
+                    PRIMARY_ENDPOINT,
+                    DEEP_ENDPOINT,
+                    BRAINSTEM_ENDPOINT,
+                    FALLBACK_ENDPOINT,
+                )
+            ),
+            f"cortex={_active_cortex_pointer_digest()}",
+        ]
     )
     ttl = _lane_audit_cache_ttl_s()
     now = time.monotonic()
