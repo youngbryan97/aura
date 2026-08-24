@@ -4121,6 +4121,54 @@
       "scope": "<module>._shell_sandbox_handler"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory_async",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle_async"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes_async",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle_async"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/engineering/export.py",
+      "scope": "<module>.write_bundle_async"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -15834,6 +15882,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "d006c9150041ac18efd4672510552372dea955f59a7fe0273fb5e2fea16ae00e",
+  "inventory_sha256": "fd1ab011e2079128760cbaee0d69049227741f9e75fdd9d29c21c2e0d3729b7c",
   "schema_version": 1
 }

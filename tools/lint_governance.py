@@ -169,6 +169,11 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "file_write_gateway": frozenset(
         {
+            # Engineering export owns one fixed artifacts/live_designs tree.
+            # Caller-selected subdirectories are confined beneath that root;
+            # bundle slugs and filenames are canonical single components, and
+            # every byte still crosses FileWriteGateway under a named scope.
+            "core/engineering/export.py",
             # Learned-language persistence owns two fixed, schema-bound
             # namespaces: matcher state beneath Aura's configured data root and
             # the frozen measurement receipt beneath the repository artifact

@@ -17,7 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
@@ -566,8 +566,6 @@ def build_bundle(
 
 
 def _target_directory(out_dir: str | None) -> Path:
-    from core.engineering.model import slug as make_slug
-
     root = (
         Path(__file__).resolve().parents[2] / "artifacts" / "live_designs"
     ).resolve()
@@ -579,11 +577,28 @@ def _target_directory(out_dir: str | None) -> Path:
     return Path(resolved or root)
 
 
+def _bundle_target(bundle: ExportBundle, out_dir: str | None) -> Path:
+    """Return the confined target after validating every caller-held name."""
+    from core.engineering.model import slug as make_slug
+
+    if bundle.slug != make_slug(bundle.slug):
+        raise ValueError("engineering export bundle slug is not canonical")
+    names: set[str] = set()
+    for entry in bundle.files:
+        name = str(entry.name)
+        if not name or Path(name).name != name or Path(name).is_absolute():
+            raise ValueError("engineering export filename must be one plain name")
+        if name in names:
+            raise ValueError(f"engineering export filename is duplicated: {name}")
+        names.add(name)
+    return _target_directory(out_dir) / bundle.slug
+
+
 def write_bundle(bundle: ExportBundle, out_dir: str | None = None) -> ExportBundle:
     """Write the bundle to disk through the governed write gateway."""
     from core.runtime.file_write_gateway import get_file_write_gateway
 
-    target = _target_directory(out_dir) / bundle.slug
+    target = _bundle_target(bundle, out_dir)
     gateway = get_file_write_gateway()
     gateway.ensure_directory(str(target), source="engineering_export")
     written: list[str] = []
@@ -601,7 +616,7 @@ async def write_bundle_async(bundle: ExportBundle, out_dir: str | None = None) -
     """The same, from async code, so no fsync lands on the event loop."""
     from core.runtime.file_write_gateway import get_file_write_gateway
 
-    target = _target_directory(out_dir) / bundle.slug
+    target = _bundle_target(bundle, out_dir)
     gateway = get_file_write_gateway()
     await gateway.ensure_directory_async(str(target), source="engineering_export")
     written: list[str] = []
