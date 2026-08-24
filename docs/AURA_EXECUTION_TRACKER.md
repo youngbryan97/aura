@@ -52197,3 +52197,73 @@ doc-drift and rlc-figures pass. Canonical smoke passes `120/121` with the
 known-red bounded-WOW alarm above and one environment-dependent skip. Next:
 Codex completes live boot validation, then the frozen bundle launches its
 single-residency recovery run.
+
+## Checkpoint 2026-08-24-968: Finish the CPU-Only 27B Recovery Package
+
+CPU-only preparation across CP961-CP966. No model was launched, stopped, or
+loaded. Every claim CP959 made was re-derived from the checkpoints rather than
+trusted, and two of them were wrong.
+
+**Corrections to CP959.** The ten digit token ids are identical on both
+checkpoints at `15..24`, so literal grounding crosses the migration intact;
+CP959 had reasoned from the vocabulary growing to `248,320` that every bound id
+was stale. All seven frontier opcode markers did move, being multi-token English
+phrases. Two of the five files CP959 listed as tokenizer-bound bind a typed
+opcode vocabulary and never touch a tokenizer. Counts move from 4
+model-independent and 5 token-bound to 7 and 2.
+`tools/verify_27b_grounding_portability.py` measures this per binding, and the
+inventory consumes the verdict rather than assuming one. A contract whose
+portability cannot be measured is reported bound.
+
+**Two defects that would have stopped the campaign.**
+`hasattr(layer.self_attn, target)` raises on a layer with no `self_attn`,
+because the attribute lookup precedes the guard; recurrent SFT execution would
+have failed at layer 16, the first linear-attention layer inside the recurrent
+window. And the depth-conditioned operator inventory could not see `linear_attn`
+at all, so it could not have reported a divergence from the adapter set it
+mirrors. `core/learning/hybrid_recurrence_geometry.py` now resolves a
+projection's parent block for either topology.
+
+**Fresh package identity.** `core/learning/recovery_package_identity.py` derives
+a package id from the checkpoint descriptor, so no payload edit produces the
+CP568 id from this model; requires every cited evidence path to sit in the fresh
+recovery namespace; and refuses a verdict without evidence measured on this
+checkpoint. The fingerprint excludes the model's path, because a claim that
+broke when a models folder was reorganised would teach re-sealing. The package
+is materialized with `verdict: null` and authorizes nothing.
+
+**MTP.** Zero `mtp.*` tensors in the mlx-community base and in the persona fuse,
+`mlx_lm`'s `qwen3_5` loader discards the keys on load, and no supported API
+reaches an internal head. Reported as a typed unsupported result; serving is
+unchanged. Draft-model speculation is supported and requires an exact vocabulary
+match, which leaves `Qwen3.5-9B-4bit` at `248,320`. Acceptance rate, speedup and
+output equivalence are all listed unmeasured, and acceptance telemetry returns
+`None` before anything is drafted rather than `0.0`.
+
+**Steering.** The retained bundle captured at layers 25 through 41; only four of
+those nine carry attention on this checkpoint. The regeneration plan records the
+kind of all 16 target layers and grants no authority until a causal A/B against
+a matched no-op, a lesion that removes the effect, and no control regression are
+all measured here. Evidence carrying another checkpoint's fingerprint is refused.
+
+**Launch.** `make rlc-27b-readiness` runs every CPU-runnable gate and prints the
+single launch command only when nothing blocks, splitting blockers into package
+and environmental because that decides whether waiting is a valid response. The
+five model-active stages remain contiguous inside one residency: calibration,
+training, canary, lesion arms, export.
+
+**Evidence boundary.** CP566's `BOUNDED_WOW_SIGNAL` stays 32B evidence. The
+CP568 package stays inactive and must not be re-sealed against the 27B.
+`tests/brain/test_bounded_wow_surface_live.py` remains red by design with
+`active_model_mismatch,resident_manifest_drift` and zero drifted source files;
+it fails identically at clean `origin/main` with none of this work applied.
+
+**Expected model-active workload.** CP566's `300` decodes over `60` tasks took
+`4,814.53` seconds on the 32B, and the recovery run is the same shape. Training
+wall time appears in no retained receipt and is carried as unmeasured rather
+than estimated.
+
+Migration suites pass `157/157`. Ruff, compilation, layering, governance
+ownership, writing and doc-drift pass. Canonical smoke passes `120/121` with the
+known-red bounded-WOW alarm above and one environment-dependent skip. Next:
+Codex completes live boot validation, then the frozen bundle launches.

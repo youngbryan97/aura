@@ -1,18 +1,11 @@
 {
  "blocker_counts": {
-  "environmental": 1,
+  "environmental": 0,
   "package": 0
  },
- "blockers": [
-  {
-   "class": "environmental",
-   "detail": "21.1 GiB free plus reclaimable, 26.1 GiB needed",
-   "kind": "insufficient_ram",
-   "remedy": "free memory, or wait for the resident model to unload"
-  }
- ],
+ "blockers": [],
  "bundle": "artifacts/migration/27b/campaign_bundle.json",
- "launch_command": null,
+ "launch_command": "caffeinate -dims /Users/bryan/.aura/live-source/.venv/bin/python tools/run_unified_intrinsic_resident_campaign.py --bundle artifacts/migration/27b/campaign_bundle.json --stage-journal artifacts/migration/27b/recovery/resume_journal.jsonl --evidence-root artifacts/migration/27b/recovery --detached",
  "measured_workload": {
   "basis": "CP566 on the 32B: 300 decodes over 60 tasks in 4,814.53 s",
   "decode_seconds": 4814.53,
@@ -27,7 +20,7 @@
   "export"
  ],
  "package": "artifacts/migration/27b/recovery/package.json",
- "ready_to_launch": false,
+ "ready_to_launch": true,
  "schema": "aura.rlc.27b_launch_readiness.v1",
- "source_commit": "6b3889f5d0e5685cefebbc62cdf17afc4e3c8d4b"
+ "source_commit": "7a33b481b3828d501a3e7628e67bfb0f79ed1202"
 }
