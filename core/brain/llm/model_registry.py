@@ -1734,6 +1734,84 @@ def _lane_audit_cache_ttl_s() -> float:
         return 30.0
 
 
+def _served_cortex_window() -> int | None:
+    """What window the promoted cortex was qualified for, or None."""
+    try:
+        limits = get_active_cortex_serving_limits()
+    except Exception:  # noqa: BLE001
+        return None
+    served = getattr(limits, "served_context_tokens", None)
+    return served if isinstance(served, int) and served > 0 else None
+
+
+def resident_model_label(*, default: str = "Cortex") -> str:
+    """A display name for the resident cortex, derived from what is loaded.
+
+    ``size_class`` is a *resource* bucket, not a product name: its token list
+    maps 27b onto "32b" on purpose, because the two cost the host the same
+    class of memory and the eviction policy keys on that. Reading it as a label
+    is how a 27B resident came to announce itself as a 32B.
+
+    The parameter count is the honest source. It comes from the signed artifact
+    descriptor, so a label derived from it moves when the checkpoint does and
+    cannot drift into naming a model that was retired.
+    """
+    try:
+        spec = get_active_cortex_spec()
+    except Exception:  # noqa: BLE001 - a name is never worth an exception here
+        return default
+    if spec is None:
+        return default
+    profile = (spec.artifact_descriptor() or {}).get("artifact_profile")
+    parameters = (profile or {}).get("total_parameters")
+    if isinstance(parameters, (int, float)) and parameters > 0:
+        billions = float(parameters) / 1e9
+        rendered = f"{billions:.0f}B" if billions >= 1 else f"{billions * 1000:.0f}M"
+        return rendered
+    tag = str(getattr(spec, "tag", "") or "").strip()
+    return tag or default
+
+
+def resident_model_identity() -> dict[str, Any]:
+    """What the runtime should say about the model it is actually serving.
+
+    Every label surface asked its own question and answered from a constant.
+    This is the one answer, read from the active pointer and the signed
+    descriptor, so health, logs, and the UI cannot disagree with each other or
+    with the checkpoint on disk.
+    """
+    label = resident_model_label()
+    try:
+        spec = get_active_cortex_spec()
+    except Exception:  # noqa: BLE001 - see resident_model_label
+        spec = None
+    profile = {}
+    if spec is not None:
+        try:
+            profile = (spec.artifact_descriptor() or {}).get("artifact_profile") or {}
+        except Exception:  # noqa: BLE001
+            profile = {}
+    try:
+        limits = get_active_cortex_serving_limits()
+    except Exception:  # noqa: BLE001
+        limits = None
+    return {
+        "label": label,
+        "lane": f"{PRIMARY_ENDPOINT} ({label})",
+        "tag": str(getattr(spec, "tag", "") or ""),
+        "model_type": str(profile.get("model_type") or ""),
+        "total_parameters": profile.get("total_parameters"),
+        # The coarse memory bucket, kept and named as such so nothing has to
+        # reach for it when it wants a name.
+        "resource_class": str(getattr(spec, "size_class", "") or ""),
+        "native_context_window": profile.get("native_context_window"),
+        "served_context_tokens": (
+            limits.served_context_tokens if limits is not None else None
+        ),
+        "descriptor_sha256": str(getattr(spec, "descriptor_sha256", "") or ""),
+    }
+
+
 def _active_cortex_pointer_digest() -> str:
     """The promoted cortex pointer, or empty when there is none.
 

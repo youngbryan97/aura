@@ -130,6 +130,16 @@ BREADTH_PROBES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+def _resident_size_label() -> str:
+    """The resident cortex's own label, or empty when none can be read."""
+    try:
+        from core.brain.llm.model_registry import resident_model_label
+
+        return resident_model_label(default="")
+    except (ImportError, OSError, ValueError, RuntimeError):
+        return ""
+
+
 def _greedy_decode(
     model,
     tokenizer,
@@ -1078,7 +1088,9 @@ def stage_upgrade(
         "base_model": str(base_model_path),
         "fused_at": int(time.time()),
         "schema_version": 3,
-        "size": current.get("size", "32B"),
+        # A default naming one checkpoint's parameter count outlives that
+        # checkpoint. Derived from the active pointer, or left absent.
+        "size": current.get("size") or _resident_size_label(),
         "tag": str(tag),
         "artifact_descriptor": descriptor,
         "evaluation": evaluation,

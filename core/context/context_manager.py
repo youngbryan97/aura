@@ -35,13 +35,39 @@ MODEL_CONTEXT_LIMITS = {
     "claude-haiku-4":            32_000,
     "gpt-4o":                    96_000,
     "gpt-4o-mini":               96_000,
-    "Cortex":                    32_000,  # 32B local lane — 32K context
-    "Solver":                    32_000,  # 72B deep lane — 32K context
+    # Cortex is resolved from the active cortex serving profile at call time;
+    # this entry is the fallback for when no pointer is readable. Naming a
+    # parameter count here made the table claim a model rather than a window.
+    "Cortex":                    32_000,
+    "Solver":                    32_000,  # deep lane — 32K context
     "Brainstem":                  8_000,  # 7B local fast lane — 8K context
     "Reflex":                     4_000,  # 1.5B emergency — minimal context
     "default":                   16_000,
 }
 DEFAULT_HEADROOM = 0.80
+
+
+def resolved_context_limit(lane: str, *, served_tokens: int | None = None) -> int:
+    """The window this lane serves, taking a measured answer over the table.
+
+    The active cortex carries a qualified serving profile, and it is the only
+    thing that knows what window the promoted checkpoint was qualified for. A
+    constant here was right for exactly one checkpoint and silently wrong for
+    the next.
+
+    Layering forbids this module from reaching up for that profile, and forbids
+    the registry from reaching down to install it, so the caller -- which is
+    already holding the limits -- passes the number. The table stays as the
+    answer for a process that has no cortex to ask about.
+    """
+    name = str(lane or "").strip() or "default"
+    if (
+        isinstance(served_tokens, int)
+        and not isinstance(served_tokens, bool)
+        and served_tokens > 0
+    ):
+        return served_tokens
+    return MODEL_CONTEXT_LIMITS.get(name, MODEL_CONTEXT_LIMITS["default"])
 
 
 # ── Tokenizer ───────────────────────────────────────────────────────────────

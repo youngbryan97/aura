@@ -4733,7 +4733,7 @@ async function readChatDeliveryResponse(response) {
 
 async function postChatDelivery(item, message) {
     const controller = new AbortController();
-    // Lane-aware budget: a real 32B turn can take up to the ready/recovering
+    // Lane-aware budget: a real cortex turn can take up to the ready/recovering
     // ceiling; the old flat 90s frontend timeout aborted legitimate turns.
     const requestTimeoutMs = conversationLaneRequestTimeoutMs(state.conversationLane);
     const timeoutId = window.setTimeout(
@@ -6044,7 +6044,7 @@ function applyConversationLane(lane, healthStatus = '') {
             tierEl.textContent = laneWords.tier;
             tierEl.title = laneStandby
                 ? 'Local Cortex is not conversation-ready yet.'
-                : effectiveLane.last_failure_reason || (effectiveLane.desired_model || 'Cortex (32B)');
+                : effectiveLane.last_failure_reason || (effectiveLane.desired_model || 'Local Cortex');
             tierEl.style.color = activeGeneration
                 ? 'var(--success)'
                 : effectiveLane.state === 'failed' ? 'var(--error)' : 'var(--warn)';

@@ -292,7 +292,7 @@ class AutonomicCore:
             logger.error("Zero-Touch auto-recovery error: %s", e)
 
     async def _check_idle_model_swap(self):
-        """Model hot-swap budget: unload 32B cortex when idle to reclaim ~15GB.
+        """Model hot-swap budget: unload the resident cortex when idle.
 
         After 5 minutes with no user interaction, automatically swap the 32B
         model for the 7B brainstem. The inference gate will lazy-reload the 32B
@@ -341,7 +341,7 @@ class AutonomicCore:
 
             logger.info(
                 "Idle model swap: No user interaction for %.0fs, RAM at %.1f%%. "
-                "Unloading 32B cortex to reclaim memory.",
+                "Unloading the resident cortex to reclaim memory.",
                 idle_seconds, ram_pct,
             )
 
