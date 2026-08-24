@@ -124,6 +124,40 @@ def test_engine_resolves_hybrid_language_model_layers():
     assert engine.model_layer_view.path == "language_model.model.layers"
 
 
+def test_engine_canonicalizes_authority_messages_before_chat_template(tiny_model):
+    class StrictSystemFirstTokenizer:
+        model_max_length = 512
+
+        def apply_chat_template(self, messages, *, add_generation_prompt, tokenize):
+            assert add_generation_prompt is True
+            assert tokenize is True
+            assert [message["role"] for message in messages] == [
+                "system",
+                "user",
+                "assistant",
+            ]
+            assert messages[0]["content"] == "identity\n\npolicy"
+            return [5, 9, 17]
+
+        def encode(self, text, add_special_tokens=False):
+            del text, add_special_tokens
+            return [5]
+
+    engine = LatentCortexEngine(
+        tiny_model,
+        tokenizer=StrictSystemFirstTokenizer(),
+        config=_config(),
+    )
+    messages = [
+        {"role": "user", "content": "question"},
+        {"role": "system", "content": "identity"},
+        {"role": "assistant", "content": "prior"},
+        {"role": "system", "content": "policy"},
+    ]
+
+    assert engine._encode(None, messages, None) == [5, 9, 17]
+
+
 def _config(**overrides) -> CortexConfig:
     base = dict(
         workspace=WorkspaceConfig(n_slots=4, seed=3),
