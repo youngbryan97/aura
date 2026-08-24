@@ -15,8 +15,7 @@ crossing another leader is how a reader loses their place.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -225,7 +224,7 @@ def _place_callouts(
 def _feature_point(
     part, sheet_points: np.ndarray, index_range: tuple[int, int]
 ) -> Point:
-    """A point on the part worth pointing a leader at.
+    """A visible attachment point for a callout leader.
 
     The outermost projected vertex reads best: a leader that lands in the
     middle of a wireframe is ambiguous about which part it means.
@@ -285,7 +284,9 @@ def _draw_parts(
         # drawing where a part in front covers the one behind.
         fill_layer = f"{layer_prefix}fill"
         wash = 0.14 if xray else 0.96
-        for face, light in zip(projected.faces, projected.face_light):
+        for face, light in zip(
+            projected.faces, projected.face_light, strict=True
+        ):
             polygon = [(float(sheet[i][0]), float(sheet[i][1])) for i in face]
             canvas.polygon(
                 polygon,
@@ -519,7 +520,9 @@ def draw_exploded(
     right, up, _forward = camera.basis()
 
     if trails:
-        for (part, home, _f, _e), (_p, away, _f2, _e2) in zip(assembled, exploded):
+        for (_part, home, _f, _e), (_p, away, _f2, _e2) in zip(
+            assembled, exploded, strict=True
+        ):
             if len(home) == 0:
                 continue
             start = np.array([[float(np.mean(home @ right)), float(np.mean(home @ up))]])

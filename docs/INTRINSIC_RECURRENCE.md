@@ -1,6 +1,6 @@
 # Intrinsic recurrence
 
-Status: Guide · Reviewed against the tree 2026-08-21
+Status: Guide · Reviewed against the tree 2026-08-24 at CP1012
 
 The live front of the [Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md)
 programme. This page covers the pivot from *talking to* a recurrent workspace
@@ -164,17 +164,36 @@ averaging it away: ordinary decode was already at ceiling there (15/15), and
 treatment preserved all fifteen instead of manufacturing a gain by regressing
 its own baseline. The 44 came from the other three families.
 
-**It runs in the live serving path (CP568, CP824).**
-`core/brain/llm/semantic_neural_serving.py` pins package
-`cp568-resident-semantic-neural-active-r1` and refuses to serve unless the
-activation record says `active_by_default`. Runtime verification over 120
+**The bounded mechanism survived migration to a different cortex generation
+(CP1011).** The fused Qwen3.8-27B uses a different architecture, vocabulary,
+and model descriptor; representation-bound 32B adapters and steering vectors
+were quarantined rather than relabeled. On a separately seeded cohort with the
+same four executable families and five-arm design, the descriptor-bound 27B
+treatment answered 60/60, ordinary decode 0/60, matched wire 6/60,
+coefficient lesion 4/60, and wrong-state 0/60. Sixty gains, no regressions,
+exact one-sided *p* = 8.67 × 10⁻¹⁹. An independent verifier replayed all 300
+journal rows before frozen adjudication returned `BOUNDED_WOW_SIGNAL`.
+
+That is evidence for **bounded architectural portability**: the result is not
+confined to one checkpoint's representation geometry. It is not evidence that
+27B is generally better than 32B, because these were separate cohorts rather
+than a paired head-to-head benchmark, and it does not expand the admitted task
+grammar.
+
+**It runs in the live serving path (CP568, CP824, CP1011).**
+`core/brain/llm/semantic_neural_serving.py` refuses to serve unless the
+activation record says `active_by_default` and matches the active model
+descriptor. The current package is
+`rlc-27b-recovery-05346acd618d1c925f16`. Runtime verification over 120
 tasks — four domains, three difficulties, three scientific surface profiles —
-was 120/120 exact and 120/120 lesion-disrupted, with unsupported language
-refused. Latency is per package, and each one carries its own measurement:
+was 120/120 exact, 120/120 lesion-disrupted, 120/120 through foreground and
+service integrations, with unsupported language refused. Latency is per
+package, and each one carries its own measurement:
 the CP567 qualification ran a median 46.160 ms and a maximum 83.188 ms, the
-CP568 shadow 34.686 / 63.737 ms, and the active `r1` package that serves today
-6.501 / 17.102 ms. `make rlc-figures` recomputes every one of those from the
-retained verification files.
+CP568 shadow 34.686 / 63.737 ms, and the prior active `r1` package measured
+6.501 / 17.102 ms on the 32B. The current 27B package measured
+9.229 / 38.696 ms. `make rlc-figures` recomputes retained historical figures;
+the 27B evidence remains under `artifacts/migration/27b/recovery/`.
 
 CP824 removed the last thing keeping it out of reach: admission had been
 coupled to `desktop_required`, and ordinary sovereign chat does not set that,

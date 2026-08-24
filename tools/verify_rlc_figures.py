@@ -82,6 +82,14 @@ CP568_ACTIVE = (
     "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/"
     "runtime_verification.json"
 )
+CP1011 = (
+    "artifacts/migration/27b/recovery/cp1003-semantic-canary/"
+    "adjudication.json"
+)
+CP1011_RUNTIME = (
+    "artifacts/migration/27b/recovery/cp1003-semantic-canary/"
+    "runtime_verification.json"
+)
 PREREG = "artifacts/current/latent_campaign_prereg_20260717.json"
 RUN2 = "artifacts/current/latent_campaign_1p5b_run2.json"
 SWEEP_32B = "artifacts/current/latent_lab_32b_exp1_templated.json"
@@ -181,6 +189,23 @@ FIGURES: tuple[Figure, ...] = (
            lambda d: f"{_p50(d)} / {_max(d)} ms"),
     Figure("6.501 / 17.102 ms", CP568_ACTIVE,
            lambda d: f"{_p50(d)} / {_max(d)} ms"),
+    Figure("ordinary decode 0/60", CP1011,
+           lambda d: f"ordinary decode {_arm('ordinary_base')(d)}/{d['task_count']}",
+           why="CP1011 ordinary decode"),
+    Figure("matched wire 6/60", CP1011,
+           lambda d: f"matched wire {_arm('matched_wire_base')(d)}/{d['task_count']}",
+           why="CP1011 matched wire control"),
+    Figure("coefficient lesion 4/60", CP1011,
+           lambda d: f"coefficient lesion {_arm('coefficient_lesion')(d)}/{d['task_count']}",
+           why="CP1011 coefficient lesion"),
+    Figure("wrong-state 0/60", CP1011,
+           lambda d: f"wrong-state {_arm('matched_wrong_state')(d)}/{d['task_count']}",
+           why="CP1011 wrong-state control"),
+    Figure("8.67 × 10⁻¹⁹", CP1011,
+           lambda d: _sci(d["paired_one_sided_exact_p"], digits=2),
+           why="CP1011 paired one-sided exact p"),
+    Figure("9.229 / 38.696 ms", CP1011_RUNTIME,
+           lambda d: f"{_p50(d)} / {_max(d)} ms"),
     Figure("21/72", RUN2, lambda d: f"{_ablation_totals(d)['vanilla']}/72"),
     Figure("(7–13/72)", RUN2, lambda d: _arm_range(d)),
     # Accuracies are recorded to four places and quoted to three. Rounding is
@@ -193,16 +218,16 @@ FIGURES: tuple[Figure, ...] = (
 )
 
 
-def _sci(value: float) -> str:
+def _sci(value: float, *, digits: int = 1) -> str:
     """Render a p-value the way the documents write it."""
     exponent = 0
     mantissa = float(value)
     while mantissa < 1.0:
         mantissa *= 10.0
         exponent -= 1
-    digits = "⁰¹²³⁴⁵⁶⁷⁸⁹"
-    tail = "".join(digits[int(c)] for c in str(abs(exponent)))
-    return f"{mantissa:.1f} × 10⁻{tail}"
+    superscripts = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+    tail = "".join(superscripts[int(c)] for c in str(abs(exponent)))
+    return f"{mantissa:.{digits}f} × 10⁻{tail}"
 
 
 def _arm_range(run: Any) -> str:
@@ -242,7 +267,7 @@ def _floor_count(pattern: str) -> int:
 
 #: Where an RLC latency may legitimately come from. Every retained runtime
 #: verification, including the per-task rows.
-LATENCY_SOURCES = (CP567_RUNTIME, CP568_SHADOW, CP568_ACTIVE)
+LATENCY_SOURCES = (CP567_RUNTIME, CP568_SHADOW, CP568_ACTIVE, CP1011_RUNTIME)
 
 #: The RLC section of a mixed document. Latency prose outside it belongs to
 #: another subsystem and is not this gate's business.

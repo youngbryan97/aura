@@ -266,6 +266,7 @@ program traces instead of answers. That is where the gain came from.
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
 | Capability gain, **trained intrinsic** recurrence, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
+| Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -279,15 +280,27 @@ failures converted, none regressed, paired one-sided exact *p* = 5.7 × 10⁻¹�
 gain disappears under lesion, which is what makes it a claim about the trained
 coefficients rather than about extra decode budget.
 
+The 2026-08-24 cortex migration then repeated that bounded claim on the fused
+Qwen3.8-27B resident model. A separately seeded 60-task, 300-decode campaign
+returned treatment 60/60, ordinary decode 0/60, matched wire 6/60,
+coefficient lesion 4/60, and wrong-state 0/60, with no regressions and exact
+one-sided *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 journal
+rows before the frozen adjudicator returned `BOUNDED_WOW_SIGNAL` again. This
+is evidence that the bounded typed tissue/executor mechanism is portable
+across two model generations; it is not a head-to-head 27B-versus-32B quality
+benchmark because the cohorts and model identities differ.
+
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there
 (15/15), and the controller preserved all fifteen instead of manufacturing a
 gain by regressing its own baseline. The other three families supplied the 44.
 
-It runs in the live serving path today. `semantic_neural_serving.py` pins the
-package `cp568-resident-semantic-neural-active-r1` and refuses to serve unless
-the activation record says `active_by_default`; that package's runtime
-verification is 120/120 exact and 120/120 lesion-disrupted at a median 5.3 ms.
+It runs in the live serving path today. `semantic_neural_serving.py` refuses to
+serve unless a descriptor-bound activation record says `active_by_default`.
+The current 27B package is `rlc-27b-recovery-05346acd618d1c925f16`; its runtime
+verification is 120/120 exact, 120/120 lesion-disrupted, 120/120 through both
+foreground and service integrations, and unsupported language refused, at a
+9.229 / 38.696 ms median / maximum.
 
 It is still not a broad reasoning gain, not static fusion, not frontier
 performance, and it still cannot answer ordinary chat — admission is decided

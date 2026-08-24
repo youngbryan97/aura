@@ -1,7 +1,7 @@
 # Recursive Latent Cortex (RLC)
 
-Status: Guide · Programme landing page · Reviewed against the tree 2026-08-21
-at CP832. Checkpoints land faster than this page tracks; the claims ladder
+Status: Guide · Programme landing page · Reviewed against the tree 2026-08-24
+at CP1012. Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
 
@@ -14,7 +14,8 @@ Aura's largest research programme. The question:
 The machinery works. **The frozen loop answered no, and the programme's own
 preregistered campaign is what proved it. Trained intrinsic recurrence then
 answered yes inside a narrow boundary — an adjudicated `BOUNDED_WOW_SIGNAL`
-(CP566), replicated and lesion-dependent, on four named executable families.**
+on four named executable families, first on the resident 32B (CP566) and then
+again after migration to a distinct fused 27B cortex (CP1011).**
 The two mechanisms are different, and the claims ladder below keeps them apart.
 
 Turn the frozen resident checkpoint from a fixed-depth 64-layer pipeline into
@@ -29,7 +30,7 @@ Package: `core/brain/llm/latent_cortex/` (worker-side, pure MLX, lazy imports �
 156 modules)
 Service: `ServiceNames.LATENT_CORTEX = "latent_cortex"` (orchestrator-side)
 Worker action: `latent_reason` (runs on the RESIDENT model, no reload)
-Surface, 2026-08-21: 55 `tools/` entry points and 231 test files naming the
+Surface, 2026-08-24: 55 `tools/` entry points and 231 test files naming the
 latent cortex or recurrence, over 250 frozen evidence entries under
 `artifacts/closeout/latent_cortex/`. These only grow; `make rlc-figures`
 holds them to a floor rather than an exact count.
@@ -72,16 +73,17 @@ preregistered campaigns with committed seeds.
 | | |
 |---|---|
 | **Mechanics** | **PROVEN.** KV rewind, RMSMatch stability, schedule validation, fast-weight identity-at-attach and proven-erase, checkpoint invariant, slot-ablation causality, matched-magnitude controls, equal-FLOP accounting — all on real `mlx_lm` Qwen2 weights, plus a full episode end to end on a trained 1.5B checkpoint in ~1.3s with contracting residuals (0.95 → 0.10). |
-| **Runtime integration** | **PROVEN.** Live on the resident 32B through the signed installed app; deep deliberation routes DEEP passes through latent episodes. Kill switch `AURA_LATENT_CORTEX=0`. |
+| **Runtime integration** | **PROVEN.** Live on both the historical resident 32B and current fused 27B through the signed installed app; deep deliberation routes DEEP passes through latent episodes. Kill switch `AURA_LATENT_CORTEX=0`. |
 | **Capability gain, frozen loop** | **REFUTED at 1.5B scale.** The 2026-07-17 preregistered campaign (seed committed first, n=24/family, Holm-corrected) returned: slot causality REFUTED at n=72; all 7 factorial ablation arms REFUTED — vanilla 21/72 beat every latent arm (7–13/72); self-consistency beat virtual width; gradient latent optimization was indistinguishable from its random control *and* from off. On an untrained-for-recurrence checkpoint at this scale, the frozen loop does not merely fail to help — **it hurts.** |
 | **Capability gain, 32B frozen loop** | **CONJECTURE (negative point estimate).** Template-parity sweep: latent 0.167→0.375 over 1→2 recurrent steps then plateau; vanilla 0.417 leads with fully overlapping Wilson intervals at n=24. Statistical parity. |
 | **Capability gain, 32B trained intrinsic recurrence** | **`BOUNDED_WOW_SIGNAL` (CP566).** A different mechanism: the answer's own token stream re-enters the middle block, and the controller is trained on typed traces. On a frozen four-domain cohort of 60 typed tasks the trained controller answered 60/60 exactly against 16/60 for ordinary decode; matched wire base 7, coefficient lesion 5, wrong-state control 0; 44 gains, 0 regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated, replicated, lesion-dependent, and bounded to four named executable families. |
+| **Cross-generation recovery on the fused 27B** | **`BOUNDED_WOW_SIGNAL` (CP1011).** A separately seeded 60-task cohort on the descriptor-bound Qwen3.8-27B resident cortex returned treatment 60/60, ordinary decode 0/60, matched wire 6, coefficient lesion 4, wrong-state 0; 60 gains, 0 regressions, exact *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 rows and runtime verification passed 120/120 exact plus 120/120 lesion disruptions. This establishes bounded mechanism portability across two cortex generations, not general model superiority. |
 | **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 ### What the training front has established
 
-Working on a 1.5B vehicle so the resident 32B stays live, at
+The programme used a 1.5B vehicle while the historical resident 32B stayed live, at
 `tools/train_unified_intrinsic_recurrence.py` and its evaluator:
 
 - **Answer-only SFT is the wrong objective.** Training on answers taught the
@@ -111,9 +113,18 @@ Working on a 1.5B vehicle so the resident 32B stays live, at
   answer-blind parser over the public task grammar decides admission.
   [INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) carries the detail and the
   two entries this retired from the "not established" list.
+- **The gain survived a cortex-generation change (CP1003–CP1011).** The fused
+  27B could not inherit 32B representation-bound adapters or steering vectors.
+  The model-independent typed tissue was rebound to the new descriptor and
+  remeasured instead: 60/60 treatment, 0/60 ordinary, 6/60 matched wire, 4/60
+  coefficient lesion, 0/60 wrong state, with all 300 journal rows independently
+  replayed. The active package is
+  `rlc-27b-recovery-05346acd618d1c925f16`; unsupported language remains refused.
 
-Next bounded step: the 1.5B adaptation over train depths 1,3,4,5,6,8,10 with
-held-out 12,16, then the already-frozen four-arm behavioral canary.
+Next bounded step: regenerate and lesion-test the 27B-specific
+representation-bound recurrent adapters and CAA vectors, then expand the
+fresh equal-compute battery beyond the four executable families. The portable
+typed package does not authorize either model-basis component by association.
 
 ### Two negative results that were void
 

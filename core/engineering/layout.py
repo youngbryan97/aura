@@ -54,7 +54,7 @@ def _extent(part: Part) -> np.ndarray:
 
 
 def _inside_extent(part: Part) -> np.ndarray:
-    """The usable space inside an enclosure, allowing for its wall."""
+    """The enclosure's usable space after subtracting its wall."""
     outer = _extent(part)
     if part.solid is None:
         return outer
@@ -134,7 +134,7 @@ def _pack_inside(host: Part, contents: list[Part]) -> dict[str, Placement]:
     cursor = -needed / 2.0
     host_centre = np.asarray(host.placement.position, dtype=float)
     placements: dict[str, Placement] = {}
-    for part, size in zip(contents, sizes):
+    for part, size in zip(contents, sizes, strict=True):
         position = np.array(host_centre, dtype=float)
         position[axis] = host_centre[axis] + cursor + size / 2.0
         placements[part.id] = Placement(

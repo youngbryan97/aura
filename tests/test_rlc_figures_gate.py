@@ -58,6 +58,17 @@ def test_a_measured_latency_is_not_a_finding(gate):
     assert gate._unsourced_latencies({"docs/INTRINSIC_RECURRENCE.md": written}) == []
 
 
+def test_migrated_27b_latency_is_a_measured_figure(gate):
+    migrated = gate._load(gate.CP1011_RUNTIME)
+    written = (
+        f"{migrated['p50_latency_ms']:.3f} / "
+        f"{migrated['max_latency_ms']:.3f} ms"
+    )
+    assert gate._unsourced_latencies(
+        {"docs/INTRINSIC_RECURRENCE.md": written}
+    ) == []
+
+
 def test_latency_prose_outside_the_rlc_section_is_left_alone(gate):
     readme = "## Something Else\n\nBudget 9999 ms for the first token.\n"
     assert gate._unsourced_latencies({"README.md": readme}) == []
@@ -115,3 +126,4 @@ def test_missing_evidence_is_reported_rather_than_skipped(gate, monkeypatch):
 
 def test_the_p_value_renders_the_way_the_documents_write_it(gate):
     assert gate._sci(5.684341886080802e-14) == "5.7 × 10⁻¹⁴"
+    assert gate._sci(8.673617379884035e-19, digits=2) == "8.67 × 10⁻¹⁹"
