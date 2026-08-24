@@ -1,0 +1,120 @@
+{
+ "adopted": [
+  "single_resident_worker_across_stages",
+  "pretokenize_the_frozen_task_set",
+  "cpu_stages_outside_the_model_process"
+ ],
+ "arm_equality_rule": "an optimization that changes any arm's measured compute is rejected, including one that would make a control cheaper: equal-compute and lesion validity outrank wall-clock",
+ "counted_changes": {
+  "decode_calls_after": 364,
+  "decode_calls_before": 364,
+  "decode_calls_note": "unchanged on purpose: every adopted optimization is outside the model's own work, so the scientific workload is identical",
+  "model_loads_after": 1,
+  "model_loads_before": 5,
+  "task_tokenizations_after": 60,
+  "task_tokenizations_before": 364
+ },
+ "measured_reference": {
+  "arm_rows": 300,
+  "arm_seconds": {
+   "coefficient_lesion": 733.2,
+   "matched_wire_base": 437.7,
+   "matched_wrong_state": 654.0,
+   "ordinary_base": 2457.4,
+   "treatment": 524.3
+  },
+  "checkpoint": "Qwen2.5-32B fuse (the only measured run of this shape)",
+  "decode_calls": 364,
+  "dominant_arm": "ordinary_base",
+  "elapsed_seconds": 4814.533,
+  "retries_by_arm": {
+   "coefficient_lesion": 32,
+   "matched_wire_base": 0,
+   "matched_wrong_state": 29,
+   "ordinary_base": 0,
+   "treatment": 3
+  },
+  "retry_decodes": 64,
+  "rows_by_arm": {
+   "coefficient_lesion": 60,
+   "matched_wire_base": 60,
+   "matched_wrong_state": 60,
+   "ordinary_base": 60,
+   "treatment": 60
+  },
+  "rows_whose_prefix_was_already_cached": 60,
+  "source": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/result.json",
+  "task_count": 60
+ },
+ "optimizations": [
+  {
+   "affects_measured_compute": false,
+   "after": "1 model load, held across the five model-active stages",
+   "before": "5 model loads (one per stage command)",
+   "changes": "process lifecycle",
+   "counted_saving": "4 model loads",
+   "name": "single_resident_worker_across_stages",
+   "status": "adopt",
+   "wall_clock": "unmeasured -- no retained receipt records a load duration"
+  },
+  {
+   "affects_measured_compute": false,
+   "after": "60 task tokenizations, digest-bound to the campaign",
+   "before": "364 task tokenizations",
+   "changes": "CPU work before the first decode",
+   "counted_saving": "304 tokenizations",
+   "name": "pretokenize_the_frozen_task_set",
+   "status": "adopt",
+   "wall_clock": "unmeasured -- tokenization is not separately timed in the receipt"
+  },
+  {
+   "affects_measured_compute": false,
+   "after": "after unload, from immutable artifacts, in a separate process",
+   "before": "in-process with the weights resident",
+   "changes": "where verification, hashing, rendering and adjudication run",
+   "counted_saving": "0 decode calls; frees the model lane earlier",
+   "name": "cpu_stages_outside_the_model_process",
+   "status": "adopt",
+   "wall_clock": "unmeasured"
+  },
+  {
+   "affects_measured_compute": false,
+   "changes": "nothing -- this is existing behaviour",
+   "counted_saving": "0 -- claiming it would invent a speedup from existing behaviour",
+   "evidence": "60 of 300 rows prefilled zero tokens in CP566",
+   "name": "prompt_prefix_reuse",
+   "status": "already_implemented"
+  },
+  {
+   "affects_measured_compute": true,
+   "name": "batch_greedy_decodes_across_arms",
+   "reason": "_arm_order counterbalances arm order per task so no arm's cache state can systematically advantage another. Batching by arm destroys the interleaving counterbalancing exists to create.",
+   "status": "rejected"
+  },
+  {
+   "affects_measured_compute": true,
+   "name": "drop_serialization_retries",
+   "reason": "retries concentrate in the arms designed to fail -- {'coefficient_lesion': 32, 'matched_wire_base': 0, 'matched_wrong_state': 29, 'ordinary_base': 0, 'treatment': 3} -- so they are the lesion and wrong-state controls behaving correctly, not waste",
+   "status": "rejected"
+  },
+  {
+   "affects_measured_compute": true,
+   "name": "share_post_treatment_state_between_arms",
+   "reason": "an arm reading another arm's post-treatment state is not that arm",
+   "status": "rejected"
+  }
+ ],
+ "rejected": [
+  "batch_greedy_decodes_across_arms",
+  "drop_serialization_retries",
+  "share_post_treatment_state_between_arms"
+ ],
+ "schema": "aura.rlc.27b_campaign_execution_plan.v1",
+ "tokenization": {
+  "eliminated": 304,
+  "note": "only the immutable task half is shared; the per-arm context and correction text differ per attempt and are tokenized either way",
+  "task_prompt_tokenizations_required": 60,
+  "task_prompt_tokenizations_today": 364
+ },
+ "wall_clock_claim": "none. Every adopted optimization removes process and CPU overhead that no retained receipt times separately, so the saving is counted in loads and tokenizations and not in seconds."
+}
