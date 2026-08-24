@@ -3102,6 +3102,10 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "semantic_completion_contract",
         "semantic_completion_satisfied",
         "semantic_completion_incomplete",
+        "continuation_resume_requested",
+        "continuation_resume_applied",
+        "continuation_resume_available",
+        "continuation_resume_failure_reason",
         "caller_requested_max_tokens",
         "adaptive_suggested_max_tokens",
         "output_contract_generation_floor",
@@ -3124,6 +3128,9 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "applied",
     }
     receipt = {key: value[key] for key in allowed if key in value}
+    resume_handle = str(value.get("continuation_resume_handle") or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
+        receipt["continuation_resume_handle"] = resume_handle
     contract = value.get("requested_output_contract")
     if isinstance(contract, dict):
         contract_allowed = {
@@ -4537,6 +4544,11 @@ def _build_the_generation_request(
     writing. It reads 10 name(s) from the turn and hands back
     1.
     """
+    continuation_resume_handle = str(
+        kwargs.get("user_surface_continuation_resume_handle") or ""
+    ).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{32}", continuation_resume_handle):
+        continuation_resume_handle = ""
     req = {
         "id": req_id,
         "seq": self._job_seq_counter,
@@ -4606,6 +4618,7 @@ def _build_the_generation_request(
         "user_surface_continuation_partial": continuation_state_text(
             kwargs.get("user_surface_continuation_partial")
         ),
+        "user_surface_continuation_resume_handle": continuation_resume_handle,
         "semantic_completion_contract": bool(
             kwargs.get("semantic_completion_contract", False)
         ),

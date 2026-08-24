@@ -11594,6 +11594,7 @@ class InferenceGate:
             "semantic_completion_contract",
             "user_surface_continuation_contract",
             "user_surface_continuation_partial",
+            "user_surface_continuation_resume_handle",
             "user_surface_prompt_binding",
             "clean_user_surface_steering_alpha",
             "clean_user_surface_recurrent_loops",

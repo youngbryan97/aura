@@ -4330,6 +4330,11 @@ class CognitiveEngine:
         continuation_partial = continuation_state_text(
             context.get("user_surface_continuation_partial")
         )
+        continuation_resume_handle = str(
+            context.get("user_surface_continuation_resume_handle") or ""
+        ).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{32}", continuation_resume_handle):
+            continuation_resume_handle = ""
         continuation_prefix = continuation_prompt_prefix(continuation_partial)
         continuation_contract = bool(
             completion_retry_contract
@@ -5144,6 +5149,10 @@ class CognitiveEngine:
                 router_kwargs["reply_needs_room"] = True
                 router_kwargs["user_surface_continuation_contract"] = True
                 router_kwargs["user_surface_continuation_partial"] = continuation_partial
+                if continuation_resume_handle:
+                    router_kwargs[
+                        "user_surface_continuation_resume_handle"
+                    ] = continuation_resume_handle
             # The lesion for this channel is omission, not substitution: a
             # neutral temperature is still a temperature somebody chose, and
             # measuring against one would compare two mind-derived settings

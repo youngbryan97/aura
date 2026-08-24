@@ -5499,6 +5499,11 @@ async def _run_cognitive_engine_chat_turn(
         prior_transaction_id = str(
             prior_evidence.get("foreground_model_generation_transaction_id") or ""
         ).strip()
+        prior_resume_handle = str(
+            prior_evidence.get("continuation_resume_handle") or ""
+        ).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{32}", prior_resume_handle):
+            prior_resume_handle = ""
         transaction_id = (
             prior_transaction_id
             if continuing_prior_segment
@@ -5533,6 +5538,7 @@ async def _run_cognitive_engine_chat_turn(
                 "foreground_model_generation_transaction_id": transaction_id,
                 "completion_retry_count": prior_retry_count,
                 "continuation_evidence_valid": continuation_evidence_valid,
+                "continuation_resume_handle": prior_resume_handle,
                 "repair_retry_attempt_count": 0,
                 "single_owner_generation_exhausted": False,
                 "response_path": "",
@@ -6998,6 +7004,20 @@ async def _run_cognitive_engine_chat_turn(
                     ),
                 }
             )
+            receipt = (
+                dict(turn_trace.get("live_mind_surface_control_receipt") or {})
+                if isinstance(turn_trace, dict)
+                else {}
+            )
+            resume_handle = str(
+                receipt.get("continuation_resume_handle")
+                or (turn_trace or {}).get("continuation_resume_handle")
+                or ""
+            ).strip().lower()
+            if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
+                retry_context[
+                    "user_surface_continuation_resume_handle"
+                ] = resume_handle
 
         async def repair_engine_think_operation():
 
@@ -19642,6 +19662,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             ),
                             "completion_retry_count": _live_turn_trace.get(
                                 "completion_retry_count", 0
+                            ),
+                            "continuation_resume_handle": (
+                                (_live_turn_trace.get("live_mind_surface_control_receipt") or {}).get(
+                                    "continuation_resume_handle", ""
+                                )
                             ),
                         }
                         if completion_recovery

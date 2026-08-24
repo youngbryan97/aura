@@ -11752,6 +11752,7 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
             "generated_tokens": 192,
             "generation_max_tokens": 192,
             "generation_stop_reason": "max_tokens",
+            "continuation_resume_handle": "b" * 32,
         }
     )
     second_metadata = _bound_live_mind_controls_metadata()
@@ -11834,6 +11835,7 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
     assert engine.calls[1][1]["desktop_quick_reply_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_partial"].endswith("from the")
+    assert engine.calls[1][1]["user_surface_continuation_resume_handle"] == "b" * 32
     assert engine.calls[1][1]["route"] == "desktop_chat_continuation"
     assert "response_repair_directive" not in engine.calls[1][1]
     assert "failed_reply_excerpt" not in engine.calls[1][1]
@@ -13089,6 +13091,7 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
         "user_surface_completion_retry": True,
         "user_surface_continuation_contract": True,
         "user_surface_continuation_partial": partial,
+        "user_surface_continuation_resume_handle": "e" * 32,
         "visible_user_message": "Explain Dijkstra completely.",
     }
 
@@ -13105,6 +13108,7 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
     assert len(call["messages"]) == 3
     assert call["messages"][-1] == {"role": "assistant", "content": partial}
     assert call["user_surface_continuation_partial"] == partial
+    assert call["user_surface_continuation_resume_handle"] == "e" * 32
     assert call["semantic_completion_contract"] is True
     assert "USER-SURFACE CONTINUATION CONTRACT" not in call["messages"][0]["content"]
 

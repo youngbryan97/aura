@@ -814,6 +814,15 @@ def _surface_generation_control_receipt(
         "semantic_completion_terminal_boundary": bool(
             state.get("semantic_completion_terminal_boundary", False)
         ),
+        "continuation_resume_requested": bool(
+            state.get("continuation_resume_requested", False)
+        ),
+        "continuation_resume_applied": bool(
+            state.get("continuation_resume_applied", False)
+        ),
+        "continuation_resume_available": bool(
+            state.get("continuation_resume_available", False)
+        ),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -821,6 +830,14 @@ def _surface_generation_control_receipt(
         "applied": False,
     }
     receipt["text_mutation_count"] = len(receipt["text_mutations"])
+    resume_handle = str(state.get("continuation_resume_handle") or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
+        receipt["continuation_resume_handle"] = resume_handle
+    resume_failure = str(
+        state.get("continuation_resume_failure_reason") or ""
+    ).strip()
+    if resume_failure:
+        receipt["continuation_resume_failure_reason"] = resume_failure[:120]
     receipt["deterministic_repair_applied"] = any(
         bool(item.get("deterministic")) for item in receipt["text_mutations"]
     )
@@ -5276,6 +5293,13 @@ class _PromptCacheSearchResult:
     common_prefix: int
 
 
+@dataclass(frozen=True)
+class _PromptCacheResumeBinding:
+    model_key: Any
+    tokens: tuple[int, ...]
+    created_at: float
+
+
 class _PromptCacheLRU:
     def __init__(
         self,
@@ -5304,6 +5328,11 @@ class _PromptCacheLRU:
         # the first one thrown away. Lane budgets still sum to max_size, so
         # per-entry KV RAM is bounded exactly as before.
         self._lru: dict[str, deque] = {}
+        # A continuation capability names exact worker-owned KV state without
+        # copying that state through IPC or reconstructing it from visible text.
+        self._resume_bindings: dict[str, _PromptCacheResumeBinding] = {}
+        self._resume_ttl_s = 300.0
+        self._resume_binding_limit = max(2, min(8, max_size))
 
     # ── introspection: what is actually retained right now ───────────────
     def retained_tokens(self) -> int:
@@ -5401,8 +5430,74 @@ class _PromptCacheLRU:
     def clear(self) -> None:
         self._cache.clear()
         self._lru.clear()
+        self._resume_bindings.clear()
 
-    def _search(self, model_key: int, tokens: list[int]) -> _PromptCacheSearchResult:
+    def _prune_resume_bindings(self, *, now: float | None = None) -> None:
+        observed_at = time.monotonic() if now is None else float(now)
+        expired = [
+            handle
+            for handle, binding in self._resume_bindings.items()
+            if observed_at - binding.created_at > self._resume_ttl_s
+        ]
+        for handle in expired:
+            self._resume_bindings.pop(handle, None)
+        while len(self._resume_bindings) > self._resume_binding_limit:
+            oldest = next(iter(self._resume_bindings), None)
+            if oldest is None:
+                break
+            self._resume_bindings.pop(oldest, None)
+
+    def bind_resume(self, model_key: Any, tokens: list[int]) -> str:
+        """Issue a short-lived capability for an exact retained prefix."""
+
+        if len(tokens) < 2 or self._search(model_key, tokens).exact is None:
+            return ""
+        self._prune_resume_bindings()
+        handle = uuid.uuid4().hex
+        self._resume_bindings[handle] = _PromptCacheResumeBinding(
+            model_key=model_key,
+            tokens=tuple(int(token) for token in tokens),
+            created_at=time.monotonic(),
+        )
+        self._prune_resume_bindings()
+        return handle
+
+    def fetch_resume(
+        self,
+        handle: str,
+        model_key: Any,
+        *,
+        can_trim_prompt_cache: Any,
+        trim_prompt_cache: Any,
+    ) -> tuple[list[Any] | None, list[int], list[int], str]:
+        """Consume an exact continuation capability and replay one token."""
+
+        normalized = str(handle or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{32}", normalized):
+            return None, [], [], "invalid_handle"
+        self._prune_resume_bindings()
+        binding = self._resume_bindings.pop(normalized, None)
+        if binding is None:
+            return None, [], [], "unknown_or_expired_handle"
+        if binding.model_key != model_key:
+            return None, [], [], "model_or_lane_mismatch"
+        tokens = list(binding.tokens)
+        result = self._search(model_key, tokens)
+        if result.exact is None:
+            return None, [], [], "cache_entry_evicted"
+        cache_entry = self._extract(model_key, result.exact)
+        if not can_trim_prompt_cache(cache_entry.prompt_cache):
+            self.insert_cache(model_key, tokens, cache_entry.prompt_cache)
+            return None, [], [], "cache_not_trimmable"
+        trim_prompt_cache(cache_entry.prompt_cache, 1)
+        logger.info(
+            "🎯 [PROMPT CACHE] continuation resume — reused %d/%d tokens, 1 to prefill.",
+            len(tokens) - 1,
+            len(tokens),
+        )
+        return cache_entry.prompt_cache, tokens[-1:], tokens, ""
+
+    def _search(self, model_key: Any, tokens: list[int]) -> _PromptCacheSearchResult:
         if model_key not in self._cache:
             return _PromptCacheSearchResult(None, None, None, 0)
 
@@ -5469,7 +5564,7 @@ class _PromptCacheLRU:
 
     def fetch_nearest_cache(
         self,
-        model_key: int,
+        model_key: Any,
         tokens: list[int],
         *,
         can_trim_prompt_cache: Any,
@@ -7477,6 +7572,80 @@ def _mlx_worker_loop(
 
                                     # [FRONTIER UPGRADE] KV Prompt Caching Injection
                                     tokens = tokenizer.encode(prompt)
+                                    # These live in mlx_lm.models.cache, not
+                                    # mlx_lm.utils. Probing the wrong module
+                                    # made _can_trim answer False forever, so
+                                    # the trimmed-reuse path could never run.
+                                    from mlx_lm.models.cache import (
+                                        can_trim_prompt_cache as _mlx_can_trim,
+                                    )
+                                    from mlx_lm.models.cache import (
+                                        make_prompt_cache as _mlx_make_cache,
+                                    )
+                                    from mlx_lm.models.cache import (
+                                        trim_prompt_cache as _mlx_trim,
+                                    )
+
+                                    def _can_trim(pc):
+                                        try:
+                                            return bool(_mlx_can_trim(pc))
+                                        except (AttributeError, TypeError, ValueError):
+                                            return False
+
+                                    def _do_trim(pc, num):
+                                        _mlx_trim(pc, num)
+
+                                    # Scope-partitioned key: user-surface
+                                    # turns only ever see user-surface
+                                    # entries, so internal lanes cannot leak
+                                    # KV into the conversation or vice versa.
+                                    model_key = (
+                                        id(model),
+                                        _prompt_cache_scope_for_job(job),
+                                    )
+                                    cache = None
+                                    remaining_tokens = tokens
+                                    resume_handle = str(
+                                        job.get("user_surface_continuation_resume_handle")
+                                        or ""
+                                    ).strip().lower()
+                                    surface_control_state[
+                                        "continuation_resume_requested"
+                                    ] = bool(resume_handle)
+                                    resume_applied = False
+                                    if (
+                                        resume_handle
+                                        and prompt_cache_lru is not None
+                                        and not disable_prompt_cache
+                                    ):
+                                        (
+                                            resumed_cache,
+                                            resumed_remaining,
+                                            resumed_tokens,
+                                            resume_failure,
+                                        ) = prompt_cache_lru.fetch_resume(
+                                            resume_handle,
+                                            model_key,
+                                            can_trim_prompt_cache=_can_trim,
+                                            trim_prompt_cache=_do_trim,
+                                        )
+                                        if resumed_cache is not None:
+                                            cache = resumed_cache
+                                            remaining_tokens = resumed_remaining
+                                            tokens = resumed_tokens
+                                            resume_applied = True
+                                        else:
+                                            surface_control_state[
+                                                "continuation_resume_failure_reason"
+                                            ] = resume_failure
+                                            logger.warning(
+                                                "Continuation resume unavailable (%s); "
+                                                "using bounded textual reconstruction.",
+                                                resume_failure,
+                                            )
+                                    surface_control_state[
+                                        "continuation_resume_applied"
+                                    ] = resume_applied
                                     # Prefill cost is the whole endurance story, and
                                     # until now the only number anyone could see was
                                     # the planner's CHARACTER count — measured live at
@@ -7515,7 +7684,11 @@ def _mlx_worker_loop(
                                         output_reserve=_output_reserve,
                                         architectural_window=effective_context_window,
                                     )
-                                    if len(tokens) + _output_reserve > _request_context_window:
+                                    if (
+                                        not resume_applied
+                                        and len(tokens) + _output_reserve
+                                        > _request_context_window
+                                    ):
                                         # Refusing was the ONLY response here, and
                                         # nothing upstream bounds a prompt against
                                         # the model's real window — so an
@@ -7564,40 +7737,12 @@ def _mlx_worker_loop(
                                             f"window={_request_context_window}"
                                         )
                                     prompt_token_count = len(tokens)
-                                    # These live in mlx_lm.models.cache, not
-                                    # mlx_lm.utils. Probing the wrong module
-                                    # made _can_trim answer False forever, so
-                                    # the trimmed-reuse path could never run.
-                                    from mlx_lm.models.cache import (
-                                        can_trim_prompt_cache as _mlx_can_trim,
-                                    )
-                                    from mlx_lm.models.cache import (
-                                        make_prompt_cache as _mlx_make_cache,
-                                    )
-                                    from mlx_lm.models.cache import (
-                                        trim_prompt_cache as _mlx_trim,
-                                    )
-
-                                    def _can_trim(pc):
-                                        try:
-                                            return bool(_mlx_can_trim(pc))
-                                        except (AttributeError, TypeError, ValueError):
-                                            return False
-
-                                    def _do_trim(pc, num):
-                                        _mlx_trim(pc, num)
-
-                                    # Scope-partitioned key: user-surface
-                                    # turns only ever see user-surface
-                                    # entries, so internal lanes cannot leak
-                                    # KV into the conversation or vice versa.
-                                    model_key = (
-                                        id(model),
-                                        _prompt_cache_scope_for_job(job),
-                                    )
-                                    cache = None
-                                    remaining_tokens = tokens
-                                    if prompt_cache_lru is not None and not disable_prompt_cache:
+                                    if (
+                                        not resume_applied
+                                        and prompt_cache_lru is not None
+                                        and not disable_prompt_cache
+                                    ):
+                                        remaining_tokens = tokens
                                         cache, remaining_tokens = prompt_cache_lru.fetch_nearest_cache(
                                             model_key, tokens,
                                             can_trim_prompt_cache=_can_trim,
@@ -9097,6 +9242,36 @@ def _mlx_worker_loop(
                     surface_control_state["generation_configured_stop_sequence"] = (
                         configured_stop_sequence
                     )
+                    resumable_stop = generation_stop_reason in {
+                        "deadline_exceeded",
+                        "max_tokens",
+                        "soft_cancelled",
+                    }
+                    continuation_resume_handle = ""
+                    if (
+                        resumable_stop
+                        and bool(
+                            semantic_completion_state[
+                                "semantic_completion_incomplete"
+                            ]
+                        )
+                        and bool(response_text.strip())
+                        and prompt_cache_lru is not None
+                        and not disable_prompt_cache
+                        and final_prompt_cache is not None
+                        and not sentinel_aborted
+                    ):
+                        continuation_resume_handle = prompt_cache_lru.bind_resume(
+                            model_key,
+                            list(tokens),
+                        )
+                    surface_control_state["continuation_resume_available"] = bool(
+                        continuation_resume_handle
+                    )
+                    if continuation_resume_handle:
+                        surface_control_state[
+                            "continuation_resume_handle"
+                        ] = continuation_resume_handle
                     generate_payload: dict[str, Any] = {
                         "id": job.get("id"),
                         "action": "generate",

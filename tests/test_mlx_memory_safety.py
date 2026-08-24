@@ -139,8 +139,13 @@ def test_completion_reserve_never_expands_the_callers_budget():
 
 def test_mlx_client_retains_surface_control_receipt_from_worker_response():
     from core.brain.llm.mlx_client import MLXLocalClient
+    from core.brain.llm.model_registry import get_model_runtime_assignment
 
-    client = MLXLocalClient("Aura-32B-20260510-151144")
+    assignment = get_model_runtime_assignment("Aura-32B-20260510-151144")
+    client = MLXLocalClient(
+        assignment.model_path,
+        runtime_assignment=assignment,
+    )
 
     client._record_surface_control_receipt_from_response(
         {
@@ -157,6 +162,10 @@ def test_mlx_client_retains_surface_control_receipt_from_worker_response():
                 "surface_quality_gate_passed": True,
                 "surface_quality_gate_attempts": 1,
                 "surface_quality_gate_reasons": ["retryable_draft"],
+                "continuation_resume_requested": False,
+                "continuation_resume_applied": False,
+                "continuation_resume_available": True,
+                "continuation_resume_handle": "c" * 32,
                 "authorship_replacement_applied": False,
                 "text_mutations": [
                     {
@@ -187,6 +196,8 @@ def test_mlx_client_retains_surface_control_receipt_from_worker_response():
     assert receipt["surface_quality_gate_passed"] is True
     assert receipt["surface_quality_gate_attempts"] == 1
     assert receipt["surface_quality_gate_reasons"] == ["retryable_draft"]
+    assert receipt["continuation_resume_available"] is True
+    assert receipt["continuation_resume_handle"] == "c" * 32
     assert receipt["text_mutation_count"] == 1
     assert receipt["authorship_replacement_applied"] is True
     assert receipt["authorship_augmentation_applied"] is False
@@ -1564,6 +1575,144 @@ def test_prompt_cache_exposes_the_oom_ladders_missing_rung():
     assert freed == expected, "shed must report the bytes it actually released"
     assert lru.retained_tokens() == 0
     assert lru.retained_entries() == 0
+
+
+def test_prompt_cache_resume_capability_is_exact_scoped_and_one_use():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4)
+    key = (7, "user_surface")
+    tokens = [10, 20, 30, 40]
+    trimmed = []
+    lru.insert_cache(key, tokens, ["exact-kv"])
+
+    handle = lru.bind_resume(key, tokens)
+    cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, count: trimmed.append(count),
+    )
+
+    assert cache == ["exact-kv"]
+    assert remaining == [40]
+    assert resumed == tokens
+    assert failure == ""
+    assert trimmed == [1]
+
+    cache, _remaining, _resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+    assert cache is None
+    assert failure == "unknown_or_expired_handle"
+
+
+def test_prompt_cache_resume_capability_refuses_cross_lane_and_clear_invalidates():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4)
+    key = (9, "user_surface")
+    tokens = [1, 2, 3]
+    lru.insert_cache(key, tokens, ["kv"])
+    handle = lru.bind_resume(key, tokens)
+
+    cache, _remaining, _resumed, failure = lru.fetch_resume(
+        handle,
+        (9, "default"),
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+    assert cache is None
+    assert failure == "model_or_lane_mismatch"
+
+    handle = lru.bind_resume(key, tokens)
+    lru.clear()
+    cache, _remaining, _resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+    assert cache is None
+    assert failure == "unknown_or_expired_handle"
+
+
+def test_prompt_cache_resume_capability_remains_fetchable_at_binding_limit():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=2)
+    key = (11, "user_surface")
+    tokens = [4, 5, 6]
+    lru.insert_cache(key, tokens, ["kv"])
+
+    first = lru.bind_resume(key, tokens)
+    second = lru.bind_resume(key, tokens)
+    assert first and second
+
+    cache, remaining, resumed, failure = lru.fetch_resume(
+        first,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+
+    assert cache == ["kv"]
+    assert remaining == [6]
+    assert resumed == tokens
+    assert failure == ""
+
+
+def test_prompt_cache_resume_capability_trims_a_real_mlx_kv_cache():
+    import mlx.core as mx
+    from mlx_lm.models.cache import (
+        KVCache,
+        can_trim_prompt_cache,
+        trim_prompt_cache,
+    )
+
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=2)
+    key = (13, "user_surface")
+    tokens = [31, 32, 33, 34, 35]
+    cache = [KVCache()]
+    cache[0].update_and_fetch(
+        mx.ones((1, 2, len(tokens), 4)),
+        mx.ones((1, 2, len(tokens), 4)) * 2,
+    )
+    mx.eval(cache[0].keys, cache[0].values)
+    lru.insert_cache(key, tokens, cache)
+
+    handle = lru.bind_resume(key, tokens)
+    resumed_cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=can_trim_prompt_cache,
+        trim_prompt_cache=trim_prompt_cache,
+    )
+
+    assert failure == ""
+    assert remaining == [tokens[-1]]
+    assert resumed == tokens
+    assert resumed_cache is not None
+    assert resumed_cache[0].offset == len(tokens) - 1
+
+
+def test_mlx_client_drops_an_invalid_continuation_resume_handle():
+    from core.brain.llm.mlx_client import _sanitize_surface_control_receipt
+
+    receipt = _sanitize_surface_control_receipt(
+        {
+            "continuation_resume_available": True,
+            "continuation_resume_handle": "../../not-a-capability",
+        }
+    )
+
+    assert receipt["continuation_resume_available"] is True
+    assert "continuation_resume_handle" not in receipt
 
 
 def test_mlx_client_arms_the_oom_ladder_with_the_prompt_cache():

@@ -3375,6 +3375,7 @@ async def test_inference_gate_exposes_local_surface_control_receipt():
             "semantic_completion_contract": True,
             "user_surface_continuation_contract": True,
             "user_surface_continuation_partial": "The answer already established the invariant.",
+            "user_surface_continuation_resume_handle": "a" * 32,
             "clean_user_surface_recurrent_loops": 2,
             "clean_user_surface_steering_alpha": 0.31,
             "live_mind_controls_bound": True,
@@ -3395,6 +3396,7 @@ async def test_inference_gate_exposes_local_surface_control_receipt():
     assert client.kwargs[0]["user_surface_continuation_partial"] == (
         "The answer already established the invariant."
     )
+    assert client.kwargs[0]["user_surface_continuation_resume_handle"] == "a" * 32
     assert client.kwargs[0]["live_mind_controls_bound"] is True
 
 
