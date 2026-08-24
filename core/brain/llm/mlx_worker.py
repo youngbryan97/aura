@@ -5294,10 +5294,130 @@ class _PromptCacheSearchResult:
 
 
 @dataclass(frozen=True)
+class _ArraysCacheMemberRollback:
+    index: int
+    state: tuple[Any, ...]
+    left_padding: Any
+    lengths: Any
+
+    @property
+    def nbytes(self) -> int:
+        total = 0
+        for value in (*self.state, self.left_padding, self.lengths):
+            if value is not None:
+                total += max(0, int(getattr(value, "nbytes", 0) or 0))
+        return total
+
+
+@dataclass(frozen=True)
+class _PromptCacheOneTokenRollback:
+    members: tuple[_ArraysCacheMemberRollback, ...]
+
+    @property
+    def nbytes(self) -> int:
+        return sum(member.nbytes for member in self.members)
+
+
+def _capture_prompt_cache_one_token_rollback(
+    prompt_cache: list[Any] | None,
+) -> _PromptCacheOneTokenRollback | None:
+    """Retain the fixed-size state needed to rewind a hybrid cache one token.
+
+    ``mlx_lm`` can trim KV caches, but Qwen3.5 combines those with
+    ``ArraysCache`` recurrent states that intentionally have no inverse. The
+    recurrent arrays are replaced on each model call rather than mutated in
+    place, so retaining their immediately preceding array references is an
+    exact, fixed-size rollback image. Unknown non-trimmable cache kinds are
+    refused instead of being guessed compatible.
+    """
+
+    if not prompt_cache:
+        return None
+    try:
+        from mlx_lm.models.cache import ArraysCache
+    except ImportError:
+        return None
+
+    members: list[_ArraysCacheMemberRollback] = []
+    for index, cache_member in enumerate(prompt_cache):
+        try:
+            if bool(cache_member.is_trimmable()):
+                continue
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+        if not isinstance(cache_member, ArraysCache):
+            return None
+        state = cache_member.state
+        if not isinstance(state, list):
+            return None
+        members.append(
+            _ArraysCacheMemberRollback(
+                index=index,
+                state=tuple(state),
+                left_padding=getattr(cache_member, "left_padding", None),
+                lengths=getattr(cache_member, "lengths", None),
+            )
+        )
+    if not members:
+        return None
+    return _PromptCacheOneTokenRollback(tuple(members))
+
+
+def _rewind_hybrid_prompt_cache_one_token(
+    prompt_cache: list[Any],
+    rollback: _PromptCacheOneTokenRollback | None,
+) -> tuple[bool, str]:
+    """Rewind mixed KV/recurrent cache state without reconstructing the prompt."""
+
+    if rollback is None:
+        return False, "hybrid_rollback_unavailable"
+    try:
+        from mlx_lm.models.cache import ArraysCache
+    except ImportError:
+        return False, "mlx_cache_types_unavailable"
+
+    snapshots = {member.index: member for member in rollback.members}
+    nontrimmable_indexes: set[int] = set()
+    trimmable_members: list[Any] = []
+    for index, cache_member in enumerate(prompt_cache):
+        try:
+            trimmable = bool(cache_member.is_trimmable())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False, "cache_trim_contract_unavailable"
+        if trimmable:
+            try:
+                if int(cache_member.size()) < 1:
+                    return False, "trimmable_cache_empty"
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                return False, "trimmable_cache_size_unavailable"
+            trimmable_members.append(cache_member)
+            continue
+        nontrimmable_indexes.add(index)
+        if not isinstance(cache_member, ArraysCache) or index not in snapshots:
+            return False, "nontrimmable_cache_not_snapshotted"
+
+    if nontrimmable_indexes != set(snapshots):
+        return False, "hybrid_cache_layout_changed"
+
+    # Validation above completes before the first mutation. From this point all
+    # operations are the declared one-token inverse for their cache kind.
+    for cache_member in trimmable_members:
+        if int(cache_member.trim(1)) != 1:
+            return False, "trimmable_cache_rewind_failed"
+    for index, snapshot in snapshots.items():
+        cache_member = prompt_cache[index]
+        cache_member.state = list(snapshot.state)
+        cache_member.left_padding = snapshot.left_padding
+        cache_member.lengths = snapshot.lengths
+    return True, ""
+
+
+@dataclass(frozen=True)
 class _PromptCacheResumeBinding:
     model_key: Any
     tokens: tuple[int, ...]
     prompt_cache: list[Any]
+    one_token_rollback: _PromptCacheOneTokenRollback | None
     created_at: float
 
 
@@ -5353,9 +5473,17 @@ class _PromptCacheLRU:
 
     def retained_bytes(self) -> int:
         """Approximate KV bytes held. Reported to the OOM ladder, not guessed."""
-        if self.kv_bytes_per_token <= 0:
-            return 0
-        return self.retained_tokens() * self.kv_bytes_per_token
+        token_bytes = (
+            self.retained_tokens() * self.kv_bytes_per_token
+            if self.kv_bytes_per_token > 0
+            else 0
+        )
+        rollback_bytes = sum(
+            binding.one_token_rollback.nbytes
+            for binding in self._resume_bindings.values()
+            if binding.one_token_rollback is not None
+        )
+        return token_bytes + rollback_bytes
 
     def shed(self) -> int:
         """Release everything and report the bytes freed.
@@ -5382,7 +5510,15 @@ class _PromptCacheLRU:
         lanes_by_drain_order = sorted(
             self._lru.keys(), key=lambda lane: (lane == "user_surface", lane)
         )
-        while self.retained_tokens() > self.max_total_tokens:
+        byte_budget = (
+            self.max_total_tokens * self.kv_bytes_per_token
+            if self.max_total_tokens > 0 and self.kv_bytes_per_token > 0
+            else 0
+        )
+        while (
+            self.retained_tokens() > self.max_total_tokens
+            or (byte_budget > 0 and self.retained_bytes() > byte_budget)
+        ):
             evicted = False
             for lane in lanes_by_drain_order:
                 queue = self._lru.get(lane)
@@ -5465,6 +5601,7 @@ class _PromptCacheLRU:
         tokens: list[int],
         *,
         prompt_cache: list[Any] | None = None,
+        one_token_rollback: _PromptCacheOneTokenRollback | None = None,
     ) -> str:
         """Move exact final KV state into a short-lived continuation capability.
 
@@ -5491,6 +5628,7 @@ class _PromptCacheLRU:
             model_key=model_key,
             tokens=tuple(int(token) for token in tokens),
             prompt_cache=owned_cache,
+            one_token_rollback=one_token_rollback,
             created_at=time.monotonic(),
         )
         self._prune_resume_bindings()
@@ -5527,11 +5665,21 @@ class _PromptCacheLRU:
         tokens = list(binding.tokens)
         prompt_cache = binding.prompt_cache
         if not can_trim_prompt_cache(prompt_cache):
-            self.insert_cache(model_key, tokens, prompt_cache)
-            return None, [], [], "cache_not_trimmable"
-        trim_prompt_cache(prompt_cache, 1)
+            rewound, rewind_failure = _rewind_hybrid_prompt_cache_one_token(
+                prompt_cache,
+                binding.one_token_rollback,
+            )
+            if not rewound:
+                self.insert_cache(model_key, tokens, prompt_cache)
+                return None, [], [], rewind_failure
+            resume_kind = "hybrid recurrent/KV"
+        else:
+            trim_prompt_cache(prompt_cache, 1)
+            resume_kind = "KV"
         logger.info(
-            "🎯 [PROMPT CACHE] continuation resume — reused %d/%d tokens, 1 to prefill.",
+            "🎯 [PROMPT CACHE] %s continuation resume — reused %d/%d tokens, "
+            "1 to prefill.",
+            resume_kind,
             len(tokens) - 1,
             len(tokens),
         )
@@ -7493,6 +7641,8 @@ def _mlx_worker_loop(
                                     token_count = 0
                                     prompt_token_count = 0
                                     final_prompt_cache = None
+                                    previous_cache_rollback = None
+                                    continuation_cache_rollback = None
                                     deadline_hit = False
                                     semantic_terminal_grace_active = False
                                     semantic_terminal_grace_deadline_unix = 0.0
@@ -7953,21 +8103,34 @@ def _mlx_worker_loop(
                                     ):
                                         watchdog.activity()
 
-                                        # Cooperative preemption: the parent asked this
-                                        # job to stop between tokens. Return the partial
-                                        # response and keep the model warm.
-                                        if soft_cancel_requested(cancel_seq, job_seq):
-                                            soft_cancelled = True
-                                            try:
-                                                cancel_seq.value = 0
-                                            except (OSError, ValueError):
-                                                logger.debug("Soft-cancel acknowledge write failed; continuing.")
-                                            logger.info(
-                                                "✋ [WORKER] Soft-cancel observed at token %d (job seq=%d).",
-                                                token_count,
-                                                job_seq,
+                                        # ``mlx_lm.generate_step`` computes the
+                                        # next logits before yielding the current
+                                        # token, so the cache already includes
+                                        # this response here. The prior fixed-
+                                        # state image is the one-token rollback
+                                        # needed if this becomes the final token.
+                                        if (
+                                            bool(
+                                                job.get(
+                                                    "semantic_completion_contract",
+                                                    False,
+                                                )
                                             )
-                                            break
+                                            and prompt_cache_lru is not None
+                                            and not disable_prompt_cache
+                                            and final_prompt_cache is not None
+                                        ):
+                                            continuation_cache_rollback = (
+                                                previous_cache_rollback
+                                            )
+                                            previous_cache_rollback = (
+                                                _capture_prompt_cache_one_token_rollback(
+                                                    final_prompt_cache
+                                                )
+                                            )
+                                        else:
+                                            continuation_cache_rollback = None
+                                            previous_cache_rollback = None
 
                                         token_count += 1
                                         progress_now = time.time()
@@ -7994,6 +8157,28 @@ def _mlx_worker_loop(
 
                                         current_response += response.text
                                         current_response, role_continuation_hit = _truncate_role_continuation(current_response)
+
+                                        # Cooperative preemption is observed only
+                                        # after accepting the token already yielded
+                                        # by mlx_lm. Its cache performs one-token
+                                        # lookahead before yield; dropping this token
+                                        # from the visible/tokens ledger left every
+                                        # retained cache one step ahead of its key.
+                                        if soft_cancel_requested(cancel_seq, job_seq):
+                                            soft_cancelled = True
+                                            try:
+                                                cancel_seq.value = 0
+                                            except (OSError, ValueError):
+                                                logger.debug(
+                                                    "Soft-cancel acknowledge write failed; continuing."
+                                                )
+                                            logger.info(
+                                                "✋ [WORKER] Soft-cancel observed at token %d "
+                                                "(job seq=%d).",
+                                                token_count,
+                                                job_seq,
+                                            )
+                                            break
 
                                         # [STABILITY v58] Explicit break on stop sequences or role drift
                                         if role_continuation_hit:
@@ -9305,6 +9490,7 @@ def _mlx_worker_loop(
                             model_key,
                             list(tokens),
                             prompt_cache=final_prompt_cache,
+                            one_token_rollback=continuation_cache_rollback,
                         )
                     if resumable_stop and not continuation_resume_handle:
                         if prompt_cache_lru is None:

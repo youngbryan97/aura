@@ -1746,6 +1746,177 @@ def test_prompt_cache_resume_owns_final_state_when_general_cache_did_not_retain_
     assert lru.retained_tokens() == 0
 
 
+def test_prompt_cache_resume_rewinds_real_hybrid_kv_and_recurrent_state():
+    import mlx.core as mx
+    from mlx_lm.models.cache import ArraysCache, KVCache
+
+    from core.brain.llm.mlx_worker import (
+        _capture_prompt_cache_one_token_rollback,
+        _PromptCacheLRU,
+    )
+
+    lru = _PromptCacheLRU(
+        max_size=2,
+        max_total_tokens=100,
+        kv_bytes_per_token=16,
+    )
+    key = (23, "user_surface")
+    tokens = [41, 42, 43, 44]
+    kv_cache = KVCache()
+    recurrent_cache = ArraysCache(size=2)
+
+    kv_cache.update_and_fetch(
+        mx.ones((1, 2, len(tokens) - 1, 4)),
+        mx.ones((1, 2, len(tokens) - 1, 4)) * 2,
+    )
+    recurrent_cache.state = [
+        mx.ones((1, 3, 8)),
+        mx.ones((1, 2, 4, 4)) * 3,
+    ]
+    mx.eval(kv_cache.keys, kv_cache.values, *recurrent_cache.state)
+    cache = [kv_cache, recurrent_cache]
+    rollback = _capture_prompt_cache_one_token_rollback(cache)
+    assert rollback is not None
+
+    # Simulate mlx_lm's lookahead: both cache kinds now include the final
+    # emitted token, while rollback still owns the prior recurrent arrays.
+    kv_cache.update_and_fetch(
+        mx.ones((1, 2, 1, 4)) * 4,
+        mx.ones((1, 2, 1, 4)) * 5,
+    )
+    recurrent_cache.state = [
+        mx.ones((1, 3, 8)) * 6,
+        mx.ones((1, 2, 4, 4)) * 7,
+    ]
+    mx.eval(kv_cache.keys, kv_cache.values, *recurrent_cache.state)
+
+    handle = lru.bind_resume(
+        key,
+        tokens,
+        prompt_cache=cache,
+        one_token_rollback=rollback,
+    )
+    retained_with_rollback = lru.retained_bytes()
+    assert retained_with_rollback > len(tokens) * 16
+
+    resumed_cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: False,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+
+    assert failure == ""
+    assert remaining == [tokens[-1]]
+    assert resumed == tokens
+    assert resumed_cache is cache
+    assert kv_cache.offset == len(tokens) - 1
+    assert mx.array_equal(recurrent_cache.state[0], mx.ones((1, 3, 8))).item()
+    assert mx.array_equal(
+        recurrent_cache.state[1], mx.ones((1, 2, 4, 4)) * 3
+    ).item()
+    assert lru.retained_entries() == 0
+
+
+def test_hybrid_one_token_rollback_replays_identical_qwen35_logits():
+    import mlx.core as mx
+    from mlx_lm.models.cache import can_trim_prompt_cache, trim_prompt_cache
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    from core.brain.llm.mlx_worker import (
+        _capture_prompt_cache_one_token_rollback,
+        _PromptCacheLRU,
+    )
+
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 8,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    model = Model(ModelArgs(model_type="qwen3_5", text_config=text_config))
+    mx.eval(model.parameters())
+    cache = model.make_cache()
+
+    prompt = mx.array([[3, 5, 7, 9]], dtype=mx.int32)
+    mx.eval(model(prompt, cache=cache))
+    rollback = _capture_prompt_cache_one_token_rollback(cache)
+    assert rollback is not None
+
+    replay_token = mx.array([[11]], dtype=mx.int32)
+    expected_logits = model(replay_token, cache=cache)
+    mx.eval(expected_logits)
+
+    lru = _PromptCacheLRU(max_size=2)
+    key = (31, "user_surface")
+    tokens = [3, 5, 7, 9, 11]
+    handle = lru.bind_resume(
+        key,
+        tokens,
+        prompt_cache=cache,
+        one_token_rollback=rollback,
+    )
+    resumed_cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=can_trim_prompt_cache,
+        trim_prompt_cache=trim_prompt_cache,
+    )
+
+    assert failure == ""
+    assert remaining == [11]
+    assert resumed == tokens
+    assert resumed_cache is cache
+    replayed_logits = model(mx.array([remaining], dtype=mx.int32), cache=resumed_cache)
+    mx.eval(replayed_logits)
+    assert mx.allclose(replayed_logits, expected_logits, rtol=0, atol=0).item()
+
+
+def test_prompt_cache_resume_refuses_unrewindable_hybrid_state_without_mutation():
+    import mlx.core as mx
+    from mlx_lm.models.cache import ArraysCache, KVCache
+
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=2)
+    key = (29, "user_surface")
+    tokens = [51, 52, 53]
+    kv_cache = KVCache()
+    kv_cache.update_and_fetch(
+        mx.ones((1, 1, len(tokens), 2)),
+        mx.ones((1, 1, len(tokens), 2)),
+    )
+    recurrent_cache = ArraysCache(size=2)
+    recurrent_cache.state = [mx.ones((1, 2)), mx.ones((1, 2))]
+    cache = [kv_cache, recurrent_cache]
+    handle = lru.bind_resume(key, tokens, prompt_cache=cache)
+
+    resumed_cache, _remaining, _resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: False,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+
+    assert resumed_cache is None
+    assert failure == "hybrid_rollback_unavailable"
+    assert kv_cache.offset == len(tokens)
+    assert lru.retained_entries() == 1
+
+
 def test_mlx_client_drops_an_invalid_continuation_resume_handle():
     from core.brain.llm.mlx_client import _sanitize_surface_control_receipt
 
