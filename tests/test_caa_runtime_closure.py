@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,7 +35,7 @@ def test_steering_vector_library_resolves_exact_and_nearest_layers(tmp_path):
         _write_vector(cache_dir / f"{dim['key']}_layer25.npz", [1.0, 0.0, 0.0, 0.0])
         _write_vector(cache_dir / f"{dim['key']}_layer32.npz", [0.0, 1.0, 0.0, 0.0])
 
-    library = SteeringVectorLibrary(cache_dir=cache_dir)
+    library = SteeringVectorLibrary(cache_dir=cache_dir, allow_unbound_artifacts=True)
     resolved = library.load_or_derive(
         model=object(),
         tokenizer=object(),
@@ -60,7 +61,7 @@ def test_steering_vector_library_rejects_wrong_d_model_cache(tmp_path):
     cache_dir = tmp_path / "vectors"
     _write_vector(cache_dir / "valence_positive_layer25.npz", [1.0, 0.0, 0.0])
 
-    library = SteeringVectorLibrary(cache_dir=cache_dir)
+    library = SteeringVectorLibrary(cache_dir=cache_dir, allow_unbound_artifacts=True)
 
     assert library._resolve_cached_path("valence_positive", 25, d_model=4) is None
 
@@ -103,6 +104,83 @@ def test_steering_vector_library_accepts_only_exact_model_basis(tmp_path):
     assert resolved[0] == 25
 
 
+def test_caa_validator_proves_only_exact_model_bound_vectors(tmp_path):
+    from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
+    from training.caa_32b_validation import CAAModelValidator
+
+    model = tmp_path / "model"
+    model.mkdir()
+    (model / "config.json").write_text(
+        json.dumps(
+            {
+                "model_type": "qwen2",
+                "architectures": ["Qwen2ForCausalLM"],
+                "hidden_size": 64,
+                "intermediate_size": 128,
+                "num_hidden_layers": 8,
+                "num_attention_heads": 4,
+                "num_key_value_heads": 2,
+                "vocab_size": 128,
+                "max_position_embeddings": 4096,
+                "quantization_config": {"bits": 4},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (model / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+    (model / "model.safetensors").write_bytes(b"exact-caa-test-weights")
+    descriptor = build_model_artifact_descriptor(
+        model,
+        repository_id="test/caa",
+        revision="r1",
+    )
+    digest = str(descriptor["descriptor_sha256"])
+
+    vectors = tmp_path / "vectors"
+    vectors.mkdir()
+    dimensions = ["valence", "arousal", "curiosity", "energy", "frustration"]
+    for dimension_index, dimension in enumerate(dimensions):
+        for layer in (2, 3):
+            values = np.zeros(64, dtype=np.float32)
+            values[dimension_index] = 1.0
+            values[10 + layer] = 0.05
+            np.savez(
+                vectors / f"{dimension}_layer{layer}.npz",
+                v=values,
+                source="extracted_caa",
+                extracted=True,
+                model_path=str(model),
+                model_descriptor_sha256=digest,
+            )
+    behavioral = tmp_path / "behavioral.json"
+    behavioral.write_text(
+        json.dumps(
+            {
+                "model_descriptor_sha256": digest,
+                "steered_vs_baseline_effect_size": 0.35,
+                "steered_vs_rich_prompt_effect_size": 0.15,
+                "heldout_generalization_effect_size": 0.18,
+                "quality_delta": 0.02,
+                "black_box_prompt_hygiene_passed": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = CAAModelValidator(
+        vectors_dir=vectors,
+        model_path=model,
+        model_identity=descriptor,
+    ).run(behavioral_results=behavioral)
+
+    assert report["exact_model_detected"] is True
+    assert report["production_activation_vector_count"] == 10
+    assert report["stale_or_unbound_activation_vector_count"] == 0
+    assert report["behavioral_ab"]["checks"]["model_identity_bound"] is True
+    assert report["passed"] is True
+
+
 def test_steering_vector_library_discovers_sources_with_explicit_runtime_cache(
     tmp_path,
     monkeypatch,
@@ -119,7 +197,10 @@ def test_steering_vector_library_discovers_sources_with_explicit_runtime_cache(
         )
 
     monkeypatch.setenv("AURA_STEERING_DIR", str(source_dir))
-    library = SteeringVectorLibrary(cache_dir=runtime_cache)
+    library = SteeringVectorLibrary(
+        cache_dir=runtime_cache,
+        allow_unbound_artifacts=True,
+    )
 
     resolved = library.load_or_derive(
         model=object(),
@@ -136,12 +217,33 @@ def test_steering_vector_library_discovers_sources_with_explicit_runtime_cache(
 def test_affective_steering_runtime_cache_is_partitioned_by_geometry():
     from core.consciousness.affective_steering import AffectiveSteeringEngine
 
-    small = AffectiveSteeringEngine._runtime_vector_cache_dir(n_layers=28, d_model=2368)
-    large = AffectiveSteeringEngine._runtime_vector_cache_dir(n_layers=64, d_model=4096)
+    identity = {"descriptor_sha256": "a" * 64}
+    small = AffectiveSteeringEngine._runtime_vector_cache_dir(
+        n_layers=28,
+        d_model=2368,
+        model_identity=identity,
+    )
+    large = AffectiveSteeringEngine._runtime_vector_cache_dir(
+        n_layers=64,
+        d_model=4096,
+        model_identity=identity,
+    )
 
     assert small != large
     assert "dmodel_2368_layers_28" in str(small)
     assert "dmodel_4096_layers_64" in str(large)
+
+
+def test_affective_steering_runtime_cache_refuses_unbound_geometry():
+    import pytest
+
+    from core.consciousness.affective_steering import AffectiveSteeringEngine
+
+    with pytest.raises(ValueError, match="steering_model_identity_unavailable"):
+        AffectiveSteeringEngine._runtime_vector_cache_dir(
+            n_layers=64,
+            d_model=5120,
+        )
 
 
 def test_affective_steering_runtime_cache_is_partitioned_by_model_identity():
@@ -241,7 +343,60 @@ def test_affective_steering_geometry_falls_back_to_packaged_vector_dim(
     model = SimpleNamespace(layers=[object() for _ in range(64)])
     engine = AffectiveSteeringEngine()
 
-    assert engine._discover_model_geometry(model) == (64, 513)
+    identity = {
+        "descriptor_sha256": "c" * 64,
+        "artifact_profile": {"num_hidden_layers": 64, "hidden_size": 513},
+    }
+
+    assert engine._discover_model_geometry(model, model_identity=identity) == (64, 513)
+
+
+def test_affective_steering_attach_refuses_missing_exact_model_identity(tmp_path):
+    from core.consciousness.affective_steering import AffectiveSteeringEngine
+
+    model = SimpleNamespace(layers=[object() for _ in range(2)])
+    engine = AffectiveSteeringEngine()
+
+    attached = engine.attach(
+        model,
+        SimpleNamespace(),
+        model_path=tmp_path,
+    )
+
+    assert attached is False
+    assert engine.get_status()["attached"] is False
+    assert (
+        engine.get_status()["model_info"]["attachment_error"]
+        == "exact_model_identity_unavailable"
+    )
+
+
+def test_affective_steering_detach_revokes_stale_model_hooks():
+    from core.consciousness.affective_steering import AffectiveSteeringEngine
+
+    uninstalled: list[str] = []
+    sync = SimpleNamespace(stop=lambda: uninstalled.append("sync"))
+    hook = SimpleNamespace(uninstall=lambda: uninstalled.append("hook"))
+    engine = AffectiveSteeringEngine()
+    engine._hooks = [hook]
+    engine._sync_thread = sync
+    engine._model_attached = True
+    engine._attached_model_id = 41
+    engine._model_info = {
+        "model_descriptor_sha256": "a" * 64,
+        "model_path": "/tmp/old-model",
+    }
+
+    engine.detach()
+
+    assert uninstalled == ["sync", "hook"]
+    assert engine._hooks == []
+    assert engine._sync_thread is None
+    assert engine._model_attached is False
+    assert engine._attached_model_id is None
+    assert engine.get_status()["model_info"] == {
+        "attachment_error": "affective_steering_detached"
+    }
 
 
 def test_surface_alpha_override_survives_adaptive_alpha_update():

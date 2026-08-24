@@ -19,13 +19,13 @@ from core.evaluation.steering_ab import (
     SteeringABReport,
     analyze_steering_ab,
 )
-from training.caa_32b_validation import CAA32BValidator
+from training.caa_32b_validation import CAAModelValidator
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 VECTORS_DIR = ROOT / "training" / "vectors"
-MODEL_PATH = "mlx-community/Qwen2.5-32B-Instruct-4bit"
+MODEL_PATH = "test-active-cortex"
 
 HELD_OUT_TASKS = [
     "planning_under_uncertainty",
@@ -45,7 +45,7 @@ class TestCAA32BGeometry:
 
     def test_validator_loads_vectors(self):
         assert VECTORS_DIR.exists(), "training/vectors/ not found"
-        validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+        validator = CAAModelValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
         report = validator.run()
         assert report["vector_count"] > 0, "no vectors loaded"
         assert report["activation_vector_count"] >= 0
@@ -53,9 +53,9 @@ class TestCAA32BGeometry:
     def test_geometry_coherent(self):
         """Geometry: cross-dim coherence, PCA, permutation controls."""
         assert VECTORS_DIR.exists(), "training/vectors/ not found"
-        validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+        validator = CAAModelValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
         report = validator.run()
-        geometry = report.get("geometry", {})
+        geometry = report.get("observed_unbound_geometry", {})
         assert geometry.get("available"), f"insufficient vectors for geometry: {geometry.get('reason')}"
 
         # Must have at least 3 coherent groups (dimension clusters)
@@ -72,9 +72,9 @@ class TestCAA32BGeometry:
     def test_permutation_control_significant(self):
         """Permutation p-value must be < 0.05 in at least one group."""
         assert VECTORS_DIR.exists(), "training/vectors/ not found"
-        validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+        validator = CAAModelValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
         report = validator.run()
-        geometry = report.get("geometry", {})
+        geometry = report.get("observed_unbound_geometry", {})
         groups = geometry.get("groups", {})
         assert groups, "no geometry groups"
         p_values = [g.get("permutation_p_value", 1.0) for g in groups.values()]
@@ -83,7 +83,7 @@ class TestCAA32BGeometry:
 
     def test_held_out_task_coverage(self):
         """The schema must cover all 5 held-out categories."""
-        validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+        validator = CAAModelValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
         report = validator.run()
         schema = report.get("prompt_controls", {})
         tasks = schema.get("heldout_tasks", [])
@@ -92,7 +92,7 @@ class TestCAA32BGeometry:
 
     def test_pass_conditions_well_formed(self):
         """All pass conditions produce typed verdict dictionaries."""
-        validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
+        validator = CAAModelValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
         report = validator.run()
         pc = report.get("pass_conditions", {})
         assert isinstance(pc, dict), "pass_conditions should be a dict"
@@ -170,6 +170,7 @@ class TestCAA32BBehavioralAB:
         assert VECTORS_DIR.exists(), "training/vectors/ not found"
         # Create a minimal behavioral results file
         behavioral = {
+            "model_descriptor_sha256": "a" * 64,
             "steered_vs_baseline_effect_size": 0.35,
             "steered_vs_rich_prompt_effect_size": 0.15,
             "heldout_generalization_effect_size": 0.18,
@@ -180,9 +181,10 @@ class TestCAA32BBehavioralAB:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(behavioral, f)
             f.flush()
-            validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
-            report = validator.run(behavioral_results=f.name)
-        ab = report.get("behavioral_ab", {})
+            ab = CAAModelValidator._load_behavioral_results(
+                f.name,
+                model_descriptor_sha256="a" * 64,
+            )
         assert ab.get("available") is True
         assert ab.get("passed") is True
         Path(f.name).unlink(missing_ok=True)
@@ -192,6 +194,7 @@ class TestCAA32BBehavioralAB:
         assert VECTORS_DIR.exists(), "training/vectors/ not found"
         behavioral = {
             "model": MODEL_PATH,
+            "model_descriptor_sha256": "b" * 64,
             "n_trials": 50,
             "held_out_tasks": HELD_OUT_TASKS,
             "passes_adversarial_control": True,
@@ -241,14 +244,13 @@ class TestCAA32BBehavioralAB:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(behavioral, f)
             f.flush()
-            validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
-            report = validator.run(behavioral_results=f.name)
-
-        ab = report.get("behavioral_ab", {})
+            ab = CAAModelValidator._load_behavioral_results(
+                f.name,
+                model_descriptor_sha256="b" * 64,
+            )
         assert ab.get("available") is True
         assert ab.get("passed") is True
         assert ab["raw"]["source_schema"] == "live_32b_ab"
-        assert report["passed"] is True
         Path(f.name).unlink(missing_ok=True)
 
     def test_a_pre_null_calibration_artifact_is_voided_not_credited(self):
@@ -289,15 +291,14 @@ class TestCAA32BBehavioralAB:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(behavioral, f)
             f.flush()
-            validator = CAA32BValidator(vectors_dir=VECTORS_DIR, model_path=MODEL_PATH)
-            report = validator.run(behavioral_results=f.name)
-
-        ab = report.get("behavioral_ab", {})
+            ab = CAAModelValidator._load_behavioral_results(
+                f.name,
+                model_descriptor_sha256="c" * 64,
+            )
         assert ab["raw"]["source_schema"] == "live_32b_ab_voided"
         assert ab.get("passed") is not True, (
             "an artifact whose statistic passes its own null was credited as "
             "behavioral evidence"
         )
-        assert report["passed"] is not True
         assert "paired_distance_comparison" in ab["raw"]["voided_reason"]
         Path(f.name).unlink(missing_ok=True)

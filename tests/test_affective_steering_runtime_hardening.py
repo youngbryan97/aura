@@ -24,7 +24,7 @@ def test_derivation_failure_uses_neutral_disabled_vector(tmp_path, monkeypatch):
         lambda module, exc: recorded.append((module, type(exc).__name__)),
     )
 
-    library = SteeringVectorLibrary(cache_dir=tmp_path)
+    library = SteeringVectorLibrary(cache_dir=tmp_path, allow_unbound_artifacts=True)
 
     derivation_failures = []
 
@@ -62,7 +62,7 @@ def test_invalid_cached_vector_is_rejected_before_derivation(tmp_path, monkeypat
         source="cached_caa",
         selected_layer=1,
     )
-    library = SteeringVectorLibrary(cache_dir=tmp_path)
+    library = SteeringVectorLibrary(cache_dir=tmp_path, allow_unbound_artifacts=True)
 
     derivation_failures = []
 

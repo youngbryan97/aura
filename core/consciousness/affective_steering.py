@@ -91,7 +91,7 @@ Integration:
     from core.consciousness.affective_steering import get_steering_engine
     
     engine = get_steering_engine()
-    engine.attach(model)          # patches the layers
+    engine.attach(model, tokenizer, model_path=loaded_model_path)
     engine.start_substrate_sync() # starts reading from LiquidSubstrate
 
     # From that point: every inference call is steered by the substrate.
@@ -487,6 +487,7 @@ class SteeringVectorLibrary:
         cache_dir: Path | None = None,
         source_dirs: list[Path] | None = None,
         expected_model_identity: dict[str, object] | None = None,
+        allow_unbound_artifacts: bool = False,
     ):
         discovered_source_dirs: list[Path] = []
         env_dir = os.environ.get("AURA_STEERING_DIR")
@@ -533,6 +534,7 @@ class SteeringVectorLibrary:
         self._path_dim_cache: dict[str, int] = {}
         self._path_meta_cache: dict[str, dict[str, Any]] = {}
         self._expected_model_identity = dict(expected_model_identity or {})
+        self._allow_unbound_artifacts = bool(allow_unbound_artifacts)
         expected_digest = self._expected_model_identity.get("descriptor_sha256")
         if expected_digest is not None and (
             not isinstance(expected_digest, str)
@@ -591,7 +593,7 @@ class SteeringVectorLibrary:
     def _matches_expected_model(self, path: Path) -> bool:
         expected = self._expected_model_identity.get("descriptor_sha256")
         if not expected:
-            return True
+            return self._allow_unbound_artifacts
         if path.suffix != ".npz":
             return False
         try:
@@ -749,6 +751,14 @@ class SteeringVectorLibrary:
         target_layer: int,
         d_model: int,
     ) -> SteeringVector:
+        expected_digest = str(
+            self._expected_model_identity.get("descriptor_sha256") or ""
+        )
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None
+            and not self._allow_unbound_artifacts
+        ):
+            raise ValueError("steering_model_identity_unavailable")
         key = dim_spec["key"]
         cache_path = self._cache_dir / f"{key}_layer{target_layer}.npz"
         logger.info("🔬 Deriving steering vector: %s (layer %d)...", key, target_layer)
@@ -772,9 +782,7 @@ class SteeringVectorLibrary:
                 selected_layer=target_layer,
                 selection_reason="runtime_derived",
                 extracted=False,
-                model_descriptor_sha256=str(
-                    self._expected_model_identity.get("descriptor_sha256") or ""
-                ),
+                model_descriptor_sha256=expected_digest,
             )
             # Atomic commit to avoid partial files surviving a crash
             import shutil
@@ -847,6 +855,11 @@ class SteeringVectorLibrary:
         loaded = 0
         derived = 0
         nearest = 0
+        if (
+            not self._expected_model_identity.get("descriptor_sha256")
+            and not self._allow_unbound_artifacts
+        ):
+            raise ValueError("steering_model_identity_unavailable")
         self._registry.clear()
         self._vectors.clear()
         self._vectors_by_layer = {}
@@ -1925,7 +1938,7 @@ class AffectiveSteeringEngine:
     
         from core.consciousness.affective_steering import get_steering_engine
         engine = get_steering_engine()
-        engine.attach(model, tokenizer)
+        engine.attach(model, tokenizer, model_path=loaded_model_path)
     
     Phase 2: Start substrate sync (once, after substrate starts)
     
@@ -1962,6 +1975,7 @@ class AffectiveSteeringEngine:
         self._library: SteeringVectorLibrary | None = None
         self._production_caa: ProductionCAA | None = None
         self._model_attached = False
+        self._attached_model_id: int | None = None
         self._alpha = DEFAULT_ALPHA
         self._surface_alpha_override: float | None = None
         self._model_info: dict[str, Any] = {}
@@ -1976,7 +1990,7 @@ class AffectiveSteeringEngine:
         force_rederive: bool = False,
         model_path: str | Path | None = None,
         model_identity: dict[str, object] | None = None,
-    ):
+    ) -> bool:
         """
         Attach the steering engine to a loaded MLX model.
         
@@ -1995,11 +2009,8 @@ class AffectiveSteeringEngine:
             logger.warning(
                 "AffectiveSteeringEngine attach skipped: AURA_DISABLE_AFFECTIVE_STEERING set."
             )
-            return
-
-        if self._model_attached:
-            logger.warning("Engine already attached. Call detach() first.")
-            return
+            self._model_info = {"attachment_error": "affective_steering_disabled"}
+            return False
 
         if alpha is not None:
             self._alpha = alpha
@@ -2020,19 +2031,71 @@ class AffectiveSteeringEngine:
                 )
                 model_identity = None
 
+        try:
+            from core.brain.llm.model_artifact_profile import (
+                validate_model_artifact_descriptor,
+            )
+
+            if not model_path or not isinstance(model_identity, dict):
+                raise ValueError("steering_model_identity_unavailable")
+            model_identity = validate_model_artifact_descriptor(
+                model_identity,
+                model_path=model_path,
+                verify_full_hash=False,
+            )
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            self._model_info = {
+                "attachment_error": "exact_model_identity_unavailable",
+                "model_path": str(model_path or ""),
+            }
+            _emit_affective_fault(
+                exc,
+                action="left affective steering detached until exact model identity is available",
+                severity="degraded",
+                stage="model_identity",
+                extra={"model_path": str(model_path or "")},
+            )
+            logger.error("Affective steering requires an exact model identity: %s", exc)
+            return False
+
+        incoming_digest = str(model_identity.get("descriptor_sha256") or "")
+        incoming_path = str(Path(model_path).expanduser().resolve())
+        if self._model_attached:
+            same_attachment = bool(
+                self._attached_model_id == id(model)
+                and self._model_info.get("model_descriptor_sha256") == incoming_digest
+                and self._model_info.get("model_path") == incoming_path
+            )
+            if same_attachment:
+                logger.info("Affective steering already attached to the exact model object.")
+                return True
+            logger.warning(
+                "Affective steering model identity changed; disabling stale hooks before reattachment."
+            )
+            self.detach()
+
         # ── Discover model geometry ───────────────────────────────────────────
-        n_layers, d_model = self._discover_model_geometry(model)
+        n_layers, d_model = self._discover_model_geometry(
+            model,
+            model_identity=model_identity,
+        )
         if n_layers == 0 or d_model == 0:
+            self._model_info = {
+                "attachment_error": "model_geometry_unavailable",
+                "model_path": incoming_path,
+                "model_descriptor_sha256": str(model_identity["descriptor_sha256"]),
+            }
             logger.error("Could not determine model geometry. Steering aborted.")
-            return
+            return False
 
         self._model_info = {
             "n_layers": n_layers,
             "d_model": d_model,
             "target_layers": self._compute_target_layers(n_layers),
             "model_descriptor_sha256": str(
-                (model_identity or {}).get("descriptor_sha256") or ""
+                model_identity.get("descriptor_sha256") or ""
             ),
+            "model_path": incoming_path,
         }
 
         target_layers = self._model_info["target_layers"]
@@ -2059,12 +2122,14 @@ class AffectiveSteeringEngine:
         )
 
         if not any(vectors_by_layer.values()):
+            self._model_info["attachment_error"] = "steering_vectors_unavailable"
             logger.error("No steering vectors available. Steering aborted.")
-            return
+            return False
 
         behavioral_results_path = Path(__file__).parent.parent.parent / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"
         model_path_hint = str(
-            getattr(model, "model_path", "")
+            model_path
+            or getattr(model, "model_path", "")
             or getattr(tokenizer, "name_or_path", "")
             or os.environ.get("AURA_MODEL_PATH", "")
         )
@@ -2085,8 +2150,9 @@ class AffectiveSteeringEngine:
         # ── Install hooks at target layers ────────────────────────────────────
         layers = self._discover_model_layers(model)
         if not layers:
+            self._model_info["attachment_error"] = "model_layers_unavailable"
             logger.error("Could not find layers for hook installation.")
-            return
+            return False
 
         for layer_idx in target_layers:
             if layer_idx >= len(layers):
@@ -2107,7 +2173,14 @@ class AffectiveSteeringEngine:
             hook.install()
             self._hooks.append(hook)
 
+        if not self._hooks:
+            self._model_info["attachment_error"] = "steering_hooks_unavailable"
+            logger.error("No steering hooks could be installed. Steering aborted.")
+            return False
+
         self._model_attached = True
+        self._attached_model_id = id(model)
+        self._model_info.pop("attachment_error", None)
         logger.info(
             "✅ AffectiveSteeringEngine attached: %d hooks, %d layer-vectors, α=%.1f (%s)",
             len(self._hooks),
@@ -2115,6 +2188,7 @@ class AffectiveSteeringEngine:
             self._alpha,
             self._model_info.get("production_caa", {}).get("level", "bootstrap"),
         )
+        return True
 
     def start_substrate_sync(self, shared_state: Any = None):
         """
@@ -2140,6 +2214,17 @@ class AffectiveSteeringEngine:
         for hook in self._hooks:
             hook.uninstall()
         logger.info("🔕 AffectiveSteeringEngine stopped")
+
+    def detach(self) -> None:
+        """Remove authority from hooks bound to the previously loaded model."""
+        self.stop()
+        self._hooks.clear()
+        self._sync_thread = None
+        self._library = None
+        self._production_caa = None
+        self._model_attached = False
+        self._attached_model_id = None
+        self._model_info = {"attachment_error": "affective_steering_detached"}
 
     def set_alpha(self, alpha: float):
         """
@@ -2241,9 +2326,9 @@ class AffectiveSteeringEngine:
             base = state_root() / "steering_vectors"
         geometry = base / f"dmodel_{int(d_model)}_layers_{int(n_layers)}"
         digest = str((model_identity or {}).get("descriptor_sha256") or "")
-        if re.fullmatch(r"[0-9a-f]{64}", digest):
-            return geometry / f"model_{digest[:16]}"
-        return geometry
+        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ValueError("steering_model_identity_unavailable")
+        return geometry / f"model_{digest[:16]}"
 
     @staticmethod
     def _coerce_hidden_size(candidate: Any) -> int | None:
@@ -2286,7 +2371,12 @@ class AffectiveSteeringEngine:
                         return hidden
         return None
 
-    def _cached_vector_hidden_size(self, n_layers: int) -> int | None:
+    def _cached_vector_hidden_size(
+        self,
+        n_layers: int,
+        *,
+        model_identity: dict[str, object] | None,
+    ) -> int | None:
         """Infer hidden size from trusted packaged/runtime CAA vector artifacts.
 
         Some MLX model wrappers hide their projection weights, but Aura ships
@@ -2294,6 +2384,10 @@ class AffectiveSteeringEngine:
         expose d_model, using the vector geometry is better than guessing and
         re-deriving incompatible vectors on every boot.
         """
+
+        expected_digest = str((model_identity or {}).get("descriptor_sha256") or "")
+        if re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None:
+            return None
 
         roots: list[Path] = []
         env_dir = os.environ.get("AURA_STEERING_DIR")
@@ -2329,17 +2423,23 @@ class AffectiveSteeringEngine:
                     try:
                         if int(match.group("layer")) not in target_layers:
                             continue
-                        if path.suffix == ".npy":
-                            vector = np.load(path)
-                        else:
-                            with np.load(path, allow_pickle=True) as data:
-                                vector = None
-                                for vector_key in ("v", "vector", "direction", "arr_0"):
-                                    if vector_key in data:
-                                        vector = data[vector_key]
-                                        break
-                                if vector is None:
-                                    continue
+                        if path.suffix != ".npz":
+                            continue
+                        with np.load(path, allow_pickle=True) as data:
+                            observed_digest = str(
+                                data["model_descriptor_sha256"]
+                                if "model_descriptor_sha256" in data
+                                else ""
+                            )
+                            if observed_digest != expected_digest:
+                                continue
+                            vector = None
+                            for vector_key in ("v", "vector", "direction", "arr_0"):
+                                if vector_key in data:
+                                    vector = data[vector_key]
+                                    break
+                            if vector is None:
+                                continue
                         dim = int(np.asarray(vector).reshape(-1).shape[0])
                     except (OSError, ValueError, RuntimeError, AttributeError, TypeError) as exc:
                         _emit_affective_fault(
@@ -2357,7 +2457,26 @@ class AffectiveSteeringEngine:
             return None
         return max(counts.items(), key=lambda item: (item[1], item[0]))[0]
 
-    def _discover_model_geometry(self, model) -> tuple[int, int]:
+    @staticmethod
+    def _descriptor_geometry(
+        model_identity: dict[str, object] | None,
+    ) -> tuple[int, int]:
+        profile = (model_identity or {}).get("artifact_profile")
+        if not isinstance(profile, dict):
+            return 0, 0
+        try:
+            n_layers = int(profile.get("num_hidden_layers") or 0)
+            d_model = int(profile.get("hidden_size") or 0)
+        except (TypeError, ValueError, OverflowError):
+            return 0, 0
+        return max(0, n_layers), max(0, d_model)
+
+    def _discover_model_geometry(
+        self,
+        model,
+        *,
+        model_identity: dict[str, object] | None = None,
+    ) -> tuple[int, int]:
         """Determine n_layers and d_model from the loaded model."""
         try:
             # Pre-initialize d_model so the fallback ``return`` on line ~1107
@@ -2368,10 +2487,28 @@ class AffectiveSteeringEngine:
             if not layers:
                 return 0, 0
             n_layers = len(layers)
+            descriptor_layers, descriptor_hidden = self._descriptor_geometry(model_identity)
+            if descriptor_layers and descriptor_layers != n_layers:
+                logger.error(
+                    "Loaded model has %d layers but its exact descriptor records %d.",
+                    n_layers,
+                    descriptor_layers,
+                )
+                return 0, 0
 
             metadata_hidden = self._metadata_hidden_size(model)
             if metadata_hidden is not None:
+                if descriptor_hidden and descriptor_hidden != metadata_hidden:
+                    logger.error(
+                        "Loaded model has d_model=%d but its exact descriptor records %d.",
+                        metadata_hidden,
+                        descriptor_hidden,
+                    )
+                    return 0, 0
                 return n_layers, metadata_hidden
+
+            if descriptor_hidden > 512:
+                return n_layers, descriptor_hidden
 
             # d_model: find first weight with the right shape
             # Typically in attention q_proj or input_layernorm
@@ -2422,7 +2559,10 @@ class AffectiveSteeringEngine:
                                         if d_model is not None:
                                             return n_layers, d_model
 
-            cached_hidden = self._cached_vector_hidden_size(n_layers)
+            cached_hidden = self._cached_vector_hidden_size(
+                n_layers,
+                model_identity=model_identity,
+            )
             if cached_hidden is not None:
                 logger.info(
                     "Geometry discovery using cached CAA vector d_model=%d for %d-layer model.",
@@ -2432,7 +2572,7 @@ class AffectiveSteeringEngine:
                 return n_layers, cached_hidden
 
             logger.warning("Geometry discovery reached fallback for d_model.")
-            return n_layers, d_model or 4096  # Reasonable guess if discovery fails
+            return n_layers, 0
         except (RuntimeError, AttributeError, TypeError) as e:
             _emit_affective_fault(
                 e,
@@ -2599,7 +2739,12 @@ def attach_steering_to_mlx_client():
             logger.warning("MLX model/tokenizer not available — steering deferred")
             return
 
-        engine.attach(model, tokenizer)
+        model_path = getattr(mlx_client, "model_path", None)
+        attached = engine.attach(model, tokenizer, model_path=model_path)
+        if not attached:
+            ServiceContainer.register_instance("affective_steering_engine", engine)
+            logger.warning("Affective steering remains detached: %s", engine.get_status())
+            return
         engine.start_substrate_sync()
 
         # Register in container for monitoring

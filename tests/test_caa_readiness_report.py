@@ -1,23 +1,25 @@
 """Tests for CAA readiness verification from on-disk provenance."""
 from __future__ import annotations
 
-import hashlib
 import json
 
 import numpy as np
 
+from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
 from core.consciousness.affective_steering import AFFECTIVE_DIMENSIONS as RUNTIME_DIMENSIONS
 from core.consciousness.caa.readiness_report import scan_vector_files, verify_readiness
 from training.extract_steering_vectors import AFFECTIVE_DIMENSIONS, ALL_AFFECTIVE_DIMENSIONS
 
 
-def _sha256(path):
-    h = hashlib.sha256()
-    h.update(path.read_bytes())
-    return h.hexdigest()
-
-
-def _vec(path, *, source, extracted, derived_at=1000.0, model_path=None, model_config_sha256=None):
+def _vec(
+    path,
+    *,
+    source,
+    extracted,
+    derived_at=1000.0,
+    model_path=None,
+    model_descriptor_sha256=None,
+):
     np.savez(
         path,
         v=np.zeros(8, dtype=np.float32),
@@ -28,7 +30,54 @@ def _vec(path, *, source, extracted, derived_at=1000.0, model_path=None, model_c
         selected_layer=11,
         selection_reason=source,
         model_path=model_path or "",
-        model_config_sha256=model_config_sha256 or "",
+        model_descriptor_sha256=model_descriptor_sha256 or "",
+    )
+
+
+def _model(root, *, revision):
+    root.mkdir(parents=True)
+    (root / "config.json").write_text(
+        json.dumps(
+            {
+                "model_type": "qwen3_5",
+                "architectures": ["Qwen3_5ForConditionalGeneration"],
+                "text_config": {
+                    "model_type": "qwen3_5_text",
+                    "hidden_size": 64,
+                    "intermediate_size": 128,
+                    "num_hidden_layers": 64,
+                    "num_attention_heads": 4,
+                    "num_key_value_heads": 2,
+                    "vocab_size": 128,
+                    "max_position_embeddings": 4096,
+                },
+                "quantization": {"bits": 4, "group_size": 64},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (root / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+    (root / "model.safetensors").write_bytes(f"weights-{revision}".encode())
+    return build_model_artifact_descriptor(
+        root,
+        repository_id="test/cortex",
+        revision=revision,
+    )
+
+
+def _activate(fdir, model, descriptor, *, fused_at=500.0):
+    fdir.mkdir(exist_ok=True)
+    (fdir / "active.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "active_model_path": str(model),
+                "fused_at": fused_at,
+                "artifact_descriptor": descriptor,
+            }
+        ),
+        encoding="utf-8",
     )
 
 
@@ -51,28 +100,44 @@ def test_scan_reads_provenance(tmp_path):
     assert scan["runtime_derived"] == 1
 
 
-def test_runtime_derived_is_bootstrap_below_capacity(tmp_path):
+def test_runtime_derived_is_bootstrap_below_capacity_without_exact_identity(tmp_path):
     vdir, fdir = _setup(tmp_path, [("runtime_derived_caa", False)] * 6)
     r = verify_readiness(vectors_dir=vdir, fused_model_dir=fdir)
     assert r["level"] == "bootstrap"
     assert r["below_design_capacity"] is True
     assert r["steering_capacity_pct"] < 100
-    assert "NOT extracted" in r["detail"]
+    assert "exact active-model identity unavailable" in r["detail"]
 
 
-def test_all_extracted_is_production_full_capacity(tmp_path):
+def test_unbound_extracted_vectors_are_not_production(tmp_path):
     vdir, fdir = _setup(tmp_path, [("extracted_contrastive", True)] * 6)
     r = verify_readiness(vectors_dir=vdir, fused_model_dir=fdir)
-    assert r["level"] == "production"
-    assert r["below_design_capacity"] is False
-    assert r["steering_capacity_pct"] == 100.0
+    assert r["level"] == "bootstrap"
+    assert r["below_design_capacity"] is True
+    assert r["active_model_identity_valid"] is False
 
 
-def test_mixed_when_some_extracted(tmp_path):
-    vdir, fdir = _setup(
-        tmp_path,
-        [("extracted_contrastive", True)] * 3 + [("runtime_derived_caa", False)] * 3,
-    )
+def test_mixed_when_some_runtime_targets_are_exactly_bound(tmp_path):
+    vdir = tmp_path / "vectors"
+    fdir = tmp_path / "fused-model"
+    active = fdir / "active-model"
+    vdir.mkdir()
+    descriptor = _model(active, revision="partial")
+    _activate(fdir, active, descriptor)
+    digest = str(descriptor["descriptor_sha256"])
+    pairs = [
+        (key, layer)
+        for key in {spec["key"] for spec in RUNTIME_DIMENSIONS}
+        for layer in (25, 30, 35)
+    ]
+    for key, layer in pairs[:8]:
+        _vec(
+            vdir / f"{key}_layer{layer}.npz",
+            source="extracted_caa",
+            extracted=True,
+            model_path=str(active),
+            model_descriptor_sha256=digest,
+        )
     r = verify_readiness(vectors_dir=vdir, fused_model_dir=fdir)
     assert r["level"] == "mixed"
     assert 0.0 < r["extracted_ratio"] < 1.0
@@ -100,15 +165,9 @@ def test_readiness_uses_runtime_contract_and_ignores_stale_nonruntime_vectors(tm
     fdir = tmp_path / "fused-model"
     active = fdir / "active-model"
     vdir.mkdir()
-    active.mkdir(parents=True)
-    active_config = active / "config.json"
-    active_config.write_text(json.dumps({"num_hidden_layers": 64}), encoding="utf-8")
-    active_hash = _sha256(active_config)
-    fdir.mkdir(exist_ok=True)
-    (fdir / "active.json").write_text(
-        json.dumps({"active_model_path": str(active), "fused_at": 500.0}),
-        encoding="utf-8",
-    )
+    descriptor = _model(active, revision="active")
+    _activate(fdir, active, descriptor)
+    active_digest = str(descriptor["descriptor_sha256"])
 
     for key in {spec["key"] for spec in RUNTIME_DIMENSIONS}:
         for layer in (25, 30, 35):
@@ -117,7 +176,7 @@ def test_readiness_uses_runtime_contract_and_ignores_stale_nonruntime_vectors(tm
                 source="extracted_caa",
                 extracted=True,
                 model_path=str(active),
-                model_config_sha256=active_hash,
+                model_descriptor_sha256=active_digest,
             )
 
     # This file is real directory drift from older derivation attempts; it
@@ -130,6 +189,10 @@ def test_readiness_uses_runtime_contract_and_ignores_stale_nonruntime_vectors(tm
     assert r["runtime_contract"]["expected_total"] == 15
     assert r["runtime_contract"]["expected_extracted"] == 15
     assert r["runtime_contract"]["ignored_file_count"] == 1
+    assert (
+        r["runtime_contract"]["active_model_descriptor_sha256"]
+        == active_digest
+    )
 
 
 def test_extracted_vectors_from_previous_active_model_do_not_count_as_production(tmp_path):
@@ -138,18 +201,10 @@ def test_extracted_vectors_from_previous_active_model_do_not_count_as_production
     active = fdir / "active-model"
     previous = fdir / "previous-model"
     vdir.mkdir()
-    active.mkdir(parents=True)
-    previous.mkdir(parents=True)
-    active_config = active / "config.json"
-    previous_config = previous / "config.json"
-    active_config.write_text(json.dumps({"num_hidden_layers": 64, "revision": "new"}), encoding="utf-8")
-    previous_config.write_text(json.dumps({"num_hidden_layers": 64, "revision": "old"}), encoding="utf-8")
-    previous_hash = _sha256(previous_config)
-    fdir.mkdir(exist_ok=True)
-    (fdir / "active.json").write_text(
-        json.dumps({"active_model_path": str(active), "fused_at": 600.0}),
-        encoding="utf-8",
-    )
+    active_descriptor = _model(active, revision="new")
+    previous_descriptor = _model(previous, revision="old")
+    _activate(fdir, active, active_descriptor, fused_at=600.0)
+    previous_digest = str(previous_descriptor["descriptor_sha256"])
 
     for key in {spec["key"] for spec in RUNTIME_DIMENSIONS}:
         for layer in (25, 30, 35):
@@ -158,7 +213,7 @@ def test_extracted_vectors_from_previous_active_model_do_not_count_as_production
                 source="extracted_caa",
                 extracted=True,
                 model_path=str(previous),
-                model_config_sha256=previous_hash,
+                model_descriptor_sha256=previous_digest,
             )
 
     r = verify_readiness(vectors_dir=vdir, fused_model_dir=fdir)

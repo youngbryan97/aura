@@ -15,6 +15,7 @@ Correctness notes learned the hard way:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,19 +28,30 @@ def load_production_vectors(
     vectors_dir: Path,
     *,
     dimensions: tuple[str, ...] = ("valence_positive", "curiosity"),
+    model_descriptor_sha256: str,
 ) -> dict[int, np.ndarray]:
     """Load unit-normalized production steering vectors, averaged per layer.
 
-    Only ``extracted=True`` vectors are eligible — the point of the behavioral
-    A/B is to test the artifacts that steer live traffic, not ad-hoc rederived
-    directions. Multiple requested dimensions on the same layer average then
-    renormalize (matching how simultaneous affect axes compose in the engine).
+    Only ``extracted=True`` vectors bound to the exact evaluated model are
+    eligible. Same-width or same-config directions inhabit another activation
+    basis and cannot be used as production evidence. Multiple requested
+    dimensions on the same layer average then renormalize (matching how
+    simultaneous affect axes compose in the engine).
     """
+    if re.fullmatch(r"[0-9a-f]{64}", model_descriptor_sha256) is None:
+        raise ValueError("steering_model_identity_unavailable")
     per_layer: dict[int, list[np.ndarray]] = {}
     for path in sorted(Path(vectors_dir).glob("*.npz")):
         try:
             with np.load(path, allow_pickle=True) as z:
                 if not bool(z.get("extracted", np.array(False)).item()):
+                    continue
+                observed_digest = str(
+                    z["model_descriptor_sha256"].item()
+                    if "model_descriptor_sha256" in z
+                    else ""
+                )
+                if observed_digest != model_descriptor_sha256:
                     continue
                 dimension = str(z["dimension"].item()) if "dimension" in z else ""
                 if dimension not in dimensions:
@@ -117,13 +129,13 @@ def derive_control_vectors(
         # is partly the treatment.
         for _ in range(64):
             rng.shuffle(order)
-            if all(a != b for a, b in zip(layers, order)):
+            if all(a != b for a, b in zip(layers, order, strict=True)):
                 break
         else:  # pragma: no cover - a rotation is always a derangement
             order = layers[1:] + layers[:1]
         return {
             layer: np.array(vectors[source], copy=True)
-            for layer, source in zip(layers, order)
+            for layer, source in zip(layers, order, strict=True)
         }
     raise ValueError(f"unknown steering control arm: {arm!r}")
 

@@ -178,13 +178,23 @@ def test_switching_arms_needs_no_reinstall():
 
 
 def test_load_production_vectors_filters_and_normalizes(tmp_path):
-    def _write(name, dimension, layer, vec, extracted=True):
+    model_digest = "a" * 64
+
+    def _write(
+        name,
+        dimension,
+        layer,
+        vec,
+        extracted=True,
+        descriptor_sha256=model_digest,
+    ):
         np.savez(
             tmp_path / name,
             v=vec.astype(np.float32),
             dimension=np.array(dimension),
             layer=np.array(layer),
             extracted=np.array(extracted),
+            model_descriptor_sha256=np.array(descriptor_sha256),
         )
 
     _write("a.npz", "valence_positive", 5, np.array([3.0, 0.0, 0.0, 0.0]))
@@ -193,7 +203,10 @@ def test_load_production_vectors_filters_and_normalizes(tmp_path):
     _write("d.npz", "frustration", 5, np.array([1.0, 1.0, 1.0, 1.0]))  # not requested
     _write("e.npz", "valence_positive", 9, np.array([2.0, 0.0, 0.0, 0.0]), extracted=False)
 
-    vectors = load_production_vectors(tmp_path)
+    vectors = load_production_vectors(
+        tmp_path,
+        model_descriptor_sha256=model_digest,
+    )
 
     assert set(vectors) == {5, 7}, "bootstrap and unrequested dimensions must be excluded"
     for vec in vectors.values():
@@ -202,17 +215,35 @@ def test_load_production_vectors_filters_and_normalizes(tmp_path):
     assert vectors[5][0] == pytest.approx(vectors[5][1], rel=1e-5)
 
 
+def test_load_production_vectors_rejects_another_same_width_model(tmp_path):
+    np.savez(
+        tmp_path / "foreign.npz",
+        v=np.ones(4, dtype=np.float32),
+        dimension=np.array("valence_positive"),
+        layer=np.array(5),
+        extracted=np.array(True),
+        model_descriptor_sha256=np.array("b" * 64),
+    )
+
+    vectors = load_production_vectors(
+        tmp_path,
+        model_descriptor_sha256="a" * 64,
+    )
+
+    assert vectors == {}
+
+
 def _validator_credits(artifact: dict) -> bool:
     """Would the CAA readiness chain accept this artifact as behavioral evidence?"""
-    from training.caa_32b_validation import CAA32BValidator
+    from training.caa_32b_validation import CAAModelValidator
 
-    normalized = CAA32BValidator._normalize_behavioral_results(artifact)
+    normalized = CAAModelValidator._normalize_behavioral_results(artifact)
     return bool(normalized.get("black_box_prompt_hygiene_passed", False))
 
 
 def _live_ab_artifact(**overrides) -> dict:
     base = {
-        "model": "models/Qwen2.5-32B-Instruct-4bit",
+        "model": "models/exact-active-cortex",
         "n_trials": 30,
         "held_out_tasks": ["a", "b", "c", "d", "e", "f"],
         "passes_adversarial_control": True,

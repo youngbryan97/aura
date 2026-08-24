@@ -1,9 +1,9 @@
-"""Steering A/B proof contract tests.
+"""Steering A/B proof contract tests for the exact active cortex.
 
 The old test module loaded a small MLX model at import time and skipped unless
 an environment flag was present. That made collection expensive, hid the real
-production lane, and did not prove the 32B path Aura actually uses. The live
-32B runner remains the source of truth; this module makes its contract
+production lane, and did not prove the cortex path Aura actually uses. The
+legacy-named live runner remains the source of truth; this module makes its contract
 collection-safe and keeps the heavy execution in an explicit live lane.
 """
 
@@ -26,10 +26,12 @@ def _load_live_runner() -> ModuleType:
     return module
 
 
-def test_live_runner_targets_the_production_32b_lane():
+def test_live_runner_targets_the_exact_active_cortex_lane():
     runner = _load_live_runner()
 
-    assert "32b" in runner.MODEL_NAME.lower()
+    assert runner.MODEL_NAME == "active-cortex-exact-artifact"
+    assert not hasattr(runner, "FALLBACK_MODEL")
+    assert callable(runner._resolve_model_contract)
     assert runner.N_TRIALS >= 5
     assert runner.MAX_TOKENS >= 80
     assert len(runner.HELD_OUT_TASKS) >= 5
@@ -52,7 +54,7 @@ def test_live_runner_covers_required_behavioral_controls():
 
 @pytest.mark.hardware
 @pytest.mark.live
-def test_live_32b_steering_ab_runner_passes():
+def test_live_cortex_steering_ab_runner_passes():
     runner = _load_live_runner()
 
     assert runner.main([]) == 0

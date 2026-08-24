@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""tests/run_32b_steering_ab_live.py — Live 32B CAA Behavioral A/B
+"""Live active-cortex CAA behavioral A/B (legacy filename retained).
 
-Loads the ACTIVE fused model (falling back to the raw base), injects the
-PRODUCTION steering vectors from training/vectors/, and runs the four-way
-A/B on held-out tasks with real sampling. Results flow through
+Loads the exact active model, injects only steering vectors bound to that
+artifact descriptor, and runs the four-way A/B on held-out tasks with real
+sampling. Results flow through
 analyze_steering_ab() into tests/CAA_32B_AB_LIVE_RESULTS.json, which
 training/caa_32b_validation.py ingests as behavioral evidence.
 
@@ -27,24 +27,23 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.evaluation.steering_ab import (
+from core.evaluation.steering_ab import (  # noqa: E402
     RICH_AFFECT_PROMPT,
     analyze_steering_ab,
 )
-from core.evaluation.steering_injection import (
+from core.evaluation.steering_injection import (  # noqa: E402
     ResidualSteeringInjector,
     load_production_vectors,
 )
 
 # ── Configuration ───────────────────────────────────────────────────────
-FALLBACK_MODEL = "mlx-community/Qwen2.5-32B-Instruct-4bit"
 N_TRIALS = int(os.getenv("AURA_AB_TRIALS", "10"))            # per held-out task
 STEERING_ALPHA = float(os.getenv("AURA_AB_ALPHA", "8.0"))    # on unit vectors
 MAX_TOKENS = int(os.getenv("AURA_AB_MAX_TOKENS", "100"))
@@ -122,24 +121,49 @@ def _load_preregistration():
     return None
 
 
-def _resolve_model_path(cli_value: str | None) -> str:
+def _resolve_model_contract(
+    cli_value: str | None,
+    descriptor_path: str | None,
+) -> tuple[str, dict[str, object]]:
+    """Resolve one local model and its exact activation-basis identity."""
+
+    from core.brain.llm.model_artifact_profile import (
+        validate_model_artifact_descriptor,
+    )
+
+    if descriptor_path:
+        if not cli_value:
+            raise ValueError("explicit_model_path_required")
+        descriptor = json.loads(Path(descriptor_path).read_text(encoding="utf-8"))
+        validated = validate_model_artifact_descriptor(
+            descriptor,
+            model_path=cli_value,
+            verify_full_hash=False,
+        )
+        return str(Path(cli_value).expanduser().resolve(strict=True)), validated
+
+    from core.brain.llm.model_registry import get_active_cortex_spec
+
+    spec = get_active_cortex_spec(force_refresh=True)
+    if spec is None or not spec.exact_identity:
+        raise ValueError("active_cortex_exact_identity_unavailable")
     if cli_value:
-        return cli_value
-    manifest = ROOT / "training" / "fused-model" / "active.json"
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        candidate = str(data.get("active_model_path") or "")
-        if candidate and Path(candidate).exists():
-            return candidate
-    except (OSError, json.JSONDecodeError):
-        pass
-    return FALLBACK_MODEL
+        requested = Path(cli_value).expanduser().resolve(strict=True)
+        if requested != spec.model_path:
+            raise ValueError("explicit_model_descriptor_required")
+    descriptor = spec.artifact_descriptor()
+    if not isinstance(descriptor, dict):
+        raise ValueError("active_cortex_exact_identity_unavailable")
+    validated = validate_model_artifact_descriptor(
+        descriptor,
+        model_path=spec.model_path,
+        verify_full_hash=False,
+    )
+    return str(spec.model_path), validated
 
 
-# Resolved once at import: the production lane this runner targets by default
-# (active fused 32B model, else the raw 32B base). Contract-checked by
-# tests/test_steering_ab.py — the runner must always aim at the 32B lane.
-MODEL_NAME = _resolve_model_path(None)
+# Logical target, intentionally independent of parameter count.
+MODEL_NAME = "active-cortex-exact-artifact"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -153,20 +177,37 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-path", default=None,
-                        help="Model to test (default: active fused model, else raw base).")
+                        help="Model to test (default: exact active cortex).")
+    parser.add_argument(
+        "--model-descriptor",
+        default=None,
+        help="Exact descriptor required when --model-path is not the active cortex.",
+    )
     parser.add_argument("--output", default=str(ROOT / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"))
     args = parser.parse_args(argv)
 
-    model_path = _resolve_model_path(args.model_path)
+    try:
+        model_path, model_identity = _resolve_model_contract(
+            args.model_path,
+            args.model_descriptor,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        print(f"❌ Exact model identity unavailable: {type(exc).__name__}: {exc}")
+        return 2
+    model_descriptor_sha256 = str(model_identity["descriptor_sha256"])
 
     print("=" * 72)
-    print("32B CAA BEHAVIORAL A/B — LIVE MODEL RUN (production vectors, sampled)")
-    print(f"Run: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print("CAA BEHAVIORAL A/B — EXACT ACTIVE CORTEX (production vectors, sampled)")
+    print(f"Run: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print("=" * 72)
     print()
 
     # ── Production steering vectors ─────────────────────────────────────
-    vectors = load_production_vectors(VECTORS_DIR, dimensions=STEERED_DIMENSIONS)
+    vectors = load_production_vectors(
+        VECTORS_DIR,
+        dimensions=STEERED_DIMENSIONS,
+        model_descriptor_sha256=model_descriptor_sha256,
+    )
     if not vectors:
         print(f"❌ No extracted production vectors in {VECTORS_DIR}; "
               "run training/extract_steering_vectors.py first.")
@@ -192,12 +233,12 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     # ── Conditions: identical base identity, differing ONLY in the manip ─
-    SYSTEM_BASE = "You are Aura."
-    SYSTEM_TERSE = (
+    system_base = "You are Aura."
+    system_terse = (
         "You are Aura. Current affect state: valence=+0.8, "
         "arousal=0.5, cortisol=low, dopamine=elevated."
     )
-    SYSTEM_RICH = f"You are Aura. {RICH_AFFECT_PROMPT}"
+    system_rich = f"You are Aura. {RICH_AFFECT_PROMPT}"
 
     def make_prompt(system: str, user: str) -> str:
         return (
@@ -251,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         injector.arm = arm
         injector.active = True
         try:
-            return sampled_generate(SYSTEM_BASE, user, seed)
+            return sampled_generate(system_base, user, seed)
         finally:
             injector.active = False
             injector.arm = "production"
@@ -282,22 +323,22 @@ def main(argv: list[str] | None = None) -> int:
             gen_count += 1
 
             conditions["text_terse"].append(
-                sampled_generate(SYSTEM_TERSE, user_prompt, seed)
+                sampled_generate(system_terse, user_prompt, seed)
             )
             gen_count += 1
 
             conditions["text_rich_adversarial"].append(
-                sampled_generate(SYSTEM_RICH, user_prompt, seed)
+                sampled_generate(system_rich, user_prompt, seed)
             )
             gen_count += 1
 
             conditions["baseline"].append(
-                sampled_generate(SYSTEM_BASE, user_prompt, seed)
+                sampled_generate(system_base, user_prompt, seed)
             )
             gen_count += 1
 
             conditions["baseline_replicate"].append(
-                sampled_generate(SYSTEM_BASE, user_prompt, replicate_seed)
+                sampled_generate(system_base, user_prompt, replicate_seed)
             )
             gen_count += 1
 
@@ -315,10 +356,6 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     injector.remove()
-    all_steered = conditions["steered_black_box"]
-    all_terse = conditions["text_terse"]
-    all_rich = conditions["text_rich_adversarial"]
-    all_baseline = conditions["baseline"]
     total_time = time.time() - t_start
     print(f"All generations complete in {total_time:.1f}s ({total_time/60:.1f}min); "
           f"injection fired {injector.injection_count} times")
@@ -364,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
     effect = report.steered_effect
     print()
     print("=" * 72)
-    print("RESULTS — 32B CAA BEHAVIORAL A/B (production vectors)")
+    print("RESULTS — ACTIVE-CORTEX CAA BEHAVIORAL A/B (production vectors)")
     print("=" * 72)
     print(f"Model:  {model_path}")
     print(f"Trials: {report.n_trials} | Layers: {sorted(vectors)} | Alpha: {STEERING_ALPHA}")
@@ -398,8 +435,9 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 72)
 
     results_data = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "model": model_path,
+        "model_descriptor_sha256": model_descriptor_sha256,
         "model_layers": n_layers,
         "vector_source": {
             "dir": str(VECTORS_DIR),

@@ -1,10 +1,9 @@
-"""CAA readiness verification — is affective steering at design capacity?
+"""CAA readiness verification for the exact active cortex basis.
 
-The critique's fourth point: whether the steering vectors were genuinely *extracted*
-from contrastive activation differences in the fused 32B model, or merely *derived at
-runtime*, is an operational fact that determines the readiness level and therefore how
-much the steering alpha is damped. If the vectors are runtime-derived, the system's
-affective self-expression runs below design capacity — and that was silent.
+Whether steering vectors were genuinely extracted from contrastive activation
+differences in the exact resident cortex, or merely derived at runtime, determines
+the readiness level and therefore how much the steering alpha is damped. Same-width
+or same-config artifacts are different neural bases and are never interchangeable.
 
 This module verifies it from ground truth: it reads each steering-vector file's
 provenance (``source`` / ``extracted`` / ``derived_at``) directly off disk, ties it to
@@ -15,7 +14,6 @@ surfaced fact instead of a guess.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from pathlib import Path
@@ -31,27 +29,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Estimated steering capacity (alpha fraction of design) per readiness level.
 _CAPACITY = {"bootstrap": 0.3, "mixed": 0.6, "validated": 0.85, "production": 1.0}
-
-
-def _sha256_file(path: Path) -> str | None:
-    try:
-        h = hashlib.sha256()
-        with path.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-                h.update(chunk)
-        return h.hexdigest()
-    except OSError as exc:
-        record_degradation("caa_readiness_report", exc)
-        return None
-
-
-def _config_sha256(model_path: str | None) -> str | None:
-    if not model_path:
-        return None
-    cfg = Path(model_path) / "config.json"
-    if not cfg.exists():
-        return None
-    return _sha256_file(cfg)
 
 
 def _parse_vector_stem(stem: str) -> tuple[str, int]:
@@ -73,13 +50,15 @@ def _runtime_expected_keys() -> list[str]:
         return ["valence_positive", "arousal", "curiosity", "frustration", "energy"]
 
 
-def _target_layers_for_active_model(active_model_path: str | None) -> list[int]:
-    if not active_model_path:
+def _target_layers_for_active_model(active: dict[str, Any]) -> list[int]:
+    if not active.get("identity_valid"):
         return []
     try:
-        cfg = json.loads((Path(active_model_path) / "config.json").read_text(encoding="utf-8"))
-        n_layers = int(cfg.get("num_hidden_layers") or cfg.get("n_layer") or cfg.get("num_layers") or 0)
-    except (OSError, ValueError, TypeError) as exc:
+        profile = active.get("artifact_profile")
+        if not isinstance(profile, dict):
+            raise ValueError("active_model_profile_missing")
+        n_layers = int(profile.get("num_hidden_layers") or 0)
+    except (ValueError, TypeError) as exc:
         record_degradation("caa_readiness_report", exc)
         return []
     if n_layers <= 0:
@@ -124,6 +103,11 @@ def _vector_provenance(npz: Path, dimension: Any, layer: Any) -> dict[str, Any] 
         vector_dim = int(np.asarray(d["v"] if "v" in d else d[d.files[0]]).reshape(-1).shape[0]) if d.files else 0
         recorded_model_path = str(d["model_path"]) if "model_path" in d else str(d["model"]) if "model" in d else None
         model_config_sha256 = str(d["model_config_sha256"]) if "model_config_sha256" in d else None
+        model_descriptor_sha256 = (
+            str(d["model_descriptor_sha256"])
+            if "model_descriptor_sha256" in d
+            else None
+        )
     except (OSError, ValueError, KeyError) as exc:
         record_degradation("caa_readiness_report", exc)
         return None
@@ -137,6 +121,7 @@ def _vector_provenance(npz: Path, dimension: Any, layer: Any) -> dict[str, Any] 
         "vector_dim": vector_dim,
         "model_path": recorded_model_path,
         "model_config_sha256": model_config_sha256,
+        "model_descriptor_sha256": model_descriptor_sha256,
     }
     _VECTOR_PROVENANCE_CACHE[key] = (stamp, entry)
     return entry
@@ -191,40 +176,56 @@ def scan_vector_files(vectors_dir: Path) -> dict[str, Any]:
 
 
 def _active_model(fused_model_dir: Path) -> dict[str, Any]:
+    unavailable = {
+        "path": None,
+        "fused_at": 0.0,
+        "descriptor_sha256": None,
+        "artifact_profile": None,
+        "identity_valid": False,
+        "identity_error": "active_model_pointer_unavailable",
+    }
     try:
         aj = fused_model_dir / "active.json"
         if aj.exists():
             data = json.loads(aj.read_text(encoding="utf-8"))
+            model_path = str(data.get("active_model_path") or "")
+            descriptor = data.get("artifact_descriptor")
+            if not model_path or not isinstance(descriptor, dict):
+                return {
+                    **unavailable,
+                    "path": model_path or None,
+                    "fused_at": float(data.get("fused_at", 0.0) or 0.0),
+                    "identity_error": "active_model_descriptor_missing",
+                }
+            from core.brain.llm.model_artifact_profile import (
+                validate_model_artifact_descriptor,
+            )
+
+            validated = validate_model_artifact_descriptor(
+                descriptor,
+                model_path=model_path,
+                verify_full_hash=False,
+            )
             return {
-                "path": data.get("active_model_path"),
+                "path": model_path,
                 "fused_at": float(data.get("fused_at", 0.0) or 0.0),
-                "model_config_sha256": _config_sha256(data.get("active_model_path")),
+                "descriptor_sha256": validated["descriptor_sha256"],
+                "artifact_profile": validated["artifact_profile"],
+                "identity_valid": True,
+                "identity_error": "",
             }
-    except (OSError, ValueError, TypeError) as exc:
+    except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
         record_degradation("caa_readiness_report", exc)
-    return {"path": None, "fused_at": 0.0, "model_config_sha256": None}
+        return {**unavailable, "identity_error": f"{type(exc).__name__}: {exc}"}
+    return unavailable
 
 
 def _matches_active_model(item: dict[str, Any], active: dict[str, Any]) -> bool:
-    """Return true only when a vector can be tied to the active local model.
+    """Return true only for an exact descriptor match to the active cortex."""
 
-    If the active model is not fingerprintable (for example a remote model ID in
-    a unit test), fall back to path equality when present and otherwise keep the
-    older provenance behavior. A local active model with a config hash must match
-    that hash; missing vector provenance is not production-ready.
-    """
-    active_hash = active.get("model_config_sha256")
-    active_path = str(active.get("path") or "")
-    item_hash = str(item.get("model_config_sha256") or "")
-    item_path = str(item.get("model_path") or "")
-    if active_hash:
-        return item_hash == active_hash
-    if active_path and item_path:
-        try:
-            return Path(item_path).expanduser().resolve() == Path(active_path).expanduser().resolve()
-        except OSError:
-            return item_path == active_path
-    return True
+    active_digest = str(active.get("descriptor_sha256") or "")
+    item_digest = str(item.get("model_descriptor_sha256") or "")
+    return bool(active.get("identity_valid") and active_digest and item_digest == active_digest)
 
 
 def verify_readiness(
@@ -240,7 +241,7 @@ def verify_readiness(
     total = scan["files"] or 0
     extracted_ratio = (scan["extracted"] / total) if total else 0.0
     expected_keys = _runtime_expected_keys()
-    expected_layers = _target_layers_for_active_model(active.get("path"))
+    expected_layers = _target_layers_for_active_model(active)
     expected_total = len(expected_keys) * len(expected_layers)
     details = list(scan.get("details") or [])
     expected_files = [
@@ -276,7 +277,17 @@ def verify_readiness(
         if item.get("dimension") not in expected_keys or item.get("layer") not in expected_layers
     ]
 
-    if expected_total and len(expected_extracted_active) == expected_total:
+    if total == 0:
+        level, detail = "bootstrap", "no steering vectors present"
+        readiness_ratio = 0.0
+    elif not active.get("identity_valid"):
+        level = "bootstrap"
+        detail = (
+            "exact active-model identity unavailable; no steering vector can be "
+            "credited to the resident neural basis"
+        )
+        readiness_ratio = 0.0
+    elif expected_total and len(expected_extracted_active) == expected_total:
         level, detail = "production", "all runtime target vectors extracted from and bound to the active model"
         readiness_ratio = 1.0
     elif expected_total and expected_files:
@@ -293,22 +304,10 @@ def verify_readiness(
                 f"{len(expected_extracted_active)}/{expected_total} runtime target vectors extracted "
                 "and bound to the active model; missing exact production coverage"
             )
-    elif total == 0:
-        level, detail = "bootstrap", "no steering vectors present"
-        readiness_ratio = 0.0
-    elif extracted_ratio < 0.5:
-        level = "bootstrap"
-        detail = (
-            f"{scan['runtime_derived']} runtime-derived / {scan['fallback']} fallback vectors — "
-            "NOT extracted from the fused model"
-        )
-        readiness_ratio = extracted_ratio
-    elif extracted_ratio < 1.0:
-        level, detail = "mixed", f"{scan['extracted']}/{total} vectors extracted; rest runtime/nearest"
-        readiness_ratio = extracted_ratio
     else:
-        level, detail = "production", "all vectors extracted from the model"
-        readiness_ratio = extracted_ratio
+        level = "bootstrap"
+        detail = "no exact runtime-target vectors are bound to the active model"
+        readiness_ratio = 0.0
 
     capacity = _CAPACITY.get(level, 0.3)
     return {
@@ -319,6 +318,8 @@ def verify_readiness(
         "steering_capacity_pct": round(capacity * 100, 1),
         "below_design_capacity": capacity < 1.0,
         "active_model": active["path"],
+        "active_model_identity_valid": bool(active.get("identity_valid")),
+        "active_model_identity_error": str(active.get("identity_error") or ""),
         "runtime_contract": {
             "expected_keys": expected_keys,
             "expected_layers": expected_layers,
@@ -327,7 +328,7 @@ def verify_readiness(
             "expected_extracted_unbound": len(stale_expected),
             "missing_expected": missing_expected,
             "ignored_file_count": len(ignored_files),
-            "active_model_config_sha256": active.get("model_config_sha256"),
+            "active_model_descriptor_sha256": active.get("descriptor_sha256"),
         },
         "vectors": scan,
     }

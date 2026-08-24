@@ -21,8 +21,8 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.state_ownership import state_root
+from core.runtime.task_ownership import create_tracked_task
 
 JobFn = Callable[[], Awaitable[dict[str, Any]] | dict[str, Any]]
 logger = logging.getLogger("core.runtime.autonomy_conductor")
@@ -442,9 +442,11 @@ class AutonomyConductor:
         return STDPExternalValidator().run(steps=64).to_dict()
 
     async def _job_caa_32b_validation(self) -> dict[str, Any]:
-        from training.caa_32b_validation import CAA32BValidator
+        from training.caa_32b_validation import CAAModelValidator
 
-        return CAA32BValidator().run()
+        # The persisted job name is retained for schedule compatibility, but
+        # validation follows the exact active cortex rather than a size label.
+        return CAAModelValidator().run()
 
     async def _job_proof_bundle(self) -> dict[str, Any]:
         from tools.proof_bundle import build_proof_bundle

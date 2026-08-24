@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Production-scale CAA validation harness for Aura 32B.
+"""Production-scale CAA validation harness for Aura's active cortex.
 
 This script validates the artifacts needed for a credible CAA claim:
 activation-derived vectors, layer geometry, PCA structure, permutation
 controls, rich-prompt comparator slots, black-box prompt-hygiene conditions,
 and behavioral A/B result ingestion.  It runs quickly when evaluating existing
-artifacts and can be paired with `extract_steering_vectors.py` for full 32B
-extraction runs.
+artifacts and can be paired with `extract_steering_vectors.py` for full-model
+extraction runs. Model authority comes from an exact artifact descriptor, not
+from a parameter-count label or a shared configuration file.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +41,7 @@ class LoadedVector:
     extracted: bool = False
     model_path: str | None = None
     model_config_sha256: str | None = None
+    model_descriptor_sha256: str | None = None
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -59,10 +62,58 @@ def _model_config_sha256(model_path: str) -> str | None:
     return _sha256_file(cfg)
 
 
-class CAA32BValidator:
-    def __init__(self, vectors_dir: str | Path = "training/vectors", model_path: str = "mlx-community/Qwen2.5-32B-Instruct-4bit") -> None:
+class CAAModelValidator:
+    def __init__(
+        self,
+        vectors_dir: str | Path = "training/vectors",
+        model_path: str | Path | None = None,
+        model_identity: dict[str, object] | None = None,
+    ) -> None:
         self.vectors_dir = Path(vectors_dir)
-        self.model_path = str(model_path)
+        if model_path is None:
+            try:
+                from core.brain.llm.model_registry import get_active_cortex_spec
+
+                spec = get_active_cortex_spec()
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+                spec = None
+            if spec is not None:
+                model_path = spec.model_path
+                model_identity = model_identity or spec.artifact_descriptor()
+        if model_path is None and isinstance(model_identity, dict):
+            model_path = str(model_identity.get("canonical_path") or "") or None
+        self.model_path = str(model_path or "")
+        if model_identity is None and self.model_path:
+            try:
+                from core.brain.llm.model_registry import (
+                    get_active_model_artifact_descriptor,
+                )
+
+                model_identity = get_active_model_artifact_descriptor(self.model_path)
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+                model_identity = None
+        self.model_identity: dict[str, object] = {}
+        self.model_identity_error = "exact_model_identity_unavailable"
+        if isinstance(model_identity, dict) and self.model_path:
+            try:
+                from core.brain.llm.model_artifact_profile import (
+                    validate_model_artifact_descriptor,
+                )
+
+                validated = validate_model_artifact_descriptor(
+                    model_identity,
+                    model_path=self.model_path,
+                    verify_full_hash=False,
+                )
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                self.model_identity_error = f"{type(exc).__name__}: {exc}"
+            else:
+                self.model_identity = dict(validated)
+                self.model_identity_error = ""
+        digest = str(self.model_identity.get("descriptor_sha256") or "")
+        self.model_descriptor_sha256 = (
+            digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
+        )
         self._vector_load_errors: list[dict[str, str]] = []
 
     def run(self, behavioral_results: str | Path | None = None) -> dict[str, Any]:
@@ -70,40 +121,47 @@ class CAA32BValidator:
         vectors = self._load_vectors()
         activation_vectors = [v for v in vectors if v.layer >= 0]
         fallback_vectors = [v for v in vectors if v.layer < 0]
-        active_model_config_sha256 = _model_config_sha256(self.model_path)
+        observed_model_config_sha256 = _model_config_sha256(self.model_path)
         production_activation_vectors = self._active_model_bound_vectors(
             activation_vectors,
-            active_model_config_sha256=active_model_config_sha256,
+            model_descriptor_sha256=self.model_descriptor_sha256,
         )
         production_vector_ids = {id(vector) for vector in production_activation_vectors}
         stale_activation_vectors = [
             vector for vector in activation_vectors if id(vector) not in production_vector_ids
         ]
         geometry = self._geometry(production_activation_vectors)
-        behavioral = self._load_behavioral_results(behavioral_results)
+        observed_geometry = self._geometry(activation_vectors)
+        behavioral = self._load_behavioral_results(
+            behavioral_results,
+            model_descriptor_sha256=self.model_descriptor_sha256,
+        )
         prompt_controls = self._prompt_control_schema()
         pass_conditions = self._pass_conditions(
             production_activation_vectors,
             geometry,
             behavioral,
-            active_model_config_sha256=active_model_config_sha256,
+            model_descriptor_sha256=self.model_descriptor_sha256,
             total_activation_vectors=len(activation_vectors),
             stale_activation_vectors=len(stale_activation_vectors),
         )
         return {
             "generated_at": time.time(),
             "model_path": self.model_path,
-            "production_model_detected": "32b" in self.model_path.lower(),
+            "exact_model_detected": bool(self.model_descriptor_sha256),
+            "model_descriptor_sha256": self.model_descriptor_sha256,
+            "model_identity_error": self.model_identity_error,
             "vectors_dir": str(self.vectors_dir),
             "vector_count": len(vectors),
             "activation_vector_count": len(activation_vectors),
             "production_activation_vector_count": len(production_activation_vectors),
             "stale_or_unbound_activation_vector_count": len(stale_activation_vectors),
             "fallback_prior_count": len(fallback_vectors),
-            "active_model_config_sha256": active_model_config_sha256,
+            "observed_model_config_sha256": observed_model_config_sha256,
             "dimensions": sorted({v.dimension for v in vectors}),
             "layers": sorted({v.layer for v in vectors if v.layer >= 0}),
             "geometry": geometry,
+            "observed_unbound_geometry": observed_geometry,
             "behavioral_ab": behavioral,
             "prompt_controls": prompt_controls,
             "pass_conditions": pass_conditions,
@@ -115,14 +173,17 @@ class CAA32BValidator:
     def _active_model_bound_vectors(
         vectors: list[LoadedVector],
         *,
-        active_model_config_sha256: str | None,
+        model_descriptor_sha256: str,
     ) -> list[LoadedVector]:
-        if not active_model_config_sha256:
-            return [vector for vector in vectors if vector.extracted]
+        if not model_descriptor_sha256:
+            return []
         return [
             vector
             for vector in vectors
-            if vector.extracted and vector.model_config_sha256 == active_model_config_sha256
+            if (
+                vector.extracted
+                and vector.model_descriptor_sha256 == model_descriptor_sha256
+            )
         ]
 
     def _load_vectors(self) -> list[LoadedVector]:
@@ -158,6 +219,7 @@ class CAA32BValidator:
                     extracted=bool(metadata.get("extracted", False)),
                     model_path=metadata.get("model_path"),
                     model_config_sha256=metadata.get("model_config_sha256"),
+                    model_descriptor_sha256=metadata.get("model_descriptor_sha256"),
                 )
             )
         return vectors
@@ -168,7 +230,14 @@ class CAA32BValidator:
             return np.load(path), {}
         data = np.load(path)
         metadata: dict[str, Any] = {}
-        for key in ("source", "extracted", "model_path", "model", "model_config_sha256"):
+        for key in (
+            "source",
+            "extracted",
+            "model_path",
+            "model",
+            "model_config_sha256",
+            "model_descriptor_sha256",
+        ):
             if key not in data:
                 continue
             value = data[key]
@@ -239,8 +308,8 @@ class CAA32BValidator:
         _, singular, vh = np.linalg.svd(centered, full_matrices=False)
         variance = singular**2
         explained = (variance / max(float(variance.sum()), 1e-12))[:3]
-        same, cross = CAA32BValidator._cosine_groups(vectors)
-        permutation = CAA32BValidator._permutation_control(vectors, observed=max(0.0, same - cross))
+        same, cross = CAAModelValidator._cosine_groups(vectors)
+        permutation = CAAModelValidator._permutation_control(vectors, observed=max(0.0, same - cross))
         return {
             "available": True,
             "vector_dim": int(matrix.shape[1]),
@@ -278,13 +347,17 @@ class CAA32BValidator:
                 LoadedVector(dimension=shuffled[idx], layer=v.layer, path=v.path, vector=v.vector)
                 for idx, v in enumerate(vectors)
             ]
-            same, cross = CAA32BValidator._cosine_groups(clone)
+            same, cross = CAAModelValidator._cosine_groups(clone)
             if (same - cross) >= observed:
                 equal_or_better += 1
         return (equal_or_better + 1) / (rounds + 1)
 
     @staticmethod
-    def _load_behavioral_results(path: str | Path | None) -> dict[str, Any]:
+    def _load_behavioral_results(
+        path: str | Path | None,
+        *,
+        model_descriptor_sha256: str,
+    ) -> dict[str, Any]:
         if not path:
             return {
                 "available": False,
@@ -298,7 +371,7 @@ class CAA32BValidator:
                 ],
             }
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        data = CAA32BValidator._normalize_behavioral_results(data)
+        data = CAAModelValidator._normalize_behavioral_results(data)
         required = {
             "steered_vs_baseline_effect_size": 0.20,
             "steered_vs_rich_prompt_effect_size": 0.10,
@@ -310,11 +383,16 @@ class CAA32BValidator:
             for key, threshold in required.items()
         }
         checks["black_box_prompt_hygiene_passed"] = bool(data.get("black_box_prompt_hygiene_passed", False))
+        checks["model_identity_bound"] = bool(
+            model_descriptor_sha256
+            and str(data.get("model_descriptor_sha256") or "")
+            == model_descriptor_sha256
+        )
         return {"available": True, "raw": data, "checks": checks, "passed": all(checks.values())}
 
     @staticmethod
     def _normalize_behavioral_results(data: dict[str, Any]) -> dict[str, Any]:
-        """Accept both compact metric files and the live 32B A/B artifact.
+        """Accept both compact metric files and the live-cortex A/B artifact.
 
         `tests/run_32b_steering_ab_live.py` writes the full analysis object
         produced by `core.evaluation.steering_ab`. The readiness gate expects a
@@ -382,7 +460,7 @@ class CAA32BValidator:
         live_hygiene = bool(
             passes_adversarial
             and injection_provenance_ok
-            and "32b" in model.lower()
+            and bool(model)
             and n_trials >= 25
             and len(held_out_tasks) >= 5
             # …and the steered arm actually outmoved every text condition.
@@ -433,7 +511,7 @@ class CAA32BValidator:
         geometry: dict[str, Any],
         behavioral: dict[str, Any],
         *,
-        active_model_config_sha256: str | None,
+        model_descriptor_sha256: str,
         total_activation_vectors: int,
         stale_activation_vectors: int,
     ) -> dict[str, dict[str, Any]]:
@@ -443,19 +521,26 @@ class CAA32BValidator:
             and geometry.get("mean_cross_dimension_abs_cosine", 1.0) < 0.95
             and geometry.get("mean_pca_top1", 0.0) > 0.20
         )
-        if active_model_config_sha256:
+        if model_descriptor_sha256:
             binding_ok = len(vectors) >= 10
             binding_value: Any = {
                 "bound": len(vectors),
                 "total_activation_vectors": total_activation_vectors,
                 "stale_or_unbound_activation_vectors": stale_activation_vectors,
-                "active_model_config_sha256": active_model_config_sha256,
+                "model_descriptor_sha256": model_descriptor_sha256,
             }
         else:
-            binding_ok = True
-            binding_value = "not_fingerprintable"
+            binding_ok = False
+            binding_value = "exact_model_identity_unavailable"
         return {
-            "production_32b_model": {"passed": "32b" in self.model_path.lower(), "value": self.model_path},
+            "exact_model_artifact": {
+                "passed": bool(model_descriptor_sha256),
+                "value": {
+                    "model_path": self.model_path,
+                    "model_descriptor_sha256": model_descriptor_sha256,
+                    "identity_error": self.model_identity_error,
+                },
+            },
             "activation_vectors_present": {"passed": len(vectors) >= 10, "value": len(vectors)},
             "active_model_vector_binding": {"passed": binding_ok, "value": binding_value},
             "geometry_coherent": {"passed": geometry_ok, "value": geometry},
@@ -463,8 +548,11 @@ class CAA32BValidator:
         }
 
 
-def write_report(output_path: str | Path, *, vectors_dir: str | Path, model_path: str, behavioral_results: str | Path | None = None) -> dict[str, Any]:
-    report = CAA32BValidator(vectors_dir=vectors_dir, model_path=model_path).run(behavioral_results=behavioral_results)
+CAA32BValidator = CAAModelValidator
+
+
+def write_report(output_path: str | Path, *, vectors_dir: str | Path, model_path: str | Path | None, behavioral_results: str | Path | None = None) -> dict[str, Any]:
+    report = CAAModelValidator(vectors_dir=vectors_dir, model_path=model_path).run(behavioral_results=behavioral_results)
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
@@ -474,7 +562,7 @@ def write_report(output_path: str | Path, *, vectors_dir: str | Path, model_path
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vectors-dir", default="training/vectors")
-    parser.add_argument("--model-path", default="mlx-community/Qwen2.5-32B-Instruct-4bit")
+    parser.add_argument("--model-path")
     parser.add_argument("--behavioral-results")
     parser.add_argument("--output", default="artifacts/proof_bundle/CAA_32B_RESULTS.json")
     args = parser.parse_args()
