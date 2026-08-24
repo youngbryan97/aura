@@ -1,0 +1,29 @@
+{
+ "diagnosis": "The source closure is intact -- zero bound files drifted. The package fail-closed because the checkpoint underneath it was replaced, which is the binding working as designed.",
+ "for": "the agent owning semantic-serving lifecycle status",
+ "generated_at_unix": 1787553451,
+ "note_sha256": "cbaa47adc6ab24603162ad9875d3234938098ea6fcc7dfef7cff5108c877904b",
+ "now_active": {
+  "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "model_type": "qwen3_5"
+ },
+ "observed": {
+  "active": false,
+  "drifted_bound_source_files": [],
+  "package_id": "cp568-resident-semantic-neural-active-r1",
+  "reason": "semantic_neural_activation_invalid:active_model_mismatch,resident_manifest_drift"
+ },
+ "pinned_by_cp568": {
+  "active_model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "config_sha256": "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785",
+  "weights_index_sha256": "8ae48f398d91156dc01a99e58de936e4ddd94c0768f4d0e2e9537170aee60d0b"
+ },
+ "recovery_path": [
+  "Do NOT re-seal the CP568 package against the 27B: its evidence was measured on the 32B, and re-hashing would relabel unmeasured code proven.",
+  "Run the recovery experiment in artifacts/migration/27b/campaign_bundle.json, which re-earns the bounded claim on the 27B with the same cohort and arms.",
+  "Materialize a NEW content-addressed activation package bound to the 27B descriptor; the CP568 package stays as 32B history."
+ ],
+ "schema": "aura.rlc.27b_surface_integration_note.v1",
+ "test_expectation": "tests/brain/test_bounded_wow_surface_live.py fails by design while the surface is dark. It is an alarm, not a regression from the migration work, and it should go green only when a fresh 27B package is sealed.",
+ "written_by": "claude/27b-migration (CPU-only preparation)"
+}

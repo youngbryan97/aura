@@ -105,7 +105,7 @@ def test_missing_evidence_is_reported_rather_than_skipped(gate, monkeypatch):
 
     def fake_load(relative):
         if relative == gate.CP567_RUNTIME:
-            raise gate.MissingEvidence(relative)
+            raise gate.MissingEvidenceError(relative)
         return real_load(relative)
 
     monkeypatch.setattr(gate, "_load", fake_load)

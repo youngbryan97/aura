@@ -28,11 +28,43 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _installation_root() -> Path:
+    """Where the evidence actually lives.
+
+    Most retained evidence is untracked, so a `.claude/worktrees/` checkout has
+    the documents but not the artifacts they quote. Reporting that as a missing
+    receipt would make this gate cry wolf in every worktree; git's common dir
+    names the checkout holding them.
+    """
+    import subprocess
+
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ROOT
+    if not common:
+        return ROOT
+    # In the primary checkout the common dir's parent IS the root; in a
+    # worktree it names the checkout that holds the untracked evidence.
+    return Path(common).parent
+
+
+INSTALL = _installation_root()
 
 CP566 = (
     "artifacts/closeout/latent_cortex/"
@@ -65,15 +97,16 @@ DOCUMENTS = (
 )
 
 
-class MissingEvidence(Exception):
+class MissingEvidenceError(Exception):
     """The artifact a figure cites is not in the tree."""
 
 
 def _load(relative: str) -> Any:
-    path = ROOT / relative
-    if not path.exists():
-        raise MissingEvidence(relative)
-    return json.loads(path.read_text())
+    for base in (ROOT, INSTALL):
+        path = base / relative
+        if path.exists():
+            return json.loads(path.read_text())
+    raise MissingEvidenceError(relative)
 
 
 @dataclass(frozen=True)
@@ -194,7 +227,12 @@ FLOORS: tuple[tuple[str, str, int], ...] = (
 
 def _floor_count(pattern: str) -> int:
     directory, _, glob = pattern.rpartition("/")
-    entries = sorted((ROOT / directory).glob(glob))
+    base = ROOT if (ROOT / directory).exists() else INSTALL
+    if directory.startswith("artifacts"):
+        # Evidence directories grow untracked, so the installation is the
+        # honest denominator even when the source is checked out elsewhere.
+        base = INSTALL
+    entries = sorted((base / directory).glob(glob))
     if directory == "tools" or directory == "tests":
         return sum(
             1 for e in entries if re.search(r"latent|recurren|rlc", e.name)
@@ -221,7 +259,7 @@ def _sourced_latencies() -> set[str]:
     for source in LATENCY_SOURCES:
         try:
             data = _load(source)
-        except MissingEvidence:
+        except MissingEvidenceError:
             continue
         for key in ("p50_latency_ms", "mean_latency_ms", "max_latency_ms"):
             if key in data:
@@ -281,7 +319,7 @@ def check() -> list[dict[str, Any]]:
     for figure in FIGURES:
         try:
             recomputed = figure.recompute(_load(figure.source))
-        except MissingEvidence as exc:
+        except MissingEvidenceError as exc:
             findings.append(
                 {
                     "figure": figure.quoted,
