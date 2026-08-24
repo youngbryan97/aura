@@ -6465,6 +6465,16 @@ def _active_steering_hooks(engine: Any = None) -> list[Any]:
         return []
 
 
+@dataclass(frozen=True)
+class AffectiveSteeringAttachment:
+    """Worker-local outcome for cortex-bound affective neural tissue."""
+
+    engine: Any
+    active: bool
+    affect_expected: bool
+    disposition: str
+
+
 def _attach_affective_steering(
     model: Any,
     tokenizer: Any,
@@ -6472,7 +6482,7 @@ def _attach_affective_steering(
     phi_residual_mem: Any,
     steering_active_flag: Any,
     model_path: str | None = None,
-) -> tuple[Any, bool]:
+) -> AffectiveSteeringAttachment:
     """The forward arrow: substrate state into the residual stream.
 
     Steering is optional neural tissue, not the owner of response availability.
@@ -6485,15 +6495,38 @@ def _attach_affective_steering(
     the worker, PhiCore lives in the parent — which is why the
     activation-grounded complex read 0/50 forever.
 
-    Returns ``(engine, active)``.
+    Non-cortex workers are explicitly ineligible rather than misreported as a
+    damaged resident cortex. The typed result also tells downstream token
+    diagnostics whether missing steering hooks are expected.
     """
     engine = None
     try:
+        from core.brain.llm.model_registry import resolve_cortex_bound_artifact
         from core.consciousness.affective_steering import get_steering_engine
+
+        cortex_resolution = resolve_cortex_bound_artifact(model_path)
+        if cortex_resolution.status == "non_cortex_model":
+            if steering_active_flag is not None:
+                steering_active_flag.value = False
+            logger.info(
+                "Affective steering not applicable to non-cortex model lane: %s.",
+                cortex_resolution.model_path,
+            )
+            return AffectiveSteeringAttachment(
+                engine=None,
+                active=False,
+                affect_expected=False,
+                disposition="non_cortex_model",
+            )
 
         engine = get_steering_engine()
         if model_path:
-            engine.attach(model, tokenizer, model_path=model_path)
+            engine.attach(
+                model,
+                tokenizer,
+                model_path=model_path,
+                model_identity=cortex_resolution.descriptor,
+            )
         else:
             engine.attach(model, tokenizer)
         available = bool(
@@ -6518,7 +6551,7 @@ def _attach_affective_steering(
                 engine._alpha,
                 len(getattr(engine, "_hooks", [])),
             )
-            return engine, True
+            return AffectiveSteeringAttachment(engine, True, True, "active")
 
         if available:
             logger.info(
@@ -6527,12 +6560,13 @@ def _attach_affective_steering(
                 float(getattr(engine, "_alpha", 0.0) or 0.0),
                 len(getattr(engine, "_hooks", []) or []),
             )
-            return engine, False
+            return AffectiveSteeringAttachment(engine, False, True, "neutral")
 
         disposition = str(
             (getattr(engine, "_model_info", None) or {}).get("attachment_error") or ""
         )
         if disposition in {
+            "steering_generation_checkpoint_incompatible",
             "steering_generation_deferred",
             "steering_generation_retired",
         }:
@@ -6540,7 +6574,7 @@ def _attach_affective_steering(
                 "Affective steering remains detached under signed migration disposition: %s.",
                 disposition,
             )
-            return engine, False
+            return AffectiveSteeringAttachment(engine, False, False, disposition)
 
         exc = RuntimeError("affective_steering_attach_unavailable")
         record_degradation(
@@ -6552,7 +6586,7 @@ def _attach_affective_steering(
         logger.warning(
             "Affective steering did not attach; resident-model inference remains available."
         )
-        return None, False
+        return AffectiveSteeringAttachment(None, False, False, "unavailable")
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         if steering_active_flag is not None:
             steering_active_flag.value = False
@@ -6563,7 +6597,7 @@ def _attach_affective_steering(
             action="continued resident-model inference after optional steering attach failed",
         )
         logger.warning("Affective steering attach failed; continuing without it: %s", exc)
-        return None, False
+        return AffectiveSteeringAttachment(None, False, False, "attach_failed")
 
 
 def _attach_latent_bridge(model: Any, latent_readout_mem: Any) -> Any:
@@ -6949,7 +6983,7 @@ def _mlx_worker_loop(
         draft_model = _load_speculative_draft(model_path, tokenizer)
 
         # Both arrows of the substrate<->activation coupling.
-        engine, _steering_active = _attach_affective_steering(
+        steering_attachment = _attach_affective_steering(
             model,
             tokenizer,
             substrate_mem,
@@ -6957,6 +6991,9 @@ def _mlx_worker_loop(
             steering_active_flag,
             model_path=model_path,
         )
+        engine = steering_attachment.engine
+        _steering_active = steering_attachment.active
+        _affect_expected = steering_attachment.affect_expected
         if engine is not None and getattr(engine, "_model_attached", False):
             latent_bridge = _attach_latent_bridge(model, latent_readout_mem)
 
@@ -7861,7 +7898,8 @@ def _mlx_worker_loop(
                                                 )
                                             ),
                                             affect_expected=(
-                                                _safe_float(
+                                                _affect_expected
+                                                and _safe_float(
                                                     job.get(
                                                         "clean_user_surface_steering_alpha"
                                                     ),
@@ -10026,7 +10064,8 @@ def _mlx_worker_loop(
                                         substrate_mem=substrate_mem,
                                         steering_hooks=_active_steering_hooks(engine),
                                         affect_expected=(
-                                            _safe_float(
+                                            _affect_expected
+                                            and _safe_float(
                                                 job.get(
                                                     "clean_user_surface_steering_alpha"
                                                 ),

@@ -254,6 +254,10 @@ def test_active_manifest_exposes_identity_only_for_its_exact_model(tmp_path, mon
 
     other = _artifact(tmp_path, name="same-width-other-model")
     (other / "model.safetensors").write_bytes(b"different-weights")
+    resolution = model_registry.resolve_cortex_bound_artifact(other)
+    assert resolution.status == "non_cortex_model"
+    assert resolution.model_path == other.resolve()
+    assert resolution.descriptor is None
     assert model_registry.get_active_model_artifact_descriptor(other) is None
 
 

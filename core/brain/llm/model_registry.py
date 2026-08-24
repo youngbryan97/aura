@@ -267,6 +267,26 @@ class ActiveCortexSpec:
 
 
 @dataclass(frozen=True)
+class CortexBoundArtifactResolution:
+    """Admission result for tissue that belongs only to the active cortex.
+
+    A non-cortex lane is not an identity failure. Brainstem, reflex, draft,
+    and specialist workers legitimately load other checkpoints, so callers
+    need a quiet way to distinguish those workers from a corrupted active
+    cortex identity.
+    """
+
+    status: str
+    model_path: Path | None = None
+    descriptor: dict[str, object] | None = None
+    reason: str = ""
+
+    @property
+    def matched(self) -> bool:
+        return self.status == "matched"
+
+
+@dataclass(frozen=True)
 class CortexServingLaneLimits:
     """One qualified input/output envelope from the active cortex profile."""
 
@@ -762,27 +782,73 @@ def _resolve_active_fused_model() -> str | None:
     return str(spec.model_path) if spec is not None else None
 
 
+def resolve_cortex_bound_artifact(
+    model_path: str | Path | None = None,
+) -> CortexBoundArtifactResolution:
+    """Classify a loaded model for active-cortex-bound neural tissue.
+
+    This resolver is intentionally non-alarming. A caller may be loading a
+    valid non-cortex lane, and only the caller knows whether that is expected.
+    ``get_active_model_artifact_descriptor`` retains strict diagnostics for
+    callers that assert they already own the cortex lane.
+    """
+
+    spec = get_active_cortex_spec()
+    if spec is None:
+        return CortexBoundArtifactResolution(
+            "identity_unavailable",
+            reason="active_cortex_absent",
+        )
+    if not spec.exact_identity:
+        return CortexBoundArtifactResolution(
+            "identity_unavailable",
+            model_path=spec.model_path,
+            reason="active_cortex_exact_identity_unavailable",
+        )
+    try:
+        requested = Path(model_path or spec.model_path).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        return CortexBoundArtifactResolution(
+            "path_unavailable",
+            reason=f"{type(exc).__name__}:{exc}",
+        )
+    if requested != spec.model_path:
+        return CortexBoundArtifactResolution(
+            "non_cortex_model",
+            model_path=requested,
+            reason="loaded_model_is_not_active_cortex",
+        )
+    descriptor = spec.artifact_descriptor()
+    if not isinstance(descriptor, dict):
+        return CortexBoundArtifactResolution(
+            "identity_unavailable",
+            model_path=requested,
+            reason="active_cortex_descriptor_unavailable",
+        )
+    return CortexBoundArtifactResolution(
+        "matched",
+        model_path=requested,
+        descriptor=descriptor,
+    )
+
+
 def get_active_model_artifact_descriptor(
     model_path: str | Path | None = None,
 ) -> dict[str, object] | None:
-    """Return the exact identity bound to the active promoted cortex.
+    """Return the exact identity bound to the asserted active cortex.
 
     Schema-v2 pointers predate exact basis identity and honestly return None.
     Schema-v3 pointers must validate and must name the model the caller has
     actually loaded; a same-width but different checkpoint is not compatible.
     """
 
-    spec = get_active_cortex_spec()
-    if spec is None or not spec.exact_identity:
-        return None
-    try:
-        requested = Path(model_path or spec.model_path).expanduser().resolve(strict=True)
-    except (OSError, RuntimeError):
-        return None
-    if requested != spec.model_path:
-        logger.error("Active cortex artifact descriptor path mismatch: %s", requested)
-        return None
-    return spec.artifact_descriptor()
+    resolution = resolve_cortex_bound_artifact(model_path)
+    if resolution.status == "non_cortex_model":
+        logger.error(
+            "Active cortex artifact descriptor path mismatch: %s",
+            resolution.model_path,
+        )
+    return resolution.descriptor if resolution.matched else None
 
 
 _CORTEX_NAME = CORTEX_LOGICAL_NAME

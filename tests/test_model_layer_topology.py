@@ -142,12 +142,14 @@ def test_neutral_steering_is_attached_but_not_injected(monkeypatch):
     monkeypatch.setattr(mlx_worker, "record_degradation", lambda *args, **kwargs: None)
     flag = SimpleNamespace(value=True)
 
-    attached, active = mlx_worker._attach_affective_steering(
+    result = mlx_worker._attach_affective_steering(
         SimpleNamespace(), SimpleNamespace(), None, None, flag
     )
 
-    assert attached is engine
-    assert active is False
+    assert result.engine is engine
+    assert result.active is False
+    assert result.affect_expected is True
+    assert result.disposition == "neutral"
     assert flag.value is False
 
 
@@ -163,12 +165,49 @@ def test_failed_steering_attach_keeps_resident_model_available(monkeypatch):
     monkeypatch.setattr(mlx_worker, "record_degradation", lambda *args, **kwargs: None)
     flag = SimpleNamespace(value=True)
 
-    attached, active = mlx_worker._attach_affective_steering(
+    result = mlx_worker._attach_affective_steering(
         SimpleNamespace(), SimpleNamespace(), None, None, flag
     )
 
-    assert attached is None
-    assert active is False
+    assert result.engine is None
+    assert result.active is False
+    assert result.affect_expected is False
+    assert flag.value is False
+
+
+def test_non_cortex_worker_does_not_attempt_cortex_bound_steering(monkeypatch):
+    from core.brain.llm import mlx_worker, model_registry
+    from core.consciousness import affective_steering
+
+    monkeypatch.setattr(
+        model_registry,
+        "resolve_cortex_bound_artifact",
+        lambda _path: SimpleNamespace(
+            status="non_cortex_model",
+            model_path="/models/brainstem",
+            descriptor=None,
+        ),
+    )
+    monkeypatch.setattr(
+        affective_steering,
+        "get_steering_engine",
+        lambda: (_ for _ in ()).throw(AssertionError("engine must not be opened")),
+    )
+    flag = SimpleNamespace(value=True)
+
+    result = mlx_worker._attach_affective_steering(
+        SimpleNamespace(),
+        SimpleNamespace(),
+        object(),
+        None,
+        flag,
+        model_path="/models/brainstem",
+    )
+
+    assert result.engine is None
+    assert result.active is False
+    assert result.affect_expected is False
+    assert result.disposition == "non_cortex_model"
     assert flag.value is False
 
 
@@ -195,7 +234,7 @@ def test_deferred_steering_does_not_start_sync_without_hooks(monkeypatch):
     engine = Engine()
     monkeypatch.setattr(affective_steering, "get_steering_engine", lambda: engine)
 
-    attached, active = mlx_worker._attach_affective_steering(
+    result = mlx_worker._attach_affective_steering(
         SimpleNamespace(),
         SimpleNamespace(),
         object(),
@@ -204,8 +243,9 @@ def test_deferred_steering_does_not_start_sync_without_hooks(monkeypatch):
         model_path="/models/deferred",
     )
 
-    assert attached is engine
-    assert active is False
+    assert result.engine is engine
+    assert result.active is False
+    assert result.affect_expected is False
     assert sync_calls == []
 
 
