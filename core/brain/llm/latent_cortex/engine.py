@@ -2322,8 +2322,25 @@ class LatentCortexEngine:
             logits = semantic_adapter.apply(h, logits)
         return logits
 
-    def _prefill(self, tokens: list[int], cache, budget: ComputeBudget):
-        """Standard full-stack prefill. Returns (embeddings, last-position logits)."""
+    def _prefill(
+        self,
+        tokens: list[int],
+        cache,
+        budget: ComputeBudget,
+        *,
+        progress: Callable[[dict], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ):
+        """Cache-preserving bounded prefill.
+
+        The old implementation built one graph spanning every prompt token
+        and decoder layer. A 755-token resident Qwen3.5 turn peaked at 36.3GB
+        inside the worker and correctly tripped its 35.8GB fuse. Chunking is
+        semantically identical because each layer's native cache carries its
+        same prefix state; evaluating and clearing each chunk only bounds the
+        transient graph. Floating-point reduction order may differ across
+        chunk shapes, as it does in mlx-lm's standard prefill path.
+        """
         import mlx.core as mx
 
         inner = self.decoder
@@ -2343,11 +2360,35 @@ class LatentCortexEngine:
             output_head_tokens=1,
         )
         arr = mx.array([tokens])
-        h = inner.embed_tokens(arr)
-        embeddings = h
-        masks = decoder_layer_masks(inner, h, cache)
-        for i, layer in enumerate(inner.layers):
-            h = layer(h, masks[i], cache[i])
+        embeddings = inner.embed_tokens(arr)
+        mx.eval(embeddings)
+        chunk_tokens = min(len(tokens), int(self.config.prefill_chunk_tokens))
+        h = None
+        for start in range(0, len(tokens), chunk_tokens):
+            if self._cancel_requested(cancel_check):
+                raise _LatentEpisodeCancelledError("prompt_prefill")
+            end = min(len(tokens), start + chunk_tokens)
+            h = embeddings[:, start:end, :]
+            masks = decoder_layer_masks(inner, h, cache)
+            for i, layer in enumerate(inner.layers):
+                h = layer(h, masks[i], cache[i])
+            # Match mlx-lm's bounded prefill discipline: both the output and
+            # every heterogeneous cache state become concrete before the
+            # temporary graph is released.
+            mx.eval(h, [member.state for member in cache])
+            self._emit_progress(
+                progress,
+                {
+                    "stage": "prompt_prefill",
+                    "processed_tokens": end,
+                    "total_tokens": len(tokens),
+                    "chunk_tokens": end - start,
+                    "prefill_chunk_ceiling": chunk_tokens,
+                },
+            )
+            mx.clear_cache()
+        if h is None:
+            raise RuntimeError("latent prefill produced no hidden state")
         logits = self._logits(h[:, -1:, :])[0, -1]
         self._last_prefill_hidden = h[:, -1:, :]
         mx.eval(logits, self._last_prefill_hidden)
@@ -4554,7 +4595,13 @@ class LatentCortexEngine:
                 f"required={minimum_admission} remaining={budget.remaining_layer_apps}"
             )
 
-        embeddings, prompt_tail_logits = self._prefill(tokens, cache, budget)
+        embeddings, prompt_tail_logits = self._prefill(
+            tokens,
+            cache,
+            budget,
+            progress=progress,
+            cancel_check=cancel_check,
+        )
         # Keep the ordinary incumbent as a materialized, gradient-free
         # float32 value before any recurrent adapter or temporary synapse can
         # touch the resident function. The prompt cache is restored later;

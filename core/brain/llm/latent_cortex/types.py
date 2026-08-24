@@ -459,6 +459,11 @@ class CortexConfig:
     branches: BranchConfig = field(default_factory=BranchConfig)
     latent_opt: LatentOptConfig = field(default_factory=LatentOptConfig)
     fast_weights: FastWeightsConfig = field(default_factory=FastWeightsConfig)
+    # Maximum prompt tokens in one materialized prefill graph. The cache
+    # carries exact state between chunks, so this changes peak memory rather
+    # than model semantics. Resident-scale hybrid checkpoints cannot safely
+    # materialize a long prompt across every decoder layer in one graph.
+    prefill_chunk_tokens: int = 128
     # Prelude/coda split as layer fractions (window = the middle region).
     prelude_frac: float = 0.25
     coda_frac: float = 0.25
@@ -703,6 +708,8 @@ class CortexConfig:
             problems.append("divergence_ratio must be finite and inside (1, 1000]")
         if type(self.recurrence.fixed_depth) is not bool:
             problems.append("fixed_depth must be boolean")
+        if not integer_in(self.prefill_chunk_tokens, 1, 8192):
+            problems.append("prefill_chunk_tokens must be inside [1, 8192]")
         if not integer_in(self.branches.n_branches, 1, ABSOLUTE_MAX_BRANCHES):
             problems.append(
                 f"n_branches {self.branches.n_branches} outside [1, {ABSOLUTE_MAX_BRANCHES}]"

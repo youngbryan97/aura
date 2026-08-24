@@ -823,6 +823,10 @@ class LatentCortexService:
         fast_weight_layers = max(2, min(8, round((2 + 6 * intensity) * headroom)))
         config = {
             "n_slots": 16,
+            # This is an execution-memory bound, not a reasoning reduction.
+            # Exact cache state connects chunks while transient layer graphs
+            # are released between them.
+            "prefill_chunk_tokens": 128,
             "max_steps": max_steps,
             "min_steps": 2,
             "n_branches": n_branches,

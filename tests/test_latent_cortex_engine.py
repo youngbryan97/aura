@@ -125,7 +125,8 @@ def test_engine_resolves_hybrid_language_model_layers():
     assert engine.model_layer_view.path == "language_model.model.layers"
 
 
-def test_hybrid_prefill_uses_each_layers_native_mask_contract():
+def _hybrid_model():
+    mx.random.seed(773)
     text_config = {
         "model_type": "qwen3_5_text",
         "hidden_size": 64,
@@ -149,6 +150,11 @@ def test_hybrid_prefill_uses_each_layers_native_mask_contract():
         qwen3_5.ModelArgs(model_type="qwen3_5", text_config=text_config)
     )
     mx.eval(model.parameters())
+    return model
+
+
+def test_hybrid_prefill_uses_each_layers_native_mask_contract():
+    model = _hybrid_model()
     engine = LatentCortexEngine(model, config=_config())
     budget = ComputeBudget(max_layer_apps=100_000, wall_clock_s=30.0)
     cache = engine._fresh_cache()
@@ -163,6 +169,77 @@ def test_hybrid_prefill_uses_each_layers_native_mask_contract():
         "ArraysCache",
         "KVCache",
     ]
+
+
+def test_hybrid_chunked_prefill_matches_single_graph_and_reports_progress():
+    model = _hybrid_model()
+    full = LatentCortexEngine(
+        model,
+        config=_config(prefill_chunk_tokens=len(PROMPT_TOKENS)),
+    )
+    chunked = LatentCortexEngine(
+        model,
+        config=_config(prefill_chunk_tokens=3),
+    )
+    full_cache = full._fresh_cache()
+    chunked_cache = chunked._fresh_cache()
+    full_budget = ComputeBudget(max_layer_apps=100_000, wall_clock_s=30.0)
+    chunked_budget = ComputeBudget(max_layer_apps=100_000, wall_clock_s=30.0)
+    progress = []
+
+    full_embeddings, full_logits = full._prefill(
+        PROMPT_TOKENS,
+        full_cache,
+        full_budget,
+    )
+    chunked_embeddings, chunked_logits = chunked._prefill(
+        PROMPT_TOKENS,
+        chunked_cache,
+        chunked_budget,
+        progress=progress.append,
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(chunked_embeddings),
+        np.asarray(full_embeddings),
+        rtol=0,
+        atol=0,
+    )
+    np.testing.assert_allclose(
+        np.asarray(chunked_logits),
+        np.asarray(full_logits),
+        rtol=5e-3,
+        atol=5e-3,
+    )
+    assert int(mx.argmax(chunked_logits)) == int(mx.argmax(full_logits))
+    assert [row["processed_tokens"] for row in progress] == [3, 6, 9, 10]
+    assert all(row["stage"] == "prompt_prefill" for row in progress)
+    assert full_budget.spent_layer_apps == chunked_budget.spent_layer_apps
+
+    def cache_position(member):
+        if hasattr(member, "offset"):
+            return int(member.offset)
+        if member.lengths is None:
+            return None
+        return tuple(np.asarray(member.lengths).tolist())
+
+    assert [cache_position(member) for member in full_cache] == [
+        cache_position(member) for member in chunked_cache
+    ]
+    for full_member, chunked_member in zip(full_cache, chunked_cache, strict=True):
+        full_state = full_member.state
+        chunked_state = chunked_member.state
+        assert type(full_state) is type(chunked_state)
+        for full_value, chunked_value in zip(full_state, chunked_state, strict=True):
+            if full_value is None:
+                assert chunked_value is None
+                continue
+            np.testing.assert_allclose(
+                np.asarray(chunked_value),
+                np.asarray(full_value),
+                rtol=3e-2,
+                atol=1e-2,
+            )
 
 
 def test_hybrid_wrapper_runs_a_complete_latent_episode():
@@ -1042,7 +1119,8 @@ def test_episode_cooperatively_cancels_at_safe_stage_and_preserves_checkpoint(
     assert result.receipt.params_unchanged is True
     assert result.receipt.last_stage == "prefill"
     assert "soft_cancelled" in result.receipt.honest_flags
-    assert stages[0] == "prefill"
+    assert stages[0] == "prompt_prefill"
+    assert "prefill" in stages
     assert stages[-1] == "failed"
 
 
