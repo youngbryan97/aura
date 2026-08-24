@@ -1951,7 +1951,16 @@ class HealthAwareLLMRouter:
             else:
                 kwargs.pop("messages", None)
 
-        if should_force_tool_handoff(contract, is_background=inferred_background) and not _contract_tool_handoff_val:
+        side_effect_free_completion = bool(
+            kwargs.get("user_surface_completion_retry", False)
+            or kwargs.get("user_surface_continuation_contract", False)
+        )
+        tool_handoff_allowed = bool(kwargs.get("allow_tools", True)) and not (
+            side_effect_free_completion
+        )
+        if should_force_tool_handoff(
+            contract, is_background=inferred_background
+        ) and (tool_handoff_allowed and not _contract_tool_handoff_val):
             tools = build_agentic_tool_map(
                 contract.required_skill if contract else None,
                 objective=prompt,

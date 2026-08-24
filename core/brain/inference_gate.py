@@ -10766,6 +10766,33 @@ class InferenceGate:
         prompt: str,
         context: dict[str, Any] | None = None,
         timeout: float | None = None,  # noqa: ASYNC109
+        *,
+        _generation_metadata_sink: dict[str, Any] | None = None,
+    ) -> Any:
+        """Bind request-scoped generation evidence around the direct endpoint."""
+
+        sink_slot = self._generation_metadata_sink_slot()
+        inherited_sink = sink_slot.get()
+        bound_sink = (
+            _generation_metadata_sink
+            if isinstance(_generation_metadata_sink, dict)
+            else inherited_sink
+        )
+        sink_token = sink_slot.set(bound_sink)
+        try:
+            return await self._generate_with_metadata_sink(
+                prompt,
+                context=context,
+                timeout=timeout,
+            )
+        finally:
+            sink_slot.reset(sink_token)
+
+    async def _generate_with_metadata_sink(  # noqa: ASYNC109
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109
     ) -> Any:
         """Primary generation endpoint.
 

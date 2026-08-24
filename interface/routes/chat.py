@@ -12906,6 +12906,7 @@ async def _stabilize_user_facing_reply(
                         deep_handoff=False,
                         allow_deep_handoff=False,
                         allow_cloud_fallback=False,
+                        allow_tools=False,
                         skip_runtime_payload=True,
                         disable_prompt_cache=True,
                         clear_prompt_cache=True,

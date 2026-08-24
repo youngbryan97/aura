@@ -3582,6 +3582,49 @@ async def test_think_exports_request_metadata_across_parent_wait_for_boundary(mo
     assert "later" not in metadata_sink["surface_control_receipt"]
 
 
+@pytest.mark.asyncio
+async def test_direct_generate_exports_child_task_metadata_to_explicit_sink(monkeypatch):
+    gate = InferenceGate()
+    resume_handle = "a" * 32
+
+    async def _generate(*_args, **_kwargs):
+        async def _client_generation_task():
+            gate._publish_generation_metadata(
+                {
+                    "ok": True,
+                    "surface_control_receipt": {
+                        "generation_stop_reason": "max_tokens",
+                        "semantic_completion_incomplete": True,
+                        "continuation_resume_handle": resume_handle,
+                    },
+                },
+                {
+                    "generation_stop_reason": "max_tokens",
+                    "semantic_completion_incomplete": True,
+                    "continuation_resume_handle": resume_handle,
+                },
+            )
+
+        await asyncio.create_task(_client_generation_task())
+        return "partial answer"
+
+    monkeypatch.setattr(gate, "_generate_with_metadata_sink", _generate)
+    metadata_sink = {}
+
+    text = await gate.generate(
+        "Explain the complete result.",
+        _generation_metadata_sink=metadata_sink,
+    )
+
+    assert text == "partial answer"
+    assert metadata_sink["surface_control_receipt"][
+        "semantic_completion_incomplete"
+    ] is True
+    assert metadata_sink["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+
+
 def test_inference_gate_records_stabilization_without_prior_provider_receipt():
     gate = InferenceGate()
     gate._clear_last_generation_metadata()

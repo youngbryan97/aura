@@ -1,6 +1,7 @@
 import asyncio
 import time
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -552,6 +553,105 @@ async def test_direct_surface_receipt_prevents_false_endpoint_failure():
     assert result["error"] == "surface_quality_rejected"
     assert endpoint.failure_count == 0
     assert endpoint.state.value == "closed"
+
+
+@pytest.mark.asyncio
+async def test_generate_endpoint_exports_request_scoped_surface_receipt():
+    class _GenerateClient:
+        async def generate(
+            self,
+            _prompt,
+            *,
+            context=None,
+            timeout=None,  # noqa: ASYNC109 - fake client verifies timeout forwarding.
+            _generation_metadata_sink=None,
+        ):
+            del context, timeout
+
+            async def _worker_task():
+                _generation_metadata_sink.update(
+                    {
+                        "surface_control_receipt": {
+                            "generation_stop_reason": "max_tokens",
+                            "semantic_completion_incomplete": True,
+                            "continuation_resume_handle": "b" * 32,
+                        }
+                    }
+                )
+
+            await asyncio.create_task(_worker_task())
+            return "partial answer"
+
+    router = HealthAwareLLMRouter()
+    endpoint = EndpointHealth(
+        name="Cortex",
+        url="internal",
+        model="local-test",
+        is_local=True,
+        tier="local",
+        client=_GenerateClient(),
+    )
+
+    result = await router._call_endpoint(
+        endpoint,
+        "Explain the complete result.",
+        "Speak as Aura.",
+        timeout=30.0,
+    )
+
+    assert result["ok"] is True
+    assert result["surface_control_receipt"][
+        "semantic_completion_incomplete"
+    ] is True
+    assert result["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == "b" * 32
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "completion_flags",
+    [
+        {"user_surface_completion_retry": True},
+        {"user_surface_continuation_contract": True},
+    ],
+)
+async def test_completion_generation_cannot_enter_tool_handoff(
+    monkeypatch,
+    completion_flags,
+):
+    router = HealthAwareLLMRouter()
+    router.think_and_act = AsyncMock(return_value={"content": "wrong", "tool_calls": []})
+    router._generate_core = AsyncMock(
+        return_value={
+            "ok": True,
+            "text": "continued answer",
+            "endpoint": "Cortex",
+            "tokens": 2,
+            "error": "",
+        }
+    )
+    monkeypatch.setattr(
+        "core.brain.llm_health_router.should_force_tool_handoff",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "core.brain.llm_health_router.build_agentic_tool_map",
+        lambda *_args, **_kwargs: {"code_repl": object()},
+    )
+
+    result = await router._generate_with_metadata_gated(
+        "Continue the answer about code execution.",
+        system_prompt="",
+        timeout=30.0,
+        skip_runtime_payload=True,
+        allow_tools=False,
+        **completion_flags,
+    )
+
+    assert result["text"] == "continued answer"
+    router.think_and_act.assert_not_awaited()
+    router._generate_core.assert_awaited_once()
 
 
 @pytest.mark.asyncio
