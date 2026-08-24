@@ -221,6 +221,10 @@
   }
  },
  "legacy_checkpoint": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+ "legacy_checkpoint_identity": {
+  "path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "tokenizer_sha256": "3fd169731d2cbde95e10bf356d66d5997fd885dd8dbb6fb4684da3f23b2585d8"
+ },
  "must_regenerate": [
   "recurrent_answer_emission.py",
   "recurrent_opcode_grounding.py"
@@ -228,7 +232,7 @@
  "portable": [
   "recurrent_literal_grounding.py"
  ],
- "report_sha256": "8a4e46c2fdd8f560a7e27d95278848bb6021bdf15f972bfb11389a046ab1a840",
+ "report_sha256": "081bd98f8e29bdeee97c60e2562370d64ed70313bc6bf42d5fc3834f175df1a6",
  "schema": "aura.rlc.27b_grounding_portability.v1",
  "target_bindings": {
   "answer_emission_prefixes": {
@@ -308,6 +312,10 @@
     13
    ]
   }
+ },
+ "target_checkpoint_identity": {
+  "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
  },
  "typed_only_contracts": {
   "core/learning/recurrent_action_schema.py": "binds a typed opcode vocabulary; no tokenizer involved",

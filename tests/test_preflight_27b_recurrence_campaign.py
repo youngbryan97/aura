@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from tools import prepare_27b_recurrence_campaign as prepare
 from tools import preflight_27b_recurrence_campaign as preflight
+from tools import prepare_27b_recurrence_campaign as prepare
+from tools import verify_27b_grounding_portability as grounding
 
 INSTALL = Path("/Users/bryan/.aura/live-source")
 
@@ -140,7 +141,15 @@ def test_the_runtime_pointing_elsewhere_is_refused(bundle, tmp_path):
     legacy = INSTALL / "training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118"
     if not legacy.exists():
         pytest.skip("legacy checkpoint is not installed")
-    damaged = prepare.build(legacy, INSTALL)
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(str(legacy))
+    legacy_grounding = grounding.build(
+        {"legacy": tokenizer, "target": tokenizer},
+        legacy_model=legacy,
+        target_model=legacy,
+    )
+    damaged = prepare.build(legacy, INSTALL, legacy_grounding)
     assert "active_model_moved" in _kinds(damaged)
 
 

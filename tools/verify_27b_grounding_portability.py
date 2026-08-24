@@ -75,6 +75,27 @@ def _digest(value: Any) -> str:
     ).hexdigest()
 
 
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _checkpoint_identity(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    resolved = path.expanduser().resolve(strict=True)
+    tokenizer = resolved / "tokenizer.json"
+    if not tokenizer.is_file():
+        raise RuntimeError(f"grounding checkpoint has no tokenizer.json: {resolved}")
+    return {
+        "path": str(resolved),
+        "tokenizer_sha256": _file_digest(tokenizer),
+    }
+
+
 def _probe(tokenizer: Any) -> dict[str, Any]:
     """Every token binding the recurrent contracts derive, under one tokenizer."""
     from core.learning.recurrent_literal_grounding import tokenizer_digit_token_ids
@@ -119,16 +140,23 @@ def _compare(name: str, old: Any, new: Any, consumer: str) -> dict[str, Any]:
     }
 
 
-def build(tokenizers: dict[str, Any] | None = None) -> dict[str, Any]:
+def build(
+    tokenizers: dict[str, Any] | None = None,
+    *,
+    legacy_model: Path | None = None,
+    target_model: Path | None = None,
+) -> dict[str, Any]:
     if tokenizers is None:
         from transformers import AutoTokenizer
 
-        active = json.loads(
+        active = Path(json.loads(
             (INSTALL / "training/fused-model/active.json").read_text()
-        )["active_model_path"]
+        )["active_model_path"])
+        legacy_model = legacy_model or LEGACY_MODEL
+        target_model = target_model or active
         tokenizers = {
-            "legacy": AutoTokenizer.from_pretrained(str(LEGACY_MODEL)),
-            "target": AutoTokenizer.from_pretrained(str(active)),
+            "legacy": AutoTokenizer.from_pretrained(str(legacy_model)),
+            "target": AutoTokenizer.from_pretrained(str(target_model)),
         }
 
     legacy = _probe(tokenizers["legacy"])
@@ -168,6 +196,8 @@ def build(tokenizers: dict[str, Any] | None = None) -> dict[str, Any]:
     body = {
         "schema": GROUNDING_PORTABILITY_SCHEMA,
         "legacy_checkpoint": str(LEGACY_MODEL),
+        "legacy_checkpoint_identity": _checkpoint_identity(legacy_model),
+        "target_checkpoint_identity": _checkpoint_identity(target_model),
         "findings": findings,
         "changed_opcode_markers": changed_opcodes,
         "typed_only_contracts": {

@@ -147,6 +147,30 @@ def test_portable_tissue_is_pinned_and_present(bundle):
         assert campaign._sha_file(path) == digest
 
 
+def test_grounding_dispositions_come_from_the_bound_measurement(bundle):
+    grounding = bundle["grounding_portability"]
+    assert "recurrent_literal_grounding.py" in grounding["portable"]
+    assert "recurrent_opcode_grounding.py" in grounding["must_regenerate"]
+    stage = next(stage for stage in bundle["stages"] if stage["name"] == "regrounding")
+    assert "every recorded token id is stale" not in stage["note"]
+    assert "recurrent_literal_grounding.py" in stage["note"]
+
+
+def test_grounding_measurement_for_another_checkpoint_is_refused(bundle):
+    report = json.loads(
+        (campaign.REPO_ROOT / "artifacts/migration/27b/grounding_portability.json").read_text()
+    )
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    body["target_checkpoint_identity"] = {
+        **body["target_checkpoint_identity"],
+        "tokenizer_sha256": "0" * 64,
+    }
+    damaged = {**body, "report_sha256": campaign._sha(body)}
+    model = Path(bundle["target_checkpoint"]["path"])
+    with pytest.raises(SystemExit, match="another checkpoint"):
+        campaign.build(model, INSTALL, damaged)
+
+
 def test_the_bundle_digest_covers_the_bundle(bundle):
     body = {k: v for k, v in bundle.items() if k != "campaign_sha256"}
     assert campaign._sha(body) == bundle["campaign_sha256"]
@@ -182,6 +206,20 @@ def test_a_dense_checkpoint_still_prepares(tmp_path):
     model = tmp_path / "dense"
     model.mkdir()
     (model / "config.json").write_text(json.dumps(config))
-    built = campaign.build(model, INSTALL)
+    (model / "tokenizer.json").write_text("{}")
+    grounding_body = {
+        "schema": "aura.rlc.27b_grounding_portability.v1",
+        "target_checkpoint_identity": {
+            "path": str(model.resolve()),
+            "tokenizer_sha256": campaign._sha_file(model / "tokenizer.json"),
+        },
+        "portable": ["recurrent_literal_grounding.py"],
+        "must_regenerate": ["recurrent_opcode_grounding.py"],
+    }
+    grounding = {
+        **grounding_body,
+        "report_sha256": campaign._sha(grounding_body),
+    }
+    built = campaign.build(model, INSTALL, grounding)
     assert built["geometry"]["is_hybrid"] is False
     assert LayerGeometry.from_config(config).attention_layers() == tuple(range(64))

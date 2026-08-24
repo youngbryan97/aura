@@ -1,5 +1,5 @@
 {
- "campaign_sha256": "9f76af56e0b6f566de484906e25902c37139f185f031d07a4aed13fa84c65274",
+ "campaign_sha256": "48dcdef710133560de2df0ea85fc8f2c4f7520b1420c7785e7e4d4038ebff49e",
  "experiments": {
   "generalization": {
    "authorizes": "a wider bounded claim if it passes; never ordinary chat and never global serving",
@@ -169,6 +169,20 @@
   ],
   "window_size": 32
  },
+ "grounding_portability": {
+  "must_regenerate": [
+   "recurrent_answer_emission.py",
+   "recurrent_opcode_grounding.py"
+  ],
+  "portable": [
+   "recurrent_literal_grounding.py"
+  ],
+  "report_sha256": "081bd98f8e29bdeee97c60e2562370d64ed70313bc6bf42d5fc3834f175df1a6",
+  "target_checkpoint_identity": {
+   "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+   "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+  }
+ },
  "legacy_claim": {
   "adjudication": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/adjudication.json",
   "authority_over_this_campaign": "none",
@@ -299,7 +313,7 @@
   "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
   "core/learning/unified_intrinsic_objective.py": "b8dd69d577eac804bc5a405577ca54d52fb21b75d33bb3795a9a559f5eaad961",
   "core/learning/unified_intrinsic_recurrence.py": "a513ea50f4c5e8cca2500e0322432245d2696e5a6a985f1cbfdfd7a4559d97c5",
-  "tools/prepare_27b_recurrence_campaign.py": "745e6e394a334981d3e3e2b3269b836fe79b81a1cf0e5ccf8c04270bc147cb95",
+  "tools/prepare_27b_recurrence_campaign.py": "8413ce6255ad92b83a47eab0c52a130e78a2ef373f75cc4affc4e311532d7770",
   "tools/run_semantic_neural_decode_canary.py": "43aef0838e30abc51e23eb7c11b79815073a4b185e2ade80531fb9ccf7489286",
   "tools/run_unified_recurrent_broad_canary.py": "e042a233b995a903ccc1adfd9b8023fa537bc479c0e3c5fe6e34d0dde2a2e62d",
   "tools/train_unified_intrinsic_recurrence.py": "d25b47d5caa06a955b313a0df39a85ab7609c39ae705cb02a3b2cef70ca58703"
@@ -315,10 +329,10 @@
    "resumable": true
   },
   {
-   "does": "regenerate tokenizer-bound grounding contracts against the 27B vocabulary; the 32B digit and opcode ids are retired",
+   "does": "retain only tokenizer bindings measured portable and regenerate the exact bindings measured changed on the target checkpoint",
    "model_active": false,
    "name": "regrounding",
-   "note": "vocabulary moved 152,064 -> 248,320, so every recorded token id is stale and the contracts fail closed until rebuilt",
+   "note": "portable: recurrent_literal_grounding.py; must regenerate: recurrent_answer_emission.py, recurrent_opcode_grounding.py",
    "produces": [
     "grounding.json"
    ],

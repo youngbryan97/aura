@@ -118,7 +118,10 @@ def _sha(value: Any) -> str:
 # ── Stages ──────────────────────────────────────────────────────────────
 
 
-def _stages(geometry: dict[str, Any]) -> list[dict[str, Any]]:
+def _stages(
+    geometry: dict[str, Any],
+    grounding: dict[str, Any],
+) -> list[dict[str, Any]]:
     """The order that keeps the weights resident exactly once.
 
     ``model_active`` marks a stage that needs the checkpoint in memory. They
@@ -142,14 +145,14 @@ def _stages(geometry: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "regrounding",
             "model_active": False,
             "does": (
-                "regenerate tokenizer-bound grounding contracts against the "
-                "27B vocabulary; the 32B digit and opcode ids are retired"
+                "retain only tokenizer bindings measured portable and regenerate "
+                "the exact bindings measured changed on the target checkpoint"
             ),
             "produces": ["grounding.json"],
             "resumable": True,
             "note": (
-                "vocabulary moved 152,064 -> 248,320, so every recorded token "
-                "id is stale and the contracts fail closed until rebuilt"
+                f"portable: {', '.join(grounding['portable']) or 'none'}; "
+                f"must regenerate: {', '.join(grounding['must_regenerate']) or 'none'}"
             ),
         },
         {
@@ -321,7 +324,49 @@ def _experiments() -> dict[str, Any]:
     }
 
 
-def build(model_path: Path, install: Path) -> dict[str, Any]:
+def _grounding_measurement(
+    model_path: Path,
+    report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if report is None:
+        report_path = REPO_ROOT / "artifacts/migration/27b/grounding_portability.json"
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit("grounding portability measurement is unavailable") from exc
+    if not isinstance(report, dict) or report.get("schema") != (
+        "aura.rlc.27b_grounding_portability.v1"
+    ):
+        raise SystemExit("grounding portability measurement schema is invalid")
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    if report.get("report_sha256") != _sha(body):
+        raise SystemExit("grounding portability measurement digest is invalid")
+    identity = report.get("target_checkpoint_identity")
+    tokenizer = model_path / "tokenizer.json"
+    if not isinstance(identity, dict) or identity != {
+        "path": str(model_path.resolve(strict=True)),
+        "tokenizer_sha256": _sha_file(tokenizer),
+    }:
+        raise SystemExit("grounding portability measurement targets another checkpoint")
+    portable = report.get("portable")
+    regenerate = report.get("must_regenerate")
+    if not isinstance(portable, list) or not isinstance(regenerate, list):
+        raise SystemExit("grounding portability measurement has no disposition lists")
+    if set(map(str, portable)) & set(map(str, regenerate)):
+        raise SystemExit("grounding portability dispositions overlap")
+    return {
+        "report_sha256": report["report_sha256"],
+        "target_checkpoint_identity": identity,
+        "portable": sorted(map(str, portable)),
+        "must_regenerate": sorted(map(str, regenerate)),
+    }
+
+
+def build(
+    model_path: Path,
+    install: Path,
+    grounding_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     config = json.loads((model_path / "config.json").read_text())
     geometry = LayerGeometry.from_config(config)
     text = config.get("text_config") if isinstance(config.get("text_config"), dict) else config
@@ -378,7 +423,8 @@ def build(model_path: Path, install: Path) -> dict[str, Any]:
             raise SystemExit(f"portable tissue is missing: {relative}")
         portable[relative] = _sha_file(path)
 
-    stages = _stages(receipt)
+    grounding = _grounding_measurement(model_path, grounding_report)
+    stages = _stages(receipt, grounding)
     active = [stage["name"] for stage in stages if stage["model_active"]]
     first = next(i for i, s in enumerate(stages) if s["model_active"])
     last = max(i for i, s in enumerate(stages) if s["model_active"])
@@ -402,6 +448,7 @@ def build(model_path: Path, install: Path) -> dict[str, Any]:
         },
         "source_freeze": source_freeze,
         "portable_tissue": portable,
+        "grounding_portability": grounding,
         "stages": stages,
         "model_active_stages": active,
         "single_residency": {

@@ -67,6 +67,18 @@ def test_the_report_digest_covers_the_report(report):
     assert portability._digest(body) == report["report_sha256"]
 
 
+def test_the_report_is_bound_to_the_exact_target_tokenizer(report):
+    manifest = json.loads(
+        (INSTALL / "training/fused-model/active.json").read_text()
+    )
+    model = Path(manifest["active_model_path"]).resolve(strict=True)
+    identity = report["target_checkpoint_identity"]
+    assert identity == {
+        "path": str(model),
+        "tokenizer_sha256": portability._file_digest(model / "tokenizer.json"),
+    }
+
+
 def test_identical_tokenizers_make_everything_portable():
     """A checkpoint compared against itself must show no drift at all."""
     manifest = INSTALL / "training/fused-model/active.json"
