@@ -532,6 +532,9 @@ def compile_episodic_delta_inventory(
 ) -> dict[str, DistilledTrajectoryFactors]:
     """Compile a complete ``snapshot_delta`` inventory without proxy pairing."""
 
+    # o_proj lives under attention, which three layers in four of a hybrid
+    # checkpoint do not have; the resolver below reports that rather than
+    # assuming the mapping holds.
     parents = {"o_proj": "self_attn", "down_proj": "mlp"}
     if target not in parents:
         raise ValueError("episodic transplant projection target is unsupported")

@@ -138,6 +138,10 @@ def wrap_recurrent_window(
         or not lora_targets
     ):
         _fail("recurrent_sft_adapter_config_invalid")
+    from core.learning.hybrid_recurrence_geometry import (
+        resolve_projection_parent,
+    )
+
     model.freeze()
     layers = model.model.layers
     prelude_end = max(1, int(len(layers) * spec.prelude_frac))
@@ -149,16 +153,13 @@ def wrap_recurrent_window(
     for layer_index in range(prelude_end, coda_start):
         layer = layers[layer_index]
         for target in lora_targets:
-            parent_name = (
-                "self_attn"
-                if hasattr(layer.self_attn, target)
-                else "mlp"
-                if hasattr(layer.mlp, target)
-                else ""
-            )
-            if not parent_name:
+            # ``hasattr(layer.self_attn, ...)`` raised on a hybrid checkpoint:
+            # the attribute lookup happens before hasattr can guard it, and 48
+            # of the 27B's 64 layers carry ``linear_attn`` instead.
+            resolved = resolve_projection_parent(layer, target)
+            if resolved is None:
                 continue
-            parent = getattr(layer, parent_name)
+            parent_name, parent = resolved
             base = getattr(parent, target)
             site = f"model.layers.{layer_index}.{parent_name}.{target}"
             setattr(

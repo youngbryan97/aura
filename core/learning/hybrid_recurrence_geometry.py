@@ -234,3 +234,43 @@ def geometry_receipt(
         "expected_adapter_site_count": len(sites),
         "alignment_errors": window_alignment_errors(geometry, prelude_end, coda_start),
     }
+
+
+def resolve_projection_parent(layer: Any, target: str) -> tuple[str, Any] | None:
+    """The block on this layer that owns ``target``, or None if none does.
+
+    Written because ``hasattr(layer.self_attn, target)`` raises on a layer that
+    has no ``self_attn`` -- the attribute lookup happens before ``hasattr`` can
+    report anything, so the guard never runs. On a dense checkpoint every layer
+    answered and the expression looked total. On a hybrid one it raises at the
+    first linear layer.
+
+    Order matters: attention is asked first so a projection name that exists on
+    both blocks resolves the way it did before hybrid checkpoints existed.
+    """
+    for parent_name in ("self_attn", "linear_attn", "mlp"):
+        parent = getattr(layer, parent_name, None)
+        if parent is None:
+            continue
+        if getattr(parent, target, None) is not None:
+            return parent_name, parent
+    return None
+
+
+def adaptable_sites(layers: Any, window: range, targets: Any) -> tuple[str, ...]:
+    """Sites a walk over ``window`` will actually find, in canonical order.
+
+    The counterpart to ``expected_adapter_sites``: that one is derived from a
+    config before the model exists, this one from the object that will run. A
+    disagreement between them is the silent-thinning defect, which is why both
+    exist rather than one.
+    """
+    sites: list[str] = []
+    for index in window:
+        layer = layers[index]
+        for target in targets:
+            resolved = resolve_projection_parent(layer, target)
+            if resolved is None:
+                continue
+            sites.append(f"model.layers.{index}.{resolved[0]}.{target}")
+    return tuple(sites)

@@ -192,7 +192,7 @@ def wrap_depth_conditioned(
     inner = getattr(model, "model", None)
     layers = getattr(inner, "layers", None) or []
     for layer_index, layer in enumerate(layers):
-        for parent_name in ("self_attn", "mlp"):
+        for parent_name in ("self_attn", "linear_attn", "mlp"):
             parent = getattr(layer, parent_name, None)
             if parent is None:
                 continue
@@ -324,7 +324,7 @@ def wrap_continuous_depth_conditioned(
     wrapped: dict[str, ContinuousDepthConditionedLoRA] = {}
     layers = getattr(getattr(model, "model", None), "layers", None) or []
     for layer_index, layer in enumerate(layers):
-        for parent_name in ("self_attn", "mlp"):
+        for parent_name in ("self_attn", "linear_attn", "mlp"):
             parent = getattr(layer, parent_name, None)
             if parent is None:
                 continue
