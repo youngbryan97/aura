@@ -151,35 +151,179 @@ def _class_from_path_tokens(model_path: str) -> str:
     return "small"
 
 
-def _estimate_parameters_from_config(config: dict) -> int:
-    """Coarse transformer parameter estimate from architecture shape.
+def _attention_layer_parameters(
+    *, hidden: int, heads: int, kv_heads: int, head_dim: int, gated_output: bool
+) -> int:
+    """One attention block, from its projection shapes.
 
-    Good to well within one class boundary for the dense decoder families
-    this runtime serves (embedding + per-layer attention/MLP terms).
+    ``hidden * hidden`` for Q and O only holds when the query width equals the
+    residual width. Qwen3.5 projects 24 heads of 256 against a 5120 stream and
+    doubles the query projection for an output gate, so assuming the square
+    form understates the block.
+    """
+    query_width = heads * head_dim
+    kv_width = kv_heads * head_dim
+    q = hidden * query_width * (2 if gated_output else 1)
+    k = hidden * kv_width
+    v = hidden * kv_width
+    o = query_width * hidden
+    return q + k + v + o + 2 * head_dim  # q_norm and k_norm
+
+
+def _linear_attention_layer_parameters(
+    *,
+    hidden: int,
+    key_head_dim: int,
+    value_head_dim: int,
+    num_key_heads: int,
+    num_value_heads: int,
+    conv_kernel: int,
+) -> int:
+    """One gated-delta block, from its own projections.
+
+    A recurrent block shares nothing with an attention block but its residual
+    width, so counting it as attention is not an approximation -- it is a
+    different set of matrices.
+    """
+    key_dim = num_key_heads * key_head_dim
+    value_dim = num_value_heads * value_head_dim
+    conv_dim = 2 * key_dim + value_dim
+    in_qkv = hidden * conv_dim
+    in_z = hidden * value_dim
+    in_ba = 2 * hidden * num_value_heads
+    conv = conv_dim * conv_kernel  # depthwise: groups == channels
+    out = value_dim * hidden
+    scalars = 2 * num_value_heads + value_head_dim  # dt_bias, A_log, gated norm
+    return in_qkv + in_z + in_ba + conv + out + scalars
+
+
+def _estimate_parameters_from_config(config: dict) -> int:
+    """Logical parameters from architecture shape, or zero when unknown.
+
+    Zero means unsupported, and callers fall through to other evidence. A
+    plausible default here would be worse than nothing: the count feeds a
+    resource class and a public descriptor, and a confident wrong number is
+    indistinguishable from a measured one.
+
+    Counts logical parameters, never storage elements. A 4-bit checkpoint
+    stores packed words plus scales and biases; those are the same logical
+    weights and must not be added to them.
     """
     text = _text_model_config(config)
     try:
-        hidden = float(text.get("hidden_size") or 0)
-        layers = float(text.get("num_hidden_layers") or 0)
-        inter = float(text.get("intermediate_size") or 0)
-        vocab = float(text.get("vocab_size") or 0)
-        heads = float(text.get("num_attention_heads") or 0)
-        kv_heads = float(text.get("num_key_value_heads") or heads or 1)
+        hidden = int(text.get("hidden_size") or 0)
+        layers = int(text.get("num_hidden_layers") or 0)
+        inter = int(text.get("intermediate_size") or 0)
+        vocab = int(text.get("vocab_size") or 0)
+        heads = int(text.get("num_attention_heads") or 0)
+        kv_heads = int(text.get("num_key_value_heads") or heads or 1)
     except (TypeError, ValueError):
         return 0
-    if hidden <= 0 or layers <= 0:
+    if hidden <= 0 or layers <= 0 or vocab <= 0 or heads <= 0:
         return 0
     if inter <= 0:
-        inter = hidden * 4
-    head_dim = hidden / heads if heads > 0 else hidden
-    # Attention: Q + output are hidden×hidden; K/V shrink under GQA.
-    attn = 2.0 * hidden * hidden + 2.0 * hidden * (kv_heads * head_dim)
-    mlp = 3.0 * hidden * inter  # gate/up/down
-    embed = 2.0 * vocab * hidden  # embed + lm_head (upper bound if tied)
-    estimate = embed + layers * (attn + mlp)
-    if not math.isfinite(estimate) or estimate <= 0:
         return 0
-    return int(estimate)
+    head_dim = int(text.get("head_dim") or 0) or (hidden // heads)
+    if head_dim <= 0:
+        return 0
+
+    layer_types = text.get("layer_types")
+    interval = text.get("full_attention_interval")
+    if isinstance(layer_types, list) and len(layer_types) == layers:
+        kinds = [str(kind) for kind in layer_types]
+    elif isinstance(interval, int) and interval > 0:
+        kinds = [
+            "full_attention" if (index + 1) % interval == 0 else "linear_attention"
+            for index in range(layers)
+        ]
+    else:
+        kinds = ["full_attention"] * layers
+
+    linear_layers = sum(1 for kind in kinds if kind != "full_attention")
+    if linear_layers:
+        required = (
+            "linear_key_head_dim",
+            "linear_value_head_dim",
+            "linear_num_key_heads",
+            "linear_num_value_heads",
+            "linear_conv_kernel_dim",
+        )
+        geometry = {}
+        for name in required:
+            try:
+                value = int(text.get(name) or 0)
+            except (TypeError, ValueError):
+                return 0
+            if value <= 0:
+                # A hybrid whose recurrent geometry is not declared cannot be
+                # counted. Falling back to the dense formula would report a
+                # number for a model this code has never seen.
+                return 0
+            geometry[name] = value
+        linear_cost = _linear_attention_layer_parameters(
+            hidden=hidden,
+            key_head_dim=geometry["linear_key_head_dim"],
+            value_head_dim=geometry["linear_value_head_dim"],
+            num_key_heads=geometry["linear_num_key_heads"],
+            num_value_heads=geometry["linear_num_value_heads"],
+            conv_kernel=geometry["linear_conv_kernel_dim"],
+        )
+    else:
+        linear_cost = 0
+
+    attention_cost = _attention_layer_parameters(
+        hidden=hidden,
+        heads=heads,
+        kv_heads=kv_heads,
+        head_dim=head_dim,
+        gated_output=bool(text.get("attn_output_gate")),
+    )
+    mlp = 3 * hidden * inter
+    per_layer_norms = 2 * hidden
+    tied = bool(text.get("tie_word_embeddings"))
+    embeddings = vocab * hidden * (1 if tied else 2)
+
+    total = (
+        embeddings
+        + hidden  # final norm
+        + (layers - linear_layers) * (attention_cost + mlp + per_layer_norms)
+        + linear_layers * (linear_cost + mlp + per_layer_norms)
+    )
+    if not math.isfinite(total) or total <= 0:
+        return 0
+    return int(total)
+
+
+def parameter_cross_check(config: dict, weight_map: dict | None) -> dict:
+    """Compare the formula against the stored tensor inventory.
+
+    Storage is not the same question. A quantized checkpoint holds packed
+    weights alongside per-group ``scales`` and ``biases``; those describe the
+    same logical weights and adding them would inflate the count by the
+    quantization overhead. So only the weight tensors are named here, and the
+    result reports agreement rather than asserting it.
+    """
+    estimate = _estimate_parameters_from_config(config)
+    if not isinstance(weight_map, dict) or not weight_map:
+        return {
+            "supported": bool(estimate),
+            "config_parameters": estimate or None,
+            "stored_tensor_count": None,
+            "quantization_artifacts_excluded": None,
+            "agreement": None,
+        }
+    quant_suffixes = (".scales", ".biases", ".zeros", ".qzeros", ".g_idx")
+    logical = [
+        name for name in weight_map if not name.endswith(quant_suffixes)
+    ]
+    excluded = len(weight_map) - len(logical)
+    return {
+        "supported": bool(estimate),
+        "config_parameters": estimate or None,
+        "stored_tensor_count": len(logical),
+        "quantization_artifacts_excluded": excluded,
+        "agreement": None if not estimate else "config_only",
+    }
 
 
 def _quantization_bits(config: dict) -> int:

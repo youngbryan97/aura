@@ -4298,14 +4298,31 @@ def _canonical_runtime_model_label(lane: dict[str, Any] | None) -> str:
         str(lane.get("model_path") or ""),
     ]
     joined = " ".join(candidates).lower()
-    if "solver" in joined or "72b" in joined:
-        return "Solver (72B)"
-    if "brainstem" in joined or "7b" in joined:
-        return "Brainstem (7B)"
-    if "reflex" in joined or "1.5b" in joined:
-        return "Reflex (1.5B)"
-    if "cortex" in joined or "32b" in joined or "aura-32b" in joined:
-        return "Cortex (32B)"
+    # Which LANE this is stays a name match -- the lane names are the words in
+    # these fields. What the lane is CALLED comes from the registry, which
+    # holds the signed resident descriptor. Reading the size out of these
+    # strings could not match a 27B at all, and the "cortex" token was wired
+    # to a literal "Cortex (32B)", so the label named a checkpoint that had
+    # been replaced while its descriptor sat one call away.
+    try:
+        from core.brain.llm.model_registry import (
+            BRAINSTEM_ENDPOINT,
+            DEEP_ENDPOINT,
+            FALLBACK_ENDPOINT,
+            PRIMARY_ENDPOINT,
+            lane_display_label,
+        )
+    except ImportError:
+        lane_display_label = None
+    if lane_display_label is not None:
+        if "solver" in joined:
+            return lane_display_label(DEEP_ENDPOINT)
+        if "brainstem" in joined:
+            return lane_display_label(BRAINSTEM_ENDPOINT)
+        if "reflex" in joined:
+            return lane_display_label(FALLBACK_ENDPOINT)
+        if "cortex" in joined:
+            return lane_display_label(PRIMARY_ENDPOINT)
     return str(
         lane.get("desired_model")
         or lane.get("foreground_endpoint")

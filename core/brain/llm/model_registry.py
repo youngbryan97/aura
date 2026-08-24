@@ -1772,6 +1772,44 @@ def resident_model_label(*, default: str = "Cortex") -> str:
     return tag or default
 
 
+#: How a lane's declared model name renders when the lane is not the cortex.
+#: These names are registry declarations, not guesses -- the registry is what
+#: assigns "Qwen2.5-72B-Instruct-4bit" to the Solver lane -- so reading the
+#: size out of the declared name states what was configured. The cortex is
+#: excluded because it has a signed descriptor, which beats a name.
+_LANE_SIZE_PATTERN = re.compile(r"(?<![a-z0-9])(\d+(?:\.\d+)?)\s*b(?![a-z0-9])", re.I)
+
+
+def _declared_lane_size(model_name: str) -> str:
+    match = _LANE_SIZE_PATTERN.search(str(model_name or ""))
+    return f"{match.group(1).upper()}B" if match else ""
+
+
+def lane_display_label(endpoint_name: str | None) -> str:
+    """What to call one lane, derived rather than matched.
+
+    The chat surface built this by lowercasing every lane field it had and
+    looking for the substring "32b". That could not match a 27B at all, and
+    the "cortex" token it fell back on was wired to the literal "Cortex (32B)"
+    -- so the label named a checkpoint that had been replaced, on a lane whose
+    signed descriptor was sitting right there.
+
+    The cortex reads from that descriptor. Every other lane reads the size out
+    of the model name the registry assigned it, which is a declaration rather
+    than a guess. A lane with neither renders as its own name.
+    """
+    endpoint = normalize_endpoint_name(endpoint_name) or PRIMARY_ENDPOINT
+    assigned = get_lane_model_name(endpoint)
+    # A lane pointed at the cortex logical name IS the cortex, whatever it is
+    # called here -- the deep lane is served that way when no separate solver
+    # is resident -- so it gets the signed label rather than an absent size.
+    if endpoint == PRIMARY_ENDPOINT or assigned == CORTEX_LOGICAL_NAME:
+        label = resident_model_label(default="")
+        return f"{endpoint} ({label})" if label else endpoint
+    size = _declared_lane_size(assigned)
+    return f"{endpoint} ({size})" if size else endpoint
+
+
 def resident_model_identity() -> dict[str, Any]:
     """What the runtime should say about the model it is actually serving.
 

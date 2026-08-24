@@ -218,6 +218,23 @@ _FLAG_SAFE_BOOT_BACKGROUND_GUARD_SECS = _declare_flag(
 
 logger = logging.getLogger("Aura.InferenceGate")
 _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT = 0.0
+
+
+def _primary_lane_label() -> str:
+    """The resident cortex's signed label, for operator-facing log lines.
+
+    The line naming the protected lane carried a literal parameter count, so a
+    log read during a migration named the checkpoint that had been replaced.
+    Degrades to the endpoint name; a log line is never worth an exception.
+    """
+    try:
+        from core.brain.llm.model_registry import resident_model_label
+
+        return resident_model_label(default="Cortex")
+    except Exception:  # noqa: BLE001
+        return "Cortex"
+
+
 _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON = ""
 _EXPLICIT_DEFERRED_PREWARM_REFUSAL_LOG_INTERVAL_S = 60.0
 
@@ -1207,8 +1224,9 @@ async def _apply_strict_proof_answer_contract(
                     protected_foreground_lane = True
                     requested_tier = "primary"
                     logger.info(
-                        "🎭 %s user recognized. Enforcing primary cortex lane (32B).",
+                        "🎭 %s user recognized. Enforcing primary cortex lane (%s).",
                         _trust_level.name,
+                        _primary_lane_label(),
                     )
                 else:
                     # An EXPLICIT handoff, of any depth, is honoured.
