@@ -3092,6 +3092,7 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "surface_quality_gate_passed",
         "surface_quality_gate_attempts",
         "surface_quality_gate_reasons",
+        "surface_quality_rejected_reasons",
         "surface_quality_gate_error",
         "generation_max_tokens",
         "memory_pressure_token_cap",
@@ -3165,6 +3166,13 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         # Bound it independently even though the worker already does so; IPC
         # input is never trusted merely because another Aura process made it.
         receipt["surface_quality_rejected_text"] = rejected_text[:8_000]
+        rejected_reasons = value.get("surface_quality_rejected_reasons")
+        if isinstance(rejected_reasons, (list, tuple)):
+            receipt["surface_quality_rejected_reasons"] = [
+                str(reason).strip()[:120]
+                for reason in rejected_reasons
+                if str(reason).strip()
+            ][:8]
     return receipt
 
 
@@ -3180,6 +3188,20 @@ def _surface_quality_rejection_reasons(value: Any) -> tuple[str, ...]:
     if not isinstance(raw_reasons, (list, tuple)):
         return ()
     return tuple(str(reason).strip()[:120] for reason in raw_reasons if str(reason).strip())[:8]
+
+
+def _surface_quality_rejected_draft_reasons(value: Any) -> tuple[str, ...]:
+    """Reasons attached to the exact retained draft, not the latest retry."""
+
+    receipt = value if isinstance(value, dict) else {}
+    raw_reasons = receipt.get("surface_quality_rejected_reasons")
+    if not isinstance(raw_reasons, (list, tuple)):
+        return _surface_quality_rejection_reasons(receipt)
+    return tuple(
+        str(reason).strip()[:120]
+        for reason in raw_reasons
+        if str(reason).strip()
+    )[:8]
 
 
 def _bounded_surface_grounding_evidence(value: Any = None) -> list[str]:
@@ -14702,7 +14724,9 @@ class MLXLocalClient:
                         _rejected_surface_draft(
                             self.get_last_surface_control_receipt()
                         ),
-                        quality_rejection_reasons,
+                        _surface_quality_rejected_draft_reasons(
+                            self.get_last_surface_control_receipt()
+                        ),
                     )
                     logger.warning(
                         "🛡️ [MLX] Worker rejected the visible draft for semantic "

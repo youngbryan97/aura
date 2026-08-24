@@ -977,6 +977,7 @@ def _surface_generation_control_receipt(
         # suppressed, and only the caller's recovery path — when the
         # alternative is nothing at all — may serve it.
         "surface_quality_rejected_text",
+        "surface_quality_rejected_reasons",
         "surface_quality_gate_error",
         "surface_quality_gate_exemption",
         "surface_quality_gate_waived_reasons",
@@ -2552,8 +2553,50 @@ def _route_cooperative_partial_draft(
         surface_control_state["surface_quality_gate_reasons"] = list(
             dict.fromkeys(merged)
         )[:8]
-        surface_control_state["surface_quality_rejected_text"] = str(text or "")[:8_000]
+        _remember_surface_quality_rejected_draft(
+            surface_control_state,
+            text,
+            merged,
+        )
     return routed
+
+
+def _surface_rejected_draft_rank(text: Any, reasons: list[str]) -> tuple[int, ...]:
+    """Rank suppressed drafts by servability evidence, never arrival time."""
+
+    from core.conversation.surface_disposition import UNSPEAKABLE_REASONS
+
+    body = str(text or "").strip()
+    normalized = [str(reason or "").strip() for reason in reasons if str(reason or "").strip()]
+    completion = {
+        "final_answer_missing",
+        "incomplete_code_response",
+        "missing_final_answer",
+        "truncated_tail",
+        "unanswered_question_part",
+    }
+    unspeakable = sum(reason in UNSPEAKABLE_REASONS for reason in normalized)
+    semantic = sum(reason not in completion for reason in normalized)
+    incomplete = sum(reason in completion for reason in normalized)
+    return (-unspeakable, -semantic, -incomplete, min(len(body), 8_000))
+
+
+def _remember_surface_quality_rejected_draft(
+    state: dict[str, Any],
+    text: Any,
+    reasons: list[str],
+) -> None:
+    """Keep the best rejected draft across worker-owned retries."""
+
+    body = str(text or "").strip()[:8_000]
+    if not body:
+        return
+    rank = _surface_rejected_draft_rank(body, reasons)
+    current_rank = state.get("_surface_quality_rejected_rank")
+    if not isinstance(current_rank, tuple) or rank > current_rank:
+        state["_surface_quality_rejected_rank"] = rank
+        state["surface_quality_rejected_text"] = body
+        state["surface_quality_rejected_reasons"] = list(reasons)[:8]
 
 
 _ARTIFACT_REQUEST_RE = re.compile(
@@ -9078,6 +9121,10 @@ def _mlx_worker_loop(
                                             # as a copy of the first branch,
                                             # so it is a table now.
                                             repairs = {
+                                                "internal_task_prompt_leak": (
+                                                    "strip_private_planning_prefix",
+                                                    "separate_private_plan_and_revalidate_public_suffix",
+                                                ),
                                                 "prompt_artifact": (
                                                     "strip_prompt_artifacts",
                                                     "cut_transcript_continuation_and_revalidate",
@@ -9152,9 +9199,11 @@ def _mlx_worker_loop(
                                             # whether serving it beats serving
                                             # nothing, and it cannot make that
                                             # judgement about text it never saw.
-                                            surface_control_state[
-                                                "surface_quality_rejected_text"
-                                            ] = str(response_text or "")[:8000]
+                                            _remember_surface_quality_rejected_draft(
+                                                surface_control_state,
+                                                response_text,
+                                                rejection_reasons,
+                                            )
                                             validation_resolution = _surface_prompt_resolution(job)
                                             logger.warning(
                                                 "⚠️ [WORKER] Rejected live user-surface draft "

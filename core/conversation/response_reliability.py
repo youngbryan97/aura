@@ -45,7 +45,6 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
-from core.conversation.word_markers import names_any
 from core.brain.llm.latent_cortex.output_quality import (
     evaluate_facet_coverage,
     request_facets,
@@ -59,6 +58,7 @@ from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import unanswered_question_parts
 from core.conversation.requested_reply_shape import reply_scope_text
+from core.conversation.word_markers import names_any
 from core.dialogue.referents import borrowed_first_person_spans
 from core.dialogue.shared_history import has_fabricated_shared_history
 from core.runtime.errors import record_degradation
@@ -7313,7 +7313,32 @@ _INTERNAL_TASK_PROMPT_RE = re.compile(
 
 
 def _has_internal_task_prompt_leak(reply_text: Any) -> bool:
-    return bool(_INTERNAL_TASK_PROMPT_RE.search(str(reply_text or "")))
+    body = str(reply_text or "")
+    if _INTERNAL_TASK_PROMPT_RE.search(body):
+        return True
+    try:
+        from core.language.answer_surface import has_private_planning_prefix
+
+        return has_private_planning_prefix(body)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # The literal protocol detector remains authoritative if the language
+        # substrate is unavailable.  Unknown is not permission to cut prose.
+        return False
+
+
+def strip_private_planning_prefix(reply_text: Any) -> str:
+    """Return the exact authored answer after a proven private plan, or input."""
+
+    body = str(reply_text or "")
+    if not body:
+        return ""
+    try:
+        from core.language.answer_surface import split_private_planning_prefix
+
+        split = split_private_planning_prefix(body)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return body
+    return split.public_answer if split.separated else body
 
 
 #: Words that carry no information about a topic. Deliberately generous: a

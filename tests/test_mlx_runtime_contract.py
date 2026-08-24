@@ -432,10 +432,34 @@ def test_surface_receipt_preserves_a_bounded_rejected_draft():
             "surface_quality_gate_passed": False,
             "surface_quality_gate_reasons": ["corrupted_language"],
             "surface_quality_rejected_text": "x" * 9_000,
+            "surface_quality_rejected_reasons": ["truncated_tail", "x" * 200],
         }
     )
 
     assert receipt["surface_quality_rejected_text"] == "x" * 8_000
+    assert receipt["surface_quality_rejected_reasons"] == [
+        "truncated_tail",
+        "x" * 120,
+    ]
+
+
+def test_rejected_draft_keeps_its_own_reasons_across_later_retry() -> None:
+    from core.brain.llm.mlx_client import (
+        _sanitize_surface_control_receipt,
+        _surface_quality_rejected_draft_reasons,
+    )
+
+    receipt = _sanitize_surface_control_receipt(
+        {
+            "surface_quality_gate_enabled": True,
+            "surface_quality_gate_passed": False,
+            "surface_quality_gate_reasons": ["internal_task_prompt_leak"],
+            "surface_quality_rejected_text": "A substantive incomplete answer.",
+            "surface_quality_rejected_reasons": ["truncated_tail"],
+        }
+    )
+
+    assert _surface_quality_rejected_draft_reasons(receipt) == ("truncated_tail",)
 
 
 def test_worker_rejects_and_repairs_exact_reply_mismatch_before_ipc_success():

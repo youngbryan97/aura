@@ -1503,6 +1503,51 @@ def test_cancelled_clean_live_partial_remains_available_for_completion():
     assert "surface_quality_rejected_text" not in state
 
 
+def test_worker_retry_keeps_stronger_rejected_incumbent() -> None:
+    from core.brain.llm.mlx_worker import _remember_surface_quality_rejected_draft
+
+    state = {}
+    incumbent = (
+        "Dijkstra settles the least tentative distance. The answer continues "
+        "with pseudocode, a worked example, and both complexity bounds."
+    )
+    _remember_surface_quality_rejected_draft(
+        state,
+        incumbent,
+        ["truncated_tail"],
+    )
+    _remember_surface_quality_rejected_draft(
+        state,
+        (
+            "We need answer user's request. Need explain every requested part. "
+            "We must include all five obligations before the final answer."
+        ),
+        ["internal_task_prompt_leak", "truncated_tail", "unanswered_question_part"],
+    )
+
+    assert state["surface_quality_rejected_text"] == incumbent
+    assert state["surface_quality_rejected_reasons"] == ["truncated_tail"]
+
+
+def test_worker_retry_replaces_weaker_rejected_incumbent() -> None:
+    from core.brain.llm.mlx_worker import _remember_surface_quality_rejected_draft
+
+    state = {}
+    _remember_surface_quality_rejected_draft(
+        state,
+        "A partial answer that stops here",
+        ["truncated_tail", "unanswered_question_part"],
+    )
+    complete = (
+        "Dijkstra's invariant is that a settled distance is final, and "
+        "Bellman-Ford is the correct alternative when edges may be negative."
+    )
+    _remember_surface_quality_rejected_draft(state, complete, ["truncated_tail"])
+
+    assert state["surface_quality_rejected_text"] == complete
+    assert state["surface_quality_rejected_reasons"] == ["truncated_tail"]
+
+
 def test_live_surface_quality_retry_preserves_valid_prefill_cache():
     from pathlib import Path
 
