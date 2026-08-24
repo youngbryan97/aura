@@ -573,6 +573,10 @@ class Quantity:
         outside reading range is re-prefixed instead — 0.000047 F is written
         47 µF, which is what the part is called.
         """
+        if self.display_unit in {"count", "1"}:
+            # A pure count or a ratio is a number. Writing "19 count" beside
+            # a safety factor makes a reader look for a unit that is not there.
+            return _round_text(self.value, digits)
         if self.display_unit:
             magnitude = self.to(self.display_unit)
             if _READABLE_LOW <= abs(magnitude) < _READABLE_HIGH or magnitude == 0:
