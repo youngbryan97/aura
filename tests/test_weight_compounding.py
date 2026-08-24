@@ -27,7 +27,7 @@ from core.learning.heldout_battery import (
     grade_response,
     text_collides_with_battery,
 )
-from core.learning.rsi_lineage import VERDICT_BOUNDED, VERDICT_WEAK
+from core.learning.rsi_lineage import VERDICT_BOUNDED
 from core.learning.weight_compounding import (
     CompoundingConfig,
     WeightCompoundingLoop,
@@ -144,6 +144,8 @@ class FakeRunner:
         save = Path(self._arg(argv, "--save-path"))
         save.mkdir(parents=True, exist_ok=True)
         (save / "config.json").write_text("{}", encoding="utf-8")
+        (save / "tokenizer.json").write_text("{}", encoding="utf-8")
+        (save / "tokenizer_config.json").write_text("{}", encoding="utf-8")
         (save / "model.safetensors").write_bytes(b"fused-weights")
         return FakeResult(stdout="fuse ok")
 
@@ -176,6 +178,8 @@ def base_model_dir(tmp_path: Path) -> Path:
     model = tmp_path / "base-model"
     model.mkdir()
     (model / "config.json").write_text("{}", encoding="utf-8")
+    (model / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (model / "tokenizer_config.json").write_text("{}", encoding="utf-8")
     (model / "model.safetensors").write_bytes(b"x" * 1024)
     return model
 
@@ -434,28 +438,33 @@ class TestHarvest:
 # ── full cycles ───────────────────────────────────────────────────────────────
 
 class TestCycle:
-    def test_promotion_cycle_end_to_end(self, tmp_path, base_model_dir, sft_buffer):
+    def test_candidate_cycle_end_to_end(self, tmp_path, base_model_dir, sft_buffer):
         runner = FakeRunner(PROMOTE_SCRIPT)
         config = make_config(tmp_path, base_model_dir, sft_buffer)
         loop = WeightCompoundingLoop(config, command_runner=runner)
         receipt = loop.run_cycle()
 
-        assert receipt.status == "promoted", receipt.reasons
+        assert receipt.status == "candidate", receipt.reasons
         assert receipt.train_mode == "sft"
         assert receipt.incumbent_accuracy == 0.50
         assert receipt.candidate_accuracy == 0.625
         assert receipt.identity_ok is True
         assert receipt.ledger_entry_hash
 
-        # manifest chain: base_model records the ACTUAL parent
-        manifest = json.loads(config.manifest_path.read_text(encoding="utf-8"))
-        assert manifest["base_model"] == str(base_model_dir)
-        assert manifest["active_model_path"] == receipt.promoted_model_path
-        assert Path(receipt.promoted_model_path).exists()
+        assert receipt.promoted_model_path == ""
+        assert Path(receipt.candidate_model_path).exists()
+        assert not config.manifest_path.exists()
+        candidate_record = json.loads(
+            Path(receipt.candidate_receipt_path).read_text(encoding="utf-8")
+        )
+        assert candidate_record["base_model_path"] == str(base_model_dir.resolve())
+        assert candidate_record["candidate_model_path"] == receipt.candidate_model_path
+        assert candidate_record["qualification_state"] == "awaiting_evaluation"
 
         # receipt persisted
         saved = json.loads((Path(receipt.run_dir) / "cycle_receipt.json").read_text())
-        assert saved["status"] == "promoted"
+        assert saved["status"] == "candidate"
+        assert saved["promoted_model_path"] == ""
 
         # the eval_before_promotion contract is now REAL evidence
         adapter_dir = Path(receipt.run_dir) / "adapter"
@@ -466,7 +475,9 @@ class TestCycle:
         # lock released
         assert not (config.work_root / "cycle.lock").exists()
 
-    def test_two_cycles_compound_on_published_artifact(self, tmp_path, base_model_dir, sft_buffer):
+    def test_unactivated_candidate_does_not_become_next_cycle_base(
+        self, tmp_path, base_model_dir, sft_buffer
+    ):
         runner = FakeRunner(PROMOTE_SCRIPT)
         # cycle 2 must follow the manifest, so no override
         config = make_config(
@@ -476,22 +487,23 @@ class TestCycle:
         loop = WeightCompoundingLoop(config, command_runner=runner)
 
         first = loop.run_cycle()
-        assert first.status == "promoted", first.reasons
+        assert first.status == "candidate", first.reasons
         assert first.base_source == "default"
 
         second = loop.run_cycle()
-        assert second.status == "promoted", second.reasons
-        # THE compounding assertion: generation 1 trained on generation 0's output
-        assert second.base_source == "manifest"
-        assert second.base_model == first.promoted_model_path
+        assert second.status == "candidate", second.reasons
+        assert second.base_source == "default"
+        assert second.base_model == str(base_model_dir)
+        assert not config.manifest_path.exists()
 
         records = loop._ledger.load_records()
         assert len(records) == 2
         assert records[1].parent_generation_id == records[0].generation_id
-        assert records[1].baseline_score > records[0].baseline_score
+        assert records[0].promoted is False
+        assert records[1].promoted is False
 
         verdict = loop.lineage_verdict()
-        assert verdict.verdict == VERDICT_WEAK  # monotone but only 2 generations
+        assert verdict.verdict == VERDICT_BOUNDED
         intact, problems = loop.verify_ledger()
         assert intact, problems
 
@@ -554,45 +566,20 @@ class TestCycle:
         assert any("hidden_eval_unavailable" in r for r in receipt.reasons)
 
     def test_the_floor_is_the_high_water_mark_not_the_parent(
-        self, tmp_path, base_model_dir, sft_buffer
+        self, tmp_path, base_model_dir, sft_buffer, monkeypatch
     ):
-        """Epsilon may not be spent again every generation.
-
-        Three cycles, each candidate exactly epsilon below the last. Against
-        the immediate parent every one of them "passes" and accuracy walks
-        down 0.06 with three clean receipts. Against the high-water mark the
-        first holds and the second is refused.
-        """
-        config = make_config(
-            tmp_path, base_model_dir, sft_buffer,
-            model_override="", default_base=str(base_model_dir),
+        """Only centrally promoted lineage records can raise the floor."""
+        loop = WeightCompoundingLoop(
+            make_config(tmp_path, base_model_dir, sft_buffer),
+            command_runner=FakeRunner(PROMOTE_SCRIPT),
         )
-        script = {
-            (1000, False): 0.80, (1000, True): 0.80,
-            (101003, False): 0.80, (101003, True): 0.80,
-            # cycle 1: candidate one epsilon below the parent it trained on
-            (1001, False): 0.80, (1001, True): 0.78,
-            (101004, False): 0.80, (101004, True): 0.80,
-            # cycle 2: another epsilon down
-            (1002, False): 0.78, (1002, True): 0.76,
-            (101005, False): 0.80, (101005, True): 0.80,
-        }
-        loop = WeightCompoundingLoop(config, command_runner=FakeRunner(script))
+        records = [
+            type("Record", (), {"promoted": True, "after_score": 0.80})(),
+            type("Record", (), {"promoted": False, "after_score": 0.95})(),
+        ]
+        monkeypatch.setattr(loop._ledger, "load_records", lambda: records)
 
-        first = loop.run_cycle()
-        assert first.status == "promoted", first.reasons
-        assert first.high_water_accuracy == 0.80
-
-        second = loop.run_cycle()
-        # 0.78 >= 0.80 - 0.02 exactly: still at the mark, still allowed.
-        assert second.status == "promoted", second.reasons
-        assert second.high_water_accuracy == 0.80
-
-        third = loop.run_cycle()
-        # 0.76 clears the parent (0.78 - eps) but not the high-water floor.
-        assert third.status == "refused", third.reasons
-        assert any("capability_regressed" in r for r in third.reasons)
-        assert third.high_water_accuracy == 0.80
+        assert loop._capability_high_water(0.60) == 0.80
 
     def test_the_high_water_mark_ignores_refused_generations(
         self, tmp_path, base_model_dir, sft_buffer
@@ -621,12 +608,12 @@ class TestCycle:
         }
         loop = WeightCompoundingLoop(config, command_runner=FakeRunner(script))
 
-        assert loop.run_cycle().status == "promoted"
+        assert loop.run_cycle().status == "candidate"
         refused = loop.run_cycle()
         assert refused.status == "refused", refused.reasons
 
         third = loop.run_cycle()
-        assert third.status == "promoted", third.reasons
+        assert third.status == "candidate", third.reasons
         assert third.high_water_accuracy == 0.60
 
     def test_the_report_carries_both_hidden_scores(
@@ -714,7 +701,7 @@ class TestCycle:
             command_runner=FakeRunner(PROMOTE_SCRIPT),
         )
         receipt = loop.run_cycle()
-        assert receipt.status == "promoted"       # operator chose the moment
+        assert receipt.status == "candidate"       # operator chose the fuse window
 
     def test_approval_denial_blocks_before_anything(self, tmp_path, base_model_dir, sft_buffer):
         runner = FakeRunner(PROMOTE_SCRIPT)
@@ -735,20 +722,22 @@ class TestCycle:
         config = make_config(tmp_path, base_model_dir, sft_buffer, publish=False)
         loop = WeightCompoundingLoop(config, command_runner=FakeRunner(PROMOTE_SCRIPT))
         receipt = loop.run_cycle()
-        assert receipt.status == "promoted"
+        assert receipt.status == "qualified_adapter"
         assert receipt.promoted_model_path == ""
+        assert receipt.candidate_model_path == ""
         assert not config.manifest_path.exists()
 
-    def test_on_promoted_hook_receives_fused_path(self, tmp_path, base_model_dir, sft_buffer):
-        seen: list[str] = []
+    def test_candidate_cycle_has_no_live_activation_hook(
+        self, tmp_path, base_model_dir, sft_buffer
+    ):
         loop = WeightCompoundingLoop(
             make_config(tmp_path, base_model_dir, sft_buffer),
             command_runner=FakeRunner(PROMOTE_SCRIPT),
-            on_promoted=seen.append,
         )
         receipt = loop.run_cycle()
-        assert receipt.status == "promoted"
-        assert seen == [receipt.promoted_model_path]
+        assert receipt.status == "candidate"
+        assert receipt.promoted_model_path == ""
+        assert not hasattr(loop, "_on_promoted")
 
     def test_stats_surface(self, tmp_path, base_model_dir, sft_buffer):
         loop = WeightCompoundingLoop(
@@ -758,7 +747,7 @@ class TestCycle:
         loop.run_cycle()
         stats = loop.stats()
         assert stats["generations"] == 1
-        assert stats["promoted"] == 1
+        assert stats["promoted"] == 0
         assert stats["ledger_intact"] is True
         assert stats["capability_curve"] == [0.625]
 

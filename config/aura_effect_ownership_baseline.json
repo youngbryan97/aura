@@ -1788,14 +1788,6 @@
       "callee": "core.runtime.atomic_writer.atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/learning/weight_compounding.py",
-      "scope": "<module>.WeightCompoundingLoop.fuse_and_publish"
-    },
-    {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
       "count": 2,
       "path": "core/learning/weight_compounding.py",
       "scope": "<module>.WeightCompoundingLoop.run_cycle"
@@ -3201,6 +3193,14 @@
       "scope": "<module>.SafeSelfOptimizer._run_training_command"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_path_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/adaptation/self_optimizer.py",
+      "scope": "<module>.SelfOptimizer._cleanup_temp"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -3212,7 +3212,7 @@
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
-      "count": 4,
+      "count": 3,
       "path": "core/adaptation/self_optimizer.py",
       "scope": "<module>.SelfOptimizer.optimize"
     },
@@ -4591,6 +4591,14 @@
       "count": 2,
       "path": "core/learning/verified_replay_sft_publication.py",
       "scope": "<module>.publish_verified_replay_sft_custody"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/weight_compounding.py",
+      "scope": "<module>.WeightCompoundingLoop.fuse_and_record_candidate"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -7537,14 +7545,6 @@
       "scope": "<module>.SelfOptimizer.__init__"
     },
     {
-      "callee": "shutil.rmtree",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/adaptation/self_optimizer.py",
-      "scope": "<module>.SelfOptimizer._cleanup_temp"
-    },
-    {
       "callee": "temp_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -10481,28 +10481,12 @@
       "scope": "<module>.WeightCompoundingLoop._export_sft_splits"
     },
     {
-      "callee": "shutil.rmtree",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/weight_compounding.py",
-      "scope": "<module>.WeightCompoundingLoop._prune_loop_fused"
-    },
-    {
       "callee": "unlink",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/learning/weight_compounding.py",
       "scope": "<module>.WeightCompoundingLoop._release_lock"
-    },
-    {
-      "callee": "fused_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/weight_compounding.py",
-      "scope": "<module>.WeightCompoundingLoop.fuse_and_publish"
     },
     {
       "callee": "run_dir.mkdir",
@@ -15834,6 +15818,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "d3881b0f77445840d74f9b96103df849cc03756750a93259f2259b763a23246a",
+  "inventory_sha256": "2583d0adaf2d3b0350035334f8f8595b22e97d4481dd320ff25215bece36d471",
   "schema_version": 1
 }

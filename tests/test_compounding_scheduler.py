@@ -3,7 +3,7 @@
 The scheduler is the piece that turns installed machinery into live behavior,
 so the contracts here are about WHEN it acts: kill switch, cooldown,
 maintenance-idle gate, data readiness, Will approval, and what it does with a
-promoted cycle. The heavy loop itself is covered by test_weight_compounding.
+qualification candidate. The heavy loop itself is covered by test_weight_compounding.
 """
 from __future__ import annotations
 
@@ -23,14 +23,16 @@ pytestmark = pytest.mark.unit
 @dataclass
 class FakeReceipt:
     generation_id: str = "g0000-test"
-    status: str = "promoted"
-    promoted_model_path: str = "fake-fused-artifact"
+    status: str = "candidate"
+    candidate_model_path: str = "fake-fused-artifact"
+    promoted_model_path: str = ""
     reasons: list = field(default_factory=list)
 
     def to_dict(self):
         return {
             "generation_id": self.generation_id,
             "status": self.status,
+            "candidate_model_path": self.candidate_model_path,
             "promoted_model_path": self.promoted_model_path,
             "reasons": self.reasons,
         }
@@ -134,41 +136,28 @@ class TestGates:
 
 
 class TestCycleExecution:
-    async def test_promoted_cycle_records_state_and_activates(self, scheduler, monkeypatch):
-        loop = FakeLoop(FakeReceipt(status="promoted", promoted_model_path="fake-fused-g0"))
+    async def test_candidate_cycle_records_state_without_activation(self, scheduler, monkeypatch):
+        loop = FakeLoop(FakeReceipt(candidate_model_path="fake-fused-g0"))
         monkeypatch.setattr(CompoundingScheduler, "_build_loop", lambda self: loop)
         allow_maintenance(monkeypatch, True)
         approve_will(monkeypatch, scheduler)
-        activated: list[str] = []
-
-        async def fake_activate(self, path):
-            activated.append(path)
-
-        monkeypatch.setattr(CompoundingScheduler, "_activate_live", fake_activate)
         await scheduler._maybe_cycle()
 
         assert loop.cycles_run == 1
-        assert activated == ["fake-fused-g0"]
+        assert not hasattr(scheduler, "_activate_live")
         state = json.loads(scheduler._state_path().read_text())
-        assert state["last_status"] == "promoted"
+        assert state["last_status"] == "candidate"
         assert state["last_generation_id"] == "g0000-test"
-        assert state["last_promoted_at"] > 0
+        assert state["last_candidate_at"] > 0
 
     async def test_refused_cycle_records_but_does_not_activate(self, scheduler, monkeypatch):
         loop = FakeLoop(FakeReceipt(status="refused", promoted_model_path=""))
         monkeypatch.setattr(CompoundingScheduler, "_build_loop", lambda self: loop)
         allow_maintenance(monkeypatch, True)
         approve_will(monkeypatch, scheduler)
-        activated: list[str] = []
-
-        async def fake_activate(self, path):
-            activated.append(path)
-
-        monkeypatch.setattr(CompoundingScheduler, "_activate_live", fake_activate)
         await scheduler._maybe_cycle()
 
         assert loop.cycles_run == 1
-        assert activated == []
         state = json.loads(scheduler._state_path().read_text())
         assert state["last_status"] == "refused"
 
@@ -196,16 +185,9 @@ class TestRunCycleNow:
         loop = FakeLoop(FakeReceipt())
         monkeypatch.setattr(CompoundingScheduler, "_build_loop", lambda self: loop)
         approve_will(monkeypatch, scheduler)
-        activated: list[str] = []
-
-        async def fake_activate(self, path):
-            activated.append(path)
-
-        monkeypatch.setattr(CompoundingScheduler, "_activate_live", fake_activate)
         receipt = await scheduler.run_cycle_now(reason="rsi_weight_update")
         assert loop.cycles_run == 1                       # cooldown did not block
-        assert receipt["status"] == "promoted"
-        assert activated == [FakeReceipt().promoted_model_path]
+        assert receipt["status"] == "candidate"
         state = json.loads(scheduler._state_path().read_text())
         assert state["last_trigger"] == "rsi_weight_update"
 

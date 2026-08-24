@@ -9,11 +9,13 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
+from core.learning.cortex_generation_upgrade import record_upgrade_candidate
 from core.runtime import resource_psutil as psutil
 from core.runtime.background_policy import background_activity_reason
 from core.runtime.errors import record_degradation
@@ -31,8 +33,8 @@ class SelfOptimizer:
                  base_model_path: str,
                  dataset_path: str,
                  adapter_path: str = "data/adapters/adapters.safetensors",
-                 python_path: Optional[str] = None,
-                 event_bus: Optional[Any] = None):
+                 python_path: str | None = None,
+                 event_bus: Any | None = None):
         self.base_model_path = Path(base_model_path)
         self.dataset_path = Path(dataset_path)
         self.adapter_output = Path(adapter_path)
@@ -48,7 +50,7 @@ class SelfOptimizer:
         # launch competing LoRA trainers against the same adapter path.
         self._guard_lock = asyncio.Lock()
 
-    async def optimize(self, iters: int = 50, batch_size: int = 2) -> Dict[str, Any]:
+    async def optimize(self, iters: int = 50, batch_size: int = 2) -> dict[str, Any]:
         """Runs a LoRA training cycle on the cortex model.
         
         This is a resource-intensive operation and should only run when idle or dreaming.
@@ -81,7 +83,7 @@ class SelfOptimizer:
         # validate here so a single malformed JSONL line can neither crash the
         # cycle later nor let a mostly-empty/garbage file reach the trainer.
         raw_lines = self.dataset_path.read_text(encoding="utf-8").splitlines()
-        data: List[Any] = []
+        data: list[Any] = []
         malformed = 0
         for line in raw_lines:
             if not line.strip():
@@ -176,7 +178,10 @@ class SelfOptimizer:
             
             if train_result["returncode"] == 0:
                 logger.info("🧠 Nucleus: Training complete. Fusing weights into new model...")
-                fused_dir = self.base_model_path.parent.parent / "training" / "fused-model" / "aura-latest"
+                from core.brain.llm.model_registry import get_fused_model_root
+
+                fused_root = get_fused_model_root()
+                fused_dir = fused_root / f"aura-self-optimized-{int(time.time())}"
                 fuse_cmd = [
                     self.python_path, "-m", "mlx_lm.fuse",
                     "--model", str(self.base_model_path),
@@ -195,13 +200,22 @@ class SelfOptimizer:
                 )
                     
                 fusion_ok = fuse_result["returncode"] == 0
+                candidate_receipt: dict[str, Any] | None = None
                 if fusion_ok:
-                    logger.info("🧠 Nucleus: Fusion successful. Updating active.json...")
-                    active_json_path = self.base_model_path.parent.parent / "training" / "fused-model" / "active.json"
-                    await get_file_write_gateway().write_text_async(
-                        active_json_path,
-                        json.dumps({"active_model_path": str(fused_dir)}),
-                        source="adaptation.self_optimizer.active_model",
+                    logger.info("🧠 Nucleus: Fusion successful. Recording qualification candidate...")
+                    candidate_receipt = await asyncio.to_thread(
+                        record_upgrade_candidate,
+                        candidate_model_path=fused_dir,
+                        base_model_path=self.base_model_path,
+                        tag="self-optimizer",
+                        fused_model_dir=fused_root,
+                        source="core.adaptation.self_optimizer",
+                        metadata={
+                            "adapter_path": str(self.adapter_output.parent),
+                            "samples": len(data),
+                            "iters": int(iters),
+                            "batch_size": int(batch_size),
+                        },
                     )
                 else:
                     logger.error("❌ Nucleus: Fusion failed.")
@@ -212,10 +226,15 @@ class SelfOptimizer:
                 # failed and produced no usable model.
                 if self.event_bus:
                     get_task_tracker().create_task(self.event_bus.publish("core/optimizer/completed", {
-                        "status": "success" if fusion_ok else "fusion_failed",
+                        "status": "candidate" if fusion_ok else "fusion_failed",
                         "duration": duration,
                         "samples": len(data),
-                        "fused_model": str(fused_dir) if fusion_ok else None
+                        "candidate_model": str(fused_dir) if fusion_ok else None,
+                        "candidate_receipt": (
+                            candidate_receipt.get("candidate_receipt_path")
+                            if candidate_receipt is not None
+                            else None
+                        ),
                     }))
                 return {
                     "ok": fusion_ok,
@@ -223,6 +242,11 @@ class SelfOptimizer:
                     "adapter": str(self.adapter_output),
                     "samples": len(data),
                     "fused_model": str(fused_dir) if fusion_ok else None,
+                    "candidate_receipt": (
+                        candidate_receipt.get("candidate_receipt_path")
+                        if candidate_receipt is not None
+                        else None
+                    ),
                     "error": None if fusion_ok else "fusion_failed",
                 }
             else:
@@ -269,24 +293,24 @@ class SelfOptimizer:
     async def _cleanup_temp(self, temp_dir: Path):
         """Removes the temporary training directory."""
         try:
-            if temp_dir and temp_dir.exists():
-                import shutil
-                # rmtree is blocking disk I/O; offload it so a large temp tree
-                # cannot stall the event loop during cleanup.
-                await asyncio.to_thread(shutil.rmtree, temp_dir)
+            if await get_file_write_gateway().delete_path_async(
+                temp_dir,
+                recursive=True,
+                source="core.adaptation.self_optimizer.cleanup_temp",
+            ):
                 logger.debug("🧠 Nucleus: Temporary training data cleaned.")
-        except (ImportError, AttributeError, RuntimeError, OSError) as e:
+        except (AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             record_degradation('self_optimizer', e)
             logger.warning("Failed to cleanup optimizer temp dir: %s", e)
 
     async def _run_gateway_command(
         self,
-        cmd: List[str],
+        cmd: list[str],
         *,
         source: str,
         abortable: bool,
         log_limit: int = 2_000_000,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a governed training command while capturing bounded logs."""
         process = await get_subprocess_gateway().spawn_async(
             cmd,
@@ -295,7 +319,7 @@ class SelfOptimizer:
             source=source,
             accelerator_capability="auto",
         )
-        chunks: List[str] = []
+        chunks: list[str] = []
         total = 0
 
         def add_chunk(text: str) -> None:
@@ -315,7 +339,7 @@ class SelfOptimizer:
                 process.terminate()
                 try:
                     await asyncio.wait_for(process.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     process.kill()
                     await process.wait()
                 break
@@ -323,7 +347,7 @@ class SelfOptimizer:
             if stdout is not None:
                 try:
                     raw = await asyncio.wait_for(stdout.readline(), timeout=2.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     raw = b""
                 if raw:
                     add_chunk(raw.decode("utf-8", errors="replace"))
@@ -336,7 +360,7 @@ class SelfOptimizer:
         if stdout is not None:
             try:
                 remaining = await asyncio.wait_for(stdout.read(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 remaining = b""
             if remaining:
                 add_chunk(remaining.decode("utf-8", errors="replace"))
@@ -353,8 +377,7 @@ _optimizer_instance = None
 # Serialize first-access construction so concurrent callers cannot build two
 # SelfOptimizer instances (each with its own event-bus binding and training
 # owner) racing against the same adapter path.
-import threading as _threading
-_optimizer_lock = _threading.Lock()
+_optimizer_lock = threading.Lock()
 
 def get_self_optimizer() -> SelfOptimizer:
     global _optimizer_instance

@@ -21,9 +21,9 @@ then runs one WeightCompoundingLoop cycle off-loop. Admission control inside
 the cycle re-verifies RAM headroom at the moment of truth (the maintenance
 gate means the cortex worker is typically unloaded — that's what makes a 32B
 training pass safe on a 64GB host: she trains while she sleeps, she does not
-fight herself for memory). A promoted artifact is hot-swapped into the live
-MLX client immediately; if the swap can't happen it activates on next boot
-via the published manifest — both paths are recorded.
+fight herself for memory). A successful fuse is recorded as a qualification
+candidate. This scheduler never hot-swaps a whole cortex or changes its boot
+pointer.
 """
 from __future__ import annotations
 
@@ -198,9 +198,9 @@ class CompoundingScheduler:
                     "last_status": receipt.status,
                     "last_generation_id": receipt.generation_id,
                     "last_trigger": reason,
-                    "last_promoted_at": (
-                        time.time() if receipt.status == "promoted"
-                        else state.get("last_promoted_at", 0.0)
+                    "last_candidate_at": (
+                        time.time() if receipt.status == "candidate"
+                        else state.get("last_candidate_at", 0.0)
                     ),
                 }
             )
@@ -208,8 +208,6 @@ class CompoundingScheduler:
                 "🧬 Compounding cycle %s: %s %s",
                 receipt.generation_id, receipt.status, receipt.reasons or "",
             )
-            if receipt.status == "promoted" and receipt.promoted_model_path:
-                await self._activate_live(receipt.promoted_model_path)
             return self._last_receipt
         finally:
             self._running_cycle = False
@@ -303,8 +301,10 @@ class CompoundingScheduler:
     # ── collaborators ────────────────────────────────────────────────────────
 
     def _build_loop(self):
-        from core.learning.weight_compounding import WeightCompoundingLoop, default_config
-
+        from core.learning.weight_compounding import (
+            WeightCompoundingLoop,
+            default_config,
+        )
         from core.runtime.background_policy import (
             MAINTENANCE_BACKGROUND_POLICY,
             background_activity_allowed,
@@ -342,37 +342,6 @@ class CompoundingScheduler:
                 action="blocked compounding cycle because Will approval was unavailable",
             )
             return False, f"will_unavailable:{type(exc).__name__}"
-
-    async def _activate_live(self, model_path: str) -> None:
-        """Hot-swap the promoted model into live inference; manifest covers reboot."""
-        try:
-            from core.runtime.service_access import resolve_mlx_client
-
-            mlx_client = resolve_mlx_client(default=None)
-            reload_artifact = getattr(mlx_client, "reload_model_artifact", None)
-            if callable(reload_artifact):
-                receipt = await reload_artifact(model_path) or {}
-                # The receipt names what the client can prove. "live" was a
-                # claim nobody had checked: a recycle is a teardown, and the
-                # weights load on the next request.
-                if not receipt.get("ok"):
-                    raise RuntimeError(
-                        f"artifact promotion refused: {receipt.get('reason') or 'unknown'}"
-                    )
-                logger.info(
-                    "🧬 Promoted weights are this lane's serving identity (%s): %s",
-                    receipt.get("state") or "unknown",
-                    Path(model_path).name,
-                )
-                return
-            raise RuntimeError("mlx client lacks reload_model_artifact")
-        except _RECOVERABLE as exc:
-            record_degradation(
-                "weight_compounding_scheduler",
-                exc,
-                action="promoted model publishes at next boot after live hot-swap failed",
-                extra={"model_path": model_path},
-            )
 
     # ── state + status ───────────────────────────────────────────────────────
 

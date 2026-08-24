@@ -284,3 +284,13 @@ async def test_self_optimizer_is_opt_in_for_live_runtime(tmp_path, monkeypatch):
     result = await optimizer.optimize()
 
     assert result == {"ok": False, "error": "self_optimizer_disabled_for_live_runtime"}
+
+
+def test_self_optimizer_cannot_write_the_active_cortex_pointer():
+    import inspect
+
+    from core.adaptation.self_optimizer import SelfOptimizer
+
+    source = inspect.getsource(SelfOptimizer.optimize)
+    assert "active.json" not in source
+    assert "record_upgrade_candidate" in source

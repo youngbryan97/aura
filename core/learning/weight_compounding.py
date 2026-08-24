@@ -2,20 +2,21 @@
 
 Aura has had every *piece* of weight-level learning for months — LoRA training
 (live_learner), sound DPO data (verifiable_preference_harness), a real DPO
-trainer (mlx-lm-lora), fuse/publish (training/fused-model/active.json), and a
+trainer (mlx-lm-lora), fuse/candidate recording, and a
 tamper-evident lineage ledger (rsi_lineage). What it never had is the spine
-that makes the pieces COMPOUND: each cycle here trains on the artifact the
-previous cycle published, is gated by a sealed held-out capability battery
-scored one-model-at-a-time in subprocesses, and appends an honest generation
-record to the hash-chained ledger whether it promoted or refused.
+that makes the pieces eligible to compound: each cycle trains on the current
+active artifact, is gated by a sealed held-out capability battery scored
+one-model-at-a-time in subprocesses, and appends an honest generation record.
+A candidate compounds only after the independent cortex-upgrade path activates
+it; candidate production itself never changes the next cycle's base.
 
 The cycle:
   1. resolve_base   — fresh read of the active-model manifest (never a stale
-                      import-time path): generation N's base IS generation
-                      N-1's published artifact. This is the compounding hinge.
+                      import-time path). Only an independently activated
+                      generation can become the next cycle's base.
   2. admission      — single-flight lockfile, RAM headroom vs model footprint,
                       autonomous size cap, optional foreground-idle hook. The
-                      loop refuses to fight the live 32B for memory.
+                      loop refuses to fight the resident cortex for memory.
   3. harvest        — DPO pairs from the verifier harness when there are
                       enough (the strongest signal), else SFT rows from the
                       live-learner buffer; contamination-filtered and with the
@@ -30,10 +31,9 @@ The cycle:
                       raw responses. Writes the evaluation_report.json
                       contract that core/learning/eval_before_promotion.py
                       reads.
-  6. decide/publish — promote only when all three gates hold; fuse and
-                      publish a chain-preserving manifest (base_model = the
-                      actual parent artifact). Refusals are first-class
-                      results, recorded with the same rigor.
+  6. decide/record  — accept only when all three gates hold; fuse and record
+                      an exact qualification candidate without changing the
+                      serving pointer. Refusals are first-class results.
   7. record         — append an RSIGenerationRecord to the tamper-evident
                       ledger. Compounding is then a *verdict computed from
                       receipts* (rsi_lineage.evaluate_lineage), never a claim.
@@ -58,13 +58,12 @@ battery, and that is a comparison or it is nothing.
 **Identity.** Unchanged: assistant-regression phrases in the candidate's raw
 responses.
 
-Honesty boundary: promotion means "did not regress against the best this
-lineage has reached, held up on an unseen battery, identity intact, trained
-on real harvested experience". It does NOT mean the generation is smarter —
-a candidate exactly at the high-water mark promotes. The compounding CLAIM
-(capability curve strictly increasing across generations) is only ever made
-by evaluate_lineage over the ledger; this module cannot assert it, only
-earn it.
+Honesty boundary: this module can establish only a locally accepted adapter
+or an exact fused candidate. It cannot promote a cortex. Promotion additionally
+requires the central comparison, migration, serving, staging, authorization,
+and activation contracts. The compounding claim is only ever computed from
+activated lineage receipts; this producer cannot assert it, only submit work
+that may later earn it.
 """
 from __future__ import annotations
 
@@ -80,6 +79,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.learning.cortex_generation_upgrade import record_upgrade_candidate
 from core.learning.heldout_battery import (
     BatterySpec,
     generate_battery,
@@ -97,6 +97,7 @@ from core.learning.rsi_lineage import (
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.disk_budget import DiskBudgetRefusal, ensure_headroom_for
 from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("Aura.WeightCompounding")
 
@@ -123,7 +124,7 @@ class CompoundingConfig:
     """One cycle's knobs. Everything bounded, everything recorded."""
 
     work_root: Path                       # runs + ledger live under here
-    fused_root: Path                      # where fused artifacts + active.json go
+    fused_root: Path                      # active pointer is read; candidates are recorded
     model_override: str = ""              # explicit base (proof runs); else manifest
     default_base: str = ""                # fallback when no manifest exists yet
 
@@ -156,7 +157,7 @@ class CompoundingConfig:
     autonomous_max_model_bytes: int = 6 * 1024**3   # ~7B-4bit; larger needs operator
     operator_run: bool = False            # CLI/operator runs may exceed the cap
 
-    # publish
+    # candidate materialization
     publish: bool = True
     fuse_timeout_s: int = 3600
     keep_fused: int = 3                   # prune loop-created fused artifacts beyond this
@@ -182,7 +183,7 @@ class CompoundingConfig:
 @dataclass
 class CycleReceipt:
     generation_id: str
-    status: str                             # promoted | refused | blocked | failed
+    status: str                             # candidate | qualified_adapter | refused | blocked | failed
     reasons: list[str] = field(default_factory=list)
     base_model: str = ""
     base_source: str = ""                   # manifest | override | default
@@ -199,6 +200,9 @@ class CycleReceipt:
     #: parent, so epsilon cannot be spent again every generation.
     high_water_accuracy: float | None = None
     identity_ok: bool | None = None
+    candidate_model_path: str = ""
+    candidate_receipt_path: str = ""
+    # Compatibility field. Only central staged activation may populate this.
     promoted_model_path: str = ""
     run_dir: str = ""
     elapsed_s: float = 0.0
@@ -219,6 +223,8 @@ class CycleReceipt:
             "hidden_incumbent_accuracy": self.hidden_incumbent_accuracy,
             "high_water_accuracy": self.high_water_accuracy,
             "identity_ok": self.identity_ok,
+            "candidate_model_path": self.candidate_model_path,
+            "candidate_receipt_path": self.candidate_receipt_path,
             "promoted_model_path": self.promoted_model_path,
             "run_dir": self.run_dir,
             "elapsed_s": round(self.elapsed_s, 2),
@@ -298,14 +304,13 @@ def _default_command_runner(command: tuple[str, ...], timeout_s: float):
 # ── the loop ──────────────────────────────────────────────────────────────────
 
 class WeightCompoundingLoop:
-    """One canonical driver for a train→gate→promote/refuse→record cycle.
+    """One canonical driver for a train→gate→candidate/refuse→record cycle.
 
     Injectable seams (all optional) keep this testable offline and let the
     runtime supply live context:
       * command_runner    — subprocess executor (tests inject fakes)
       * approval_hook     — Will/governance consult; returns (approved, reason)
       * idle_hook         — returns True when the foreground lane is quiet
-      * on_promoted       — called with the fused model path after publish
     """
 
     def __init__(
@@ -315,13 +320,11 @@ class WeightCompoundingLoop:
         command_runner: Callable[[tuple[str, ...], float], Any] | None = None,
         approval_hook: Callable[[dict[str, Any]], tuple[bool, str]] | None = None,
         idle_hook: Callable[[], bool] | None = None,
-        on_promoted: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self._run_command = command_runner or _default_command_runner
         self._approval_hook = approval_hook
         self._idle_hook = idle_hook
-        self._on_promoted = on_promoted
         self.config.work_root.mkdir(parents=True, exist_ok=True)
         self._ledger = RSILineageLedger(self.config.ledger_path)
 
@@ -712,16 +715,19 @@ class WeightCompoundingLoop:
             return False, str(exc)
         return True, f"fits≈{base_bytes >> 30}GB"
 
-    def fuse_and_publish(
+    def fuse_and_record_candidate(
         self,
         base_model: str,
         adapter_dir: Path,
         generation_id: str,
         metadata: dict[str, Any],
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, str, list[str]]:
         cfg = self.config
         fused_path = cfg.fused_root / f"Aura-compound-{generation_id}"
-        fused_path.parent.mkdir(parents=True, exist_ok=True)
+        get_file_write_gateway().ensure_directory(
+            fused_path.parent,
+            source="core.learning.weight_compounding.candidate_root",
+        )
 
         # Pre-fuse memory admission. Fusing dequantizes the base to fp16 and
         # merges the adapter — a transient peak far above the on-disk size,
@@ -731,14 +737,14 @@ class WeightCompoundingLoop:
         # window (or operator fuse). A deferral is not a failure.
         fits, admit_reason = self._fuse_memory_admits(base_model)
         if not fits:
-            return "", [f"fuse_deferred_memory:{admit_reason}"]
+            return "", "", [f"fuse_deferred_memory:{admit_reason}"]
 
         # Pre-fuse DISK admission. Same deferral semantics: a gated adapter is
         # preserved for a later window, not thrown away, and not written into a
         # volume that cannot hold it.
         fits_disk, disk_reason = self._fuse_disk_admits(base_model)
         if not fits_disk:
-            return "", [f"fuse_deferred_disk:{disk_reason}"]
+            return "", "", [f"fuse_deferred_disk:{disk_reason}"]
 
         command = (
             sys.executable, "-m", "mlx_lm", "fuse",
@@ -765,25 +771,25 @@ class WeightCompoundingLoop:
                 detail = f"no_output rc={rc} stdout={stdout_tail!r}"
             else:
                 detail = f"rc={rc}"
-            return "", [f"fuse_failed:{detail}"]
+            return "", "", [f"fuse_failed:{detail}"]
 
-        manifest = {
-            "active_model_path": str(fused_path),
-            "base_model": base_model,          # the ACTUAL parent — chain-preserving
-            "fused_at": int(time.time()),
-            "tag": f"compound-{generation_id}",
-            "schema_version": 3,
-            "source": "weight_compounding",
-            "generation_id": generation_id,
-            "metadata": metadata,
-        }
-        atomic_write_text(
-            cfg.manifest_path,
-            json.dumps(manifest, indent=2, sort_keys=True),
-            encoding="utf-8",
+        resolved_base = _resolve_model_dir(base_model)
+        if resolved_base is None:
+            return "", "", ["candidate_record_failed:base_model_not_local"]
+        candidate_receipt = record_upgrade_candidate(
+            candidate_model_path=fused_path,
+            base_model_path=resolved_base,
+            tag=f"compound-{generation_id}",
+            fused_model_dir=cfg.fused_root,
+            source="core.learning.weight_compounding",
+            metadata={"generation_id": generation_id, **metadata},
         )
         self._prune_loop_fused(keep=cfg.keep_fused, active=str(fused_path))
-        return str(fused_path), []
+        return (
+            str(fused_path),
+            str(candidate_receipt["candidate_receipt_path"]),
+            [],
+        )
 
     def _prune_loop_fused(self, *, keep: int, active: str) -> None:
         """Bound disk growth: prune ONLY artifacts this loop created (never
@@ -798,10 +804,15 @@ class WeightCompoundingLoop:
                 reverse=True,
             )
             for stale in candidates[max(0, keep - 1):]:
-                import shutil
-
-                shutil.rmtree(stale, ignore_errors=True)
-                logger.info("WeightCompounding: pruned stale fused artifact %s", stale.name)
+                if get_file_write_gateway().delete_path(
+                    stale,
+                    recursive=True,
+                    source="core.learning.weight_compounding.prune_candidate",
+                ):
+                    logger.info(
+                        "WeightCompounding: pruned stale fused artifact %s",
+                        stale.name,
+                    )
         except OSError as exc:
             record_degradation(
                 "weight_compounding",
@@ -983,15 +994,20 @@ class WeightCompoundingLoop:
                 record(promoted=False)
                 return receipt
 
-            promoted_path = ""
+            candidate_path = ""
+            candidate_receipt_path = ""
             if self.config.publish:
-                promoted_path, publish_errors = self.fuse_and_publish(
-                    base_model, adapter_dir, generation_id,
-                    metadata={
-                        "train_mode": mode,
-                        "data_counts": counts,
-                        "evaluation": evaluation_report,
-                    },
+                candidate_path, candidate_receipt_path, publish_errors = (
+                    self.fuse_and_record_candidate(
+                        base_model,
+                        adapter_dir,
+                        generation_id,
+                        metadata={
+                            "train_mode": mode,
+                            "data_counts": counts,
+                            "evaluation": evaluation_report,
+                        },
+                    )
                 )
                 if publish_errors:
                     receipt.reasons.extend(publish_errors)
@@ -1003,36 +1019,10 @@ class WeightCompoundingLoop:
                         receipt.status = "deferred"
                     record(promoted=False)
                     return receipt
-            receipt.promoted_model_path = promoted_path
-            receipt.status = "promoted"
-            record(promoted=True)
-
-            # The Ghost survives the Shell: a promoted fusion is a body transplant.
-            # Record it into the continuity line so the self-pattern is judged
-            # across the swap (preserved → continuous; jumped → rupture). Never
-            # let this affect the compounding cycle.
-            if promoted_path:
-                try:
-                    from core.ghost.ghost import get_ghost
-                    get_ghost().on_substrate_change(
-                        model_artifact=promoted_path,
-                        cause=f"weight compounding promoted generation {generation_id}",
-                    )
-                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
-                    record_degradation(
-                        "weight_compounding", exc, severity="debug",
-                        action="continued after ghost substrate-change record failed",
-                    )
-
-            if promoted_path and self._on_promoted is not None:
-                try:
-                    self._on_promoted(promoted_path)
-                except _RECOVERABLE as exc:
-                    record_degradation(
-                        "weight_compounding",
-                        exc,
-                        action="published model activates on next boot after live activation hook failed",
-                    )
+            receipt.candidate_model_path = candidate_path
+            receipt.candidate_receipt_path = candidate_receipt_path
+            receipt.status = "candidate" if candidate_path else "qualified_adapter"
+            record(promoted=False)
             return receipt
 
         except _RECOVERABLE as exc:
@@ -1113,6 +1103,10 @@ class WeightCompoundingLoop:
                 "promoted_model": (
                     _artifact_digest(Path(receipt.promoted_model_path))
                     if receipt.promoted_model_path else "none"
+                ),
+                "candidate_model": (
+                    _artifact_digest(Path(receipt.candidate_model_path))
+                    if receipt.candidate_model_path else "none"
                 ),
             },
             baseline_score=float(receipt.incumbent_accuracy or 0.0),

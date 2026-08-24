@@ -993,7 +993,7 @@ class LiveLearner:
         model_path: str,
         adapter_dir: Path,
     ) -> tuple[bool, str, Path | None]:
-        """Fuse a LoRA/DoRA adapter into a versioned MLX model for next boot."""
+        """Fuse a LoRA/DoRA adapter into a versioned qualification candidate."""
         import sys
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
