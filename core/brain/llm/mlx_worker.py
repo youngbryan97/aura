@@ -5297,6 +5297,7 @@ class _PromptCacheSearchResult:
 class _PromptCacheResumeBinding:
     model_key: Any
     tokens: tuple[int, ...]
+    prompt_cache: list[Any]
     created_at: float
 
 
@@ -5337,14 +5338,18 @@ class _PromptCacheLRU:
     # ── introspection: what is actually retained right now ───────────────
     def retained_tokens(self) -> int:
         """Total cached tokens across every lane. The real memory driver."""
-        return sum(
+        reusable = sum(
             len(tokens)
             for queue in self._lru.values()
             for (_model_key, tokens) in queue
         )
+        resumable = sum(len(binding.tokens) for binding in self._resume_bindings.values())
+        return reusable + resumable
 
     def retained_entries(self) -> int:
-        return sum(len(queue) for queue in self._lru.values())
+        return sum(len(queue) for queue in self._lru.values()) + len(
+            self._resume_bindings
+        )
 
     def retained_bytes(self) -> int:
         """Approximate KV bytes held. Reported to the OOM ladder, not guessed."""
@@ -5378,12 +5383,19 @@ class _PromptCacheLRU:
             self._lru.keys(), key=lambda lane: (lane == "user_surface", lane)
         )
         while self.retained_tokens() > self.max_total_tokens:
+            evicted = False
             for lane in lanes_by_drain_order:
                 queue = self._lru.get(lane)
                 if queue:
                     evict_model_key, evict_tokens = queue.popleft()
                     self._delete(evict_model_key, list(evict_tokens))
+                    evicted = True
                     break
+            if evicted:
+                continue
+            oldest_resume = next(iter(self._resume_bindings), None)
+            if oldest_resume is not None:
+                self._resume_bindings.pop(oldest_resume, None)
             else:
                 return
 
@@ -5447,20 +5459,43 @@ class _PromptCacheLRU:
                 break
             self._resume_bindings.pop(oldest, None)
 
-    def bind_resume(self, model_key: Any, tokens: list[int]) -> str:
-        """Issue a short-lived capability for an exact retained prefix."""
+    def bind_resume(
+        self,
+        model_key: Any,
+        tokens: list[int],
+        *,
+        prompt_cache: list[Any] | None = None,
+    ) -> str:
+        """Move exact final KV state into a short-lived continuation capability.
 
-        if len(tokens) < 2 or self._search(model_key, tokens).exact is None:
+        A resumable generation is a transaction boundary, not an ordinary cache
+        hint.  The capability therefore owns the actual final cache object.  A
+        later trie lookup allowed eviction or insertion-policy differences to
+        turn a valid continuation into a silent full re-prefill.
+        """
+
+        if len(tokens) < 2:
+            return ""
+        if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:
+            return ""
+        exact = self._search(model_key, tokens).exact
+        if exact is not None:
+            owned_cache = self._extract(model_key, exact).prompt_cache
+        elif prompt_cache is not None:
+            owned_cache = prompt_cache
+        else:
             return ""
         self._prune_resume_bindings()
         handle = uuid.uuid4().hex
         self._resume_bindings[handle] = _PromptCacheResumeBinding(
             model_key=model_key,
             tokens=tuple(int(token) for token in tokens),
+            prompt_cache=owned_cache,
             created_at=time.monotonic(),
         )
         self._prune_resume_bindings()
-        return handle
+        self._enforce_total_token_budget()
+        return handle if handle in self._resume_bindings else ""
 
     def fetch_resume(
         self,
@@ -5480,22 +5515,27 @@ class _PromptCacheLRU:
         if binding is None:
             return None, [], [], "unknown_or_expired_handle"
         if binding.model_key != model_key:
+            # A capability presented on the wrong lane must not disclose KV,
+            # but it also must not let another lane destroy the rightful
+            # continuation. Return ownership to the scoped general cache.
+            self.insert_cache(
+                binding.model_key,
+                list(binding.tokens),
+                binding.prompt_cache,
+            )
             return None, [], [], "model_or_lane_mismatch"
         tokens = list(binding.tokens)
-        result = self._search(model_key, tokens)
-        if result.exact is None:
-            return None, [], [], "cache_entry_evicted"
-        cache_entry = self._extract(model_key, result.exact)
-        if not can_trim_prompt_cache(cache_entry.prompt_cache):
-            self.insert_cache(model_key, tokens, cache_entry.prompt_cache)
+        prompt_cache = binding.prompt_cache
+        if not can_trim_prompt_cache(prompt_cache):
+            self.insert_cache(model_key, tokens, prompt_cache)
             return None, [], [], "cache_not_trimmable"
-        trim_prompt_cache(cache_entry.prompt_cache, 1)
+        trim_prompt_cache(prompt_cache, 1)
         logger.info(
             "🎯 [PROMPT CACHE] continuation resume — reused %d/%d tokens, 1 to prefill.",
             len(tokens) - 1,
             len(tokens),
         )
-        return cache_entry.prompt_cache, tokens[-1:], tokens, ""
+        return prompt_cache, tokens[-1:], tokens, ""
 
     def _search(self, model_key: Any, tokens: list[int]) -> _PromptCacheSearchResult:
         if model_key not in self._cache:
@@ -9264,6 +9304,34 @@ def _mlx_worker_loop(
                         continuation_resume_handle = prompt_cache_lru.bind_resume(
                             model_key,
                             list(tokens),
+                            prompt_cache=final_prompt_cache,
+                        )
+                    if resumable_stop and not continuation_resume_handle:
+                        if prompt_cache_lru is None:
+                            resume_unavailable_reason = "cache_lru_unavailable"
+                        elif disable_prompt_cache:
+                            resume_unavailable_reason = "cache_disabled_by_contract"
+                        elif final_prompt_cache is None:
+                            resume_unavailable_reason = "final_cache_unavailable"
+                        elif sentinel_aborted:
+                            resume_unavailable_reason = "sentinel_aborted"
+                        elif not bool(response_text.strip()):
+                            resume_unavailable_reason = "empty_partial"
+                        elif not bool(
+                            semantic_completion_state[
+                                "semantic_completion_incomplete"
+                            ]
+                        ):
+                            resume_unavailable_reason = "semantic_contract_complete"
+                        else:
+                            resume_unavailable_reason = "cache_retention_refused"
+                        surface_control_state[
+                            "continuation_resume_failure_reason"
+                        ] = resume_unavailable_reason
+                        logger.warning(
+                            "Continuation resume capability unavailable after %s: %s",
+                            generation_stop_reason,
+                            resume_unavailable_reason,
                         )
                     surface_control_state["continuation_resume_available"] = bool(
                         continuation_resume_handle

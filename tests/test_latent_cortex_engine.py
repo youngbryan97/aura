@@ -110,6 +110,20 @@ def tiny_model():
     return _model()
 
 
+def test_engine_resolves_hybrid_language_model_layers():
+    class HybridModel:
+        def __init__(self, language_model):
+            self.language_model = language_model
+
+        def __call__(self, *args, **kwargs):
+            return self.language_model(*args, **kwargs)
+
+    engine = LatentCortexEngine(HybridModel(_model()), config=_config())
+
+    assert engine.n_layers == N_LAYERS
+    assert engine.model_layer_view.path == "language_model.model.layers"
+
+
 def _config(**overrides) -> CortexConfig:
     base = dict(
         workspace=WorkspaceConfig(n_slots=4, seed=3),

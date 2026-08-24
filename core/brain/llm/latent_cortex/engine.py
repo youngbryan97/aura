@@ -118,6 +118,7 @@ from core.brain.llm.latent_cortex.verifier_gain_search import (
 from core.brain.llm.latent_cortex.workspace import per_position_rms, role_anchor
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.model_layers import require_model_layers
 
 # Cognitive-slot sources whose content is RETRIEVED knowledge (already
 # epistemically admitted) — eligible for compilation into the fast-weight
@@ -1119,11 +1120,8 @@ class LatentCortexEngine:
         )
 
         self._coda_adapter_activation = RecurrenceAdapterActivation()
-        inner = getattr(model, "model", None)
-        layers = getattr(inner, "layers", None)
-        if not layers:
-            raise ValueError("model has no .model.layers — not an mlx_lm decoder")
-        self.n_layers = len(layers)
+        self.model_layer_view = require_model_layers(model)
+        self.n_layers = len(self.model_layer_view.layers)
         self.prelude_end = max(1, int(self.n_layers * self.config.prelude_frac))
         self.coda_start = min(
             self.n_layers - 1,

@@ -1649,6 +1649,9 @@ def test_prompt_cache_resume_capability_remains_fetchable_at_binding_limit():
     lru.insert_cache(key, tokens, ["kv"])
 
     first = lru.bind_resume(key, tokens)
+    # Independent capabilities must own independent mutable KV objects. A
+    # second handle may not alias the first handle's state.
+    lru.insert_cache(key, tokens, ["kv-second"])
     second = lru.bind_resume(key, tokens)
     assert first and second
 
@@ -1699,6 +1702,48 @@ def test_prompt_cache_resume_capability_trims_a_real_mlx_kv_cache():
     assert resumed == tokens
     assert resumed_cache is not None
     assert resumed_cache[0].offset == len(tokens) - 1
+
+
+def test_prompt_cache_resume_owns_final_state_when_general_cache_did_not_retain_it():
+    import mlx.core as mx
+    from mlx_lm.models.cache import (
+        KVCache,
+        can_trim_prompt_cache,
+        trim_prompt_cache,
+    )
+
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4, max_entry_tokens=32)
+    key = (17, "user_surface")
+    tokens = list(range(12))
+    final_cache = [KVCache()]
+    final_cache[0].update_and_fetch(
+        mx.ones((1, 2, len(tokens), 4)),
+        mx.ones((1, 2, len(tokens), 4)) * 2,
+    )
+    mx.eval(final_cache[0].keys, final_cache[0].values)
+
+    assert lru._search(key, tokens).exact is None
+    handle = lru.bind_resume(key, tokens, prompt_cache=final_cache)
+    assert handle
+    assert lru.retained_entries() == 1
+    assert lru.retained_tokens() == len(tokens)
+
+    resumed_cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=can_trim_prompt_cache,
+        trim_prompt_cache=trim_prompt_cache,
+    )
+
+    assert failure == ""
+    assert remaining == [tokens[-1]]
+    assert resumed == tokens
+    assert resumed_cache is final_cache
+    assert resumed_cache[0].offset == len(tokens) - 1
+    assert lru.retained_entries() == 0
+    assert lru.retained_tokens() == 0
 
 
 def test_mlx_client_drops_an_invalid_continuation_resume_handle():
