@@ -1909,39 +1909,6 @@ def _normalize_surface_format(response_text: Any) -> str:
         return ""
 
 
-#: LaTeX commands that begin with the same letter as a control escape. The
-#: first version of this repair served "P( ext{same color})" because it read
-#: \text as a tab, so the letters after the backslash decide.
-_LATEX_COMMANDS = frozenset(
-    """
-    n neq ne nu nabla not ncong nsubseteq nmid nparallel newline nonumber
-    t text texttt textbf textit times tau theta top to tan tilde triangle
-    therefore textrm textsf
-    r rho right rightarrow rangle real rfloor rceil rm
-    """.split()
-)
-
-_ESCAPED_CRLF_RE = re.compile(r"\\r\\n(?![A-Za-z])")
-_ESCAPED_WHITESPACE_RE = re.compile(r"\\([nrt])([A-Za-z]*)")
-
-
-def _escaped_whitespace_replacement(match: "re.Match[str]") -> str:
-    """A literal escape becomes whitespace unless it spells a LaTeX command.
-
-    The guard used to be "any letter follows", which is the common case rather
-    than the rare one: "backwards.\\nThe complexity is O(n)" was left alone
-    and the whole reply was rejected as an escaped control artifact. A command
-    name is a specific short word, so checking for one costs nothing and stops
-    banning ordinary sentences.
-    """
-    letter, tail = match.group(1), match.group(2)
-    if tail and (letter + tail).lower() in _LATEX_COMMANDS:
-        return match.group(0)
-    # A capital immediately after is a new sentence, never a LaTeX command.
-    whitespace = "\t" if letter == "t" else "\n"
-    return whitespace + tail
-
-
 def _repair_live_user_surface_escaped_newlines(response_text: Any) -> str:
     """Turn literal \\n / \\t / \\r the model typed back into real whitespace.
 
@@ -1966,44 +1933,21 @@ def _repair_live_user_surface_escaped_newlines(response_text: Any) -> str:
     contained a code fence — so every request that wants code AND prose was
     unanswerable whenever the model typed one backslash-n in the explanation.
     """
-    text = str(response_text or "")
-    if not text.strip():
-        return ""
-    if "```" in text:
-        # Odd indices are the fenced blocks. They are copied through untouched.
-        parts = text.split("```")
-        repaired_parts = list(parts)
-        changed = False
-        for index in range(0, len(parts), 2):
-            fixed = _repair_escaped_whitespace_in_prose(parts[index])
-            if fixed is not None:
-                repaired_parts[index] = fixed
-                changed = True
-        if not changed:
-            return ""
-        return "```".join(repaired_parts).strip()
-    repaired = _repair_escaped_whitespace_in_prose(text)
+    from core.conversation.escaped_controls import (
+        repair_escaped_whitespace_artifacts,
+    )
+
+    repaired = repair_escaped_whitespace_artifacts(response_text)
     return repaired.strip() if repaired is not None else ""
 
 
 def _repair_escaped_whitespace_in_prose(text: str) -> str | None:
-    """The substitution itself. None when there was nothing to repair."""
-    if "\\\\" in text:
-        return None
-    # Only when the escape is NOT the start of a LaTeX command. \text, \times,
-    # \neq, \rho, \right all begin with the same two characters as a control
-    # escape, and rewriting them corrupts the maths.
-    #
-    # LIVE DEFECT introduced by the first version of this repair, 2026-07-26:
-    # "P(\text{same color})" was served as "P( ext{same color})" because the
-    # \t was replaced with a tab.
-    repaired = _ESCAPED_CRLF_RE.sub("\n", text)
-    repaired = _ESCAPED_WHITESPACE_RE.sub(_escaped_whitespace_replacement, repaired)
-    if repaired == text:
-        return None
-    # Collapse the runs the substitution can create, without touching
-    # deliberate paragraph breaks.
-    return re.sub(r"\n{3,}", "\n\n", repaired)
+    """Compatibility wrapper around the shared syntax-aware repair."""
+    from core.conversation.escaped_controls import (
+        repair_escaped_whitespace_artifacts,
+    )
+
+    return repair_escaped_whitespace_artifacts(text)
 
 
 def _repair_live_user_surface_truncated_tail(response_text: Any) -> str:

@@ -65,13 +65,13 @@ def test_a_literal_escape_inside_code_is_left_alone() -> None:
 
 def test_latex_is_still_not_mistaken_for_whitespace() -> None:
     """The 2026-07-26 defect: "P( ext{same color})"."""
-    text = "The probability is P(\\text{same color}) = 1/3."
+    text = r"The probability is \(P(\text{same color}) = 1/3\)."
 
     assert not repair(text)
 
 
 def test_other_latex_commands_survive() -> None:
-    text = "Rate is \\times 2, \\rho is density, and \\neq holds."
+    text = r"Rate is $x \times 2$, $\rho$ is density, and $x \neq y$ holds."
 
     assert not repair(text)
 
@@ -82,6 +82,18 @@ def test_plain_prose_is_still_repaired() -> None:
     assert out == "Two lines.\nSecond line."
 
 
+def test_validation_and_repair_share_the_same_markup_boundary() -> None:
+    from core.conversation.escaped_controls import has_escaped_whitespace_artifact
+
+    math = r"Use $x \neq y$ and \(P(\text{same color})\)."
+    prose = r"First line.\nSecond line."
+
+    assert not has_escaped_whitespace_artifact(math)
+    assert has_escaped_whitespace_artifact(prose)
+    assert repair(prose) == "First line.\nSecond line."
+
+
 def test_a_reply_with_nothing_to_repair_reports_nothing() -> None:
     assert not repair("An ordinary sentence with no escapes.")
+    assert not repair(r"A regular expression may contain \\n as two escaped characters.")
     assert not repair("")

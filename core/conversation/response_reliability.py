@@ -55,6 +55,7 @@ from core.conversation.arithmetic_check import (
     arithmetic_answer_matches,
     requested_arithmetic_result,
 )
+from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import unanswered_question_parts
 from core.conversation.requested_reply_shape import reply_scope_text
@@ -863,7 +864,6 @@ _COGNITIVE_ENGINE_FAILURE_ENVELOPE_RE = re.compile(
     r"failed\s+closed\s+instead\s+of\s+sending\s+an\s+ungrounded\s+answer)\b",
     re.IGNORECASE,
 )
-_TRAILING_ESCAPE_RE = re.compile(r"(?:\\n|\\t|\\r)")
 _CAPITALIZED_NAME_RE = re.compile(r"\b[A-Z][a-z]{3,}\b")
 _ALLOWED_SHORT_PROPER_NAMES = {
     "Aura",
@@ -7962,7 +7962,7 @@ def _model_text_integrity_reasons(
         return reasons
 
     if _is_code_response(raw):
-        if _TRAILING_ESCAPE_RE.search(raw):
+        if has_escaped_whitespace_artifact(raw):
             reasons.append("escaped_control_artifact")
         if contains_prompt_artifact(raw) and not _matches_exact_reply_request(prompt, raw):
             reasons.append("prompt_artifact")
@@ -7978,7 +7978,7 @@ def _model_text_integrity_reasons(
             reasons.append("incomplete_code_response")
         return reasons
 
-    if _TRAILING_ESCAPE_RE.search(raw):
+    if has_escaped_whitespace_artifact(raw):
         reasons.append("escaped_control_artifact")
     if contains_prompt_artifact(raw) and not _matches_exact_reply_request(prompt, raw):
         reasons.append("prompt_artifact")
