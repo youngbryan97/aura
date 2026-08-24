@@ -796,6 +796,30 @@ def test_packaged_launcher_repairs_a_lost_window_on_application_activation():
     )[1].split("private func frontPrimaryWindow", 1)[0]
 
 
+def test_packaged_launcher_owns_one_modern_foreground_transition():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    activation_body = swift.split("private func activateLauncherSurface()", 1)[1].split(
+        "private func publishAccessiblePrimaryWindow",
+        1,
+    )[0]
+    primary_body = swift.split("private func frontPrimaryWindow()", 1)[1].split(
+        "@objc private func handleShowPrimaryWindowNotification",
+        1,
+    )[0]
+    desktop_body = swift.split("private func openNativeDesktopWindow()", 1)[1].split(
+        "// MARK: - Bubble intents",
+        1,
+    )[0]
+
+    assert "if #available(macOS 14.0, *)" in activation_body
+    assert "NSApp.activate()" in activation_body
+    assert "NSApp.activate(ignoringOtherApps: true)" in activation_body
+    assert "NSRunningApplication.current.activate" not in activation_body
+    assert "activateLauncherSurface()" in primary_body
+    assert "activateLauncherSurface()" in desktop_body
+
+
 def test_packaged_launcher_publishes_real_windows_to_accessibility_and_active_space():
     swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
 

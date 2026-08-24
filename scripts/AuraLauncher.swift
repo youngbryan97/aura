@@ -2260,8 +2260,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         window.center()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
-        NSRunningApplication.current.activate(options: [])
+        activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
 
         pollNow()
@@ -2277,6 +2276,22 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         desktopWindow?.isVisible == true
             || window?.isVisible == true
             || companionPanel?.isVisible == true
+    }
+
+    /// Make an explicitly presented Aura surface the active application.
+    ///
+    /// `activate(ignoringOtherApps:)` stopped reliably taking foreground
+    /// ownership after AppKit deprecated that contract in macOS 14. A window
+    /// could be fully rendered and `isVisible == true` on another Space while
+    /// the user remained on an empty desktop. Keep the compatibility call only
+    /// for older systems and route every retained-window presentation through
+    /// the supported application activation primitive.
+    private func activateLauncherSurface() {
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func publishAccessiblePrimaryWindow(_ primary: NSWindow) {
@@ -2311,8 +2326,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         publishAccessiblePrimaryWindow(target)
         target.makeKeyAndOrderFront(nil)
         target.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
-        NSRunningApplication.current.activate(options: [])
+        activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
         return true
     }
@@ -4012,8 +4026,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         desktopWindow?.center()
         desktopWindow?.makeKeyAndOrderFront(nil)
         desktopWindow?.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
-        NSRunningApplication.current.activate(options: [])
+        activateLauncherSurface()
         NSApp.requestUserAttention(.informationalRequest)
         autoDesktopOpenTriggered = true
         clearGuiWindowLaunchMarker()
@@ -4040,7 +4053,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             // They asked for the full desktop explicitly.
             hideCompanionChat(restoringBubble: false)
             openNativeDesktopWindow()
-            NSApp.activate(ignoringOtherApps: true)
+            activateLauncherSurface()
         case "close":
             hideCompanionChat()
         case "highlight":
@@ -4322,7 +4335,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         // lets that actually take effect on a borderless window.
         companionPanel?.makeKeyAndOrderFront(nil)
         if let panel = companionPanel { matchBackingScale(for: panel) }
-        NSApp.activate(ignoringOtherApps: true)
+        activateLauncherSurface()
         postCompanionVisibility(true)
     }
 
