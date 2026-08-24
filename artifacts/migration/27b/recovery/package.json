@@ -1,0 +1,39 @@
+{
+ "authorizes": [],
+ "descriptor_identity": {
+  "config_sha256": "198e60c71915c501e8273103f348d1508d8ce4c10d34a810c5db5ff5c6250c6b",
+  "fingerprint": "8e26c4733aa8c41d180c62191ded81edd2d5987a56c43438816bf0467e426a80",
+  "full_attention_layers": 16,
+  "hidden_size": 5120,
+  "linear_attention_layers": 48,
+  "model_type": "qwen3_5_text",
+  "num_hidden_layers": 64,
+  "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "tokenizer_sha256": "",
+  "vocab_size": 248320,
+  "weights_index_sha256": "198e60c71915c501e8273103f348d1508d8ce4c10d34a810c5db5ff5c6250c6b"
+ },
+ "evidence": {
+  "measured_on_this_checkpoint": false
+ },
+ "evidence_paths": [],
+ "evidence_root": "artifacts/migration/27b/recovery",
+ "legacy_claim": {
+  "authority_over_this_package": "none",
+  "checkpoint": "Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "disposition": "retained as 32B history; stays inactive on this checkpoint",
+  "package_id": "cp568-resident-semantic-neural-active-r1",
+  "verdict": "BOUNDED_WOW_SIGNAL"
+ },
+ "never_authorizes": [
+  "ordinary_chat_authorized",
+  "arbitrary_reasoning_authorized",
+  "global runtime promotion",
+  "static weight fusion",
+  "frontier performance"
+ ],
+ "package_id": "rlc-27b-recovery-8e26c4733aa8c41d180c",
+ "package_sha256": "f202af1034e47233f99d3c7fcb9d21f048d9202e729df9688ff251e555c12de9",
+ "schema": "aura.rlc.bounded_recovery_package.v1",
+ "verdict": null
+}
