@@ -56,6 +56,24 @@ def test_the_planning_prior_counts_them_too():
     )
 
 
+@pytest.mark.parametrize(
+    ("asked", "least"),
+    [
+        ("numbered pseudocode", 768),
+        ("a worked example with five weighted edges", 768),
+        ("time complexity with both a heap and an array", 640),
+        ("the failure case and the correct alternative", 512),
+    ],
+)
+def test_one_structurally_expensive_obligation_gets_its_own_room(
+    asked: str,
+    least: int,
+):
+    """Decomposing a request must not collapse each work unit to 256 tokens."""
+
+    assert answer_surface_token_floor(asked) >= least
+
+
 def test_the_count_comes_from_the_shared_reader():
     """Not a second opinion about numbers."""
     from core.runtime.structured_input import _parts_the_request_counted

@@ -3269,25 +3269,23 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
 
 
 def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]) -> Any:
-    """Hold a contract-bearing answer open until its obligations are complete.
+    """Optionally hold terminal tokens for a caller that owns that constraint.
 
-    Simple answers retain natural EOS. A typed append-only continuation always
-    needs this guard, while an initial branch needs it only when prompt analysis
-    proved that several substantive asks must be served in one reply. The
-    owning decode loop evaluates the assembled candidate every eight tokens and
-    exits as soon as the same coverage contract is satisfied.
-
-    This closes the single-decode ownership gap where a model had ample token
-    capacity but emitted EOS after item three of a five-item request. The route
-    previously paid for a second heavyweight decode, whose reconstructed prompt
-    could repeat the request and lose the valid incumbent. Enforcing completion
-    where tokens are sampled keeps one owner and one answer without changing
-    the answer's wording.
+    Semantic observation and terminal suppression are different mechanisms.
+    Suppressing EOS on a multipart answer made the model elaborate or repeat
+    the section it was already closing because sampling cannot observe why its
+    terminal token was rejected. The user-surface obligation scheduler now
+    preserves natural branch boundaries and assigns uncovered work explicitly.
+    Only a caller with an independently justified, typed hold contract may ask
+    this lower layer to mask terminal tokens.
     """
     clean_surface = bool(job.get("clean_user_surface_contract", False))
     semantic_contract = bool(job.get("semantic_completion_contract", False))
     continuation_contract = bool(job.get("user_surface_continuation_contract", False))
-    if not (clean_surface and semantic_contract):
+    terminal_hold_contract = bool(
+        job.get("semantic_terminal_hold_contract", False)
+    )
+    if not (clean_surface and semantic_contract and terminal_hold_contract):
         return None
 
     if not continuation_contract:

@@ -303,6 +303,97 @@ _TOPIC_STOPWORDS = frozenset(
 _MAX_USER_SURFACE_CONTINUATIONS = 12
 
 
+@dataclasses.dataclass(frozen=True)
+class _UserSurfaceObligation:
+    """One unanswered work unit carried by the shared prompt-shape reader."""
+
+    segment_index: int
+    segment: str
+    numbered_label: int | None = None
+
+
+def _unanswered_user_surface_obligations(
+    reply: object,
+    prompt_shape: object | None,
+) -> tuple[_UserSurfaceObligation, ...]:
+    """Return uncovered asks with their original structural identity.
+
+    The language substrate already preserves the exact request segments.  A
+    retry scheduler needs the index as well as the text so a numbered answer
+    can be assembled without asking the model to rediscover list structure.
+    """
+
+    if prompt_shape is None:
+        return ()
+    try:
+        from core.conversation.request_coverage import unanswered_question_parts
+
+        missing = list(unanswered_question_parts(reply, prompt_shape))
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return ()
+    if not missing:
+        return ()
+    segments = tuple(getattr(prompt_shape, "question_segments", ()) or ())
+    try:
+        numbered_parts = max(
+            0,
+            int(getattr(prompt_shape, "numbered_parts", 0) or 0),
+        )
+    except (TypeError, ValueError, OverflowError):
+        numbered_parts = 0
+    numbered_start = max(0, len(segments) - numbered_parts)
+    remaining_counts = collections.Counter(str(item) for item in missing)
+    obligations: list[_UserSurfaceObligation] = []
+    for index, segment in enumerate(segments):
+        segment_text = str(segment)
+        if remaining_counts[segment_text] <= 0:
+            continue
+        remaining_counts[segment_text] -= 1
+        numbered_label = (
+            index - numbered_start + 1
+            if numbered_parts and index >= numbered_start
+            else None
+        )
+        obligations.append(
+            _UserSurfaceObligation(
+                segment_index=index,
+                segment=segment_text,
+                numbered_label=numbered_label,
+            )
+        )
+    return tuple(obligations)
+
+
+def _merge_obligation_completion(
+    partial: object,
+    completion: object,
+    obligation: _UserSurfaceObligation,
+) -> str:
+    """Append one model-authored work unit under its measured list position."""
+
+    head = str(partial or "").rstrip()
+    tail = str(completion or "").strip()
+    if not tail:
+        return head
+    label = obligation.numbered_label
+    if label is not None:
+        # The structural marker belongs to the scheduler.  The prose remains
+        # the resident model's own, while the verifier can bind it to the same
+        # numbered obligation that the user supplied.
+        tail = re.sub(
+            rf"^\s*(?:#+\s*)?(?:\({label}\)|{label}[.)])\s*",
+            "",
+            tail,
+            count=1,
+        ).strip()
+        addition = f"{label}. {tail}"
+    else:
+        addition = tail
+    if not head:
+        return addition
+    return f"{head}\n\n{addition}"
+
+
 def _user_surface_continuation_budget(prompt_shape: object | None) -> int:
     """Return a finite continuation budget sized to independent obligations.
 

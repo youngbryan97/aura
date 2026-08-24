@@ -4472,6 +4472,21 @@ class CognitiveEngine:
             and context.get("user_surface_continuation_contract", False)
             and continuation_partial
         )
+        obligation_segment = str(
+            context.get("user_surface_obligation_segment") or ""
+        ).strip()
+        obligation_parent_request = str(
+            context.get("user_surface_obligation_parent_request") or ""
+        ).strip()
+        obligation_partial = continuation_state_text(
+            context.get("user_surface_obligation_partial")
+        )
+        obligation_contract = bool(
+            completion_retry_contract
+            and context.get("user_surface_obligation_contract", False)
+            and obligation_segment
+            and obligation_parent_request
+        )
         prompt_shape = context.get("prompt_shape")
         if not isinstance(prompt_shape, dict):
             prompt_shape = {}
@@ -4806,7 +4821,11 @@ class CognitiveEngine:
                 "unless the user specifically asks for them."
             )
         turn_dynamic_contracts: list[str] = []
-        if completion_retry_contract and not continuation_contract:
+        if (
+            completion_retry_contract
+            and not continuation_contract
+            and not obligation_contract
+        ):
             # Append to the stable ordinary-chat prefix. The prefix can still
             # reuse resident KV, while the suffix gives the replacement its
             # only special instruction. Never include the rejected fragment:
@@ -5085,7 +5104,7 @@ class CognitiveEngine:
         # segments and made the continuation prompt larger than the original.
         # The original request plus the exact assistant prefix is the transport
         # contract; sampler controls remain causal through router kwargs.
-        if continuation_contract:
+        if continuation_contract or obligation_contract:
             history_messages = []
             contract_grounding_blocks = []
             task_grounding_blocks = []
@@ -5142,8 +5161,19 @@ class CognitiveEngine:
                         }
                     )
                 )
-            messages.append({"role": "user", "content": user_prompt})
             validation_prompt = visible_user_message or objective
+            if obligation_contract:
+                messages.append(
+                    {"role": "user", "content": obligation_parent_request}
+                )
+                if obligation_partial:
+                    messages.append(
+                        {"role": "assistant", "content": obligation_partial}
+                    )
+                messages.append({"role": "user", "content": obligation_segment})
+                validation_prompt = obligation_segment
+            else:
+                messages.append({"role": "user", "content": user_prompt})
             if continuation_contract:
                 messages.append(
                     {"role": "assistant", "content": continuation_prefix}
@@ -5182,6 +5212,7 @@ class CognitiveEngine:
                 "semantic_completion_contract": bool(
                     self_condition_contract_covers_turn
                     or continuation_contract
+                    or obligation_contract
                     or shape_wants_room
                 ),
                 "user_surface_validation_prompt": validation_prompt,
@@ -5284,6 +5315,9 @@ class CognitiveEngine:
                     router_kwargs[
                         "user_surface_continuation_resume_handle"
                     ] = continuation_resume_handle
+            if obligation_contract:
+                router_kwargs["user_surface_obligation_contract"] = True
+                router_kwargs["user_surface_obligation_segment"] = obligation_segment
             # The lesion for this channel is omission, not substitution: a
             # neutral temperature is still a temperature somebody chose, and
             # measuring against one would compare two mind-derived settings

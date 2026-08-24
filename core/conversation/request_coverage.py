@@ -349,7 +349,12 @@ _NAMED_ENUMERATION_RE = re.compile(
     r"(?P<items>[A-Z0-9][A-Z0-9_-]*(?:\s*,\s*[A-Z0-9][A-Z0-9_-]*){1,15})",
 )
 _NUMBERED_ANSWER_SECTION_RE = re.compile(
-    r"(?<![A-Za-z0-9^])(?P<number>\d{1,2})\s*[.)]\s+"
+    # A section marker starts at a token boundary.  Punctuation is not enough:
+    # ``C-D:5. next`` is a weighted edge followed by prose, not answer item 5.
+    # Whitespace still admits compact inline lists (``1. ... 2. ...``), while
+    # the existing exponent case remains excluded for the same structural
+    # reason.
+    r"(?<!\S)(?P<number>\d{1,2})\s*[.)]\s+"
 )
 _GRAPH_EDGE_RE = re.compile(
     r"(?:"

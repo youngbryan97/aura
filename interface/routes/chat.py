@@ -442,7 +442,10 @@ from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: 
 from interface.routes.chat_common import (  # noqa: E402
     _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
     _ORGAN_ABSENCE_STREAKS,  # noqa: F401
+    _UserSurfaceObligation,
     _continuation_made_semantic_progress,
+    _merge_obligation_completion,
+    _unanswered_user_surface_obligations,
     _user_surface_continuation_budget,
 )
 from interface.routes.chat_turn_contract import (  # noqa: E402
@@ -4692,6 +4695,26 @@ _COMPLETION_REPAIR_REASONS = frozenset(
     }
 )
 
+_PHYSICAL_COMPLETION_REASONS = frozenset(
+    {
+        "truncated_tail",
+        "final_answer_missing",
+        "missing_final_answer",
+        "incomplete_code_response",
+    }
+)
+
+
+def _reply_has_physical_completion_failure(reasons: object) -> bool:
+    """Whether transport stopped the authored branch before it could close."""
+
+    normalized = {
+        str(reason or "").strip().lower()
+        for reason in (reasons or ())
+        if str(reason or "").strip()
+    }
+    return bool(normalized.intersection(_PHYSICAL_COMPLETION_REASONS))
+
 
 def _reply_needs_continuation(rejected_reply: object, reasons: object) -> bool:
     """Whether a mechanical cutoff must be completed before replacement.
@@ -6849,6 +6872,7 @@ async def _run_cognitive_engine_chat_turn(
         reasons: tuple[str, ...] | list[str],
         *,
         completion_attempt: int = 0,
+        obligation: _UserSurfaceObligation | None = None,
     ) -> str | None:
         completion_retry_reasons = _COMPLETION_REPAIR_REASONS
         normalized_reasons = {str(reason or "").strip().lower() for reason in (reasons or ())}
@@ -6863,6 +6887,20 @@ async def _run_cognitive_engine_chat_turn(
             rejected_reply,
             normalized_reasons,
         )
+        targeted_obligation_retry = bool(completion_only_retry and obligation is not None)
+        if completion_only_retry and obligation is None:
+            remaining = _unanswered_user_surface_obligations(
+                rejected_reply,
+                shape,
+            )
+            # Semantic incompleteness and a physically interrupted generation
+            # are independent typed states.  The former schedules a missing
+            # work unit; only the latter resumes the assistant tail.
+            if remaining and not _reply_has_physical_completion_failure(
+                normalized_reasons
+            ):
+                obligation = remaining[0]
+                targeted_obligation_retry = True
 
         def _retain_completion_incumbent(
             failure_reason: str,
@@ -6971,12 +7009,21 @@ async def _run_cognitive_engine_chat_turn(
                 "response_repair_directive",
                 "failed_reply_reasons",
                 "failed_reply_excerpt",
+                "user_surface_continuation_contract",
+                "user_surface_continuation_partial",
+                "user_surface_continuation_resume_handle",
+                "user_surface_obligation_contract",
+                "user_surface_obligation_segment",
+                "user_surface_obligation_parent_request",
+                "user_surface_obligation_partial",
             ):
                 retry_context.pop(repair_key, None)
         retry_context.update(
             {
                 "route": (
-                    "desktop_chat_continuation"
+                    "desktop_chat_obligation_completion"
+                    if targeted_obligation_retry
+                    else "desktop_chat_continuation"
                     if completion_only_retry
                     else "desktop_chat_repair"
                 ),
@@ -7005,9 +7052,6 @@ async def _run_cognitive_engine_chat_turn(
                 }
             )
         if completion_only_retry:
-            # Continue the valid draft instead of recomputing it under a shorter
-            # deadline. The resident model receives the original request and its
-            # own partial assistant turn, then supplies only what is missing.
             retry_context.update(
                 {
                     "desktop_quick_reply_contract": True,
@@ -7015,27 +7059,51 @@ async def _run_cognitive_engine_chat_turn(
                     "deep_handoff": False,
                     "allow_deep_handoff": False,
                     "skip_runtime_payload": True,
-                    "visible_user_message": visible,
-                    "user_surface_continuation_contract": True,
-                    "user_surface_continuation_partial": continuation_state_text(
-                        rejected_reply
-                    ),
                 }
             )
-            receipt = (
-                dict(turn_trace.get("live_mind_surface_control_receipt") or {})
-                if isinstance(turn_trace, dict)
-                else {}
-            )
-            resume_handle = str(
-                receipt.get("continuation_resume_handle")
-                or (turn_trace or {}).get("continuation_resume_handle")
-                or ""
-            ).strip().lower()
-            if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
-                retry_context[
-                    "user_surface_continuation_resume_handle"
-                ] = resume_handle
+            if targeted_obligation_retry and obligation is not None:
+                target_shape = analyze_prompt_shape(obligation.segment)
+                retry_context.update(
+                    {
+                        "visible_user_message": obligation.segment,
+                        "prompt_shape": target_shape.to_dict(),
+                        "max_tokens": answer_surface_token_floor(obligation.segment),
+                        "user_surface_obligation_contract": True,
+                        "user_surface_obligation_segment": obligation.segment,
+                        "user_surface_obligation_parent_request": visible,
+                        "user_surface_obligation_partial": continuation_state_text(
+                            rejected_reply
+                        ),
+                    }
+                )
+            else:
+                # Continue a physically cut assistant turn exactly. Natural EOS
+                # stays available; once the sentence closes, uncovered semantic
+                # units are scheduled independently instead of forcing this
+                # branch to discover why its EOS was rejected.
+                retry_context.update(
+                    {
+                        "visible_user_message": visible,
+                        "user_surface_continuation_contract": True,
+                        "user_surface_continuation_partial": continuation_state_text(
+                            rejected_reply
+                        ),
+                    }
+                )
+                receipt = (
+                    dict(turn_trace.get("live_mind_surface_control_receipt") or {})
+                    if isinstance(turn_trace, dict)
+                    else {}
+                )
+                resume_handle = str(
+                    receipt.get("continuation_resume_handle")
+                    or (turn_trace or {}).get("continuation_resume_handle")
+                    or ""
+                ).strip().lower()
+                if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
+                    retry_context[
+                        "user_surface_continuation_resume_handle"
+                    ] = resume_handle
 
         async def repair_engine_think_operation():
 
@@ -7047,7 +7115,13 @@ async def _run_cognitive_engine_chat_turn(
                 turn_trace["engine_think_invoked"] = True
             with relational_principal_scope(exact_principal):
                 return await engine.think(
-                    visible if completion_only_retry else repair_directive,
+                    (
+                        obligation.segment
+                        if targeted_obligation_retry and obligation is not None
+                        else visible
+                        if completion_only_retry
+                        else repair_directive
+                    ),
                     context=retry_context,
                     mode=mode,
                     origin=origin,
@@ -7118,7 +7192,14 @@ async def _run_cognitive_engine_chat_turn(
             )
             return _retain_completion_incumbent("continuation_failure_envelope")
         if completion_only_retry:
-            retry_text = _merge_reply_continuation(rejected_reply, retry_text)
+            if targeted_obligation_retry and obligation is not None:
+                retry_text = _merge_obligation_completion(
+                    rejected_reply,
+                    retry_text,
+                    obligation,
+                )
+            else:
+                retry_text = _merge_reply_continuation(rejected_reply, retry_text)
         retry_projection_trace: dict[str, Any] = {"live_mind_surface_control_receipt": {}}
         if self_condition_contract and self_condition_contract_covers_turn:
             retry_text = _project_self_condition_claims(
@@ -7193,18 +7274,37 @@ async def _run_cognitive_engine_chat_turn(
                 retry_text,
                 shape,
             )
-            if made_progress and completion_attempt + 1 < continuation_attempt_budget:
-                next_reasons = tuple(sorted(retry_failure_reasons)) or ("truncated_tail",)
+            remaining = _unanswered_user_surface_obligations(retry_text, shape)
+            physical_failure = _reply_has_physical_completion_failure(
+                (*retry_failure_reasons, *retry_assessment.blocking_reasons)
+            )
+            if completion_attempt + 1 < continuation_attempt_budget and (
+                made_progress or (remaining and not physical_failure)
+            ):
+                next_obligation = (
+                    remaining[0] if remaining and not physical_failure else None
+                )
+                next_reasons = (
+                    ("unanswered_question_part",)
+                    if next_obligation is not None
+                    else tuple(sorted(retry_failure_reasons)) or ("truncated_tail",)
+                )
                 logger.warning(
-                    "CognitiveEngine continuation %d/%d made progress but remained "
-                    "incomplete; continuing from the new cutoff.",
+                    "CognitiveEngine completion segment %d/%d advanced but remained "
+                    "incomplete; next=%s.",
                     completion_attempt + 1,
                     continuation_attempt_budget,
+                    (
+                        f"obligation:{next_obligation.segment_index}"
+                        if next_obligation is not None
+                        else "assistant_tail"
+                    ),
                 )
                 return await _attempt_repair_retry(
                     retry_text,
                     next_reasons,
                     completion_attempt=completion_attempt + 1,
+                    obligation=next_obligation,
                 )
             logger.warning(
                 "CognitiveEngine completion replacement remained incomplete "

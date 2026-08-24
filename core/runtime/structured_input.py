@@ -395,10 +395,17 @@ def answer_surface_token_floor(text: str) -> int:
         len(shape.question_segments),
         _parts_the_request_counted(text),
     )
+    lowered = str(text or "").lower()
+    single_obligation_needs_room = bool(
+        re.search(r"\b(?:pseudo\s*code|write\s+code|worked|concrete|step[- ]by[- ]step)\b", lowered)
+        or re.search(r"\b(?:time|space|runtime|computational)\s+complexit(?:y|ies)\b", lowered)
+        or re.search(r"\b(?:correct|proper|recommended)\s+alternative\b", lowered)
+    )
     if not (
         shape.prefers_extended_answer
         or shape.requires_single_reply_coverage
         or obligations >= 2
+        or single_obligation_needs_room
     ):
         return 256
 
@@ -408,7 +415,6 @@ def answer_surface_token_floor(text: str) -> int:
     # alternative add independently verifiable content. This is admission
     # accounting only: semantic EOS can still return as soon as the work is
     # complete.
-    lowered = str(text or "").lower()
     required = 256 + (192 * obligations)
     if re.search(r"\b(?:pseudo\s*code|code|algorithm|procedure)\b", lowered):
         required += 384
@@ -421,6 +427,11 @@ def answer_surface_token_floor(text: str) -> int:
     ):
         required += 128
     if re.search(r"\b(?:both|each\s+of|compare|contrast)\b", lowered):
+        required += 128
+    if re.search(
+        r"\b(?:time|space|runtime|computational)\s+complexit(?:y|ies)\b",
+        lowered,
+    ):
         required += 128
     if re.search(r"\b(?:correct|proper|recommended)\s+alternative\b", lowered):
         required += 128
@@ -466,6 +477,11 @@ def answer_surface_planning_tokens(text: str) -> int:
     ):
         planned += 64
     if re.search(r"\b(?:both|each\s+of|compare|contrast)\b", lowered):
+        planned += 64
+    if re.search(
+        r"\b(?:time|space|runtime|computational)\s+complexit(?:y|ies)\b",
+        lowered,
+    ):
         planned += 64
     if re.search(r"\b(?:correct|proper|recommended)\s+alternative\b", lowered):
         planned += 64

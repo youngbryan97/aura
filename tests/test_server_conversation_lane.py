@@ -13080,6 +13080,147 @@ def test_multipart_continuation_budget_tracks_parsed_obligations():
     assert _continuation_made_semantic_progress(first, advanced, prompt) is True
 
 
+def test_unanswered_obligations_keep_numbered_identity_when_composed():
+    from interface.routes import chat as chat_routes
+    from interface.routes.chat_common import (
+        _merge_obligation_completion,
+        _unanswered_user_surface_obligations,
+    )
+
+    prompt = chat_routes.analyze_prompt_shape(
+        "Explain Dijkstra. Include: (1) the invariant, (2) pseudocode, "
+        "(3) a worked example, (4) complexity, and (5) a failure case."
+    )
+    partial = (
+        "Dijkstra's algorithm computes shortest paths with nonnegative edges.\n"
+        "1. The invariant finalizes the nearest unsettled vertex.\n"
+        "2. Pseudocode repeatedly extracts and relaxes.\n"
+        "3. A worked example uses A-B:2, A-C:1, C-B:1, B-D:2, C-D:5."
+    )
+    remaining = _unanswered_user_surface_obligations(partial, prompt)
+
+    assert [item.numbered_label for item in remaining] == [4, 5]
+    merged = _merge_obligation_completion(
+        partial,
+        "4) O((V+E) log V) with a heap and O(V^2) with an array.",
+        remaining[0],
+    )
+    assert "\n\n4. O((V+E) log V)" in merged
+    assert "4. 4)" not in merged
+
+
+@pytest.mark.asyncio
+async def test_compound_answer_schedules_each_uncovered_obligation(monkeypatch):
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    incomplete = _bound_live_mind_controls_metadata()
+    incomplete.update(
+        {
+            "reply_generation_incomplete": True,
+            "reply_generation_stop_reason": "eos",
+            "reply_generation_failure_reasons": ["unanswered_question_part"],
+        }
+    )
+    complete = _bound_live_mind_controls_metadata()
+
+    class _FakeCognitiveEngine:
+        def __init__(self):
+            self.calls = []
+
+        async def think(self, objective, context=None, **_kwargs):
+            call = (objective, dict(context or {}))
+            self.calls.append(call)
+            if len(self.calls) == 1:
+                return SimpleNamespace(
+                    content=(
+                        "Dijkstra's algorithm computes shortest paths with nonnegative edges.\n"
+                        "1. The invariant finalizes the minimum unsettled distance.\n"
+                        "2. Numbered pseudocode initializes distances, extracts the "
+                        "minimum, and relaxes its outgoing edges.\n"
+                        "3. A worked example uses A-B:2, A-C:1, C-B:1, "
+                        "B-D:2, and C-D:5."
+                    ),
+                    metadata=incomplete,
+                )
+            if len(self.calls) == 2:
+                return SimpleNamespace(
+                    content=(
+                        "O((V+E) log V) with a binary heap and O(V^2) with an array."
+                    ),
+                    metadata=incomplete,
+                )
+            return SimpleNamespace(
+                content=(
+                    "A negative edge can invalidate a finalized distance; use "
+                    "Bellman-Ford instead."
+                ),
+                metadata=complete,
+            )
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+        async def execute_with_retry(self, _name, operation, **_kwargs):
+            return await operation()
+
+    engine = _FakeCognitiveEngine()
+    trace = {}
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        chat_routes,
+        "_desktop_secondary_model_repair_allowed",
+        lambda **_kwargs: (True, "completion_retry_ready"),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: engine if name == "cognitive_engine" else default
+        ),
+    )
+    prompt = (
+        "Explain Dijkstra. Include: (1) the invariant, (2) numbered pseudocode, "
+        "(3) a worked example with at least five weighted edges, (4) time "
+        "complexity with both a binary heap and an array, and (5) one failure "
+        "case involving negative weights and the correct alternative."
+    )
+
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        prompt,
+        visible_user_message=prompt,
+        origin="user",
+        timeout_s=240.0,
+        lane={
+            "conversation_ready": True,
+            "state": "ready",
+            "foreground_endpoint": "Cortex",
+        },
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert reply is not None
+    assert "4. O((V+E) log V)" in reply
+    assert "5. A negative edge" in reply
+    assert len(engine.calls) == 3
+    assert engine.calls[1][1]["user_surface_obligation_segment"].startswith(
+        "time complexity"
+    )
+    assert engine.calls[2][1]["user_surface_obligation_segment"].startswith(
+        "one failure case"
+    )
+    assert trace["completion_retry_count"] == 2
+    assert trace["foreground_model_generation_count"] == 3
+
+
 @pytest.mark.asyncio
 async def test_continuation_handoff_preserves_long_structured_partial(monkeypatch):
     from core.brain import cognitive_engine as ce_module
@@ -13133,6 +13274,62 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
     assert call["user_surface_continuation_resume_handle"] == "e" * 32
     assert call["semantic_completion_contract"] is True
     assert "USER-SURFACE CONTINUATION CONTRACT" not in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_obligation_handoff_uses_exact_parent_partial_and_segment(monkeypatch):
+    from core.brain import cognitive_engine as ce_module
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+
+    calls = []
+
+    class _Router:
+        async def think(self, **kwargs):
+            calls.append(kwargs)
+            return "O((V+E) log V) with a heap and O(V^2) with an array."
+
+        def get_last_generation_metadata(self):
+            return {}
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            return _Router() if name == "llm_router" else default
+
+    monkeypatch.setattr(ce_module, "get_container", lambda: _Container)
+    parent = "Explain Dijkstra and include complexity."
+    partial = "Dijkstra finalizes the nearest unsettled distance."
+    segment = "time complexity with both a binary heap and an array"
+    context = {
+        "desktop_quick_reply_contract": True,
+        "user_surface_completion_retry": True,
+        "user_surface_obligation_contract": True,
+        "user_surface_obligation_parent_request": parent,
+        "user_surface_obligation_partial": partial,
+        "user_surface_obligation_segment": segment,
+        "visible_user_message": segment,
+        "max_tokens": 640,
+    }
+
+    thought = await CognitiveEngine()._direct_desktop_quick_reply(
+        segment,
+        ThinkingMode.FAST,
+        "user",
+        context,
+        timeout_s=180.0,
+    )
+
+    assert thought is not None
+    call = calls[0]
+    assert call["messages"][-3:] == [
+        {"role": "user", "content": parent},
+        {"role": "assistant", "content": partial},
+        {"role": "user", "content": segment},
+    ]
+    assert call["user_surface_validation_prompt"] == segment
+    assert call["user_surface_obligation_contract"] is True
+    assert call.get("user_surface_continuation_contract") is not True
 
 
 @pytest.mark.asyncio
@@ -14659,6 +14856,12 @@ def test_mixed_timeout_and_semantic_defects_continue_instead_of_replacing_source
     assert not chat_routes._reply_needs_continuation(
         "A complete but generic answer.",
         ("generic_assistant_language",),
+    )
+    assert chat_routes._reply_has_physical_completion_failure(
+        ("truncated_tail", "unanswered_question_part")
+    )
+    assert not chat_routes._reply_has_physical_completion_failure(
+        ("unanswered_question_part",)
     )
 
 

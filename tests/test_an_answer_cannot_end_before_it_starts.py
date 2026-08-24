@@ -162,11 +162,10 @@ def test_simple_initial_semantic_contract_keeps_natural_eos() -> None:
     )
 
 
-def test_multipart_initial_semantic_contract_masks_premature_terminal_tokens() -> None:
-    """One owned decode cannot end after serving only part of a compound ask."""
+def test_multipart_initial_semantic_contract_keeps_natural_eos() -> None:
+    """Coverage is observed without turning rejected EOS into repetition."""
 
-    mx = pytest.importorskip("mlx.core")
-    guard = _build_semantic_guard(
+    assert _build_semantic_guard(
         {
             "clean_user_surface_contract": True,
             "semantic_completion_contract": True,
@@ -175,18 +174,26 @@ def test_multipart_initial_semantic_contract_masks_premature_terminal_tokens() -
                 "(2) pseudocode, and (3) a worked example."
             ),
         }
-    )
-    assert guard is not None
-    masked = guard(mx.array([99], dtype=mx.int32), mx.zeros((152000,)))
-    assert float(masked[151644]) == float("-inf")
+    ) is None
 
 
-def test_incomplete_append_only_continuation_masks_terminal_tokens() -> None:
+def test_incomplete_append_only_continuation_keeps_natural_eos() -> None:
+    assert _build_semantic_guard(
+        {
+            "clean_user_surface_contract": True,
+            "semantic_completion_contract": True,
+            "user_surface_continuation_contract": True,
+        }
+    ) is None
+
+
+def test_explicit_semantic_terminal_hold_contract_masks_terminal_tokens() -> None:
     mx = pytest.importorskip("mlx.core")
     guard = _build_semantic_guard(
         {
             "clean_user_surface_contract": True,
             "semantic_completion_contract": True,
+            "semantic_terminal_hold_contract": True,
             "user_surface_continuation_contract": True,
         }
     )
