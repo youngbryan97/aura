@@ -35,6 +35,117 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.LatentCortexService")
 
+_GENERAL_LATENT_UNMEASURED_FLOOR_SECONDS = 120.0
+
+
+def _foreground_surplus_plan(
+    *,
+    messages: list | None,
+    visible_objective: str,
+    decode_max_tokens: int,
+    request_timeout_s: float,
+    last_latency_s: float,
+) -> dict[str, Any]:
+    """Reserve a complete canonical answer before optional recurrent work."""
+
+    requested_s = max(0.0, float(request_timeout_s))
+    decode_capacity = max(64, min(4096, int(decode_max_tokens)))
+    model = "unknown"
+    prompt_tokens = max(2048, 1800 + len(visible_objective) // 4)
+    planned_decode_tokens = min(decode_capacity, 384)
+    deadline_confidence = "no_samples"
+    deadline_samples = 0
+    length_confidence = "no_samples"
+    length_samples = 0
+    try:
+        from core.brain.llm.measured_admission import (
+            recommended_completion_tokens,
+            recommended_foreground_deadline,
+        )
+        from core.brain.llm.model_registry import get_active_cortex_spec
+        from core.brain.memory_guard import estimate_tokens
+        from core.runtime.structured_input import answer_surface_planning_tokens
+
+        spec = get_active_cortex_spec()
+        if spec is not None:
+            model = os.path.basename(str(spec.model_path))
+        prompt_tokens = max(2048, estimate_tokens(messages or []))
+        planned_decode_tokens = min(
+            decode_capacity,
+            answer_surface_planning_tokens(visible_objective),
+        )
+        (
+            planned_decode_tokens,
+            length_confidence_value,
+            length_samples,
+        ) = recommended_completion_tokens(
+            model=model,
+            prompt_tokens=prompt_tokens,
+            maximum_tokens=decode_capacity,
+            prior_tokens=planned_decode_tokens,
+        )
+        (
+            answer_reserve_s,
+            deadline_confidence_value,
+            deadline_samples,
+        ) = recommended_foreground_deadline(
+            model=model,
+            prompt_tokens=prompt_tokens,
+            decode_tokens=planned_decode_tokens,
+            minimum_seconds=0.0,
+            maximum_seconds=requested_s,
+        )
+        deadline_confidence = deadline_confidence_value.value
+        length_confidence = length_confidence_value.value
+    except (ArithmeticError, AttributeError, ImportError, OSError, TypeError, ValueError):
+        # A failed estimator cannot make optional work cheaper. This prior is
+        # deliberately conservative and remains labeled as unmeasured.
+        answer_reserve_s = min(
+            requested_s,
+            4.0 + (0.40 * float(planned_decode_tokens)),
+        )
+
+    runtime_floor_s = max(
+        _GENERAL_LATENT_UNMEASURED_FLOOR_SECONDS,
+        max(0.0, float(last_latency_s)),
+    )
+    surplus_s = max(0.0, requested_s - float(answer_reserve_s))
+    return {
+        "schema": "aura.latent_cortex.foreground_surplus.v1",
+        "model": model,
+        "request_timeout_s": round(requested_s, 3),
+        "prompt_tokens": int(prompt_tokens),
+        "decode_capacity_tokens": decode_capacity,
+        "planned_decode_tokens": int(planned_decode_tokens),
+        "canonical_answer_reserve_s": round(float(answer_reserve_s), 3),
+        "latent_surplus_s": round(surplus_s, 3),
+        "latent_runtime_floor_s": round(runtime_floor_s, 3),
+        "deadline_confidence": deadline_confidence,
+        "deadline_samples": int(deadline_samples),
+        "length_confidence": length_confidence,
+        "length_samples": int(length_samples),
+        "admitted": surplus_s >= runtime_floor_s,
+    }
+
+
+def _operation_authority_rejected(
+    *,
+    worker_ok: bool,
+    worker_receipt: dict[str, Any],
+    expected_authority: dict[str, Any] | None,
+) -> bool:
+    """Reject absent success authority and any explicit conflicting authority."""
+
+    authority_present = "runtime_operation_authority" in worker_receipt
+    authority_matches = (
+        authority_present
+        and worker_receipt.get("runtime_operation_authority") == expected_authority
+    )
+    return bool(
+        (worker_ok and not authority_matches)
+        or (authority_present and not authority_matches)
+    )
+
 #: Depth multipliers for the ontogeny effort choice, mirrored here so the
 #: allocation path costs no import. Kept in step with
 #: ``core.ontogeny.control_points.EFFORT_MULTIPLIER``, which is the contract.
@@ -4721,6 +4832,35 @@ class LatentCortexService:
             uncertainty = _unit_signal(uncertainty, name="uncertainty")
         except ValueError:
             return self._record_failure("invalid_cognitive_economy")
+        foreground_surplus_plan: dict[str, Any] | None = None
+        if foreground_request and require_full_stack and runtime_controls is not None:
+            requested_decode_tokens = (
+                config_overrides.get("decode_max_tokens")
+                if isinstance(config_overrides, dict)
+                else None
+            )
+            decode_capacity = (
+                requested_decode_tokens
+                if type(requested_decode_tokens) is int and requested_decode_tokens > 0
+                else 768
+            )
+            foreground_surplus_plan = _foreground_surplus_plan(
+                messages=messages,
+                visible_objective=self._visible_objective(question, messages),
+                decode_max_tokens=decode_capacity,
+                request_timeout_s=timeout_s,
+                last_latency_s=self._last_latency_s,
+            )
+            if foreground_surplus_plan["admitted"] is not True:
+                self._last_allocation = {
+                    "foreground_surplus_admission": dict(foreground_surplus_plan)
+                }
+                return self._record_failure(
+                    "latent_surplus_budget_insufficient",
+                    stage="surplus_admission",
+                    evidence=foreground_surplus_plan,
+                )
+            timeout_s = float(foreground_surplus_plan["latent_surplus_s"])
         try:
             from core.brain.llm.mlx_client import get_mlx_client
             from core.runtime.errors import DependencyUnavailable, ModelUnavailable
@@ -4792,6 +4932,10 @@ class LatentCortexService:
             )
         except (TypeError, ValueError, OverflowError):
             return self._record_failure("invalid_cognitive_economy")
+        if foreground_surplus_plan is not None:
+            self._last_allocation["foreground_surplus_admission"] = dict(
+                foreground_surplus_plan
+            )
         allocation_profile = str(self._last_allocation.get("allocation_profile") or "")
         adaptive_plan: dict[str, Any] | None = dict(
             self._last_allocation.get("adaptive_compute") or {}
@@ -5755,6 +5899,11 @@ class LatentCortexService:
 
             worker_authority = result_receipt.get("runtime_operation_authority")
             authority_matches = worker_authority == operation_authority
+            authority_rejected = _operation_authority_rejected(
+                worker_ok=result.get("ok") is True,
+                worker_receipt=result_receipt,
+                expected_authority=operation_authority,
+            )
             worker_succeeded = (
                 result.get("ok") is True
                 and authority_matches
@@ -5772,7 +5921,7 @@ class LatentCortexService:
                         if worker_succeeded
                         else (
                             "operation_authority_mismatch"
-                            if not authority_matches
+                            if authority_rejected
                             else (
                                 "action_policy_receipt_mismatch"
                                 if result.get("ok") is True and not action_policy_matches
@@ -5812,7 +5961,7 @@ class LatentCortexService:
             epistemic_state = operation_lease.state
             result_receipt["epistemic_operation"] = operation_receipt
             result["receipt"] = result_receipt
-            if not authority_matches:
+            if authority_rejected:
                 reason = "runtime_operation_authority_mismatch"
                 failed = dict(result)
                 failed.update(self._record_failure(reason))

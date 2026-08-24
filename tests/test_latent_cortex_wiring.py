@@ -17,7 +17,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from core.brain.latent_cortex_service import LatentCortexService
+from core.brain.latent_cortex_service import (
+    LatentCortexService,
+    _foreground_surplus_plan,
+    _operation_authority_rejected,
+)
 from core.brain.llm.latent_cortex.loop_core import canonical_sha256
 from core.brain.llm.latent_cortex.resource_accounting import (
     ModelComputeProfile,
@@ -73,6 +77,73 @@ _RUNTIME_IDENTITY = {
     "shell_assets_sha256": "5" * 64,
     "issues": [],
 }
+
+
+def test_foreground_surplus_plan_preserves_measured_answer_budget(monkeypatch):
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.get_active_cortex_spec",
+        lambda: SimpleNamespace(model_path="/models/Aura-Qwen3.8-27B-4bit"),
+    )
+    monkeypatch.setattr(
+        "core.brain.memory_guard.estimate_tokens",
+        lambda _messages: 3000,
+    )
+    monkeypatch.setattr(
+        "core.runtime.structured_input.answer_surface_planning_tokens",
+        lambda _objective: 1024,
+    )
+    from core.brain.llm.measured_admission import Confidence
+
+    monkeypatch.setattr(
+        "core.brain.llm.measured_admission.recommended_completion_tokens",
+        lambda **_kwargs: (900, Confidence.MEASURED, 25),
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.measured_admission.recommended_foreground_deadline",
+        lambda **_kwargs: (130.0, Confidence.MEASURED, 25),
+    )
+
+    plan = _foreground_surplus_plan(
+        messages=[{"role": "user", "content": "compound request"}],
+        visible_objective="compound request",
+        decode_max_tokens=1536,
+        request_timeout_s=180.0,
+        last_latency_s=140.0,
+    )
+
+    assert plan["model"] == "Aura-Qwen3.8-27B-4bit"
+    assert plan["decode_capacity_tokens"] == 1536
+    assert plan["planned_decode_tokens"] == 900
+    assert plan["canonical_answer_reserve_s"] == 130.0
+    assert plan["latent_surplus_s"] == 50.0
+    assert plan["latent_runtime_floor_s"] == 140.0
+    assert plan["admitted"] is False
+    assert plan["deadline_confidence"] == "measured"
+
+
+@pytest.mark.parametrize(
+    ("worker_ok", "receipt", "rejected"),
+    [
+        (False, {}, False),
+        (False, {"runtime_operation_authority": {"id": "expected"}}, False),
+        (False, {"runtime_operation_authority": {"id": "other"}}, True),
+        (True, {}, True),
+        (True, {"runtime_operation_authority": {"id": "expected"}}, False),
+    ],
+)
+def test_operation_authority_distinguishes_worker_failure_from_conflict(
+    worker_ok,
+    receipt,
+    rejected,
+):
+    assert (
+        _operation_authority_rejected(
+            worker_ok=worker_ok,
+            worker_receipt=receipt,
+            expected_authority={"id": "expected"},
+        )
+        is rejected
+    )
 
 
 def _identity_receipt(**overrides):
@@ -4978,6 +5049,91 @@ def test_service_requests_verifier_guidance_for_resident_profile(monkeypatch):
         )
     )
     assert captured["verifier_guidance"] is True
+
+
+def test_service_declines_optional_foreground_before_worker_acquisition(monkeypatch):
+    svc = LatentCortexService()
+    monkeypatch.setattr(
+        "core.brain.latent_cortex_service._foreground_surplus_plan",
+        lambda **_kwargs: {
+            "schema": "aura.latent_cortex.foreground_surplus.v1",
+            "latent_surplus_s": 12.0,
+            "latent_runtime_floor_s": 120.0,
+            "admitted": False,
+        },
+    )
+
+    import core.brain.llm.mlx_client as mlx_client_mod
+
+    def _must_not_acquire():
+        raise AssertionError("resident worker was acquired without latent surplus")
+
+    monkeypatch.setattr(mlx_client_mod, "get_mlx_client", _must_not_acquire)
+    result = asyncio.run(
+        svc.deep_reason(
+            "compound live question",
+            config_overrides={"decode_max_tokens": 1536},
+            runtime_controls={
+                "clean_user_surface_recurrent_loops": 1,
+                "clean_user_surface_steering_alpha": 0.0,
+            },
+            timeout_s=140.0,
+            foreground_request=True,
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["reason"] == "latent_surplus_budget_insufficient"
+    assert result["refusal_receipt"]["stage"] == "surplus_admission"
+    assert svc.get_status()["last_allocation"]["foreground_surplus_admission"] == {
+        "schema": "aura.latent_cortex.foreground_surplus.v1",
+        "latent_surplus_s": 12.0,
+        "latent_runtime_floor_s": 120.0,
+        "admitted": False,
+    }
+
+
+def test_service_passes_only_surplus_window_to_worker(monkeypatch):
+    svc = LatentCortexService()
+    captured = {}
+    monkeypatch.setattr(
+        "core.brain.latent_cortex_service._foreground_surplus_plan",
+        lambda **_kwargs: {
+            "schema": "aura.latent_cortex.foreground_surplus.v1",
+            "latent_surplus_s": 37.0,
+            "latent_runtime_floor_s": 30.0,
+            "admitted": True,
+        },
+    )
+
+    class StubClient:
+        def get_worker_identity_snapshot(self):
+            return {}
+
+        async def latent_reason_async(self, **kwargs):
+            captured.update(kwargs)
+            return {"ok": False, "reason": "measured_stub_stop"}
+
+    import core.brain.llm.mlx_client as mlx_client_mod
+
+    monkeypatch.setattr(mlx_client_mod, "get_mlx_client", lambda: StubClient())
+    result = asyncio.run(
+        svc.deep_reason(
+            "simple live question",
+            runtime_controls={
+                "clean_user_surface_recurrent_loops": 1,
+                "clean_user_surface_steering_alpha": 0.0,
+            },
+            timeout_s=180.0,
+            foreground_request=True,
+        )
+    )
+
+    assert result["reason"] == "measured_stub_stop"
+    assert captured["timeout_s"] == 37.0
+    assert svc.get_status()["last_allocation"]["foreground_surplus_admission"][
+        "latent_surplus_s"
+    ] == 37.0
 
 
 def test_service_action_state_lane_preserves_frozen_runner_inputs(monkeypatch):
