@@ -4008,19 +4008,6 @@ class CognitiveEngine:
                 logger.error("Failed last-resort structured recovery: %s", rec_err)
             return self._empty_thought(mode, "strict_answer_recovery_failed")
 
-        if bool(
-            context.get("desktop_cognitive_engine_required", False)
-            or context.get("cognitive_engine_required", False)
-        ):
-            return self._desktop_cognitive_failure_thought(
-                mode,
-                str(
-                    state.response_modifiers.get("generation_failure_class")
-                    or "user_cycle_no_response"
-                ),
-                generation_metadata=dict(state.response_modifiers),
-            )
-
         # Last stop before this turn tells a person it has nothing. Ask the
         # ledger: did a gate suppress a draft that is still servable? Measured
         # live, the answer was sometimes yes — a complete 240-character reply
@@ -4032,7 +4019,138 @@ class CognitiveEngine:
         # a heuristic merely disliked, and only when the alternative is
         # nothing at all.
         salvaged = recoverable_answer()
+        if not salvaged:
+            try:
+                from core.conversation.surface_disposition import best_available_reply
+
+                salvaged = best_available_reply(question=objective)
+            except (ImportError, RuntimeError, TypeError, ValueError):
+                salvaged = ""
         if salvaged:
+            generation_metadata = dict(state.response_modifiers)
+            generation_controls = context.get("live_mind_generation_controls")
+            if not isinstance(generation_controls, dict):
+                generation_controls = {}
+            surface_control_receipt = generation_metadata.get(
+                "live_mind_surface_control_receipt"
+            )
+            if not isinstance(surface_control_receipt, dict):
+                surface_control_receipt = {}
+            context_controls_bound = bool(
+                context.get("live_mind_controls_bound", False)
+                and generation_controls
+            )
+            surface_control_receipt = normalize_live_mind_surface_control_receipt(
+                surface_control_receipt,
+                controls_bound=context_controls_bound,
+                generation_controls=generation_controls,
+                source="cognitive_engine_recoverable_draft_controls",
+            )
+            latent_final_quality = generation_metadata.get(
+                "latent_cortex_final_output_quality"
+            )
+            latent_quality_reasons = (
+                tuple(latent_final_quality.get("reasons") or ())
+                if isinstance(latent_final_quality, dict)
+                else ()
+            )
+            surface_reasons = tuple(
+                dict.fromkeys(
+                    (
+                        *tuple(
+                            surface_control_receipt.get(
+                                "surface_quality_gate_reasons"
+                            )
+                            or ()
+                        ),
+                        *latent_quality_reasons,
+                    )
+                )
+            )
+            generation_stop_reason = str(
+                surface_control_receipt.get("generation_stop_reason") or ""
+            )
+            generation_failure_class = str(
+                generation_metadata.get("generation_failure_class") or ""
+            ).lower()
+            reply_generation_incomplete = bool(
+                surface_control_receipt.get(
+                    "semantic_completion_incomplete", False
+                )
+                or set(surface_reasons)
+                & {
+                    "truncated_tail",
+                    "final_answer_missing",
+                    "missing_final_answer",
+                    "incomplete_code_response",
+                }
+                or generation_stop_reason
+                in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
+                or any(
+                    reason in generation_failure_class
+                    for reason in (
+                        "truncated_tail",
+                        "final_answer_missing",
+                        "missing_final_answer",
+                        "incomplete_code_response",
+                    )
+                )
+                or _truncation_verdict(
+                    salvaged,
+                    generation_stop_reason=generation_stop_reason,
+                )
+            )
+            recoverable_metadata = {
+                key: (dict(value) if isinstance(value, dict) else value)
+                for key, value in generation_metadata.items()
+                if key
+                in {
+                    "generation_failure_class",
+                    "latent_cortex_selected",
+                    "latent_cortex_selection_reason",
+                    "latent_cortex_depth_worthy",
+                    "latent_cortex_prompt_shape",
+                    "latent_cortex_attempted",
+                    "latent_cortex_succeeded",
+                    "latent_cortex_fallback_used",
+                    "latent_cortex_failure_reason",
+                    "latent_cortex_identity_bound",
+                    "latent_cortex_final_text_transformed",
+                    "latent_cortex_final_output_quality",
+                    "latent_cortex_raw_final_quality_hash_match",
+                    "latent_cortex_receipt",
+                    "latent_cortex_ingress",
+                    "latent_cortex_progress",
+                    "response_path",
+                }
+            }
+            recoverable_metadata.update(
+                {
+                    "recovered_from_suppression": True,
+                    "live_mind_controls_bound": context_controls_bound,
+                    "live_mind_generation_controls": dict(generation_controls),
+                    "live_mind_snapshot_ready": bool(
+                        context.get("live_mind_snapshot_ready", False)
+                    ),
+                    "live_mind_required_subsystems_ok": bool(
+                        context.get("live_mind_required_subsystems_ok", False)
+                    ),
+                    "live_mind_context_required": bool(
+                        context.get("live_mind_context_required", False)
+                    ),
+                    "live_mind_surface_control_receipt": dict(
+                        surface_control_receipt
+                    ),
+                    "live_mind_controls_worker_applied": bool(
+                        surface_control_receipt.get("live_mind_controls_bound")
+                        and surface_control_receipt.get("applied")
+                    ),
+                    "reply_generation_incomplete": reply_generation_incomplete,
+                    "reply_generation_stop_reason": generation_stop_reason,
+                    "reply_generation_failure_reasons": surface_reasons,
+                    "reply_original_chars": len(salvaged),
+                }
+            )
             logger.warning(
                 "🩹 CognitiveEngine: no answer-quality response for origin=%s, but the "
                 "turn still held a recoverable %d-char draft; serving it rather than "
@@ -4046,7 +4164,20 @@ class CognitiveEngine:
                 mode=mode,
                 confidence=0.4,
                 reasoning=["Recovered a gate-suppressed draft; nothing else survived."],
-                metadata={"recovered_from_suppression": True},
+                metadata=recoverable_metadata,
+            )
+
+        if bool(
+            context.get("desktop_cognitive_engine_required", False)
+            or context.get("cognitive_engine_required", False)
+        ):
+            return self._desktop_cognitive_failure_thought(
+                mode,
+                str(
+                    state.response_modifiers.get("generation_failure_class")
+                    or "user_cycle_no_response"
+                ),
+                generation_metadata=dict(state.response_modifiers),
             )
 
         logger.warning(

@@ -713,6 +713,84 @@ async def test_full_phase_reply_exposes_worker_truncation_for_route_replacement(
 
 
 @pytest.mark.asyncio
+async def test_required_full_phase_preserves_recoverable_draft_and_resume_handle():
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+    from core.conversation.surface_disposition import (
+        clear_preserved_draft,
+        preserve_draft,
+    )
+    from core.state.aura_state import AuraState
+
+    resume_handle = "c" * 32
+    draft = (
+        "Dijkstra's invariant is that every settled vertex has its final "
+        "shortest-path distance, and the remaining queue contains only tentative"
+    )
+
+    class FullPhase:
+        async def execute(self, state, **_kwargs):
+            state.response_modifiers.update(
+                {
+                    "live_mind_surface_control_receipt": {
+                        "enabled": True,
+                        "applied": True,
+                        "live_mind_controls_bound": True,
+                        "clean_user_surface_contract": True,
+                        "surface_quality_gate_passed": False,
+                        "surface_quality_gate_reasons": [
+                            "truncated_tail",
+                            "missing_requested_part",
+                        ],
+                        "semantic_completion_contract": True,
+                        "semantic_completion_satisfied": False,
+                        "semantic_completion_incomplete": True,
+                        "generation_stop_reason": "deadline_exceeded",
+                        "continuation_resume_handle": resume_handle,
+                    },
+                    "generation_failure_class": (
+                        "final_output_quality_failed:truncated_tail"
+                    ),
+                    "response_path": "cognitive_engine_latent_owner_exhausted",
+                }
+            )
+            preserve_draft(draft)
+            return state
+
+    clear_preserved_draft()
+    engine = CognitiveEngine()
+    engine._phases = [FullPhase()]
+    thought = await engine._run_thinking_loop(
+        AuraState.default(),
+        "Explain Dijkstra fully.",
+        ThinkingMode.REFLECTIVE,
+        "desktop_ui",
+        context={
+            "desktop_quick_reply_contract": False,
+            "cognitive_engine_required": True,
+            "desktop_cognitive_engine_required": True,
+            "live_mind_context_required": True,
+            "live_mind_context": {
+                **_ready_live_mind_context(),
+                "required_subsystems_ok": True,
+            },
+            "visible_user_message": "Explain Dijkstra fully.",
+        },
+        is_background=False,
+        timeout_s=30.0,
+    )
+
+    assert thought.content == draft
+    assert thought.metadata.get("desktop_cognitive_engine_failure") is not True
+    assert thought.metadata["recovered_from_suppression"] is True
+    assert thought.metadata["reply_generation_incomplete"] is True
+    assert thought.metadata["reply_generation_stop_reason"] == "deadline_exceeded"
+    assert thought.metadata["live_mind_surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+
+
+@pytest.mark.asyncio
 async def test_full_phase_reply_exposes_latent_quality_truncation_without_worker_reason():
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
