@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from core.brain.llm.latent_cortex.loop_core import canonical_sha256
+from core.runtime.tensor_identity import tensor_identity_sha256
 
 VERIFIER_OBSERVATION_SCHEMA = "aura.rlc.verifier_observation.v1"
 VERIFIED_BEST_SCHEMA = "aura.rlc.verified_best_state.v1"
@@ -35,14 +35,7 @@ def _probability(value: Any, *, name: str) -> float:
 
 
 def tensor_sha256(value: Any) -> str:
-    import numpy as np
-
-    array = np.asarray(value)
-    digest = hashlib.sha256()
-    digest.update(str(array.dtype).encode("ascii"))
-    digest.update(str(array.shape).encode("ascii"))
-    digest.update(array.tobytes())
-    return digest.hexdigest()
+    return tensor_identity_sha256(value)
 
 
 @dataclass(frozen=True, slots=True)

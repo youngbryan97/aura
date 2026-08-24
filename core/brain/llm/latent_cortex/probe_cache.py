@@ -26,6 +26,8 @@ import hashlib
 import logging
 from typing import Any
 
+from core.runtime.tensor_identity import tensor_identity_parts
+
 logger = logging.getLogger("Aura.LatentCortex.ProbeCache")
 
 PROBE_CACHE_SCHEMA = "aura.latent_cortex.probe_cache.v1"
@@ -33,13 +35,11 @@ PROBE_CACHE_SCHEMA = "aura.latent_cortex.probe_cache.v1"
 MAX_ENTRIES = 64
 
 
-def _array_digest(hasher: "hashlib._Hash", array: Any) -> None:
-    import numpy as np
-
-    data = np.asarray(array)
-    hasher.update(str(data.dtype).encode("ascii"))
-    hasher.update(str(data.shape).encode("ascii"))
-    hasher.update(data.tobytes())
+def _array_digest(hasher: hashlib._Hash, array: Any) -> None:
+    dtype, shape, payload = tensor_identity_parts(array)
+    hasher.update(dtype.encode("ascii"))
+    hasher.update(str(shape).encode("ascii"))
+    hasher.update(payload)
 
 
 class DecodeProbeCache:

@@ -166,13 +166,11 @@ def _is_sha256(value: Any) -> bool:
 
 
 def _tensor_bytes(value: Any) -> bytes:
-    import numpy as np
+    from core.runtime.tensor_identity import tensor_identity_parts
 
-    array = np.asarray(value)
-    prefix = (
-        f"{array.dtype}:{','.join(str(item) for item in array.shape)}:"
-    ).encode("ascii")
-    return prefix + array.tobytes()
+    dtype, shape, payload = tensor_identity_parts(value)
+    prefix = f"{dtype}:{','.join(str(item) for item in shape)}:".encode("ascii")
+    return prefix + payload
 
 
 def _parameter_tree_rows(module: Any) -> list[tuple[str, Any]]:

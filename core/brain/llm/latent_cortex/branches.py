@@ -68,6 +68,7 @@ from core.brain.llm.latent_cortex.workspace import (
     _role_seed,
     per_position_rms,
 )
+from core.runtime.tensor_identity import tensor_identity_sha256
 
 logger = logging.getLogger("Aura.LatentCortex.Branches")
 _UNSCORED_BRANCH_FLOOR = -1e30
@@ -92,14 +93,7 @@ BRANCH_ROLES: tuple[str, ...] = (
 
 
 def _tensor_sha256(array: Any) -> str:
-    import numpy as np
-
-    data = np.asarray(array)
-    hasher = hashlib.sha256()
-    hasher.update(str(data.dtype).encode("ascii"))
-    hasher.update(str(data.shape).encode("ascii"))
-    hasher.update(data.tobytes())
-    return hasher.hexdigest()
+    return tensor_identity_sha256(array)
 
 
 def _is_sha256(value: Any) -> bool:

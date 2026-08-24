@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.brain.llm.latent_cortex.recurrence import rms_match
+from core.runtime.tensor_identity import tensor_identity_sha256
 
 COGNITIVE_OPERATOR_SCHEMA = "aura.rlc.cognitive_operator.v1"
 
@@ -97,14 +98,7 @@ def operator_for_role(role: str) -> CognitiveOperator:
 
 
 def _tensor_sha256(array: Any) -> str:
-    import numpy as np
-
-    data = np.asarray(array)
-    hasher = hashlib.sha256()
-    hasher.update(str(data.dtype).encode("ascii"))
-    hasher.update(str(data.shape).encode("ascii"))
-    hasher.update(data.tobytes())
-    return hasher.hexdigest()
+    return tensor_identity_sha256(array)
 
 
 def _receipt_sha256(payload: dict[str, Any]) -> str:

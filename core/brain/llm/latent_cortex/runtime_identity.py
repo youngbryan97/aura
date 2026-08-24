@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.file_read_gateway import read_stable_bytes
+from core.runtime.tensor_identity import tensor_identity_parts
 
 WORKER_IDENTITY_SCHEMA = "aura.latent_cortex.worker_identity.v3"
 WORKER_ACTIVATION_SCHEMA = (
@@ -478,7 +479,6 @@ def _module_parameter_identity(module: Any) -> tuple[str, str]:
     """Hash adapter-owned bytes without recursively rehashing the base model."""
 
     try:
-        import numpy as np
         from mlx.utils import tree_flatten
 
         parameters = getattr(module, "parameters", None)
@@ -505,11 +505,11 @@ def _module_parameter_identity(module: Any) -> tuple[str, str]:
             return "", scope
         digest = hashlib.sha256()
         for name, tensor in rows:
-            array = np.asarray(tensor)
+            dtype, shape, payload = tensor_identity_parts(tensor)
             digest.update(str(name).encode("utf-8"))
-            digest.update(str(array.dtype).encode("ascii"))
-            digest.update(str(array.shape).encode("ascii"))
-            digest.update(array.tobytes())
+            digest.update(dtype.encode("ascii"))
+            digest.update(str(shape).encode("ascii"))
+            digest.update(payload)
         return digest.hexdigest(), scope
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return "", ""
