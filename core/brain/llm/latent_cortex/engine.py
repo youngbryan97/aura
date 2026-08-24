@@ -1144,7 +1144,8 @@ class LatentCortexEngine:
             if self.config.fast_weights.layer_placement.startswith("coda")
             else (self.prelude_end, self.coda_start)
         )
-        adapted_layers = self.plasticity_site.layer_indices(
+        adapted_layers = self.plasticity_site.compatible_layer_indices(
+            self.model_layer_view.layers,
             *self.plasticity_layer_range,
             max(1, self.config.fast_weights.max_wrapped_layers),
         )

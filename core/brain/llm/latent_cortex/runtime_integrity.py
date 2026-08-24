@@ -14,6 +14,10 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from core.brain.llm.latent_cortex.plasticity_sites import (
+    PLASTICITY_TARGET_PATHS,
+    plasticity_target_module,
+)
 from core.runtime.model_layers import require_model_layers
 
 RUNTIME_INTEGRITY_SCHEMA = "aura.rlc.runtime_integrity.v1"
@@ -30,10 +34,6 @@ POLICY = {
     "worker_binding": "exact_worker_boot_model_and_stack_identity_v1",
 }
 
-_TARGET_ATTRS = {
-    "o_proj": ("self_attn", "o_proj"),
-    "down_proj": ("mlp", "down_proj"),
-}
 _TOP_LEVEL_FIELDS = {
     "schema",
     "policy_sha256",
@@ -243,7 +243,7 @@ def adapted_layer_fingerprint(
 ) -> dict[str, Any]:
     """Hash every permanent parameter byte in the layers fast weights target."""
 
-    if target not in _TARGET_ATTRS:
+    if target not in PLASTICITY_TARGET_PATHS:
         raise ValueError("adapted-layer target is unsupported")
     layers = require_model_layers(model).layers
     normalized = list(layer_indices)
@@ -256,10 +256,12 @@ def adapted_layer_fingerprint(
     digest = hashlib.sha256()
     tensor_count = 0
     element_count = 0
-    parent_attr, leaf_attr = _TARGET_ATTRS[target]
     for index in normalized:
-        parent = getattr(layers[index], parent_attr)
-        module = getattr(parent, leaf_attr)
+        module = plasticity_target_module(layers[index], target)
+        if module is None:
+            raise ValueError(
+                f"adapted-layer target {target} is absent from layer {index}"
+            )
         rows = _parameter_tree_rows(module)
         if not rows:
             raise ValueError("adapted-layer target has no parameters")
@@ -730,7 +732,7 @@ def _validate_measurement_pair(
             if (
                 measurement.get("method")
                 != POLICY["adapted_layer_measurement"]
-                or measurement.get("target") not in _TARGET_ATTRS
+                    or measurement.get("target") not in PLASTICITY_TARGET_PATHS
                 or not isinstance(layer_ids, list)
                 or not layer_ids
                 or len(set(layer_ids)) != len(layer_ids)

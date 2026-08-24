@@ -10,10 +10,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 PLASTICITY_SITE_REGISTRY_SCHEMA = "aura.rlc.plasticity_site_registry.v1"
 PLASTICITY_TARGETS = ("o_proj", "down_proj")
+PLASTICITY_TARGET_PATHS = {
+    "o_proj": ("self_attn", "o_proj"),
+    "down_proj": ("mlp", "down_proj"),
+}
 PLASTICITY_LAYER_PLACEMENTS = (
     "early",
     "distributed",
@@ -43,22 +49,20 @@ def _sha(value: object) -> str:
     ).hexdigest()
 
 
-def select_plasticity_layers(
-    start: int,
-    end: int,
+def _select_plasticity_inventory(
+    inventory: tuple[int, ...],
     maximum: int,
     *,
     placement: str,
 ) -> tuple[int, ...]:
-    """Select a deterministic subset of ``[start, end)`` without duplicates."""
+    """Select one placement from a prequalified ordered layer inventory."""
 
-    if type(start) is not int or type(end) is not int or start < 0 or end <= start:
-        raise ValueError("plasticity layer interval is invalid")
+    if not inventory:
+        raise ValueError("plasticity layer inventory is empty")
     if type(maximum) is not int or maximum <= 0:
         raise ValueError("plasticity layer maximum must be positive")
     if placement not in PLASTICITY_LAYER_PLACEMENTS:
         raise ValueError("plasticity layer placement is unsupported")
-    inventory = tuple(range(start, end))
     fixed_width = _FIXED_PLACEMENT_WIDTHS.get(placement)
     count = min(
         fixed_width if fixed_width is not None else maximum,
@@ -90,6 +94,71 @@ def select_plasticity_layers(
     return selected
 
 
+def select_plasticity_layers(
+    start: int,
+    end: int,
+    maximum: int,
+    *,
+    placement: str,
+) -> tuple[int, ...]:
+    """Select a deterministic subset of ``[start, end)`` without duplicates."""
+
+    if type(start) is not int or type(end) is not int or start < 0 or end <= start:
+        raise ValueError("plasticity layer interval is invalid")
+    return _select_plasticity_inventory(
+        tuple(range(start, end)),
+        maximum,
+        placement=placement,
+    )
+
+
+def plasticity_target_module(layer: Any, target: str) -> Any | None:
+    """Return the declared projection when this layer actually implements it."""
+
+    target_path = PLASTICITY_TARGET_PATHS.get(target)
+    if target_path is None:
+        raise ValueError("plasticity target is unsupported")
+    parent = getattr(layer, target_path[0], None)
+    if parent is None:
+        return None
+    return getattr(parent, target_path[1], None)
+
+
+def select_compatible_plasticity_layers(
+    layers: Sequence[Any],
+    start: int,
+    end: int,
+    maximum: int,
+    *,
+    target: str,
+    placement: str,
+) -> tuple[int, ...]:
+    """Select only layers that expose the declared plasticity projection."""
+
+    if (
+        type(start) is not int
+        or type(end) is not int
+        or start < 0
+        or end <= start
+        or end > len(layers)
+    ):
+        raise ValueError("plasticity layer interval is invalid")
+    inventory = tuple(
+        index
+        for index in range(start, end)
+        if plasticity_target_module(layers[index], target) is not None
+    )
+    if not inventory:
+        raise ValueError(
+            f"plasticity target {target} is absent from layers [{start}, {end})"
+        )
+    return _select_plasticity_inventory(
+        inventory,
+        maximum,
+        placement=placement,
+    )
+
+
 @dataclass(frozen=True)
 class PlasticitySite:
     target: str
@@ -110,6 +179,22 @@ class PlasticitySite:
             start,
             end,
             maximum,
+            placement=self.layer_placement,
+        )
+
+    def compatible_layer_indices(
+        self,
+        layers: Sequence[Any],
+        start: int,
+        end: int,
+        maximum: int,
+    ) -> tuple[int, ...]:
+        return select_compatible_plasticity_layers(
+            layers,
+            start,
+            end,
+            maximum,
+            target=self.target,
             placement=self.layer_placement,
         )
 
@@ -147,8 +232,11 @@ __all__ = [
     "PLASTICITY_LAYER_PLACEMENTS",
     "PLASTICITY_SITE_REGISTRY",
     "PLASTICITY_SITE_REGISTRY_SCHEMA",
+    "PLASTICITY_TARGET_PATHS",
     "PLASTICITY_TARGETS",
     "PlasticitySite",
     "PlasticitySiteRegistry",
+    "plasticity_target_module",
+    "select_compatible_plasticity_layers",
     "select_plasticity_layers",
 ]

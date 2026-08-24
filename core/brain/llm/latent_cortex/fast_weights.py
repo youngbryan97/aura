@@ -36,7 +36,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.brain.llm.latent_cortex.plasticity_sites import select_plasticity_layers
+from core.brain.llm.latent_cortex.plasticity_sites import (
+    PLASTICITY_TARGET_PATHS,
+    plasticity_target_module,
+    select_compatible_plasticity_layers,
+)
 from core.brain.llm.latent_cortex.types import ComputeBudget, FastWeightsConfig
 from core.runtime.lockdep import LockRank, checked_lock
 
@@ -52,11 +56,6 @@ _MODEL_LEASE_LOCK = checked_lock(
     rank=LockRank.REGISTRY,
 )
 _MODEL_LEASES: dict[int, tuple[Any, str]] = {}
-
-_TARGET_ATTRS = {
-    "o_proj": ("self_attn", "o_proj"),
-    "down_proj": ("mlp", "down_proj"),
-}
 
 # Targets whose adaptation provably cannot change any cached K/V value.
 #
@@ -599,24 +598,30 @@ class EpisodicFastWeights:
         # it was proving. Nothing about the prior episode may outlive it.
         self.lifecycle = FastWeightsLifecycle()
         self._exported_handles = []
-        target_attrs = _TARGET_ATTRS.get(self.config.target)
+        target_attrs = PLASTICITY_TARGET_PATHS.get(self.config.target)
         if target_attrs is None:
             raise ValueError("unsupported fast-weight projection target")
         parent_attr, leaf_attr = target_attrs
-        self._acquire_model_lease(inner_model, episode_id)
         start, end = layer_range
-        candidates = select_plasticity_layers(
+        candidates = select_compatible_plasticity_layers(
+            inner_model.layers,
             start,
             end,
             max(1, self.config.max_wrapped_layers),
+            target=self.config.target,
             placement=self.config.layer_placement,
         )
+        self._acquire_model_lease(inner_model, episode_id)
         attached = False
         try:
             for i in candidates:
                 layer = inner_model.layers[i]
                 parent = getattr(layer, parent_attr)
-                original = getattr(parent, leaf_attr)
+                original = plasticity_target_module(layer, self.config.target)
+                if original is None:
+                    raise RuntimeError(
+                        "qualified fast-weight layer lost its target projection"
+                    )
                 wrapper = EpisodicDeltaLinear(
                     original,
                     rank=self.config.rank,
