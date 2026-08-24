@@ -12349,6 +12349,21 @@ async def _stabilize_user_facing_reply(
     desktop_cognitive_engine_required: bool = False,
     protected_foreground_lane: bool = False,
 ) -> str:
+    # Closed claims about the resident cortex are rendered from signed runtime
+    # authorities, not from a model narrative. This is deliberately the first
+    # stabilizer operation: no later stylistic or repair path may turn measured
+    # evidence back into an unsupported subjective account.
+    try:
+        from core.brain.cortex_self_evidence import render_cortex_evidence_reply
+
+        cortex_evidence_reply = render_cortex_evidence_reply(user_message)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.cortex_self_evidence", exc)
+        cortex_evidence_reply = ""
+    if cortex_evidence_reply:
+        logger.info("Served closed cortex self-evidence from verified assertions.")
+        return cortex_evidence_reply
+
     # A claim about the room, checked against the senses that would know.
     #
     # LIVE, 2026-08-10, with ground truth: Bryan said he was going upstairs,
@@ -21073,6 +21088,22 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 return await _finalize_fastpath(
                     self_condition_reply,
                     status="self_condition",
+                )
+
+        if allow_chat_fastpaths:
+            try:
+                from core.brain.cortex_self_evidence import render_cortex_evidence_reply
+
+                cortex_evidence_reply = render_cortex_evidence_reply(
+                    _semantic_user_message
+                )
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat.cortex_self_evidence", exc)
+                cortex_evidence_reply = ""
+            if cortex_evidence_reply:
+                return await _finalize_fastpath(
+                    cortex_evidence_reply,
+                    status="cortex_self_evidence",
                 )
 
         try:

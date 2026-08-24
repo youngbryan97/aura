@@ -16521,6 +16521,73 @@ def test_grounded_private_cognitive_model_reply_has_causal_contract(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_stabilizer_replaces_subjective_cortex_story_with_typed_evidence(monkeypatch):
+    from core.brain.cortex_self_evidence import CortexCampaignEvidence, CortexSelfEvidence
+    from interface.routes import chat as chat_routes
+
+    old = CortexCampaignEvidence(
+        cortex_label="32B",
+        model_path="/models/32b",
+        task_count=60,
+        exact_by_arm=(("ordinary_base", 16), ("treatment", 60)),
+        gain_count=44,
+        regression_count=0,
+        paired_p_value=5.684341886080802e-14,
+        elapsed_seconds=4_814.533,
+        artifact_receipt_sha256="a" * 64,
+        verification_receipt_sha256="b" * 64,
+    )
+    current = CortexCampaignEvidence(
+        cortex_label="27B",
+        model_path="/models/27b",
+        task_count=60,
+        exact_by_arm=(("ordinary_base", 0), ("treatment", 60)),
+        gain_count=60,
+        regression_count=0,
+        paired_p_value=8.673617379884035e-19,
+        elapsed_seconds=3_283.718,
+        artifact_receipt_sha256="c" * 64,
+        verification_receipt_sha256="d" * 64,
+    )
+    evidence = CortexSelfEvidence(
+        resident_label="27B",
+        model_type="qwen3_5_text",
+        total_parameters=26_895_993_856,
+        native_context_tokens=262_144,
+        served_context_tokens=32_768,
+        promotion_verdict="PASS",
+        identity_behavior_changed=True,
+        component_states=(),
+        semantic_active=True,
+        semantic_verdict="BOUNDED_WOW_SIGNAL",
+        semantic_task_count=60,
+        semantic_exact_by_arm=(("ordinary_base", 0), ("treatment", 60)),
+        semantic_gain_count=60,
+        semantic_regression_count=0,
+        semantic_p_value=8.673617379884035e-19,
+        semantic_activation_sha256="e" * 64,
+        resident_model_path="/models/27b",
+        campaigns=(old, current),
+    )
+    monkeypatch.setattr(
+        "core.brain.cortex_self_evidence.resolve_cortex_self_evidence",
+        lambda: evidence,
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "What changed after replacing your former 32B model with the current 27B "
+        "that you can actually measure?",
+        "I can feel a tighter workspace and faster associations.",
+    )
+
+    assert "4,814.533 seconds" in result
+    assert "3,283.718 seconds" in result
+    assert "31.8% faster" in result
+    assert "subjective experience" in result
+    assert "tighter workspace" not in result
+
+
+@pytest.mark.asyncio
 async def test_stabilize_private_cognitive_model_uses_grounded_reply_before_tail_completion(monkeypatch):
     from interface.routes import chat as chat_routes
 
