@@ -218,6 +218,29 @@ async def test_capability_only_reconciliation_does_not_start_another_model_turn(
     assert trace["authorship_replacement_applied"] is False
 
 
+@pytest.mark.asyncio
+async def test_algorithm_graph_metrics_do_not_start_a_self_runtime_reanswer(monkeypatch):
+    from interface.routes import chat
+
+    async def _unexpected_model_turn(*_args, **_kwargs):
+        raise AssertionError("domain measurements must not become Aura telemetry")
+
+    monkeypatch.setattr(cl, "get_capability_ledger", lambda: _ledger())
+    monkeypatch.setattr(chat, "_run_cognitive_engine_chat_turn", _unexpected_model_turn)
+    reply = (
+        "Dijkstra settles A first. Distances: A-B: 1, B-C: 2, "
+        "C-D: 3, A-C: 6, B-D: 4."
+    )
+
+    reconciled = await chat._reanswer_when_the_runtime_contradicts_her(
+        reply,
+        user_message="Explain Dijkstra on a weighted graph.",
+        turn_trace={"live_mind_surface_control_receipt": {}},
+    )
+
+    assert reconciled == reply
+
+
 def test_live_probes_all_report_without_raising():
     """A probe that raises is a probe that cannot be trusted to speak."""
     for name, availability in cl.get_capability_ledger().measure_all().items():
@@ -307,6 +330,32 @@ def test_a_real_reading_is_not_flagged():
 def test_ordinary_replies_are_left_alone(reply):
     """Conservative by construction: a short answer is not a fabricated panel."""
     assert cl.fabricated_self_metrics(reply) == []
+
+
+def test_domain_measurements_are_not_reclassified_as_aura_telemetry():
+    """LIVE DEFECT 2026-08-24: graph edges triggered an internal-metric re-answer."""
+
+    reply = (
+        "Worked example:\n"
+        "A-C: 4\n"
+        "C-D: 3\n"
+        "A-B: 7\n"
+        "B-D: 2\n"
+        "C-B: 1"
+    )
+
+    assert cl.fabricated_self_metrics(
+        reply,
+        request_context="Explain Dijkstra's shortest-path algorithm with a worked graph.",
+    ) == []
+
+
+def test_self_measurement_context_keeps_the_instrument_guard_active():
+    with mock.patch.object(cl, "measured_self_metrics", lambda: {"memory_pressure": 0.68}):
+        assert cl.fabricated_self_metrics(
+            "Energy: 0.74\nFocus: 0.85",
+            request_context="Give me your actual internal numbers and current readings.",
+        ) == ["energy", "focus"]
 
 
 def test_dials_with_no_instrument_behind_them_are_flagged():

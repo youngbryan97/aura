@@ -225,8 +225,14 @@ def test_mlx_surface_receipt_reports_contract_tokens_and_repair():
             "instruction_shape_repair_applied": True,
             "surface_quality_gate_enabled": True,
             "surface_quality_gate_passed": True,
+            "native_thinking_enabled": False,
+            "native_thinking_boundary_closed": True,
+            "native_thinking_private_chars": 0,
         },
     )
+    assert worker_receipt["worker_verified"]["native_thinking_enabled"] is False
+    assert worker_receipt["worker_verified"]["native_thinking_boundary_closed"] is True
+    assert worker_receipt["worker_verified"]["native_thinking_private_chars"] == 0
     client = MLXLocalClient.__new__(MLXLocalClient)
     client._last_surface_control_receipt = {}
     client._record_surface_control_receipt_from_response(

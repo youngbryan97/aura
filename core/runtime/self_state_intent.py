@@ -60,6 +60,16 @@ _RUNTIME_INTROSPECTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         r"\bintrospect\b",
         r"\bdon'?t (?:estimate|guess|make (?:it|that) up)\b",
         r"\bcheck before answering\b",
+        # Numeric self-state panels. These are local instrument questions,
+        # including terse imperatives that do not name "runtime" explicitly.
+        # Keeping them in the canonical self-state classifier lets output
+        # verification distinguish Aura telemetry from domain measurements
+        # such as graph edge weights and benchmark tables.
+        rf"\b{_SELF_SUBJECT}\s+(?:(?:actual|current|live|own|real)\s+)?"
+        r"(?:numbers?|readings?|measurements?|metrics?|vitals?|stats?)\b",
+        r"\b(?:give|show|report|dump|list|read)\b.{0,36}\b(?:your|you)\b"
+        r".{0,24}\b(?:numbers?|readings?|measurements?|metrics?|vitals?|stats?)\b",
+        r"\bwhat\b.{0,24}\b(?:do|can) you\b.{0,16}\b(?:track|measure|read)\b",
     )
 )
 

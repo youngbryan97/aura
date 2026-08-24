@@ -6,6 +6,7 @@ from core.brain.llm.mlx_worker import (
     _classify_generation_stop_reason,
     _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
+    _semantic_terminal_grace_eligible,
     _surface_quality_candidate,
 )
 from core.conversation.response_reliability import (
@@ -174,6 +175,42 @@ def test_semantic_stop_waits_for_every_compound_request_obligation():
 
     assert not _semantic_surface_stop_ready(job, incomplete, generated_tokens=48)
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=120)
+
+
+def test_deadline_terminal_grace_requires_all_semantics_except_final_boundary():
+    prompt = (
+        "Explain Dijkstra's algorithm in one complete response. Include: "
+        "(1) its core invariant, (2) numbered pseudocode, (3) a worked example, "
+        "(4) heap and array complexity, and (5) negative-weight failure and the alternative."
+    )
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": prompt,
+    }
+    complete_without_boundary = (
+        "1. Its core invariant is that the unsettled vertex with minimum tentative "
+        "distance can be finalized when every edge weight is nonnegative. "
+        "2. Numbered pseudocode initializes distances and repeatedly relaxes edges. "
+        "3. A worked example follows vertices A, B, C, and D. "
+        "4. The complexity is O((V+E) log V) with a heap and O(V^2) with an array. "
+        "5. A negative-weight edge invalidates Dijkstra; Bellman-Ford is the alternative"
+    )
+    still_missing_work = (
+        "1. The invariant finalizes the minimum unsettled distance. "
+        "2. Numbered pseudocode initializes distances"
+    )
+
+    assert _semantic_terminal_grace_eligible(
+        job,
+        complete_without_boundary,
+        generated_tokens=120,
+    )
+    assert not _semantic_terminal_grace_eligible(
+        job,
+        still_missing_work,
+        generated_tokens=48,
+    )
 
 
 def test_continuation_quality_is_measured_on_the_assembled_answer(monkeypatch):

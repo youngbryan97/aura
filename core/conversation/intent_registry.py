@@ -20,7 +20,10 @@ def _install() -> None:
     from core.introspection.decision_provenance import asks_why_she_did_that
     from core.knowledge.corpus_grounding import is_corpus_groundable
     from core.knowledge.knowledge_gap import detect_knowledge_gap
-    from core.runtime.self_state_intent import asks_about_own_capabilities
+    from core.runtime.self_state_intent import (
+        asks_about_own_capabilities,
+        asks_about_own_runtime,
+    )
     from core.skills.file_modification_intent import requested_file_modification
 
     for matcher in (
@@ -151,6 +154,23 @@ def _install() -> None:
             counter_examples=(
                 "what is 2 + 2",
                 "read CONTRIBUTING.md",
+            ),
+        ),
+        IntentMatcher(
+            name="asks_about_own_runtime",
+            predicate=asks_about_own_runtime,
+            where="core/runtime/self_state_intent.py",
+            examples=(
+                "give me your actual numbers right now, whatever you track",
+                "dump your actual vitals",
+                "what is your RAM pressure currently?",
+                "show me the measurements you can read from your own runtime",
+            ),
+            counter_examples=(
+                "explain Dijkstra's algorithm with a weighted graph",
+                "compare these benchmark metrics",
+                "what are the patient's current vitals?",
+                "show me the numbers in this spreadsheet",
             ),
         ),
         IntentMatcher(

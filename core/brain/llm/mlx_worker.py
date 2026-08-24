@@ -868,6 +868,16 @@ def _surface_generation_control_receipt(
             if receipt_engine is not None
             else False,
             "surface_clamp_errors": list(state.get("apply_errors") or []),
+            "native_thinking_enabled": bool(
+                state.get("native_thinking_enabled", False)
+            ),
+            "native_thinking_boundary_closed": bool(
+                state.get("native_thinking_boundary_closed", False)
+            ),
+            "native_thinking_private_chars": max(
+                0,
+                _safe_int(state.get("native_thinking_private_chars"), 0),
+            ),
         }
     except (AttributeError, RuntimeError, TypeError) as verify_exc:
         receipt["worker_verified"] = {
@@ -875,6 +885,16 @@ def _surface_generation_control_receipt(
             "steering_engine_active": False,
             "verification_error": f"{type(verify_exc).__name__}: {verify_exc}",
             "surface_clamp_errors": list(state.get("apply_errors") or []),
+            "native_thinking_enabled": bool(
+                state.get("native_thinking_enabled", False)
+            ),
+            "native_thinking_boundary_closed": bool(
+                state.get("native_thinking_boundary_closed", False)
+            ),
+            "native_thinking_private_chars": max(
+                0,
+                _safe_int(state.get("native_thinking_private_chars"), 0),
+            ),
         }
     receipt_hooks = list(getattr(receipt_engine, "_hooks", []) or []) if receipt_engine is not None else []
     if receipt_hooks:
@@ -1200,6 +1220,35 @@ def _semantic_completion_receipt_state(
         "semantic_completion_epistemic_partition_covered": epistemic_covered,
         "semantic_completion_terminal_boundary": terminal_boundary,
     }
+
+
+def _semantic_terminal_grace_eligible(
+    job: dict[str, Any],
+    response_text: Any,
+    *,
+    generated_tokens: int,
+) -> bool:
+    """Whether a deadline-cut answer needs only its terminal boundary.
+
+    This is deliberately narrower than a generic timeout extension. Every
+    typed request obligation, quality check, and epistemic partition must
+    already pass. The worker may then spend a few tokens from the caller's
+    existing delivery reserve to close the sentence instead of paying for a
+    second full prefill and decode.
+    """
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        response_text,
+        generated_tokens=generated_tokens,
+    )
+    return bool(
+        receipt.get("semantic_completion_contract")
+        and not receipt.get("semantic_completion_missing_part_count")
+        and not receipt.get("semantic_completion_quality_reasons")
+        and receipt.get("semantic_completion_epistemic_partition_covered") is True
+        and receipt.get("semantic_completion_terminal_boundary") is False
+    )
 
 
 def _loop_abort_prefix_is_servable(
@@ -6873,6 +6922,7 @@ def _mlx_worker_loop(
 
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""
+                native_thinking: bool | None = None
                 # Contract-truth flags surfaced in the response payload: an
                 # exhausted proof retry, a seeded strict-value replacement,
                 # and the operator-evidence scaffolding/model composition
@@ -6913,12 +6963,15 @@ def _mlx_worker_loop(
                         from core.brain.llm.chat_format import (
                             render_chat_continuation_template,
                             render_chat_template,
-                            thinking_enabled_for_request,
+                            thinking_enabled_for_generation,
                         )
 
-                        native_thinking = thinking_enabled_for_request(
+                        native_thinking = thinking_enabled_for_generation(
                             model_path,
                             cognitive_mode=job.get("cognitive_mode"),
+                            final_user_surface=bool(
+                                job.get("clean_user_surface_contract", False)
+                            ),
                         )
 
                         if job.get("user_surface_continuation_contract", False):
@@ -7238,6 +7291,10 @@ def _mlx_worker_loop(
 
                 try:
                     from mlx_lm.generate import stream_generate
+
+                    from core.brain.llm.chat_format import (
+                        split_native_thinking_generation,
+                    )
                     # : NO GPUSentinel here.
                     # GPUSentinel is a parent-process threading lock. In this isolated
                     # 'spawn' subprocess, it creates a SECOND serialization bottleneck
@@ -7302,6 +7359,9 @@ def _mlx_worker_loop(
                                     prompt_token_count = 0
                                     final_prompt_cache = None
                                     deadline_hit = False
+                                    semantic_terminal_grace_active = False
+                                    semantic_terminal_grace_deadline_unix = 0.0
+                                    semantic_terminal_grace_token_ceiling = 0
                                     # Caller production deadline (absolute unix
                                     # seconds). Without it the worker had no
                                     # request deadline at all and could decode
@@ -7726,17 +7786,6 @@ def _mlx_worker_loop(
 
                                         token_count += 1
                                         progress_now = time.time()
-                                        if (
-                                            job_deadline_unix > 0.0
-                                            and progress_now >= job_deadline_unix
-                                        ):
-                                            logger.warning(
-                                                "⏱️ [WORKER] Request deadline reached at token %d; "
-                                                "stopping decode cooperatively.",
-                                                token_count,
-                                            )
-                                            deadline_hit = True
-                                            break
                                         if use_speculative and getattr(response, "from_draft", False):
                                             draft_accepted_tokens += 1
 
@@ -7807,11 +7856,16 @@ def _mlx_worker_loop(
                                                 sentinel_aborted = True
                                                 break
 
+                                        semantic_surface = split_native_thinking_generation(
+                                            current_response,
+                                            native_thinking=(native_thinking is True),
+                                        ).surface
+
                                         if (
                                             token_count % 8 == 0
                                             and _semantic_surface_stop_ready(
                                                 job,
-                                                current_response,
+                                                semantic_surface,
                                                 generated_tokens=token_count,
                                             )
                                         ):
@@ -7821,6 +7875,53 @@ def _mlx_worker_loop(
                                                 token_count,
                                             )
                                             break
+
+                                        if (
+                                            job_deadline_unix > 0.0
+                                            and progress_now >= job_deadline_unix
+                                        ):
+                                            if (
+                                                not semantic_terminal_grace_active
+                                                and _semantic_terminal_grace_eligible(
+                                                    job,
+                                                    semantic_surface,
+                                                    generated_tokens=token_count,
+                                                )
+                                            ):
+                                                # The parent keeps up to six seconds for
+                                                # delivery. Borrow at most four of them
+                                                # and 24 tokens; the first boundary that
+                                                # satisfies the semantic observer stops
+                                                # the decode above.
+                                                semantic_terminal_grace_active = True
+                                                semantic_terminal_grace_deadline_unix = (
+                                                    progress_now + 4.0
+                                                )
+                                                semantic_terminal_grace_token_ceiling = (
+                                                    token_count + 24
+                                                )
+                                                logger.info(
+                                                    "🧩 [WORKER] Deadline reached with all "
+                                                    "semantic obligations complete; granting "
+                                                    "bounded terminal grace through token %d.",
+                                                    semantic_terminal_grace_token_ceiling,
+                                                )
+                                            elif (
+                                                semantic_terminal_grace_active
+                                                and progress_now
+                                                < semantic_terminal_grace_deadline_unix
+                                                and token_count
+                                                < semantic_terminal_grace_token_ceiling
+                                            ):
+                                                pass
+                                            else:
+                                                logger.warning(
+                                                    "⏱️ [WORKER] Request deadline reached at "
+                                                    "token %d; stopping decode cooperatively.",
+                                                    token_count,
+                                                )
+                                                deadline_hit = True
+                                                break
 
                                         if _should_emit_generation_progress(
                                             token_count,
@@ -7927,6 +8028,22 @@ def _mlx_worker_loop(
                                                 diag["affect_pulses"], diag["tokens_processed"],
                                             )
 
+                                    native_channels = split_native_thinking_generation(
+                                        current_response,
+                                        native_thinking=(native_thinking is True),
+                                    )
+                                    current_response = native_channels.surface
+                                    surface_control_state.update(
+                                        {
+                                            "native_thinking_enabled": native_thinking is True,
+                                            "native_thinking_boundary_closed": (
+                                                native_channels.boundary_closed
+                                            ),
+                                            "native_thinking_private_chars": len(
+                                                native_channels.reasoning
+                                            ),
+                                        }
+                                    )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()

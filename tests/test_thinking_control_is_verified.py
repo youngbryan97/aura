@@ -18,14 +18,16 @@ from __future__ import annotations
 
 import logging
 
+import core.brain.llm.chat_format as chat_format
 from core.brain.llm.chat_format import (
     render_chat_continuation_template,
     render_chat_template,
+    split_native_thinking_generation,
     template_supports_thinking,
+    thinking_enabled_for_generation,
     thinking_enabled_for_model,
     thinking_enabled_for_request,
 )
-import core.brain.llm.chat_format as chat_format
 
 
 class _Tokenizer:
@@ -242,6 +244,53 @@ def test_request_cognitive_mode_controls_native_thinking_on_cortex():
     assert thinking_enabled_for_request(model, cognitive_mode="deliberate") is True
     assert thinking_enabled_for_request(model, cognitive_mode="deep") is True
     assert thinking_enabled_for_request(model, cognitive_mode="reflective") is True
+
+
+def test_clean_user_surface_is_a_direct_render_after_architectural_reasoning():
+    model = "models/Qwen3.8-27B-4bit"
+
+    assert (
+        thinking_enabled_for_generation(
+            model,
+            cognitive_mode="deep",
+            final_user_surface=True,
+        )
+        is False
+    )
+    assert (
+        thinking_enabled_for_generation(
+            model,
+            cognitive_mode="deep",
+            final_user_surface=False,
+        )
+        is True
+    )
+
+
+def test_template_opened_reasoning_is_not_surface_before_typed_boundary():
+    opened = split_native_thinking_generation(
+        "We need derive the answer and verify each requested part.",
+        native_thinking=True,
+    )
+    assert opened.reasoning.startswith("We need derive")
+    assert opened.surface == ""
+    assert opened.boundary_closed is False
+
+    closed = split_native_thinking_generation(
+        "private work\n</think>\n\nThe complete answer.",
+        native_thinking=True,
+    )
+    assert closed.reasoning == "private work"
+    assert closed.surface == "The complete answer."
+    assert closed.boundary_closed is True
+
+    direct = split_native_thinking_generation(
+        "The complete answer.",
+        native_thinking=False,
+    )
+    assert direct.reasoning == ""
+    assert direct.surface == "The complete answer."
+    assert direct.boundary_closed is True
 
 
 def test_request_cognitive_mode_does_not_turn_a_fast_role_into_a_slow_lane():

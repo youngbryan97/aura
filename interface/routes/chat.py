@@ -2308,7 +2308,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
                 specification[:80],
             )
 
-        invented = fabricated_self_metrics(text)
+        invented = fabricated_self_metrics(text, request_context=user_message)
         if invented:
             measured = measured_self_metrics()
             readings = ", ".join(f"{name} {value}" for name, value in measured.items())
@@ -2424,6 +2424,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
     if revised_text and not _still_contradicts_the_runtime(
         revised_text,
         ledger,
+        user_message=user_message,
         turn_sensory_evidence=turn_sensory_evidence,
     ):
         logger.info("🧭 Re-answer no longer contradicts the runtime (%s).", contradicted)
@@ -2453,6 +2454,7 @@ def _still_contradicts_the_runtime(
     text: str,
     ledger: Any,
     *,
+    user_message: str = "",
     turn_sensory_evidence: Any = None,
 ) -> bool:
     """Whether a revision still fails any check that forced the re-ask."""
@@ -2479,7 +2481,7 @@ def _still_contradicts_the_runtime(
 
         return bool(
             unsupported_self_specification(text)
-            or fabricated_self_metrics(text)
+            or fabricated_self_metrics(text, request_context=user_message)
             or contradicted_self_readings(text)
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:

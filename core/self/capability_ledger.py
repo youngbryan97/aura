@@ -652,7 +652,18 @@ def measured_self_metrics() -> dict[str, float]:
     }
 
 
-def fabricated_self_metrics(reply: str) -> list[str]:
+_EXPLICIT_SELF_MEASUREMENT_REPORT_RE = re.compile(
+    r"\b(?:my|aura'?s)\s+(?:(?:actual|current|live|own|real|internal)\s+)?"
+    r"(?:numbers?|readings?|measurements?|metrics?|vitals?|stats?)\b",
+    re.IGNORECASE,
+)
+
+
+def fabricated_self_metrics(
+    reply: str,
+    *,
+    request_context: str | None = None,
+) -> list[str]:
     """Named internal quantities in ``reply`` that no instrument produces.
 
     LIVE DEFECT, 2026-08-10. Asked "give me your actual numbers right now —
@@ -679,6 +690,26 @@ def fabricated_self_metrics(reply: str) -> list[str]:
     invented whole, and this must not fire on an honest answer that happens
     to phrase a real metric unusually.
     """
+    # This verifier protects claims about AURA'S instruments. Numeric panels
+    # are also ordinary content in algorithms, experiments, benchmarks and
+    # finance. The prior output-only classifier had no subject information and
+    # interpreted Dijkstra edges (``A-C: 4``, ``C-D: 3``) as invented Aura
+    # vitals, discarding a complete answer and starting an unrelated model
+    # turn. Bind the check to the canonical self-runtime intent when the caller
+    # owns request context. An explicit first-person measurement report remains
+    # checkable even when it was volunteered rather than requested.
+    if request_context is not None:
+        try:
+            from core.runtime.self_state_intent import asks_about_own_runtime
+
+            self_measurement_context = asks_about_own_runtime(request_context)
+        except (ImportError, TypeError, ValueError):
+            self_measurement_context = False
+        if not self_measurement_context and not _EXPLICIT_SELF_MEASUREMENT_REPORT_RE.search(
+            str(reply or "")
+        ):
+            return []
+
     labels = [
         match.group(1).strip().lower()
         for match in _LABELLED_METRIC_RE.finditer(str(reply or ""))
