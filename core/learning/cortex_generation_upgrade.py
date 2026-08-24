@@ -864,8 +864,11 @@ def record_upgrade_candidate(
         verify_full_hash=True,
     )
     pointer_path = fused_model_dir / "active.json"
-    incumbent_bytes = pointer_path.read_bytes()
-    incumbent = _read_pointer(pointer_path)
+    pointer_existed = pointer_path.exists()
+    incumbent_bytes = pointer_path.read_bytes() if pointer_existed else None
+    incumbent = _read_pointer(pointer_path) if pointer_existed else {
+        "active_model_path": str(base_model),
+    }
     material: dict[str, Any] = {
         "schema": CANDIDATE_SCHEMA,
         "candidate_model_path": str(candidate),
@@ -873,7 +876,12 @@ def record_upgrade_candidate(
         "artifact_descriptor": descriptor,
         "model_descriptor_sha256": descriptor["descriptor_sha256"],
         "incumbent_model_path": str(incumbent["active_model_path"]),
-        "incumbent_pointer_sha256": hashlib.sha256(incumbent_bytes).hexdigest(),
+        "incumbent_pointer_existed": pointer_existed,
+        "incumbent_pointer_sha256": (
+            hashlib.sha256(incumbent_bytes).hexdigest()
+            if incumbent_bytes is not None
+            else ""
+        ),
         "tag": str(tag),
         "source": str(source),
         "metadata": dict(metadata or {}),
@@ -901,7 +909,10 @@ def record_upgrade_candidate(
         / f"{descriptor['descriptor_sha256']}.json"
     )
     _governed_write(candidate_path, payload, source="cortex_upgrade.candidate")
-    if pointer_path.read_bytes() != incumbent_bytes:
+    pointer_changed = pointer_path.exists() != pointer_existed
+    if pointer_existed and pointer_path.exists():
+        pointer_changed = pointer_changed or pointer_path.read_bytes() != incumbent_bytes
+    if pointer_changed:
         raise RuntimeError("candidate_record_changed_active_pointer")
     return {
         **material,

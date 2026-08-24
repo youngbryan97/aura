@@ -418,6 +418,28 @@ def test_candidate_record_is_exact_and_does_not_change_active_pointer(tmp_path):
     assert persisted["required_next_step"] == "evaluate_plan_stage_activate"
 
 
+def test_candidate_record_does_not_create_an_absent_active_pointer(tmp_path):
+    fused = tmp_path / "fused"
+    fused.mkdir()
+    base_model = tmp_path / "base-without-pointer"
+    candidate = tmp_path / "candidate-without-pointer"
+    _write_model_artifact(base_model, b"base-weights", model_type="qwen2")
+    _write_model_artifact(candidate, b"candidate-weights", model_type="qwen3_5")
+
+    receipt = record_upgrade_candidate(
+        candidate_model_path=candidate,
+        base_model_path=base_model,
+        tag="candidate",
+        fused_model_dir=fused,
+        source="test",
+    )
+
+    assert receipt["incumbent_pointer_existed"] is False
+    assert receipt["incumbent_pointer_sha256"] == ""
+    assert receipt["incumbent_model_path"] == str(base_model.resolve())
+    assert not (fused / "active.json").exists()
+
+
 def _upgrade_contracts(candidate, *, repository_id="", revision=""):
     descriptor = build_model_artifact_descriptor(
         candidate,

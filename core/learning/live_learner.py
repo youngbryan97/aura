@@ -13,15 +13,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.learning.cortex_generation_upgrade import record_upgrade_candidate
 from core.memory.retention_policy import training_buffer_retention_policy
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import FallbackClassification, record_degradation
-from core.tasks.managed_command import run_project_command
 from core.runtime.disk_budget import (
     DiskBudgetRefusal,
     directory_bytes,
     ensure_headroom_for,
 )
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.tasks.managed_command import run_project_command
 
 logger = logging.getLogger("Aura.LiveLearner")
 _LIVE_LEARNER_RECOVERABLE_ERRORS = (
@@ -712,9 +713,24 @@ class LiveLearner:
                 )
                 return False
 
-            # 5. Hot-swap: reload the MLX model with the new adapter
-            logger.info("LiveLearner: benchmark passed. Hot-swapping learned weights...")
-            swap_path = str(promoted_model_path or adapter_dir)
+            candidate_receipt: dict[str, Any] | None = None
+            if promoted_model_path is not None:
+                candidate_receipt = self._record_fused_model_candidate(
+                    promoted_model_path,
+                    base_model=Path(str(self._model_path)),
+                    tag="live-learner",
+                    metadata={
+                        "adapter_path": str(adapter_dir),
+                        "fine_tune_type": self._policy.fine_tune_type,
+                        "split_counts": split_counts,
+                        "benchmark_report": getattr(self, "_last_benchmark_report", {}),
+                    },
+                )
+
+            # 5. Hot-swap only the reversible adapter. A fused whole-cortex
+            # artifact is a qualification candidate, not live serving state.
+            logger.info("LiveLearner: benchmark passed. Hot-swapping reversible adapter...")
+            swap_path = str(adapter_dir)
             swapped = await self._hot_swap_adapter(swap_path)
 
             if not swapped:
@@ -739,19 +755,6 @@ class LiveLearner:
                 )
                 return False
 
-            if promoted_model_path is not None:
-                self._publish_active_model_manifest(
-                    promoted_model_path,
-                    base_model=Path(str(self._model_path)),
-                    tag="live-learner",
-                    metadata={
-                        "adapter_path": str(adapter_dir),
-                        "fine_tune_type": self._policy.fine_tune_type,
-                        "split_counts": split_counts,
-                        "benchmark_report": getattr(self, "_last_benchmark_report", {}),
-                    },
-                )
-
             version = self._adapter_registry.register(
                 str(adapter_dir),
                 len(candidates),
@@ -762,6 +765,11 @@ class LiveLearner:
                     "fine_tune_type": self._policy.fine_tune_type,
                     "split_counts": split_counts,
                     "promoted_model_path": str(promoted_model_path) if promoted_model_path else "",
+                    "candidate_receipt_path": (
+                        str(candidate_receipt.get("candidate_receipt_path", ""))
+                        if candidate_receipt is not None
+                        else ""
+                    ),
                     "hot_swapped": swapped,
                     "benchmark_report": getattr(self, "_last_benchmark_report", {}),
                 },
@@ -1032,28 +1040,22 @@ class LiveLearner:
             )
             return False, str(exc), None
 
-    def _publish_active_model_manifest(
+    def _record_fused_model_candidate(
         self,
         model_path: Path,
         *,
         base_model: Path,
         tag: str,
         metadata: dict[str, Any],
-    ) -> None:
-        self._fused_dir.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "active_model_path": str(model_path),
-            "fused_at": int(time.time()),
-            "tag": tag,
-            "base_model": str(base_model),
-            "schema_version": 3,
-            "source": "live_learner",
-            "metadata": metadata,
-        }
-        atomic_write_text(
-            self._active_model_manifest,
-            json.dumps(payload, indent=2, sort_keys=True),
-            encoding="utf-8",
+    ) -> dict[str, Any]:
+        """Record exact fused bytes without granting boot or live authority."""
+        return record_upgrade_candidate(
+            candidate_model_path=model_path,
+            base_model_path=base_model,
+            tag=tag,
+            fused_model_dir=self._fused_dir,
+            source="core.learning.live_learner",
+            metadata=metadata,
         )
 
     async def _run_benchmark(

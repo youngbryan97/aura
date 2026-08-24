@@ -196,6 +196,104 @@ def test_live_learner_benchmark_scoring_rejects_banned_regressions():
     assert any("missing" in failure for failure in failures)
 
 
+def test_fused_live_learning_output_is_candidate_not_active_pointer(tmp_path):
+    learner = _bare_learner(tmp_path)
+    base_model = tmp_path / "base-model"
+    candidate = tmp_path / "candidate-model"
+    for model, payload in ((base_model, b"base"), (candidate, b"candidate")):
+        model.mkdir()
+        (model / "config.json").write_text(
+            json.dumps(
+                {
+                    "architectures": ["Qwen3_5ForConditionalGeneration"],
+                    "model_type": "qwen3_5",
+                    "hidden_size": 64,
+                    "intermediate_size": 128,
+                    "num_hidden_layers": 8,
+                    "num_attention_heads": 4,
+                    "num_key_value_heads": 2,
+                    "vocab_size": 128,
+                    "max_position_embeddings": 4096,
+                    "quantization": {"bits": 4, "group_size": 64},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (model / "tokenizer.json").write_text("{}", encoding="utf-8")
+        (model / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+        (model / "model.safetensors").write_bytes(payload)
+    learner._model_path = str(base_model)
+
+    receipt = learner._record_fused_model_candidate(
+        candidate,
+        base_model=base_model,
+        tag="live-learner",
+        metadata={"benchmark": "passed"},
+    )
+
+    assert receipt["qualification_state"] == "awaiting_evaluation"
+    assert receipt["active_pointer_unchanged"] is True
+    assert not learner._active_model_manifest.exists()
+    assert Path(receipt["candidate_receipt_path"]).exists()
+
+
+async def test_training_cycle_never_hot_swaps_fused_candidate(monkeypatch, tmp_path):
+    learner = _bare_learner(
+        tmp_path,
+        policy=TrainingPolicy(
+            publish_fused_model=True,
+            max_examples_per_run=40,
+            replay_fraction=0.0,
+        ),
+    )
+    learner._training_in_progress = False
+    learner._last_train_time = 0.0
+    learner._adapter_registry = AdapterRegistry(tmp_path / "registry")
+    learner._buffer.extend(_example(i) for i in range(30))
+    fused_candidate = tmp_path / "fused-candidate"
+    fused_candidate.mkdir()
+    observed: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        learner,
+        "_write_training_dataset",
+        lambda _examples, adapter_dir: (
+            adapter_dir / "data",
+            {"train": 27, "valid": 2, "test": 1},
+        ),
+    )
+    monkeypatch.setattr(learner, "_run_lora_subprocess", lambda *_args: (True, "ok"))
+    monkeypatch.setattr(
+        learner,
+        "_run_fuse_subprocess",
+        lambda *_args: (True, "ok", fused_candidate),
+    )
+
+    async def _benchmark(adapter_dir, *, promoted_model_path=None):
+        observed["benchmark_adapter"] = adapter_dir
+        observed["benchmark_fused"] = promoted_model_path
+        return True, []
+
+    def _record(model_path, **_kwargs):
+        observed["candidate"] = model_path
+        return {"candidate_receipt_path": str(tmp_path / "candidate.json")}
+
+    async def _swap(path):
+        observed["swapped"] = path
+        return True
+
+    monkeypatch.setattr(learner, "_run_benchmark", _benchmark)
+    monkeypatch.setattr(learner, "_record_fused_model_candidate", _record)
+    monkeypatch.setattr(learner, "_hot_swap_adapter", _swap)
+    monkeypatch.setattr(learner, "_compute_quality_delta", lambda: 0.1)
+
+    assert await learner._run_training_cycle() is True
+    assert observed["candidate"] == fused_candidate
+    assert observed["benchmark_fused"] == fused_candidate
+    assert observed["swapped"] != str(fused_candidate)
+    assert observed["swapped"] == str(observed["benchmark_adapter"])
+
+
 def test_record_tick_accepts_affect_payload_without_state_affect_object(tmp_path):
     learner = _bare_learner(tmp_path)
     state = SimpleNamespace(

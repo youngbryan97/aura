@@ -1382,14 +1382,6 @@
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/learning/live_learner.py",
-      "scope": "<module>.LiveLearner._publish_active_model_manifest"
-    },
-    {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/learning/live_learner.py",
       "scope": "<module>.LiveLearner._write_lora_config"
     },
     {
@@ -10033,14 +10025,6 @@
       "scope": "<module>.LiveLearner.__init__"
     },
     {
-      "callee": "self._fused_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/learning/live_learner.py",
-      "scope": "<module>.LiveLearner._publish_active_model_manifest"
-    },
-    {
       "callee": "fused_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -15850,6 +15834,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "369aae2b9648f57e3f04f29df48f9d9bfd009c841788e4d1ce4d9e03d7c394f0",
+  "inventory_sha256": "d3881b0f77445840d74f9b96103df849cc03756750a93259f2259b763a23246a",
   "schema_version": 1
 }
