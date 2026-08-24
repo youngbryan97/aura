@@ -55,6 +55,34 @@ class _MemoryAckRouter(_Router):
         return "I’ll remember that the blue lantern is under the desk for later in this conversation."
 
 
+class _AttributedReceiptRouter(_Router):
+    async def think(self, **kwargs):
+        from core.brain.generation_provenance import attributed_text
+
+        self.calls.append(kwargs)
+        return attributed_text(
+            "The retained draft is complete enough to continue from its exact state.",
+            {
+                "surface_control_receipt": {
+                    **_Router.get_last_generation_metadata(self)[
+                        "surface_control_receipt"
+                    ],
+                    "semantic_completion_contract": True,
+                    "semantic_completion_satisfied": False,
+                    "semantic_completion_incomplete": True,
+                    "generation_stop_reason": "deadline_exceeded",
+                    "continuation_resume_available": True,
+                    "continuation_resume_handle": "a" * 32,
+                }
+            },
+        )
+
+    def get_last_generation_metadata(self):
+        # A parent task cannot recover a child task's ContextVar snapshot. The
+        # exact text still carries the receipt that produced it.
+        return {}
+
+
 class _SearchCapability:
     def __init__(self):
         self.calls = []
@@ -1374,6 +1402,54 @@ async def test_response_generation_full_phase_injects_live_desktop_grounding(mon
     assert call["top_p"] == 0.87
     assert result.response_modifiers["live_mind_controls_worker_applied"] is True
     assert result.response_modifiers["live_mind_surface_control_receipt"]["applied"] is True
+
+
+@pytest.mark.asyncio
+async def test_response_generation_keeps_receipt_attached_to_exact_text(monkeypatch):
+    state = AuraState()
+    visible = "Explain what retained generation state means."
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "desktop_ui"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+
+    router = _AttributedReceiptRouter()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [
+            {"role": "system", "content": "base live Aura context"},
+            {"role": "user", "content": visible},
+        ],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    result = await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "cognitive_engine_required": True,
+            "clean_user_surface_contract": True,
+            "visible_user_message": visible,
+            "user_surface_validation_prompt": visible,
+            "live_mind_controls_bound": True,
+            "live_mind_generation_controls": {
+                "temperature": 0.55,
+                "top_p": 0.88,
+                "clean_user_surface_recurrent_loops": 2,
+                "clean_user_surface_steering_alpha": 0.30,
+            },
+            "live_mind_snapshot_ready": True,
+            "live_mind_required_subsystems_ok": True,
+        },
+    )
+
+    receipt = result.response_modifiers["live_mind_surface_control_receipt"]
+    assert receipt["continuation_resume_handle"] == "a" * 32
+    assert receipt["generation_stop_reason"] == "deadline_exceeded"
+    assert receipt["semantic_completion_incomplete"] is True
 
 
 @pytest.mark.asyncio

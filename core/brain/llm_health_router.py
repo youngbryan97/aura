@@ -32,6 +32,7 @@ from typing import Any
 
 import httpx
 
+from core.brain.generation_provenance import attributed_text
 from core.brain.llm.chat_format import format_chatml_messages
 from core.brain.llm.deferral_record import record_deferral
 from core.brain.llm.model_registry import (
@@ -2134,7 +2135,12 @@ class HealthAwareLLMRouter:
                 return None
             stripped = text.strip()
             if stripped:
-                return stripped
+                metadata = (
+                    result
+                    if isinstance(result, dict)
+                    else self.get_last_generation_metadata()
+                )
+                return attributed_text(stripped, metadata)
             if (
                 isinstance(result, dict)
                 and str(result.get("error", "") or "").strip() == "client_returned_no_text"

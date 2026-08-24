@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from core.brain.generation_provenance import generation_metadata_of
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm_health_router import HealthAwareLLMRouter
 
@@ -366,6 +367,9 @@ async def test_router_uses_request_sink_when_client_context_receipt_cannot_escap
 
     assert text == "retained partial answer"
     assert metadata_sink["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+    assert generation_metadata_of(text)["surface_control_receipt"][
         "continuation_resume_handle"
     ] == resume_handle
 

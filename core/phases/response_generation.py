@@ -2416,9 +2416,13 @@ class ResponseGenerationPhase(BasePhase):
                         think_coro,
                         timeout=ordinary_timeout + 2.0,
                     )
+                    attributed_generation_metadata = generation_metadata_of(
+                        response_text
+                    )
                     generation_metadata = {
                         **(
-                            router_generation_metadata_sink
+                            attributed_generation_metadata
+                            or router_generation_metadata_sink
                             or self._generation_metadata_snapshot(router)
                         ),
                         **latent_trace,
