@@ -1,11 +1,12 @@
 """Safety checks for CRSM LoRA train/fuse execution."""
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
 
-from training import resume_training, run_unattended, train_and_fuse
+from training import model_basis, resume_training, run_unattended, train_and_fuse
 
 GIB = 1024**3
 
@@ -51,6 +52,40 @@ def test_training_preflight_reports_crsm_delta_mode(monkeypatch, tmp_path, resou
 
     assert report["passed"] is True
     assert report["mode"] == "crsm_delta_train_fuse_publish"
+
+
+def test_training_preflight_sizes_the_27b_from_artifact_metadata(
+    monkeypatch,
+    tmp_path,
+    resource_observer,
+):
+    model = tmp_path / "opaque-cortex"
+    model.mkdir()
+    (model / "config.json").write_text("{}", encoding="utf-8")
+    (model / "model.safetensors").write_bytes(b"measured-by-index")
+    (model / "model.safetensors.index.json").write_text(
+        json.dumps(
+            {
+                "metadata": {
+                    "total_parameters": 27_000_000_000,
+                    "total_size": 15 * GIB,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _patch_resources(resource_observer, available_gb=40.0)
+    monkeypatch.setattr(train_and_fuse, "_live_aura_processes", lambda **_kwargs: [])
+
+    report = train_and_fuse.training_preflight(
+        base_model=model,
+        skip_train=False,
+    )
+
+    assert report["size"] == "27B"
+    assert report["requirements"]["min_available_gb"] > 44.0
+    assert report["passed"] is False
+    assert any("available_memory" in blocker for blocker in report["blockers"])
 
 
 def test_training_preflight_blocks_low_memory(monkeypatch, tmp_path, resource_observer):
@@ -161,6 +196,50 @@ def test_build_crsm_delta_train_command_uses_real_resume_adapter(tmp_path):
     assert command[command.index("--max-seq-length") + 1] == "1024"
 
 
+def test_crsm_delta_commits_basis_before_the_training_process_starts(
+    monkeypatch,
+    tmp_path,
+):
+    model = tmp_path / "model"
+    source = tmp_path / "source-adapter"
+    output = tmp_path / "delta-adapter"
+    data = tmp_path / "data"
+    model.mkdir()
+    source.mkdir()
+    data.mkdir()
+    source_weights = b"source-adapter-weights"
+    (source / "adapters.safetensors").write_bytes(source_weights)
+    (source / "lora_config.yaml").write_text("lora_parameters: {}\n", encoding="utf-8")
+    basis = model_basis.TrainingModelBasis(
+        path=model,
+        descriptor={"descriptor_sha256": "a" * 64},
+        descriptor_sha256="a" * 64,
+        source="test",
+    )
+    monkeypatch.setattr(train_and_fuse, "ADAPTER_DIR", source)
+    monkeypatch.setattr(train_and_fuse, "assert_adapter_matches_basis", lambda *_a: None)
+
+    def _run(_command, **_kwargs):
+        config = json.loads((output / "training_config.json").read_text(encoding="utf-8"))
+        assert config["training_basis"]["descriptor_sha256"] == "a" * 64
+        assert config["source_adapter_sha256"] == hashlib.sha256(source_weights).hexdigest()
+        (output / "adapters.safetensors").write_bytes(b"trained")
+        return 0
+
+    monkeypatch.setattr(train_and_fuse, "_run", _run)
+
+    observed = train_and_fuse.train_crsm_delta_lora(
+        base_model=model,
+        model_basis=basis,
+        data_dir=data,
+        adapter_dir=output,
+        iters=25,
+        max_seq_length=512,
+    )
+
+    assert observed == output
+
+
 def test_build_crsm_delta_dataset_adds_retention_and_provenance(monkeypatch, tmp_path):
     dataset = tmp_path / "synthetic" / "lora_dataset.jsonl"
     dataset.parent.mkdir()
@@ -225,6 +304,21 @@ def test_resume_training_parses_zenith_resume_log(monkeypatch, tmp_path):
 
     assert checkpoint == later
     assert remaining == 23653
+
+
+def test_resume_training_uses_the_checkpoint_model_basis(monkeypatch, tmp_path):
+    model = tmp_path / "model"
+    model.mkdir()
+    config = tmp_path / "training_config.json"
+    config.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(resume_training, "TRAINING_CONFIG_PATH", config)
+    monkeypatch.setattr(
+        resume_training,
+        "load_recorded_training_model_basis",
+        lambda path, **kwargs: type("Basis", (), {"path": model})(),
+    )
+
+    assert resume_training._load_base_model() == model
 
 
 def test_run_unattended_memory_guard_blocks_process_tree_rss(monkeypatch):

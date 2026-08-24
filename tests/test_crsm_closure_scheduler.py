@@ -168,7 +168,11 @@ def _install(
     )
     monkeypatch.setattr(scheduler, "_idle_allows", lambda: idle_ok)
     monkeypatch.setattr(mod, "record_degradation", lambda *args, **kwargs: None)
+    model_path = scheduler._state_path.parent / "test-cortex"
+    model_path.mkdir(exist_ok=True)
+    monkeypatch.setattr(scheduler, "_base_model_path", lambda: model_path)
     scheduler._resource_requirements_loaded = True
+    scheduler._resource_model_path_cache = str(model_path)
     scheduler._required_free_gb_cache = scheduler.min_free_gb
     scheduler._model_request_gb_cache = scheduler.min_free_gb
 
@@ -469,7 +473,11 @@ async def test_real_training_gateway_receives_delegated_receipt_and_model_lane(
     tmp_path,
 ) -> None:
     scheduler = _scheduler(tmp_path)
+    model_path = tmp_path / "test-cortex"
+    model_path.mkdir()
+    monkeypatch.setattr(scheduler, "_base_model_path", lambda: model_path)
     scheduler._resource_requirements_loaded = True
+    scheduler._resource_model_path_cache = str(model_path)
     scheduler._model_request_gb_cache = 51.0
     captured: dict[str, object] = {}
 

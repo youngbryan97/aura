@@ -69,7 +69,7 @@ def test_operator_cli_lane_does_not_require_live_parent_receipt(monkeypatch) -> 
 
 
 def test_training_claim_attributes_the_real_base_model() -> None:
-    base_model = train_and_fuse.DEFAULT_BASE_MODEL
+    base_model = train_and_fuse.REPO_DIR / "models" / "candidate-cortex"
     claim = train_and_fuse._training_lane_claim(
         base_model,
         source="training_tooling:crsm_delta_lora",
@@ -121,6 +121,12 @@ def test_published_model_manifest_preserves_governance_provenance(
     active_manifest = fused_root / "active.json"
     monkeypatch.setattr(train_and_fuse, "FUSED_BASE_DIR", fused_root)
     monkeypatch.setattr(train_and_fuse, "ACTIVE_MANIFEST", active_manifest)
+    descriptor = {"descriptor_sha256": "a" * 64}
+    monkeypatch.setattr(
+        train_and_fuse,
+        "build_model_artifact_descriptor",
+        lambda _path: descriptor,
+    )
 
     train_and_fuse.publish_manifest(
         fused_path,
@@ -129,6 +135,8 @@ def test_published_model_manifest_preserves_governance_provenance(
     )
 
     manifest = json.loads(active_manifest.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 3
+    assert manifest["artifact_descriptor"] == descriptor
     assert manifest["governance"] == {
         "will_receipt_id": "will-train-1",
         "executive_intent_id": "intent-train-1",

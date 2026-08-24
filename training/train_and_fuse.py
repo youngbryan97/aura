@@ -41,6 +41,10 @@ REPO_DIR = TRAINING_DIR.parent
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
+from core.brain.llm.model_artifact_profile import (  # noqa: E402
+    build_model_artifact_descriptor,
+    get_model_artifact_profile,
+)
 from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from core.runtime.model_lane_control import (  # noqa: E402
     LaneClaim,
@@ -54,6 +58,11 @@ from core.runtime.resource_observation import (  # noqa: E402
     get_resource_observer,
 )
 from core.runtime.subprocess_gateway import get_subprocess_gateway  # noqa: E402
+from training.model_basis import (  # noqa: E402
+    TrainingModelBasis,
+    assert_adapter_matches_basis,
+    resolve_training_model_basis,
+)
 
 DATA_DIR = TRAINING_DIR / "data"
 ADAPTER_DIR = TRAINING_DIR / "adapters" / "aura-personality"
@@ -64,7 +73,6 @@ ACTIVE_MANIFEST = FUSED_BASE_DIR / "active.json"
 CRSM_DATASET = REPO_DIR / "data" / "synthetic_training" / "lora_dataset.jsonl"
 CRSM_INTEGRATION_MANIFEST = DATA_DIR / "crsm_integration_manifest.json"
 
-DEFAULT_BASE_MODEL = REPO_DIR / "models" / "Qwen2.5-32B-Instruct-4bit"
 TRAINING_COMMAND_TIMEOUT_S = float(os.environ.get("AURA_TRAINING_COMMAND_TIMEOUT_S", "86400"))
 _GIB = 1024**3
 _LIVE_AURA_CMD_MARKERS = (
@@ -104,6 +112,11 @@ def delegated_governance_provenance() -> dict[str, str]:
         "domain": domain,
         "source": source,
     }
+
+
+def get_default_base_model() -> Path:
+    """Return the promoted local Cortex artifact after exact identity validation."""
+    return resolve_training_model_basis().path
 
 
 def enforce_live_delegated_authority(*, crsm_delta: bool, tag: str) -> None:
@@ -220,14 +233,22 @@ def build_dataset() -> None:
         sys.exit(f"Dataset build failed (exit {rc}).")
 
 
-def train_lora(*, base_model: Path, resume: bool = False) -> None:
+def train_lora(
+    *,
+    base_model: Path,
+    model_basis: TrainingModelBasis,
+    resume: bool = False,
+) -> None:
     finetune = TRAINING_DIR / "finetune_lora.py"
     if not finetune.exists():
         sys.exit(f"finetune_lora.py not found at {finetune}.")
-    # Pass base_model through env so finetune_lora's find_base_model() picks
-    # the right size — same script supports 32B, 72B, 14B, 7B, etc.
+    # Pass the exact parent-bound basis into the child trainer. The child
+    # revalidates the descriptor before it can write or resume an adapter.
     env = os.environ.copy()
     env["AURA_LORA_BASE_MODEL"] = str(base_model)
+    env["AURA_LORA_EXPECTED_BASE_DESCRIPTOR_SHA256"] = model_basis.descriptor_sha256
+    if resume:
+        assert_adapter_matches_basis(ADAPTER_DIR, model_basis)
     cmd = [sys.executable, str(finetune)]
     if resume:
         cmd.append("--resume")
@@ -339,6 +360,14 @@ def _selection_digest(examples: list[dict[str, Any]]) -> str:
     for example in examples:
         digest.update(json.dumps(example, sort_keys=True, ensure_ascii=False).encode("utf-8"))
         digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
     return digest.hexdigest()
 
 
@@ -494,13 +523,15 @@ def build_crsm_delta_train_command(
 def train_crsm_delta_lora(
     *,
     base_model: Path,
+    model_basis: TrainingModelBasis,
     data_dir: Path = CRSM_DELTA_DATA_DIR,
     adapter_dir: Path | None = None,
     iters: int | None = None,
     max_seq_length: int | None = None,
 ) -> Path:
     """Run a real bounded LoRA update from current CRSM captures."""
-    resume_adapter = _latest_adapter_file()
+    assert_adapter_matches_basis(ADAPTER_DIR, model_basis)
+    resume_adapter = _latest_adapter_file(ADAPTER_DIR)
     if resume_adapter is None:
         sys.exit(f"CRSM delta training failed: no source adapter found under {ADAPTER_DIR}.")
 
@@ -533,6 +564,25 @@ def train_crsm_delta_lora(
         max_seq_length=max_seq_length,
         lora_config_path=lora_config_path,
     )
+    atomic_write_text(
+        adapter_dir / "training_config.json",
+        json.dumps(
+            {
+                "schema": "aura.personality_lora.training.v2",
+                "model": str(base_model),
+                "training_basis": model_basis.to_record(),
+                "mode": "crsm_delta",
+                "iters": iters,
+                "total_iterations": iters,
+                "max_seq_length": max_seq_length,
+                "source_adapter_file": str(resume_adapter.resolve(strict=True)),
+                "source_adapter_sha256": _file_sha256(resume_adapter),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     rc = _run(
         cmd,
         model_job=True,
@@ -550,10 +600,26 @@ def train_crsm_delta_lora(
 
 
 def _model_size_tag(base_model: Path) -> str:
-    """Derive a short size tag from the base-model directory name ('32B',
-    '72B', '14B', '7B'). Falls back to 'model' when no size token matches."""
+    """Derive a human-readable tag from measured parameters when available."""
+    profile = get_model_artifact_profile(str(base_model))
+    if profile.measured and profile.total_parameters > 0:
+        billions = profile.total_parameters / 1_000_000_000
+        rounded = round(billions)
+        if abs(billions - rounded) < 0.1:
+            return f"{rounded}B"
+        return f"{billions:.1f}B".replace(".", "_")
     name = base_model.name.lower()
-    for size in ("72b", "32b", "14b", "8b", "7b", "3b", "1.5b", "0.5b"):
+    for size in (
+        "72b",
+        "32b",
+        "27b",
+        "14b",
+        "8b",
+        "7b",
+        "3b",
+        "1.5b",
+        "0.5b",
+    ):
         if size in name:
             return size.upper().replace(".", "_")
     return "model"
@@ -573,15 +639,30 @@ def _env_flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _default_training_headroom_gb(size_tag: str, *, skip_train: bool) -> tuple[float, float]:
-    """Return minimum available RAM and free disk for train/fuse safety."""
-    if size_tag == "72B":
-        return (44.0, 220.0) if not skip_train else (32.0, 160.0)
-    if size_tag == "32B":
-        return (28.0, 110.0) if not skip_train else (20.0, 90.0)
-    if size_tag in {"14B", "8B", "7B"}:
-        return (18.0, 60.0) if not skip_train else (12.0, 40.0)
-    return (12.0, 40.0) if not skip_train else (8.0, 25.0)
+def _default_training_headroom_gb(
+    base_model: Path,
+    *,
+    skip_train: bool,
+) -> tuple[float, float]:
+    """Return measured RAM and disk floors for a train/fuse transaction."""
+    profile = get_model_artifact_profile(str(base_model))
+    class_floor = {
+        "72b": ((44.0, 220.0), (32.0, 160.0)),
+        "32b": ((28.0, 110.0), (20.0, 90.0)),
+        "14b": ((18.0, 60.0), (12.0, 40.0)),
+        "7b": ((18.0, 60.0), (12.0, 40.0)),
+    }.get(profile.size_class, ((12.0, 40.0), (8.0, 25.0)))
+    floor_memory, floor_disk = class_floor[1 if skip_train else 0]
+    if not profile.measured or profile.weight_gb <= 0.0:
+        return floor_memory, floor_disk
+
+    loaded_gb = profile.weight_gb + max(1.0, profile.weight_gb * 0.25)
+    fuse_peak_gb = max(loaded_gb + 6.0, loaded_gb * 2.25)
+    train_peak_gb = max(loaded_gb + 4.0, loaded_gb * 1.8)
+    transaction_peak_gb = fuse_peak_gb if skip_train else max(train_peak_gb, fuse_peak_gb)
+    measured_memory = transaction_peak_gb + 2.0
+    measured_disk = profile.weight_gb * 4.0 + 10.0
+    return max(floor_memory, measured_memory), max(floor_disk, measured_disk)
 
 
 def _live_aura_processes(
@@ -614,7 +695,7 @@ def training_preflight(
     observer = observer or get_resource_observer()
     size_tag = _model_size_tag(base_model)
     default_min_available_gb, default_min_free_disk_gb = _default_training_headroom_gb(
-        size_tag,
+        base_model,
         skip_train=skip_train,
     )
     min_available_gb = _env_float("AURA_TRAINING_MIN_AVAILABLE_GB", default_min_available_gb)
@@ -700,7 +781,13 @@ def enforce_training_preflight(*, base_model: Path, skip_train: bool, crsm_delta
     return report
 
 
-def fuse_adapter(*, base_model: Path, tag: str, adapter_dir: Path = ADAPTER_DIR) -> Path:
+def fuse_adapter(
+    *,
+    base_model: Path,
+    model_basis: TrainingModelBasis,
+    tag: str,
+    adapter_dir: Path = ADAPTER_DIR,
+) -> Path:
     """mlx_lm fuse base_model + adapter → versioned fused-model dir."""
     if not (adapter_dir / "adapters.safetensors").exists():
         sys.exit(
@@ -708,6 +795,7 @@ def fuse_adapter(*, base_model: Path, tag: str, adapter_dir: Path = ADAPTER_DIR)
             "run training first or pass --skip-train only after a previous train."
         )
 
+    assert_adapter_matches_basis(adapter_dir, model_basis)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     size_tag = _model_size_tag(base_model)
     fused_name = (
@@ -797,13 +885,15 @@ def publish_manifest(fused_path: Path, *, tag: str, base_model: Path) -> None:
     routing (model_registry, inference_gate) can branch on it without
     re-parsing the directory name."""
     FUSED_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    descriptor = build_model_artifact_descriptor(fused_path)
     manifest = {
         "active_model_path": str(fused_path),
+        "artifact_descriptor": descriptor,
         "fused_at": int(time.time()),
         "tag": tag or "",
         "size": _model_size_tag(base_model),
         "base_model": str(base_model),
-        "schema_version": 2,
+        "schema_version": 3,
     }
     governance = delegated_governance_provenance()
     if governance:
@@ -996,16 +1086,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--base-model",
-        default=os.environ.get("AURA_LORA_BASE_MODEL", str(DEFAULT_BASE_MODEL)),
+        default=str(os.environ.get("AURA_LORA_BASE_MODEL", "")).strip() or None,
     )
     parser.add_argument("--tag", default="")
     args = parser.parse_args()
 
     enforce_live_delegated_authority(crsm_delta=args.crsm_delta, tag=args.tag)
 
-    base_model = Path(args.base_model)
-    if not base_model.exists():
-        sys.exit(f"Base model not found: {base_model}")
+    model_basis = resolve_training_model_basis(args.base_model)
+    base_model = model_basis.path
     inherited_pipeline_lane = consume_inherited_pipeline_lane()
     if _env_flag("AURA_TRAINING_ALLOW_LIVE_AURA") and _env_flag("AURA_LAUNCHED_FROM_APP"):
         if not inherited_pipeline_lane or not delegated_governance_provenance():
@@ -1049,6 +1138,7 @@ def main() -> None:
         )
         adapter_dir = train_crsm_delta_lora(
             base_model=base_model,
+            model_basis=model_basis,
             data_dir=CRSM_DELTA_DATA_DIR,
             iters=args.crsm_delta_iters,
             max_seq_length=args.crsm_delta_max_seq_length,
@@ -1059,8 +1149,17 @@ def main() -> None:
     elif not args.skip_dataset:
         build_dataset()
     if not args.crsm_delta and not args.skip_train:
-        train_lora(base_model=base_model, resume=args.resume)
-    fused_path = fuse_adapter(base_model=base_model, tag=args.tag, adapter_dir=adapter_dir)
+        train_lora(
+            base_model=base_model,
+            model_basis=model_basis,
+            resume=args.resume,
+        )
+    fused_path = fuse_adapter(
+        base_model=base_model,
+        model_basis=model_basis,
+        tag=args.tag,
+        adapter_dir=adapter_dir,
+    )
     verify_load(fused_path)
     publish_manifest(fused_path, tag=args.tag, base_model=base_model)
     if args.crsm_delta and crsm_delta_adapter_dir is not None:

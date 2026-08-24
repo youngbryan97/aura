@@ -1,12 +1,13 @@
 """RFT flywheel — verifier-clean derivations become a training dataset, gated.
 
-The loop only ever compounds verified signal, and never launches a 32B train
+The loop only ever compounds verified signal, and never launches a Cortex train
 beside the live instance: the gate must fail-closed on insufficient data or a
 failed preflight.
 """
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import training.rft_flywheel as flywheel
 
@@ -77,9 +78,19 @@ def test_gate_fails_closed_without_enough_data(monkeypatch):
     )
     import training.train_and_fuse as tf
 
-    monkeypatch.setattr(tf, "training_preflight", lambda **_k: {"passed": True})
+    monkeypatch.setattr(
+        tf,
+        "training_preflight",
+        lambda **_k: (_ for _ in ()).throw(AssertionError("preflight should not run")),
+    )
+    monkeypatch.setattr(
+        tf,
+        "get_default_base_model",
+        lambda: (_ for _ in ()).throw(AssertionError("model should not resolve")),
+    )
     gate = flywheel.flywheel_gate()
     assert gate["enough_data"] is False
+    assert gate["preflight"]["reason"] == "insufficient_verified_rows"
     assert gate["ready"] is False
 
 
@@ -92,6 +103,7 @@ def test_gate_ready_only_when_data_and_preflight_pass(monkeypatch):
     import training.train_and_fuse as tf
 
     monkeypatch.setattr(tf, "training_preflight", lambda **_k: {"passed": True})
+    monkeypatch.setattr(tf, "get_default_base_model", lambda: Path("/models/cortex"))
     gate = flywheel.flywheel_gate()
     assert gate["enough_data"] is True
     assert gate["preflight_passed"] is True

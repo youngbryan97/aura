@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""LoRA fine-tune Aura's base model — Project Zenith configuration.
+"""LoRA fine-tune Aura's promoted Cortex artifact.
 
 Upgraded from v2:
   - Rank 32 (up from 8) — needed for architecture knowledge density
-  - All 64 layers (up from 16) — personality permeates the full model
+  - All transformer layers — personality is not tied to one model generation
   - 4096 max sequence length (up from 2048) — longer explanations
-  - Gradient checkpointing enabled — essential for rank-32 on 32B
+  - Gradient checkpointing enabled for bounded unified-memory use
   - Cosine LR schedule — better convergence for larger datasets
   - Lower learning rate (5e-6) — larger dataset, higher rank
 
@@ -35,7 +35,13 @@ REPO_DIR = TRAINING_DIR.parent
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
+from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from core.runtime.subprocess_gateway import get_subprocess_gateway  # noqa: E402
+from training.model_basis import (  # noqa: E402
+    TrainingModelBasisError,
+    load_recorded_training_model_basis,
+    resolve_training_model_basis,
+)
 
 DATA_DIR = TRAINING_DIR / "data"
 ADAPTER_DIR = TRAINING_DIR / "adapters" / "aura-personality"
@@ -46,47 +52,27 @@ TRAINING_COMMAND_TIMEOUT_S = float(os.environ.get("AURA_TRAINING_COMMAND_TIMEOUT
 
 # ── Hyperparameters — Project Zenith ──────────────────────────────────────
 LORA_RANK = 32          # Up from 8 — architecture knowledge needs density
-LORA_LAYERS = 64        # All layers — personality permeates the full model
+LORA_LAYERS = -1        # All layers, independent of the current Cortex depth
 EPOCHS = 1.5            # Balanced: 1.5 epochs (90k steps) for depth without overfitting
 BATCH_SIZE = 1          # Keep small for M-series memory
 LEARNING_RATE = 5e-6    # Lower — larger dataset + higher rank = more careful
 WARMUP_STEPS = 200      # Up from 50 — larger dataset needs longer warmup
 MAX_SEQ_LENGTH = 4096   # Up from 2048 — architecture explanations are longer
-GRAD_CHECKPOINT = True  # Essential for rank-32 on 32B model
+GRAD_CHECKPOINT = True  # Essential for rank-32 on a large resident Cortex
 SAVE_EVERY = 500        # Checkpoint frequency
 
 
 def find_base_model() -> str:
-    """Find the base model path. Honors AURA_LORA_BASE_MODEL env first."""
-    explicit = os.environ.get("AURA_LORA_BASE_MODEL", "").strip()
-    if explicit and Path(explicit).is_dir():
-        return explicit
+    """Return the exact local artifact selected by the model registry."""
+    return str(resolve_training_model_basis().path)
 
-    repo_root = Path(__file__).resolve().parent.parent
-    # Prefer the canonical 8-bit base inside the repo before falling back to
-    # caches — this is what train_and_fuse.py expects to fuse against.
-    candidates = [
-        repo_root / "models" / "Qwen2.5-32B-Instruct-4bit",
-        repo_root / "models",
-        Path(os.path.expanduser("~/.aura/models")),
-        Path(os.path.expanduser("~/models")),
-        Path(os.path.expanduser("~/.cache/huggingface/hub")),
-    ]
 
-    for base in candidates:
-        if not base.exists():
-            continue
-        if (base / "config.json").exists():
-            if (base / "model.safetensors").exists() or list(base.glob("model-*.safetensors")):
-                return str(base)
-        if base.is_dir():
-            for d in base.rglob("config.json"):
-                model_dir = d.parent
-                if (model_dir / "model.safetensors").exists() or list(model_dir.glob("model-*.safetensors")):
-                    return str(model_dir)
-
-    # Fallback: use mlx_lm's model resolution (will download).
-    return "mlx-community/Qwen2.5-32B-Instruct-4bit"
+def _assert_expected_basis(descriptor_sha256: str) -> None:
+    expected = str(
+        os.environ.get("AURA_LORA_EXPECTED_BASE_DESCRIPTOR_SHA256", "")
+    ).strip()
+    if expected and descriptor_sha256 != expected:
+        raise TrainingModelBasisError("training_parent_model_basis_mismatch")
 
 
 def backup_existing_adapter():
@@ -127,7 +113,17 @@ def main():
     with open(val_file) as f:
         n_val = sum(1 for _ in f)
 
-    model_path = find_base_model()
+    config_path = ADAPTER_DIR / "training_config.json"
+    if resume:
+        model_basis = load_recorded_training_model_basis(
+            config_path,
+            model_override=str(os.environ.get("AURA_LORA_BASE_MODEL", "")).strip() or None,
+            verify_full_hash=True,
+        )
+    else:
+        model_basis = resolve_training_model_basis()
+    _assert_expected_basis(model_basis.descriptor_sha256)
+    model_path = str(model_basis.path)
 
     # Calculate total iterations
     total_iters = int(EPOCHS * n_train // BATCH_SIZE)
@@ -139,7 +135,7 @@ def main():
     print(f"  Training data:     {n_train} examples")
     print(f"  Validation:        {n_val} examples")
     print(f"  LoRA rank:         {LORA_RANK}")
-    print(f"  LoRA layers:       {LORA_LAYERS} (all)")
+    print("  LoRA layers:       all")
     print(f"  Epochs:            {EPOCHS}")
     print(f"  Learning rate:     {LEARNING_RATE}")
     print(f"  Max seq length:    {MAX_SEQ_LENGTH}")
@@ -159,30 +155,40 @@ def main():
     ADAPTER_DIR.mkdir(parents=True, exist_ok=True)
 
     # Write training config for reference
-    training_config = {
-        "project": "zenith",
-        "lora_rank": LORA_RANK,
-        "lora_layers": LORA_LAYERS,
-        "learning_rate": LEARNING_RATE,
-        "epochs": EPOCHS,
-        "batch_size": BATCH_SIZE,
-        "warmup_steps": WARMUP_STEPS,
-        "max_seq_length": MAX_SEQ_LENGTH,
-        "grad_checkpoint": GRAD_CHECKPOINT,
-        "model": model_path,
-        "train_data": str(TRAIN_FILE),
-        "val_data": str(val_file),
-        "adapter_path": str(ADAPTER_DIR),
-        "total_train_examples": n_train,
-        "total_val_examples": n_val,
-        "total_iterations": total_iters,
-    }
-
-    config_path = ADAPTER_DIR / "training_config.json"
-    with open(config_path, "w") as f:
-        json.dump(training_config, f, indent=2)
-
-    print(f"Config saved to {config_path}")
+    if not resume:
+        training_config = {
+            "schema": "aura.personality_lora.training.v2",
+            "project": "zenith",
+            "lora_rank": LORA_RANK,
+            "lora_layers": LORA_LAYERS,
+            "learning_rate": LEARNING_RATE,
+            "epochs": EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "warmup_steps": WARMUP_STEPS,
+            "max_seq_length": MAX_SEQ_LENGTH,
+            "grad_checkpoint": GRAD_CHECKPOINT,
+            "model": model_path,
+            "training_basis": model_basis.to_record(),
+            "train_data": str(TRAIN_FILE),
+            "val_data": str(val_file),
+            "adapter_path": str(ADAPTER_DIR),
+            "total_train_examples": n_train,
+            "total_val_examples": n_val,
+            "total_iterations": total_iters,
+        }
+        atomic_write_text(
+            config_path,
+            json.dumps(training_config, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(f"Config saved to {config_path}")
+    else:
+        recorded = json.loads(config_path.read_text(encoding="utf-8"))
+        recorded_total = recorded.get("total_iterations")
+        if not isinstance(recorded_total, int) or recorded_total <= 0:
+            raise RuntimeError("resume_training_total_iterations_missing")
+        total_iters = recorded_total
+        print(f"Using immutable resume config from {config_path}")
     print("Starting fine-tune...")
     print()
 
@@ -230,9 +236,14 @@ def main():
     if resume:
         latest = _latest_checkpoint()
         if latest is None:
-            print("  --resume requested but no checkpoint found; starting fresh.")
+            raise RuntimeError("resume_training_checkpoint_missing")
         else:
+            completed = int(latest.stem.split("_", 1)[0])
+            remaining = total_iters - completed
+            if remaining <= 0:
+                raise RuntimeError("resume_training_already_complete")
             print(f"  --resume: continuing from {latest.name}")
+            cmd_parts[cmd_parts.index("--iters") + 1] = str(remaining)
             cmd_parts.extend(["--resume-adapter-file", str(latest)])
 
     cmd_display = " ".join(cmd_parts)

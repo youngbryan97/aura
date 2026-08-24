@@ -81,14 +81,15 @@ class CRSMClosureScheduler:
         self._last_detail: dict[str, Any] = {}
         self._loop_cache: dict[str, Any] = {}
         self._resource_requirements_loaded = False
+        self._resource_model_path_cache = ""
         self.check_interval_s = float(_env_int("AURA_CRSM_AUTOCLOSE_CHECK_INTERVAL_S", 900))
         self.cooldown_s = float(_env_int("AURA_CRSM_AUTOCLOSE_COOLDOWN_S", 6 * 3600))
         self.retry_s = float(_env_int("AURA_CRSM_AUTOCLOSE_RETRY_S", 900))
         self.min_free_gb = float(_env_int("AURA_CRSM_AUTOCLOSE_MIN_FREE_GB", 40))
         self._required_free_gb_cache = self.min_free_gb
         self._model_request_gb_cache = self.min_free_gb
-        # A 32B CRSM delta at the default 600 iters plus the fuse can run
-        # 60-90 min; a timeout below that wastes the whole pass. Budget three
+        # A large-Cortex CRSM delta plus fuse can run for well over an hour; a
+        # shorter timeout wastes the whole pass. Budget three
         # hours and let iteration limits shorten work rather than the clock.
         self.train_timeout_s = float(
             _env_int("AURA_CRSM_AUTOCLOSE_TIMEOUT_S", 3 * 3600)
@@ -259,20 +260,33 @@ class CRSMClosureScheduler:
 
     def _base_model_path(self) -> Path:
         configured = os.getenv("AURA_LORA_BASE_MODEL")
-        if configured:
-            return Path(configured).expanduser().resolve()
-        return (_REPO_ROOT / "models" / "Qwen2.5-32B-Instruct-4bit").resolve()
+        if not configured:
+            from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
 
-    def _compute_resource_requirements(self) -> tuple[float, float]:
+            configured = get_runtime_model_path(ACTIVE_MODEL)
+        candidate = Path(configured).expanduser()
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeError("crsm_training_model_unavailable") from exc
+        if not resolved.is_dir():
+            raise RuntimeError("crsm_training_model_not_directory")
+        return resolved
+
+    def _compute_resource_requirements(
+        self,
+        model_path: Path | None = None,
+    ) -> tuple[float, float]:
         try:
             from core.runtime.model_lane_control import estimate_model_job_footprint_gb
 
+            model_path = model_path or self._base_model_path()
             train_peak = estimate_model_job_footprint_gb(
-                str(self._base_model_path()),
+                str(model_path),
                 purpose="train",
             )
             fused_peak = estimate_model_job_footprint_gb(
-                str(self._base_model_path()),
+                str(model_path),
                 purpose="fuse",
             )
             request_gb = max(float(train_peak), float(fused_peak))
@@ -281,11 +295,20 @@ class CRSMClosureScheduler:
             return self.min_free_gb, self.min_free_gb
 
     async def _ensure_resource_requirements(self) -> None:
-        if self._resource_requirements_loaded:
+        resolved_model = self._base_model_path()
+        model_path = str(resolved_model)
+        if (
+            self._resource_requirements_loaded
+            and self._resource_model_path_cache == model_path
+        ):
             return
-        required, request = await asyncio.to_thread(self._compute_resource_requirements)
+        required, request = await asyncio.to_thread(
+            self._compute_resource_requirements,
+            resolved_model,
+        )
         self._required_free_gb_cache = float(required)
         self._model_request_gb_cache = float(request)
+        self._resource_model_path_cache = model_path
         self._resource_requirements_loaded = True
 
     def _ram_admits(self) -> tuple[bool, str]:
@@ -389,11 +412,12 @@ class CRSMClosureScheduler:
         outcome: dict[str, Any] = {"status": "execution_failed", "reasons": ["not_started"]}
         try:
             await self._ensure_state_loaded()
-            await self._ensure_resource_requirements()
             monitor, state = await self._read_loop_state()
             if state.get("state") != "open":
                 outcome = {"status": "noop", "reasons": ["loop_not_open"], "loop": state}
                 return outcome
+
+            await self._ensure_resource_requirements()
 
             ram_ok, ram_reason = self._ram_admits()
             if not ram_ok:

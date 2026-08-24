@@ -19,11 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.runtime.subprocess_gateway import get_subprocess_gateway  # noqa: E402
+from training.model_basis import load_recorded_training_model_basis  # noqa: E402
 
-BASE_MODEL = os.environ.get(
-    "AURA_TRAINING_BASE_MODEL",
-    str(PROJECT_ROOT / "models" / "Qwen2.5-32B-Instruct-4bit"),
-)
 ADAPTER_PATH = Path(
     os.environ.get(
         "AURA_TRAINING_ADAPTER_PATH",
@@ -70,6 +67,15 @@ def _load_total_iterations() -> int:
 
     total = config.get("total_iterations")
     return int(total) if isinstance(total, int) and total > 0 else TOTAL_ITERS_FALLBACK
+
+
+def _load_base_model() -> Path:
+    override = str(os.environ.get("AURA_TRAINING_BASE_MODEL", "")).strip() or None
+    return load_recorded_training_model_basis(
+        TRAINING_CONFIG_PATH,
+        model_override=override,
+        verify_full_hash=True,
+    ).path
 
 
 def _latest_base_checkpoint(total_iterations: int) -> tuple[Path, int]:
@@ -161,6 +167,7 @@ def _resolve_resume_state() -> tuple[Path, int]:
 
 
 def main() -> int:
+    base_model = _load_base_model()
     resume_file, remaining_iters = _resolve_resume_state()
 
     cmd = [
@@ -169,7 +176,7 @@ def main() -> int:
         "mlx_lm",
         "lora",
         "--model",
-        BASE_MODEL,
+        str(base_model),
         "--train",
         "--data",
         DATA_DIR,
@@ -196,7 +203,10 @@ def main() -> int:
         str(ADAPTER_PATH / "lora_config.yaml"),
     ]
 
-    print(f"Resuming Zenith v3.3 from {resume_file.name}, {remaining_iters} iters remaining.")
+    print(
+        f"Resuming Zenith v3.3 from {resume_file.name}, {remaining_iters} iters remaining "
+        f"on {base_model}."
+    )
     with LOG_PATH.open("a") as log:
         log.write(
             f"\n--- Resume Zenith from {resume_file.name}, {remaining_iters} iters remaining, "

@@ -16,7 +16,7 @@ trainer gains that mode.
 
 Operational model mirrors the CRSM delta (which closed successfully):
 quiet-window gated, preflight-guarded, disruption run explicit — never
-auto-launch a 32B train beside the live instance.
+auto-launch a Cortex train beside the live instance.
 
     python training/rft_flywheel.py --preflight-only   # gate check + dataset stats
     python training/rft_flywheel.py --build-dataset     # write the SFT dataset
@@ -135,14 +135,20 @@ def flywheel_gate() -> dict:
     enough = len(rows) >= _MIN_ROWS
 
     preflight: dict = {"passed": False, "reason": "not_checked"}
-    try:
-        from training.train_and_fuse import DEFAULT_BASE_MODEL, training_preflight
+    if enough:
+        try:
+            from training.train_and_fuse import get_default_base_model, training_preflight
 
-        preflight = training_preflight(
-            base_model=DEFAULT_BASE_MODEL, skip_train=False, crsm_delta=False
-        )
-    except (ImportError, RuntimeError, OSError, ValueError, SystemExit) as exc:
-        preflight = {"passed": False, "reason": f"preflight_error:{type(exc).__name__}:{exc}"}
+            preflight = training_preflight(
+                base_model=get_default_base_model(), skip_train=False, crsm_delta=False
+            )
+        except (ImportError, RuntimeError, OSError, ValueError, SystemExit) as exc:
+            preflight = {
+                "passed": False,
+                "reason": f"preflight_error:{type(exc).__name__}:{exc}",
+            }
+    else:
+        preflight = {"passed": False, "reason": "insufficient_verified_rows"}
 
     return {
         "pending_pairs": pending,
@@ -156,7 +162,7 @@ def flywheel_gate() -> dict:
 
 
 def emit_train_command(tag: str = "rft-flywheel") -> str:
-    """The exact command to run in a quiet window (32B lane free)."""
+    """The exact command to run in a quiet window with the Cortex lane free."""
     return (
         f"{sys.executable} training/train_and_fuse.py --crsm-delta "
         f"--tag {tag} "
