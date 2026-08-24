@@ -1288,6 +1288,39 @@ def test_execution_manifest_rejects_excluding_tracked_source(tmp_path: Path) -> 
         )
 
 
+def test_execution_manifest_binds_explicit_config_inside_output_root(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    output_root = repository / "artifacts" / "run"
+    output_root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+    script = repository / "target.py"
+    config = output_root / "plan.json"
+    script.write_text("raise SystemExit(0)\n", encoding="ascii")
+    config.write_text('{"mode":"first"}\n', encoding="ascii")
+    subprocess.run(["git", "add", "target.py"], cwd=repository, check=True)
+
+    plan = detached._build_plan(
+        "explicit-output-config",
+        [sys.executable, str(script), str(config)],
+        repository,
+        5.0,
+        "none",
+        execution_exclusion_roots=(output_root,),
+    )
+    manifest = plan["target_execution_manifest"]
+
+    assert any(
+        root.get("kind") == "file" and root.get("path") == str(config)
+        for root in manifest["roots"]
+    )
+    detached._verify_execution_manifest_current(manifest)
+    config.write_text('{"mode":"changed"}\n', encoding="ascii")
+    with pytest.raises(detached.DetachedStepError, match="execution source changed"):
+        detached._verify_execution_manifest_current(manifest)
+
+
 def test_detached_launch_allows_declared_generated_source_output(
     tmp_path: Path,
 ) -> None:

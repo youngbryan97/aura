@@ -491,7 +491,12 @@ def _build_execution_manifest(
     exclusions = _normalized_excluded_roots(excluded_roots)
     roots: list[dict[str, Any]] = [_fingerprint_file(Path(command[0]))]
     source_paths = _source_file_arguments(command, cwd)
-    if any(_is_excluded(path, exclusions) for path in source_paths):
+    executable_source_paths = tuple(
+        path
+        for path in source_paths
+        if path.suffix.lower() in _EXECUTABLE_SOURCE_SUFFIXES
+    )
+    if any(_is_excluded(path, exclusions) for path in executable_source_paths):
         raise DetachedStepError("execution exclusion contains target source")
     git_roots: set[Path] = set()
     for candidate in [cwd, *(path.parent for path in source_paths)]:
