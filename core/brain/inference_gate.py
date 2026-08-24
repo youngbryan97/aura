@@ -58,6 +58,7 @@ from core.conversation.response_reliability import (
     is_self_process_question,
     requested_output_contract,
 )
+from core.conversation.surface_disposition import COMPLETION_REASONS
 from core.conversation.user_surface_contract import (
     bind_user_surface_prompt,
     resolve_user_surface_prompt,
@@ -3098,8 +3099,60 @@ class InferenceGate:
             is_user_facing=is_user_facing,
         )
 
-    @staticmethod
-    def _repairable_user_facing_draft_for_downstream(text: str, prompt: str) -> str | None:
+    def _publish_downstream_repair_evidence(
+        self,
+        assessment: Any,
+    ) -> None:
+        """Carry post-generation repair evidence to the continuation owner.
+
+        The worker receipt is published before the gate performs its final
+        user-facing assessment. A clipped draft could therefore be correctly
+        identified and preserved here while the caller still received the old
+        "complete" receipt. The chat route then started a full stabilizer
+        rewrite instead of appending to the authored answer.
+
+        This amends evidence only. It does not relabel the worker stop reason or
+        claim a continuation succeeded.
+        """
+
+        reasons = tuple(
+            dict.fromkeys(
+                str(reason or "").strip()
+                for reason in (getattr(assessment, "reasons", ()) or ())
+                if str(reason or "").strip()
+            )
+        )
+        if not reasons:
+            return
+        metadata = self.get_last_generation_metadata()
+        if not metadata:
+            return
+        receipt = dict(metadata.get("surface_control_receipt") or {})
+        existing_reasons = tuple(
+            str(reason or "").strip()
+            for reason in (receipt.get("surface_quality_gate_reasons") or ())
+            if str(reason or "").strip()
+        )
+        merged_reasons = list(dict.fromkeys((*existing_reasons, *reasons)))[:16]
+        completion_reasons = [
+            reason for reason in merged_reasons if reason in COMPLETION_REASONS
+        ]
+        receipt["surface_quality_gate_reasons"] = merged_reasons
+        if completion_reasons:
+            receipt["semantic_completion_incomplete"] = True
+            if "semantic_completion_satisfied" in receipt:
+                receipt["semantic_completion_satisfied"] = False
+            metadata["post_generation_completion_evidence"] = completion_reasons
+        metadata["surface_control_receipt"] = receipt
+        metadata["failure_reasons"] = merged_reasons[:8]
+        metadata["post_generation_repair_expected"] = True
+        self._publish_generation_metadata(metadata, receipt)
+
+    def _repairable_user_facing_draft_for_downstream(
+        self,
+        text: str,
+        prompt: str,
+    ) -> str | None:
         """Return text unchanged when downstream response repair should own it."""
         cleaned = str(text or "").strip()
         if not cleaned:
@@ -3111,6 +3164,7 @@ class InferenceGate:
                 set(assessment.reasons or ()),
                 user_prompt=prompt,
             ):
+                self._publish_downstream_repair_evidence(assessment)
                 return cleaned
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             logger.debug("Repairable draft preservation check skipped: %s", exc)
@@ -7658,6 +7712,7 @@ class InferenceGate:
         system_prompt: Any,
         timeout_s: float,
         evidence: Any = None,
+        allow_tools: bool = True,
     ) -> str | None:
         """Answer by running the capability the request needs, or return None.
 
@@ -7675,6 +7730,13 @@ class InferenceGate:
         capability needed, no tool map, the model declining to call — returns
         None so the ordinary generation proceeds untouched.
         """
+        # A typed completion/continuation turn is an answer segment, not a new
+        # execution request. Enforce that before capability inference so words
+        # such as "code" or "build" inside a correction cannot open a tool
+        # lane the caller explicitly closed.
+        if not allow_tools:
+            return None
+
         # The person's own words, not the assembled prompt. The scaffold runs
         # to thousands of characters around a request of a hundred, and asking
         # a question about the whole envelope answers about the envelope.
@@ -13177,6 +13239,15 @@ class InferenceGate:
                             system_prompt=system_prompt,
                             timeout_s=float(timeout_val),
                             evidence=messages,
+                            allow_tools=(
+                                bool(context.get("allow_tools", True))
+                                and not bool(
+                                    context.get("user_surface_completion_retry", False)
+                                )
+                                and not bool(
+                                    context.get("user_surface_continuation_contract", False)
+                                )
+                            ),
                         )
                     if tool_grounded:
                         text = tool_grounded

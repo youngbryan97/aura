@@ -50,6 +50,10 @@ from core.brain.llm.latent_cortex.output_quality import (
 from core.container import ServiceContainer
 from core.conversation.continuation import continuation_state_text
 from core.conversation.persistence import ConversationRevisionConflictError
+from core.conversation.surface_disposition import (
+    COMPLETION_REASONS as _COMPLETION_REPAIR_REASONS,
+    PHYSICAL_COMPLETION_REASONS as _PHYSICAL_COMPLETION_REASONS,
+)
 from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
@@ -4679,30 +4683,6 @@ def _merge_reply_continuation(partial: object, continuation: object) -> str:
     if not head[-1].isspace() and not tail[0].isspace():
         separator = "" if tail[0] in ".,;:!?)]}" else " "
     return f"{head}{separator}{tail}"
-
-
-_COMPLETION_REPAIR_REASONS = frozenset(
-    {
-        "truncated_tail",
-        "final_answer_missing",
-        "missing_final_answer",
-        "incomplete_code_response",
-        # A substantive draft that answered only part of a compound request is
-        # unfinished work, not a reason to throw away correct authored text and
-        # sample a second answer from token zero. The continuation lane carries
-        # the draft as typed state and appends only the missing obligations.
-        "unanswered_question_part",
-    }
-)
-
-_PHYSICAL_COMPLETION_REASONS = frozenset(
-    {
-        "truncated_tail",
-        "final_answer_missing",
-        "missing_final_answer",
-        "incomplete_code_response",
-    }
-)
 
 
 def _reply_has_physical_completion_failure(reasons: object) -> bool:

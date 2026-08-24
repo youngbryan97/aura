@@ -118,6 +118,17 @@ def test_objectively_dangling_syntax_remains_incomplete_under_eos():
     assert _has_truncated_tail(clipped, generation_stop_reason="eos")
 
 
+def test_cognitive_engine_uses_the_full_shared_completion_assessment():
+    from core.brain.cognitive_engine import _truncation_verdict
+
+    clipped = (
+        "One consequence I can distinguish from expectation is that the live "
+        "runtime now reports a smaller resident-model footprint, while"
+    )
+
+    assert _truncation_verdict(clipped, generation_stop_reason="eos")
+
+
 def test_user_facing_assessor_consumes_the_worker_termination_receipt():
     assessment = assess_user_facing_reply(
         "What is the current result?",

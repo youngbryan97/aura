@@ -2266,6 +2266,35 @@ def test_repairable_user_facing_draft_is_preserved_for_downstream_shape_repair()
     assert preserved == draft
 
 
+def test_repairable_truncated_draft_exports_typed_completion_evidence():
+    gate = InferenceGate()
+    prompt = "Explain the consequence completely."
+    draft = (
+        "One consequence I can distinguish from expectation is that the live "
+        "runtime now reports a smaller resident-model footprint, while"
+    )
+    receipt = {
+        "surface_quality_gate_enabled": True,
+        "surface_quality_gate_passed": True,
+        "surface_quality_gate_reasons": [],
+        "generation_stop_reason": "eos",
+    }
+    gate._publish_generation_metadata(
+        {"ok": True, "surface_control_receipt": dict(receipt)},
+        receipt,
+    )
+
+    preserved = gate._repairable_user_facing_draft_for_downstream(draft, prompt)
+
+    assert preserved == draft
+    metadata = gate.get_last_generation_metadata()
+    exported = gate.get_last_surface_control_receipt()
+    assert exported["semantic_completion_incomplete"] is True
+    assert "truncated_tail" in exported["surface_quality_gate_reasons"]
+    assert "truncated_tail" in metadata["failure_reasons"]
+    assert metadata["post_generation_repair_expected"] is True
+
+
 def test_compact_prebuilt_messages_respects_runtime_context_budget(monkeypatch):
     gate = InferenceGate.__new__(InferenceGate)
     long_system = "SYSTEM-HEAD\n" + ("S" * 20_000) + "\nSYSTEM-TAIL"
@@ -3398,6 +3427,34 @@ async def test_inference_gate_exposes_local_surface_control_receipt():
     )
     assert client.kwargs[0]["user_surface_continuation_resume_handle"] == "a" * 32
     assert client.kwargs[0]["live_mind_controls_bound"] is True
+
+
+@pytest.mark.asyncio
+async def test_inference_gate_forwards_typed_no_tools_to_direct_tool_boundary():
+    gate = InferenceGate()
+    client = _ReceiptRecordingClient(
+        "The existing answer segment continues without opening an execution lane."
+    )
+    gate._mlx_client = client
+    tool_boundary = AsyncCallProbe(return_value=None)
+    gate._tool_grounded_answer = tool_boundary
+
+    result = await gate.generate(
+        "Finish explaining how the code path changed.",
+        context={
+            "origin": "desktop_quick_user",
+            "prefer_tier": "primary",
+            "foreground_request": True,
+            "protected_foreground_lane": True,
+            "allow_cloud_fallback": False,
+            "allow_tools": False,
+            "max_tokens": 160,
+        },
+        timeout=20.0,
+    )
+
+    assert result
+    assert tool_boundary.await_args.kwargs["allow_tools"] is False
 
 
 @pytest.mark.asyncio

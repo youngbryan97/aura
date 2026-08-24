@@ -51,6 +51,8 @@ from typing import Any
 __all__ = [
     "SurfaceDisposition",
     "SHORTFALL_REASONS",
+    "COMPLETION_REASONS",
+    "PHYSICAL_COMPLETION_REASONS",
     "ADVISORY_ONLY_REASONS",
     "CONTINUITY_SAFE_REASONS",
     "UNSPEAKABLE_REASONS",
@@ -546,6 +548,28 @@ SHORTFALL_REASONS: frozenset[str] = frozenset(
         "unsupported_tool_readiness_claim",
     }
 )
+
+#: Reasons that mean an authored answer has unfinished work.  This vocabulary
+#: is shared by the model boundary, CognitiveEngine, and the chat continuation
+#: owner.  Separate copies previously let the inference gate identify a clipped
+#: answer while CognitiveEngine called it complete and the route started a
+#: stylistic rewrite from zero.
+COMPLETION_REASONS: frozenset[str] = frozenset(
+    {
+        "truncated_tail",
+        "final_answer_missing",
+        "missing_final_answer",
+        "incomplete_code_response",
+        "unanswered_question_part",
+    }
+)
+
+#: Completion failures caused by interrupted generation rather than an
+#: uncovered semantic obligation. These resume the existing assistant branch;
+#: ``unanswered_question_part`` schedules the missing work unit instead.
+PHYSICAL_COMPLETION_REASONS: frozenset[str] = COMPLETION_REASONS - {
+    "unanswered_question_part"
+}
 
 
 def _reason_set(reasons: Any) -> set[str]:

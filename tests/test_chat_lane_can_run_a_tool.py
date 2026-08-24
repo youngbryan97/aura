@@ -39,10 +39,20 @@ class _Client:
         return self.result
 
 
-def _answer(gate: Any, client: Any, prompt: str) -> str | None:
+def _answer(
+    gate: Any,
+    client: Any,
+    prompt: str,
+    *,
+    allow_tools: bool = True,
+) -> str | None:
     return asyncio.run(
         gate._tool_grounded_answer(
-            client, visible=prompt, system_prompt="", timeout_s=30.0
+            client,
+            visible=prompt,
+            system_prompt="",
+            timeout_s=30.0,
+            allow_tools=allow_tools,
         )
     )
 
@@ -59,6 +69,36 @@ def test_a_request_needing_no_capability_never_reaches_the_tool_loop(gate, monke
     )
     client = _Client({"content": "hello", "tool_calls": [{"tool": "code_repl"}]})
     assert _answer(gate, client, "how are you feeling today") is None
+    assert client.calls == []
+
+
+def test_typed_no_tool_policy_prevents_capability_inference_and_execution(
+    gate, monkeypatch
+):
+    """A continuation is an answer segment, even if its text names tools."""
+    derived: list[str] = []
+
+    def _derive(text: str, **_kwargs: Any) -> list[str]:
+        derived.append(text)
+        return ["improve_own_code", "code_repl"]
+
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set", _derive
+    )
+    client = _Client(
+        {"content": "ran", "tool_calls": [{"tool": "code_repl", "ok": True}]}
+    )
+
+    assert (
+        _answer(
+            gate,
+            client,
+            "Finish the explanation of how the code path changed.",
+            allow_tools=False,
+        )
+        is None
+    )
+    assert derived == []
     assert client.calls == []
 
 

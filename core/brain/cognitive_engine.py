@@ -409,19 +409,20 @@ def _trim_midsentence_cutoff(text: str) -> tuple[str, bool]:
 
 
 def _truncation_verdict(text: str, *, generation_stop_reason: str = "") -> bool:
-    """Ask the gate that will JUDGE this reply whether the tail is truncated."""
+    """Ask the shared user-facing assessor whether generation is unfinished."""
 
     try:
-        from core.conversation.response_reliability import _has_truncated_tail
+        from core.conversation.response_reliability import assess_user_facing_reply
+        from core.conversation.surface_disposition import PHYSICAL_COMPLETION_REASONS
     except (ImportError, AttributeError):
         return False
     try:
-        return bool(
-            _has_truncated_tail(
-                text,
-                generation_stop_reason=generation_stop_reason,
-            )
+        assessment = assess_user_facing_reply(
+            "",
+            text,
+            generation_stop_reason=generation_stop_reason,
         )
+        return bool(set(assessment.reasons or ()) & PHYSICAL_COMPLETION_REASONS)
     except (RuntimeError, TypeError, ValueError):
         return False
 
