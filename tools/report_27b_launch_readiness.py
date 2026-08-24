@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -34,6 +35,7 @@ READINESS_SCHEMA: Final = "aura.rlc.27b_launch_readiness.v1"
 
 BUNDLE = Path("artifacts/migration/27b/campaign_bundle.json")
 PACKAGE = Path("artifacts/migration/27b/recovery/package.json")
+CAMPAIGN_CONFIG = Path("artifacts/migration/27b/recovery/campaign.json")
 
 #: Blockers that clear when the host quiets down, versus blockers somebody has
 #: to act on. The distinction decides whether "wait" is a valid response.
@@ -72,18 +74,36 @@ REMEDIES: Final = {
     "lane_ownership_unmeasured": "investigate the lane controller before launching",
     "package_not_materialized": "make rlc-27b-package",
     "package_carries_a_verdict": "a fresh package must carry none until the run measures one",
+    "campaign_config_not_materialized": (
+        "materialize and validate the source-bound launchd campaign config"
+    ),
+    "campaign_launch_command_invalid": (
+        "repair the readiness command to match the campaign controller CLI"
+    ),
 }
 
 
-def _launch_command(bundle_path: Path) -> str:
-    return (
-        "caffeinate -dims /Users/bryan/.aura/live-source/.venv/bin/python "
-        "tools/run_unified_intrinsic_resident_campaign.py "
-        f"--bundle {bundle_path} "
-        "--stage-journal artifacts/migration/27b/recovery/resume_journal.jsonl "
-        "--evidence-root artifacts/migration/27b/recovery "
-        "--detached"
+def _launch_command(config_path: Path) -> str:
+    arguments = (
+        "/Users/bryan/.aura/live-source/.venv/bin/python",
+        "tools/run_unified_intrinsic_resident_campaign.py",
+        "install",
+        "--config",
+        str(config_path),
     )
+    return shlex.join(arguments)
+
+
+def _campaign_config_findings() -> list[dict[str, str]]:
+    path = REPO_ROOT / CAMPAIGN_CONFIG
+    if not path.is_file() or path.is_symlink():
+        return [
+            {
+                "kind": "campaign_config_not_materialized",
+                "detail": str(CAMPAIGN_CONFIG),
+            }
+        ]
+    return []
 
 
 def _package_findings() -> list[dict[str, str]]:
@@ -114,6 +134,7 @@ def build() -> dict[str, Any]:
     else:
         findings.extend(preflight.check(json.loads(bundle_path.read_text())))
     findings.extend(_package_findings())
+    findings.extend(_campaign_config_findings())
 
     for finding in findings:
         finding["remedy"] = REMEDIES.get(finding["kind"], "investigate")
@@ -147,7 +168,7 @@ def build() -> dict[str, Any]:
                 1 for f in findings if f["class"] == "environmental"
             ),
         },
-        "launch_command": _launch_command(BUNDLE) if ready else None,
+        "launch_command": _launch_command(CAMPAIGN_CONFIG) if ready else None,
         "model_active_stages": [
             "calibration",
             "training",

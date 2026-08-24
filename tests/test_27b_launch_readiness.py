@@ -9,6 +9,7 @@ response.
 from __future__ import annotations
 
 import json
+import shlex
 
 import pytest
 
@@ -19,6 +20,7 @@ from tools import report_27b_launch_readiness as readiness
 def clean(monkeypatch):
     monkeypatch.setattr(readiness.preflight, "check", lambda bundle: [])
     monkeypatch.setattr(readiness, "_package_findings", list)
+    monkeypatch.setattr(readiness, "_campaign_config_findings", list)
 
 
 def test_a_clean_tree_emits_exactly_one_command(clean):
@@ -26,8 +28,11 @@ def test_a_clean_tree_emits_exactly_one_command(clean):
     assert report["ready_to_launch"] is True
     command = report["launch_command"]
     assert command and command.count("run_unified_intrinsic_resident_campaign.py") == 1
-    assert "--detached" in command
-    assert "caffeinate" in command
+    assert shlex.split(command)[-3:] == [
+        "install",
+        "--config",
+        "artifacts/migration/27b/recovery/campaign.json",
+    ]
 
 
 def test_no_command_is_emitted_while_anything_blocks(monkeypatch):
@@ -84,6 +89,13 @@ def test_an_unmaterialized_package_blocks(monkeypatch, tmp_path):
     monkeypatch.setattr(readiness, "REPO_ROOT", tmp_path.parent)
     findings = readiness._package_findings()
     assert findings and findings[0]["kind"] == "package_not_materialized"
+
+
+def test_an_unmaterialized_campaign_config_blocks(monkeypatch, tmp_path):
+    monkeypatch.setattr(readiness, "CAMPAIGN_CONFIG", tmp_path / "nope.json")
+    monkeypatch.setattr(readiness, "REPO_ROOT", tmp_path.parent)
+    findings = readiness._campaign_config_findings()
+    assert findings and findings[0]["kind"] == "campaign_config_not_materialized"
 
 
 def test_the_workload_estimate_names_its_basis_and_its_gap(clean):
