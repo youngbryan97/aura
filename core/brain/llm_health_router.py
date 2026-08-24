@@ -1252,6 +1252,12 @@ class HealthAwareLLMRouter:
                 default=None,
             )
         )
+        self._generation_metadata_sink_context: ContextVar[
+            dict[str, Any] | None
+        ] = ContextVar(
+            f"aura_health_router_generation_metadata_sink_{id(self)}",
+            default=None,
+        )
         self._last_fallback_warning_at: float = 0.0
         self._background_deferral_log_state: dict[str, tuple[str, float, int]] = {}
         logger.info("HealthAwareLLMRouter initialized (Legacy-Compatible mode)")
@@ -1270,6 +1276,11 @@ class HealthAwareLLMRouter:
         snapshot = dict(metadata)
         self._generation_metadata_slot().set(snapshot)
         self._last_generation_metadata = snapshot
+        sink_slot = getattr(self, "_generation_metadata_sink_context", None)
+        sink = sink_slot.get() if sink_slot is not None else None
+        if isinstance(sink, dict):
+            sink.clear()
+            sink.update(snapshot)
 
     def get_last_generation_metadata(self) -> dict[str, Any]:
         task_metadata = self._generation_metadata_slot().get()
@@ -2029,6 +2040,15 @@ class HealthAwareLLMRouter:
         endpoint selection, then normalises to Optional[str].
         [FIX #1-Harden] Supports 'messages' keyword for cognitive pipeline compatibility.
         """
+        metadata_sink = kwargs.pop("_generation_metadata_sink", None)
+        sink_slot = getattr(self, "_generation_metadata_sink_context", None)
+        if sink_slot is None:
+            sink_slot = ContextVar(
+                f"aura_health_router_generation_metadata_sink_{id(self)}",
+                default=None,
+            )
+            self._generation_metadata_sink_context = sink_slot
+        sink_slot.set(metadata_sink if isinstance(metadata_sink, dict) else None)
         self._publish_generation_metadata({})
         kwargs.pop("_contract_tool_handoff", False)
         if not prompt and "messages" in kwargs:

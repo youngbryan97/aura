@@ -75,6 +75,7 @@ class ReceiptThinkClient:
             "surface_quality_gate_passed": True,
             "surface_quality_gate_attempts": 1,
             "surface_quality_gate_reasons": [],
+            "continuation_resume_handle": "resume-27b-exact-state",
             "applied": True,
         }
 
@@ -275,6 +276,38 @@ async def test_router_generation_metadata_is_task_local_for_concurrent_think_cal
     assert slow[1]["text"] == "reply:slow"
     assert fast[0] == "reply:fast"
     assert fast[1]["text"] == "reply:fast"
+
+
+@pytest.mark.asyncio
+async def test_router_exports_generation_metadata_across_wait_for_task_boundary():
+    router = HealthAwareLLMRouter()
+    router.register(
+        name="Cortex",
+        url="internal",
+        model="cortex-27b",
+        is_local=True,
+        tier="local",
+        client=ReceiptThinkClient(),
+    )
+    metadata_sink = {}
+
+    text = await asyncio.wait_for(
+        router.think(
+            "Continue the exact generation.",
+            prefer_tier="primary",
+            origin="user",
+            foreground_request=True,
+            skip_runtime_payload=True,
+            _generation_metadata_sink=metadata_sink,
+        ),
+        timeout=1.0,
+    )
+
+    assert text == "receipt-bound think response"
+    assert (
+        metadata_sink["surface_control_receipt"]["continuation_resume_handle"]
+        == "resume-27b-exact-state"
+    )
 
 
 @pytest.mark.asyncio

@@ -2304,6 +2304,7 @@ class ResponseGenerationPhase(BasePhase):
                         raise TimeoutError(
                             "cognitive cycle budget exhausted before resident fallback"
                         )
+                    router_generation_metadata_sink: dict[str, Any] = {}
                     think_coro = router.think(
                         messages=messages,
                         priority=1.0 if not is_background else 0.5,
@@ -2408,6 +2409,7 @@ class ResponseGenerationPhase(BasePhase):
                         ),
                         semantic_output_token_cap=visible_output_contract.semantic_token_cap,
                         hard_output_token_ceiling=visible_output_contract.hard_token_ceiling,
+                        _generation_metadata_sink=router_generation_metadata_sink,
                         timeout=ordinary_timeout,
                     )
                     response_text = await asyncio.wait_for(
@@ -2415,7 +2417,10 @@ class ResponseGenerationPhase(BasePhase):
                         timeout=ordinary_timeout + 2.0,
                     )
                     generation_metadata = {
-                        **self._generation_metadata_snapshot(router),
+                        **(
+                            router_generation_metadata_sink
+                            or self._generation_metadata_snapshot(router)
+                        ),
                         **latent_trace,
                     }
 

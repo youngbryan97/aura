@@ -5165,11 +5165,17 @@ class CognitiveEngine:
                     router_kwargs["temp"] = live_mind_generation_controls["temperature"]
                 if "top_p" in live_mind_generation_controls:
                     router_kwargs["top_p"] = live_mind_generation_controls["top_p"]
+            router_generation_metadata_sink: dict[str, Any] = {}
+            router_kwargs["_generation_metadata_sink"] = (
+                router_generation_metadata_sink
+            )
             content = await asyncio.wait_for(
                 router.think(**router_kwargs),
                 timeout=request_timeout + 3.0,
             )
-            if hasattr(router, "get_last_generation_metadata"):
+            if router_generation_metadata_sink:
+                router_generation_metadata = dict(router_generation_metadata_sink)
+            elif hasattr(router, "get_last_generation_metadata"):
                 raw_metadata = router.get_last_generation_metadata()
                 if isinstance(raw_metadata, dict):
                     router_generation_metadata = dict(raw_metadata)
