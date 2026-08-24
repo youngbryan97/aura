@@ -13109,6 +13109,47 @@ def test_unanswered_obligations_keep_numbered_identity_when_composed():
     assert "4. 4)" not in merged
 
 
+def test_obligation_completion_extends_an_open_section_instead_of_duplicating_it():
+    from interface.routes import chat as chat_routes
+    from interface.routes.chat_common import (
+        _merge_obligation_completion,
+        _unanswered_user_surface_obligations,
+    )
+
+    prompt = chat_routes.analyze_prompt_shape(
+        "Explain Dijkstra. Include: (1) the invariant, (2) pseudocode, "
+        "(3) a worked example on A, B, C, D with five weighted edges, "
+        "(4) complexity, and (5) a failure case."
+    )
+    partial = (
+        "1. The invariant finalizes the nearest unsettled vertex.\n"
+        "2. Pseudocode initializes, extracts, and relaxes.\n"
+        "## 3) Trace\nA-B has weight 2, but the rest of the"
+    )
+    remaining = _unanswered_user_surface_obligations(partial, prompt)
+    worked = next(item for item in remaining if item.numbered_label == 3)
+
+    merged = _merge_obligation_completion(
+        partial,
+        (
+            "Use edges A-B:2, A-C:5, B-C:1, B-D:4, and C-D:1. "
+            "Starting at A gives distances A=0, B=2, C=3, D=4."
+        ),
+        worked,
+    )
+
+    assert merged.count("3)") == 1
+    assert "3. " not in merged
+    assert "A-B has weight 2, but the rest of the\n\nUse edges" in merged
+    assert worked.segment not in {
+        item.segment
+        for item in chat_routes._unanswered_user_surface_obligations(
+            merged,
+            prompt,
+        )
+    }
+
+
 @pytest.mark.asyncio
 async def test_compound_answer_schedules_each_uncovered_obligation(monkeypatch):
     from core.providers import engine_connection_pool as pool_module

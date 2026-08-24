@@ -386,7 +386,9 @@ def _merge_obligation_completion(
             tail,
             count=1,
         ).strip()
-        addition = f"{label}. {tail}"
+        from core.conversation.request_coverage import merge_numbered_answer_section
+
+        return merge_numbered_answer_section(head, label, tail)
     else:
         addition = tail
     if not head:

@@ -351,10 +351,11 @@ _NAMED_ENUMERATION_RE = re.compile(
 _NUMBERED_ANSWER_SECTION_RE = re.compile(
     # A section marker starts at a token boundary.  Punctuation is not enough:
     # ``C-D:5. next`` is a weighted edge followed by prose, not answer item 5.
-    # Whitespace still admits compact inline lists (``1. ... 2. ...``), while
-    # the existing exponent case remains excluded for the same structural
+    # Whitespace still admits compact inline lists (``1. ... 2. ...``) and an
+    # optional opening parenthesis admits Markdown headings such as ``## (2)``.
+    # The existing exponent case remains excluded for the same structural
     # reason.
-    r"(?<!\S)(?P<number>\d{1,2})\s*[.)]\s+"
+    r"(?<!\S)(?:\(\s*)?(?P<number>\d{1,2})\s*[.)]\s+"
 )
 _GRAPH_EDGE_RE = re.compile(
     r"(?:"
@@ -608,6 +609,51 @@ def _numbered_answer_sections(body: Any) -> dict[int, str]:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         sections[number] = text[match.end() : end].strip()
     return sections
+
+
+def merge_numbered_answer_section(
+    body: Any,
+    number: int,
+    completion: Any,
+) -> str:
+    """Compose model-authored text into one numbered answer section.
+
+    A generation can stop after opening the section it has not finished.  An
+    append-only retry must then extend that section rather than add a duplicate
+    marker: the coverage reader deliberately treats the first marker as the
+    authoritative structural position.  If the marker is absent, insert it
+    before the next higher numbered section so the user's order is preserved.
+    """
+
+    text = str(body or "").rstrip()
+    tail = str(completion or "").strip()
+    try:
+        target = int(number)
+    except (TypeError, ValueError, OverflowError):
+        return text
+    if target <= 0 or not tail:
+        return text
+
+    matches = list(_NUMBERED_ANSWER_SECTION_RE.finditer(text))
+    for index, match in enumerate(matches):
+        if int(match.group("number")) != target:
+            continue
+        section_end = (
+            matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        )
+        section_body = text[match.end() : section_end].rstrip()
+        addition = f"{section_body}\n\n{tail}" if section_body else tail
+        return f"{text[:match.end()]}{addition}{text[section_end:]}".rstrip()
+
+    marker = f"{target}. {tail}"
+    for match in matches:
+        if int(match.group("number")) > target:
+            prefix = text[: match.start()].rstrip()
+            suffix = text[match.start() :].lstrip()
+            return f"{prefix}\n\n{marker}\n\n{suffix}".strip()
+    if not text:
+        return marker
+    return f"{text}\n\n{marker}"
 
 
 def _semantic_group_is_covered(group: set[str], body: Any) -> bool:
@@ -948,6 +994,7 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
 __all__ = [
     "complete_epistemic_partition_from_evidence",
     "coverage_tokens",
+    "merge_numbered_answer_section",
     "requested_epistemic_partition_is_covered",
     "unanswered_question_parts",
 ]
