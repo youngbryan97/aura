@@ -1,0 +1,114 @@
+{
+  "activation_sha256": "32315c948a77caabb2ea202123050e09d0b8183771a6e59a5544644a34355407",
+  "active_by_default": true,
+  "allowed_families": [
+    "frontier_calibration",
+    "frontier_coding",
+    "frontier_misleading_premise",
+    "frontier_scientific_inference"
+  ],
+  "allowed_surface_profiles": [
+    "lab_report",
+    "narrative",
+    "compact"
+  ],
+  "claim_boundary": "runtime qualification of a replicated lesion-dependent resident-model effective reasoning gain over ordinary decode on the frozen four-domain semantic cohort; bounded executable families only, not open-domain general reasoning, static fusion, frontier performance, consciousness evidence, or unrestricted promotion",
+  "descriptor_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "fingerprint": "05346acd618d1c925f1619b30d6bdec50794095e967dea1b3f16ac471dbe9bf4",
+    "full_attention_layers": 16,
+    "hidden_size": 5120,
+    "linear_attention_layers": 48,
+    "model_type": "qwen3_5_text",
+    "num_hidden_layers": 64,
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "vocab_size": 248320,
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "evidence": {
+    "adjudication_claim": "replicated lesion-dependent resident-model effective reasoning gain over ordinary decode on the frozen four-domain semantic cohort",
+    "adjudication_limitations": "bounded executable families; not open-domain general reasoning, static fusion, frontier performance, consciousness evidence, or unrestricted runtime promotion",
+    "adjudication_path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/adjudication.json",
+    "adjudication_receipt_sha256": "cb48e39c69637cc0ddbb40d1f7e36bbcbf77a018cba2bfe8141528ea7ca32725",
+    "adjudication_sha256": "dc8d711501efd47915848b18a67bc27cdaaeec2bf48cc381ba9f0a89f7e07a47",
+    "adjudication_verdict": "BOUNDED_WOW_SIGNAL",
+    "coefficient_lesion_contract_verified": true,
+    "domains": [
+      "coding",
+      "calibration",
+      "misleading_premise",
+      "scientific_inference"
+    ],
+    "gain_count": 60,
+    "independent_exact_by_arm": {
+      "coefficient_lesion": 4,
+      "matched_wire_base": 6,
+      "matched_wrong_state": 0,
+      "ordinary_base": 0,
+      "treatment": 60
+    },
+    "paired_one_sided_exact_p": 8.673617379884035e-19,
+    "regression_count": 0,
+    "result_path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/result.json",
+    "result_receipt_sha256": "59c45d53eeac638905b2eae020355688a4fad612cdc19fd159350562ec98d8c7",
+    "result_sha256": "732e900b1daf7a55e6a8601c8a7e0c07d9534614f862eea0b4972b474f3bc7df",
+    "task_count": 60,
+    "verification_path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/verification.json",
+    "verification_receipt_sha256": "0fa1261ac6a92e993526705e04a004219e8361dcdcd440f9bb855511bd35b739",
+    "verification_sha256": "96f7de91914522d45ce2597efa71cf1b0c3d71c99a486c59f31f02b490a53e7c"
+  },
+  "integration_contract_sha256s": {
+    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "016a3a86da9286f0e9dac9e49544c9af2cb45fb0bb4cafba603167c4e9fad2dc",
+    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "9185718f0fd7fced57a311eebb95de1c2032bd0b19f082a55133852b4a3cbc12"
+  },
+  "mode": "qualified_exact_semantic_v1",
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "package_id": "rlc-27b-recovery-05346acd618d1c925f16",
+  "promotion_mode": "active",
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "0d893b98ba7089708ea474be9364855326d077c724684b219560a175d86eb385",
+    "tag": "cp954-27b-resident"
+  },
+  "runtime_qualification": {
+    "candidate_activation_sha256": "a420bef1a3d65e9e7302143981322efa7a04fd41c9a6c6b1504704b7453fcd72",
+    "exact_count": 120,
+    "foreground_integration_count": 120,
+    "lesion_disruption_count": 120,
+    "max_latency_ms": 38.696,
+    "measured_backend_receipt_equivalence_count": 120,
+    "path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/runtime_verification.json",
+    "service_integration_count": 120,
+    "sha256": "5ac0ac63e8b26741401b6b7c4421e2e7cde050465f0d1270f0616ef3a1fbd6cd",
+    "task_count": 120,
+    "unsupported_language_refused": true,
+    "verification_receipt_sha256": "76517296416c5a60fb47336db7e75559b3b6989ee6e71cbefc3f30047b57b90c"
+  },
+  "schema": "aura.semantic_neural_serving.v2",
+  "source_sha256s": {
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json": "00c9d18cb25f7687eecac7389236d0a40e8ff798b428c7497242638591ec1769",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7",
+    "core/brain/llm/latent_cortex/frontier_tasks.py": "bef80d1a49ce9d062544dbf29a89d11f018751a85658e1d4ce44b0d7c1020780",
+    "core/brain/llm/latent_cortex/persistence.py": "eab0a16f2fc0791835ef81f1a167bb672e1c5d174eb4c3d2b9fcd8f1b4fe9b0c",
+    "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
+    "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/brain/llm/qualified_recurrent_ingress.py": "b6dfef8006e12f90ae9462ad56bab0ee8a655e86fffa0ed6e3c4c15995596b2b",
+    "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
+    "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
+    "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
+    "core/learning/recurrent_state_schema.py": "56101d04275a76bc4106b7c7d2365e60d777abc759e8734218885830b7a2b79d",
+    "core/learning/semantic_neural_controls.py": "890305b703704de20d004f69cd2bd9a87cea29c3975c00bab3de5a90e8b3b689",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "core/learning/semantic_neural_runtime_machine.py": "8235ab2409a28437bfe5627964d7356e2ca2487cbd2ce3884069d606760ea441"
+  }
+}

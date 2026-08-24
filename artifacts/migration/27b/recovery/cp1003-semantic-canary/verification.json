@@ -1,0 +1,66 @@
+{
+  "artifact_receipt_sha256": "59c45d53eeac638905b2eae020355688a4fad612cdc19fd159350562ec98d8c7",
+  "artifact_sha256": "732e900b1daf7a55e6a8601c8a7e0c07d9534614f862eea0b4972b474f3bc7df",
+  "claim_boundary": "bounded teacher-free less-constrained scientific surface transfer and multi-domain neural-state-to-free-decode transfer on the resident model bound by model_identity and resident_manifest_identity; not open-domain, broad reasoning, fusion, frontier performance, or WOW",
+  "coefficient_lesion_contract_verified": true,
+  "difficulties": [
+    1,
+    2,
+    3
+  ],
+  "domains": [
+    "coding",
+    "calibration",
+    "misleading_premise",
+    "scientific_inference"
+  ],
+  "gain_count": 60,
+  "independent_exact_by_arm": {
+    "coefficient_lesion": 4,
+    "matched_wire_base": 6,
+    "matched_wrong_state": 0,
+    "ordinary_base": 0,
+    "treatment": 60
+  },
+  "independent_parsed_by_arm": {
+    "coefficient_lesion": 60,
+    "matched_wire_base": 60,
+    "matched_wrong_state": 60,
+    "ordinary_base": 0,
+    "treatment": 60
+  },
+  "journal_decode_count": 300,
+  "journal_event_count": 302,
+  "journal_final_receipt_sha256": "efca8d90abdd41ce2755bc991f22249e63b1b96a56a0b603e30c5387c919e5aa",
+  "journal_sha256": "7ed1c81bc21535bd7363338d088d034098191b3b2fbc94f389fd93ab66073a00",
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "paired_discordant_count": 60,
+  "paired_one_sided_exact_p": 8.673617379884035e-19,
+  "producer_claim_boundary": "bounded teacher-free less-constrained scientific surface transfer and multi-domain neural-state-to-free-decode transfer on the resident model bound by model_identity and resident_manifest_identity; not open-domain, broad reasoning, fusion, frontier performance, or WOW",
+  "producer_claim_boundary_legacy": false,
+  "raw_output_count": 300,
+  "regression_count": 0,
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "0d893b98ba7089708ea474be9364855326d077c724684b219560a175d86eb385",
+    "tag": "cp954-27b-resident"
+  },
+  "schema": "aura.rlc.semantic_neural_decode_verification.v1",
+  "seed": 2026082471,
+  "source_commit": "a87eb5504de48f8c6bb856b81df249c5732356bf",
+  "surface_profile": "mixed_multidomain_v1",
+  "task_count": 60,
+  "tasks_per_difficulty": 5,
+  "treatment_state_replay_count": 60,
+  "verification_receipt_sha256": "0fa1261ac6a92e993526705e04a004219e8361dcdcd440f9bb855511bd35b739",
+  "verified": true,
+  "verifier_source_sha256": "52e32332f5b1acc3e6de7992ba9720dc7bf3ccf16e109880ea0db88e1b6dd515"
+}
