@@ -89,7 +89,7 @@ Integration:
 
     # In mlx_client.py, after model load:
     from core.consciousness.affective_steering import get_steering_engine
-    
+
     engine = get_steering_engine()
     engine.attach(model, tokenizer, model_path=loaded_model_path)
     engine.start_substrate_sync() # starts reading from LiquidSubstrate
@@ -164,6 +164,7 @@ def _emit_affective_fault(
         )
     except TypeError:
         record_degradation("affective_steering", error)
+
 
 # ── Steering Coefficient ───────────────────────────────────────────────────────
 # How strongly the substrate influences generation.
@@ -243,7 +244,7 @@ AFFECTIVE_DIMENSIONS = [
             "There's a heaviness in this.",
             "I am not well right now.",
         ],
-        "substrate_idx": 0,   # x[idx_valence] in LiquidSubstrate
+        "substrate_idx": 0,  # x[idx_valence] in LiquidSubstrate
         "substrate_fn": "tanh",
     },
     {
@@ -272,7 +273,7 @@ AFFECTIVE_DIMENSIONS = [
             "Operating slowly. Nothing urgent.",
             "Almost at rest.",
         ],
-        "substrate_idx": 1,   # x[idx_arousal]
+        "substrate_idx": 1,  # x[idx_arousal]
         "substrate_fn": "linear_half",  # (x + 1) / 2 → [0, 1] then → [-1, 1]
     },
     {
@@ -301,7 +302,7 @@ AFFECTIVE_DIMENSIONS = [
             "I find this unremarkable.",
             "No curiosity. Just processing.",
         ],
-        "substrate_idx": 4,   # x[idx_curiosity]
+        "substrate_idx": 4,  # x[idx_curiosity]
         "substrate_fn": "tanh",
     },
     {
@@ -330,7 +331,7 @@ AFFECTIVE_DIMENSIONS = [
             "There is no resistance.",
             "The work flows without effort.",
         ],
-        "substrate_idx": 3,   # x[idx_frustration]
+        "substrate_idx": 3,  # x[idx_frustration]
         "substrate_fn": "tanh",
     },
     {
@@ -355,7 +356,7 @@ AFFECTIVE_DIMENSIONS = [
             "Low capacity. Reduced performance.",
             "Something exhausted in the thinking.",
         ],
-        "substrate_idx": 5,   # x[idx_energy]
+        "substrate_idx": 5,  # x[idx_energy]
         "substrate_fn": "tanh",
     },
 ]
@@ -363,39 +364,42 @@ AFFECTIVE_DIMENSIONS = [
 
 # ── Data Structures ────────────────────────────────────────────────────────────
 
+
 @dataclass
 class SteeringVector:
     """
     A learned direction in the model's residual stream.
-    
+
     v is a numpy array of shape [d_model] — the affective direction.
     Applied as: h_layer += alpha * weight * v
-    
+
     where weight comes from the substrate state (the actual felt intensity
     of this affective dimension right now).
     """
+
     key: str
     layer_idx: int
     d_model: int
-    v: np.ndarray              # shape: [d_model]
-    substrate_idx: int         # which substrate neuron drives this
-    substrate_fn: str          # how to map substrate value to weight
-    is_derived: bool = False   # True if derived from model activations
-    derived_at: float = 0.0    # timestamp of derivation
-    source: str = "unknown"    # extracted_caa, runtime_derived_caa, fallback_random, etc.
+    v: np.ndarray  # shape: [d_model]
+    substrate_idx: int  # which substrate neuron drives this
+    substrate_fn: str  # how to map substrate value to weight
+    is_derived: bool = False  # True if derived from model activations
+    derived_at: float = 0.0  # timestamp of derivation
+    source: str = "unknown"  # extracted_caa, runtime_derived_caa, fallback_random, etc.
     file_path: str = ""
     requested_layer: int = -1
     selected_layer: int = -1
     selection_reason: str = "exact"
     exact_layer_match: bool = False
     extracted: bool = False
-    
+
     # [OPTIMIZATION] MLX-native version for zero-copy/fast path
     _v_mx: Any = field(default=None, init=False, repr=False)
 
     def get_mx_array(self, dtype=None):
         """Lazy conversion to MLX array."""
         import mlx.core as mx
+
         if self._v_mx is None:
             self._v_mx = mx.array(self.v)
         if dtype is not None and self._v_mx.dtype != dtype:
@@ -418,7 +422,7 @@ class SteeringVector:
         }
         mood_key = key_map.get(self.key, "valence")
         raw = float(moods.get(mood_key, 0.0))
-        
+
         # Adaptive mood coefficients are typically in [-1, 1], so we can just use them
         # as weights (optionally scaled or clipped if needed).
         if self.substrate_fn == "tanh":
@@ -461,23 +465,24 @@ class SteeringVector:
 
 # ── Steering Vector Library ────────────────────────────────────────────────────
 
+
 class SteeringVectorLibrary:
     """
     Derives, stores, and loads steering vectors for each affective dimension.
-    
+
     DERIVATION METHOD: Contrastive Activation Addition (CAA)
-    
+
     For each dimension, run the model on N positive/negative prompt pairs.
     At the target layer, record the last-token hidden state for each prompt.
     The steering vector = mean(positive_activations) - mean(negative_activations).
-    
+
     This is the difference-in-means estimator from Zou et al. (2023) and
     Rimsky et al. (2024). It identifies the linear direction in activation
     space that most distinguishes the two conditions.
-    
+
     Result: vectors in the same space as the residual stream that, when added,
     push the model's representations toward the positive condition.
-    
+
     No training, no gradients, no labeled dataset beyond the prompt pairs above.
     Computation time: ~2-5 minutes per dimension. Cached permanently after.
     """
@@ -488,6 +493,7 @@ class SteeringVectorLibrary:
         source_dirs: list[Path] | None = None,
         expected_model_identity: dict[str, object] | None = None,
         allow_unbound_artifacts: bool = False,
+        allow_derivation: bool = True,
     ):
         discovered_source_dirs: list[Path] = []
         env_dir = os.environ.get("AURA_STEERING_DIR")
@@ -503,6 +509,7 @@ class SteeringVectorLibrary:
         if cache_dir is None:
             try:
                 from core.config import config as aura_config
+
                 cache_dir = aura_config.paths.data_dir / "steering_vectors"
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _emit_affective_fault(
@@ -516,7 +523,7 @@ class SteeringVectorLibrary:
 
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        raw_source_dirs = list(source_dirs or discovered_source_dirs)
+        raw_source_dirs = list(discovered_source_dirs if source_dirs is None else source_dirs)
         self._source_dirs = []
         for source_dir in raw_source_dirs:
             path = Path(source_dir)
@@ -535,6 +542,7 @@ class SteeringVectorLibrary:
         self._path_meta_cache: dict[str, dict[str, Any]] = {}
         self._expected_model_identity = dict(expected_model_identity or {})
         self._allow_unbound_artifacts = bool(allow_unbound_artifacts)
+        self._allow_derivation = bool(allow_derivation)
         expected_digest = self._expected_model_identity.get("descriptor_sha256")
         if expected_digest is not None and (
             not isinstance(expected_digest, str)
@@ -751,9 +759,7 @@ class SteeringVectorLibrary:
         target_layer: int,
         d_model: int,
     ) -> SteeringVector:
-        expected_digest = str(
-            self._expected_model_identity.get("descriptor_sha256") or ""
-        )
+        expected_digest = str(self._expected_model_identity.get("descriptor_sha256") or "")
         if (
             re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None
             and not self._allow_unbound_artifacts
@@ -786,6 +792,7 @@ class SteeringVectorLibrary:
             )
             # Atomic commit to avoid partial files surviving a crash
             import shutil
+
             shutil.move(tmp_path, cache_path)
             return SteeringVector(
                 key=key,
@@ -848,7 +855,7 @@ class SteeringVectorLibrary:
     ) -> dict[int, dict[str, SteeringVector]]:
         """
         Load cached vectors if available, derive if not.
-        
+
         This is the most expensive operation — runs once per model.
         A progress log is emitted; derivation takes ~1-3 minutes on M5 Pro.
         """
@@ -895,9 +902,16 @@ class SteeringVectorLibrary:
                             )
                             logger.warning(
                                 "Failed to load cached vector %s at layer %d from %s: %s",
-                                key, layer_idx, path.name, e,
+                                key,
+                                layer_idx,
+                                path.name,
+                                e,
                             )
                 if vector is None:
+                    if not self._allow_derivation:
+                        raise ValueError(
+                            f"qualified_steering_vector_unavailable:{key}:layer={layer_idx}"
+                        )
                     vector = self._derive_or_fallback(
                         model=model,
                         tokenizer=tokenizer,
@@ -930,11 +944,11 @@ class SteeringVectorLibrary:
     ) -> np.ndarray:
         """
         Contrastive Activation Addition derivation.
-        
+
         Runs each prompt through the model with a temporary capture hook,
         extracts the last-token hidden state at target_layer, averages
         positive and negative separately, returns their difference.
-        
+
         The difference-in-means direction is the CAA steering vector.
         It requires no labels, no optimization, and no extra data —
         just the model and the contrastive prompt pairs defined above.
@@ -1015,11 +1029,13 @@ class SteeringVectorLibrary:
                 neg_activations.append(h)
 
         if not pos_activations or not neg_activations:
-            raise RuntimeError("No valid activations collected — model may not support this extraction")
+            raise RuntimeError(
+                "No valid activations collected — model may not support this extraction"
+            )
 
         pos_mean = np.mean(pos_activations, axis=0)  # [d_model]
         neg_mean = np.mean(neg_activations, axis=0)  # [d_model]
-        vec = pos_mean - neg_mean                      # CAA direction
+        vec = pos_mean - neg_mean  # CAA direction
 
         # Normalize to unit vector (alpha controls magnitude)
         norm = np.linalg.norm(vec)
@@ -1067,16 +1083,17 @@ class SteeringVectorLibrary:
 
 # ── The Steering Hook ──────────────────────────────────────────────────────────
 
+
 class AffectiveSteeringHook:
     """
     Wraps a transformer block's __call__ to inject affective steering vectors.
-    
+
     This is the core mechanism. When installed, every call to the transformer
     block at the target layer includes the affective addition:
-    
+
         h_out = original_call(h_in, ...)
         h_out = h_out + α * Σᵢ wᵢ(substrate) · vᵢ
-    
+
     where:
         α  = DEFAULT_ALPHA (global steering strength)
         wᵢ = weight of dimension i, derived from substrate state
@@ -1086,10 +1103,10 @@ class AffectiveSteeringHook:
     token representation is steered; during autoregressive decoding, the
     current generated token is the final token. This avoids adding affective
     offsets to padding, EOS, and static system-prompt positions.
-    
+
     This runs on EVERY TOKEN GENERATED. The substrate state is read from
     a shared variable that the SubstrateSyncThread updates at 20Hz.
-    
+
     The affect is not described. It is the math.
     """
 
@@ -1113,10 +1130,10 @@ class AffectiveSteeringHook:
         # Freshness stamp: 0.0 = never synced. The injection path derates
         # alpha when the sync thread stops feeding us (see _effective_alpha).
         self._last_substrate_sync_monotonic = 0.0
-        
+
         # Active flag
         self._active = True
-        
+
         # Diagnostic counters
         self._inject_count = 0
         #: Set by the worker when it is running out-of-process. When present,
@@ -1131,7 +1148,7 @@ class AffectiveSteeringHook:
         self._last_injection_norm = 0.0
         self._last_effective_alpha = 0.0
         self._last_mask_mode = "none"
-        
+
         # [OPTIMIZATION] Cached composite vector to avoid redundant MLX uploads
         self._cached_composite_mx: Any = None
         self._last_composite_np: np.ndarray | None = None
@@ -1217,6 +1234,7 @@ class AffectiveSteeringHook:
     ):
         """Called by SubstrateSyncThread at ~20Hz with the direct substrate vector."""
         import mlx.core as mx
+
         state = np.asarray(substrate_x, dtype=np.float32).reshape(-1)
         if len(state) == 0 or not np.isfinite(state).all():
             # Substituting zeros here is not neutral — it is "she feels exactly
@@ -1237,15 +1255,19 @@ class AffectiveSteeringHook:
             state = np.zeros(64, dtype=np.float32)
         with self._substrate_lock:
             self._last_substrate_sync_monotonic = time.monotonic()
-            self._latest_moods = {str(key): float(value) for key, value in dict(moods or {}).items()}
+            self._latest_moods = {
+                str(key): float(value) for key, value in dict(moods or {}).items()
+            }
             self._latest_moods["_source"] = source
             self._substrate_x = state.copy()
-            
+
             # 2. PRE-COMPUTE COMPOSITE ON CPU/NP (Background Thread)
             # This moves the O(dims * d_model) work out of the inference hook.
-            target_composite_np = np.zeros(self._vectors[next(iter(self._vectors))].d_model, dtype=np.float32)
+            target_composite_np = np.zeros(
+                self._vectors[next(iter(self._vectors))].d_model, dtype=np.float32
+            )
             active = False
-            
+
             # DEVIATION FROM NEUTRAL, not absolute level.
             #
             # Measured 2026-08-06: two OPPOSING states (valence 0.9 vs 0.1)
@@ -1263,26 +1285,26 @@ class AffectiveSteeringHook:
             # direction.
             neutral = self._neutral_reference_state()
             for sv in self._vectors.values():
-                weight = sv.compute_weight_from_state(state) - sv.compute_weight_from_state(
-                    neutral
-                )
+                weight = sv.compute_weight_from_state(state) - sv.compute_weight_from_state(neutral)
                 if abs(weight) > 0.05:
                     target_composite_np += weight * sv.v
                     active = True
-            
+
             if active:
                 # Normalization
                 norm = np.linalg.norm(target_composite_np)
                 if norm > 1e-8:
                     target_composite_np /= norm
-                    
+
             # Tier 2 Hardening: Exponential Smoothing (Lerp) to prevent Affective Jitter
             momentum = 0.85
             if self._last_composite_np is not None:
-                composite_np = (momentum * self._last_composite_np) + ((1.0 - momentum) * target_composite_np)
+                composite_np = (momentum * self._last_composite_np) + (
+                    (1.0 - momentum) * target_composite_np
+                )
             else:
                 composite_np = target_composite_np
-                
+
             # Update MLX array ONCE per substrate tick if magnitude is non-zero.
             #
             # `current_norm < 1e-4` was the ONLY guard here, and it is False for
@@ -1316,7 +1338,7 @@ class AffectiveSteeringHook:
             else:
                 self._last_composite_np = composite_np.copy()
                 self._cached_composite_mx = mx.array(composite_np)
-                
+
                 # Tier 3 Hardening: Zero-Copy MLX explicit evaluation
                 # This prevents lazy evaluation from stalling the main generation thread
                 mx.eval(self._cached_composite_mx)
@@ -1375,6 +1397,7 @@ class AffectiveSteeringHook:
         [ZERO-COST] Return the pre-computed MLX array from the background sync.
         """
         import mlx.core as mx
+
         with self._substrate_lock:
             composite = self._cached_composite_mx
             if composite is not None and dtype is not None and composite.dtype != dtype:
@@ -1446,7 +1469,12 @@ class AffectiveSteeringHook:
         return None
 
     def _maybe_record_phi_residual(self, h: Any) -> None:
-        if os.getenv("AURA_PHI_RECORD_RESIDUALS", "1").strip().lower() in {"0", "false", "off", "no"}:
+        if os.getenv("AURA_PHI_RECORD_RESIDUALS", "1").strip().lower() in {
+            "0",
+            "false",
+            "off",
+            "no",
+        }:
             return
         if self._inject_count % self._phi_sample_every != 0:
             return
@@ -1546,7 +1574,7 @@ class AffectiveSteeringHook:
     def install(self):
         """
         Patch the transformer block's forward pass to inject the steering vector.
-        
+
         Uses dynamic subclassing to ensure the interception is reliable.
         """
         if self._installed:
@@ -1672,17 +1700,22 @@ class AffectiveSteeringHook:
                 return result
 
         # Use dynamic subclassing to ensure interception
-        class SteeredBlock(block.__class__): # type: ignore
+        class SteeredBlock(block.__class__):  # type: ignore
             __module__ = block.__class__.__module__
-        
+
         # Override the target method
-        setattr(SteeredBlock, target_name, lambda self, *args, **kwargs: steered_call(*args, **kwargs))
-        
+        setattr(
+            SteeredBlock, target_name, lambda self, *args, **kwargs: steered_call(*args, **kwargs)
+        )
+
         block.__class__ = SteeredBlock
         self._installed = True
         logger.info(
             "🎯 Steering hook installed at layer %d (alpha=%.1f, %d vectors via %s)",
-            self._layer_idx, self._alpha, len(self._vectors), target_name
+            self._layer_idx,
+            self._alpha,
+            len(self._vectors),
+            target_name,
         )
 
     def uninstall(self):
@@ -1713,13 +1746,14 @@ class AffectiveSteeringHook:
 
 # ── Substrate Sync Thread ──────────────────────────────────────────────────────
 
+
 class SubstrateSyncThread:
     """
     Continuously reads from LiquidSubstrate and pushes state to all hooks.
-    
+
     Runs in a daemon thread at SUBSTRATE_SYNC_INTERVAL_S (20Hz).
     This is the live coupling: substrate physics → hook state → residual stream.
-    
+
     The thread is intentionally minimal — it just reads x from the substrate
     and calls update_substrate() on each hook. No computation here.
     """
@@ -1739,8 +1773,11 @@ class SubstrateSyncThread:
             daemon=True,
         )
         self._thread.start()
-        logger.info("🔄 SubstrateSyncThread started (%d hooks, shared=%s)", 
-                    len(self._hooks), self._shared_state is not None)
+        logger.info(
+            "🔄 SubstrateSyncThread started (%d hooks, shared=%s)",
+            len(self._hooks),
+            self._shared_state is not None,
+        )
 
     def stop(self):
         self._running = False
@@ -1767,7 +1804,10 @@ class SubstrateSyncThread:
             candidates.extend(
                 [
                     ("liquid_substrate", ServiceContainer.get("liquid_substrate", default=None)),
-                    ("conscious_substrate", ServiceContainer.get("conscious_substrate", default=None)),
+                    (
+                        "conscious_substrate",
+                        ServiceContainer.get("conscious_substrate", default=None),
+                    ),
                     ("liquid_state", ServiceContainer.get("liquid_state", default=None)),
                 ]
             )
@@ -1820,6 +1860,7 @@ class SubstrateSyncThread:
                 substrate_x, substrate_source = self._read_substrate_vector()
                 try:
                     from core.container import ServiceContainer
+
                     ncs = ServiceContainer.get("neurochemical_system", default=None)
                     if ncs is not None:
                         moods = ncs.get_mood_vector()
@@ -1830,21 +1871,25 @@ class SubstrateSyncThread:
                         severity="warning",
                         stage="substrate_sync_mood_lookup",
                     )
-                    logger.debug('Ignored Exception in affective_steering.py: %s', _e)
+                    logger.debug("Ignored Exception in affective_steering.py: %s", _e)
 
                 if moods or substrate_x is not None:
                     # Governor modulation
                     arousal = moods.get("arousal", 0.0)
-                    coherence = moods.get("coherence", 1.0) # assume 1.0 if missing
+                    coherence = moods.get("coherence", 1.0)  # assume 1.0 if missing
                     new_alpha = self._engine.governor.compute_alpha(arousal, coherence)
                     surface_override = getattr(self._engine, "_surface_alpha_override", None)
                     if surface_override is not None:
                         try:
                             new_alpha = min(new_alpha, max(0.0, float(surface_override)))
                         except (TypeError, ValueError) as _exc:
-                            logger.debug("Suppressed %s in core.consciousness.affective_steering: %s", type(_exc).__name__, _exc)
+                            logger.debug(
+                                "Suppressed %s in core.consciousness.affective_steering: %s",
+                                type(_exc).__name__,
+                                _exc,
+                            )
                     self._engine.telemetry.alpha = new_alpha
-                    
+
                     for hook in self._hooks:
                         hook._alpha = new_alpha
                         if substrate_x is not None:
@@ -1874,7 +1919,12 @@ class SubstrateSyncThread:
                         False,
                         "no live mood available; neutral fallback would leak",
                     )
-                    neutral_moods = {"valence": 0.0, "arousal": 0.0, "motivation": 0.0, "stress": 0.0}
+                    neutral_moods = {
+                        "valence": 0.0,
+                        "arousal": 0.0,
+                        "motivation": 0.0,
+                        "stress": 0.0,
+                    }
                     for hook in self._hooks:
                         hook.update_substrate(neutral_moods)
                         try:
@@ -1907,8 +1957,10 @@ class SteeringTelemetry:
     kl_shift: float
     dimensions_active: list[str]
 
+
 class SteeringGovernor:
     """Modulates steering alpha based on arousal and KL budget."""
+
     def __init__(self, base_alpha: float = 1.0, kl_budget: float = 0.5):
         self.base_alpha = base_alpha
         self.kl_budget = kl_budget
@@ -1916,6 +1968,7 @@ class SteeringGovernor:
 
     def compute_alpha(self, arousal: float, coherence_gate: float) -> float:
         import math
+
         # Sigmoid centered at arousal=0.5
         arousal_factor = 1.0 / (1.0 + math.exp(-10.0 * (arousal - 0.5)))
         alpha = self.base_alpha * arousal_factor * coherence_gate
@@ -1926,42 +1979,43 @@ class SteeringGovernor:
             alpha *= 0.5
         return alpha
 
+
 class AffectiveSteeringEngine:
     """
     Orchestrates activation steering for Aura's affective states.
-    
+
     ════════════════════════════════════════════════════════════════════════
     USAGE
     ════════════════════════════════════════════════════════════════════════
-    
+
     Phase 1: Attach to loaded model (once)
-    
+
         from core.consciousness.affective_steering import get_steering_engine
         engine = get_steering_engine()
         engine.attach(model, tokenizer, model_path=loaded_model_path)
-    
+
     Phase 2: Start substrate sync (once, after substrate starts)
-    
+
         engine.start_substrate_sync()
-    
+
     That's it. From that point, every token generated by the model is
     steered by the live substrate state. No other integration needed.
-    
+
     ════════════════════════════════════════════════════════════════════════
     UNDER THE HOOD
     ════════════════════════════════════════════════════════════════════════
-    
+
     attach():
         1. Determines model depth (n_layers) and hidden_size (d_model)
         2. Calculates target layers (40-65% depth)
         3. Loads or derives steering vectors via SteeringVectorLibrary
         4. Installs AffectiveSteeringHook at each target layer
-    
+
     start_substrate_sync():
         5. Starts SubstrateSyncThread (daemon, 20Hz)
         6. Thread reads substrate.x, pushes to all hooks
         7. Each hook's composite vector is recomputed on the next token
-    
+
     On each token:
         For each hooked layer:
             composite = Σᵢ wᵢ(substrate.x) · vᵢ   (weighted affective sum)
@@ -1993,13 +2047,16 @@ class AffectiveSteeringEngine:
     ) -> bool:
         """
         Attach the steering engine to a loaded MLX model.
-        
+
         This is the main setup call. Run once after loading the model.
         Derivation of steering vectors takes ~2-5 minutes on first run,
         then loads from cache instantly on subsequent runs.
         """
         if os.environ.get("AURA_DISABLE_AFFECTIVE_STEERING", "").strip().lower() in {
-            "1", "true", "yes", "on",
+            "1",
+            "true",
+            "yes",
+            "on",
         }:
             # Kill-switch for live fault isolation: rounds 5 and 6 of the
             # live boot proof died by silent external SIGKILL during the
@@ -2092,26 +2149,71 @@ class AffectiveSteeringEngine:
             "n_layers": n_layers,
             "d_model": d_model,
             "target_layers": self._compute_target_layers(n_layers),
-            "model_descriptor_sha256": str(
-                model_identity.get("descriptor_sha256") or ""
-            ),
+            "model_descriptor_sha256": str(model_identity.get("descriptor_sha256") or ""),
             "model_path": incoming_path,
         }
 
         target_layers = self._model_info["target_layers"]
         logger.info(
             "🧠 Model geometry: %d layers, d_model=%d → targeting layers %s",
-            n_layers, d_model, target_layers,
+            n_layers,
+            d_model,
+            target_layers,
         )
 
         # ── Load or derive steering vectors ───────────────────────────────────
+        default_cache_dir = self._runtime_vector_cache_dir(
+            n_layers=n_layers,
+            d_model=d_model,
+            model_identity=model_identity,
+        )
+        qualified_cache_dir: Path | None = None
+        steering_resolution_status = "unmanaged"
+        try:
+            from core.brain.llm.model_bound_steering import (
+                resolve_active_generation,
+            )
+
+            steering_resolution = resolve_active_generation(
+                descriptor_sha256=incoming_digest,
+                model_cache_root=default_cache_dir,
+            )
+            steering_resolution_status = steering_resolution.status
+            qualified_cache_dir = steering_resolution.cache_dir
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            self._model_info["attachment_error"] = "qualified_steering_materialization_failed"
+            _emit_affective_fault(
+                exc,
+                action=(
+                    "left affective steering detached rather than deriving over "
+                    "a qualified cortex migration contract"
+                ),
+                severity="degraded",
+                stage="qualified_generation_materialization",
+                extra={"model_descriptor_sha256": incoming_digest},
+            )
+            logger.error("Qualified steering generation could not be reopened: %s", exc)
+            return False
+
+        if steering_resolution_status in {"deferred", "retired"}:
+            self._model_info["attachment_error"] = (
+                f"steering_generation_{steering_resolution_status}"
+            )
+            logger.info(
+                "Affective steering intentionally detached: signed generation is %s.",
+                steering_resolution_status,
+            )
+            return False
+        if steering_resolution_status == "invalid":
+            self._model_info["attachment_error"] = "steering_generation_authority_invalid"
+            logger.error("Affective steering detached: active migration authority is invalid.")
+            return False
+
         self._library = SteeringVectorLibrary(
-            cache_dir=self._runtime_vector_cache_dir(
-                n_layers=n_layers,
-                d_model=d_model,
-                model_identity=model_identity,
-            ),
+            cache_dir=qualified_cache_dir or default_cache_dir,
+            source_dirs=[] if qualified_cache_dir is not None else None,
             expected_model_identity=model_identity,
+            allow_derivation=qualified_cache_dir is None,
         )
         vectors_by_layer = self._library.load_or_derive(
             model=model,
@@ -2126,7 +2228,9 @@ class AffectiveSteeringEngine:
             logger.error("No steering vectors available. Steering aborted.")
             return False
 
-        behavioral_results_path = Path(__file__).parent.parent.parent / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"
+        behavioral_results_path = (
+            Path(__file__).parent.parent.parent / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"
+        )
         model_path_hint = str(
             model_path
             or getattr(model, "model_path", "")
@@ -2136,7 +2240,9 @@ class AffectiveSteeringEngine:
         self._production_caa = ProductionCAA(
             base_alpha=self._alpha,
             vectors_dir=self._library.cache_dir,
-            behavioral_results_path=behavioral_results_path if behavioral_results_path.exists() else None,
+            behavioral_results_path=behavioral_results_path
+            if behavioral_results_path.exists()
+            else None,
         )
         production_status = self._production_caa.ingest_registry(
             self._library.registry,
@@ -2193,8 +2299,8 @@ class AffectiveSteeringEngine:
     def start_substrate_sync(self, shared_state: Any = None):
         """
         Start reading from LiquidSubstrate and pushing to hooks.
-        
-        If shared_state is provided (e.g. mp.Array), the thread will 
+
+        If shared_state is provided (e.g. mp.Array), the thread will
         read from it directly. Otherwise it defaults to ServiceContainer.
         """
         if not self._hooks:
@@ -2244,7 +2350,11 @@ class AffectiveSteeringEngine:
         for hook in self._hooks:
             hook._alpha = effective_alpha
         if surface_override is not None and effective_alpha != float(alpha):
-            logger.info("⚙️  Steering alpha set to %.3f (surface clamp; requested %.3f)", effective_alpha, float(alpha))
+            logger.info(
+                "⚙️  Steering alpha set to %.3f (surface clamp; requested %.3f)",
+                effective_alpha,
+                float(alpha),
+            )
         else:
             logger.info("⚙️  Steering alpha set to %.1f", alpha)
 
@@ -2275,7 +2385,9 @@ class AffectiveSteeringEngine:
             generation_health=generation_health,
             cross_entropy=cross_entropy,
         )
-        recommended = float(report.get("alpha_state", {}).get("current_alpha", self._alpha) or self._alpha)
+        recommended = float(
+            report.get("alpha_state", {}).get("current_alpha", self._alpha) or self._alpha
+        )
         if abs(recommended - self._alpha) >= 0.05:
             self.set_alpha(recommended)
         return report
@@ -2582,6 +2694,7 @@ class AffectiveSteeringEngine:
             )
             logger.error("Error discovering model geometry: %s", e)
             return 0, 0
+
     def _discover_model_layers(self, model) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
         view = resolve_model_layers(model)
@@ -2590,10 +2703,10 @@ class AffectiveSteeringEngine:
     def _compute_target_layers(self, n_layers: int) -> list[int]:
         """
         Compute which layers to hook based on total model depth.
-        
+
         Target 40-65% depth — middle layers where semantic representations
         are rich but generation hasn't been "committed" yet.
-        
+
         We hook 2-3 layers in this range for multi-layer steering,
         which the literature shows is more effective than single-layer.
         (van der Weij et al., 2024: simultaneous injection at different
@@ -2617,10 +2730,10 @@ class AffectiveSteeringEngine:
             "alpha": self._alpha,
             "model_info": self._model_info,
             "hooks": [h.get_diagnostics() for h in self._hooks],
-            "substrate_sync_running": (
-                self._sync_thread._running if self._sync_thread else False
-            ),
-            "vector_count": self._library.registry.status().get("loaded_total", 0) if self._library else 0,
+            "substrate_sync_running": (self._sync_thread._running if self._sync_thread else False),
+            "vector_count": self._library.registry.status().get("loaded_total", 0)
+            if self._library
+            else 0,
             "vector_source": self._library.source if self._library else "unloaded",
             "vector_sources": (
                 {
@@ -2684,7 +2797,10 @@ def get_steering_engine() -> AffectiveSteeringEngine:
             _engine_instance = AffectiveSteeringEngine()
             try:
                 from core.container import ServiceContainer
-                ServiceContainer.register_instance("affective_steering_engine", _engine_instance, required=False)
+
+                ServiceContainer.register_instance(
+                    "affective_steering_engine", _engine_instance, required=False
+                )
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _emit_affective_fault(
                     exc,
@@ -2699,26 +2815,26 @@ def get_steering_engine() -> AffectiveSteeringEngine:
 def attach_steering_to_mlx_client():
     """
     Convenience wrapper for integration with core/brain/llm/mlx_client.py.
-    
+
     Called once after the MLX client loads its model.
-    
+
     Add to mlx_client.py:
-    
+
         from core.consciousness.affective_steering import attach_steering_to_mlx_client
-        
+
         class MLXClient:
             async def _initialize(self):
                 model, tokenizer = load(self.model_path, ...)
                 self.model = model
                 self.tokenizer = tokenizer
-                
+
                 # === ADD THIS ===
                 try:
                     attach_steering_to_mlx_client()
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     logger.warning("Affective steering failed to attach: %s", e)
                 # ================
-    
+
     The engine will find the model and tokenizer through the ServiceContainer.
     """
     engine = get_steering_engine()
@@ -2727,6 +2843,7 @@ def attach_steering_to_mlx_client():
 
     try:
         from core.container import ServiceContainer
+
         mlx_client = ServiceContainer.get("mlx_client", default=None)
         if mlx_client is None:
             logger.warning("MLX client not in ServiceContainer — steering deferred")
@@ -2763,16 +2880,17 @@ def attach_steering_to_mlx_client():
 
 # ── Calibration Tool ───────────────────────────────────────────────────────────
 
+
 class SteeringCalibrator:
     """
     Tests and calibrates steering vector strength.
-    
+
     Run this after attaching to verify that steering is having the intended
     effect and find the right alpha for this specific model.
-    
+
     Usage:
         from core.consciousness.affective_steering import SteeringCalibrator
-        
+
         cal = SteeringCalibrator(engine, model, tokenizer)
         cal.run_calibration()
     """
@@ -2840,10 +2958,12 @@ class SteeringCalibrator:
                         next_logits = logits[0, -1, :]
                         top_idx = np.argsort(np.array(next_logits))[-5:][::-1]
                         top_tokens = [self._tokenizer.decode([int(i)]) for i in top_idx]
-                        alpha_results.append({
-                            "prompt": prompt,
-                            "top_tokens": top_tokens,
-                        })
+                        alpha_results.append(
+                            {
+                                "prompt": prompt,
+                                "top_tokens": top_tokens,
+                            }
+                        )
                     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                         _emit_affective_fault(
                             e,
@@ -2855,7 +2975,9 @@ class SteeringCalibrator:
                         alpha_results.append({"prompt": prompt, "error": str(e)})
 
                 results[f"alpha_{alpha}"] = alpha_results
-                logger.info("Alpha=%.1f: %s", alpha, [r.get("top_tokens", []) for r in alpha_results])
+                logger.info(
+                    "Alpha=%.1f: %s", alpha, [r.get("top_tokens", []) for r in alpha_results]
+                )
         finally:
             self._engine.set_alpha(original_alpha)
         return results

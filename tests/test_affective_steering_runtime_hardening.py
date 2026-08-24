@@ -85,6 +85,31 @@ def test_invalid_cached_vector_is_rejected_before_derivation(tmp_path, monkeypat
     assert ("affective_steering", "RuntimeError") in recorded
 
 
+def test_qualified_store_cannot_derive_unsigned_missing_vectors(tmp_path, monkeypatch):
+    library = SteeringVectorLibrary(
+        cache_dir=tmp_path,
+        source_dirs=[],
+        expected_model_identity={"descriptor_sha256": "a" * 64},
+        allow_derivation=False,
+    )
+    derived: list[str] = []
+    monkeypatch.setattr(
+        library,
+        "_derive_or_fallback",
+        lambda **_kwargs: derived.append("derived"),
+    )
+
+    with pytest.raises(ValueError, match="qualified_steering_vector_unavailable"):
+        library.load_or_derive(
+            model=object(),
+            tokenizer=object(),
+            target_layers=[1],
+            d_model=8,
+        )
+
+    assert derived == []
+
+
 def test_vector_registry_reports_disabled_neutral_vectors():
     registry = VectorRegistry()
     registry.register(

@@ -6219,6 +6219,18 @@ def _report_qualified_recurrent_serving_status(status: dict[str, Any]) -> None:
     if reason == "semantic_neural_serving_disabled":
         logger.info("Qualified semantic-neural serving disabled by explicit kill switch")
         return
+    if (
+        status.get("lifecycle") == "deferred"
+        and reason == "semantic_neural_model_basis_migration_deferred"
+    ):
+        logger.info(
+            "Qualified semantic-neural serving DEFERRED for active cortex basis: "
+            "descriptor=%s authority=%s historical_activation_preserved=%s",
+            status.get("model_descriptor_sha256") or "unknown",
+            status.get("authority_sha256") or "unknown",
+            status.get("historical_activation_preserved") is True,
+        )
+        return
     record_degradation(
         "latent_cortex.qualified_recurrent_serving",
         RuntimeError(reason),

@@ -766,6 +766,8 @@ def validate_upgrade_evaluation(
 def _validate_migration_contract(
     contract: dict[str, object],
     descriptor: dict[str, object],
+    *,
+    authority_key_path: Path | None = None,
 ) -> dict[str, object]:
     descriptor_sha256 = str(descriptor.get("descriptor_sha256") or "")
     if not isinstance(contract, dict):
@@ -798,6 +800,7 @@ def _validate_migration_contract(
             raw,
             component=name,
             descriptor_sha256=descriptor_sha256,
+            authority_key_path=authority_key_path,
         )
     return contract
 
@@ -805,9 +808,15 @@ def _validate_migration_contract(
 def validate_migration_contract(
     contract: dict[str, object],
     descriptor: dict[str, object],
+    *,
+    authority_key_path: Path | None = None,
 ) -> dict[str, object]:
     """Public exact-basis validator used by the central cortex registry."""
-    return _validate_migration_contract(contract, descriptor)
+    return _validate_migration_contract(
+        contract,
+        descriptor,
+        authority_key_path=authority_key_path,
+    )
 
 
 def _read_pointer(path: Path) -> dict[str, Any]:

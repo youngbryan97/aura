@@ -46,6 +46,7 @@ from core.brain.llm.semantic_neural_serving import (
     INTEGRATION_SOURCE_CONTRACTS,
     _integration_contract_hashes,
     semantic_neural_activation_errors,
+    semantic_neural_default_serving_status,
     semantic_neural_serving_status,
 )
 
@@ -78,13 +79,28 @@ def _drifted() -> list[str]:
 # ── the alarm ────────────────────────────────────────────────────────────────
 
 def test_the_proven_surface_is_actually_serving() -> None:
-    """The gate. A capability proven at p=5.7e-14 should be running."""
-    status = semantic_neural_serving_status(str(_cortex_path()))
+    """The gate: serve on its basis or carry signed migration quarantine."""
+    # This is deliberately a live installation alarm. Pytest redirects Aura's
+    # mutable state root, so name the owner-private production verification key
+    # explicitly instead of weakening the signature check or copying the key.
+    authority_key = Path.home() / ".aura/private/cortex-upgrade/migration-authority.key"
+    status = semantic_neural_default_serving_status(
+        authority_key_path=authority_key,
+    )
 
-    assert status.get("active") is True, (
-        f"bounded-WOW surface is NOT serving: {status.get('reason')}. "
+    accountable = status.get("active") is True or (
+        status.get("lifecycle") == "deferred"
+        and status.get("reason") == "semantic_neural_model_basis_migration_deferred"
+        and status.get("serving_authorized") is False
+        and status.get("historical_activation_preserved") is True
+        and bool(status.get("authority_sha256"))
+    )
+    assert accountable, (
+        f"bounded-WOW surface has no valid serving/migration disposition: "
+        f"{status.get('reason')}. "
         f"Drifted bound files: {_drifted() or 'none'}. "
-        "Restore them or re-run the qualification; do not re-seal to go green."
+        "Restore it, present signed migration quarantine, or re-run qualification; "
+        "do not re-seal to go green."
     )
 
 

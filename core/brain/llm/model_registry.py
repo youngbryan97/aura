@@ -333,7 +333,11 @@ def _validate_identity_transition(
     return previous_sha256, transition_sha256, True
 
 
-def _read_active_cortex_spec(manifest: Path | None = None) -> ActiveCortexSpec | None:
+def _read_active_cortex_spec(
+    manifest: Path | None = None,
+    *,
+    authority_key_path: Path | None = None,
+) -> ActiveCortexSpec | None:
     manifest = manifest or (get_fused_model_root() / "active.json")
     try:
         raw = manifest.read_bytes()
@@ -408,7 +412,11 @@ def _read_active_cortex_spec(manifest: Path | None = None) -> ActiveCortexSpec |
             )
 
             validate_model_serving_profile(serving, descriptor)
-            validate_migration_contract(migration, descriptor)
+            validate_migration_contract(
+                migration,
+                descriptor,
+                authority_key_path=authority_key_path,
+            )
             validate_upgrade_evaluation(
                 evaluation,
                 descriptor_sha256=descriptor_sha256,
@@ -467,10 +475,22 @@ def _active_cortex_manifest_signature(manifest: Path) -> tuple[int, int, int, in
     return (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size)
 
 
-def get_active_cortex_spec(*, force_refresh: bool = False) -> ActiveCortexSpec | None:
+def get_active_cortex_spec(
+    *,
+    force_refresh: bool = False,
+    authority_key_path: Path | None = None,
+) -> ActiveCortexSpec | None:
     """Return the single validated active-cortex authority object."""
     global _active_cortex_spec_cache
     manifest = get_fused_model_root() / "active.json"
+    if authority_key_path is not None:
+        # Explicit custody injection is used by read-only installation alarms
+        # whose pytest process owns an isolated state root. Never cache that
+        # result into the production default-key lane.
+        return _read_active_cortex_spec(
+            manifest,
+            authority_key_path=authority_key_path,
+        )
     signature = _active_cortex_manifest_signature(manifest)
     now = time.monotonic()
     cached = _active_cortex_spec_cache

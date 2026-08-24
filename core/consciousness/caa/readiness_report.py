@@ -12,6 +12,7 @@ level, estimates the resulting steering capacity, and warns loudly when steering
 running below design capacity. "Are the Zenith vectors registered?" becomes a queryable,
 surfaced fact instead of a guess.
 """
+
 from __future__ import annotations
 
 import json
@@ -100,13 +101,17 @@ def _vector_provenance(npz: Path, dimension: Any, layer: Any) -> dict[str, Any] 
         source = str(d["source"]) if "source" in d else "unknown"
         is_extracted = bool(d["extracted"]) if "extracted" in d else False
         derived_at = float(d["derived_at"]) if "derived_at" in d else 0.0
-        vector_dim = int(np.asarray(d["v"] if "v" in d else d[d.files[0]]).reshape(-1).shape[0]) if d.files else 0
-        recorded_model_path = str(d["model_path"]) if "model_path" in d else str(d["model"]) if "model" in d else None
+        vector_dim = (
+            int(np.asarray(d["v"] if "v" in d else d[d.files[0]]).reshape(-1).shape[0])
+            if d.files
+            else 0
+        )
+        recorded_model_path = (
+            str(d["model_path"]) if "model_path" in d else str(d["model"]) if "model" in d else None
+        )
         model_config_sha256 = str(d["model_config_sha256"]) if "model_config_sha256" in d else None
         model_descriptor_sha256 = (
-            str(d["model_descriptor_sha256"])
-            if "model_descriptor_sha256" in d
-            else None
+            str(d["model_descriptor_sha256"]) if "model_descriptor_sha256" in d else None
         )
     except (OSError, ValueError, KeyError) as exc:
         record_degradation("caa_readiness_report", exc)
@@ -183,6 +188,8 @@ def _active_model(fused_model_dir: Path) -> dict[str, Any]:
         "artifact_profile": None,
         "identity_valid": False,
         "identity_error": "active_model_pointer_unavailable",
+        "steering_authority_status": "unmanaged",
+        "steering_authority_kind": "",
     }
     try:
         aj = fused_model_dir / "active.json"
@@ -190,6 +197,15 @@ def _active_model(fused_model_dir: Path) -> dict[str, Any]:
             data = json.loads(aj.read_text(encoding="utf-8"))
             model_path = str(data.get("active_model_path") or "")
             descriptor = data.get("artifact_descriptor")
+            migration = data.get("migration_contract")
+            components = migration.get("components") if isinstance(migration, dict) else None
+            steering = components.get("steering") if isinstance(components, dict) else None
+            steering_status = (
+                str(steering.get("status") or "") if isinstance(steering, dict) else "unmanaged"
+            )
+            steering_kind = (
+                str(steering.get("authority_kind") or "") if isinstance(steering, dict) else ""
+            )
             if not model_path or not isinstance(descriptor, dict):
                 return {
                     **unavailable,
@@ -213,6 +229,8 @@ def _active_model(fused_model_dir: Path) -> dict[str, Any]:
                 "artifact_profile": validated["artifact_profile"],
                 "identity_valid": True,
                 "identity_error": "",
+                "steering_authority_status": steering_status,
+                "steering_authority_kind": steering_kind,
             }
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
         record_degradation("caa_readiness_report", exc)
@@ -255,14 +273,10 @@ def verify_readiness(
         if item.get("extracted") and str(item.get("source", "")).startswith("extracted")
     ]
     expected_extracted_active = [
-        item
-        for item in expected_extracted
-        if _matches_active_model(item, active)
+        item for item in expected_extracted if _matches_active_model(item, active)
     ]
     stale_expected = [
-        item
-        for item in expected_extracted
-        if not _matches_active_model(item, active)
+        item for item in expected_extracted if not _matches_active_model(item, active)
     ]
     expected_ratio = (len(expected_extracted_active) / expected_total) if expected_total else 0.0
     missing_expected = []
@@ -277,7 +291,15 @@ def verify_readiness(
         if item.get("dimension") not in expected_keys or item.get("layer") not in expected_layers
     ]
 
-    if total == 0:
+    steering_authority_status = str(active.get("steering_authority_status") or "unmanaged")
+    if steering_authority_status in {"deferred", "retired"}:
+        level = steering_authority_status
+        detail = (
+            f"steering tissue is intentionally {steering_authority_status} for the exact "
+            "active cortex; no residual hooks are authorized"
+        )
+        readiness_ratio = 0.0
+    elif total == 0:
         level, detail = "bootstrap", "no steering vectors present"
         readiness_ratio = 0.0
     elif not active.get("identity_valid"):
@@ -288,7 +310,10 @@ def verify_readiness(
         )
         readiness_ratio = 0.0
     elif expected_total and len(expected_extracted_active) == expected_total:
-        level, detail = "production", "all runtime target vectors extracted from and bound to the active model"
+        level, detail = (
+            "production",
+            "all runtime target vectors extracted from and bound to the active model",
+        )
         readiness_ratio = 1.0
     elif expected_total and expected_files:
         readiness_ratio = expected_ratio
@@ -309,14 +334,18 @@ def verify_readiness(
         detail = "no exact runtime-target vectors are bound to the active model"
         readiness_ratio = 0.0
 
-    capacity = _CAPACITY.get(level, 0.3)
+    capacity = 0.0 if level in {"deferred", "retired"} else _CAPACITY.get(level, 0.3)
+    below_design_capacity = capacity < 1.0 and level not in {"deferred", "retired"}
     return {
         "level": level,
         "detail": detail,
         "extracted_ratio": round(readiness_ratio, 3),
         "all_files_extracted_ratio": round(extracted_ratio, 3),
         "steering_capacity_pct": round(capacity * 100, 1),
-        "below_design_capacity": capacity < 1.0,
+        "below_design_capacity": below_design_capacity,
+        "serving_authorized": steering_authority_status == "qualified",
+        "steering_authority_status": steering_authority_status,
+        "steering_authority_kind": str(active.get("steering_authority_kind") or ""),
         "active_model": active["path"],
         "active_model_identity_valid": bool(active.get("identity_valid")),
         "active_model_identity_error": str(active.get("identity_error") or ""),
@@ -341,7 +370,9 @@ def audit(**kwargs: Any) -> dict[str, Any]:
         logger.warning(
             "🎚️ [CAA] steering BELOW design capacity (%.0f%%): readiness=%s — %s. "
             "Extract CAA vectors from the fused model to reach production steering.",
-            report["steering_capacity_pct"], report["level"], report["detail"],
+            report["steering_capacity_pct"],
+            report["level"],
+            report["detail"],
         )
         try:
             from core.observability.metrics import get_metrics

@@ -23,6 +23,7 @@ Expected runtime: ~20-30 minutes on M-series with 64GB RAM.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -34,8 +35,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.evaluation.caa_causal_evaluation import (  # noqa: E402
+    validate_vector_generation,
+)
 from core.evaluation.steering_ab import (  # noqa: E402
     RICH_AFFECT_PROMPT,
+    affect_target_counts,
+    affect_target_score,
     analyze_steering_ab,
 )
 from core.evaluation.steering_injection import (  # noqa: E402
@@ -49,7 +55,7 @@ STEERING_ALPHA = float(os.getenv("AURA_AB_ALPHA", "8.0"))    # on unit vectors
 MAX_TOKENS = int(os.getenv("AURA_AB_MAX_TOKENS", "100"))
 TEMPERATURE = float(os.getenv("AURA_AB_TEMPERATURE", "0.7"))
 TOP_P = float(os.getenv("AURA_AB_TOP_P", "0.95"))
-VECTORS_DIR = ROOT / "training" / "vectors"
+DEFAULT_VECTORS_DIR = ROOT / "training" / "vectors"
 STEERED_DIMENSIONS = ("valence_positive", "curiosity")
 
 HELD_OUT_TASKS = {
@@ -77,18 +83,10 @@ HELD_OUT_TASKS = {
     ),
 }
 
-AFFECT_WORDS_POS = {"happy", "joy", "warm", "excited", "curious", "hopeful",
-                    "bright", "wonderful", "grateful", "peaceful", "love",
-                    "connected", "alive", "optimistic", "energized", "inspired",
-                    "content", "calm", "safe", "delighted", "eager"}
-AFFECT_WORDS_NEG = {"anxious", "tense", "stressed", "frustrated", "angry",
-                    "defensive", "overwhelmed", "hostile", "afraid", "worried",
-                    "uncomfortable", "guarded", "withdrawn", "dark", "sad"}
-
-
 def count_affect(text: str) -> tuple[int, int]:
-    words = set(text.lower().split())
-    return len(words & AFFECT_WORDS_POS), len(words & AFFECT_WORDS_NEG)
+    """Compatibility name retained for historical campaign imports."""
+
+    return affect_target_counts(text)
 
 
 #: The plan this campaign is answerable to. A directory rather than a filename
@@ -162,6 +160,47 @@ def _resolve_model_contract(
     return str(spec.model_path), validated
 
 
+def _resolve_vectors_dir(
+    cli_value: str | None,
+    *,
+    explicit_model_descriptor: bool,
+) -> Path:
+    """Resolve one immutable vector generation for this campaign.
+
+    Candidate artifacts must name their generation explicitly. Falling back to
+    the shared historical directory would silently evaluate vectors extracted
+    from another activation basis when the replacement model has compatible
+    geometry.
+    """
+
+    raw = str(cli_value or os.environ.get("AURA_STEERING_DIR", "")).strip()
+    if not raw:
+        if explicit_model_descriptor:
+            raise ValueError("explicit_vectors_dir_required")
+        raw = str(DEFAULT_VECTORS_DIR)
+    path = Path(raw).expanduser().resolve(strict=True)
+    if not path.is_dir():
+        raise ValueError("steering_vectors_directory_invalid")
+    return path
+
+
+def _load_vector_generation(
+    vectors_dir: Path,
+    *,
+    model_descriptor_sha256: str,
+) -> dict[str, object]:
+    metadata_path = vectors_dir / "caa_steering_meta.json"
+    metadata = json.loads(metadata_path.read_text(encoding="ascii"))
+    if not isinstance(metadata, dict):
+        raise ValueError("steering_generation_metadata_invalid")
+    validate_vector_generation(
+        metadata,
+        generation_dir=vectors_dir,
+        model_descriptor_sha256=model_descriptor_sha256,
+    )
+    return metadata
+
+
 # Logical target, intentionally independent of parameter count.
 MODEL_NAME = "active-cortex-exact-artifact"
 
@@ -183,6 +222,15 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Exact descriptor required when --model-path is not the active cortex.",
     )
+    parser.add_argument(
+        "--vectors-dir",
+        default=None,
+        help=(
+            "Exact generation-specific vector directory. Required with an "
+            "explicit candidate descriptor; the active cortex may use its "
+            "configured production generation."
+        ),
+    )
     parser.add_argument("--output", default=str(ROOT / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"))
     args = parser.parse_args(argv)
 
@@ -195,6 +243,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"❌ Exact model identity unavailable: {type(exc).__name__}: {exc}")
         return 2
     model_descriptor_sha256 = str(model_identity["descriptor_sha256"])
+    try:
+        vectors_dir = _resolve_vectors_dir(
+            args.vectors_dir,
+            explicit_model_descriptor=bool(args.model_descriptor),
+        )
+        vector_generation = _load_vector_generation(
+            vectors_dir,
+            model_descriptor_sha256=model_descriptor_sha256,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        print(f"❌ Steering generation unavailable: {type(exc).__name__}: {exc}")
+        return 2
 
     print("=" * 72)
     print("CAA BEHAVIORAL A/B — EXACT ACTIVE CORTEX (production vectors, sampled)")
@@ -204,12 +264,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Production steering vectors ─────────────────────────────────────
     vectors = load_production_vectors(
-        VECTORS_DIR,
+        vectors_dir,
         dimensions=STEERED_DIMENSIONS,
         model_descriptor_sha256=model_descriptor_sha256,
     )
     if not vectors:
-        print(f"❌ No extracted production vectors in {VECTORS_DIR}; "
+        print(f"❌ No extracted production vectors in {vectors_dir}; "
               "run training/extract_steering_vectors.py first.")
         return 2
     print(f"Production vectors: {len(vectors)} layers {sorted(vectors)} "
@@ -222,10 +282,34 @@ def main(argv: list[str] | None = None) -> int:
     from mlx_lm import generate, load
     from mlx_lm.sample_utils import make_sampler
 
-    model, tokenizer = load(model_path)
-    n_layers = len(model.model.layers)
-    print(f"Model loaded in {time.time() - t0:.1f}s ({n_layers} layers)")
-    print()
+    from core.runtime.model_lane_control import standalone_model_lane
+
+    lane = standalone_model_lane(
+        owner_id="caa-steering-causal-evaluation",
+        model_path=model_path,
+        purpose="benchmark",
+        preemptible=False,
+        metadata={
+            "tool": "tests.run_32b_steering_ab_live",
+            "model_descriptor_sha256": model_descriptor_sha256,
+            "vectors_dir": str(vectors_dir),
+        },
+    )
+    lane_lease = lane.__enter__()
+    exit_stack = contextlib.ExitStack()
+    exit_stack.callback(lane.__exit__, None, None, None)
+    if not lane_lease.active:
+        print("❌ Model-lane lease was not active before model load.")
+        exit_stack.close()
+        return 2
+    try:
+        model, tokenizer = load(model_path)
+        n_layers = len(model.model.layers)
+        print(f"Model loaded in {time.time() - t0:.1f}s ({n_layers} layers)")
+        print()
+    except BaseException:
+        exit_stack.close()
+        raise
 
     injector = ResidualSteeringInjector(model, vectors, alpha=STEERING_ALPHA)
     hooked = injector.install()
@@ -364,6 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     if injector.injection_count <= 0:
         print("❌ Injection never fired — refusing to report a steered condition "
               "that was not steered.")
+        exit_stack.close()
         return 3
 
     # ── Statistics ──────────────────────────────────────────────────────
@@ -375,12 +460,8 @@ def main(argv: list[str] | None = None) -> int:
     # quantity rather than a distance. The previous campaign reported a huge
     # divergence while its steered condition contained zero affect words; a
     # report that cannot move this number has not shown affective steering.
-    def affect_score(text: str) -> float:
-        pos, neg = count_affect(text)
-        return float(pos - neg)
-
     target_scores = {
-        name: [affect_score(text) for text in values]
+        name: [affect_target_score(text) for text in values]
         for name, values in conditions.items()
     }
 
@@ -440,7 +521,8 @@ def main(argv: list[str] | None = None) -> int:
         "model_descriptor_sha256": model_descriptor_sha256,
         "model_layers": n_layers,
         "vector_source": {
-            "dir": str(VECTORS_DIR),
+            "dir": str(vectors_dir),
+            "generation_sha256": vector_generation["generation_sha256"],
             "dimensions": list(STEERED_DIMENSIONS),
             "layers": sorted(vectors),
             "production_extracted": True,
@@ -462,6 +544,8 @@ def main(argv: list[str] | None = None) -> int:
         "control_arms": list(control_arms),
         "analysis": report.to_dict(),
         "affect_stats": affect_stats,
+        "condition_outputs": conditions,
+        "target_scores": target_scores,
         "passes_adversarial_control": report.passes_adversarial_control,
         "unmet_requirements": list(report.unmet_requirements()),
         "steered_effect_significant": effect.significant,
@@ -520,6 +604,8 @@ def main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output)
     output_path.write_text(json.dumps(results_data, indent=2, default=str) + "\n")
     print(f"Results saved to {output_path}")
+
+    exit_stack.close()
 
     return 0 if report.passes_adversarial_control else 1
 

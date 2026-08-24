@@ -4,11 +4,16 @@ The draft model PROPOSES tokens; the steered 32B target VERIFIES every one,
 so output distribution (and steering semantics) belong entirely to the
 target. These tests pin the gates that keep that guarantee true.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
 
-from core.brain.llm.mlx_worker import _load_speculative_draft, _speculative_eligible
+from core.brain.llm.mlx_worker import (
+    _load_speculative_draft,
+    _speculative_eligible,
+    _tokenizer_identity_mismatch,
+)
 
 _DRAFT = SimpleNamespace(name="draft-1.5b")
 
@@ -75,6 +80,52 @@ def test_draft_load_missing_path_falls_back(monkeypatch, tmp_path):
     monkeypatch.setenv("AURA_SPECULATIVE_DECODING", "1")
     monkeypatch.setenv("AURA_SPECULATIVE_DRAFT_PATH", str(tmp_path / "nonexistent"))
     assert _load_speculative_draft("/models/Qwen2.5-32B-Instruct-4bit", None) is None
+
+
+def test_tokenizer_identity_compares_semantics_not_model_width():
+    target = SimpleNamespace(
+        vocab_size=248044,
+        eos_token_id=248001,
+        bos_token_id=None,
+        pad_token_id=248001,
+        encode=lambda text: [len(text), 7],
+    )
+    compatible = SimpleNamespace(**target.__dict__)
+    incompatible = SimpleNamespace(**{**target.__dict__, "vocab_size": 151643})
+
+    assert _tokenizer_identity_mismatch(compatible, target) == ""
+    assert _tokenizer_identity_mismatch(incompatible, target) == "vocab_size:151643!=248044"
+
+
+def test_incompatible_draft_is_rejected_before_model_weights_load(
+    monkeypatch,
+    tmp_path,
+):
+    draft_path = tmp_path / "draft"
+    draft_path.mkdir()
+    monkeypatch.setenv("AURA_SPECULATIVE_DECODING", "1")
+    monkeypatch.setenv("AURA_SPECULATIVE_DRAFT_PATH", str(draft_path))
+    target = SimpleNamespace(
+        vocab_size=248044,
+        eos_token_id=248001,
+        bos_token_id=None,
+        pad_token_id=248001,
+        encode=lambda text: [len(text), 7],
+    )
+    draft = SimpleNamespace(**{**target.__dict__, "vocab_size": 151643})
+    loaded: list[str] = []
+
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained",
+        lambda *_args, **_kwargs: draft,
+    )
+    monkeypatch.setattr(
+        "mlx_lm.load",
+        lambda *_args, **_kwargs: loaded.append("weights") or (object(), draft),
+    )
+
+    assert _load_speculative_draft("/models/Qwen2.5-32B-Instruct-4bit", target) is None
+    assert loaded == []
 
 
 def test_worker_source_contract():

@@ -756,8 +756,17 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         }
 
 
-def semantic_neural_default_serving_status() -> dict[str, Any]:
-    """Resolve the promoted model identity without constructing an LLM client."""
+def semantic_neural_default_serving_status(
+    *, authority_key_path: Path | None = None
+) -> dict[str, Any]:
+    """Resolve serving or a signed model-migration disposition.
+
+    A model-bound activation cannot follow a cortex replacement merely because
+    the runtime pointer moved.  During a deliberate migration, preserve the old
+    proof as historical evidence and expose the new model's signed recurrence
+    quarantine as a first-class state.  This keeps incompatible tissue off the
+    live model without misreporting the intentional quarantine as an outage.
+    """
 
     try:
         activation, _raw = _read_bounded_json(
@@ -768,10 +777,73 @@ def semantic_neural_default_serving_status() -> dict[str, Any]:
         model_path = model_identity.get("path") if isinstance(model_identity, dict) else None
         if not isinstance(model_path, str) or not model_path.strip():
             raise RuntimeError("semantic neural model identity is unavailable")
-        return semantic_neural_serving_status(model_path)
+
+        from core.brain.llm.model_registry import get_active_cortex_spec
+
+        active = get_active_cortex_spec(
+            force_refresh=True,
+            authority_key_path=authority_key_path,
+        )
+        if active is None or not active.exact_identity or not active.promotion_qualified:
+            raise RuntimeError("active cortex exact identity is unavailable")
+        proven_model = Path(model_path).expanduser().resolve(strict=True)
+        if active.model_path == proven_model:
+            return semantic_neural_serving_status(proven_model)
+
+        # A quarantine is authoritative only while the historical activation
+        # itself is still intact. Otherwise migration could hide source or
+        # evidence drift in the proof being preserved.
+        historical_errors = semantic_neural_activation_errors(
+            activation,
+            model_path=proven_model,
+            verify_live_identity=False,
+        )
+        if historical_errors:
+            return {
+                "active": False,
+                "lifecycle": "invalid",
+                "reason": "semantic_neural_historical_activation_invalid:"
+                + ",".join(historical_errors),
+            }
+
+        migration = active.migration_contract()
+        components = migration.get("components") if isinstance(migration, dict) else None
+        authority = (
+            components.get("recurrence_native") if isinstance(components, dict) else None
+        )
+        if not isinstance(authority, dict):
+            raise RuntimeError("recurrence migration authority is unavailable")
+
+        from core.learning.cortex_migration_authority import (
+            validate_component_authority,
+        )
+
+        validated = validate_component_authority(
+            authority,
+            component="recurrence_native",
+            descriptor_sha256=active.descriptor_sha256,
+            authority_key_path=authority_key_path,
+        )
+        if validated.get("status") != "deferred":
+            return {
+                "active": False,
+                "lifecycle": "invalid",
+                "reason": "semantic_neural_qualified_activation_not_materialized",
+                "model_descriptor_sha256": active.descriptor_sha256,
+            }
+        return {
+            "active": False,
+            "lifecycle": "deferred",
+            "reason": "semantic_neural_model_basis_migration_deferred",
+            "serving_authorized": False,
+            "historical_activation_preserved": True,
+            "model_descriptor_sha256": active.descriptor_sha256,
+            "authority_sha256": validated.get("authority_sha256"),
+        }
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return {
             "active": False,
+            "lifecycle": "invalid",
             "reason": f"semantic_neural_activation_unavailable:{type(exc).__name__}",
         }
 

@@ -1,4 +1,5 @@
 """Tests for CAA readiness verification from on-disk provenance."""
+
 from __future__ import annotations
 
 import json
@@ -66,7 +67,24 @@ def _model(root, *, revision):
     )
 
 
-def _activate(fdir, model, descriptor, *, fused_at=500.0):
+def _activate(
+    fdir,
+    model,
+    descriptor,
+    *,
+    fused_at=500.0,
+    steering_status=None,
+):
+    migration_contract = None
+    if steering_status is not None:
+        migration_contract = {
+            "components": {
+                "steering": {
+                    "status": steering_status,
+                    "authority_kind": "model_basis_quarantine",
+                }
+            }
+        }
     fdir.mkdir(exist_ok=True)
     (fdir / "active.json").write_text(
         json.dumps(
@@ -75,6 +93,7 @@ def _activate(fdir, model, descriptor, *, fused_at=500.0):
                 "active_model_path": str(model),
                 "fused_at": fused_at,
                 "artifact_descriptor": descriptor,
+                "migration_contract": migration_contract,
             }
         ),
         encoding="utf-8",
@@ -88,7 +107,9 @@ def _setup(tmp_path, specs):
     fdir.mkdir()
     for i, (source, extracted) in enumerate(specs):
         _vec(vdir / f"vec_layer{i}.npz", source=source, extracted=extracted)
-    (fdir / "active.json").write_text(json.dumps({"active_model_path": "/m/active", "fused_at": 500.0}))
+    (fdir / "active.json").write_text(
+        json.dumps({"active_model_path": "/m/active", "fused_at": 500.0})
+    )
     return vdir, fdir
 
 
@@ -150,6 +171,23 @@ def test_no_vectors_is_bootstrap(tmp_path):
     assert r["level"] == "bootstrap"
 
 
+def test_signed_deferral_is_neutral_runtime_disposition(tmp_path):
+    vdir = tmp_path / "vectors"
+    fdir = tmp_path / "fused-model"
+    active = fdir / "active-model"
+    vdir.mkdir()
+    descriptor = _model(active, revision="deferred")
+    _activate(fdir, active, descriptor, steering_status="deferred")
+
+    report = verify_readiness(vectors_dir=vdir, fused_model_dir=fdir)
+
+    assert report["level"] == "deferred"
+    assert report["steering_authority_status"] == "deferred"
+    assert report["serving_authorized"] is False
+    assert report["below_design_capacity"] is False
+    assert report["steering_capacity_pct"] == 0.0
+
+
 def test_extractor_defaults_to_live_runtime_dimensions():
     runtime_keys = {spec["key"] for spec in RUNTIME_DIMENSIONS}
     assert set(AFFECTIVE_DIMENSIONS) == runtime_keys
@@ -189,10 +227,7 @@ def test_readiness_uses_runtime_contract_and_ignores_stale_nonruntime_vectors(tm
     assert r["runtime_contract"]["expected_total"] == 15
     assert r["runtime_contract"]["expected_extracted"] == 15
     assert r["runtime_contract"]["ignored_file_count"] == 1
-    assert (
-        r["runtime_contract"]["active_model_descriptor_sha256"]
-        == active_digest
-    )
+    assert r["runtime_contract"]["active_model_descriptor_sha256"] == active_digest
 
 
 def test_extracted_vectors_from_previous_active_model_do_not_count_as_production(tmp_path):

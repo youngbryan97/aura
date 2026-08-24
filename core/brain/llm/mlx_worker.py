@@ -5890,33 +5890,29 @@ def _load_speculative_draft(model_path: str, target_tokenizer: Any) -> Any:
         logger.info("Speculative decoding: no draft model at %s; normal path.", draft_path)
         return None
     try:
+        from transformers import AutoTokenizer
+
+        draft_tokenizer = AutoTokenizer.from_pretrained(
+            draft_path,
+            local_files_only=True,
+            trust_remote_code=True,
+        )
+        mismatch = _tokenizer_identity_mismatch(draft_tokenizer, target_tokenizer)
+        if mismatch:
+            message = (
+                "Speculative decoding: draft tokenizer is incompatible "
+                f"({mismatch}): {os.path.basename(draft_path)}; normal path."
+            )
+            if "AURA_SPECULATIVE_DRAFT_PATH" in os.environ:
+                logger.warning(message)
+            else:
+                logger.info(message)
+            return None
+
         from mlx_lm import load as _load
 
-        draft_model, draft_tokenizer = _load(draft_path)
-        # Tokenizer IDENTITY contract, not a one-sentence probe: the draft
-        # must agree on vocabulary size, special-token ids, and tokenization
-        # across scripts, digits, code, and whitespace — a probe that only
-        # covered one plain English sentence admitted tokenizers whose
-        # divergence corrupts the accept/reject loop on real content.
-        mismatch = ""
-        for attr in ("vocab_size", "eos_token_id", "bos_token_id", "pad_token_id"):
-            draft_value = getattr(draft_tokenizer, attr, None)
-            target_value = getattr(target_tokenizer, attr, None)
-            if draft_value != target_value:
-                mismatch = f"{attr}:{draft_value}!={target_value}"
-                break
-        if not mismatch:
-            probes = (
-                "Aura verifies every proposed token.",
-                "def f(x):\n\treturn {x: [1, 2.5e-3, 'mixed']}  # comment",
-                "Numbers 1234567890 and unicode: naïve café — 日本語 テスト Ω≈ç√",
-                "  leading spaces\nand\twindows\r\nline endings ",
-                "<|im_start|>assistant роль and emoji 🚀🧠",
-            )
-            for probe in probes:
-                if draft_tokenizer.encode(probe) != target_tokenizer.encode(probe):
-                    mismatch = f"probe_tokenization:{probe[:32]!r}"
-                    break
+        draft_model, loaded_draft_tokenizer = _load(draft_path)
+        mismatch = _tokenizer_identity_mismatch(loaded_draft_tokenizer, target_tokenizer)
         if mismatch:
             _record_mlx_degradation(
                 RuntimeError(
@@ -5940,6 +5936,27 @@ def _load_speculative_draft(model_path: str, target_tokenizer: Any) -> Any:
         )
         logger.warning("Speculative draft load failed (%s); normal path.", exc)
         return None
+
+
+def _tokenizer_identity_mismatch(draft_tokenizer: Any, target_tokenizer: Any) -> str:
+    """Return the first semantic tokenizer mismatch for speculative decoding."""
+
+    for attr in ("vocab_size", "eos_token_id", "bos_token_id", "pad_token_id"):
+        draft_value = getattr(draft_tokenizer, attr, None)
+        target_value = getattr(target_tokenizer, attr, None)
+        if draft_value != target_value:
+            return f"{attr}:{draft_value}!={target_value}"
+    probes = (
+        "Aura verifies every proposed token.",
+        "def f(x):\n\treturn {x: [1, 2.5e-3, 'mixed']}  # comment",
+        "Numbers 1234567890 and unicode: naïve café — 日本語 テスト Ω≈ç√",
+        "  leading spaces\nand\twindows\r\nline endings ",
+        "<|im_start|>assistant роль and emoji 🚀🧠",
+    )
+    for probe in probes:
+        if draft_tokenizer.encode(probe) != target_tokenizer.encode(probe):
+            return f"probe_tokenization:{probe[:32]!r}"
+    return ""
 
 
 def _active_steering_hooks(engine: Any = None) -> list[Any]:
@@ -6032,6 +6049,19 @@ def _attach_affective_steering(
                 "(alpha=%.3f, hooks=%d).",
                 float(getattr(engine, "_alpha", 0.0) or 0.0),
                 len(getattr(engine, "_hooks", []) or []),
+            )
+            return engine, False
+
+        disposition = str(
+            (getattr(engine, "_model_info", None) or {}).get("attachment_error") or ""
+        )
+        if disposition in {
+            "steering_generation_deferred",
+            "steering_generation_retired",
+        }:
+            logger.info(
+                "Affective steering remains detached under signed migration disposition: %s.",
+                disposition,
             )
             return engine, False
 

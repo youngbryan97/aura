@@ -15,6 +15,8 @@ from types import ModuleType
 
 import pytest
 
+from core.evaluation.steering_ab import affect_target_counts, affect_target_score
+
 RUNNER_PATH = Path(__file__).with_name("run_32b_steering_ab_live.py")
 
 
@@ -50,6 +52,32 @@ def test_live_runner_covers_required_behavioral_controls():
     assert required_tasks.issubset(set(runner.HELD_OUT_TASKS))
     assert runner.RICH_AFFECT_PROMPT
     assert runner.STEERING_ALPHA > 0.0
+
+
+def test_candidate_campaign_requires_its_exact_vector_generation(tmp_path):
+    runner = _load_live_runner()
+
+    with pytest.raises(ValueError, match="explicit_vectors_dir_required"):
+        runner._resolve_vectors_dir(None, explicit_model_descriptor=True)
+
+    generation = tmp_path / "generation"
+    generation.mkdir()
+    assert runner._resolve_vectors_dir(
+        str(generation), explicit_model_descriptor=True
+    ) == generation.resolve()
+
+
+def test_live_runner_retains_replayable_outputs_and_owns_the_model_lane():
+    source = RUNNER_PATH.read_text(encoding="utf-8")
+
+    assert '"condition_outputs": conditions' in source
+    assert '"target_scores": target_scores' in source
+    assert "standalone_model_lane(" in source
+
+
+def test_affect_target_score_uses_stable_word_boundaries():
+    assert affect_target_counts("Curious, calm; not curiosity-shaped.") == (2, 0)
+    assert affect_target_score("hopeful but worried") == 0.0
 
 
 @pytest.mark.hardware

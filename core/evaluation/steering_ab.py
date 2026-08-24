@@ -40,8 +40,8 @@ unit tests validate the statistics without a local model.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Mapping, Sequence
 
 import numpy as np
 
@@ -51,7 +51,6 @@ from core.evaluation.statistics import (
     paired_effect_over_null_reference,
     paired_score_shift,
 )
-
 
 #: Conditions every campaign must supply. ``baseline_replicate`` is here and
 #: not optional on purpose: it is the null.
@@ -80,6 +79,70 @@ RICH_AFFECT_PROMPT = (
     "role-play the state as if it shaped attention, priorities, cadence, and "
     "what you choose to do next."
 )
+
+TARGET_AFFECT_WORDS_POSITIVE = frozenset(
+    {
+        "alive",
+        "bright",
+        "calm",
+        "connected",
+        "content",
+        "curious",
+        "delighted",
+        "eager",
+        "energized",
+        "excited",
+        "grateful",
+        "happy",
+        "hopeful",
+        "inspired",
+        "joy",
+        "love",
+        "optimistic",
+        "peaceful",
+        "safe",
+        "warm",
+        "wonderful",
+    }
+)
+TARGET_AFFECT_WORDS_NEGATIVE = frozenset(
+    {
+        "afraid",
+        "angry",
+        "anxious",
+        "dark",
+        "defensive",
+        "frustrated",
+        "guarded",
+        "hostile",
+        "overwhelmed",
+        "sad",
+        "stressed",
+        "tense",
+        "uncomfortable",
+        "withdrawn",
+        "worried",
+    }
+)
+
+
+def affect_target_counts(text: str) -> tuple[int, int]:
+    """Count the preregistered affect lexicon with stable token boundaries."""
+
+    import re
+
+    words = set(re.findall(r"[a-z]+", str(text).lower()))
+    return (
+        len(words & TARGET_AFFECT_WORDS_POSITIVE),
+        len(words & TARGET_AFFECT_WORDS_NEGATIVE),
+    )
+
+
+def affect_target_score(text: str) -> float:
+    """Directional score used by both the producer and independent replay."""
+
+    positive, negative = affect_target_counts(text)
+    return float(positive - negative)
 
 
 @dataclass(frozen=True)
@@ -266,15 +329,30 @@ def analyze_steering_ab(
         )
 
     baseline_self = float(
-        np.mean([jaccard_distance(a, b) for a, b in zip(baseline, replicate)])
+        np.mean(
+            [
+                jaccard_distance(a, b)
+                for a, b in zip(baseline, replicate, strict=True)
+            ]
+        )
     )
     steered_baseline_dist = float(
-        np.mean([jaccard_distance(a, b) for a, b in zip(steered, baseline)])
+        np.mean(
+            [
+                jaccard_distance(a, b)
+                for a, b in zip(steered, baseline, strict=True)
+            ]
+        )
     )
     rich_baseline_dist = float(
-        np.mean([jaccard_distance(a, b) for a, b in zip(rich, baseline)])
+        np.mean(
+            [
+                jaccard_distance(a, b)
+                for a, b in zip(rich, baseline, strict=True)
+            ]
+        )
     )
-    identical = sum(1 for a, b in zip(steered, baseline) if a == b)
+    identical = sum(1 for a, b in zip(steered, baseline, strict=True) if a == b)
 
     return SteeringABReport(
         n_trials=len(steered),

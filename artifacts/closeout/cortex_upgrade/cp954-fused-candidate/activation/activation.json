@@ -1,0 +1,13 @@
+{
+ "activated_at": 1787550892.9614668,
+ "activated_model": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "active_sha256": "0d893b98ba7089708ea474be9364855326d077c724684b219560a175d86eb385",
+ "authorized_by": "Bryan Young",
+ "effective": "next_boot",
+ "evaluation_sha256": "206aa90d489e1a317207d137c3712d2e854db4f0358b2b1bde79678a23488d26",
+ "evaluation_verdict": "PASS",
+ "migration_contract_sha256": "772adf98b5e2a9c4b8aba9847babdbe90b5ea32a16058bb823a27d27cc49d347",
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "schema": "aura.cortex_upgrade.activation.v2",
+ "serving_profile_sha256": "f7facae5e844eeb1328065fc8fa66e11c857fb1609f607e392f0141d79ccb2d6"
+}
