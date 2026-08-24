@@ -68,6 +68,13 @@ def coverage_factor(confidence: int = 95) -> float:
     return _COVERAGE.get(int(confidence), 1.960)
 
 
+def _si(value: float, dimension: Any, unit: str) -> Quantity:
+    """Wrap a value that is ALREADY in SI, without converting it again."""
+    from core.engineering.units import Quantity as _Quantity, dimension_of
+
+    return _Quantity(float(value), dimension or dimension_of(unit or "m"), unit or "m")
+
+
 @dataclass(frozen=True, slots=True)
 class Uncertain:
     """A value and its standard uncertainty, in SI units.
@@ -368,10 +375,15 @@ def rss_stack(tolerances: Sequence[Any], *, unit: str = "") -> Quantity:
     this figure is standard practice and is why assemblies fit.
     """
     total = 0.0
+    dimension = None
     for entry in tolerances:
         quantity = entry if isinstance(entry, Quantity) else Q(entry, unit)
+        dimension = quantity.dimension
         total += float(quantity.value) ** 2
-    return Q(math.sqrt(total), unit or "m")
+    # Built from the SI magnitude directly. Passing it back through Q with
+    # the display unit converted it a second time, so a 0.03 and a 0.04
+    # millimetre tolerance stacked to 5e-8 metres instead of 0.05.
+    return _si(math.sqrt(total), dimension, unit)
 
 
 def arithmetic_stack(tolerances: Sequence[Any], *, unit: str = "") -> Quantity:
@@ -382,10 +394,12 @@ def arithmetic_stack(tolerances: Sequence[Any], *, unit: str = "") -> Quantity:
     still an assembly somebody receives.
     """
     total = 0.0
+    dimension = None
     for entry in tolerances:
         quantity = entry if isinstance(entry, Quantity) else Q(entry, unit)
+        dimension = quantity.dimension
         total += abs(float(quantity.value))
-    return Q(total, unit or "m")
+    return _si(total, dimension, unit)
 
 
 def significant_text(value: Uncertain) -> str:
