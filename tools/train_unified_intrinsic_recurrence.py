@@ -623,6 +623,28 @@ def _attach_window_adapters(
     depth_basis_size: int,
 ) -> dict[str, Any]:
     from core.brain.llm.latent_cortex.recurrence_adapter import ScopedLoRALinear
+    from core.learning.hybrid_recurrence_geometry import (
+        LayerGeometry,
+        expected_adapter_sites,
+        geometry_receipt,
+        window_alignment_errors,
+    )
+
+    # What the window is entitled to produce on THIS checkpoint, settled before
+    # anything attaches. A hybrid model gives a layer self_attn only every
+    # fourth index, so the loop below simply skips three layers in four and
+    # still returns a non-empty site list -- a campaign that declared a
+    # 32-layer window quietly training 8 layers of it.
+    geometry = LayerGeometry.from_model(model)
+    alignment = window_alignment_errors(geometry, spec.prelude_end, spec.coda_start)
+    if alignment:
+        raise RuntimeError(
+            "unified recurrence window is misaligned for this checkpoint: "
+            + "; ".join(alignment)
+        )
+    expected = expected_adapter_sites(
+        geometry, spec.prelude_end, spec.coda_start, targets
+    )
 
     sites = []
     for layer_index in range(spec.prelude_end, spec.coda_start):
@@ -649,6 +671,15 @@ def _attach_window_adapters(
                 sites.append(site)
     if not sites:
         raise RuntimeError("unified recurrence attached no window projections")
+    if sorted(sites) != sorted(expected):
+        missing = sorted(set(expected) - set(sites))
+        extra = sorted(set(sites) - set(expected))
+        raise RuntimeError(
+            "unified recurrence attachment does not match the declared geometry: "
+            f"{len(sites)} attached, {len(expected)} expected"
+            + (f"; missing {missing[:4]}" if missing else "")
+            + (f"; unexpected {extra[:4]}" if extra else "")
+        )
     from core.learning.depth_conditioned_lora import (
         wrap_continuous_depth_conditioned,
     )
@@ -662,6 +693,9 @@ def _attach_window_adapters(
     return {
         "window_tissue_mode": "scoped_lora",
         "window": [spec.prelude_end, spec.coda_start],
+        "geometry": geometry_receipt(
+            geometry, spec.prelude_end, spec.coda_start, targets
+        ),
         "adapted_sites": sorted(sites),
         "adapted_projection_count": len(sites),
         "continuous_depth_operator_count": len(depth_operators),

@@ -9,6 +9,8 @@ be added to a working checkpoint: T=1 is bit-identical to the base model.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 mx = pytest.importorskip("mlx.core")
@@ -374,11 +376,7 @@ class _HybridModel:
     def __init__(self, total: int = 8, full_interval: int = 4):
         self._total = total
         self._interval = full_interval
-
-        class _Inner:
-            layers = [object()] * total
-
-        self.model = _Inner()
+        self.model = SimpleNamespace(layers=[object()] * total)
 
     def make_cache(self):
         import mlx_lm.models.cache as cache_module
@@ -430,10 +428,7 @@ def test_each_window_iteration_still_gets_its_own_cache_objects():
 def test_a_dense_model_without_make_cache_still_gets_kv_caches():
     from core.learning.intrinsic_recurrence import model_layer_caches
 
-    class _Dense:
-        class model:
-            layers = [object()] * 5
-
-    caches = model_layer_caches(_Dense())
+    dense = SimpleNamespace(model=SimpleNamespace(layers=[object()] * 5))
+    caches = model_layer_caches(dense)
     assert len(caches) == 5
     assert {type(c).__name__ for c in caches} == {"KVCache"}
