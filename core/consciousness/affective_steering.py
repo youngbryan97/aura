@@ -2195,17 +2195,30 @@ class AffectiveSteeringEngine:
             logger.error("Qualified steering generation could not be reopened: %s", exc)
             return False
 
-        if steering_resolution_status in {"deferred", "retired"}:
+        if steering_resolution.expected_detachment:
+            # Expected states stay visible and stay quiet. A migration reported
+            # at error severity every attach trains the reader to ignore the
+            # line that will one day mean corruption.
             self._model_info["attachment_error"] = (
                 f"steering_generation_{steering_resolution_status}"
             )
+            self._model_info["steering_capability_state"] = (
+                "migration_pending"
+                if steering_resolution.migration_pending
+                else steering_resolution_status
+            )
+            self._model_info["steering_capability_reason"] = steering_resolution.reason
             logger.info(
-                "Affective steering intentionally detached: signed generation is %s.",
+                "Affective steering intentionally detached: signed generation is "
+                "%s (%s).",
                 steering_resolution_status,
+                steering_resolution.reason or "no reason recorded",
             )
             return False
         if steering_resolution_status == "invalid":
             self._model_info["attachment_error"] = "steering_generation_authority_invalid"
+            self._model_info["steering_capability_state"] = "authority_invalid"
+            self._model_info["steering_capability_reason"] = steering_resolution.reason
             logger.error("Affective steering detached: active migration authority is invalid.")
             return False
 

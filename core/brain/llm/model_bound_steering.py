@@ -19,6 +19,17 @@ class ModelBoundSteeringError(ValueError):
     """Qualified steering evidence cannot be reopened or materialized."""
 
 
+#: Expected during a model migration: the tissue is sound and was built for a
+#: checkpoint that is no longer resident. Distinct from ``invalid``, which
+#: means the authority itself does not hold up.
+CHECKPOINT_INCOMPATIBLE = "checkpoint_incompatible"
+
+#: Statuses that mean "correctly not attached", as opposed to "something is
+#: wrong". A caller separating expected from unexpected should key on this
+#: rather than on a list it maintains itself.
+EXPECTED_DETACHED_STATUSES = frozenset({"deferred", "retired", CHECKPOINT_INCOMPATIBLE})
+
+
 @dataclass(frozen=True)
 class SteeringGenerationResolution:
     """Disposition of steering tissue for one exact active cortex."""
@@ -26,6 +37,16 @@ class SteeringGenerationResolution:
     status: str
     cache_dir: Path | None = None
     reason: str = ""
+
+    @property
+    def migration_pending(self) -> bool:
+        """True when the tissue is fine and the checkpoint moved under it."""
+        return self.status == CHECKPOINT_INCOMPATIBLE
+
+    @property
+    def expected_detachment(self) -> bool:
+        """True when not attaching is the correct outcome, not a fault."""
+        return self.status in EXPECTED_DETACHED_STATUSES
 
 
 def _strict_json(payload: bytes, *, role: str) -> dict[str, Any]:
@@ -158,8 +179,14 @@ def resolve_active_generation(
     if spec is None:
         return SteeringGenerationResolution("unmanaged", reason="active_cortex_absent")
     if spec.descriptor_sha256 != descriptor_sha256:
+        # The active cortex is a different checkpoint from the one this tissue
+        # was built against. During a model migration that is the expected
+        # state, not a broken authority, and calling it "invalid" put an
+        # expected condition and a forged one behind the same word -- so the
+        # runtime logged an error every attach and nobody could tell a
+        # migration from corruption.
         return SteeringGenerationResolution(
-            "invalid",
+            CHECKPOINT_INCOMPATIBLE,
             reason="active_cortex_descriptor_mismatch",
         )
     migration = spec.migration_contract()
