@@ -667,6 +667,39 @@ class TestIdentityContract(unittest.TestCase):
             block,
         )
 
+    def test_contract_carries_measured_cortex_evidence(self):
+        from core.brain.cortex_self_evidence import CortexSelfEvidence
+
+        evidence = CortexSelfEvidence(
+            resident_label="27B",
+            model_type="qwen3_5_text",
+            total_parameters=26_895_993_856,
+            native_context_tokens=262_144,
+            served_context_tokens=32_768,
+            promotion_verdict="PASS",
+            identity_behavior_changed=True,
+            component_states=(
+                ("persona_crsm", "qualified"),
+                ("recurrence_native", "deferred"),
+            ),
+            semantic_active=True,
+            semantic_verdict="BOUNDED_WOW_SIGNAL",
+            semantic_task_count=60,
+            semantic_exact_by_arm=(("ordinary_base", 0), ("treatment", 60)),
+            semantic_gain_count=60,
+            semantic_regression_count=0,
+            semantic_p_value=8.673617379884035e-19,
+        )
+        with mock.patch(
+            "core.brain.cortex_self_evidence.resolve_cortex_self_evidence",
+            return_value=evidence,
+        ):
+            block = self._render()
+        self.assertIn("Resident cortex: 27B", block)
+        self.assertIn("persona_crsm=qualified", block)
+        self.assertIn("treatment 60/60, ordinary decode 0/60", block)
+        self.assertIn("unmeasured, not observations", block)
+
     def test_contract_respects_budget(self):
         block = self._render()
         self.assertLessEqual(len(block), cp.MAX_OPERATIONAL_SELF_CONTEXT_CHARS)

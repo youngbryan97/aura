@@ -453,6 +453,14 @@ def test_active_pointer_accepts_one_complete_identity_bound_promotion(
     assert spec.promotion_qualified is True
     assert spec.serving_profile() == serving
     assert spec.migration_contract() == migration
+    assert spec.evaluation() == evaluation
+
+    # Authority accessors return detached values; a caller cannot mutate the
+    # registry's cached evidence and change what later turns observe.
+    observed_evaluation = spec.evaluation()
+    assert observed_evaluation is not None
+    observed_evaluation["verdict"] = "mutated"
+    assert spec.evaluation() == evaluation
 
     limits = model_registry.get_active_cortex_serving_limits(artifact)
     assert limits is not None

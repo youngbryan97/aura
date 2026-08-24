@@ -1042,6 +1042,26 @@ def _cached_semantic_neural_serving_status(
             "activation_sha256",
         )
     }
+    evidence = activation["evidence"]
+    qualification = {
+        "verdict": evidence["adjudication_verdict"],
+        "task_count": evidence["task_count"],
+        "independent_exact_by_arm": deepcopy(evidence["independent_exact_by_arm"]),
+        "gain_count": evidence["gain_count"],
+        "regression_count": evidence["regression_count"],
+        "paired_one_sided_exact_p": evidence["paired_one_sided_exact_p"],
+        "domains": list(evidence["domains"]),
+    }
+    runtime = activation.get("runtime_qualification")
+    if isinstance(runtime, dict):
+        qualification.update(
+            {
+                "runtime_task_count": runtime["task_count"],
+                "runtime_exact_count": runtime["exact_count"],
+                "runtime_max_latency_ms": runtime["max_latency_ms"],
+            }
+        )
+    public_receipt["qualification"] = qualification
     return {
         "active": True,
         "reason": "semantic_neural_serving_active",

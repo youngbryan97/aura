@@ -248,6 +248,7 @@ class ActiveCortexSpec:
     _artifact_descriptor_json: str = ""
     _serving_profile_json: str = ""
     _migration_contract_json: str = ""
+    _evaluation_json: str = ""
 
     @staticmethod
     def _decode(value: str) -> dict[str, object] | None:
@@ -264,6 +265,11 @@ class ActiveCortexSpec:
 
     def migration_contract(self) -> dict[str, object] | None:
         return self._decode(self._migration_contract_json)
+
+    def evaluation(self) -> dict[str, object] | None:
+        """Return a fresh copy of the validated promotion evaluation."""
+
+        return self._decode(self._evaluation_json)
 
 
 @dataclass(frozen=True)
@@ -526,6 +532,9 @@ def _read_active_cortex_spec(
             ),
             _migration_contract_json=_canonical_contract_json(
                 migration if isinstance(migration, dict) else None
+            ),
+            _evaluation_json=_canonical_contract_json(
+                evaluation if isinstance(evaluation, dict) else None
             ),
         )
     except FileNotFoundError:

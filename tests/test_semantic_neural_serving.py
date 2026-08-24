@@ -145,6 +145,40 @@ def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):
     }
 
 
+def test_active_serving_receipt_exposes_only_verified_qualification_evidence():
+    activation_path = semantic_neural_serving.active_semantic_neural_activation_path()
+    activation = json.loads(activation_path.read_text(encoding="utf-8"))
+    model_path = activation["model_identity"]["path"]
+
+    status = semantic_neural_serving_status(model_path)
+
+    assert status["active"] is True
+    qualification = status["receipt"]["qualification"]
+    assert qualification == {
+        "verdict": "BOUNDED_WOW_SIGNAL",
+        "task_count": 60,
+        "independent_exact_by_arm": {
+            "coefficient_lesion": 4,
+            "matched_wire_base": 6,
+            "matched_wrong_state": 0,
+            "ordinary_base": 0,
+            "treatment": 60,
+        },
+        "gain_count": 60,
+        "regression_count": 0,
+        "paired_one_sided_exact_p": 8.673617379884035e-19,
+        "domains": [
+            "coding",
+            "calibration",
+            "misleading_premise",
+            "scientific_inference",
+        ],
+        "runtime_task_count": 120,
+        "runtime_exact_count": 120,
+        "runtime_max_latency_ms": 38.696,
+    }
+
+
 def test_recovery_activation_identity_is_descriptor_derived():
     expected = DescriptorIdentity(
         path="/models/target",

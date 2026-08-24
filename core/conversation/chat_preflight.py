@@ -1335,6 +1335,21 @@ def _live_internals_summary() -> list[str]:
     """Cheap live internals so the voice reports true current state."""
     lines: list[str] = []
     try:
+        from core.brain.cortex_self_evidence import (
+            resolve_cortex_self_evidence,
+        )
+
+        cortex = resolve_cortex_self_evidence()
+        if cortex is not None:
+            lines.extend(cortex.assertions())
+    except _CHAT_PREFLIGHT_RECOVERABLE_ERRORS as exc:
+        _emit_chat_fault(
+            exc,
+            action="continued identity contract without cortex evidence",
+            severity="warning",
+            stage="operational_self_context.cortex",
+        )
+    try:
         from core.container import ServiceContainer
 
         watchdog = ServiceContainer.get("memory_watchdog", default=None)
