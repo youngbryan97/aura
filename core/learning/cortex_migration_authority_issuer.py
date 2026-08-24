@@ -39,6 +39,8 @@ _COMPONENT_SPECS: Final = {
     "expert_adapters": ("retirement_inventory", "retired"),
     "recurrence_native": ("qualified_recurrent_activation", "qualified"),
 }
+_DEFERRED_AUTHORITY_KIND: Final = "model_basis_quarantine"
+_DEFERRED_STATUS: Final = "deferred"
 
 
 class CortexMigrationAuthorityIssuanceError(ValueError):
@@ -59,9 +61,7 @@ def _canonical(value: Any) -> bytes:
             allow_nan=False,
         ).encode("ascii")
     except (TypeError, ValueError, UnicodeEncodeError) as exc:
-        raise CortexMigrationAuthorityIssuanceError(
-            "migration_authority_not_canonical"
-        ) from exc
+        raise CortexMigrationAuthorityIssuanceError("migration_authority_not_canonical") from exc
 
 
 def _sha(value: Any) -> str:
@@ -92,9 +92,7 @@ def _strict_json(path: Path, *, role: str) -> tuple[dict[str, Any], bytes]:
 
 
 def _provision_key() -> bytes:
-    with local_internal_governed_scope(
-        "cortex_migration_authority.issue_key", domain="file_write"
-    ):
+    with local_internal_governed_scope("cortex_migration_authority.issue_key", domain="file_write"):
         return get_file_write_gateway().provision_private_bytes(
             default_authority_key_path(),
             secrets.token_bytes(32),
@@ -112,12 +110,19 @@ def _retain_and_sign(
     evidence: Mapping[str, bytes],
     issued_at: float | None,
     custody_base: Path | None,
+    authority_kind: str | None = None,
+    status: str | None = None,
 ) -> dict[str, Any]:
+    default_kind, default_status = _COMPONENT_SPECS[component]
+    effective_kind = authority_kind or default_kind
+    effective_status = status or default_status
     validate_component_evidence(
         component=component,
         evidence=evidence,
         claims=claims,
         descriptor_sha256=descriptor_sha256,
+        authority_kind=effective_kind,
+        status=effective_status,
     )
     fingerprint = _sha(
         {
@@ -130,9 +135,7 @@ def _retain_and_sign(
             },
         }
     )
-    base = custody_base or (
-        state_root() / "private/cortex-upgrade/migration-evidence"
-    )
+    base = custody_base or (state_root() / "private/cortex-upgrade/migration-evidence")
     relative_root = Path(descriptor_sha256[:16]) / component / fingerprint
     try:
         custody = DirectoryCustody.acquire(base, create=True, private=True)
@@ -167,12 +170,11 @@ def _retain_and_sign(
                 "sha256": hashlib.sha256(retained).hexdigest(),
             }
 
-        kind, status = _COMPONENT_SPECS[component]
         body = {
             "schema": COMPONENT_AUTHORITY_SCHEMA,
             "component": component,
-            "authority_kind": kind,
-            "status": status,
+            "authority_kind": effective_kind,
+            "status": effective_status,
             "model_descriptor_sha256": descriptor_sha256,
             "custody_root": str(custody_root),
             "evidence": bindings,
@@ -202,10 +204,7 @@ def _retain_and_sign(
             raise CortexMigrationAuthorityIssuanceError(
                 f"migration_component_authority_publish_failed:{component}"
             ) from exc
-        if (
-            read_stable_bytes(authority_path, max_bytes=MAX_DOCUMENT_BYTES)
-            != authority_payload
-        ):
+        if read_stable_bytes(authority_path, max_bytes=MAX_DOCUMENT_BYTES) != authority_payload:
             _fail(f"migration_component_authority_collision:{component}")
         return validated
 
@@ -226,9 +225,7 @@ def issue_persona_crsm_authority(
         journal_key_path=journal_key_path,
         verify_full_model=True,
     )
-    receipt, receipt_payload = _strict_json(
-        fusion_receipt_path, role="fusion_receipt"
-    )
+    receipt, receipt_payload = _strict_json(fusion_receipt_path, role="fusion_receipt")
     validate_fusion_receipt(plan, receipt, verify_full_model=True)
     if receipt.get("descriptor_sha256") != descriptor_sha256:
         _fail("persona_crsm_model_identity_mismatch")
@@ -309,9 +306,7 @@ def issue_expert_retirement_authority(
     try:
         inventory = validate_tissue_migration_inventory(inventory)
     except TissueInventoryError as exc:
-        raise CortexMigrationAuthorityIssuanceError(
-            "expert_retirement_inventory_invalid"
-        ) from exc
+        raise CortexMigrationAuthorityIssuanceError("expert_retirement_inventory_invalid") from exc
     return _retain_and_sign(
         component="expert_adapters",
         descriptor_sha256=descriptor_sha256,
@@ -319,6 +314,35 @@ def issue_expert_retirement_authority(
         evidence={"migration_inventory": payload},
         issued_at=issued_at,
         custody_base=custody_base,
+    )
+
+
+def issue_deferred_model_tissue_authority(
+    *,
+    component: str,
+    inventory_path: Path,
+    descriptor_sha256: str,
+    custody_base: Path | None = None,
+    issued_at: float | None = None,
+) -> dict[str, Any]:
+    """Quarantine old-basis tissue while its candidate-native rebuild is pending."""
+
+    if component not in {"steering", "recurrence_native"}:
+        _fail("deferred_tissue_component_invalid")
+    inventory, payload = _strict_json(inventory_path, role="migration_inventory")
+    try:
+        inventory = validate_tissue_migration_inventory(inventory)
+    except TissueInventoryError as exc:
+        raise CortexMigrationAuthorityIssuanceError("deferred_tissue_inventory_invalid") from exc
+    return _retain_and_sign(
+        component=component,
+        descriptor_sha256=descriptor_sha256,
+        claims={"inventory_sha256": inventory["inventory_sha256"]},
+        evidence={"migration_inventory": payload},
+        issued_at=issued_at,
+        custody_base=custody_base,
+        authority_kind=_DEFERRED_AUTHORITY_KIND,
+        status=_DEFERRED_STATUS,
     )
 
 
@@ -331,9 +355,7 @@ def issue_recurrence_authority(
 ) -> dict[str, Any]:
     """Issue authority for qualified recurrent tissue on one model identity."""
 
-    activation, activation_payload = _strict_json(
-        activation_path, role="recurrent_activation"
-    )
+    activation, activation_payload = _strict_json(activation_path, role="recurrent_activation")
     binding_body = {
         "schema": RECURRENT_MODEL_BINDING_SCHEMA,
         "model_descriptor_sha256": descriptor_sha256,
@@ -362,6 +384,7 @@ def issue_recurrence_authority(
 
 __all__ = [
     "CortexMigrationAuthorityIssuanceError",
+    "issue_deferred_model_tissue_authority",
     "issue_expert_retirement_authority",
     "issue_persona_crsm_authority",
     "issue_recurrence_authority",

@@ -1,0 +1,98 @@
+{
+ "built_at": 1787550626.5398998,
+ "components": {
+  "expert_adapters": {
+   "authority_hmac_sha256": "b06c43b22f490c3373079aff4e8e5211a06d40965ebc7bf1a1e325ddd680a51e",
+   "authority_kind": "retirement_inventory",
+   "authority_sha256": "cedf44af1068c56cb11cb9207332088b972cc2d956d6a6b06ed23244c48b5cad",
+   "claims": {
+    "inventory_sha256": "6c56405d478f0a4b4132fdc8fd0b7fce186a5a41946cfaf9dd0fa3d7abb58c81"
+   },
+   "component": "expert_adapters",
+   "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/expert_adapters/b5ecc3b6687bba3b6d0986d26b4c92c81e0e8750d7effb272a857734e0436e0b",
+   "evidence": {
+    "migration_inventory": {
+     "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/expert_adapters/b5ecc3b6687bba3b6d0986d26b4c92c81e0e8750d7effb272a857734e0436e0b/00-e5ca58b5f6c4.evidence",
+     "sha256": "dd2eb054aa8405f3e3ed3e01e0c40fb9e53fc69f14aefa6d5ac7a2da18c56a56",
+     "size_bytes": 32578
+    }
+   },
+   "issued_at": 1787550603.964999,
+   "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+   "schema": "aura.cortex_upgrade.component_authority.v1",
+   "status": "retired"
+  },
+  "persona_crsm": {
+   "authority_hmac_sha256": "95acef64b698e200e5b3e5ee58ae70af05ea70966ab078d5b13d214d004af819",
+   "authority_kind": "fused_persona_crsm",
+   "authority_sha256": "5ac6cce07b359efc373dcc2c1fac401d46c0b11af48ea3c7c83f92758741bf4b",
+   "claims": {
+    "fusion_plan_sha256": "ac291ed5a1df3a77305c0edf62b3e5737e20ec61342b259dff23bbf326e2ef99",
+    "fusion_receipt_sha256": "22016b4582092fa9f9ed693df8ae5a7507285ed3ca68577a1799dc3051074aa9"
+   },
+   "component": "persona_crsm",
+   "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965",
+   "evidence": {
+    "fusion_plan": {
+     "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965/00-4010395c036c.evidence",
+     "sha256": "65814eef84fabb3d1151fabb032a205c849bd7fe206523941d885e643e33d4b1",
+     "size_bytes": 5015
+    },
+    "fusion_receipt": {
+     "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965/01-12331b57da02.evidence",
+     "sha256": "2aa6bb1fb5f74539e2c5b8edcf5ea575823e4af3ee039c1255e84694263efb55",
+     "size_bytes": 1073
+    }
+   },
+   "issued_at": 1787550603.796153,
+   "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+   "schema": "aura.cortex_upgrade.component_authority.v1",
+   "status": "qualified"
+  },
+  "recurrence_native": {
+   "authority_hmac_sha256": "acff146c35e9823c547154bf9cadb12d96932ca65fc3b659a133ba5262253ab4",
+   "authority_kind": "model_basis_quarantine",
+   "authority_sha256": "c1837fbb10503d482a03c8f5cdc2af9dc4a22100de8b0575156fa09b8deb88d4",
+   "claims": {
+    "inventory_sha256": "6c56405d478f0a4b4132fdc8fd0b7fce186a5a41946cfaf9dd0fa3d7abb58c81"
+   },
+   "component": "recurrence_native",
+   "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/recurrence_native/9b65d81ca07f6c7d5cfe5ec1a47b89eeccf965d42206253c337a33f0d294d04c",
+   "evidence": {
+    "migration_inventory": {
+     "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/recurrence_native/9b65d81ca07f6c7d5cfe5ec1a47b89eeccf965d42206253c337a33f0d294d04c/00-e5ca58b5f6c4.evidence",
+     "sha256": "dd2eb054aa8405f3e3ed3e01e0c40fb9e53fc69f14aefa6d5ac7a2da18c56a56",
+     "size_bytes": 32578
+    }
+   },
+   "issued_at": 1787550476.423003,
+   "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+   "schema": "aura.cortex_upgrade.component_authority.v1",
+   "status": "deferred"
+  },
+  "steering": {
+   "authority_hmac_sha256": "fdc5627b2a07814a75b5ef97c0c216a686ae002d67e5dc20eb3402c872216a3b",
+   "authority_kind": "model_basis_quarantine",
+   "authority_sha256": "315fbbd32c4a89c8a9fd90741d2ee3adefd760609772c8995950a1bed4843a96",
+   "claims": {
+    "inventory_sha256": "6c56405d478f0a4b4132fdc8fd0b7fce186a5a41946cfaf9dd0fa3d7abb58c81"
+   },
+   "component": "steering",
+   "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/steering/4dbd6b169a744bb2d044ed30954839b7562fa9459662e750ac62a91962eef518",
+   "evidence": {
+    "migration_inventory": {
+     "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/steering/4dbd6b169a744bb2d044ed30954839b7562fa9459662e750ac62a91962eef518/00-e5ca58b5f6c4.evidence",
+     "sha256": "dd2eb054aa8405f3e3ed3e01e0c40fb9e53fc69f14aefa6d5ac7a2da18c56a56",
+     "size_bytes": 32578
+    }
+   },
+   "issued_at": 1787550476.296569,
+   "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+   "schema": "aura.cortex_upgrade.component_authority.v1",
+   "status": "deferred"
+  }
+ },
+ "migration_contract_sha256": "772adf98b5e2a9c4b8aba9847babdbe90b5ea32a16058bb823a27d27cc49d347",
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "schema": "aura.cortex_upgrade.migration_contract.v2"
+}

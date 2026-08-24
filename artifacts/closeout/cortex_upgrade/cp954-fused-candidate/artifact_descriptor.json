@@ -1,0 +1,141 @@
+{
+ "artifact_profile": {
+  "architectures": [
+   "Qwen3_5ForConditionalGeneration"
+  ],
+  "evidence": "index_metadata",
+  "exists": true,
+  "fingerprint": "198e60c71915c501e8273103f348d1508d8ce4c10d34a810c5db5ff5c6250c6b",
+  "full_attention_layers": 16,
+  "hidden_size": 5120,
+  "layer_types": [
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention"
+  ],
+  "linear_attention_layers": 48,
+  "model_type": "qwen3_5_text",
+  "native_context_window": 262144,
+  "num_attention_heads": 24,
+  "num_hidden_layers": 64,
+  "num_key_value_heads": 4,
+  "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "quantization_bits": 4,
+  "size_class": "32b",
+  "total_parameters": 26895993856,
+  "vocab_size": 248320,
+  "weight_bytes": 15132802048
+ },
+ "behavior_identity": {
+  "bundle_sha256": "6978e408c97467388c01076ff72934bd55ee8a8a2acb9c20377d57ce774acd1f",
+  "file_count": 7,
+  "files": [
+   {
+    "path": "aura_fusion_provenance.json",
+    "sha256": "5228cee8e3be4c0389d68f02e6bf3dc60bbd8774a94420fc289e0639d3c6897e",
+    "size_bytes": 974
+   },
+   {
+    "path": "chat_template.jinja",
+    "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+    "size_bytes": 8952
+   },
+   {
+    "path": "config.json",
+    "sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "size_bytes": 4444
+   },
+   {
+    "path": "generation_config.json",
+    "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+    "size_bytes": 202
+   },
+   {
+    "path": "model.safetensors.index.json",
+    "sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511",
+    "size_bytes": 189789
+   },
+   {
+    "path": "tokenizer.json",
+    "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "size_bytes": 19989325
+   },
+   {
+    "path": "tokenizer_config.json",
+    "sha256": "8f781f0d7369fb2532a77284368c2a5f9eccd6413a381dfa3795787e20ca4ca4",
+    "size_bytes": 1202
+   }
+  ]
+ },
+ "canonical_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "repository_id": "aura/Qwen3.8-27B-persona-crsm",
+ "revision": "f65d56e395f26823727cb1dc82b253446911d66a",
+ "schema": "aura.model_artifact_descriptor.v1",
+ "weight_identity": {
+  "files": 3,
+  "fingerprint": "c58e02ac874857d8fb1470326e992975563506bad548e26382cd53d881e8227d",
+  "method": "sha256"
+ }
+}

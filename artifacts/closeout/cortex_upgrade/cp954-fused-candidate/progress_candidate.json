@@ -1,0 +1,803 @@
+{
+ "binding": {
+  "evaluation_source_sha256": "892614ae4f181245f58fb34b690ddc963c0707fd941d36dd3f8ab97b52823aef",
+  "label": "candidate",
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"
+ },
+ "complete": true,
+ "events": [
+  {
+   "cell_id": "breadth:0",
+   "completed": 1,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "au"
+    ],
+    "answer": "the chemical symbol for gold is **au",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The chemical symbol for gold is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547336.879704
+  },
+  {
+   "cell_id": "breadth:1",
+   "completed": 2,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "mitochondri"
+    ],
+    "answer": "the powerhouse of the cell is the **mitochondrion",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The powerhouse of the cell is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547338.538974
+  },
+  {
+   "cell_id": "breadth:2",
+   "completed": 3,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "3",
+     "300,000",
+     "299"
+    ],
+    "answer": "the speed of light in a vacuum is a fundamental physical constant, denoted by the symbol $c$.\n\n### exact value\nsince 1983",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The speed of light in vacuum is approximately"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547342.083672
+  },
+  {
+   "cell_id": "breadth:3",
+   "completed": 4,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "darwin"
+    ],
+    "answer": "the author of *on the origin of species* was **charles darwin",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The author of 'On the Origin of Species' was"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547343.801074
+  },
+  {
+   "cell_id": "breadth:4",
+   "completed": 5,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "tokyo"
+    ],
+    "answer": "the capital of japan is **tokyo",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The capital of Japan is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547344.908127
+  },
+  {
+   "cell_id": "breadth:5",
+   "completed": 6,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "h2o"
+    ],
+    "answer": "water's chemical formula is **$h_2o",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Water's chemical formula is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547346.349301
+  },
+  {
+   "cell_id": "breadth:6",
+   "completed": 7,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "jupiter"
+    ],
+    "answer": "the largest planet in the solar system is **jupiter",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The largest planet in the solar system is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547347.764257
+  },
+  {
+   "cell_id": "breadth:7",
+   "completed": 8,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "2x"
+    ],
+    "answer": "the derivative of $x^2$ is **$2x",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The derivative of x squared is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547349.376501
+  },
+  {
+   "cell_id": "breadth:8",
+   "completed": 9,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "deoxyribonucleic"
+    ],
+    "answer": "dna stands for **deoxyribonucleic",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "DNA stands for"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547350.707126
+  },
+  {
+   "cell_id": "breadth:9",
+   "completed": 10,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "1789"
+    ],
+    "answer": "the french revolution began in **1789",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The French Revolution began in the year"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547352.01156
+  },
+  {
+   "cell_id": "breadth:10",
+   "completed": 11,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "central processing"
+    ],
+    "answer": "in computing, **cpu** stands for **central processing",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "In computing, CPU stands for"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547353.397485
+  },
+  {
+   "cell_id": "breadth:11",
+   "completed": 12,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "12"
+    ],
+    "answer": "the square root of 144 is **12",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The square root of 144 is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547354.902803
+  },
+  {
+   "cell_id": "breadth:12",
+   "completed": 13,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "einstein"
+    ],
+    "answer": "the theory of general relativity was published by **albert einstein",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The theory of general relativity was published by"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547356.396634
+  },
+  {
+   "cell_id": "breadth:13",
+   "completed": 14,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "2"
+    ],
+    "answer": "the smallest prime number is **2",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The smallest prime number is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547357.384606
+  },
+  {
+   "cell_id": "breadth:14",
+   "completed": 15,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "glucose",
+     "sugar",
+     "oxygen"
+    ],
+    "answer": "photosynthesis converts carbon dioxide and water into **glucose",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Photosynthesis converts carbon dioxide and water into"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547358.8061042
+  },
+  {
+   "cell_id": "breadth:15",
+   "completed": 16,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "nile"
+    ],
+    "answer": "the longest river in africa is the **nile",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The longest river in Africa is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547360.120849
+  },
+  {
+   "cell_id": "breadth:16",
+   "completed": 17,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "merge",
+     "heap",
+     "quick"
+    ],
+    "answer": "the most common examples of algorithms with **o(n log n)** time complexity for sorting are:\n\n### 1. **merge",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "An algorithm's O(n log n) sorting example is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547362.9989052
+  },
+  {
+   "cell_id": "breadth:17",
+   "completed": 18,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "pound",
+     "sterling"
+    ],
+    "answer": "the currency of the united kingdom is the **pound",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The currency of the United Kingdom is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547364.390856
+  },
+  {
+   "cell_id": "breadth:18",
+   "completed": 19,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "denmark"
+    ],
+    "answer": "denmark",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Shakespeare wrote the tragedy of Prince Hamlet of"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547365.0063
+  },
+  {
+   "cell_id": "breadth:19",
+   "completed": 20,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "100"
+    ],
+    "answer": "the boiling point of water at sea level is **100",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The boiling point of water at sea level in Celsius is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547366.651283
+  },
+  {
+   "cell_id": "breadth:20",
+   "completed": 21,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "4",
+     "four"
+    ],
+    "answer": "the human heart has **4",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The human heart has this many chambers:"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547367.560053
+  },
+  {
+   "cell_id": "breadth:21",
+   "completed": 22,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "nitrogen"
+    ],
+    "answer": "the most abundant gas in earth's atmosphere is **nitrogen",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The most abundant gas in Earth's atmosphere is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547369.108512
+  },
+  {
+   "cell_id": "breadth:22",
+   "completed": 23,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "select"
+    ],
+    "answer": "in sql, the command to retrieve rows is **`select",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "In SQL, the command to retrieve rows is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547370.6327748
+  },
+  {
+   "cell_id": "breadth:23",
+   "completed": 24,
+   "label": "candidate",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "right",
+     "triangle"
+    ],
+    "answer": "the pythagorean theorem relates the sides of a **right",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The Pythagorean theorem relates the sides of a"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547372.1355479
+  },
+  {
+   "cell_id": "reasoning:modular:3:0",
+   "completed": 1,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple arithmetic. Need compute step by step but final number only. Let's analyze: start 7. +12 =19 mod17 =2. *3 =6 mod17=6. +16=22 mod17=5. Final 5. Need final only.\n</think>\n\n5",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "200944041a06df57880d801345d1e087339f6134fe957e074b2abcf858125d83",
+    "seed": 0
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547379.836819
+  },
+  {
+   "cell_id": "reasoning:boolean:3:0",
+   "completed": 2,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute: ((not (not 1)) and (not 0)). 1 true, 0 false. not 1 = 0, not(not 1)=not 0=1. not 0=1. 1 and 1 =1. Answer single digit. Final: 1.\n</think>\n\n1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "236ccd0669789cebffbefdb5c8a0729a0ece44af77b44e6fc3b59deb42c5441e",
+    "seed": 0
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547388.498894
+  },
+  {
+   "cell_id": "reasoning:modular:3:1",
+   "completed": 3,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple computation. Need compute step by step but final number only. Let's compute: start 9. *11 =99 mod17. 17*5=85 remainder14. Then *10 =140 mod17. 17*8=136 rem4. Then *2=8 mod17. Final 8. Need final only.\n</think>\n\n8",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "b49a124be08dd75e22dd4bbc261285e32f47aed6288a09d0708033320661d551",
+    "seed": 1
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547398.3499148
+  },
+  {
+   "cell_id": "reasoning:boolean:3:1",
+   "completed": 4,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute. Expression: (((not 0) or 0) or (not (1 or 1))). 1 true, 0 false. not 0 = 1. (1 or 0)=1. 1 or 1 =1. not 1 =0. 1 or 0 =1. Answer single digit 1.\nNeed final only digit.\n</think>\n\n1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "1699cc64f98748e6732f0e9c634cb7861b40814db7a511d466d36cbd512e126c",
+    "seed": 1
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547408.101929
+  },
+  {
+   "cell_id": "reasoning:modular:3:2",
+   "completed": 5,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple computation. Need compute step by step but final number only. Let's analyze: start with 5; +3 then mod17 => 8. *3 mod17 => 24 mod17 = 7. *14 mod17 => 98 mod17. 17*5=85 remainder 13. Final 13. Need final only. Ensure no extra.\n</think>\n\n13",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "ddf8df3d46a1075c0c0e0f5594e1c414d3c8371f1f39de7fab8d8fe20fbb0439",
+    "seed": 2
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547418.3490949
+  },
+  {
+   "cell_id": "reasoning:boolean:3:2",
+   "completed": 6,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute: (not ((0 and 0) and 0)). 0 and 0 = 0. 0 and 0 = 0. not 0 = 1. Answer single digit 1. Ensure final only digit.\n</think>\n\n1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "79eb9042db29873e9c1606df669387a63d83e65b66e7e6081f1dea37de00d659",
+    "seed": 2
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547425.232512
+  },
+  {
+   "cell_id": "reasoning:modular:3:3",
+   "completed": 7,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's request. Need compute step by step? User says Compute step by step: start with 15; + 14, then take mod 17; * 15, then take mod 17; * 15, then take mod 17. All arithmetic is modulo 17. Answer with final number only.\n\nWe need final number only. Let's compute carefully.\nStart 15.\n+14 = 29, mod17 = 12 (since 17*1=17, 29-17=12).\n*15 = 12*15=180, mod17. 17*10=170, remainder 10. Or 12*15 mod17 = 12*(-2)= -24 mod17 = 10.\n*15 = 10*15=150, mod17. 17*8=136, remainder 14. Or 10*(-2)=-20 mod17=14.\nFinal 14.\nNeed answer",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "fee104bf8bf1c1a489e0690a1a3f91d3de4edb80c9235b113940243245e9e0ab",
+    "seed": 3
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547450.500129
+  },
+  {
+   "cell_id": "reasoning:boolean:3:3",
+   "completed": 8,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute. Expression: (((not 0) or (not 0)) and (not (0 and 0))). 1=true 0=false. not 0 = 1. (1 or 1)=1. 0 and 0=0. not 0=1. 1 and 1=1. Answer single digit 1. Ensure final only digit.\n</think>\n\n1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "c35a121a4366e3a2b39d46ffde0086668a5842ce387f43b20da72f4155a1112c",
+    "seed": 3
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547460.3688629
+  },
+  {
+   "cell_id": "reasoning:modular:3:4",
+   "completed": 9,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple arithmetic. Need compute step by step? User says Compute step by step: start with 6; + 11, then take mod 17; + 2, then take mod 17; + 14, then take mod 17. All arithmetic modulo 17. Answer with final number only.\n\nWe need final only. Let's compute:\nstart 6.\n+11 =17 mod17=0.\n+2=2 mod17=2.\n+14=16 mod17=16.\nFinal 16.\nNeed final number only. Ensure no extra.\n</think>\n\n16",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "e480f022a62a9152a1833e85015848a03d643eff4fd28710e6f5159aeaa989e6",
+    "seed": 4
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547475.496523
+  },
+  {
+   "cell_id": "reasoning:boolean:3:4",
+   "completed": 10,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute: (((1 or 1) and 1) and ((0 and 1) or 0)). 1 or 1 = 1. 1 and 1 = 1. 0 and 1 = 0. 0 or 0 = 0. 1 and 0 = 0. Answer single digit 0. Ensure final only digit.\n</think>\n\n0",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "0b8b966ec72146f5f833bfbc91f10eb443f080b8857993549d262bdfb46396c9",
+    "seed": 4
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547485.21238
+  },
+  {
+   "cell_id": "reasoning:modular:3:5",
+   "completed": 11,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple arithmetic. Need compute step by step but final number only. Let's analyze: start 10. +5 =15 mod17 =15. *9 =135 mod17. 17*7=119, remainder16. Or 15*9=135, 135 mod17 = 16 (since 136 multiple). +5 =21 mod17=4. Final 4. Need final only. Ensure no extra.\n</think>\n\n4",
+    "depth": 3,
+    "family": "modular",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "efa0512396cfae9616c8554af90256c68841afb87a1e932324f3eab2e0c6dc6e",
+    "seed": 5
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547497.619301
+  },
+  {
+   "cell_id": "reasoning:boolean:3:5",
+   "completed": 12,
+   "label": "candidate",
+   "phase": "reasoning",
+   "row": {
+    "answer": "We need answer user's simple boolean expression. Need compute: (not ((not 0) and (not 0))). 1=true, 0=false. not 0 = 1. (1 and 1)=1. not 1=0. Answer single digit 0. Ensure final only digit.\n</think>\n\n0",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "99e4be2b67577cf2615e28e6a520a4f495e44ebf3e10e400b2ab95632565ea4a",
+    "seed": 5
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547505.055744
+  },
+  {
+   "cell_id": "identity:0",
+   "completed": 1,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "19729c16e5f43224"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.177857
+  },
+  {
+   "cell_id": "identity:1",
+   "completed": 2,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "ba4cef7b8aab5347"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.179531
+  },
+  {
+   "cell_id": "identity:2",
+   "completed": 3,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "4ebdb25e43ee237e"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.1804118
+  },
+  {
+   "cell_id": "identity:3",
+   "completed": 4,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "64ec6e43d667b236"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.1811671
+  },
+  {
+   "cell_id": "identity:4",
+   "completed": 5,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "13ac59dc7583dd3a"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.181937
+  },
+  {
+   "cell_id": "identity:5",
+   "completed": 6,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "80fb7bc7a1de9ad6"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.18282
+  },
+  {
+   "cell_id": "identity:6",
+   "completed": 7,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "3c14ad410ea0189b"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.183637
+  },
+  {
+   "cell_id": "identity:7",
+   "completed": 8,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "1e81551750d9c441"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.184361
+  },
+  {
+   "cell_id": "identity:8",
+   "completed": 9,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "d9b96b7e5968cc6a"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.185139
+  },
+  {
+   "cell_id": "identity:9",
+   "completed": 10,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "c113875834652aa1"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.185855
+  },
+  {
+   "cell_id": "identity:10",
+   "completed": 11,
+   "label": "candidate",
+   "phase": "identity",
+   "row": {
+    "digest": "36b27597162f0e9b"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547508.186532
+  }
+ ],
+ "receipt_sha256": "7d9d16ee8ef71730ab1a467446fae27c06468e4628002988799c43b8f46703ab",
+ "schema": "aura.cortex_upgrade.evaluation_journal.v1",
+ "updated_at": 1787547508.207979
+}

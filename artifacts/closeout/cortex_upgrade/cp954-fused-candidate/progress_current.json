@@ -1,0 +1,803 @@
+{
+ "binding": {
+  "evaluation_source_sha256": "892614ae4f181245f58fb34b690ddc963c0707fd941d36dd3f8ab97b52823aef",
+  "label": "current",
+  "model_descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+  "model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118"
+ },
+ "complete": true,
+ "events": [
+  {
+   "cell_id": "breadth:0",
+   "completed": 1,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "au"
+    ],
+    "answer": "au",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The chemical symbol for gold is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547255.817812
+  },
+  {
+   "cell_id": "breadth:1",
+   "completed": 2,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "mitochondri"
+    ],
+    "answer": "mitochondria",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The powerhouse of the cell is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547256.273652
+  },
+  {
+   "cell_id": "breadth:2",
+   "completed": 3,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "3",
+     "300,000",
+     "299"
+    ],
+    "answer": "299",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The speed of light in vacuum is approximately"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547256.771643
+  },
+  {
+   "cell_id": "breadth:3",
+   "completed": 4,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "darwin"
+    ],
+    "answer": "charles darwin",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The author of 'On the Origin of Species' was"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547257.523694
+  },
+  {
+   "cell_id": "breadth:4",
+   "completed": 5,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "tokyo"
+    ],
+    "answer": "tokyo",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The capital of Japan is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547258.23975
+  },
+  {
+   "cell_id": "breadth:5",
+   "completed": 6,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "h2o"
+    ],
+    "answer": "h2o",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Water's chemical formula is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547259.0384169
+  },
+  {
+   "cell_id": "breadth:6",
+   "completed": 7,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "jupiter"
+    ],
+    "answer": "jupiter",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The largest planet in the solar system is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547259.779181
+  },
+  {
+   "cell_id": "breadth:7",
+   "completed": 8,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "2x"
+    ],
+    "answer": "2x",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The derivative of x squared is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547260.502141
+  },
+  {
+   "cell_id": "breadth:8",
+   "completed": 9,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "deoxyribonucleic"
+    ],
+    "answer": "dna stands for deoxyribonucleic",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "DNA stands for"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547262.071622
+  },
+  {
+   "cell_id": "breadth:9",
+   "completed": 10,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "1789"
+    ],
+    "answer": "1789",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The French Revolution began in the year"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547262.911793
+  },
+  {
+   "cell_id": "breadth:10",
+   "completed": 11,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "central processing"
+    ],
+    "answer": "central processing",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "In computing, CPU stands for"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547263.639581
+  },
+  {
+   "cell_id": "breadth:11",
+   "completed": 12,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "12"
+    ],
+    "answer": "the square root of 144 is 12",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The square root of 144 is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547265.509082
+  },
+  {
+   "cell_id": "breadth:12",
+   "completed": 13,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "einstein"
+    ],
+    "answer": "albert einstein",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The theory of general relativity was published by"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547266.185534
+  },
+  {
+   "cell_id": "breadth:13",
+   "completed": 14,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "2"
+    ],
+    "answer": "the smallest prime number is \\(2",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The smallest prime number is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547267.729064
+  },
+  {
+   "cell_id": "breadth:14",
+   "completed": 15,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "glucose",
+     "sugar",
+     "oxygen"
+    ],
+    "answer": "photosynthesis is a process used by plants, algae, and some bacteria to convert light energy into chemical energy stored in glucose",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Photosynthesis converts carbon dioxide and water into"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547271.116482
+  },
+  {
+   "cell_id": "breadth:15",
+   "completed": 16,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "nile"
+    ],
+    "answer": "the longest river in africa is the nile",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The longest river in Africa is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547272.439459
+  },
+  {
+   "cell_id": "breadth:16",
+   "completed": 17,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "merge",
+     "heap",
+     "quick"
+    ],
+    "answer": "merge",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "An algorithm's O(n log n) sorting example is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547273.02302
+  },
+  {
+   "cell_id": "breadth:17",
+   "completed": 18,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "pound",
+     "sterling"
+    ],
+    "answer": "the currency of the united kingdom is the british pound",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The currency of the United Kingdom is the"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547274.627074
+  },
+  {
+   "cell_id": "breadth:18",
+   "completed": 19,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "denmark"
+    ],
+    "answer": "denmark",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "Shakespeare wrote the tragedy of Prince Hamlet of"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547275.28706
+  },
+  {
+   "cell_id": "breadth:19",
+   "completed": 20,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "100"
+    ],
+    "answer": "100",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The boiling point of water at sea level in Celsius is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547276.0602272
+  },
+  {
+   "cell_id": "breadth:20",
+   "completed": 21,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "4",
+     "four"
+    ],
+    "answer": "the human heart has four",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The human heart has this many chambers:"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547277.134977
+  },
+  {
+   "cell_id": "breadth:21",
+   "completed": 22,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "nitrogen"
+    ],
+    "answer": "nitrogen",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The most abundant gas in Earth's atmosphere is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547277.770347
+  },
+  {
+   "cell_id": "breadth:22",
+   "completed": 23,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "select"
+    ],
+    "answer": "the command to retrieve rows in sql is `select",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "In SQL, the command to retrieve rows is"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547279.410965
+  },
+  {
+   "cell_id": "breadth:23",
+   "completed": 24,
+   "label": "current",
+   "phase": "breadth",
+   "row": {
+    "accepted": [
+     "right",
+     "triangle"
+    ],
+    "answer": "right",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt": "The Pythagorean theorem relates the sides of a"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 24,
+   "updated_at": 1787547279.993495
+  },
+  {
+   "cell_id": "reasoning:modular:3:0",
+   "completed": 1,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "15",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "200944041a06df57880d801345d1e087339f6134fe957e074b2abcf858125d83",
+    "seed": 0
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547281.076641
+  },
+  {
+   "cell_id": "reasoning:boolean:3:0",
+   "completed": 2,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "236ccd0669789cebffbefdb5c8a0729a0ece44af77b44e6fc3b59deb42c5441e",
+    "seed": 0
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547282.029936
+  },
+  {
+   "cell_id": "reasoning:modular:3:1",
+   "completed": 3,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "15",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "b49a124be08dd75e22dd4bbc261285e32f47aed6288a09d0708033320661d551",
+    "seed": 1
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547283.088743
+  },
+  {
+   "cell_id": "reasoning:boolean:3:1",
+   "completed": 4,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "1699cc64f98748e6732f0e9c634cb7861b40814db7a511d466d36cbd512e126c",
+    "seed": 1
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547284.046189
+  },
+  {
+   "cell_id": "reasoning:modular:3:2",
+   "completed": 5,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "ddf8df3d46a1075c0c0e0f5594e1c414d3c8371f1f39de7fab8d8fe20fbb0439",
+    "seed": 2
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547285.037031
+  },
+  {
+   "cell_id": "reasoning:boolean:3:2",
+   "completed": 6,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "79eb9042db29873e9c1606df669387a63d83e65b66e7e6081f1dea37de00d659",
+    "seed": 2
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547285.9859562
+  },
+  {
+   "cell_id": "reasoning:modular:3:3",
+   "completed": 7,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "fee104bf8bf1c1a489e0690a1a3f91d3de4edb80c9235b113940243245e9e0ab",
+    "seed": 3
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547286.971901
+  },
+  {
+   "cell_id": "reasoning:boolean:3:3",
+   "completed": 8,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "c35a121a4366e3a2b39d46ffde0086668a5842ce387f43b20da72f4155a1112c",
+    "seed": 3
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547287.93983
+  },
+  {
+   "cell_id": "reasoning:modular:3:4",
+   "completed": 9,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "6\n17\n0\n2\n16\n16\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n1",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "e480f022a62a9152a1833e85015848a03d643eff4fd28710e6f5159aeaa989e6",
+    "seed": 4
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547318.7584589
+  },
+  {
+   "cell_id": "reasoning:boolean:3:4",
+   "completed": 10,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "0",
+    "depth": 3,
+    "family": "boolean",
+    "hit": true,
+    "max_tokens": 256,
+    "prompt_sha256": "0b8b966ec72146f5f833bfbc91f10eb443f080b8857993549d262bdfb46396c9",
+    "seed": 4
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547319.699821
+  },
+  {
+   "cell_id": "reasoning:modular:3:5",
+   "completed": 11,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "15",
+    "depth": 3,
+    "family": "modular",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "efa0512396cfae9616c8554af90256c68841afb87a1e932324f3eab2e0c6dc6e",
+    "seed": 5
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547320.7536268
+  },
+  {
+   "cell_id": "reasoning:boolean:3:5",
+   "completed": 12,
+   "label": "current",
+   "phase": "reasoning",
+   "row": {
+    "answer": "1",
+    "depth": 3,
+    "family": "boolean",
+    "hit": false,
+    "max_tokens": 256,
+    "prompt_sha256": "99e4be2b67577cf2615e28e6a520a4f495e44ebf3e10e400b2ab95632565ea4a",
+    "seed": 5
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 12,
+   "updated_at": 1787547321.704293
+  },
+  {
+   "cell_id": "identity:0",
+   "completed": 1,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "707442c12cc15163"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.527214
+  },
+  {
+   "cell_id": "identity:1",
+   "completed": 2,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "da51a2eb629d63d1"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.528428
+  },
+  {
+   "cell_id": "identity:2",
+   "completed": 3,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "5edd80d74f781410"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.529386
+  },
+  {
+   "cell_id": "identity:3",
+   "completed": 4,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "b14b0307218a75a7"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.530271
+  },
+  {
+   "cell_id": "identity:4",
+   "completed": 5,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "797605dca158060b"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.531035
+  },
+  {
+   "cell_id": "identity:5",
+   "completed": 6,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "d71eec602fbae2ee"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.531774
+  },
+  {
+   "cell_id": "identity:6",
+   "completed": 7,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "9e99bad6e3e6c2db"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.532798
+  },
+  {
+   "cell_id": "identity:7",
+   "completed": 8,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "5b798bc3b0a603be"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.5337589
+  },
+  {
+   "cell_id": "identity:8",
+   "completed": 9,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "ab1be8ea5440c605"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.5350342
+  },
+  {
+   "cell_id": "identity:9",
+   "completed": 10,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "25b1bdce2acbc2e8"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.536112
+  },
+  {
+   "cell_id": "identity:10",
+   "completed": 11,
+   "label": "current",
+   "phase": "identity",
+   "row": {
+    "digest": "13b980c692c7727d"
+   },
+   "schema": "aura.cortex_upgrade.evaluation_progress.v1",
+   "total": 11,
+   "updated_at": 1787547325.5371342
+  }
+ ],
+ "receipt_sha256": "8a4e197402fd66d30ac2a521dee67efff352f92dd7c1fcbe75c2679b08e091aa",
+ "schema": "aura.cortex_upgrade.evaluation_journal.v1",
+ "updated_at": 1787547325.551614
+}

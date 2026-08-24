@@ -1,0 +1,16 @@
+{
+ "code_contract_pass": true,
+ "complete_answer_pass": true,
+ "context_pass": true,
+ "evidence_sha256": "113903e2b96fd5f3686880e7cb0c42a132542731a0fe0990af0ebb1aedb8eb57",
+ "latency_pass": true,
+ "memory_pass": true,
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "prefill_chunk_tokens": 1024,
+ "requested_context_tokens": 32768,
+ "schema": "aura.model_serving_qualification.v2",
+ "served_context_tokens": 32768,
+ "template_pass": true,
+ "tool_contract_pass": true,
+ "verdict": "PASS"
+}

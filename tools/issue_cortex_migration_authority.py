@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 from core.governance_context import local_internal_governed_scope  # noqa: E402
 from core.learning.cortex_migration_authority_issuer import (  # noqa: E402
     issue_expert_retirement_authority,
+    issue_deferred_model_tissue_authority,
     issue_persona_crsm_authority,
     issue_recurrence_authority,
     issue_steering_authority,
@@ -47,6 +48,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     recurrence = subparsers.add_parser("recurrence-native")
     recurrence.add_argument("--activation", type=Path, required=True)
+    for deferred_name in ("steering-deferred", "recurrence-deferred"):
+        deferred = subparsers.add_parser(deferred_name)
+        deferred.add_argument("--inventory", type=Path, required=True)
     return parser
 
 
@@ -79,6 +83,14 @@ def run(arguments: argparse.Namespace) -> dict:
     elif arguments.component == "recurrence-native":
         authority = issue_recurrence_authority(
             activation_path=arguments.activation,
+            **common,
+        )
+    elif arguments.component in {"steering-deferred", "recurrence-deferred"}:
+        authority = issue_deferred_model_tissue_authority(
+            component=(
+                "steering" if arguments.component == "steering-deferred" else "recurrence_native"
+            ),
+            inventory_path=arguments.inventory,
             **common,
         )
     else:  # argparse keeps this unreachable; retain a fail-closed library path.

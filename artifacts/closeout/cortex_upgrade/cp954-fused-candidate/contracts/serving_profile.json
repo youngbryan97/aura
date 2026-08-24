@@ -1,0 +1,55 @@
+{
+ "lanes": {
+  "code": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  },
+  "deep_reasoning": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  },
+  "document": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  },
+  "foreground_extended": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  },
+  "foreground_simple": {
+   "max_input_tokens": 8192,
+   "max_output_tokens": 2048
+  },
+  "foreground_standard": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  },
+  "tool_execution": {
+   "max_input_tokens": 24576,
+   "max_output_tokens": 8192
+  }
+ },
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "native_context_tokens": 262144,
+ "prefill_chunk_tokens": 1024,
+ "profile_sha256": "f7facae5e844eeb1328065fc8fa66e11c857fb1609f607e392f0141d79ccb2d6",
+ "qualification": {
+  "code_contract_pass": true,
+  "complete_answer_pass": true,
+  "context_pass": true,
+  "evidence_sha256": "113903e2b96fd5f3686880e7cb0c42a132542731a0fe0990af0ebb1aedb8eb57",
+  "latency_pass": true,
+  "memory_pass": true,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "prefill_chunk_tokens": 1024,
+  "requested_context_tokens": 32768,
+  "schema": "aura.model_serving_qualification.v2",
+  "served_context_tokens": 32768,
+  "template_pass": true,
+  "tool_contract_pass": true,
+  "verdict": "PASS"
+ },
+ "qualification_sha256": "27e3e093474f0a51c13828f1e42470d900e9fcb03ea0eac0933129144f34e4be",
+ "schema": "aura.model_serving_profile.v1",
+ "served_context_tokens": 32768
+}

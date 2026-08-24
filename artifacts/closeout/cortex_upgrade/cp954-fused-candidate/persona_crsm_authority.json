@@ -1,0 +1,27 @@
+{
+  "authority_hmac_sha256": "95acef64b698e200e5b3e5ee58ae70af05ea70966ab078d5b13d214d004af819",
+  "authority_kind": "fused_persona_crsm",
+  "authority_sha256": "5ac6cce07b359efc373dcc2c1fac401d46c0b11af48ea3c7c83f92758741bf4b",
+  "claims": {
+    "fusion_plan_sha256": "ac291ed5a1df3a77305c0edf62b3e5737e20ec61342b259dff23bbf326e2ef99",
+    "fusion_receipt_sha256": "22016b4582092fa9f9ed693df8ae5a7507285ed3ca68577a1799dc3051074aa9"
+  },
+  "component": "persona_crsm",
+  "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965",
+  "evidence": {
+    "fusion_plan": {
+      "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965/00-4010395c036c.evidence",
+      "sha256": "65814eef84fabb3d1151fabb032a205c849bd7fe206523941d885e643e33d4b1",
+      "size_bytes": 5015
+    },
+    "fusion_receipt": {
+      "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/persona_crsm/5c362dca64ddfe0f00fc5657d5e7094966defd9fb21bab29f6a48aafb7f46965/01-12331b57da02.evidence",
+      "sha256": "2aa6bb1fb5f74539e2c5b8edcf5ea575823e4af3ee039c1255e84694263efb55",
+      "size_bytes": 1073
+    }
+  },
+  "issued_at": 1787550603.796153,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "schema": "aura.cortex_upgrade.component_authority.v1",
+  "status": "qualified"
+}

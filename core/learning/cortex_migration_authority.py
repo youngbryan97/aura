@@ -33,6 +33,12 @@ _COMPONENT_SPECS: Final = {
     "expert_adapters": ("retirement_inventory", "retired"),
     "recurrence_native": ("qualified_recurrent_activation", "qualified"),
 }
+_DEFERRED_COMPONENT_FAMILIES: Final = {
+    "steering": "caa_steering",
+    "recurrence_native": "recurrent_tissue",
+}
+_DEFERRED_AUTHORITY_KIND: Final = "model_basis_quarantine"
+_DEFERRED_STATUS: Final = "deferred"
 _CLAIM_FIELDS: Final = {
     "persona_crsm": {"fusion_plan_sha256", "fusion_receipt_sha256"},
     "steering": {
@@ -189,9 +195,7 @@ def _validate_steering(
     ):
         _fail("steering_evidence_incomplete")
     metadata = _strict_json(evidence["metadata"], role="steering_metadata")
-    evaluation = _strict_json(
-        evidence["causal_evaluation"], role="steering_causal_evaluation"
-    )
+    evaluation = _strict_json(evidence["causal_evaluation"], role="steering_causal_evaluation")
     model_identity = metadata.get("model_identity")
     extraction = metadata.get("extraction_contract")
     vectors = metadata.get("vector_files")
@@ -209,8 +213,7 @@ def _validate_steering(
         not isinstance(model_identity, Mapping)
         or model_identity.get("model_descriptor_sha256") != descriptor_sha256
         or not isinstance(extraction, Mapping)
-        or extraction.get("extraction_contract_sha256")
-        != claims["extraction_contract_sha256"]
+        or extraction.get("extraction_contract_sha256") != claims["extraction_contract_sha256"]
         or metadata.get("generation_sha256") != claims["generation_sha256"]
         or metadata.get("generation_sha256") != generation_sha256
         or not isinstance(vectors, list)
@@ -276,8 +279,7 @@ def _validate_steering(
         or not isinstance(lesion_successes, Mapping)
         or not lesion_successes
         or any(
-            type(successes) is not int
-            or not 0 <= successes < treatment_successes
+            type(successes) is not int or not 0 <= successes < treatment_successes
             for successes in lesion_successes.values()
         )
         or evaluation.get("no_regression") is not True
@@ -353,6 +355,44 @@ def _validate_recurrence(
         _fail("recurrence_model_authority_invalid")
 
 
+def _validate_deferred_tissue(
+    component: str,
+    evidence: Mapping[str, bytes],
+    claims: Mapping[str, Any],
+    descriptor_sha256: str,
+) -> None:
+    """Prove incompatible tissue is accounted for and cannot load."""
+
+    if set(evidence) != {"migration_inventory"}:
+        _fail(f"deferred_tissue_evidence_incomplete:{component}")
+    inventory = _strict_json(evidence["migration_inventory"], role="migration_inventory")
+    try:
+        inventory = validate_tissue_migration_inventory(inventory)
+    except TissueInventoryError as exc:
+        raise CortexMigrationAuthorityError(
+            f"deferred_tissue_inventory_invalid:{component}"
+        ) from exc
+    candidate = inventory.get("candidate")
+    family_name = _DEFERRED_COMPONENT_FAMILIES.get(component)
+    family = next(
+        (
+            item
+            for item in inventory.get("families", ())
+            if isinstance(item, Mapping) and item.get("family") == family_name
+        ),
+        None,
+    )
+    if (
+        not isinstance(candidate, Mapping)
+        or candidate.get("descriptor_sha256") != descriptor_sha256
+        or not isinstance(family, Mapping)
+        or family.get("outcome") not in {"retrain", "refuse"}
+        or family.get("candidate_runtime_loadable") is not False
+        or inventory.get("inventory_sha256") != claims.get("inventory_sha256")
+    ):
+        _fail(f"deferred_tissue_not_quarantined:{component}")
+
+
 _SEMANTIC_VALIDATORS: Final = {
     "persona_crsm": _validate_persona,
     "steering": _validate_steering,
@@ -367,17 +407,30 @@ def validate_component_evidence(
     evidence: Mapping[str, bytes],
     claims: Mapping[str, Any],
     descriptor_sha256: str,
+    authority_kind: str | None = None,
+    status: str | None = None,
 ) -> None:
     """Validate one component's retained bytes before authority is issued."""
 
+    default_kind, default_status = _COMPONENT_SPECS.get(component, ("", ""))
+    effective_kind = authority_kind or default_kind
+    effective_status = status or default_status
+    deferred = (
+        component in _DEFERRED_COMPONENT_FAMILIES
+        and effective_kind == _DEFERRED_AUTHORITY_KIND
+        and effective_status == _DEFERRED_STATUS
+    )
+    claim_fields = {"inventory_sha256"} if deferred else _CLAIM_FIELDS.get(component)
     if (
         component not in _COMPONENT_SPECS
         or not _is_sha(descriptor_sha256)
         or not isinstance(claims, Mapping)
-        or set(claims) != _CLAIM_FIELDS[component]
+        or claim_fields is None
+        or set(claims) != claim_fields
         or any(not _is_sha(item) for key, item in claims.items() if key != "package_id")
         or (
-            component == "recurrence_native"
+            not deferred
+            and component == "recurrence_native"
             and (not isinstance(claims.get("package_id"), str) or not claims["package_id"])
         )
         or not isinstance(evidence, Mapping)
@@ -392,7 +445,12 @@ def validate_component_evidence(
         )
     ):
         _fail(f"migration_component_evidence_invalid:{component}")
-    _SEMANTIC_VALIDATORS[component](evidence, claims, descriptor_sha256)
+    if deferred:
+        _validate_deferred_tissue(component, evidence, claims, descriptor_sha256)
+    else:
+        if (effective_kind, effective_status) != (default_kind, default_status):
+            _fail(f"migration_component_evidence_invalid:{component}")
+        _SEMANTIC_VALIDATORS[component](evidence, claims, descriptor_sha256)
 
 
 def validate_component_authority(
@@ -421,13 +479,18 @@ def validate_component_authority(
         _fail(f"migration_component_authority_invalid:{component}")
     if set(value) != required or value.get("schema") != COMPONENT_AUTHORITY_SCHEMA:
         _fail(f"migration_component_authority_schema_invalid:{component}")
-    kind, status = _COMPONENT_SPECS[component]
+    kind = value.get("authority_kind")
+    status = value.get("status")
+    default_kind, default_status = _COMPONENT_SPECS[component]
+    allowed_profile = (kind, status) == (default_kind, default_status) or (
+        component in _DEFERRED_COMPONENT_FAMILIES
+        and (kind, status) == (_DEFERRED_AUTHORITY_KIND, _DEFERRED_STATUS)
+    )
     claims = value.get("claims")
     evidence_raw = value.get("evidence")
     if (
         value.get("component") != component
-        or value.get("authority_kind") != kind
-        or value.get("status") != status
+        or not allowed_profile
         or value.get("model_descriptor_sha256") != descriptor_sha256
         or not isinstance(claims, Mapping)
         or not isinstance(evidence_raw, Mapping)
@@ -441,9 +504,7 @@ def validate_component_authority(
     signature = material.pop("authority_hmac_sha256", None)
     observed_sha256 = _sha(material)
     key = _authority_key(authority_key_path)
-    expected_signature = hmac.new(
-        key, bytes.fromhex(observed_sha256), hashlib.sha256
-    ).hexdigest()
+    expected_signature = hmac.new(key, bytes.fromhex(observed_sha256), hashlib.sha256).hexdigest()
     if (
         not _is_sha(claimed_sha256)
         or not _is_sha(signature)
@@ -487,6 +548,8 @@ def validate_component_authority(
         evidence=evidence,
         claims=claims,
         descriptor_sha256=descriptor_sha256,
+        authority_kind=str(kind),
+        status=str(status),
     )
     return dict(value)
 

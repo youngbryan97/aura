@@ -1,0 +1,17 @@
+{
+ "artifacts": {
+  "critical_gates": "artifacts/closeout/cortex_upgrade/cp954-fused-candidate/runs/39f629ec72c1cf129f73/critical_gates.json",
+  "lane_limits": "artifacts/closeout/cortex_upgrade/cp954-fused-candidate/runs/39f629ec72c1cf129f73/lane_limits.json",
+  "measurement": "artifacts/closeout/cortex_upgrade/cp954-fused-candidate/runs/39f629ec72c1cf129f73/serving_measurement.json",
+  "qualification": "artifacts/closeout/cortex_upgrade/cp954-fused-candidate/runs/39f629ec72c1cf129f73/serving_qualification.json",
+  "serving_profile": "artifacts/closeout/cortex_upgrade/cp954-fused-candidate/runs/39f629ec72c1cf129f73/serving_profile.json"
+ },
+ "evidence_binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+ "measurement_sha256": "113903e2b96fd5f3686880e7cb0c42a132542731a0fe0990af0ebb1aedb8eb57",
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "profile_sha256": "f7facae5e844eeb1328065fc8fa66e11c857fb1609f607e392f0141d79ccb2d6",
+ "qualification_sha256": "27e3e093474f0a51c13828f1e42470d900e9fcb03ea0eac0933129144f34e4be",
+ "run_id": "39f629ec72c1cf129f73",
+ "schema": "aura.cortex_upgrade.serving_publication.v1",
+ "status": "PASS"
+}

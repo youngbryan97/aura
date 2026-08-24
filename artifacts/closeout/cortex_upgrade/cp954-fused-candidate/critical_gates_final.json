@@ -1,0 +1,10 @@
+{
+  "code_contract": true,
+  "complete_answer": true,
+  "context": true,
+  "identity_migration": true,
+  "latency": true,
+  "memory": true,
+  "template": true,
+  "tool_contract": true
+}

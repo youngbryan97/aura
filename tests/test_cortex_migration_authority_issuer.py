@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from core.learning.cortex_migration_authority import validate_component_authority
 from core.learning.candidate_cortex_fusion import CandidateCortexFusionError
 from core.learning.cortex_migration_authority_issuer import (
+    issue_deferred_model_tissue_authority,
     issue_expert_retirement_authority,
     issue_persona_crsm_authority,
     issue_recurrence_authority,
@@ -39,9 +41,7 @@ def test_component_owned_issuers_retain_and_reopen_exact_evidence(tmp_path):
     steering = issue_steering_authority(
         metadata_path=Path(steering_source["metadata"]["path"]),
         causal_evaluation_path=Path(steering_source["causal_evaluation"]["path"]),
-        independent_evidence_path=Path(
-            steering_source["independent_verifier"]["path"]
-        ),
+        independent_evidence_path=Path(steering_source["independent_verifier"]["path"]),
         descriptor_sha256=descriptor_sha256,
         custody_base=tmp_path / "issued",
         issued_at=2.0,
@@ -64,13 +64,62 @@ def test_component_owned_issuers_retain_and_reopen_exact_evidence(tmp_path):
         "expert_adapters": expert,
         "recurrence_native": recurrence,
     }.items():
-        assert validate_component_authority(
+        assert (
+            validate_component_authority(
+                authority,
+                component=component,
+                descriptor_sha256=descriptor_sha256,
+            )
+            == authority
+        )
+        assert Path(authority["custody_root"]).is_relative_to(tmp_path / "issued")
+        assert list(Path(authority["custody_root"]).glob("authority-*.json"))
+
+
+@pytest.mark.parametrize(
+    ("component", "family"),
+    (("steering", "caa_steering"), ("recurrence_native", "recurrent_tissue")),
+)
+def test_deferred_tissue_authority_quarantines_old_basis(tmp_path, component, family):
+    descriptor_sha256 = "e" * 64
+    sources = _fixture_sources(tmp_path, descriptor_sha256)
+    source = Path(sources["expert_adapters"]["evidence"]["migration_inventory"]["path"])
+    inventory = json.loads(source.read_text(encoding="ascii"))
+    for item in inventory["families"]:
+        if item["family"] == family:
+            item["outcome"] = "retrain"
+            item["candidate_runtime_loadable"] = False
+    material = dict(inventory)
+    material.pop("inventory_sha256")
+    inventory["inventory_sha256"] = hashlib.sha256(
+        json.dumps(
+            material,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    ).hexdigest()
+    source.write_text(json.dumps(inventory), encoding="ascii")
+
+    authority = issue_deferred_model_tissue_authority(
+        component=component,
+        inventory_path=source,
+        descriptor_sha256=descriptor_sha256,
+        custody_base=tmp_path / "issued",
+        issued_at=2.0,
+    )
+
+    assert authority["status"] == "deferred"
+    assert authority["authority_kind"] == "model_basis_quarantine"
+    assert (
+        validate_component_authority(
             authority,
             component=component,
             descriptor_sha256=descriptor_sha256,
-        ) == authority
-        assert Path(authority["custody_root"]).is_relative_to(tmp_path / "issued")
-        assert list(Path(authority["custody_root"]).glob("authority-*.json"))
+        )
+        == authority
+    )
 
 
 def test_issued_authority_survives_source_removal_but_not_retained_drift(tmp_path):
@@ -85,11 +134,14 @@ def test_issued_authority_survives_source_removal_but_not_retained_drift(tmp_pat
         issued_at=3.0,
     )
     source_path.unlink()
-    assert validate_component_authority(
-        authority,
-        component="expert_adapters",
-        descriptor_sha256=descriptor_sha256,
-    ) == authority
+    assert (
+        validate_component_authority(
+            authority,
+            component="expert_adapters",
+            descriptor_sha256=descriptor_sha256,
+        )
+        == authority
+    )
 
     retained = Path(authority["evidence"]["migration_inventory"]["path"])
     retained.write_text("{}", encoding="ascii")

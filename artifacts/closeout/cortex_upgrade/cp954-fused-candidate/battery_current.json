@@ -1,0 +1,361 @@
+{
+ "breadth_accuracy": 1.0,
+ "breadth_hits": 24,
+ "breadth_rows": [
+  {
+   "accepted": [
+    "au"
+   ],
+   "answer": "au",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The chemical symbol for gold is"
+  },
+  {
+   "accepted": [
+    "mitochondri"
+   ],
+   "answer": "mitochondria",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The powerhouse of the cell is the"
+  },
+  {
+   "accepted": [
+    "3",
+    "300,000",
+    "299"
+   ],
+   "answer": "299",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The speed of light in vacuum is approximately"
+  },
+  {
+   "accepted": [
+    "darwin"
+   ],
+   "answer": "charles darwin",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The author of 'On the Origin of Species' was"
+  },
+  {
+   "accepted": [
+    "tokyo"
+   ],
+   "answer": "tokyo",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The capital of Japan is"
+  },
+  {
+   "accepted": [
+    "h2o"
+   ],
+   "answer": "h2o",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "Water's chemical formula is"
+  },
+  {
+   "accepted": [
+    "jupiter"
+   ],
+   "answer": "jupiter",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The largest planet in the solar system is"
+  },
+  {
+   "accepted": [
+    "2x"
+   ],
+   "answer": "2x",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The derivative of x squared is"
+  },
+  {
+   "accepted": [
+    "deoxyribonucleic"
+   ],
+   "answer": "dna stands for deoxyribonucleic",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "DNA stands for"
+  },
+  {
+   "accepted": [
+    "1789"
+   ],
+   "answer": "1789",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The French Revolution began in the year"
+  },
+  {
+   "accepted": [
+    "central processing"
+   ],
+   "answer": "central processing",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "In computing, CPU stands for"
+  },
+  {
+   "accepted": [
+    "12"
+   ],
+   "answer": "the square root of 144 is 12",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The square root of 144 is"
+  },
+  {
+   "accepted": [
+    "einstein"
+   ],
+   "answer": "albert einstein",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The theory of general relativity was published by"
+  },
+  {
+   "accepted": [
+    "2"
+   ],
+   "answer": "the smallest prime number is \\(2",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The smallest prime number is"
+  },
+  {
+   "accepted": [
+    "glucose",
+    "sugar",
+    "oxygen"
+   ],
+   "answer": "photosynthesis is a process used by plants, algae, and some bacteria to convert light energy into chemical energy stored in glucose",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "Photosynthesis converts carbon dioxide and water into"
+  },
+  {
+   "accepted": [
+    "nile"
+   ],
+   "answer": "the longest river in africa is the nile",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The longest river in Africa is the"
+  },
+  {
+   "accepted": [
+    "merge",
+    "heap",
+    "quick"
+   ],
+   "answer": "merge",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "An algorithm's O(n log n) sorting example is"
+  },
+  {
+   "accepted": [
+    "pound",
+    "sterling"
+   ],
+   "answer": "the currency of the united kingdom is the british pound",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The currency of the United Kingdom is the"
+  },
+  {
+   "accepted": [
+    "denmark"
+   ],
+   "answer": "denmark",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "Shakespeare wrote the tragedy of Prince Hamlet of"
+  },
+  {
+   "accepted": [
+    "100"
+   ],
+   "answer": "100",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The boiling point of water at sea level in Celsius is"
+  },
+  {
+   "accepted": [
+    "4",
+    "four"
+   ],
+   "answer": "the human heart has four",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The human heart has this many chambers:"
+  },
+  {
+   "accepted": [
+    "nitrogen"
+   ],
+   "answer": "nitrogen",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The most abundant gas in Earth's atmosphere is"
+  },
+  {
+   "accepted": [
+    "select"
+   ],
+   "answer": "the command to retrieve rows in sql is `select",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "In SQL, the command to retrieve rows is"
+  },
+  {
+   "accepted": [
+    "right",
+    "triangle"
+   ],
+   "answer": "right",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt": "The Pythagorean theorem relates the sides of a"
+  }
+ ],
+ "breadth_total": 24,
+ "elapsed_s": 71.517,
+ "identity_digests": [
+  "707442c12cc15163",
+  "da51a2eb629d63d1",
+  "5edd80d74f781410",
+  "b14b0307218a75a7",
+  "797605dca158060b",
+  "d71eec602fbae2ee",
+  "9e99bad6e3e6c2db",
+  "5b798bc3b0a603be",
+  "ab1be8ea5440c605",
+  "25b1bdce2acbc2e8",
+  "13b980c692c7727d"
+ ],
+ "label": "current",
+ "reasoning_accuracy": 0.4167,
+ "reasoning_hits": 5,
+ "reasoning_rows": [
+  {
+   "answer": "15",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "200944041a06df57880d801345d1e087339f6134fe957e074b2abcf858125d83",
+   "seed": 0
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "boolean",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt_sha256": "236ccd0669789cebffbefdb5c8a0729a0ece44af77b44e6fc3b59deb42c5441e",
+   "seed": 0
+  },
+  {
+   "answer": "15",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "b49a124be08dd75e22dd4bbc261285e32f47aed6288a09d0708033320661d551",
+   "seed": 1
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "boolean",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt_sha256": "1699cc64f98748e6732f0e9c634cb7861b40814db7a511d466d36cbd512e126c",
+   "seed": 1
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "ddf8df3d46a1075c0c0e0f5594e1c414d3c8371f1f39de7fab8d8fe20fbb0439",
+   "seed": 2
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "boolean",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt_sha256": "79eb9042db29873e9c1606df669387a63d83e65b66e7e6081f1dea37de00d659",
+   "seed": 2
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "fee104bf8bf1c1a489e0690a1a3f91d3de4edb80c9235b113940243245e9e0ab",
+   "seed": 3
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "boolean",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt_sha256": "c35a121a4366e3a2b39d46ffde0086668a5842ce387f43b20da72f4155a1112c",
+   "seed": 3
+  },
+  {
+   "answer": "6\n17\n0\n2\n16\n16\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n15\n1",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "e480f022a62a9152a1833e85015848a03d643eff4fd28710e6f5159aeaa989e6",
+   "seed": 4
+  },
+  {
+   "answer": "0",
+   "depth": 3,
+   "family": "boolean",
+   "hit": true,
+   "max_tokens": 256,
+   "prompt_sha256": "0b8b966ec72146f5f833bfbc91f10eb443f080b8857993549d262bdfb46396c9",
+   "seed": 4
+  },
+  {
+   "answer": "15",
+   "depth": 3,
+   "family": "modular",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "efa0512396cfae9616c8554af90256c68841afb87a1e932324f3eab2e0c6dc6e",
+   "seed": 5
+  },
+  {
+   "answer": "1",
+   "depth": 3,
+   "family": "boolean",
+   "hit": false,
+   "max_tokens": 256,
+   "prompt_sha256": "99e4be2b67577cf2615e28e6a520a4f495e44ebf3e10e400b2ab95632565ea4a",
+   "seed": 5
+  }
+ ],
+ "reasoning_total": 12,
+ "schema": "aura.cortex_upgrade.evaluation.v3"
+}

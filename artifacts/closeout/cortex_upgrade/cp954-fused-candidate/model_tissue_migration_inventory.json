@@ -1,0 +1,1119 @@
+{
+ "candidate": {
+  "behavior_bundle_sha256": "6978e408c97467388c01076ff72934bd55ee8a8a2acb9c20377d57ce774acd1f",
+  "canonical_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+  "descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "hidden_size": 5120,
+  "layer_types": [
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention",
+   "linear_attention",
+   "linear_attention",
+   "linear_attention",
+   "full_attention"
+  ],
+  "model_type": "qwen3_5_text",
+  "num_hidden_layers": 64,
+  "repository_id": "aura/Qwen3.8-27B-persona-crsm",
+  "revision": "f65d56e395f26823727cb1dc82b253446911d66a",
+  "vocab_size": 248320,
+  "weight_fingerprint": "c58e02ac874857d8fb1470326e992975563506bad548e26382cd53d881e8227d"
+ },
+ "entries": [
+  {
+   "artifact_id": "caa_extraction_recipe",
+   "artifact_kind": "extraction_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "caa_steering",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "7c1797836576dc5e05fdabba6b42156bbc44607daa65399b0ce1c8efc7b24b21",
+    "size_bytes": 27400,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/training/extract_steering_vectors.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "caa_vector_bundle",
+   "artifact_kind": "activation_vector_bundle",
+   "basis_bound_fields": [],
+   "basis_class": "activation_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "caa_steering",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [
+     "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785"
+    ],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [
+     "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118"
+    ],
+    "artifact_weight_fingerprints": [],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "mismatch",
+    "strength": "config_only"
+   },
+   "integrity": {
+    "sha256": "cb93073cdb31671935a16cfa6e20f7d500207696206abf013fac62cdab245142",
+    "size_bytes": 2658,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "retrain",
+   "path": "/Users/bryan/.aura/live-source/training/vectors/caa_steering_meta.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "candidate_basis_mismatch",
+    "manifest_has_no_self_digest",
+    "related_bundle_count_mismatch"
+   ],
+   "related_bundle": {
+    "byte_count": 1259866,
+    "count_matches": false,
+    "declared_count": 45,
+    "file_count": 51
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "expert_adapter_registry",
+   "artifact_kind": "expert_adapter_registry",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": false,
+   "family": "expert_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "unbound",
+    "strength": "none"
+   },
+   "integrity": {
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "absent"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "retire",
+   "path": "/Users/bryan/.aura/data/adapters/library.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "artifact_absent"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "durable_fast_weight:latent_desktop_conversation_1784279369",
+   "artifact_kind": "durable_fast_weight_adapter",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [],
+    "artifact_weight_fingerprints": [
+     "8eae71e73a14d1228a942d4faf84690d70b62148f25b0f924435535f7c550fad"
+    ],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "mismatch",
+    "strength": "weight_only"
+   },
+   "integrity": {
+    "sha256": "bfa0539b67aa5040a294f9e92d1710184018547df6d3f962ddf5036f94cdf60e",
+    "size_bytes": 628,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_desktop_conversation_1784279369/delta_weights.npz",
+    "sha256": "664285e3cef16e127ab1fa452d927159a32301ba57f7962a17882e21d8c6415e",
+    "size_bytes": 1147902,
+    "status": "verified"
+   },
+   "outcome": "retire",
+   "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_desktop_conversation_1784279369/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "candidate_basis_mismatch",
+    "linked_artifact_verified",
+    "manifest_has_no_self_digest"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "durable_fast_weight:latent_desktop_conversation_1784279823",
+   "artifact_kind": "durable_fast_weight_adapter",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [],
+    "artifact_weight_fingerprints": [
+     "8eae71e73a14d1228a942d4faf84690d70b62148f25b0f924435535f7c550fad"
+    ],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "mismatch",
+    "strength": "weight_only"
+   },
+   "integrity": {
+    "sha256": "7af68b83caf770c7ff925f4ccea49fcb9f450a59308905d013763fe10116c7f4",
+    "size_bytes": 629,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_desktop_conversation_1784279823/delta_weights.npz",
+    "sha256": "664285e3cef16e127ab1fa452d927159a32301ba57f7962a17882e21d8c6415e",
+    "size_bytes": 1147902,
+    "status": "verified"
+   },
+   "outcome": "retire",
+   "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_desktop_conversation_1784279823/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "candidate_basis_mismatch",
+    "linked_artifact_verified",
+    "manifest_has_no_self_digest"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "durable_fast_weight:latent_general_1784279405",
+   "artifact_kind": "durable_fast_weight_adapter",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [],
+    "artifact_weight_fingerprints": [],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "unbound",
+    "strength": "none"
+   },
+   "integrity": {
+    "sha256": "c85cef7cd2ec63962b2ce750c2514206d290b0973519c1ac1c8cc747ae80eb39",
+    "size_bytes": 474,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_general_1784279405/delta_weights.npz",
+    "sha256": "302be60d4a895de923da3e557630a245133de656dd728955b81d01f54c8896ef",
+    "size_bytes": 14294,
+    "status": "verified"
+   },
+   "outcome": "refuse",
+   "path": "/Users/bryan/.aura/data/latent_cortex/durable_adapters/latent_general_1784279405/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "exact_candidate_identity_absent",
+    "linked_artifact_verified",
+    "manifest_has_no_self_digest"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "durable_fast_weight_recipe",
+   "artifact_kind": "query_scoped_rebuild_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "513bc9f1543440b0331970aa719ee08edbeacbb924aca4f257ebe5142fb689d8",
+    "size_bytes": 18261,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/learning/latent_adapter_distillation.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "fast_weight_learning_recipe",
+   "artifact_kind": "query_scoped_rebuild_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "f9cbb10be6fc6376be078fcefc93eb13ab6528e82a2f284ecd27aaa6d5a5c7e0",
+    "size_bytes": 48855,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/fast_weight_learning.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "fast_weight_runtime_recipe",
+   "artifact_kind": "query_scoped_rebuild_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "fast_weight_adapters",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "da05d05b99e9839e7b166ef4cc7aef8b74a845772f2e755abb79d8b7d37a31f0",
+    "size_bytes": 91303,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/fast_weights.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "persona_adapter_config",
+   "artifact_kind": "lora_training_config",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "persona_crsm",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [
+     "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-4bit"
+    ],
+    "artifact_weight_fingerprints": [],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "mismatch",
+    "strength": "path_or_repository_only"
+   },
+   "integrity": {
+    "sha256": "065975847f660a6d62cc0bf54542b4b89c25420ddb3c2eae57047f53f05cda50",
+    "size_bytes": 1240,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "retrain",
+   "path": "/Users/bryan/.aura/live-source/training/adapters/aura-personality/adapter_config.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "candidate_basis_mismatch",
+    "manifest_has_no_self_digest"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "persona_training_corpus",
+   "artifact_kind": "training_corpus",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "persona_crsm",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "09d29108371b9ee406fe777733bab2ffb8da2c64f26a29b50711f3baf757204d",
+    "size_bytes": 35701653,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/training/data/train.jsonl",
+   "portable_fields": [],
+   "qualification_scope": "retraining_input",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "persona_validation_corpus",
+   "artifact_kind": "validation_corpus",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "persona_crsm",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "b7c24a11b6adf2adeb33ae5266b97d851d2ecd99e9551fe2345233788f0e9d53",
+    "size_bytes": 3964103,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/training/data/valid.jsonl",
+   "portable_fields": [],
+   "qualification_scope": "retraining_input",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "mathematics_memory_tissue_v1",
+   "artifact_kind": "architecture_independent_auxiliary_tissue",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "8582c244e120d9c2f567889406cf3382b7df3c7d497fc0d555a151d0d530eb5d",
+    "size_bytes": 3855,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/mathematics_memory_tissue_v1/weights.safetensors",
+    "sha256": "cd7d4cc1f1be1843ffd462309d013131a4d6635fe8922f9dfd7bc553cc8cf483",
+    "size_bytes": 2012,
+    "status": "verified"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/mathematics_memory_tissue_v1/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "cross_model_auxiliary",
+   "reason_codes": [
+    "architecture_independent_input_verified",
+    "linked_artifact_verified",
+    "manifest_digest_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "neural_transition_tissue_v1",
+   "artifact_kind": "architecture_independent_auxiliary_tissue",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "4d7e88b1a106e3c5610785642fe270fe2feaaaac439dba7f317e36a3bc30b2e9",
+    "size_bytes": 1898,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/neural_transition_tissue_v1/weights.safetensors",
+    "sha256": "53939996943eec45f4a5a3643a70dbc9ab9a66a718ffd8f0ce1adc7743cbb6bc",
+    "size_bytes": 584432,
+    "status": "verified"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/neural_transition_tissue_v1/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "cross_model_auxiliary",
+   "reason_codes": [
+    "architecture_independent_input_verified",
+    "linked_artifact_verified",
+    "manifest_digest_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "recurrent_curriculum_recipe",
+   "artifact_kind": "curriculum_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "61c7315e98d055775a3d62c001ab52f064e23734e141db41f2bf2b961c0ea3a6",
+    "size_bytes": 43025,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/learning/recurrence_curriculum.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "recurrent_source_dataset",
+   "artifact_kind": "prompt_text_and_tokenized_dataset",
+   "basis_bound_fields": [
+    "prompt_tokens",
+    "answer_tokens"
+   ],
+   "basis_class": "mixed_tokenized_data",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {
+     "answer_tokens": 576,
+     "prompt_tokens": 576
+    },
+    "complete": true,
+    "portable": {
+     "answer": 576,
+     "depth": 576,
+     "family": 576,
+     "prompt": 576,
+     "seed": 576
+    },
+    "row_count": 576
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [],
+    "artifact_weight_fingerprints": [],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "unbound",
+    "strength": "none"
+   },
+   "integrity": {
+    "sha256": "5db78f03fdb6a3a64e652fa6d25982818c408dc1bfdeda43bf31ddca191ece64",
+    "size_bytes": 544558,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "retrain",
+   "path": "/Users/bryan/.aura/live-source/artifacts/closeout/latent_cortex/resident_32b_v3_cp195/adapter/dataset_manifest.json",
+   "portable_fields": [
+    "prompt",
+    "answer",
+    "family",
+    "depth",
+    "seed"
+   ],
+   "qualification_scope": "retraining_input",
+   "reason_codes": [
+    "manifest_has_no_self_digest",
+    "portable_source_requires_candidate_retokenization"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "recurrent_training_recipe",
+   "artifact_kind": "training_recipe",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "ead849b06991d6f9ed3fe0826d329760a2a3363355948df64ef643d099b1dfe7",
+    "size_bytes": 62074,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/tools/recurrence_native_train_v2.py",
+   "portable_fields": [],
+   "qualification_scope": "rebuild_recipe",
+   "reason_codes": [
+    "architecture_independent_input_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "resident_recurrent_warm_start",
+   "artifact_kind": "recurrent_adapter_authority",
+   "basis_bound_fields": [],
+   "basis_class": "checkpoint_basis",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "artifact_behavior_bundle_sha256s": [
+     "7eb54f8b670bba6e5b37ae5f9c6d016e9628034951b3ee702ca0096123c5e674"
+    ],
+    "artifact_config_sha256s": [],
+    "artifact_descriptor_sha256s": [],
+    "artifact_model_references": [],
+    "artifact_weight_fingerprints": [
+     "8eae71e73a14d1228a942d4faf84690d70b62148f25b0f924435535f7c550fad"
+    ],
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "mismatch",
+    "strength": "exact_weight_and_behavior_bundle"
+   },
+   "integrity": {
+    "sha256": "6e2e7f01672e08a148a6d8b6deca9d6153aff4261be1602c17c7c793bd5387d0",
+    "size_bytes": 2645,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "",
+    "sha256": "",
+    "size_bytes": 0,
+    "status": "not_declared"
+   },
+   "outcome": "retrain",
+   "path": "/Users/bryan/.aura/live-source/config/latent_cortex/resident_32b_recurrent_policy_warm_start.json",
+   "portable_fields": [],
+   "qualification_scope": "candidate_runtime",
+   "reason_codes": [
+    "candidate_basis_mismatch",
+    "manifest_has_no_self_digest"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  },
+  {
+   "artifact_id": "systematic_neural_alu_v1",
+   "artifact_kind": "architecture_independent_auxiliary_tissue",
+   "basis_bound_fields": [],
+   "basis_class": "architecture_independent",
+   "candidate_load_authorized": false,
+   "exists": true,
+   "family": "recurrent_tissue",
+   "field_inventory": {
+    "basis_bound": {},
+    "complete": null,
+    "portable": {},
+    "row_count": 0
+   },
+   "identity": {
+    "candidate_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "status": "not_applicable",
+    "strength": "content_digest"
+   },
+   "integrity": {
+    "sha256": "00c9d18cb25f7687eecac7389236d0a40e8ff798b428c7497242638591ec1769",
+    "size_bytes": 1652,
+    "status": "content_hashed"
+   },
+   "linked_artifact": {
+    "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors",
+    "sha256": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7",
+    "size_bytes": 232,
+    "status": "verified"
+   },
+   "outcome": "qualified",
+   "path": "/Users/bryan/.aura/live-source/core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json",
+   "portable_fields": [],
+   "qualification_scope": "cross_model_auxiliary",
+   "reason_codes": [
+    "architecture_independent_input_verified",
+    "linked_artifact_verified",
+    "manifest_digest_verified"
+   ],
+   "related_bundle": {
+    "byte_count": 0,
+    "count_matches": null,
+    "declared_count": null,
+    "file_count": 0
+   },
+   "required": false,
+   "schema": "aura.model_tissue_migration_entry.v1"
+  }
+ ],
+ "families": [
+  {
+   "candidate_runtime_loadable": false,
+   "entry_count": 3,
+   "family": "persona_crsm",
+   "outcome": "retrain",
+   "outcome_counts": {
+    "qualified": 2,
+    "refuse": 0,
+    "retire": 0,
+    "retrain": 1
+   },
+   "reusable_input_count": 2
+  },
+  {
+   "candidate_runtime_loadable": false,
+   "entry_count": 2,
+   "family": "caa_steering",
+   "outcome": "retrain",
+   "outcome_counts": {
+    "qualified": 1,
+    "refuse": 0,
+    "retire": 0,
+    "retrain": 1
+   },
+   "reusable_input_count": 1
+  },
+  {
+   "candidate_runtime_loadable": false,
+   "entry_count": 7,
+   "family": "recurrent_tissue",
+   "outcome": "retrain",
+   "outcome_counts": {
+    "qualified": 5,
+    "refuse": 0,
+    "retire": 0,
+    "retrain": 2
+   },
+   "reusable_input_count": 5
+  },
+  {
+   "candidate_runtime_loadable": false,
+   "entry_count": 6,
+   "family": "fast_weight_adapters",
+   "outcome": "refuse",
+   "outcome_counts": {
+    "qualified": 3,
+    "refuse": 1,
+    "retire": 2,
+    "retrain": 0
+   },
+   "reusable_input_count": 3
+  },
+  {
+   "candidate_runtime_loadable": false,
+   "entry_count": 1,
+   "family": "expert_adapters",
+   "outcome": "retire",
+   "outcome_counts": {
+    "qualified": 0,
+    "refuse": 0,
+    "retire": 1,
+    "retrain": 0
+   },
+   "reusable_input_count": 0
+  }
+ ],
+ "generated_at": 1787548091.18266,
+ "inventory_sha256": "6c56405d478f0a4b4132fdc8fd0b7fce186a5a41946cfaf9dd0fa3d7abb58c81",
+ "limits": {
+  "max_metadata_bytes": 4194304,
+  "max_probes": 96,
+  "max_reusable_input_bytes": 67108864,
+  "model_loaded": false,
+  "training_run": false
+ },
+ "promotion_ready": false,
+ "schema": "aura.model_tissue_migration_inventory.v1"
+}

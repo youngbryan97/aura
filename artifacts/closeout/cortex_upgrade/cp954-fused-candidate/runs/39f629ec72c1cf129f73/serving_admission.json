@@ -1,0 +1,11 @@
+{
+ "admitted": true,
+ "artifact_seal_sha256": "e007bdf652ec68cd58747cf108e521d4ba7ea17d2be4ad4af884383ccd31221f",
+ "available_gb": 36.55,
+ "free_margin_gb": 8.0,
+ "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+ "model_dir": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "projected_load_gb": 18.32,
+ "resident_giants": [],
+ "weights_gb": 14.09
+}

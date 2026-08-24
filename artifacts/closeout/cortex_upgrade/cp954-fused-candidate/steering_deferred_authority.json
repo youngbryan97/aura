@@ -1,0 +1,21 @@
+{
+  "authority_hmac_sha256": "fdc5627b2a07814a75b5ef97c0c216a686ae002d67e5dc20eb3402c872216a3b",
+  "authority_kind": "model_basis_quarantine",
+  "authority_sha256": "315fbbd32c4a89c8a9fd90741d2ee3adefd760609772c8995950a1bed4843a96",
+  "claims": {
+    "inventory_sha256": "6c56405d478f0a4b4132fdc8fd0b7fce186a5a41946cfaf9dd0fa3d7abb58c81"
+  },
+  "component": "steering",
+  "custody_root": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/steering/4dbd6b169a744bb2d044ed30954839b7562fa9459662e750ac62a91962eef518",
+  "evidence": {
+    "migration_inventory": {
+      "path": "/Users/bryan/.aura/private/cortex-upgrade/migration-evidence/52d313c2c435d343/steering/4dbd6b169a744bb2d044ed30954839b7562fa9459662e750ac62a91962eef518/00-e5ca58b5f6c4.evidence",
+      "sha256": "dd2eb054aa8405f3e3ed3e01e0c40fb9e53fc69f14aefa6d5ac7a2da18c56a56",
+      "size_bytes": 32578
+    }
+  },
+  "issued_at": 1787550476.296569,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "schema": "aura.cortex_upgrade.component_authority.v1",
+  "status": "deferred"
+}

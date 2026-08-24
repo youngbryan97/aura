@@ -1,0 +1,9 @@
+{
+ "admitted": true,
+ "available_gb": 35.0,
+ "free_margin_gb": 8.0,
+ "model_dir": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "projected_load_gb": 18.32,
+ "resident_giants": [],
+ "weights_gb": 14.09
+}

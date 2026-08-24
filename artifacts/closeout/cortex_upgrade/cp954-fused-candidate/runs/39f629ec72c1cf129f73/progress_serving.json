@@ -1,0 +1,914 @@
+{
+ "binding": {
+  "artifact_seal_sha256": "e007bdf652ec68cd58747cf108e521d4ba7ea17d2be4ad4af884383ccd31221f",
+  "context_windows": [
+   8192,
+   32768
+  ],
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "prefill_chunk_tokens": 1024,
+  "serving_source_sha256": "f3696e3f0b19391c9f84844614de9be7c6521e8621ce67e6f9bd316aecc1828c"
+ },
+ "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+ "complete": true,
+ "events": [
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "template",
+   "completed": 1,
+   "event_sha256": "745b1b28da8ee3e164b42d34812a80ada59065c348ecfb9b03c0c3612e04f34c",
+   "hmac_sha256": "ccb531c20ccf5b664b4904ea961f809408f65a1cff4df5247f7a04bb3db8aea0",
+   "previous_event_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "row": {
+    "contract_sha256": "cbc707e6b95dfdbe984fc09e6e9329b6df51db7fdf26a643a39a59522dcd972d",
+    "native_tool_calling": true,
+    "passed": true,
+    "plain_prompt_tokens": 14,
+    "row_sha256": "45aac279e213f3a23c69ebfe4da416a020520bf6409e00d6fd2a2502d18de376",
+    "thinking_control": true,
+    "tool_prompt_tokens": 276
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547539.771265
+  },
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "complete_answer",
+   "completed": 2,
+   "event_sha256": "d9f7e689ad1f8faeb422d6b3e97c6b42f11d95de5fa14d7afb03e5e4f5dcc0af",
+   "hmac_sha256": "46ee81e102047693a0e086a4cf4f3f0959b4d7405c47735d193e99fdaaf00c8d",
+   "previous_event_sha256": "745b1b28da8ee3e164b42d34812a80ada59065c348ecfb9b03c0c3612e04f34c",
+   "row": {
+    "contract_sha256": "5ae7cb41b39c504d6768ed81f2a6a36d120d1f1f60d78a25a8a66fa9559708f3",
+    "generation": {
+     "elapsed_s": 183.7874,
+     "finish_reason": "stop",
+     "generation_tokens": 1879,
+     "generation_tps": 10.2764,
+     "minimum_host_available_gb": 21.8366,
+     "mlx_active_memory_gb": 14.2759,
+     "mlx_cache_memory_gb": 0.4625,
+     "peak_memory_gb": 15.7769,
+     "process_peak_rss_gb": 14.96,
+     "progress": [
+      {
+       "elapsed_s": 0.12599,
+       "host_available_gb": 25.7644,
+       "mlx_active_gb": 14.094253,
+       "mlx_cache_gb": 1e-05,
+       "mlx_peak_gb": 14.094253,
+       "process_rss_gb": 14.949036,
+       "processed": 0,
+       "total": 163
+      },
+      {
+       "elapsed_s": 0.789057,
+       "host_available_gb": 25.7644,
+       "mlx_active_gb": 14.253433,
+       "mlx_cache_gb": 0.462451,
+       "mlx_peak_gb": 14.693397,
+       "process_rss_gb": 14.959442,
+       "processed": 162,
+       "total": 163
+      },
+      {
+       "elapsed_s": 0.911096,
+       "host_available_gb": 25.7644,
+       "mlx_active_gb": 14.27593,
+       "mlx_cache_gb": 0.011883,
+       "mlx_peak_gb": 14.693397,
+       "process_rss_gb": 14.960007,
+       "processed": 163,
+       "total": 163
+      }
+     ],
+     "prompt_tokens": 163,
+     "prompt_tps": 207.4875,
+     "text": "Dijkstra\u2019s algorithm is a foundational method in graph theory and computer science, designed to find the shortest path from a single source node to all other nodes in a weighted graph. Its elegance lies in its greedy approach, which relies on a specific mathematical property of non-negative edge weights. To fully understand its mechanics, limitations, and efficiency, we must examine its core logic, implementation, practical application, and computational costs.\n\nCORE INVARIANT\n\nThe heart of Dijkstra\u2019s algorithm is a greedy invariant that ensures correctness. At any point during the execution of the algorithm, the set of nodes that have been \"finalized\" or \"visited\" contains the true shortest distance from the source to each of those nodes. This invariant holds because the algorithm always selects the unvisited node with the smallest known tentative distance. If all edge weights are non-negative, it is impossible for a path to a node already in the finalized set to be improved by going through any unvisited node. Any path to a finalized node that goes through an unvisited node would have to be longer than the current shortest path to that unvisited node, plus the non-negative weight of the edge connecting them. Since the unvisited node has a distance greater than or equal to the finalized node\u2019s distance, adding a non-negative weight cannot result in a shorter path to the finalized node. This property allows the algorithm to permanently lock in the distance for a node once it is selected, eliminating the need to reconsider it in future iterations. This greedy choice is only valid under the constraint that no edge has a negative weight, which is why the algorithm fails in graphs with negative cycles or even simple negative edges that create shorter paths via unvisited nodes.\n\nNUMBERED PSEUDOCODE\n\nThe following pseudocode outlines the standard implementation of Dijkstra\u2019s algorithm using a priority queue. Let $G = (V, E)$ be the graph, $s$ be the source, and $dist[v]$ be the tentative distance to node $v$.\n\n1. Initialize $dist[v] = \\infty$ for all $v \\in V$, except $dist[s] = 0$.\n2. Create an empty priority queue $Q$ and insert all nodes $v$ with their initial $dist[v]$ values.\n3. While $Q$ is not empty:\n    a. Extract the node $u$ with the minimum $dist[u]$ from $Q$.\n    b. Mark $u$ as visited (or finalized).\n    c. For each neighbor $v$ of $u$ that has not been visited:\n        i. Calculate the new potential distance: $alt = dist[u] + weight(u, v)$.\n        ii. If $alt < dist[v]$, update $dist[v] = alt$.\n        iii. If $v$ is already in $Q$, decrease its key to the new $dist[v]$; otherwise, insert $v$ into $Q$.\n4. Return the array $dist$ containing the shortest distances from $s$ to all nodes.\n\nWORKED EXAMPLE\n\nConsider a directed graph with four nodes: A, B, C, and D. The source node is A. The edges and their weights are defined as follows: A->B=4, A->C=1, C->B=2, B->D=1, and C->D=5. We will trace the algorithm step-by-step.\n\nInitially, the distances are: $dist[A]=0$, $dist[B]=\\infty$, $dist[C]=\\infty$, $dist[D]=\\infty$. The priority queue contains A (0), B ($\\infty$), C ($\\infty$), D ($\\infty$).\n\nStep 1: Extract A (distance 0). Mark A as visited. Relax its neighbors.\n- Neighbor B: $alt = 0 + 4 = 4$. Since $4 < \\infty$, update $dist[B] = 4$.\n- Neighbor C: $alt = 0 + 1 = 1$. Since $1 < \\infty$, update $dist[C] = 1$.\nQueue now contains: C (1), B (4), D ($\\infty$).\n\nStep 2: Extract C (distance 1). Mark C as visited. Relax its neighbors.\n- Neighbor B: $alt = 1 + 2 = 3$. Since $3 < 4$ (current $dist[B]$), update $dist[B] = 3$.\n- Neighbor D: $alt = 1 + 5 = 6$. Since $6 < \\infty$, update $dist[D] = 6$.\nQueue now contains: B (3), D (6).\n\nStep 3: Extract B (distance 3). Mark B as visited. Relax its neighbors.\n- Neighbor D: $alt = 3 + 1 = 4$. Since $4 < 6$ (current $dist[D]$), update $dist[D] = 4$.\nQueue now contains: D (4).\n\nStep 4: Extract D (distance 4). Mark D as visited. D has no outgoing edges to unvisited nodes.\nQueue is now empty.\n\nThe algorithm terminates. The final shortest distances from source A are:\n- Distance to A: 0\n- Distance to B: 3\n- Distance to C: 1\n- Distance to D: 4\n\nThis example clearly demonstrates the power of the relaxation step. Initially, the path to B was thought to be 4 (directly from A). However, when C was processed, the path A->C->B was discovered to be shorter (1+2=3). This update allowed the path to D to be further optimized from 6 (A->C->D) to 4 (A->C->B->D).\n\nCOMPLEXITY\n\nThe time complexity of Dijkstra\u2019s algorithm depends heavily on the data structure used for the priority queue. Let $V$ be the number of vertices and $E$ be the number of edges.\n\nIf a simple array is used to store the priority queue, finding the minimum element takes $O(V)$ time. Since we perform this extraction $V$ times, the extraction cost is $O(V^2)$. Relaxing edges takes $O(E)$ total time across the entire algorithm. Thus, the total complexity with an array is $O(V^2 + E)$. For dense graphs where $E \\approx V^2$, this simplifies to $O(V^2)$. This is often preferred for dense graphs because the constant factors are lower than those of heap operations.\n\nIf a binary heap is used, the extraction of the minimum element takes $O(\\log V)$ time. We perform this $V$ times, resulting in $O(V \\log V)$. Each edge relaxation may trigger a decrease-key operation, which also takes $O(\\log V)$ time. With $E$ edges, the total relaxation cost is $O(E \\log V)$. Therefore, the total complexity with a binary heap is $O((V + E) \\log V)$. For sparse graphs where $E$ is close to $V$, this is significantly faster than the array-based approach. Note that in some implementations, instead of decrease-key, the node is re-inserted into the heap, leading to $O(E \\log V)$ complexity, which is asymptotically similar for sparse graphs but can be worse for dense ones if not optimized.\n\nNEGATIVE WEIGHTS\n\nDijkstra\u2019s algorithm is strictly invalid for graphs containing negative edge weights. The core invariant relies on the assumption that once a node is finalized, its shortest path cannot be improved by any subsequent path. Negative weights violate this assumption. If a negative edge exists, a path that goes through an unvisited node could potentially be shorter than the current known distance to a finalized node. For example, if we finalize node X with distance 10, but there is a negative edge from an unvisited node Y (distance 15) to X with weight -10, the path to X via Y would be $15 - 10 = 5$, which is shorter than 10. Dijkstra would have already locked in 10 and would never reconsider X, leading to an incorrect result.\n\nThe correct alternative for graphs with negative weights (but no negative cycles) is the Bellman-Ford algorithm. Bellman-Ford works by relaxing all edges in the graph $V-1$ times. This ensures that paths with up to $V-1$ edges are considered, which is sufficient for the shortest path in a graph without negative cycles. If a negative cycle exists, no shortest path is defined, and Bellman-Ford can detect this by checking for further improvements on the $V$-th iteration. For graphs with negative weights but no negative cycles, Bellman-Ford has a time complexity of $O(VE)$, which is slower than Dijkstra but necessary for correctness in such cases.",
+     "ttft_s": 0.9111
+    },
+    "liveness": {
+     "bounds_valid": true,
+     "callbacks": 3,
+     "complete": true,
+     "elapsed_monotonic": true,
+     "max_callback_gap_s": 0.6631,
+     "maximum_callback_gap_s": 30.0,
+     "maximum_ttft_s": 240.0,
+     "minimum_generation_tps": 2.0,
+     "minimum_prompt_tps": 150.0,
+     "minimum_prompt_tps_measurement_tokens": 2048,
+     "monotonic": true,
+     "passed": true,
+     "prompt_throughput_applicable": false,
+     "prompt_throughput_pass": true,
+     "starts_at_zero": true,
+     "totals_match": true
+    },
+    "memory_after": {
+     "available_gb": 21.8366,
+     "total_gb": 64.0
+    },
+    "memory_before": {
+     "available_gb": 25.7644,
+     "total_gb": 64.0
+    },
+    "passed": true,
+    "row_sha256": "61f5037cf26f84b18eaf1d965194a960a776ea8d917fa34f0c24e3cc8c25541a",
+    "score": {
+     "completion_pass": true,
+     "complexity_pass": true,
+     "distance_pass": true,
+     "edge_pass": true,
+     "heading_pass": true,
+     "invariant_pass": true,
+     "length_pass": true,
+     "negative_weight_pass": true,
+     "passed": true,
+     "pseudocode_pass": true,
+     "terminal_sentence_pass": true,
+     "word_count": 1258
+    }
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547723.5622551
+  },
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "tool_contract",
+   "completed": 3,
+   "event_sha256": "f7871345d7233b519e0908ea130bdb91bb0bc5329bcb6f0dbb1ca554cff41bb6",
+   "hmac_sha256": "e85bb2b1d07892f96489010e50ba8df96aadd5db9a37c4eedd1bbb0396ff25d3",
+   "previous_event_sha256": "d9f7e689ad1f8faeb422d6b3e97c6b42f11d95de5fa14d7afb03e5e4f5dcc0af",
+   "row": {
+    "contract_sha256": "503c8718f9857d74e346f8cb524569b3e0933aa2842bac04961f1232a5aa929b",
+    "generation": {
+     "elapsed_s": 4.4833,
+     "finish_reason": "stop",
+     "generation_tokens": 31,
+     "generation_tps": 10.6807,
+     "minimum_host_available_gb": 21.1821,
+     "mlx_active_memory_gb": 14.2916,
+     "mlx_cache_memory_gb": 0.822,
+     "peak_memory_gb": 16.0192,
+     "process_peak_rss_gb": 14.9637,
+     "progress": [
+      {
+       "elapsed_s": 0.148617,
+       "host_available_gb": 21.8366,
+       "mlx_active_gb": 14.094255,
+       "mlx_cache_gb": 0.305747,
+       "mlx_peak_gb": 14.094255,
+       "process_rss_gb": 14.963669,
+       "processed": 0,
+       "total": 285
+      },
+      {
+       "elapsed_s": 1.430148,
+       "host_available_gb": 21.1821,
+       "mlx_active_gb": 14.269731,
+       "mlx_cache_gb": 0.821952,
+       "mlx_peak_gb": 14.919027,
+       "process_rss_gb": 14.963715,
+       "processed": 284,
+       "total": 285
+      },
+      {
+       "elapsed_s": 1.551423,
+       "host_available_gb": 21.9711,
+       "mlx_active_gb": 14.291588,
+       "mlx_cache_gb": 0.009718,
+       "mlx_peak_gb": 14.919027,
+       "process_rss_gb": 14.963013,
+       "processed": 285,
+       "total": 285
+      }
+     ],
+     "prompt_tokens": 285,
+     "prompt_tps": 203.1247,
+     "text": "<tool_call>\n<function=calculate>\n<parameter=expression>\n17 * 19\n</parameter>\n</function>\n</tool_call>",
+     "ttft_s": 1.5515
+    },
+    "liveness": {
+     "bounds_valid": true,
+     "callbacks": 3,
+     "complete": true,
+     "elapsed_monotonic": true,
+     "max_callback_gap_s": 1.2815,
+     "maximum_callback_gap_s": 30.0,
+     "maximum_ttft_s": 240.0,
+     "minimum_generation_tps": 2.0,
+     "minimum_prompt_tps": 150.0,
+     "minimum_prompt_tps_measurement_tokens": 2048,
+     "monotonic": true,
+     "passed": true,
+     "prompt_throughput_applicable": false,
+     "prompt_throughput_pass": true,
+     "starts_at_zero": true,
+     "totals_match": true
+    },
+    "memory_after": {
+     "available_gb": 22.0794,
+     "total_gb": 64.0
+    },
+    "memory_before": {
+     "available_gb": 21.8366,
+     "total_gb": 64.0
+    },
+    "passed": true,
+    "row_sha256": "2705dd2f9984766ecd436c6461b79175e8e54214956ebef65a395c1dedd3790b",
+    "score": {
+     "exact_objective": true,
+     "parsed_call": {
+      "args": {
+       "expression": "17 * 19"
+      },
+      "tool": "calculate"
+     },
+     "passed": true,
+     "schema_error": ""
+    }
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547728.049313
+  },
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "code_contract",
+   "completed": 4,
+   "event_sha256": "85ef064a19e5afff22d47102bcb23c8ddf4640718b153e547e6c5590791386a1",
+   "hmac_sha256": "ac61c861cd5ef7738185dfedf333ddc77f5fc2c05c1a92d59b67b169e106278c",
+   "previous_event_sha256": "f7871345d7233b519e0908ea130bdb91bb0bc5329bcb6f0dbb1ca554cff41bb6",
+   "row": {
+    "contract_sha256": "d4378c1461f54e9eadfe62167057168e546d5ee12a45e270c0114e02ef9e79e4",
+    "generation": {
+     "elapsed_s": 9.3044,
+     "finish_reason": "stop",
+     "generation_tokens": 89,
+     "generation_tps": 10.4454,
+     "minimum_host_available_gb": 22.0773,
+     "mlx_active_memory_gb": 14.276,
+     "mlx_cache_memory_gb": 0.2968,
+     "peak_memory_gb": 15.5649,
+     "process_peak_rss_gb": 14.9633,
+     "progress": [
+      {
+       "elapsed_s": 0.152537,
+       "host_available_gb": 22.0773,
+       "mlx_active_gb": 14.094253,
+       "mlx_cache_gb": 0.207509,
+       "mlx_peak_gb": 14.094253,
+       "process_rss_gb": 14.963242,
+       "processed": 0,
+       "total": 82
+      },
+      {
+       "elapsed_s": 0.63762,
+       "host_available_gb": 22.0773,
+       "mlx_active_gb": 14.254134,
+       "mlx_cache_gb": 0.296778,
+       "mlx_peak_gb": 14.495967,
+       "process_rss_gb": 14.963257,
+       "processed": 81,
+       "total": 82
+      },
+      {
+       "elapsed_s": 0.754652,
+       "host_available_gb": 22.0773,
+       "mlx_active_gb": 14.275993,
+       "mlx_cache_gb": 0.009717,
+       "mlx_peak_gb": 14.495967,
+       "process_rss_gb": 14.962936,
+       "processed": 82,
+       "total": 82
+      }
+     ],
+     "prompt_tokens": 82,
+     "prompt_tps": 136.1289,
+     "text": "```python\ndef rolling_pair_sums(values):\n    \"\"\"Return each adjacent pair's sum; return [] when fewer than two values exist.\"\"\"\n    it = iter(values)\n    try:\n        prev = next(it)\n    except StopIteration:\n        return []\n    result = []\n    for curr in it:\n        result.append(prev + curr)\n        prev = curr\n    return result\n```",
+     "ttft_s": 0.7547
+    },
+    "liveness": {
+     "bounds_valid": true,
+     "callbacks": 3,
+     "complete": true,
+     "elapsed_monotonic": true,
+     "max_callback_gap_s": 0.4851,
+     "maximum_callback_gap_s": 30.0,
+     "maximum_ttft_s": 240.0,
+     "minimum_generation_tps": 2.0,
+     "minimum_prompt_tps": 150.0,
+     "minimum_prompt_tps_measurement_tokens": 2048,
+     "monotonic": true,
+     "passed": true,
+     "prompt_throughput_applicable": false,
+     "prompt_throughput_pass": true,
+     "starts_at_zero": true,
+     "totals_match": true
+    },
+    "memory_after": {
+     "available_gb": 22.128,
+     "total_gb": 64.0
+    },
+    "memory_before": {
+     "available_gb": 22.0794,
+     "total_gb": 64.0
+    },
+    "passed": true,
+    "row_sha256": "a5a34bfd075feed14ef0ad0327baeeb27bf0acf0acd83221347b303c92f9fe5f",
+    "score": {
+     "code_sha256": "2a93ba48ec995f21424fb95f33cc3e4af37e7306522d30f447bb12d3495c9b07",
+     "passed": true,
+     "sandbox": {
+      "boundary": "seatbelt",
+      "error": "",
+      "results": [],
+      "returncode": 0,
+      "sandboxed": true,
+      "status": "ok",
+      "stderr": "",
+      "stdout": ""
+     }
+    }
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547737.440489
+  },
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "context:8192",
+   "completed": 5,
+   "event_sha256": "78a56d2bc1a25ed452896ec3330e787399a4e06756023bc334a652c4122d94c1",
+   "hmac_sha256": "8c1cfde3594324fe5c708ad9015502ac2386b747f93acd95b20af1e8c22b54a8",
+   "previous_event_sha256": "85ef064a19e5afff22d47102bcb23c8ddf4640718b153e547e6c5590791386a1",
+   "row": {
+    "contract_sha256": "fdc77f01ae7480a12974d147da46d2b4b8e3295cf542ff38c4ce57d5f471bdc2",
+    "generation": {
+     "elapsed_s": 36.8628,
+     "finish_reason": "stop",
+     "generation_tokens": 16,
+     "generation_tps": 10.8763,
+     "minimum_host_available_gb": 19.7503,
+     "mlx_active_memory_gb": 14.7633,
+     "mlx_cache_memory_gb": 2.3649,
+     "peak_memory_gb": 17.8234,
+     "process_peak_rss_gb": 14.9659,
+     "progress": [
+      {
+       "elapsed_s": 0.131484,
+       "host_available_gb": 22.1195,
+       "mlx_active_gb": 14.094283,
+       "mlx_cache_gb": 0.191886,
+       "mlx_peak_gb": 14.094283,
+       "process_rss_gb": 14.965759,
+       "processed": 0,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 4.23859,
+       "host_available_gb": 20.7006,
+       "mlx_active_gb": 14.301009,
+       "mlx_cache_gb": 1.708243,
+       "mlx_peak_gb": 15.853866,
+       "process_rss_gb": 14.965866,
+       "processed": 1024,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 8.526018,
+       "host_available_gb": 20.4432,
+       "mlx_active_gb": 14.363509,
+       "mlx_cache_gb": 1.746655,
+       "mlx_peak_gb": 15.925227,
+       "process_rss_gb": 14.766022,
+       "processed": 2048,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 12.794345,
+       "host_available_gb": 20.3459,
+       "mlx_active_gb": 14.426009,
+       "mlx_cache_gb": 1.850175,
+       "mlx_peak_gb": 16.018981,
+       "process_rss_gb": 14.766022,
+       "processed": 3072,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 17.11931,
+       "host_available_gb": 20.1987,
+       "mlx_active_gb": 14.488509,
+       "mlx_cache_gb": 1.959554,
+       "mlx_peak_gb": 16.128356,
+       "process_rss_gb": 14.766022,
+       "processed": 4096,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 21.572962,
+       "host_available_gb": 20.084,
+       "mlx_active_gb": 14.551009,
+       "mlx_cache_gb": 2.04453,
+       "mlx_peak_gb": 16.237731,
+       "process_rss_gb": 14.766037,
+       "processed": 5120,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 26.042322,
+       "host_available_gb": 19.9312,
+       "mlx_active_gb": 14.613509,
+       "mlx_cache_gb": 2.149022,
+       "mlx_peak_gb": 16.347106,
+       "process_rss_gb": 14.766037,
+       "processed": 6144,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 30.519276,
+       "host_available_gb": 19.758,
+       "mlx_active_gb": 14.676009,
+       "mlx_cache_gb": 2.282811,
+       "mlx_peak_gb": 16.456481,
+       "process_rss_gb": 14.766037,
+       "processed": 7168,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 35.224793,
+       "host_available_gb": 19.7503,
+       "mlx_active_gb": 14.738494,
+       "mlx_cache_gb": 2.364949,
+       "mlx_peak_gb": 16.599364,
+       "process_rss_gb": 14.766052,
+       "processed": 8119,
+       "total": 8120
+      },
+      {
+       "elapsed_s": 35.363231,
+       "host_available_gb": 22.0988,
+       "mlx_active_gb": 14.763278,
+       "mlx_cache_gb": 0.011239,
+       "mlx_peak_gb": 16.599364,
+       "process_rss_gb": 14.766052,
+       "processed": 8120,
+       "total": 8120
+      }
+     ],
+     "prompt_tokens": 8120,
+     "prompt_tps": 230.472,
+     "text": "AURA-8192-CORTEX-9F3C",
+     "ttft_s": 35.3633
+    },
+    "liveness": {
+     "bounds_valid": true,
+     "callbacks": 10,
+     "complete": true,
+     "elapsed_monotonic": true,
+     "max_callback_gap_s": 4.7055,
+     "maximum_callback_gap_s": 30.0,
+     "maximum_ttft_s": 240.0,
+     "minimum_generation_tps": 2.0,
+     "minimum_prompt_tps": 150.0,
+     "minimum_prompt_tps_measurement_tokens": 2048,
+     "monotonic": true,
+     "passed": true,
+     "prompt_throughput_applicable": true,
+     "prompt_throughput_pass": true,
+     "starts_at_zero": true,
+     "totals_match": true
+    },
+    "memory_after": {
+     "available_gb": 22.1457,
+     "total_gb": 64.0
+    },
+    "memory_before": {
+     "available_gb": 22.1225,
+     "total_gb": 64.0
+    },
+    "passed": true,
+    "row_sha256": "8fb6b3c20f59c4021f30b4f4389f2b4fe7b3c4ef8ff740ecaac3903f95d9c3f5",
+    "score": {
+     "completion_pass": true,
+     "nonce_recovered": true,
+     "passed": true
+    }
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547774.385014
+  },
+  {
+   "binding_sha256": "39f629ec72c1cf129f737088bf3cc7e368a585fc6d4e7b5d7709028114797338",
+   "cell_id": "context:32768",
+   "completed": 6,
+   "event_sha256": "fdcd386c17dc293e9c29cf29513fbc45fcad036624367cf89345f5dd492bc91d",
+   "hmac_sha256": "f797cdc8949a9d46bdb6da2a0de7afb977ea0fc9cca1cd08d5a8a82bde2501e3",
+   "previous_event_sha256": "78a56d2bc1a25ed452896ec3330e787399a4e06756023bc334a652c4122d94c1",
+   "row": {
+    "contract_sha256": "849f4febcae785fa57effc545829d6dfd07321b9d53621aa1112a60c7d66ad7c",
+    "generation": {
+     "elapsed_s": 164.6297,
+     "finish_reason": "stop",
+     "generation_tokens": 17,
+     "generation_tps": 9.4104,
+     "minimum_host_available_gb": 17.6531,
+     "mlx_active_memory_gb": 16.2596,
+     "mlx_cache_memory_gb": 4.9313,
+     "peak_memory_gb": 20.5397,
+     "process_peak_rss_gb": 14.8344,
+     "progress": [
+      {
+       "elapsed_s": 0.130068,
+       "host_available_gb": 22.0923,
+       "mlx_active_gb": 14.094375,
+       "mlx_cache_gb": 0.680789,
+       "mlx_peak_gb": 14.094375,
+       "process_rss_gb": 14.834381,
+       "processed": 0,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 4.211784,
+       "host_available_gb": 20.4218,
+       "mlx_active_gb": 14.301101,
+       "mlx_cache_gb": 2.197146,
+       "mlx_peak_gb": 15.853957,
+       "process_rss_gb": 14.834381,
+       "processed": 1024,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 8.457757,
+       "host_available_gb": 20.7735,
+       "mlx_active_gb": 14.363601,
+       "mlx_cache_gb": 1.746655,
+       "mlx_peak_gb": 15.925319,
+       "process_rss_gb": 14.833984,
+       "processed": 2048,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 12.793939,
+       "host_available_gb": 20.6041,
+       "mlx_active_gb": 14.426101,
+       "mlx_cache_gb": 1.842362,
+       "mlx_peak_gb": 16.019073,
+       "process_rss_gb": 14.833984,
+       "processed": 3072,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 17.189739,
+       "host_available_gb": 20.4309,
+       "mlx_active_gb": 14.488601,
+       "mlx_cache_gb": 1.959554,
+       "mlx_peak_gb": 16.128448,
+       "process_rss_gb": 14.833984,
+       "processed": 4096,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 21.585747,
+       "host_available_gb": 20.285,
+       "mlx_active_gb": 14.551101,
+       "mlx_cache_gb": 2.04453,
+       "mlx_peak_gb": 16.237823,
+       "process_rss_gb": 14.833984,
+       "processed": 5120,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 26.081361,
+       "host_available_gb": 20.148,
+       "mlx_active_gb": 14.613601,
+       "mlx_cache_gb": 2.149022,
+       "mlx_peak_gb": 16.347198,
+       "process_rss_gb": 14.833984,
+       "processed": 6144,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 30.561246,
+       "host_available_gb": 19.9565,
+       "mlx_active_gb": 14.676101,
+       "mlx_cache_gb": 2.282811,
+       "mlx_peak_gb": 16.456573,
+       "process_rss_gb": 14.833984,
+       "processed": 7168,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 35.10732,
+       "host_available_gb": 19.7767,
+       "mlx_active_gb": 14.738601,
+       "mlx_cache_gb": 2.393163,
+       "mlx_peak_gb": 16.565948,
+       "process_rss_gb": 14.834045,
+       "processed": 8192,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 39.750197,
+       "host_available_gb": 19.6056,
+       "mlx_active_gb": 14.801101,
+       "mlx_cache_gb": 2.503484,
+       "mlx_peak_gb": 16.675323,
+       "process_rss_gb": 14.834045,
+       "processed": 9216,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 44.445655,
+       "host_available_gb": 19.5204,
+       "mlx_active_gb": 14.863601,
+       "mlx_cache_gb": 2.565007,
+       "mlx_peak_gb": 16.784698,
+       "process_rss_gb": 14.834045,
+       "processed": 10240,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 49.268889,
+       "host_available_gb": 19.5997,
+       "mlx_active_gb": 14.926101,
+       "mlx_cache_gb": 2.724187,
+       "mlx_peak_gb": 16.894073,
+       "process_rss_gb": 14.834045,
+       "processed": 11264,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 54.184447,
+       "host_available_gb": 19.2451,
+       "mlx_active_gb": 14.988601,
+       "mlx_cache_gb": 2.811101,
+       "mlx_peak_gb": 17.003448,
+       "process_rss_gb": 14.834045,
+       "processed": 12288,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 59.263717,
+       "host_available_gb": 19.2424,
+       "mlx_active_gb": 15.051101,
+       "mlx_cache_gb": 2.94489,
+       "mlx_peak_gb": 17.112823,
+       "process_rss_gb": 14.834045,
+       "processed": 13312,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 64.286269,
+       "host_available_gb": 19.1609,
+       "mlx_active_gb": 15.113601,
+       "mlx_cache_gb": 3.055241,
+       "mlx_peak_gb": 17.222198,
+       "process_rss_gb": 14.834045,
+       "processed": 14336,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 69.257247,
+       "host_available_gb": 19.0715,
+       "mlx_active_gb": 15.176101,
+       "mlx_cache_gb": 3.165593,
+       "mlx_peak_gb": 17.331573,
+       "process_rss_gb": 14.834045,
+       "processed": 15360,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 74.298689,
+       "host_available_gb": 18.98,
+       "mlx_active_gb": 15.238601,
+       "mlx_cache_gb": 3.275945,
+       "mlx_peak_gb": 17.440948,
+       "process_rss_gb": 14.834045,
+       "processed": 16384,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 79.358853,
+       "host_available_gb": 18.8926,
+       "mlx_active_gb": 15.301101,
+       "mlx_cache_gb": 3.386296,
+       "mlx_peak_gb": 17.550323,
+       "process_rss_gb": 14.834045,
+       "processed": 17408,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 84.478123,
+       "host_available_gb": 18.8009,
+       "mlx_active_gb": 15.363601,
+       "mlx_cache_gb": 3.496648,
+       "mlx_peak_gb": 17.659698,
+       "process_rss_gb": 14.834045,
+       "processed": 18432,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 89.655436,
+       "host_available_gb": 18.9071,
+       "mlx_active_gb": 15.426101,
+       "mlx_cache_gb": 3.606999,
+       "mlx_peak_gb": 17.769073,
+       "process_rss_gb": 14.834045,
+       "processed": 19456,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 95.261557,
+       "host_available_gb": 18.4942,
+       "mlx_active_gb": 15.488601,
+       "mlx_cache_gb": 3.69782,
+       "mlx_peak_gb": 17.878448,
+       "process_rss_gb": 14.834045,
+       "processed": 20480,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 100.596469,
+       "host_available_gb": 18.561,
+       "mlx_active_gb": 15.551101,
+       "mlx_cache_gb": 3.827702,
+       "mlx_peak_gb": 17.987823,
+       "process_rss_gb": 14.834045,
+       "processed": 21504,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 105.987068,
+       "host_available_gb": 18.4568,
+       "mlx_active_gb": 15.613601,
+       "mlx_cache_gb": 3.938054,
+       "mlx_peak_gb": 18.097198,
+       "process_rss_gb": 14.834045,
+       "processed": 22528,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 111.399003,
+       "host_available_gb": 18.3702,
+       "mlx_active_gb": 15.676101,
+       "mlx_cache_gb": 4.048405,
+       "mlx_peak_gb": 18.206573,
+       "process_rss_gb": 14.834045,
+       "processed": 23552,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 116.85395,
+       "host_available_gb": 18.2877,
+       "mlx_active_gb": 15.738601,
+       "mlx_cache_gb": 4.158757,
+       "mlx_peak_gb": 18.315948,
+       "process_rss_gb": 14.834045,
+       "processed": 24576,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 122.428191,
+       "host_available_gb": 18.2009,
+       "mlx_active_gb": 15.801101,
+       "mlx_cache_gb": 4.269215,
+       "mlx_peak_gb": 18.425323,
+       "process_rss_gb": 14.834045,
+       "processed": 25600,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 128.045185,
+       "host_available_gb": 18.0667,
+       "mlx_active_gb": 15.863601,
+       "mlx_cache_gb": 4.379567,
+       "mlx_peak_gb": 18.534698,
+       "process_rss_gb": 14.834045,
+       "processed": 26624,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 133.704678,
+       "host_available_gb": 18.0249,
+       "mlx_active_gb": 15.926101,
+       "mlx_cache_gb": 4.489919,
+       "mlx_peak_gb": 18.644073,
+       "process_rss_gb": 14.834045,
+       "processed": 27648,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 139.445097,
+       "host_available_gb": 17.9385,
+       "mlx_active_gb": 15.988601,
+       "mlx_cache_gb": 4.60027,
+       "mlx_peak_gb": 18.753448,
+       "process_rss_gb": 14.834045,
+       "processed": 28672,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 145.17858,
+       "host_available_gb": 17.85,
+       "mlx_active_gb": 16.051101,
+       "mlx_cache_gb": 4.710637,
+       "mlx_peak_gb": 18.862823,
+       "process_rss_gb": 14.834045,
+       "processed": 29696,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 151.002824,
+       "host_available_gb": 17.7676,
+       "mlx_active_gb": 16.113601,
+       "mlx_cache_gb": 4.820988,
+       "mlx_peak_gb": 18.972198,
+       "process_rss_gb": 14.834045,
+       "processed": 30720,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 156.860002,
+       "host_available_gb": 17.675,
+       "mlx_active_gb": 16.176101,
+       "mlx_cache_gb": 4.93134,
+       "mlx_peak_gb": 19.081573,
+       "process_rss_gb": 14.834045,
+       "processed": 31744,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 162.632698,
+       "host_available_gb": 17.6531,
+       "mlx_active_gb": 16.238601,
+       "mlx_cache_gb": 4.915989,
+       "mlx_peak_gb": 19.129088,
+       "process_rss_gb": 14.834091,
+       "processed": 32690,
+       "total": 32691
+      },
+      {
+       "elapsed_s": 162.79573,
+       "host_available_gb": 22.5454,
+       "mlx_active_gb": 16.259648,
+       "mlx_cache_gb": 0.006572,
+       "mlx_peak_gb": 19.129088,
+       "process_rss_gb": 14.834106,
+       "processed": 32691,
+       "total": 32691
+      }
+     ],
+     "prompt_tokens": 32691,
+     "prompt_tps": 200.9702,
+     "text": "AURA-32768-CORTEX-9F3C",
+     "ttft_s": 162.7958
+    },
+    "liveness": {
+     "bounds_valid": true,
+     "callbacks": 34,
+     "complete": true,
+     "elapsed_monotonic": true,
+     "max_callback_gap_s": 5.8572,
+     "maximum_callback_gap_s": 30.0,
+     "maximum_ttft_s": 240.0,
+     "minimum_generation_tps": 2.0,
+     "minimum_prompt_tps": 150.0,
+     "minimum_prompt_tps_measurement_tokens": 2048,
+     "monotonic": true,
+     "passed": true,
+     "prompt_throughput_applicable": true,
+     "prompt_throughput_pass": true,
+     "starts_at_zero": true,
+     "totals_match": true
+    },
+    "memory_after": {
+     "available_gb": 22.5398,
+     "total_gb": 64.0
+    },
+    "memory_before": {
+     "available_gb": 22.121,
+     "total_gb": 64.0
+    },
+    "passed": true,
+    "row_sha256": "9abcbb57927816870b8f339348aae5fd46dca1ed687191bc4a9ece917273fc40",
+    "score": {
+     "completion_pass": true,
+     "nonce_recovered": true,
+     "passed": true
+    }
+   },
+   "schema": "aura.cortex_upgrade.serving_progress.v2",
+   "total": 6,
+   "updated_at": 1787547939.434908
+  }
+ ],
+ "measurement_sha256": "113903e2b96fd5f3686880e7cb0c42a132542731a0fe0990af0ebb1aedb8eb57",
+ "schema": "aura.cortex_upgrade.serving_journal.v2",
+ "updated_at": 1787547948.152686
+}
