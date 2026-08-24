@@ -42,6 +42,8 @@ from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
 from core.runtime.model_lane_control import standalone_model_lane  # noqa: E402
 
 SOURCE = "candidate_cortex_fusion.target"
+FUSION_BATCH_MODULES = 8
+FUSION_TRANSIENT_HEADROOM_GB = 10.0
 
 
 def _strict_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -93,9 +95,7 @@ def _remove_adapter_input(plan: Mapping[str, Any]) -> None:
     path = Path(str(plan["output"]["fusion_root"])) / "adapter-input"
     if not os.path.lexists(path):
         return
-    with local_internal_governed_scope(
-        f"{SOURCE}.adapter_input_cleanup", domain="file_write"
-    ):
+    with local_internal_governed_scope(f"{SOURCE}.adapter_input_cleanup", domain="file_write"):
         get_file_write_gateway().delete_path(
             path,
             recursive=True,
@@ -122,29 +122,93 @@ def _prepare_adapter_input(plan: Mapping[str, Any]) -> Path:
     return adapter_input
 
 
+def _streaming_fusion_request_gb(
+    *,
+    base_weight_bytes: int,
+    adapter_weight_bytes: int,
+) -> float:
+    """Declare the bounded eager-fusion peak instead of a whole-model duplicate."""
+
+    if (
+        isinstance(base_weight_bytes, bool)
+        or not isinstance(base_weight_bytes, int)
+        or base_weight_bytes <= 0
+        or isinstance(adapter_weight_bytes, bool)
+        or not isinstance(adapter_weight_bytes, int)
+        or adapter_weight_bytes <= 0
+    ):
+        raise CandidateCortexFusionError("fusion_weight_budget_invalid")
+    return (
+        float(base_weight_bytes + adapter_weight_bytes) / float(1024**3)
+        + FUSION_TRANSIENT_HEADROOM_GB
+    )
+
+
+def _fuse_modules_bounded(model: Any, *, mx: Any, tree_unflatten: Any) -> int:
+    """Fuse a bounded module batch and release superseded weights immediately."""
+
+    fused_count = 0
+    fused_names: set[str] = set()
+    while True:
+        batch: list[tuple[str, Any]] = []
+        for name, module in model.named_modules():
+            fuse = getattr(module, "fuse", None)
+            if not callable(fuse):
+                continue
+            if name in fused_names:
+                raise CandidateCortexFusionError("fusion_module_did_not_converge")
+            batch.append((name, fuse(dequantize=False)))
+            if len(batch) >= FUSION_BATCH_MODULES:
+                break
+        if not batch:
+            return fused_count
+
+        # MLX is lazy. Realize each bounded replacement while its source LoRA
+        # module still exists, then replace the source before clearing cache.
+        mx.eval(*(module.parameters() for _name, module in batch))
+        model.update_modules(tree_unflatten(batch))
+        fused_names.update(name for name, _module in batch)
+        fused_count += len(batch)
+        batch.clear()
+        gc.collect()
+        mx.clear_cache()
+
+
 def _fuse_with_mlx(
     base_model: str,
     adapter_input: Path,
     staging_path: Path,
     *,
+    base_weight_bytes: int,
+    adapter_weight_bytes: int,
     owner_id: str,
     metadata: Mapping[str, Any],
 ) -> int:
+    request_gb = _streaming_fusion_request_gb(
+        base_weight_bytes=base_weight_bytes,
+        adapter_weight_bytes=adapter_weight_bytes,
+    )
     with standalone_model_lane(
         owner_id=owner_id,
         model_path=base_model,
         purpose="fuse",
+        request_gb=request_gb,
         priority=100,
         preemptible=False,
         require_exclusive=True,
         allow_owner_eviction=True,
-        metadata=metadata,
+        metadata={
+            **dict(metadata),
+            "fusion_algorithm": "bounded_eager_module_batches_v1",
+            "fusion_batch_modules": FUSION_BATCH_MODULES,
+            "fusion_request_gb": request_gb,
+        },
     ):
         model = None
         tokenizer = None
         config = None
-        fused_linears = None
         try:
+            import mlx.core as mx
             from mlx.utils import tree_unflatten
             from mlx_lm.utils import load, save
 
@@ -153,14 +217,13 @@ def _fuse_with_mlx(
                 adapter_path=str(adapter_input),
                 return_config=True,
             )
-            fused_linears = [
-                (name, module.fuse(dequantize=False))
-                for name, module in model.named_modules()
-                if hasattr(module, "fuse")
-            ]
-            if not fused_linears:
+            fused_module_count = _fuse_modules_bounded(
+                model,
+                mx=mx,
+                tree_unflatten=tree_unflatten,
+            )
+            if fused_module_count <= 0:
                 raise CandidateCortexFusionError("fusion_applied_zero_modules")
-            model.update_modules(tree_unflatten(fused_linears))
             save(
                 staging_path,
                 base_model,
@@ -169,9 +232,8 @@ def _fuse_with_mlx(
                 config,
                 donate_model=False,
             )
-            return len(fused_linears)
+            return fused_module_count
         finally:
-            fused_linears = None
             model = None
             tokenizer = None
             config = None
@@ -194,9 +256,7 @@ def _fuse(plan: Mapping[str, Any]) -> Path:
         raise CandidateCortexFusionError("fusion_disk_budget_unavailable")
     adapter_input = _prepare_adapter_input(plan)
     if os.path.lexists(staging_path):
-        with local_internal_governed_scope(
-            f"{SOURCE}.staging_cleanup", domain="file_write"
-        ):
+        with local_internal_governed_scope(f"{SOURCE}.staging_cleanup", domain="file_write"):
             get_file_write_gateway().delete_path(
                 staging_path,
                 recursive=True,
@@ -208,6 +268,8 @@ def _fuse(plan: Mapping[str, Any]) -> Path:
         base_model,
         adapter_input,
         staging_path,
+        base_weight_bytes=int(plan["base_model"]["weight_bytes"]),
+        adapter_weight_bytes=int(plan["adaptive"]["checkpoint"]["size_bytes"]),
         owner_id=f"candidate-cortex-fusion:{output['generation_id']}",
         metadata={
             "tool": "run_candidate_cortex_fusion_target",

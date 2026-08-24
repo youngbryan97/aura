@@ -176,8 +176,8 @@ def test_fusion_plan_binds_explicit_adaptive_result_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    training_plan, run_root, journal_key, target_source, verifier_source = (
-        _fixture_authority(tmp_path, monkeypatch)
+    training_plan, run_root, journal_key, target_source, verifier_source = _fixture_authority(
+        tmp_path, monkeypatch
     )
     explicit = run_root / "adaptive-results" / "cp924-recovery.json"
     explicit.parent.mkdir()
@@ -188,17 +188,16 @@ def test_fusion_plan_binds_explicit_adaptive_result_generation(
         "cumulative_iterations": 700,
         "checkpoint": {
             "path": str(
-                Path(training_plan["paths"]["adapter_root"])
-                / "0000700_adapters.safetensors"
+                Path(training_plan["paths"]["adapter_root"]) / "0000700_adapters.safetensors"
             ),
             "sha256": training.file_sha256(
-                Path(training_plan["paths"]["adapter_root"])
-                / "0000700_adapters.safetensors"
+                Path(training_plan["paths"]["adapter_root"]) / "0000700_adapters.safetensors"
             ),
             "size_bytes": (
-                Path(training_plan["paths"]["adapter_root"])
-                / "0000700_adapters.safetensors"
-            ).stat().st_size,
+                Path(training_plan["paths"]["adapter_root"]) / "0000700_adapters.safetensors"
+            )
+            .stat()
+            .st_size,
         },
     }
     observed_result_paths: list[Path | None] = []
@@ -219,11 +218,14 @@ def test_fusion_plan_binds_explicit_adaptive_result_generation(
         verify_full_model=False,
     )
     assert plan["adaptive"]["result"]["path"] == str(explicit.resolve())
-    assert fusion.validate_fusion_plan(
-        plan,
-        journal_key_path=journal_key,
-        verify_full_model=False,
-    ) == plan
+    assert (
+        fusion.validate_fusion_plan(
+            plan,
+            journal_key_path=journal_key,
+            verify_full_model=False,
+        )
+        == plan
+    )
     assert observed_result_paths == [explicit, explicit]
 
 
@@ -341,11 +343,14 @@ def test_fusion_receipt_replays_provenance_and_descriptor_identity(
     }
     receipt = {**body, "receipt_sha256": training.document_sha256(body)}
 
-    assert fusion.validate_fusion_receipt(
-        plan,
-        receipt,
-        verify_full_model=True,
-    ) == receipt
+    assert (
+        fusion.validate_fusion_receipt(
+            plan,
+            receipt,
+            verify_full_model=True,
+        )
+        == receipt
+    )
 
 
 def test_fusion_target_publishes_from_staging_under_exclusive_lane(
@@ -378,18 +383,126 @@ def test_fusion_target_publishes_from_staging_under_exclusive_lane(
     assert not Path(plan["output"]["staging_path"]).exists()
     assert observed["adapter"].endswith("adapter-input")
     assert observed["lane_contract"] == {
+        "base_weight_bytes": plan["base_model"]["weight_bytes"],
+        "adapter_weight_bytes": plan["adaptive"]["checkpoint"]["size_bytes"],
         "owner_id": f"candidate-cortex-fusion:{plan['output']['generation_id']}",
         "metadata": {
             "tool": "run_candidate_cortex_fusion_target",
             "fusion_plan_sha256": plan["fusion_plan_sha256"],
         },
     }
-    assert fusion.validate_fusion_provenance(
-        plan,
-        json.loads(
-            (final_path / fusion.FUSION_PROVENANCE_FILE).read_text(encoding="utf-8")
-        ),
-    )["fusion_plan_sha256"] == plan["fusion_plan_sha256"]
+    assert (
+        fusion.validate_fusion_provenance(
+            plan,
+            json.loads((final_path / fusion.FUSION_PROVENANCE_FILE).read_text(encoding="utf-8")),
+        )["fusion_plan_sha256"]
+        == plan["fusion_plan_sha256"]
+    )
+
+
+def test_fusion_replaces_adapted_modules_in_bounded_eager_batches() -> None:
+    evaluated: list[tuple[str, ...]] = []
+    cleared: list[bool] = []
+
+    class _Fused:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def parameters(self) -> str:
+            return self.name
+
+    class _Adapted:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def fuse(self, *, dequantize: bool) -> _Fused:
+            assert dequantize is False
+            return _Fused(self.name)
+
+    class _Model:
+        def __init__(self) -> None:
+            self.modules = {f"layer.{index}": _Adapted(f"layer.{index}") for index in range(19)}
+            self.batch_sizes: list[int] = []
+
+        def named_modules(self):
+            return tuple(self.modules.items())
+
+        def update_modules(self, values):
+            self.batch_sizes.append(len(values))
+            self.modules.update(values)
+
+    class _MX:
+        @staticmethod
+        def eval(*values: str) -> None:
+            evaluated.append(tuple(values))
+
+        @staticmethod
+        def clear_cache() -> None:
+            cleared.append(True)
+
+    model = _Model()
+    count = fusion_target._fuse_modules_bounded(
+        model,
+        mx=_MX,
+        tree_unflatten=lambda values: values,
+    )
+
+    assert count == 19
+    assert model.batch_sizes == [8, 8, 3]
+    assert [len(batch) for batch in evaluated] == [8, 8, 3]
+    assert len(cleared) == 3
+    assert all(not hasattr(module, "fuse") for module in model.modules.values())
+
+
+def test_fusion_replaces_real_mlx_lora_modules_without_retaining_tissue() -> None:
+    mx = pytest.importorskip("mlx.core")
+    nn = pytest.importorskip("mlx.nn")
+    lora = pytest.importorskip("mlx_lm.tuner.lora")
+    tree_unflatten = pytest.importorskip("mlx.utils").tree_unflatten
+
+    class _TinyModel(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.layers = [lora.LoRALinear(16, 16, r=2) for _index in range(19)]
+
+    model = _TinyModel()
+    before = [
+        name for name, module in model.named_modules() if callable(getattr(module, "fuse", None))
+    ]
+
+    count = fusion_target._fuse_modules_bounded(
+        model,
+        mx=mx,
+        tree_unflatten=tree_unflatten,
+    )
+    mx.eval(model.parameters())
+    after = [
+        name for name, module in model.named_modules() if callable(getattr(module, "fuse", None))
+    ]
+
+    assert len(before) == 19
+    assert count == 19
+    assert after == []
+    assert {type(module).__name__ for module in model.layers} == {"Linear"}
+
+
+def test_streaming_fusion_budget_covers_weights_plus_transient_workspace() -> None:
+    assert (
+        fusion_target._streaming_fusion_request_gb(
+            base_weight_bytes=16 * 1024**3,
+            adapter_weight_bytes=1024**3,
+        )
+        == 27.0
+    )
+
+    with pytest.raises(
+        fusion.CandidateCortexFusionError,
+        match="fusion_weight_budget_invalid",
+    ):
+        fusion_target._streaming_fusion_request_gb(
+            base_weight_bytes=0,
+            adapter_weight_bytes=1024**3,
+        )
 
 
 def test_fusion_releases_allocator_before_lane_exit_on_failure(
@@ -414,6 +527,9 @@ def test_fusion_releases_allocator_before_lane_exit_on_failure(
 
     mlx_utils = ModuleType("mlx.utils")
     mlx_utils.tree_unflatten = lambda value: value
+    mlx_core = ModuleType("mlx.core")
+    mlx_core.eval = lambda *_values: None
+    mlx_core.clear_cache = lambda: None
     mlx_lm_utils = ModuleType("mlx_lm.utils")
 
     def load(*_args, **_kwargs):
@@ -423,6 +539,7 @@ def test_fusion_releases_allocator_before_lane_exit_on_failure(
     mlx_lm_utils.load = load
     mlx_lm_utils.save = lambda *_args, **_kwargs: events.append("save")
     monkeypatch.setitem(sys.modules, "mlx.utils", mlx_utils)
+    monkeypatch.setitem(sys.modules, "mlx.core", mlx_core)
     monkeypatch.setitem(sys.modules, "mlx_lm.utils", mlx_lm_utils)
     monkeypatch.setattr(
         fusion_target,
@@ -440,6 +557,8 @@ def test_fusion_releases_allocator_before_lane_exit_on_failure(
             "base",
             tmp_path / "adapter",
             tmp_path / "staging",
+            base_weight_bytes=16 * 1024**3,
+            adapter_weight_bytes=1024**3,
             owner_id="owner",
             metadata={"tool": "test"},
         )
