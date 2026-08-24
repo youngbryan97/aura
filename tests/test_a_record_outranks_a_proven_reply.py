@@ -92,3 +92,43 @@ async def test_an_unproven_reply_still_goes_through_the_whole_chain() -> None:
         _Response(_payload(original, proven=False)),
     )
     assert isinstance(_served(response)["response"], str)
+
+
+@pytest.mark.asyncio
+async def test_verified_assertion_bytes_bypass_generic_prose_repair() -> None:
+    from core.epistemics.assertion import (
+        Assertion,
+        AssertionResponse,
+        SourceKind,
+        Verification,
+    )
+
+    text = "My resident cortex is 27B, with 26,895,993,856 parameters."
+    typed = AssertionResponse(
+        family="cortex_self_evidence",
+        text=text,
+        assertions=(
+            Assertion(
+                subject="resident cortex identity",
+                claim=text,
+                source=SourceKind.MEASURED,
+                evidence=("f" * 64,),
+                verification=Verification.VERIFIED,
+            ),
+        ),
+    )
+    response = await _apply_recorded_answer(
+        "Which cortex are you running now?",
+        _Response(
+            {
+                "response": text,
+                "response_confidence": "high",
+                "live_turn_contract": {
+                    "answer_delivery_proven": False,
+                    "verified_assertion_response": typed.authority(),
+                },
+            }
+        ),
+    )
+
+    assert _served(response)["response"] == text

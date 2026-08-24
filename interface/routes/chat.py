@@ -17406,6 +17406,25 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
             return response
         contract = data.get("live_turn_contract")
 
+        # A typed assertion response has already been composed from verified
+        # evidence and bound to these exact bytes. Generic prose repair cannot
+        # add authority to it; it can only destroy that binding. Preserve any
+        # assertion-backed response whose terminal hash still validates.
+        try:
+            from core.epistemics.assertion import (
+                verified_assertion_response_matches,
+            )
+
+            assertion_authority = (
+                contract.get("verified_assertion_response")
+                if isinstance(contract, dict)
+                else None
+            )
+            if verified_assertion_response_matches(reply, assertion_authority):
+                return response
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat.assertion_response_authority", exc)
+
         # The exact response bytes have already been checked against the
         # qualified recurrent receipt at both cognition and terminal delivery.
         # A record lookup here is not stronger evidence for this task; it is a
@@ -20161,7 +20180,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 status_code=503 if is_benchmark else 200,
             )
 
-        async def _finalize_fastpath(reply_text: str, status: str = "ok"):
+        async def _finalize_fastpath(
+            reply_text: str,
+            status: str = "ok",
+            *,
+            assertion_response: Any = None,
+        ):
             nonlocal pending_exchange_id
             final_text = str(reply_text or "…").strip() or "…"
             try:
@@ -20429,17 +20453,29 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 if _status_represents_governed_action_result(status)
                 else _chat_preflight._collect_conversation_lane_status()
             )
+            live_contract = _live_turn_contract(
+                lane_status=lane_status,
+                response_confidence=response_confidence,
+                status=status,
+                reply_source="fastpath",
+            )
+            if (
+                assertion_response is not None
+                and str(getattr(assertion_response, "text", "")) == final_text
+            ):
+                try:
+                    authority = assertion_response.authority()
+                except (AttributeError, TypeError, ValueError) as exc:
+                    record_degradation("chat.assertion_response_authority", exc)
+                else:
+                    live_contract["verified_assertion_response"] = authority
+
             response_data = {
                 "response": final_text,
                 "status": status,
                 "conversation_lane": lane_status,
                 "response_confidence": response_confidence,
-                "live_turn_contract": _live_turn_contract(
-                    lane_status=lane_status,
-                    response_confidence=response_confidence,
-                    status=status,
-                    reply_source="fastpath",
-                ),
+                "live_turn_contract": live_contract,
             }
             if _desktop_exec_state.get("result") is not None and str(status).startswith(
                 "desktop_objective"
@@ -21096,18 +21132,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # to restate signed measurements it can only make less accurate.
         if not is_benchmark:
             try:
-                from core.brain.cortex_self_evidence import render_cortex_evidence_reply
+                from core.brain.cortex_self_evidence import (
+                    render_cortex_evidence_response,
+                )
 
-                cortex_evidence_reply = render_cortex_evidence_reply(
+                cortex_evidence_response = render_cortex_evidence_response(
                     _semantic_user_message
                 )
             except _CHAT_RECOVERABLE_ERRORS as exc:
                 record_degradation("chat.cortex_self_evidence", exc)
-                cortex_evidence_reply = ""
-            if cortex_evidence_reply:
+                cortex_evidence_response = None
+            if cortex_evidence_response is not None:
                 return await _finalize_fastpath(
-                    cortex_evidence_reply,
+                    cortex_evidence_response.text,
                     status="cortex_self_evidence",
+                    assertion_response=cortex_evidence_response,
                 )
 
         try:

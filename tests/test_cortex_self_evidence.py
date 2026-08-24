@@ -10,6 +10,7 @@ from core.brain.cortex_self_evidence import (
     _verified_campaign,
     classify_cortex_evidence_request,
     render_cortex_evidence_reply,
+    render_cortex_evidence_response,
     resolve_cortex_self_evidence,
 )
 
@@ -67,6 +68,7 @@ def _evidence() -> CortexSelfEvidence:
         semantic_regression_count=0,
         semantic_p_value=8.673617379884035e-19,
         semantic_activation_sha256="e" * 64,
+        resident_descriptor_sha256="f" * 64,
         resident_model_path="/models/27b",
         campaigns=(old, current),
     )
@@ -142,6 +144,7 @@ def test_resolver_composes_only_validated_authority_outputs():
         "total_parameters": 26_895_993_856,
         "native_context_window": 262_144,
         "served_context_tokens": 32_768,
+        "descriptor_sha256": "f" * 64,
     }
 
     with (
@@ -208,6 +211,24 @@ def test_renderer_replaces_subjective_swap_story_with_verified_measurement():
     assert "unmeasured" in reply
     assert "tighter" not in reply.casefold()
     assert "feel" not in reply.casefold()
+
+
+def test_identity_renderer_retains_verified_assertion_authority():
+    from core.epistemics.assertion import verified_assertion_response_matches
+
+    response = render_cortex_evidence_response(
+        "Which cortex are you running now?",
+        evidence=_evidence(),
+    )
+
+    assert response is not None
+    assert "resident cortex is 27B" in response.text
+    authority = response.authority()
+    assert verified_assertion_response_matches(response.text, authority)
+    assert not verified_assertion_response_matches(
+        response.text + "\n\nA contradictory correction.",
+        authority,
+    )
 
 
 def test_mechanism_renderer_requires_an_activation_receipt():

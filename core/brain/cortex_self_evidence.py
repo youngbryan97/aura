@@ -18,7 +18,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from core.epistemics.assertion import Assertion, SourceKind, Verification
+from core.epistemics.assertion import (
+    Assertion,
+    AssertionResponse,
+    SourceKind,
+    Verification,
+)
 
 
 class CortexEvidenceRequest(StrEnum):
@@ -78,6 +83,7 @@ class CortexSelfEvidence:
     semantic_regression_count: int
     semantic_p_value: float | None
     semantic_activation_sha256: str = ""
+    resident_descriptor_sha256: str = ""
     resident_model_path: str = ""
     campaigns: tuple[CortexCampaignEvidence, ...] = ()
 
@@ -458,26 +464,41 @@ def classify_cortex_evidence_request(text: str) -> CortexEvidenceRequest | None:
     return None
 
 
-def render_cortex_evidence_reply(
+def render_cortex_evidence_response(
     user_message: str,
     *,
     evidence: CortexSelfEvidence | None = None,
-) -> str:
-    """Answer closed cortex questions from verified assertions, never priors."""
+) -> AssertionResponse | None:
+    """Compose a closed cortex answer and retain its evidence through delivery."""
 
     request = classify_cortex_evidence_request(user_message)
     if request is None:
-        return ""
+        return None
     observed = evidence or resolve_cortex_self_evidence()
     if observed is None:
-        return ""
+        return None
 
     if request is CortexEvidenceRequest.IDENTITY:
-        return (
+        if not observed.resident_descriptor_sha256:
+            return None
+        text = (
             f"My resident cortex is {observed.resident_label} "
             f"({observed.model_type}), with {observed.total_parameters:,} parameters. "
             f"Its native context is {observed.native_context_tokens:,} tokens; the "
             f"currently qualified serving context is {observed.served_context_tokens:,}."
+        )
+        assertion = Assertion(
+            subject="resident cortex identity",
+            claim=text,
+            source=SourceKind.MEASURED,
+            provenance="active cortex descriptor and resident model registry",
+            evidence=(observed.resident_descriptor_sha256,),
+            verification=Verification.VERIFIED,
+        )
+        return AssertionResponse(
+            family="cortex_self_evidence",
+            text=text,
+            assertions=(assertion,),
         )
 
     if request is CortexEvidenceRequest.BOUNDED_MECHANISM:
@@ -486,7 +507,7 @@ def render_cortex_evidence_reply(
             or observed.semantic_task_count <= 0
             or not observed.semantic_activation_sha256
         ):
-            return ""
+            return None
         arms = dict(observed.semantic_exact_by_arm)
         assertion = Assertion(
             subject="active recurrent semantic tissue",
@@ -503,18 +524,25 @@ def render_cortex_evidence_reply(
             evidence=(observed.semantic_activation_sha256,),
             verification=Verification.VERIFIED,
         )
-        return f"{assertion.render()}. That does not establish open-domain or frontier reasoning."
+        text = (
+            f"{assertion.render()}. That does not establish open-domain or frontier reasoning."
+        )
+        return AssertionResponse(
+            family="cortex_self_evidence",
+            text=text,
+            assertions=(assertion,),
+        )
 
     comparison = observed.measured_campaign_comparison()
     if not comparison:
-        return ""
+        return None
     current = observed.resident_campaign()
     previous = next(
         (campaign for campaign in observed.campaigns if campaign is not current),
         None,
     )
     if current is None or previous is None:
-        return ""
+        return None
     reduction = (
         100.0 * (previous.elapsed_seconds - current.elapsed_seconds) / previous.elapsed_seconds
     )
@@ -533,12 +561,28 @@ def render_cortex_evidence_reply(
         evidence=(*previous.evidence_ids, *current.evidence_ids),
         verification=Verification.VERIFIED,
     )
-    return (
+    text = (
         f"{assertion.render()}. The cohorts were separately seeded, so that is not "
         "a model-only quality benchmark. I do not have paired evidence that the swap "
         "changed my conversational style, broad reasoning, knowledge, association "
         "speed, or subjective experience; those remain unmeasured."
     )
+    return AssertionResponse(
+        family="cortex_self_evidence",
+        text=text,
+        assertions=(assertion,),
+    )
+
+
+def render_cortex_evidence_reply(
+    user_message: str,
+    *,
+    evidence: CortexSelfEvidence | None = None,
+) -> str:
+    """Compatibility text view over the typed assertion response."""
+
+    response = render_cortex_evidence_response(user_message, evidence=evidence)
+    return response.text if response is not None else ""
 
 
 def resolve_cortex_self_evidence() -> CortexSelfEvidence | None:
@@ -599,6 +643,7 @@ def resolve_cortex_self_evidence() -> CortexSelfEvidence | None:
             if isinstance(semantic_receipt, dict)
             else ""
         ),
+        resident_descriptor_sha256=str(identity.get("descriptor_sha256") or ""),
         resident_model_path=str(spec.model_path or ""),
         campaigns=verified_cortex_campaigns(),
     )
@@ -610,6 +655,7 @@ __all__ = [
     "CortexSelfEvidence",
     "classify_cortex_evidence_request",
     "render_cortex_evidence_reply",
+    "render_cortex_evidence_response",
     "resolve_cortex_self_evidence",
     "verified_cortex_campaigns",
 ]

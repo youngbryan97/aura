@@ -40,6 +40,8 @@ substrate is the remaining work, and it is architectural, not another guard.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -47,11 +49,16 @@ from typing import Any
 
 __all__ = [
     "Assertion",
+    "AssertionResponse",
     "SourceKind",
     "UnevidencedAssertionError",
     "Verification",
     "render_assertions",
+    "verified_assertion_response_matches",
 ]
+
+
+_ASSERTION_RESPONSE_SCHEMA = "aura.assertion_response.v1"
 
 
 class UnevidencedAssertionError(ValueError):
@@ -149,6 +156,90 @@ class Assertion:
             "verification": str(self.verification),
             "at": self.at,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class AssertionResponse:
+    """Exact user-facing bytes composed from verified assertions.
+
+    The response carries its assertion objects until the terminal delivery
+    boundary. There it becomes a compact authority receipt binding the exact
+    bytes to the evidence identifiers. Later generic prose repair can validate
+    that receipt instead of mistaking measured text for an unsupported model
+    claim and appending a contradictory correction.
+    """
+
+    family: str
+    text: str
+    assertions: tuple[Assertion, ...]
+
+    def __post_init__(self) -> None:
+        if not str(self.family or "").strip():
+            raise ValueError("assertion response family must be non-empty")
+        if not str(self.text or "").strip():
+            raise ValueError("assertion response text must be non-empty")
+        if not self.assertions:
+            raise UnevidencedAssertionError(
+                "an assertion response must carry at least one assertion"
+            )
+        if any(not assertion.may_be_stated_as_fact for assertion in self.assertions):
+            raise UnevidencedAssertionError(
+                "every assertion in an assertion response must be verified and evidenced"
+            )
+
+    @property
+    def evidence(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                evidence_id
+                for assertion in self.assertions
+                for evidence_id in assertion.evidence
+                if evidence_id
+            )
+        )
+
+    def authority(self) -> dict[str, Any]:
+        """Bind the exact rendered bytes to the verified assertion set."""
+
+        assertion_payload = [assertion.to_dict() for assertion in self.assertions]
+        return {
+            "schema": _ASSERTION_RESPONSE_SCHEMA,
+            "family": self.family,
+            "verification": str(Verification.VERIFIED),
+            "text_sha256": hashlib.sha256(self.text.encode("utf-8")).hexdigest(),
+            "assertions_sha256": hashlib.sha256(
+                json.dumps(
+                    assertion_payload,
+                    ensure_ascii=True,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest(),
+            "evidence": list(self.evidence),
+            "subjects": [assertion.subject for assertion in self.assertions],
+        }
+
+
+def verified_assertion_response_matches(text: Any, authority: Any) -> bool:
+    """Whether a terminal response still has its verified assertion bytes."""
+
+    if not isinstance(authority, dict):
+        return False
+    if authority.get("schema") != _ASSERTION_RESPONSE_SCHEMA:
+        return False
+    if authority.get("verification") != str(Verification.VERIFIED):
+        return False
+    if not str(authority.get("family") or "").strip():
+        return False
+    evidence = authority.get("evidence")
+    if not isinstance(evidence, list) or not evidence or not all(
+        isinstance(item, str) and item.strip() for item in evidence
+    ):
+        return False
+    expected = str(authority.get("text_sha256") or "")
+    if len(expected) != 64:
+        return False
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest() == expected
 
 
 def render_assertions(assertions: Any) -> str:
