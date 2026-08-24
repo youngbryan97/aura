@@ -361,6 +361,7 @@ def _install_fake_mlx_modules(monkeypatch):
     mlx_lm_models = types.ModuleType("mlx_lm.models")
     mlx_lm_base = types.ModuleType("mlx_lm.models.base")
     mlx_lm_base.create_attention_mask = lambda _h, _cache: None
+    mlx_lm_base.create_ssm_mask = lambda _h, _cache: None
     monkeypatch.setitem(sys.modules, "mlx_lm", mlx_lm)
     monkeypatch.setitem(sys.modules, "mlx_lm.models", mlx_lm_models)
     monkeypatch.setitem(sys.modules, "mlx_lm.models.base", mlx_lm_base)

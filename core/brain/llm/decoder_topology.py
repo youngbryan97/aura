@@ -151,6 +151,76 @@ def decoder_layers(model: Any) -> list[Any]:
     raise DecoderTopologyError("model does not expose decoder layers")
 
 
+def decoder_layer_masks(
+    decoder: Any,
+    hidden_state: Any,
+    cache: Any = None,
+    *,
+    start: int = 0,
+    end: int | None = None,
+) -> tuple[Any, ...]:
+    """Build the mask each selected decoder layer expects.
+
+    Dense decoders share one causal-attention mask. Hybrid decoders also carry
+    state-space layers whose cache and mask contract is different. Callers
+    that execute layers directly must preserve that distinction instead of
+    sending the dense mask sentinel through the whole stack.
+    """
+
+    try:
+        from mlx_lm.models.base import create_attention_mask, create_ssm_mask
+    except ImportError:  # pragma: no cover - compatibility with old mlx_lm
+        from mlx_lm.models.qwen2 import create_attention_mask  # type: ignore
+
+        def create_ssm_mask(h: Any, layer_cache: Any = None) -> Any:
+            if layer_cache is not None and hasattr(layer_cache, "make_mask"):
+                return layer_cache.make_mask(h.shape[1])
+            return None
+
+    layers = list(getattr(decoder, "layers", ()) or ())
+    stop = len(layers) if end is None else end
+    if (
+        type(start) is not int
+        or type(stop) is not int
+        or not 0 <= start < stop <= len(layers)
+    ):
+        raise DecoderTopologyError("decoder mask layer window is invalid")
+    selected = layers[start:stop]
+
+    if cache is None:
+        selected_cache = [None] * len(selected)
+    elif not isinstance(cache, (list, tuple)):
+        raise DecoderTopologyError("decoder cache must be a layer sequence")
+    elif len(cache) == len(layers):
+        selected_cache = list(cache[start:stop])
+    elif len(cache) == len(selected):
+        selected_cache = list(cache)
+    else:
+        raise DecoderTopologyError(
+            "decoder cache length does not match the model or selected window"
+        )
+
+    linear = [_linear_signal(layer) is True for layer in selected]
+    attention_mask = None
+    if any(not value for value in linear):
+        representative = next(index for index, value in enumerate(linear) if not value)
+        attention_mask = create_attention_mask(
+            hidden_state,
+            selected_cache[representative],
+        )
+    state_mask = None
+    if any(linear):
+        representative = next(index for index, value in enumerate(linear) if value)
+        state_mask = create_ssm_mask(
+            hidden_state,
+            selected_cache[representative],
+        )
+    return tuple(
+        state_mask if is_linear else attention_mask
+        for is_linear in linear
+    )
+
+
 def _linear_signal(layer: Any) -> bool | None:
     """The model's own answer, or None when this layer does not give one.
 

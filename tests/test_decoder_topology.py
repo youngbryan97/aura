@@ -16,6 +16,7 @@ from core.brain.llm.decoder_topology import (
     FULL_ATTENTION,
     LINEAR_ATTENTION,
     DecoderTopologyError,
+    decoder_layer_masks,
     decoder_layers,
     resolve_language_model,
     topology_disagreements,
@@ -94,6 +95,68 @@ def test_a_cyclic_wrapper_does_not_hang():
 def test_layers_are_found_through_either_holder():
     assert len(decoder_layers(_hybrid_model())) == 64
     assert len(decoder_layers(_dense_model())) == 64
+
+
+@pytest.mark.hardware
+def test_a_real_hybrid_layer_walk_receives_two_mask_contracts():
+    """The latent engine's direct walk must not send ``"causal"`` to SSM layers."""
+
+    import mlx.core as mx
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 4,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    model = Model(ModelArgs(model_type="qwen3_5", text_config=text_config))
+    decoder = model.language_model.model
+    cache = model.make_cache()
+    hidden = decoder.embed_tokens(mx.array([[1, 2, 3, 4]], dtype=mx.int32))
+    masks = decoder_layer_masks(decoder, hidden, cache)
+
+    assert len(masks) == 4
+    assert masks[0] is None or not isinstance(masks[0], str)
+    assert masks[1] == "causal"
+    for index, layer in enumerate(decoder.layers):
+        hidden = layer(hidden, masks[index], cache[index])
+    mx.eval(hidden)
+    assert hidden.shape == (1, 4, 64)
+
+
+def test_a_mask_window_accepts_only_its_matching_cache_slice():
+    decoder = SimpleNamespace(layers=[_linear_layer(), _attention_layer()] * 2)
+    hidden = SimpleNamespace(shape=(1, 1, 8))
+    masks = decoder_layer_masks(decoder, hidden, [None, None], start=1, end=3)
+    assert masks == (None, None)
+    with pytest.raises(DecoderTopologyError, match="cache length"):
+        decoder_layer_masks(decoder, hidden, [None], start=1, end=3)
+
+
+def test_mask_topology_accepts_a_structural_linear_layer_signal():
+    decoder = SimpleNamespace(
+        layers=[
+            SimpleNamespace(linear_attn=object()),
+            SimpleNamespace(self_attn=object()),
+        ]
+    )
+    hidden = SimpleNamespace(shape=(1, 1, 8))
+
+    assert decoder_layer_masks(decoder, hidden, [None, None]) == (None, None)
 
 
 def test_a_decoder_without_layers_is_refused():

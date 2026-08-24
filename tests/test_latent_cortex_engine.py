@@ -19,6 +19,7 @@ import pytest
 mx = pytest.importorskip("mlx.core")
 pytest.importorskip("mlx_lm")
 
+from mlx_lm.models import qwen3_5  # noqa: E402
 from mlx_lm.models.qwen2 import Model, ModelArgs  # noqa: E402
 
 from core.brain.llm.latent_cortex.branches import BranchEnsemble  # noqa: E402
@@ -122,6 +123,46 @@ def test_engine_resolves_hybrid_language_model_layers():
 
     assert engine.n_layers == N_LAYERS
     assert engine.model_layer_view.path == "language_model.model.layers"
+
+
+def test_hybrid_prefill_uses_each_layers_native_mask_contract():
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 4,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    model = qwen3_5.Model(
+        qwen3_5.ModelArgs(model_type="qwen3_5", text_config=text_config)
+    )
+    mx.eval(model.parameters())
+    engine = LatentCortexEngine(model, config=_config())
+    budget = ComputeBudget(max_layer_apps=100_000, wall_clock_s=30.0)
+    cache = engine._fresh_cache()
+
+    embeddings, logits = engine._prefill(PROMPT_TOKENS, cache, budget)
+
+    assert embeddings.shape == (1, len(PROMPT_TOKENS), 64)
+    assert logits.shape == (128,)
+    assert [type(item).__name__ for item in cache] == [
+        "ArraysCache",
+        "KVCache",
+        "ArraysCache",
+        "KVCache",
+    ]
 
 
 def test_hybrid_wrapper_runs_a_complete_latent_episode():

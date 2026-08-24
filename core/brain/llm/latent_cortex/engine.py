@@ -30,7 +30,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from core.brain.llm.decoder_topology import resolve_language_model
+from core.brain.llm.decoder_topology import decoder_layer_masks, resolve_language_model
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
@@ -1650,7 +1650,6 @@ class LatentCortexEngine:
     def _apply_decode_bridge(self, cache, budget: ComputeBudget, tokens: list[int]):
         """Append a lexical answer cue after thought slots in the same KV owner."""
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
 
         if not tokens:
             raise ValueError("decode bridge tokens cannot be empty")
@@ -1669,10 +1668,10 @@ class LatentCortexEngine:
         )
         inner = self.decoder
         h = inner.embed_tokens(mx.array([tokens]))
-        mask = create_attention_mask(h, cache)
+        masks = decoder_layer_masks(inner, h, cache)
         with self._coda_scope():
             for index, layer in enumerate(inner.layers):
-                h = layer(h, mask, cache[index])
+                h = layer(h, masks[index], cache[index])
         logits = self._logits(h)[0, -1]
         mx.eval(logits)
         return logits
@@ -2326,7 +2325,6 @@ class LatentCortexEngine:
     def _prefill(self, tokens: list[int], cache, budget: ComputeBudget):
         """Standard full-stack prefill. Returns (embeddings, last-position logits)."""
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
 
         inner = self.decoder
         if not tokens:
@@ -2347,9 +2345,9 @@ class LatentCortexEngine:
         arr = mx.array([tokens])
         h = inner.embed_tokens(arr)
         embeddings = h
-        mask = create_attention_mask(h, cache)
+        masks = decoder_layer_masks(inner, h, cache)
         for i, layer in enumerate(inner.layers):
-            h = layer(h, mask, cache[i])
+            h = layer(h, masks[i], cache[i])
         logits = self._logits(h[:, -1:, :])[0, -1]
         self._last_prefill_hidden = h[:, -1:, :]
         mx.eval(logits, self._last_prefill_hidden)
@@ -2467,8 +2465,6 @@ class LatentCortexEngine:
         use a separate bounded window and suppress EOS until completion or
         exhaustion."""
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
-
         inner = self.decoder
         eos = self._eos_ids()
         limit = max_tokens if max_tokens is not None else self.config.decode_max_tokens
@@ -2757,14 +2753,14 @@ class LatentCortexEngine:
                     output_head_tokens=1,
                 )
                 h = inner.embed_tokens(mx.array([[token]]))
-                mask = create_attention_mask(h, cache)
+                masks = decoder_layer_masks(inner, h, cache)
                 if coda_adapter_active:
                     scope = self._coda_scope()
                 else:
                     scope = nullcontext()
                 with scope:
                     for i, layer in enumerate(inner.layers):
-                        h = layer(h, mask, cache[i])
+                        h = layer(h, masks[i], cache[i])
                 logits = self._logits(h)[0, -1]
             else:
                 logits = external_step_logits(token)
@@ -3081,7 +3077,6 @@ class LatentCortexEngine:
         """Decode two cache-isolated lanes under one selected distribution."""
 
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
 
         from core.brain.llm.latent_cortex.verified_best import tensor_sha256
         from core.brain.llm.recurrent_depth import (
@@ -3221,12 +3216,12 @@ class LatentCortexEngine:
                         output_head_tokens=1,
                     )
                     hidden = inner.embed_tokens(mx.array([[token]]))
-                    mask = create_attention_mask(hidden, lane_cache)
+                    masks = decoder_layer_masks(inner, hidden, lane_cache)
                     with self._coda_scope():
                         for index, layer in enumerate(inner.layers):
                             hidden = layer(
                                 hidden,
-                                mask,
+                                masks[index],
                                 lane_cache[index],
                             )
                     logits = self._logits(hidden)[0, -1]
@@ -10306,7 +10301,6 @@ class LatentCortexEngine:
     def _canary_logits(self, probe_tokens: list[int], budget: ComputeBudget):
         """Standard causal full-stack forward over one canary sequence."""
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
 
         if not budget.can_afford(len(probe_tokens), self.n_layers):
             raise RuntimeError("compute budget cannot afford capability canary pass")
@@ -10320,9 +10314,9 @@ class LatentCortexEngine:
         inner = self.decoder
         cache = self._fresh_cache()
         h = inner.embed_tokens(mx.array([probe_tokens]))
-        mask = create_attention_mask(h, cache)
+        masks = decoder_layer_masks(inner, h, cache)
         for index, layer in enumerate(inner.layers):
-            h = layer(h, mask, cache[index])
+            h = layer(h, masks[index], cache[index])
         logits = self._logits(h)
         mx.eval(logits)
         return logits
@@ -10582,8 +10576,6 @@ class LatentCortexEngine:
         )
 
         def forward():
-            from mlx_lm.models.base import create_attention_mask
-
             inner = self.decoder
             h = inner.embed_tokens(mx.array([context_tokens]))
             # The answer is produced causally: WindowRunner persists slots
@@ -10593,9 +10585,9 @@ class LatentCortexEngine:
             # own future — a different function from the one that answers.
             # The budget above already prices triangular attention pairs,
             # which is the causal shape; only the forward disagreed.
-            mask = create_attention_mask(h, None)
-            for layer in inner.layers:
-                h = layer(h, mask, None)
+            masks = decoder_layer_masks(inner, h, None)
+            for index, layer in enumerate(inner.layers):
+                h = layer(h, masks[index], None)
             mx.eval(h)
             return h
 
@@ -10622,7 +10614,6 @@ class LatentCortexEngine:
         """Capture the exact normalized output states preceding target tokens."""
 
         import mlx.core as mx
-        from mlx_lm.models.base import create_attention_mask
 
         from core.brain.llm.recurrent_depth import (
             _restore_recurrent_caches,
@@ -10664,10 +10655,10 @@ class LatentCortexEngine:
                     output_head_tokens=1,
                 )
                 h = inner.embed_tokens(mx.array([[token]]))
-                mask = create_attention_mask(h, cache)
+                masks = decoder_layer_masks(inner, h, cache)
                 with self._coda_scope():
                     for layer_index, layer in enumerate(inner.layers):
-                        h = layer(h, mask, cache[layer_index])
+                        h = layer(h, masks[layer_index], cache[layer_index])
                 logits = self._logits(h)
                 keys.append(
                     mx.stop_gradient(self._last_output_hidden[0, -1].astype(mx.float32))

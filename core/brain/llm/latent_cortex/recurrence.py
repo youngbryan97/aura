@@ -30,6 +30,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from core.brain.llm.decoder_topology import decoder_layer_masks
 from core.brain.llm.latent_cortex.loop_core import (
     ABSOLUTE_POSITION_LIMIT,
     KV_BOUND_SCHEMA,
@@ -411,14 +412,17 @@ class WindowRunner:
             "calls_sha256": canonical_sha256(calls),
         }
 
-    def _mask(self, h, cache_slice):
+    def _masks(self, h, cache, start: int, end: int):
         if self._mask_fn is not None:
-            return self._mask_fn(h, cache_slice)
-        try:
-            from mlx_lm.models.base import create_attention_mask
-        except ImportError:  # pragma: no cover - ancient mlx_lm
-            from mlx_lm.models.qwen2 import create_attention_mask  # type: ignore
-        return create_attention_mask(h, cache_slice)
+            mask = self._mask_fn(h, cache[start:end])
+            return [mask] * (end - start)
+        return decoder_layer_masks(
+            self._inner,
+            h,
+            cache,
+            start=start,
+            end=end,
+        )
 
     def run(self, h, cache, start: int, end: int, *, persist: bool) -> Any:
         import mlx.core as mx
@@ -492,13 +496,13 @@ class WindowRunner:
         adapter_activation = None
         execution_failed = True
         try:
-            mask = self._mask(h, cache[start:end])
+            masks = self._masks(h, cache, start, end)
             # A WindowRunner call is the live proof boundary that these inputs
             # are thought slots. Recurrent adapters remain dark for all direct
             # prompt, lexical decode, and unrelated model calls.
             with recurrence_adapter_scope() as adapter_activation:
                 for i in range(start, end):
-                    h = self._inner.layers[i](h, mask, cache[i])
+                    h = self._inner.layers[i](h, masks[i - start], cache[i])
             mx.eval(h)
             execution_failed = False
         finally:

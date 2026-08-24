@@ -44,6 +44,7 @@ import logging
 import os
 from typing import Any
 
+from core.brain.llm.decoder_topology import decoder_layer_masks
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
 
@@ -644,51 +645,7 @@ def _build_recurrent_layer_masks(inner, hidden_state, cache) -> list[object]:
     topology from the loaded layers and owner indices instead of model names.
     """
 
-    try:
-        from mlx_lm.models.base import create_attention_mask
-    except ImportError:
-        from mlx_lm.models.qwen2 import create_attention_mask  # type: ignore
-
-    layers = inner.layers
-    linear_indices = [
-        index for index, layer in enumerate(layers) if bool(getattr(layer, "is_linear", False))
-    ]
-    if not linear_indices:
-        mask = create_attention_mask(hidden_state, cache[0])
-        return [mask] * len(layers)
-
-    full_indices = [index for index in range(len(layers)) if index not in linear_indices]
-    if not full_indices:
-        raise CacheSnapshotError(
-            "Mixed recurrent topology exposes no full-attention layer"
-        )
-
-    def representative(attr: str, candidates: list[int]) -> int:
-        raw = getattr(inner, attr, candidates[0])
-        try:
-            index = int(raw)
-        except (TypeError, ValueError):
-            index = candidates[0]
-        return index if index in candidates else candidates[0]
-
-    linear_index = representative("ssm_idx", linear_indices)
-    full_index = representative("fa_idx", full_indices)
-    linear_cache = cache[linear_index]
-    full_cache = cache[full_index]
-    if linear_cache is None:
-        linear_mask = None
-    elif hasattr(linear_cache, "make_mask"):
-        linear_mask = linear_cache.make_mask(hidden_state.shape[1])
-    else:
-        raise CacheSnapshotError(
-            "Linear-attention cache has no make_mask contract: "
-            f"{type(linear_cache).__name__}"
-        )
-    full_mask = create_attention_mask(hidden_state, full_cache)
-    return [
-        linear_mask if index in linear_indices else full_mask
-        for index in range(len(layers))
-    ]
+    return list(decoder_layer_masks(inner, hidden_state, cache))
 
 def apply_recurrent_depth(
     model,
