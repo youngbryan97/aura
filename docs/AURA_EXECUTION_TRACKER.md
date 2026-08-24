@@ -52123,3 +52123,77 @@ Canonical smoke passes `121/121` with one environment-dependent skip. Ruff,
 compilation, governance ownership, layering and diff hygiene pass. Next: launch
 the CP921 recovery generation from immutable source, admit stage 0, and continue
 the bounded adaptive schedule without repeating its completed optimizer work.
+
+## Checkpoint 2026-08-24-959: Prepare the 27B Recurrence Migration on CPU
+
+The resident checkpoint is now the fused `Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15`.
+This checkpoint is CPU-only preparation for migrating the recurrent and RLC
+tissue onto it. No model was launched, stopped, or loaded.
+
+**What was measured.** `tools/inventory_27b_migration.py` reads tensor shapes
+and configs rather than asserting compatibility. Against the installation it
+finds 688 trained tensor files whose adapters target `self_attn` on layers that
+carry `linear_attn` under `qwen3_5`, 347 records pinning the retired
+checkpoint, 5 tokenizer-bound grounding contracts invalidated by the vocabulary
+moving from 152,064 to 248,320, and 4 artifacts that are genuinely
+model-independent — the systematic neural ALU, the neural transition tissue,
+the mathematics memory tissue, and the CP547 micro-processor.
+
+The two checkpoints share 64 layers, hidden size 5120, and a 1024-wide KV
+projection, and differ in `model_type`, intermediate size, head count, head
+dimension, vocabulary, context length, RoPE base, and attention layout. A 32B
+adapter therefore loads onto the 27B without raising. The fusion provenance
+already recorded the boundary: *"fused weights define a new model identity;
+prior steering and recurrent tensors are not representation-compatible."*
+
+**Two mechanical defects found and repaired.** Both cache builders constructed
+one plain `KVCache` per layer, which is the wrong object at 48 of 64 layers on
+a hybrid checkpoint and does not raise; they now defer to the model's own
+`make_cache`. And `_attach_window_adapters` skips a layer with no `self_attn`,
+so the window `[16, 48)` produced 64 adapter sites on the 32B and 16 on the
+27B with a non-empty site list and no error. The trainer now declares its
+expected sites from `core/learning/hybrid_recurrence_geometry.py` and refuses a
+mismatch. Naming `down_proj` alongside the attention targets restores the
+window to 48 sites.
+
+**Launch package.** `tools/prepare_27b_recurrence_campaign.py` freezes one
+resumable bundle: the checkpoint pinned by config, weights-index, tokenizer and
+fusion-provenance digests; the recurrence layer mapping; 20 source files and 3
+portable tissues pinned by hash; an 11-stage graph whose 5 model-active stages
+are contiguous, so the weights load once; and 5 futility gates each naming its
+measure, threshold and the stage it stops.
+`tools/preflight_27b_recurrence_campaign.py` refuses the bundle on source
+drift, tissue drift, a swapped config, index, tokenizer or provenance, an
+absent checkpoint, an active manifest pointing elsewhere, a changed attention
+layout, or a misaligned window. `make rlc-27b-inventory` and
+`make rlc-27b-preflight` are the entry points.
+
+**Evidence boundary.** CP566's `BOUNDED_WOW_SIGNAL` is 32B evidence and is
+carried in the bundle with `authority_over_this_campaign` set to `none`. The
+recovery experiment must re-earn the bounded claim on the 27B with the same
+frozen four-domain cohort and the same five arms before the generalization
+experiment may run. Training completing authorizes neither, and authorizes
+ordinary chat and global serving never.
+
+**Known-red, by design and not by this work.**
+`tests/brain/test_bounded_wow_surface_live.py::test_the_proven_surface_is_actually_serving`
+fails with `semantic_neural_activation_invalid:active_model_mismatch,resident_manifest_drift`
+and zero drifted bound source files. It fails identically at clean
+`origin/main` (CP958) with none of this work applied. The CP568 package is
+intact and the checkpoint under it was replaced; it must not be re-sealed
+against the 27B. `artifacts/migration/27b/bounded_wow_surface_integration_note.json`
+carries that finding for the serving-lifecycle owner.
+
+**Estimated model-active runtime.** The recovery experiment is the same shape
+as CP566: 300 decodes over 60 tasks, which took `4,814.53` seconds (80.2
+minutes) on the 32B. Training wall time is not recorded in any retained receipt
+and is therefore stated as unmeasured rather than estimated. Every other stage
+in the bundle runs on CPU.
+
+New contract tests pass `45/45` — hybrid geometry `16/16`, campaign bundle
+`17/17`, preflight `12/12` — and the touched recurrence and trainer suites pass
+`260/260` together. Ruff, compilation, layering, governance, writing,
+doc-drift and rlc-figures pass. Canonical smoke passes `120/121` with the
+known-red bounded-WOW alarm above and one environment-dependent skip. Next:
+Codex completes live boot validation, then the frozen bundle launches its
+single-residency recovery run.

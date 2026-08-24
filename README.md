@@ -163,9 +163,9 @@ from how confident the prose sounds.
   8-bipartition validation baseline.
 - `core/consciousness/hierarchical_phi.py` implements the 32-node hierarchical
   φ with K=8 overlapping subsystems and Bayesian-smoothed estimation.
-- `core/consciousness/affective_steering.py` (2,861 lines) is a real CAA
-  injection pipeline that hooks MLX transformer blocks and modifies the
-  residual stream at generation time.
+- `core/consciousness/affective_steering.py` is a real CAA injection pipeline
+  that hooks MLX transformer blocks and modifies the residual stream at
+  generation time.
 - `training/caa_32b_validation.py` validates production-model CAA artifacts:
   vector presence, layer geometry, PCA structure, permutation controls,
   black-box prompt hygiene conditions, rich-prompt comparators, and behavioral
