@@ -1,0 +1,30 @@
+{
+ "checkpoint": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "compatible_draft_models": [
+  {
+   "model_type": "qwen3_5",
+   "name": "Qwen3.5-9B-4bit",
+   "num_hidden_layers": 32,
+   "path": "/Users/bryan/.aura/live-source/models/Qwen3.5-9B-4bit",
+   "same_family": true,
+   "vocab_size": 248320
+  }
+ ],
+ "declares_mtp_layers": 1,
+ "draft_speculation_supported": true,
+ "loader_discards_mtp": true,
+ "mtp_tensor_count": 0,
+ "native_blockers": [
+  "checkpoint_carries_no_mtp_tensors",
+  "loader_discards_mtp_tensors",
+  "no_supported_api_reaches_an_internal_head"
+ ],
+ "native_supported": false,
+ "notes": "The declared MTP head has no weights in this checkpoint and the loader discards the keys regardless. Draft-model speculation is the only supported route and its benefit is unmeasured.",
+ "schema": "aura.mtp_capability.v1",
+ "unmeasured": [
+  "draft_acceptance_rate",
+  "end_to_end_speedup",
+  "output_equivalence_under_speculation"
+ ]
+}
