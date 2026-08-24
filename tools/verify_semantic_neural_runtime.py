@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import statistics
 import sys
 import time
@@ -302,16 +303,41 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=2026081561)
     parser.add_argument("--tasks-per-difficulty", type=int, default=10)
+    parser.add_argument(
+        "--activation",
+        type=Path,
+        help=(
+            "unqualified candidate activation to exercise without replacing the "
+            "operational activation"
+        ),
+    )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if not 2 <= args.tasks_per_difficulty <= 20:
         raise ValueError("runtime verification task count is outside [2, 20]")
-    report = asyncio.run(
-        _verify(
-            seed=args.seed,
-            tasks_per_difficulty=args.tasks_per_difficulty,
+    prior_candidate = os.environ.get("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE")
+    prior_activation = os.environ.get("AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION")
+    if args.activation is not None:
+        os.environ["AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE"] = "1"
+        os.environ["AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION"] = str(
+            args.activation.expanduser().resolve(strict=True)
         )
-    )
+    try:
+        report = asyncio.run(
+            _verify(
+                seed=args.seed,
+                tasks_per_difficulty=args.tasks_per_difficulty,
+            )
+        )
+    finally:
+        for key, value in (
+            ("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", prior_candidate),
+            ("AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION", prior_activation),
+        ):
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
     destination = args.out.expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(destination, json.dumps(report, indent=2, sort_keys=True) + "\n")

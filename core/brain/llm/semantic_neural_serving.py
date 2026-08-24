@@ -298,6 +298,21 @@ def _activation_claim_boundary(claim: str) -> str:
 def active_semantic_neural_activation_path() -> Path:
     """Resolve the operational activation without rewriting historical evidence."""
 
+    candidate_value = str(
+        os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION", "")
+    ).strip()
+    candidate_mode = str(
+        os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "0")
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    if candidate_value and candidate_mode:
+        requested = Path(candidate_value).expanduser()
+        if requested.is_symlink():
+            raise RuntimeError("semantic qualification activation cannot be a symlink")
+        candidate = requested.resolve(strict=True)
+        root = REPO_ROOT.resolve(strict=True)
+        if not candidate.is_file() or not candidate.is_relative_to(root):
+            raise RuntimeError("semantic qualification activation is outside the repository")
+        return candidate
     return ACTIVE_ACTIVATION_PATH if ACTIVE_ACTIVATION_PATH.exists() else DEFAULT_ACTIVATION_PATH
 
 

@@ -184,3 +184,63 @@ def test_operational_activation_precedes_but_does_not_replace_history(
 
     operational.write_text("{}", encoding="utf-8")
     assert semantic_neural_serving.active_semantic_neural_activation_path() == operational
+
+
+def test_qualification_candidate_does_not_replace_operational_activation(
+    monkeypatch,
+    tmp_path,
+):
+    historical = tmp_path / "historical.json"
+    operational = tmp_path / "operational.json"
+    candidate = tmp_path / "candidate.json"
+    historical.write_text("{}", encoding="utf-8")
+    operational.write_text("{}", encoding="utf-8")
+    candidate.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(semantic_neural_serving, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(semantic_neural_serving, "DEFAULT_ACTIVATION_PATH", historical)
+    monkeypatch.setattr(semantic_neural_serving, "ACTIVE_ACTIVATION_PATH", operational)
+    monkeypatch.setenv(
+        "AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION",
+        str(candidate),
+    )
+
+    assert semantic_neural_serving.active_semantic_neural_activation_path() == operational
+
+    monkeypatch.setenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "1")
+    assert semantic_neural_serving.active_semantic_neural_activation_path() == candidate
+
+
+def test_qualification_candidate_cannot_escape_or_symlink_the_repository(
+    monkeypatch,
+    tmp_path,
+):
+    root = tmp_path / "repo"
+    root.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(semantic_neural_serving, "REPO_ROOT", root)
+    monkeypatch.setenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "1")
+    monkeypatch.setenv(
+        "AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION",
+        str(outside),
+    )
+
+    try:
+        semantic_neural_serving.active_semantic_neural_activation_path()
+    except RuntimeError as exc:
+        assert "outside the repository" in str(exc)
+    else:
+        raise AssertionError("qualification accepted an activation outside the repository")
+
+    linked = root / "linked.json"
+    linked.symlink_to(outside)
+    monkeypatch.setenv(
+        "AURA_SEMANTIC_NEURAL_QUALIFICATION_ACTIVATION",
+        str(linked),
+    )
+    try:
+        semantic_neural_serving.active_semantic_neural_activation_path()
+    except RuntimeError as exc:
+        assert "cannot be a symlink" in str(exc)
+    else:
+        raise AssertionError("qualification accepted a symlink activation")
