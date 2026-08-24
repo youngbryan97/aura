@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from core.runtime.model_layers import require_model_layers
+
 
 def build_contrastive_semantic_seeds(
     model: Any,
@@ -39,7 +41,7 @@ def build_contrastive_semantic_seeds(
     if any(type(token) is not int or token < 0 for token in (*target, *contrast)):
         raise ValueError("semantic plasticity token sequence is invalid")
 
-    inner = model.model
+    inner = require_model_layers(model).owner
     target_embeddings = inner.embed_tokens(mx.array(target))
     contrast_embeddings = inner.embed_tokens(mx.array(contrast))
     if target_embeddings.ndim == 3:
@@ -150,7 +152,7 @@ def build_teacher_forced_answer_loss(
         or answer_token_count >= len(context)
     ):
         raise ValueError("teacher-forced answer span is invalid")
-    vocab_size = int(model.model.embed_tokens.weight.shape[0])
+    vocab_size = int(require_model_layers(model).owner.embed_tokens.weight.shape[0])
     if any(token < 0 or token >= vocab_size for token in context):
         raise ValueError("teacher-forced context contains an invalid token")
     model_inputs = mx.array([context[:-1]])

@@ -30,6 +30,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from core.brain.llm.decoder_topology import resolve_language_model
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
@@ -1121,6 +1122,8 @@ class LatentCortexEngine:
 
         self._coda_adapter_activation = RecurrenceAdapterActivation()
         self.model_layer_view = require_model_layers(model)
+        self.language_model = resolve_language_model(model)
+        self.decoder = self.model_layer_view.owner
         self.n_layers = len(self.model_layer_view.layers)
         self.prelude_end = max(1, int(self.n_layers * self.config.prelude_frac))
         self.coda_start = min(
@@ -1242,7 +1245,7 @@ class LatentCortexEngine:
     def vocabulary_size(self) -> int:
         """The serving model's embedding row count — the only real ID range."""
         if self._vocab_size == 0:
-            self._vocab_size = int(self.model.model.embed_tokens.weight.shape[0])
+            self._vocab_size = int(self.decoder.embed_tokens.weight.shape[0])
         return self._vocab_size
 
     def input_token_ceiling(self) -> int:
@@ -1259,7 +1262,11 @@ class LatentCortexEngine:
             return self._input_token_ceiling
         ceiling = 0
         for candidate in (
-            getattr(getattr(self.model, "args", None), "max_position_embeddings", 0),
+            getattr(
+                getattr(self.language_model, "args", None),
+                "max_position_embeddings",
+                0,
+            ),
             getattr(self.tokenizer, "model_max_length", 0),
         ):
             try:
@@ -1659,7 +1666,7 @@ class LatentCortexEngine:
             ),
             output_head_tokens=1,
         )
-        inner = self.model.model
+        inner = self.decoder
         h = inner.embed_tokens(mx.array([tokens]))
         mask = create_attention_mask(h, cache)
         with self._coda_scope():
@@ -1746,7 +1753,7 @@ class LatentCortexEngine:
 
         if not items or self.tokenizer is None:
             return []
-        inner = self.model.model
+        inner = self.decoder
         seeds: list[tuple[int, str, object]] = []
         for position, item in enumerate(items):
             embedding_text = item["text"]
@@ -1840,8 +1847,8 @@ class LatentCortexEngine:
         controls = {
             OperationKind(source): vector for _position, source, vector in rows
         }
-        dim = int(self.model.model.embed_tokens.weight.shape[-1])
-        embedding_rms = mx.mean(per_position_rms(self.model.model.embed_tokens.weight))
+        dim = int(self.decoder.embed_tokens.weight.shape[-1])
+        embedding_rms = mx.mean(per_position_rms(self.decoder.embed_tokens.weight))
         for action in _ACTION_CONTROL_TEXT:
             if action in controls:
                 continue
@@ -2287,7 +2294,7 @@ class LatentCortexEngine:
         budget: ComputeBudget | None = None,
         operation: str = "output_head",
     ):
-        inner = self.model.model
+        inner = self.decoder
         if budget is not None:
             budget.resource_ledger.charge(
                 operation,
@@ -2295,8 +2302,8 @@ class LatentCortexEngine:
             )
         h = inner.norm(h)
         self._last_output_hidden = h[:, -1:, :]
-        if hasattr(self.model, "lm_head"):
-            logits = self.model.lm_head(h)
+        if hasattr(self.language_model, "lm_head"):
+            logits = self.language_model.lm_head(h)
         else:
             logits = inner.embed_tokens.as_linear(h)
         output_memory = getattr(self, "_active_output_memory", None)
@@ -2320,7 +2327,7 @@ class LatentCortexEngine:
         import mlx.core as mx
         from mlx_lm.models.base import create_attention_mask
 
-        inner = self.model.model
+        inner = self.decoder
         if not tokens:
             raise ValueError("latent episode requires at least one input token")
         if not budget.can_afford(len(tokens), self.n_layers):
@@ -2461,7 +2468,7 @@ class LatentCortexEngine:
         import mlx.core as mx
         from mlx_lm.models.base import create_attention_mask
 
-        inner = self.model.model
+        inner = self.decoder
         eos = self._eos_ids()
         limit = max_tokens if max_tokens is not None else self.config.decode_max_tokens
         temp = temperature if temperature is not None else self.config.decode_temperature
@@ -3191,7 +3198,7 @@ class LatentCortexEngine:
                 return policy_logits
 
             initial_logits = integrate(old_logits, new_logits)
-            inner = self.model.model
+            inner = self.decoder
 
             def advance(token: int):
                 nonlocal old_lane_apps, new_lane_apps
@@ -4354,7 +4361,7 @@ class LatentCortexEngine:
         if self._cancel_requested(cancel_check):
             raise _LatentEpisodeCancelledError("admission")
         cache = self._fresh_cache()
-        runner = WindowRunner(self.model.model, budget)
+        runner = WindowRunner(self.decoder, budget)
         decode_limit = (
             decode_max_tokens if decode_max_tokens is not None else self.config.decode_max_tokens
         )
@@ -4489,7 +4496,7 @@ class LatentCortexEngine:
         if self.config.fast_weights.enabled and self.config.fast_weights.canary_enabled:
             canaries = CapabilityCanaries(
                 self.tokenizer,
-                vocab_size=int(self.model.model.embed_tokens.weight.shape[0]),
+                vocab_size=self.vocabulary_size(),
                 max_tokens_per_canary=self.config.fast_weights.canary_max_tokens,
             )
             canary_pass_cost = canaries.tokens_per_measurement * self.n_layers
@@ -7675,7 +7682,7 @@ class LatentCortexEngine:
                 admission_reason=str(admission["reason"]),
             )
             if admission["admitted"]:
-                vocab_size = int(self.model.model.embed_tokens.weight.shape[0])
+                vocab_size = self.vocabulary_size()
                 if any(not 0 <= token < vocab_size for token in fast_weight_target_tokens):
                     raise RuntimeError(
                         "fast-weight evidence target contains an out-of-vocabulary token"
@@ -7726,7 +7733,7 @@ class LatentCortexEngine:
                         rank=self.config.fast_weights.rank,
                     )
                     seed_source = "verified_semantic_contrast"
-                    vocab_size = int(self.model.model.embed_tokens.weight.shape[0])
+                    vocab_size = self.vocabulary_size()
                     fw_sham_target_tokens = deterministic_sham_target(
                         fast_weight_target_tokens,
                         vocab_size=vocab_size,
@@ -7762,7 +7769,7 @@ class LatentCortexEngine:
                     receipt.flag("fast_weight_prefix_kv_under_base_weights")
                 try:
                     wrapped = fast_weights.attach(
-                        self.model.model,
+                        self.decoder,
                         self.plasticity_layer_range,
                         seed_stat=seed_stat,
                         episode_id=receipt.episode_id,
@@ -8110,7 +8117,7 @@ class LatentCortexEngine:
                     self=self,
                 )
                 fast_weights.reset_optimization_trace()
-                vocab_size = int(self.model.model.embed_tokens.weight.shape[0])
+                vocab_size = self.vocabulary_size()
                 if not fw_sham_target_tokens:
                     fw_sham_target_tokens = deterministic_sham_target(
                         fast_weight_target_tokens,
@@ -10309,7 +10316,7 @@ class LatentCortexEngine:
             attention_pairs=(triangular_attention_pairs(len(probe_tokens)) * self.n_layers),
             output_head_tokens=len(probe_tokens),
         )
-        inner = self.model.model
+        inner = self.decoder
         cache = self._fresh_cache()
         h = inner.embed_tokens(mx.array([probe_tokens]))
         mask = create_attention_mask(h, cache)
@@ -10326,7 +10333,7 @@ class LatentCortexEngine:
         )
         from core.learning.role_conditioned_lora import recurrent_branch_index
 
-        inner = self.model.model
+        inner = self.decoder
         h = z
         with recurrent_branch_index(branch_index), recurrence_adapter_scope():
             for i in range(self.prelude_end, self.coda_start):
@@ -10388,7 +10395,7 @@ class LatentCortexEngine:
         desired_slots = max(1, math.ceil(len(witness_tokens) / 24))
         target_count = min(8, len(hypothesis_slots) - 1, desired_slots)
         target_slots = tuple(hypothesis_slots[:target_count])
-        inner = self.model.model
+        inner = self.decoder
         token_embeddings = inner.embed_tokens(mx.array([witness_tokens]))
         edges = [round(index * len(witness_tokens) / target_count) for index in range(target_count + 1)]
         pooled_rows = []
@@ -10576,7 +10583,7 @@ class LatentCortexEngine:
         def forward():
             from mlx_lm.models.base import create_attention_mask
 
-            inner = self.model.model
+            inner = self.decoder
             h = inner.embed_tokens(mx.array([context_tokens]))
             # The answer is produced causally: WindowRunner persists slots
             # through a cache and every decode forward attends left. Passing
@@ -10643,7 +10650,7 @@ class LatentCortexEngine:
             required_margins = [
                 float(mx.maximum(mx.max(row) - row[targets[0]] + 4.0, 4.0))
             ]
-            inner = self.model.model
+            inner = self.decoder
             for target_index, token in enumerate(targets[:-1]):
                 if not budget.can_afford(1, self.n_layers):
                     raise RuntimeError("compute budget cannot admit output-memory capture")
@@ -10862,7 +10869,7 @@ class LatentCortexEngine:
         import mlx.core as mx
 
         probe_started = time.monotonic()
-        inner = self.model.model
+        inner = self.decoder
         vocab = inner.embed_tokens.weight.shape[0]
         probe_tokens = mx.array(
             [[i % int(vocab) for i in range(1, _FW_ERASE_PROBE_TOKENS + 1)]]

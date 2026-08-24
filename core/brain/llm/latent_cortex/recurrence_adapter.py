@@ -20,6 +20,8 @@ from typing import Any
 
 from mlx_lm.tuner.lora import LoRALinear
 
+from core.runtime.model_layers import require_model_layers
+
 
 @dataclass
 class RecurrenceAdapterActivation:
@@ -155,9 +157,7 @@ def scoped_recurrence_adapter_sites(
 ) -> tuple[str, ...]:
     """Enumerate and verify every recurrence-scoped projection in a layer set."""
 
-    layers = getattr(getattr(model, "model", None), "layers", None)
-    if not isinstance(layers, (list, tuple)):
-        raise ValueError("model exposes no decoder layer inventory")
+    layers = require_model_layers(model).layers
     sites: list[str] = []
     for index in layer_indices:
         if type(index) is not int or not 0 <= index < len(layers):
@@ -192,9 +192,7 @@ def scoped_coda_adapter_sites(
 ) -> tuple[str, ...]:
     """Enumerate and verify every RLC-only coda projection in a layer set."""
 
-    layers = getattr(getattr(model, "model", None), "layers", None)
-    if not isinstance(layers, (list, tuple)):
-        raise ValueError("model exposes no decoder layer inventory")
+    layers = require_model_layers(model).layers
     sites: list[str] = []
     for index in layer_indices:
         if type(index) is not int or not 0 <= index < len(layers):

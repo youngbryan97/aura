@@ -14,6 +14,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from core.runtime.model_layers import require_model_layers
+
 RUNTIME_INTEGRITY_SCHEMA = "aura.rlc.runtime_integrity.v1"
 PARAMETER_CANARY_SCHEMA = "aura.rlc.parameter_canary.v1"
 ADAPTED_LAYER_SCHEMA = "aura.rlc.adapted_layer_identity.v1"
@@ -245,10 +247,7 @@ def adapted_layer_fingerprint(
 
     if target not in _TARGET_ATTRS:
         raise ValueError("adapted-layer target is unsupported")
-    inner = getattr(model, "model", None)
-    layers = getattr(inner, "layers", None)
-    if not isinstance(layers, (list, tuple)) or not layers:
-        raise ValueError("resident model exposes no decoder layer sequence")
+    layers = require_model_layers(model).layers
     normalized = list(layer_indices)
     if (
         not normalized

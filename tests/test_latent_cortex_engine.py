@@ -124,6 +124,28 @@ def test_engine_resolves_hybrid_language_model_layers():
     assert engine.model_layer_view.path == "language_model.model.layers"
 
 
+def test_hybrid_wrapper_runs_a_complete_latent_episode():
+    class HybridModel:
+        def __init__(self, language_model):
+            self.language_model = language_model
+
+        def __call__(self, *args, **kwargs):
+            return self.language_model(*args, **kwargs)
+
+        def parameters(self):
+            return self.language_model.parameters()
+
+    engine = LatentCortexEngine(HybridModel(_model()), config=_config())
+
+    assert engine.vocabulary_size() == 128
+    result = engine.reason(token_ids=PROMPT_TOKENS)
+
+    assert result.ok
+    assert result.tokens
+    assert result.receipt.last_stage == "complete"
+    assert result.receipt.params_unchanged is True
+
+
 def test_engine_canonicalizes_authority_messages_before_chat_template(tiny_model):
     class StrictSystemFirstTokenizer:
         model_max_length = 512

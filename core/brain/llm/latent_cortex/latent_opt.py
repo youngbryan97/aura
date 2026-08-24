@@ -32,8 +32,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.brain.llm.decoder_topology import resolve_language_model
 from core.brain.llm.latent_cortex.types import ComputeBudget, LatentOptConfig
 from core.brain.llm.latent_cortex.workspace import per_position_rms
+from core.runtime.model_layers import require_model_layers
 
 logger = logging.getLogger("Aura.LatentCortex.LatentOpt")
 _LINE_SEARCH_EVALS = 12
@@ -70,10 +72,11 @@ def build_proxy_loss(
     """
     import mlx.core as mx
 
-    inner = model.model
+    language_model = resolve_language_model(model)
+    inner = require_model_layers(model).owner
     vocab = (
-        model.lm_head.weight.shape[0]
-        if hasattr(model, "lm_head")
+        language_model.lm_head.weight.shape[0]
+        if hasattr(language_model, "lm_head")
         else inner.embed_tokens.weight.shape[0]
     )
     target = prompt_token_distribution(prompt_tokens, int(vocab))
@@ -84,8 +87,8 @@ def build_proxy_loss(
     def readout_logits(z):
         pooled = mx.mean(z, axis=1, keepdims=True)  # (1,1,D)
         h = inner.norm(pooled)
-        if hasattr(model, "lm_head"):
-            return model.lm_head(h)
+        if hasattr(language_model, "lm_head"):
+            return language_model.lm_head(h)
         return inner.embed_tokens.as_linear(h)
 
     def loss(z):
