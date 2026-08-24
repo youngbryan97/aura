@@ -1,0 +1,147 @@
+{
+ "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+ "by_disposition": {
+  "gated_outside_the_contract": [
+   "episodic_plasticity",
+   "fast_weight_surfaces",
+   "grounding_contracts",
+   "qualified_rlc_serving"
+  ],
+  "portable": [
+   "persona_crsm"
+  ],
+  "retired": [
+   "expert_adapters"
+  ],
+  "retrain_required": [
+   "recurrence_native",
+   "steering"
+  ]
+ },
+ "contract_covers": "4 of 8 capabilities",
+ "model_tag": "cp954-27b-resident",
+ "persona_finding": "persona_crsm is signed fused_persona_crsm with a fusion plan and receipt: the persona is in this checkpoint, so it needs verification and behavioural continuity rather than a recovery run",
+ "rows": [
+  {
+   "active_load_path": "episode-scoped, built per episode",
+   "admission_gate": "core/brain/llm/latent_cortex/semantic_plasticity.py",
+   "authority_kind": null,
+   "capability": "episodic_plasticity",
+   "claims": [],
+   "code_owner": "core/brain/llm/latent_cortex/semantic_plasticity.py",
+   "disposition": "gated_outside_the_contract",
+   "representation_bound": true,
+   "signed_authority": false,
+   "tokenizer_bound": false,
+   "why": "built from the loaded model's own projections each episode and discarded with it; nothing survives a checkpoint change"
+  },
+  {
+   "active_load_path": "adapter registry",
+   "admission_gate": "core/learning/cortex_migration_authority.py validates this component's claims",
+   "authority_kind": "retirement_inventory",
+   "capability": "expert_adapters",
+   "claims": [
+    "inventory_sha256"
+   ],
+   "code_owner": "core/learning/domain_specialists.py",
+   "disposition": "retired",
+   "representation_bound": true,
+   "signed_authority": true,
+   "tokenizer_bound": false,
+   "why": "withdrawn from measured evidence"
+  },
+  {
+   "active_load_path": "attached per episode, erased at the end",
+   "admission_gate": "core/brain/llm/latent_cortex/fast_weights.py",
+   "authority_kind": null,
+   "capability": "fast_weight_surfaces",
+   "claims": [],
+   "code_owner": "core/brain/llm/latent_cortex/fast_weights.py",
+   "disposition": "gated_outside_the_contract",
+   "representation_bound": true,
+   "signed_authority": false,
+   "tokenizer_bound": false,
+   "why": "identity at attach and a proven erase bound the lifetime to one episode, so no surface crosses a checkpoint boundary"
+  },
+  {
+   "active_load_path": "derived from the tokenizer at use",
+   "admission_gate": "core/learning/recurrent_literal_grounding.py",
+   "authority_kind": null,
+   "capability": "grounding_contracts",
+   "claims": [],
+   "code_owner": "core/learning/recurrent_literal_grounding.py",
+   "disposition": "gated_outside_the_contract",
+   "representation_bound": false,
+   "signed_authority": false,
+   "tokenizer_bound": true,
+   "why": "self-validating: every binding is re-derived from the live tokenizer and refuses when a digit does not round-trip exactly"
+  },
+  {
+   "active_load_path": "fused into the checkpoint weights",
+   "admission_gate": "core/learning/cortex_migration_authority.py validates this component's claims",
+   "authority_kind": "fused_persona_crsm",
+   "capability": "persona_crsm",
+   "claims": [
+    "fusion_plan_sha256",
+    "fusion_receipt_sha256"
+   ],
+   "code_owner": "core/learning/cortex_generation_upgrade.py",
+   "disposition": "portable",
+   "representation_bound": true,
+   "signed_authority": true,
+   "tokenizer_bound": false,
+   "why": "already inside the checkpoint; verify and test continuity"
+  },
+  {
+   "active_load_path": "content-addressed activation package",
+   "admission_gate": "core/brain/llm/semantic_neural_serving.py",
+   "authority_kind": null,
+   "capability": "qualified_rlc_serving",
+   "claims": [],
+   "code_owner": "core/brain/llm/semantic_neural_serving.py",
+   "disposition": "gated_outside_the_contract",
+   "representation_bound": true,
+   "signed_authority": false,
+   "tokenizer_bound": false,
+   "why": "the activation record pins the model descriptor and reports semantic_neural_model_basis_migration_deferred on a mismatch"
+  },
+  {
+   "active_load_path": "core/brain/llm/unified_recurrent_qualified_activation.py",
+   "admission_gate": "core/learning/cortex_migration_authority.py validates this component's claims",
+   "authority_kind": "model_basis_quarantine",
+   "capability": "recurrence_native",
+   "claims": [
+    "inventory_sha256"
+   ],
+   "code_owner": "core/learning/unified_intrinsic_recurrence.py",
+   "disposition": "retrain_required",
+   "representation_bound": true,
+   "signed_authority": true,
+   "tokenizer_bound": false,
+   "why": "measured on another checkpoint and quarantined here"
+  },
+  {
+   "active_load_path": "core/brain/llm/model_bound_steering.resolve_active_generation",
+   "admission_gate": "core/learning/cortex_migration_authority.py validates this component's claims",
+   "authority_kind": "model_basis_quarantine",
+   "capability": "steering",
+   "claims": [
+    "inventory_sha256"
+   ],
+   "code_owner": "core/consciousness/affective_steering.py",
+   "disposition": "retrain_required",
+   "representation_bound": true,
+   "signed_authority": true,
+   "tokenizer_bound": false,
+   "why": "measured on another checkpoint and quarantined here"
+  }
+ ],
+ "schema": "aura.rlc.27b_migration_queue.v1",
+ "signed_components": [
+  "expert_adapters",
+  "persona_crsm",
+  "recurrence_native",
+  "steering"
+ ],
+ "uncovered_capabilities": []
+}
