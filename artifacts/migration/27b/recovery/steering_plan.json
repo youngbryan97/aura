@@ -1,0 +1,132 @@
+{
+ "attention_targets": [
+  27,
+  31,
+  35,
+  39
+ ],
+ "authority_errors_before_capture": [
+  "missing_evidence:extraction_bound_to_active_descriptor",
+  "missing_evidence:causal_ab_vs_matched_noop",
+  "missing_evidence:lesion_removes_the_effect",
+  "missing_evidence:no_regression_on_the_control_prompts"
+ ],
+ "descriptor_fingerprint": "8e26c4733aa8c41d180c62191ded81edd2d5987a56c43438816bf0467e426a80",
+ "dimensions": [
+  "valence_positive",
+  "arousal",
+  "curiosity",
+  "frustration",
+  "energy"
+ ],
+ "expected_vector_count": 80,
+ "hidden_size": 5120,
+ "linear_targets": [
+  25,
+  26,
+  28,
+  29,
+  30,
+  32,
+  33,
+  34,
+  36,
+  37,
+  38,
+  40
+ ],
+ "model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+ "num_hidden_layers": 64,
+ "required_evidence": [
+  "extraction_bound_to_active_descriptor",
+  "causal_ab_vs_matched_noop",
+  "lesion_removes_the_effect",
+  "no_regression_on_the_control_prompts"
+ ],
+ "reuses_previous_vectors": false,
+ "schema": "aura.caa.steering_regeneration_plan.v1",
+ "serving_authority": false,
+ "superseded_bundle": {
+  "disposition": "retained as 32B history; unusable here even though the widths match, because the residual basis is a different model's",
+  "model": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+  "path": "training/vectors/caa_steering_meta.json",
+  "target_layers": [
+   25,
+   27,
+   29,
+   31,
+   33,
+   35,
+   37,
+   39,
+   41
+  ],
+  "total_vectors": 45
+ },
+ "target_layers": [
+  {
+   "index": 25,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 26,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 27,
+   "kind": "full_attention"
+  },
+  {
+   "index": 28,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 29,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 30,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 31,
+   "kind": "full_attention"
+  },
+  {
+   "index": 32,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 33,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 34,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 35,
+   "kind": "full_attention"
+  },
+  {
+   "index": 36,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 37,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 38,
+   "kind": "linear_attention"
+  },
+  {
+   "index": 39,
+   "kind": "full_attention"
+  },
+  {
+   "index": 40,
+   "kind": "linear_attention"
+  }
+ ]
+}
