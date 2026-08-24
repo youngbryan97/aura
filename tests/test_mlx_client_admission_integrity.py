@@ -153,14 +153,22 @@ class TestHeavyLaneClassification:
         assert '"32b" in lowered' not in source
         assert '"72b" in lowered' not in source
 
-    def test_the_solver_predicate_is_measured_first(self):
+    def test_the_solver_predicate_uses_the_registry_role(self):
         source = inspect.getsource(mlx_client._model_is_deep_solver_lane)
-        assert "model_size_class" in source
-        assert "_DEEP_SOLVER_NAME_TOKENS" in source
+        assert "get_model_lane_role" in source
+        assert "model_size_class" not in source
+        assert "72b" not in source.lower()
 
-    def test_solver_classification(self):
-        assert mlx_client._model_is_deep_solver_lane("/models/qwen-72b") is True
-        assert mlx_client._model_is_deep_solver_lane("/models/deep-solver") is True
+    def test_solver_classification(self, monkeypatch):
+        from core.brain.llm import model_registry
+
+        monkeypatch.setattr(
+            model_registry,
+            "get_model_lane_role",
+            lambda path: "solver" if path == "/models/assigned-specialist" else None,
+        )
+        assert mlx_client._model_is_deep_solver_lane("/models/assigned-specialist") is True
+        assert mlx_client._model_is_deep_solver_lane("/models/qwen-72b-solver") is False
         assert mlx_client._model_is_deep_solver_lane("/models/aura-32b") is False
         assert mlx_client._model_is_deep_solver_lane("") is False
 

@@ -36,14 +36,18 @@ def budget_46(monkeypatch):
 
 
 class TestLaneClassification:
-    def test_primary_cortex_is_guaranteed(self):
-        assert classify_lane("/models/Aura-32B-4bit") == ("cortex", QoSClass.GUARANTEED)
-        assert classify_lane("zenith-fused") == ("cortex", QoSClass.GUARANTEED)
+    def test_primary_cortex_is_guaranteed_by_role(self):
+        assert classify_lane("/models/renamed-artifact", role="cortex") == (
+            "cortex",
+            QoSClass.GUARANTEED,
+        )
 
-    def test_solver_and_small_lanes_are_burstable(self):
-        assert classify_lane("/models/Deep-72B") == ("solver", QoSClass.BURSTABLE)
-        assert classify_lane("/models/qwen-7b") == ("brainstem", QoSClass.BURSTABLE)
-        assert classify_lane("/models/qwen-1.5b") == ("reflex", QoSClass.BURSTABLE)
+    @pytest.mark.parametrize("role", ["solver", "brainstem", "reflex"])
+    def test_nonresident_serving_roles_are_burstable(self, role):
+        assert classify_lane("/models/renamed-artifact", role=role) == (
+            role,
+            QoSClass.BURSTABLE,
+        )
 
     def test_trainers_are_best_effort_regardless_of_size(self):
         assert classify_lane("/models/Aura-32B-4bit", purpose="train") == (
@@ -53,6 +57,12 @@ class TestLaneClassification:
 
     def test_unknown_paths_are_best_effort_auxiliary(self):
         assert classify_lane("/models/whisper-large") == ("auxiliary", QoSClass.BEST_EFFORT)
+
+    def test_size_and_role_words_cannot_self_assign_authority(self):
+        assert classify_lane("/models/Deep-72B-Solver") == (
+            "auxiliary",
+            QoSClass.BEST_EFFORT,
+        )
 
 
 class TestBudget:
@@ -84,7 +94,10 @@ class TestBudget:
 class TestAdmissionArithmetic:
     def test_fits_admits_cleanly(self, controller, budget_46):
         decision = controller.admit(
-            model_path="/models/Aura-32B-cortex", request_gb=23.0, active=[]
+            model_path="/models/resident-renamed",
+            request_gb=23.0,
+            active=[],
+            role="cortex",
         )
         assert decision.admitted and decision.reason == "fits"
         assert decision.evict_first == ()
@@ -95,7 +108,10 @@ class TestAdmissionArithmetic:
             ActiveLane("brainstem", QoSClass.BURSTABLE, 5.0),
         ]
         decision = controller.admit(
-            model_path="/models/qwen-1.5b-reflex", request_gb=2.0, active=active
+            model_path="/models/emergency-renamed",
+            request_gb=2.0,
+            active=active,
+            role="reflex",
         )
         assert decision.admitted
         assert decision.committed_gb == pytest.approx(25.0)
@@ -104,7 +120,10 @@ class TestAdmissionArithmetic:
         """Cortex coming up over a loaded solver: admit, advise the solver yields."""
         active = [ActiveLane("solver", QoSClass.BURSTABLE, 41.0, model_path="/m/deep-72b")]
         decision = controller.admit(
-            model_path="/models/Aura-32B-cortex", request_gb=23.0, active=active
+            model_path="/models/resident-renamed",
+            request_gb=23.0,
+            active=active,
+            role="cortex",
         )
         assert decision.admitted and decision.reason == "fits_after_yield"
         assert decision.evict_first == ("/m/deep-72b",)
@@ -124,7 +143,10 @@ class TestAdmissionArithmetic:
             )
         ]
         decision = controller.admit(
-            model_path="/models/Aura-32B-cortex", request_gb=23.0, active=active
+            model_path="/models/resident-renamed",
+            request_gb=23.0,
+            active=active,
+            role="cortex",
         )
         assert decision.admitted and decision.evict_first == ("/m/deep-72b",)
 
@@ -142,7 +164,10 @@ class TestAdmissionArithmetic:
             ),
         ]
         decision = controller.admit(
-            model_path="/models/Deep-72B-solver", request_gb=41.0, active=active
+            model_path="/models/specialist-renamed",
+            request_gb=41.0,
+            active=active,
+            role="solver",
         )
         assert not decision.admitted
         assert "lane_budget_exceeded" in decision.reason
@@ -163,10 +188,11 @@ class TestAdmissionArithmetic:
         ]
 
         decision = controller.admit(
-            model_path="/models/Deep-72B-solver",
+            model_path="/models/specialist-renamed",
             request_gb=46.0,
             active=active,
             allow_disruptive_eviction=True,
+            role="solver",
         )
 
         assert decision.admitted
@@ -178,7 +204,10 @@ class TestAdmissionArithmetic:
         OOM-SIGKILL-with-empty-stderr death."""
         active = [ActiveLane("cortex", QoSClass.GUARANTEED, 20.0, model_path="/m/cortex")]
         decision = controller.admit(
-            model_path="/models/Deep-72B-solver", request_gb=41.0, active=active
+            model_path="/models/specialist-renamed",
+            request_gb=41.0,
+            active=active,
+            role="solver",
         )
         assert not decision.admitted
         assert "request 41.0GB" in decision.reason
@@ -193,7 +222,10 @@ class TestAdmissionArithmetic:
         # solver needs 20GB of room in a 46 budget: 33 committed + 20 = 53 > 46;
         # evicting the 8GB trainer alone brings it to 45 <= 46.
         decision = controller.admit(
-            model_path="/models/Deep-72B", request_gb=20.0, active=active
+            model_path="/models/specialist-renamed",
+            request_gb=20.0,
+            active=active,
+            role="solver",
         )
         assert decision.admitted and decision.reason == "fits_after_yield"
         assert decision.evict_first == ("/m/trainer",)
@@ -202,7 +234,10 @@ class TestAdmissionArithmetic:
         monkeypatch.setenv("AURA_LANE_ADMISSION", "advise")
         active = [ActiveLane("cortex", QoSClass.GUARANTEED, 20.0)]
         decision = controller.admit(
-            model_path="/models/Deep-72B", request_gb=41.0, active=active
+            model_path="/models/specialist-renamed",
+            request_gb=41.0,
+            active=active,
+            role="solver",
         )
         assert not decision.admitted
         assert decision.enforced is False
@@ -248,12 +283,18 @@ class TestSpawnSeam:
 
     def test_observed_lanes_exclude_self_and_dead(self, monkeypatch, budget_46):
         from core.brain.llm import mlx_client as mc
+        from core.brain.llm import model_registry
 
         me = self._FakeClient("/m/Aura-32B-cortex")
         other = self._FakeClient("/m/qwen-7b")
         dead = self._FakeClient("/m/Deep-72B", alive=False)
         monkeypatch.setattr(
             mc, "_CLIENTS", {c.model_path: c for c in (me, other, dead)}
+        )
+        monkeypatch.setattr(
+            model_registry,
+            "get_model_lane_role",
+            lambda path: "brainstem" if path == other.model_path else None,
         )
         lanes = mc._observed_active_lanes(exclude_client=me)
         assert [lane.lane for lane in lanes] == ["brainstem"]

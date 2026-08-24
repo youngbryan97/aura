@@ -996,40 +996,112 @@ def _observable_dispatch_markers() -> tuple[tuple[str, str], ...]:
         return ()
 
 
-def local_deep_solver_enabled(total_gb: float | None = None) -> bool:
-    """Whether a distinct local reasoning specialist can serve on this host.
+def local_deep_solver_status(
+    total_gb: float | None = None,
+    available_gb: float | None = None,
+    *,
+    requested_domain: str | None = None,
+) -> dict[str, Any]:
+    """Return the canonical evidence and host admission for a specialist."""
 
-    Deep reasoning itself does not depend on this answer; the resident cortex
-    and Aura's reasoning systems always provide that role. This predicate owns
-    only the optional second model. It requires explicit distinct
-    configuration, a measured complete artifact, operator enablement, and the
-    host memory class. An environment flag cannot waive physical admission.
-    """
     try:
         from core.brain.llm.model_registry import (
-            deep_solver_artifact_is_ready,
-            deep_solver_is_distinctly_configured,
+            get_deep_solver_admission_status,
         )
 
-        if not deep_solver_is_distinctly_configured():
-            return False
-        if not deep_solver_artifact_is_ready():
-            return False
+        evidence = get_deep_solver_admission_status(requested_domain)
     except (ImportError, OSError, RuntimeError, TypeError, ValueError):
-        return False
+        return {"admitted": False, "reason": "specialist_evidence_unavailable"}
 
     setting = str(_FLAG_ENABLE_LOCAL_DEEP_SOLVER.value()).strip().lower()
     if setting in {"0", "false", "no", "off"}:
-        return False
+        return {
+            "admitted": False,
+            "reason": "specialist_disabled_by_operator",
+            "certificate_sha256": getattr(evidence, "certificate_sha256", ""),
+        }
+    if not bool(getattr(evidence, "admitted", False)):
+        return {
+            "admitted": False,
+            "reason": str(getattr(evidence, "reason", "specialist_unmeasured")),
+            "certificate_sha256": str(
+                getattr(evidence, "certificate_sha256", "") or ""
+            ),
+            "admitted_domains": list(getattr(evidence, "admitted_domains", ())),
+        }
     try:
+        memory = None
+        if total_gb is None or available_gb is None:
+            memory = InferenceGate._recent_virtual_memory()
         detected_total = (
             float(total_gb)
             if total_gb is not None
-            else float(InferenceGate._recent_virtual_memory().total) / float(1024**3)
+            else float(memory.total) / float(1024**3)
+        )
+        detected_available = (
+            float(available_gb)
+            if available_gb is not None
+            else float(memory.available) / float(1024**3)
         )
     except (AttributeError, OSError, TypeError, ValueError):
         detected_total = 0.0
-    return detected_total >= float(_FLAG_LOCAL_DEEP_AUTO_MIN_TOTAL_GB.value())
+        detected_available = 0.0
+    minimum_total = max(
+        float(getattr(evidence, "minimum_total_gb", 0.0) or 0.0),
+        float(_FLAG_LOCAL_DEEP_AUTO_MIN_TOTAL_GB.value()),
+    )
+    minimum_available = float(
+        getattr(evidence, "minimum_available_gb", 0.0) or 0.0
+    )
+    if detected_total < minimum_total:
+        reason = "specialist_host_total_below_qualified_minimum"
+    elif detected_available < minimum_available:
+        reason = "specialist_host_available_below_qualified_minimum"
+    else:
+        reason = "qualified"
+    return {
+        "admitted": reason == "qualified",
+        "reason": reason,
+        "certificate_sha256": str(
+            getattr(evidence, "certificate_sha256", "") or ""
+        ),
+        "resident_descriptor_sha256": str(
+            getattr(evidence, "resident_descriptor_sha256", "") or ""
+        ),
+        "specialist_descriptor_sha256": str(
+            getattr(evidence, "specialist_descriptor_sha256", "") or ""
+        ),
+        "admitted_domains": list(getattr(evidence, "admitted_domains", ())),
+        "evidence_age_s": getattr(evidence, "evidence_age_s", None),
+        "expires_at": getattr(evidence, "expires_at", None),
+        "topology": str(getattr(evidence, "topology", "") or ""),
+        "host_total_gb": detected_total,
+        "host_available_gb": detected_available,
+        "minimum_total_gb": minimum_total,
+        "minimum_available_gb": minimum_available,
+    }
+
+
+def local_deep_solver_enabled(
+    total_gb: float | None = None,
+    available_gb: float | None = None,
+    *,
+    requested_domain: str | None = None,
+) -> bool:
+    """Whether an evidence-qualified specialist can serve on this host.
+
+    Deep reasoning itself remains the resident cortex plus Aura's systems
+    intelligence.  This predicate owns only the optional second model.  Model
+    size, path names, and environment flags cannot grant that lane authority.
+    """
+
+    return bool(
+        local_deep_solver_status(
+            total_gb,
+            available_gb,
+            requested_domain=requested_domain,
+        ).get("admitted", False)
+    )
 
 
 
@@ -4006,16 +4078,20 @@ class InferenceGate:
             }
 
     @staticmethod
-    def _local_deep_solver_enabled(total_gb: float | None = None) -> bool:
-        return local_deep_solver_enabled(total_gb)
+    def _local_deep_solver_enabled(
+        total_gb: float | None = None,
+        available_gb: float | None = None,
+    ) -> bool:
+        return local_deep_solver_enabled(total_gb, available_gb)
 
     def _local_deep_solver_block_reason(self) -> str | None:
         snapshot = self._headroom_snapshot("secondary")
-        if not self._local_deep_solver_enabled(snapshot.get("total_gb")):
-            return (
-                "local_deep_solver_disabled_on_current_memory_class:"
-                f"{float(snapshot.get('total_gb', 0.0) or 0.0):.1f}GB"
-            )
+        specialist = local_deep_solver_status(
+            snapshot.get("total_gb"),
+            snapshot.get("available_gb"),
+        )
+        if not specialist.get("admitted", False):
+            return str(specialist.get("reason") or "local_deep_solver_unqualified")
         if not snapshot.get("can_admit", False):
             return str(snapshot.get("reason") or "secondary_memory_pressure")
         lane = self.get_conversation_status()

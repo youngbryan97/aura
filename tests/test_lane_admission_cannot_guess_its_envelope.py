@@ -69,7 +69,10 @@ def test_the_cortex_may_still_come_up_but_is_marked_unverified():
     was established, so nothing downstream can read it as a checked fit.
     """
     decision = _controller(None).admit(
-        model_path="/models/qwen-32b-cortex", request_gb=20.0, active=()
+        model_path="/models/resident-renamed",
+        request_gb=20.0,
+        active=(),
+        role="cortex",
     )
     assert decision.admitted
     assert decision.reason == "admitted_without_envelope:memory_unobservable"
@@ -205,15 +208,14 @@ def test_disruptive_eviction_still_relaxes_the_user_facing_shield():
 # ------------------------------------------------------ declared vs guessed
 
 
-def test_a_renamed_model_can_declare_its_class_instead_of_being_guessed():
-    """A renamed 32B fell to BEST_EFFORT and became evictable while serving."""
+def test_a_renamed_model_can_declare_its_role_instead_of_being_guessed():
     lane, qos = classify_lane("/models/aura-primary-v4", purpose="serve")
-    assert qos is QoSClass.BEST_EFFORT, "the premise: the heuristic misses it"
+    assert (lane, qos) == ("auxiliary", QoSClass.BEST_EFFORT)
 
-    _lane, declared = classify_lane(
-        "/models/aura-primary-v4", purpose="serve", qos=QoSClass.GUARANTEED
+    declared_lane, declared_qos = classify_lane(
+        "/models/aura-primary-v4", purpose="serve", role="cortex"
     )
-    assert declared is QoSClass.GUARANTEED
+    assert (declared_lane, declared_qos) == ("cortex", QoSClass.GUARANTEED)
 
 
 def test_a_declared_class_reaches_the_decision():
@@ -221,17 +223,18 @@ def test_a_declared_class_reaches_the_decision():
         model_path="/models/aura-primary-v4",
         request_gb=20.0,
         active=(),
-        qos=QoSClass.GUARANTEED,
+        role="cortex",
     )
+    assert decision.lane == "cortex"
     assert decision.qos is QoSClass.GUARANTEED
 
 
-def test_inference_is_still_the_default():
-    """Every current caller relies on it; a declaration merely beats a guess."""
+def test_unregistered_size_tokens_do_not_receive_guaranteed_qos():
     decision = _controller(64.0).admit(
         model_path="/models/qwen-32b-cortex", request_gb=20.0, active=()
     )
-    assert decision.qos is QoSClass.GUARANTEED
+    assert decision.lane == "auxiliary"
+    assert decision.qos is QoSClass.BEST_EFFORT
 
 
 # ------------------------------------------------------------ the surface

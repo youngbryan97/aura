@@ -130,34 +130,50 @@ def _finite_gb(value: Any) -> float | None:
 
 
 def classify_lane(
-    model_path: str, *, purpose: str = "serve", qos: QoSClass | None = None
+    model_path: str,
+    *,
+    purpose: str = "serve",
+    qos: QoSClass | None = None,
+    role: str | None = None,
 ) -> tuple[str, QoSClass]:
-    """Map a model path (and purpose) to a (lane, QoS) declaration.
+    """Map a registered model role and purpose to lane/QoS ownership.
 
-    Token matching mirrors the projection heuristics in mlx_client so the
-    two layers never disagree about which lane a path belongs to.
-
-    CP126 4c7e8933: the tokens are a HEURISTIC over a caller-supplied
-    string. A legitimately renamed 32B does not match, falls to
-    BEST_EFFORT, and becomes first in line for eviction while it is
-    serving. An explicit ``qos`` overrides the guess; the lane name is
-    still derived from the path because that is only a label.
+    Serving role is an assignment, never a deduction from parameter count or
+    a directory name. The registry resolves ordinary runtime clients by exact
+    artifact identity. Internal callers may supply a trusted explicit role;
+    an unknown artifact remains auxiliary and best-effort. Measured artifact
+    properties still size the resource request elsewhere.
     """
-    if qos is not None:
-        lane, _inferred = classify_lane(model_path, purpose=purpose)
-        return lane, qos
     if purpose in {"train", "compound", "fuse", "benchmark", "evaluate", "eval"}:
-        return "trainer", QoSClass.BEST_EFFORT
-    lowered = str(model_path or "").lower()
-    if any(token in lowered for token in ("72b", "solver")):
-        return "solver", QoSClass.BURSTABLE
-    if any(token in lowered for token in ("32b", "cortex", "zenith")):
-        return "cortex", QoSClass.GUARANTEED
-    if any(token in lowered for token in ("14b", "9b", "7b", "brainstem")):
-        return "brainstem", QoSClass.BURSTABLE
-    if any(token in lowered for token in ("1.5b", "1p5b", "0.5b", "reflex")):
-        return "reflex", QoSClass.BURSTABLE
-    return "auxiliary", QoSClass.BEST_EFFORT
+        lane = "trainer"
+        inferred_qos = QoSClass.BEST_EFFORT
+    else:
+        normalized_role = str(role or "").strip().lower()
+        aliases = {
+            "primary": "cortex",
+            "resident": "cortex",
+            "deep": "solver",
+            "specialist": "solver",
+            "secondary": "solver",
+            "fallback": "reflex",
+        }
+        normalized_role = aliases.get(normalized_role, normalized_role)
+        if not normalized_role:
+            try:
+                from core.brain.llm.model_registry import get_model_lane_role
+
+                normalized_role = str(get_model_lane_role(model_path) or "")
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+                normalized_role = ""
+        role_qos = {
+            "cortex": QoSClass.GUARANTEED,
+            "solver": QoSClass.BURSTABLE,
+            "brainstem": QoSClass.BURSTABLE,
+            "reflex": QoSClass.BURSTABLE,
+        }
+        lane = normalized_role if normalized_role in role_qos else "auxiliary"
+        inferred_qos = role_qos.get(lane, QoSClass.BEST_EFFORT)
+    return lane, qos if qos is not None else inferred_qos
 
 
 @dataclass(frozen=True)
@@ -301,16 +317,16 @@ class LaneAdmissionController:
         purpose: str = "serve",
         allow_disruptive_eviction: bool = False,
         qos: QoSClass | None = None,
+        role: str | None = None,
     ) -> AdmissionDecision:
         """Decide whether one lane may commit its declared memory.
 
-        ``qos`` lets a caller that KNOWS declare it. Without it the class is
-        inferred from tokens in the model path (CP126 4c7e8933), which is a
-        heuristic: a renamed 32B falls to BEST_EFFORT and becomes evictable
-        while serving. Inference stays the default because every current
-        caller relies on it, but a declaration now beats a guess.
+        ``role`` and ``qos`` are trusted declarations. Ordinary runtime calls
+        resolve role from the canonical registry assignment. Unknown serving
+        artifacts remain best-effort rather than gaining authority from a
+        name or parameter count.
         """
-        lane, qos = classify_lane(model_path, purpose=purpose, qos=qos)
+        lane, qos = classify_lane(model_path, purpose=purpose, qos=qos, role=role)
         # CP126 0021d73a: NaN, infinity and negatives reached the arithmetic.
         # `max(0.0, nan)` is nan, and `nan + committed <= budget` is False —
         # so a NaN request did not refuse loudly, it fell through to the

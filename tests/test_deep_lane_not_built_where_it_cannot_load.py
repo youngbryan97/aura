@@ -10,6 +10,8 @@ was asked could not exist.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from core.brain.inference_gate import local_deep_solver_enabled
@@ -25,26 +27,41 @@ def _configured_solver(monkeypatch):
         "core.brain.llm.model_registry.deep_solver_artifact_is_ready",
         lambda: True,
     )
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.get_deep_solver_admission_status",
+        lambda _domain=None: SimpleNamespace(
+            admitted=True,
+            reason="qualified",
+            certificate_sha256="a" * 64,
+            resident_descriptor_sha256="b" * 64,
+            specialist_descriptor_sha256="c" * 64,
+            admitted_domains=("general",),
+            evidence_age_s=30.0,
+            minimum_total_gb=96.0,
+            minimum_available_gb=8.0,
+            topology="exclusive_swap",
+        ),
+    )
 
 
 def test_a_64gb_host_cannot_host_the_deep_solver() -> None:
-    assert local_deep_solver_enabled(64.0) is False
+    assert local_deep_solver_enabled(64.0, 32.0) is False
 
 
 def test_a_large_host_can() -> None:
-    assert local_deep_solver_enabled(256.0) is True
+    assert local_deep_solver_enabled(256.0, 64.0) is True
 
 
 @pytest.mark.parametrize("setting", ["1", "true", "on", "yes"])
 def test_an_explicit_yes_does_not_override_the_memory_class(monkeypatch, setting: str) -> None:
     monkeypatch.setenv("AURA_ENABLE_LOCAL_DEEP_SOLVER", setting)
-    assert local_deep_solver_enabled(8.0) is False
+    assert local_deep_solver_enabled(8.0, 8.0) is False
 
 
 @pytest.mark.parametrize("setting", ["0", "false", "off", "no"])
 def test_an_explicit_no_overrides_a_large_host(monkeypatch, setting: str) -> None:
     monkeypatch.setenv("AURA_ENABLE_LOCAL_DEEP_SOLVER", setting)
-    assert local_deep_solver_enabled(512.0) is False
+    assert local_deep_solver_enabled(512.0, 256.0) is False
 
 
 def test_the_router_registration_asks_before_it_builds() -> None:
@@ -93,18 +110,24 @@ def test_a_refused_deep_handoff_falls_back_to_the_resident_lane() -> None:
 
 def test_no_configuration_means_no_specialist_even_on_a_large_host(monkeypatch) -> None:
     monkeypatch.setattr(
-        "core.brain.llm.model_registry.deep_solver_is_distinctly_configured",
-        lambda: False,
+        "core.brain.llm.model_registry.get_deep_solver_admission_status",
+        lambda _domain=None: SimpleNamespace(
+            admitted=False,
+            reason="specialist_not_configured",
+        ),
     )
-    assert local_deep_solver_enabled(512.0) is False
+    assert local_deep_solver_enabled(512.0, 256.0) is False
 
 
 def test_an_incomplete_artifact_is_not_a_runtime_lane(monkeypatch) -> None:
     monkeypatch.setattr(
-        "core.brain.llm.model_registry.deep_solver_artifact_is_ready",
-        lambda: False,
+        "core.brain.llm.model_registry.get_deep_solver_admission_status",
+        lambda _domain=None: SimpleNamespace(
+            admitted=False,
+            reason="specialist_artifact_unmeasured",
+        ),
     )
-    assert local_deep_solver_enabled(512.0) is False
+    assert local_deep_solver_enabled(512.0, 256.0) is False
 
 
 def test_autonomous_brain_uses_the_same_specialist_admission_contract() -> None:

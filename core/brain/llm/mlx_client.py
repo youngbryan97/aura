@@ -204,39 +204,27 @@ def _model_is_heavy_lane(model_path: str | None) -> bool:
     return measured or named
 
 
-_DEEP_SOLVER_NAME_TOKENS = ("72b", "solver")
-
-
 def _model_is_deep_solver_lane(model_path: str | None) -> bool:
-    """True for the optional local deep Solver lane (the 72B class).
-
-    Same measured-first, union-with-naming rule as _model_is_heavy_lane: the
-    artifact's own parameter count is the authority, and the historical name
-    tokens are kept so a rename can only ever ADD caution, never remove it.
-    """
-    path = str(model_path or "")
-    if not path:
+    """Whether the registry assigned this exact artifact to Solver."""
+    if not str(model_path or "").strip():
         return False
-    measured = False
     try:
-        from core.brain.llm.model_artifact_profile import model_size_class
+        from core.brain.llm.model_registry import get_model_lane_role
 
-        measured = model_size_class(path) == "72b"
+        return get_model_lane_role(model_path) == "solver"
     except (ImportError, AttributeError, OSError, RuntimeError, ValueError, TypeError) as exc:
         _record_mlx_degradation(
             exc,
-            action="model artifact profile unavailable; solver class fell back to naming",
+            action="model registry unavailable; optional specialist role stayed unassigned",
             severity="debug",
         )
-    lowered = os.path.basename(path).lower()
-    return measured or any(token in lowered for token in _DEEP_SOLVER_NAME_TOKENS)
+        return False
 
 
 def _model_path_is_deep_solver(model_path: str | None) -> bool:
-    """Return whether a model path names Aura's optional local deep Solver lane."""
+    """Compatibility alias for exact registry role resolution."""
 
-    lowered = os.path.basename(str(model_path or "")).lower()
-    return any(token in lowered for token in ("72b", "solver"))
+    return _model_is_deep_solver_lane(model_path)
 
 
 #: Ceilings for a single worker-supplied progress value. Progress is a
@@ -4923,8 +4911,13 @@ class MLXLocalClient:
         return _model_is_heavy_lane(self.model_path)
 
     def _is_primary_lane(self) -> bool:
-        """The serving cortex lane specifically — deep/solver excluded."""
-        return self._is_primary_or_deep_lane() and not self._is_deep_solver_lane()
+        """Whether the registry assigned this exact artifact to Cortex."""
+        try:
+            from core.brain.llm.model_registry import get_model_lane_role
+
+            return get_model_lane_role(self.model_path) == "cortex"
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return False
 
     def _can_run_resident_background_health_probe(
         self,

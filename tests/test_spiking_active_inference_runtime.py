@@ -323,7 +323,16 @@ def test_runtime_capabilities_distinguish_configured_from_admitted_solver(
 
     monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
     monkeypatch.setattr(model_registry, "get_deep_model_name", lambda: "Local-Specialist")
-    monkeypatch.setattr(inference_gate, "local_deep_solver_enabled", lambda: admitted)
+    admission = {
+        "admitted": admitted,
+        "reason": "qualified" if admitted else "specialist_not_qualified",
+        "certificate_sha256": "a" * 64 if admitted else "",
+    }
+    monkeypatch.setattr(
+        inference_gate,
+        "local_deep_solver_status",
+        lambda: admission,
+    )
 
     payload = _collect_runtime_capabilities(
         {"conversation_ready": True, "state": "ready", "desired_model": "cortex"}
@@ -331,6 +340,7 @@ def test_runtime_capabilities_distinguish_configured_from_admitted_solver(
 
     assert payload["solver_configured"] is True
     assert payload["solver_active"] is admitted
+    assert payload["solver_admission"] == admission
     assert payload["deep_reasoning_mode"] == expected_mode
     assert payload["solver_model"] == "Local-Specialist"
 

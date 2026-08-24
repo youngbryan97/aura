@@ -3771,6 +3771,7 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
         "imagination_engine": _collect_imagination_status(),
     }
     try:
+        from core.brain.inference_gate import local_deep_solver_status
         from core.brain.llm.model_registry import (
             ACTIVE_MODEL,
             BRAINSTEM_MODEL,
@@ -3779,10 +3780,14 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
             get_deep_model_name,
             get_local_backend,
         )
-        from core.brain.inference_gate import local_deep_solver_enabled
 
         distinct_solver = deep_solver_is_distinctly_configured()
-        admitted_solver = distinct_solver and local_deep_solver_enabled()
+        solver_admission = (
+            local_deep_solver_status()
+            if distinct_solver
+            else {"admitted": False, "reason": "specialist_not_configured"}
+        )
+        admitted_solver = bool(solver_admission.get("admitted", False))
         payload.update(
             {
                 "local_backend": get_local_backend(),
@@ -3790,6 +3795,7 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
                 "solver_model": get_deep_model_name() if distinct_solver else None,
                 "solver_configured": distinct_solver,
                 "solver_active": admitted_solver,
+                "solver_admission": solver_admission,
                 "deep_reasoning_mode": (
                     "distinct_specialist" if admitted_solver else "resident_systems"
                 ),

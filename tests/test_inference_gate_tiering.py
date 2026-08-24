@@ -753,6 +753,10 @@ async def test_deep_handoff_uses_solver_then_returns_response(monkeypatch):
         "core.brain.inference_gate.local_deep_solver_enabled",
         lambda *_args, **_kwargs: True,
     )
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_status",
+        lambda *_args, **_kwargs: {"admitted": True, "reason": "qualified"},
+    )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:
 
@@ -797,6 +801,10 @@ async def test_deep_handoff_failure_still_schedules_primary_restore(monkeypatch)
     monkeypatch.setattr(
         "core.brain.inference_gate.local_deep_solver_enabled",
         lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "core.brain.inference_gate.local_deep_solver_status",
+        lambda *_args, **_kwargs: {"admitted": True, "reason": "qualified"},
     )
     os.environ["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "1"
     try:

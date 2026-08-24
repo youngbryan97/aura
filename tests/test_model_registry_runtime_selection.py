@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 import core.brain.llm.model_registry as model_registry
@@ -48,6 +50,122 @@ def test_resident_deep_role_is_not_a_duplicate_model_lane(monkeypatch):
         and model_registry.DEEP_ENDPOINT in issue.get("lanes", ())
         for issue in audit["issues"]
     )
+
+
+def test_model_lane_role_comes_from_exact_registry_assignment(monkeypatch):
+    assignments = {
+        model_registry.PRIMARY_ENDPOINT: "/models/resident-renamed",
+        model_registry.DEEP_ENDPOINT: "/models/specialist-renamed",
+        model_registry.BRAINSTEM_ENDPOINT: "/models/background-renamed",
+        model_registry.FALLBACK_ENDPOINT: "/models/emergency-renamed",
+    }
+    monkeypatch.setattr(
+        model_registry,
+        "get_lane_runtime_model_path",
+        lambda endpoint: assignments[endpoint],
+    )
+    monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
+
+    assert model_registry.get_model_lane_role("/models/resident-renamed") == "cortex"
+    assert model_registry.get_model_lane_role("/models/specialist-renamed") == "solver"
+    assert model_registry.get_model_lane_role("/models/background-renamed") == "brainstem"
+    assert model_registry.get_model_lane_role("/models/emergency-renamed") == "reflex"
+
+
+def test_model_size_or_name_does_not_assign_a_serving_role(monkeypatch):
+    monkeypatch.setattr(
+        model_registry,
+        "get_lane_runtime_model_path",
+        lambda endpoint: f"/assigned/{endpoint.lower()}",
+    )
+    monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
+
+    assert model_registry.get_model_lane_role("/unassigned/Qwen-72B-Solver") is None
+    assert model_registry.get_model_lane_role("/unassigned/Aura-32B-Cortex") is None
+
+
+def test_specialist_admission_cache_invalidates_on_evidence_or_source_change(
+    monkeypatch,
+    tmp_path,
+):
+    from core.learning import specialist_cortex_admission
+
+    certificate = tmp_path / "admission.json"
+    trust_root = tmp_path / "admission.pub.pem"
+    specialist = tmp_path / "specialist"
+    source = tmp_path / "source.py"
+    specialist.mkdir()
+    (specialist / "weights.safetensors").write_bytes(b"weights")
+    certificate.write_text("certificate-v1", encoding="utf-8")
+    trust_root.write_text("trust-root", encoding="utf-8")
+    source.write_text("source-v1", encoding="utf-8")
+
+    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
+    monkeypatch.setattr(model_registry, "deep_solver_artifact_is_ready", lambda: True)
+    monkeypatch.setattr(
+        model_registry,
+        "get_active_cortex_spec",
+        lambda **_kwargs: SimpleNamespace(
+            exact_identity=True,
+            promotion_qualified=True,
+            descriptor_sha256="a" * 64,
+            pointer_sha256="b" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "get_deep_specialist_certificate_path",
+        lambda: certificate,
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "get_deep_specialist_trust_root_path",
+        lambda: trust_root,
+    )
+    monkeypatch.setattr(model_registry, "get_deep_model_path", lambda: str(specialist))
+    monkeypatch.setattr(model_registry, "_current_specialist_source_commit", lambda: "c" * 40)
+    monkeypatch.setattr(
+        specialist_cortex_admission,
+        "REQUIRED_SOURCE_CLOSURE",
+        frozenset({"source.py"}),
+    )
+    wall_clock = [1000.0]
+    monkeypatch.setattr(model_registry.time, "time", lambda: wall_clock[0])
+    calls = []
+
+    def _verify(*_args, **_kwargs):
+        calls.append(True)
+        return SimpleNamespace(
+            admitted=True,
+            reason="qualified",
+            expires_at=wall_clock[0] + 10.0,
+        )
+
+    monkeypatch.setattr(
+        specialist_cortex_admission,
+        "verify_specialist_qualification_certificate",
+        _verify,
+    )
+    model_registry.reset_deep_solver_admission_cache()
+    try:
+        model_registry.get_deep_solver_admission_status("general")
+        model_registry.get_deep_solver_admission_status("general")
+        assert len(calls) == 1
+
+        certificate.write_text("certificate-version-two", encoding="utf-8")
+        model_registry.get_deep_solver_admission_status("general")
+        assert len(calls) == 2
+
+        source.write_text("source-version-two", encoding="utf-8")
+        model_registry.get_deep_solver_admission_status("general")
+        assert len(calls) == 3
+
+        wall_clock[0] += 11.0
+        model_registry.get_deep_solver_admission_status("general")
+        assert len(calls) == 4
+    finally:
+        model_registry.reset_deep_solver_admission_cache()
 
 
 @pytest.mark.parametrize(
