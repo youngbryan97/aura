@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from types import SimpleNamespace
 
@@ -653,6 +654,92 @@ def test_desktop_safe_boot_keeps_bounded_primary_prompt_cache(monkeypatch):
     )
     # The 72B lane stays cacheless: its KV would dwarf the envelope.
     assert _prompt_cache_entry_budget_for_model("/models/Qwen2.5-72B-Instruct-4bit") == 0
+
+
+def test_hybrid_prompt_cache_budget_uses_checkpoint_geometry(tmp_path, monkeypatch):
+    from core.brain.llm import mlx_worker
+    from core.brain.llm.model_artifact_profile import (
+        reset_model_artifact_profile_cache,
+    )
+
+    model = tmp_path / "Aura-27B-hybrid"
+    model.mkdir()
+    layer_types = [
+        "full_attention" if (index + 1) % 4 == 0 else "linear_attention"
+        for index in range(64)
+    ]
+    (model / "config.json").write_text(
+        json.dumps(
+            {
+                "model_type": "qwen3_5",
+                "text_config": {
+                    "model_type": "qwen3_5_text",
+                    "dtype": "bfloat16",
+                    "mamba_ssm_dtype": "float32",
+                    "hidden_size": 5120,
+                    "intermediate_size": 17408,
+                    "num_hidden_layers": 64,
+                    "num_attention_heads": 24,
+                    "num_key_value_heads": 4,
+                    "head_dim": 256,
+                    "vocab_size": 248320,
+                    "max_position_embeddings": 262144,
+                    "layer_types": layer_types,
+                    "linear_num_key_heads": 16,
+                    "linear_num_value_heads": 48,
+                    "linear_key_head_dim": 128,
+                    "linear_value_head_dim": 128,
+                    "linear_conv_kernel_dim": 4,
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(
+        mlx_worker,
+        "_qualified_serving_limits_for_model",
+        lambda _path: SimpleNamespace(served_context_tokens=32768),
+    )
+    reset_model_artifact_profile_cache()
+    try:
+        footprint = mlx_worker._prompt_cache_footprint_for_model(str(model))
+        expected_fixed = 48 * (
+            3 * (2 * 16 * 128 + 48 * 128) * 2
+            + 48 * 128 * 128 * 4
+        )
+        assert footprint.measured is True
+        assert footprint.kv_bytes_per_token == 64 * 1024
+        assert footprint.fixed_bytes_per_entry == expected_fixed
+        assert mlx_worker._prompt_cache_entry_token_cap_for_model(str(model)) == 32768
+        total_tokens = mlx_worker._prompt_cache_total_token_budget_for_model(
+            str(model)
+        )
+        assert (
+            total_tokens * footprint.kv_bytes_per_token
+            + footprint.fixed_bytes_per_entry
+            <= 3 * 1024**3
+        )
+        assert mlx_worker._load_effective_context_window(str(model)) == 32768
+    finally:
+        reset_model_artifact_profile_cache()
+
+
+def test_prompt_cache_byte_budget_counts_fixed_recurrent_state():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(
+        max_size=4,
+        max_total_tokens=1000,
+        kv_bytes_per_token=1,
+        fixed_bytes_per_entry=100,
+        max_total_bytes=250,
+    )
+    key = (4, "user_surface")
+    lru.insert_cache(key, list(range(10)), ["first"])
+    lru.insert_cache(key, list(range(20, 30)), ["second"])
+    lru.insert_cache(key, list(range(40, 50)), ["third"])
+
+    assert lru.retained_entries() == 2
+    assert lru.retained_bytes() == 220
 
 
 def test_probe_and_proof_lanes_bypass_but_user_surface_reuses():

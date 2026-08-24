@@ -3910,12 +3910,11 @@ def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
 def _prompt_cache_entry_token_cap_for_model(model_path: str) -> int:
     """Longest prompt (in tokens) a single cache entry may retain.
 
-    The bound that makes a nonzero 32B budget safe under the desktop guard:
-    at 64 layers x 8 KV heads x 128 head-dim, fp16 K+V is ~256KB per token,
-    so 6144 tokens caps one entry near 1.5GB and the 2-entry budget near
-    3GB — visible, fixed, and small next to the ~20GB weights. Longer
-    conversations degrade gracefully to today's re-prefill behavior instead
-    of growing the cache without bound.
+    Measured artifacts are admitted against their actual K/V layer geometry
+    plus fixed recurrent state. A qualified context that fits the cache-wide
+    byte envelope stays resumable end to end; larger contexts receive the
+    per-entry half-envelope. Missing artifacts retain the conservative legacy
+    class caps used by pre-download admission and tests.
 
     EVERY class is capped. The small classes used to return 0 (uncapped),
     which was harmless only for as long as the cache was broken and nothing
@@ -3932,6 +3931,23 @@ def _prompt_cache_entry_token_cap_for_model(model_path: str) -> int:
     weight_class = model_size_class(str(model_path or ""))
     if weight_class == "72b":
         return 0  # budget is 0 entries; nothing is retained at all
+    footprint = _prompt_cache_footprint_for_model(model_path)
+    if footprint.measured:
+        context_window = _prompt_cache_context_window_for_model(model_path)
+        if (
+            context_window > 0
+            and footprint.fixed_bytes_per_entry
+            + context_window * footprint.kv_bytes_per_token
+            <= _PROMPT_CACHE_TOTAL_BYTE_BUDGET
+        ):
+            return context_window
+        usable = max(
+            0,
+            _PROMPT_CACHE_ENTRY_BYTE_TARGET - footprint.fixed_bytes_per_entry,
+        )
+        measured_cap = usable // max(1, footprint.kv_bytes_per_token)
+        if measured_cap > 0:
+            return max(2048, (measured_cap // 256) * 256)
     if weight_class == "32b":
         return 6144
     if weight_class in ("14b", "7b"):
@@ -3939,35 +3955,145 @@ def _prompt_cache_entry_token_cap_for_model(model_path: str) -> int:
     return 8192
 
 
-def _prompt_cache_kv_bytes_per_token(model_path: str) -> int:
-    """Approximate fp16 K+V bytes per cached token, by weight class.
+_PROMPT_CACHE_TOTAL_BYTE_BUDGET = 3 * 1024 * 1024 * 1024
+_PROMPT_CACHE_ENTRY_BYTE_TARGET = _PROMPT_CACHE_TOTAL_BYTE_BUDGET // 2
 
-    Used to bound TOTAL retained KV, and to report a real footprint to the OOM
-    ladder instead of a guess. Derived from the published geometries: layers x
-    kv_heads x head_dim x 2 (K and V) x 2 bytes.
+
+@dataclass(frozen=True)
+class _PromptCacheFootprint:
+    kv_bytes_per_token: int
+    fixed_bytes_per_entry: int = 0
+    measured: bool = False
+
+
+def _dtype_width_bytes(value: object, *, default: int = 2) -> int:
+    name = str(value or "").strip().lower()
+    if name in {"float64", "fp64", "int64", "uint64"}:
+        return 8
+    if name in {"float32", "fp32", "int32", "uint32"}:
+        return 4
+    if name in {"float16", "fp16", "bfloat16", "bf16", "int16", "uint16"}:
+        return 2
+    if name in {"int8", "uint8", "bool"}:
+        return 1
+    return max(1, int(default))
+
+
+def _prompt_cache_footprint_for_model(model_path: str) -> _PromptCacheFootprint:
+    """Measure growing K/V and fixed recurrent cache state from the artifact.
+
+    A hybrid decoder is not a dense decoder with a smaller weight file. Only
+    its full-attention layers grow K/V with sequence length, while every linear
+    layer owns a fixed convolution and recurrent matrix. Both terms belong in
+    the same memory envelope.
     """
 
-    from core.brain.llm.model_artifact_profile import model_size_class
+    from core.brain.llm.model_artifact_profile import get_model_artifact_profile
 
-    weight_class = model_size_class(str(model_path or ""))
-    return {
+    profile = get_model_artifact_profile(str(model_path or ""))
+    fallback = {
         "72b": 320 * 1024,
-        "32b": 256 * 1024,   # 64 x 8 x 128 x 2 x 2
+        "32b": 256 * 1024,
         "14b": 96 * 1024,
-        "7b": 57 * 1024,     # 28 x 4 x 128 x 2 x 2
-    }.get(weight_class, 24 * 1024)
+        "7b": 57 * 1024,
+    }.get(profile.size_class, 24 * 1024)
+    if not profile.measured or not profile.exists:
+        return _PromptCacheFootprint(kv_bytes_per_token=fallback)
+
+    try:
+        payload = json.loads((Path(profile.path) / "config.json").read_text())
+        text_config = payload.get("text_config")
+        config = text_config if isinstance(text_config, dict) else payload
+        heads = int(config.get("num_attention_heads") or profile.num_attention_heads)
+        kv_heads = int(config.get("num_key_value_heads") or profile.num_key_value_heads)
+        head_dim = int(
+            config.get("head_dim")
+            or (profile.hidden_size // heads if heads > 0 else 0)
+        )
+        activation_bytes = _dtype_width_bytes(config.get("dtype"), default=2)
+        kv_layers = int(profile.full_attention_layers or profile.num_hidden_layers)
+        if kv_layers < 1 or kv_heads < 1 or head_dim < 1:
+            raise ValueError("checkpoint cache geometry is incomplete")
+        kv_bytes = kv_layers * kv_heads * head_dim * 2 * activation_bytes
+
+        fixed_bytes = 0
+        if profile.linear_attention_layers > 0:
+            key_heads = int(config.get("linear_num_key_heads") or 0)
+            value_heads = int(config.get("linear_num_value_heads") or 0)
+            key_dim = int(config.get("linear_key_head_dim") or 0)
+            value_dim = int(config.get("linear_value_head_dim") or 0)
+            kernel = int(config.get("linear_conv_kernel_dim") or 0)
+            if min(key_heads, value_heads, key_dim, value_dim, kernel) < 1:
+                raise ValueError("checkpoint recurrent cache geometry is incomplete")
+            conv_dim = 2 * key_heads * key_dim + value_heads * value_dim
+            conv_bytes = (kernel - 1) * conv_dim * activation_bytes
+            state_bytes = (
+                value_heads
+                * value_dim
+                * key_dim
+                * _dtype_width_bytes(
+                    config.get("mamba_ssm_dtype"), default=activation_bytes
+                )
+            )
+            fixed_bytes = profile.linear_attention_layers * (
+                conv_bytes + state_bytes
+            )
+        return _PromptCacheFootprint(
+            kv_bytes_per_token=kv_bytes,
+            fixed_bytes_per_entry=fixed_bytes,
+            measured=True,
+        )
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return _PromptCacheFootprint(kv_bytes_per_token=fallback)
+
+
+def _prompt_cache_context_window_for_model(model_path: str) -> int:
+    from core.brain.llm.model_artifact_profile import get_model_artifact_profile
+
+    limits = _qualified_serving_limits_for_model(model_path)
+    if limits is not None:
+        return max(0, int(limits.served_context_tokens))
+    return max(0, int(get_model_artifact_profile(model_path).native_context_window))
+
+
+def _prompt_cache_kv_bytes_per_token(model_path: str) -> int:
+    """Growing K/V bytes per cached token from checkpoint geometry.
+
+    Used to bound TOTAL retained KV, and to report a real footprint to the OOM
+    ladder instead of a guess. Missing artifacts retain the conservative
+    historical class estimates used by tests and pre-download admission.
+    """
+    return _prompt_cache_footprint_for_model(model_path).kv_bytes_per_token
+
+
+def _prompt_cache_fixed_bytes_per_entry_for_model(model_path: str) -> int:
+    return _prompt_cache_footprint_for_model(model_path).fixed_bytes_per_entry
 
 
 def _prompt_cache_total_token_budget_for_model(model_path: str) -> int:
     """Total tokens the whole cache may retain across every entry and lane.
 
     The entry budget bounds how many prefixes are reusable; this bounds the
-    MEMORY, which is the thing that actually breaks the host. Sized so total
-    retained KV stays near 3GB on any class.
+    MEMORY, which is the thing that actually breaks the host. One fixed hybrid
+    recurrent state is reserved here; the LRU enforces the exact 3GB byte
+    envelope as additional entries and rollback images are retained.
     """
 
-    per_token = max(1, _prompt_cache_kv_bytes_per_token(model_path))
-    return max(2048, (3 * 1024 * 1024 * 1024) // per_token)
+    footprint = _prompt_cache_footprint_for_model(model_path)
+    per_token = max(1, footprint.kv_bytes_per_token)
+    usable = max(
+        0,
+        _PROMPT_CACHE_TOTAL_BYTE_BUDGET - footprint.fixed_bytes_per_entry,
+    )
+    return max(2048, usable // per_token)
+
+
+def _prompt_cache_total_byte_budget_for_model(model_path: str) -> int:
+    return (
+        _PROMPT_CACHE_TOTAL_BYTE_BUDGET
+        if _prompt_cache_entry_budget_for_model(model_path) > 0
+        else 0
+    )
 
 class IPCWriterThread(threading.Thread):
     """
@@ -5227,9 +5353,15 @@ def _load_effective_context_window(model_path: str) -> int:
     try:
         if config_path.exists():
             config_payload = json.loads(config_path.read_text())
-            max_position_embeddings = int(config_payload.get("max_position_embeddings") or 0)
-            sliding_window = int(config_payload.get("sliding_window") or 0)
-            use_sliding_window = bool(config_payload.get("use_sliding_window"))
+            text_config = config_payload.get("text_config")
+            context_config = (
+                text_config if isinstance(text_config, dict) else config_payload
+            )
+            max_position_embeddings = int(
+                context_config.get("max_position_embeddings") or 0
+            )
+            sliding_window = int(context_config.get("sliding_window") or 0)
+            use_sliding_window = bool(context_config.get("use_sliding_window"))
     except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
         max_position_embeddings = 0
         sliding_window = 0
@@ -5428,6 +5560,8 @@ class _PromptCacheLRU:
         max_entry_tokens: int = 0,
         max_total_tokens: int = 0,
         kv_bytes_per_token: int = 0,
+        fixed_bytes_per_entry: int = 0,
+        max_total_bytes: int = 0,
     ):
         self.max_size = max_size
         # 0 = uncapped. A positive cap refuses to RETAIN prompts longer than
@@ -5440,6 +5574,8 @@ class _PromptCacheLRU:
         # 73,963MB/h toward the 49GB ceiling. This bounds the total.
         self.max_total_tokens = max_total_tokens
         self.kv_bytes_per_token = kv_bytes_per_token
+        self.fixed_bytes_per_entry = max(0, int(fixed_bytes_per_entry))
+        self.max_total_bytes = max(0, int(max_total_bytes))
         self._cache: dict[Any, dict[Any, Any]] = {}
         # One eviction queue PER LANE, not one globally. A single global queue
         # meant Aura's internal lanes (loop ticks, enrichment, dreaming,
@@ -5483,7 +5619,8 @@ class _PromptCacheLRU:
             for binding in self._resume_bindings.values()
             if binding.one_token_rollback is not None
         )
-        return token_bytes + rollback_bytes
+        fixed_bytes = self.retained_entries() * self.fixed_bytes_per_entry
+        return token_bytes + fixed_bytes + rollback_bytes
 
     def shed(self) -> int:
         """Release everything and report the bytes freed.
@@ -5510,11 +5647,9 @@ class _PromptCacheLRU:
         lanes_by_drain_order = sorted(
             self._lru.keys(), key=lambda lane: (lane == "user_surface", lane)
         )
-        byte_budget = (
-            self.max_total_tokens * self.kv_bytes_per_token
-            if self.max_total_tokens > 0 and self.kv_bytes_per_token > 0
-            else 0
-        )
+        byte_budget = self.max_total_bytes
+        if byte_budget <= 0 and self.max_total_tokens > 0 and self.kv_bytes_per_token > 0:
+            byte_budget = self.max_total_tokens * self.kv_bytes_per_token
         while (
             self.retained_tokens() > self.max_total_tokens
             or (byte_budget > 0 and self.retained_bytes() > byte_budget)
@@ -7052,12 +7187,16 @@ def _mlx_worker_loop(
     prompt_cache_token_cap = _prompt_cache_entry_token_cap_for_model(model_path)
     prompt_cache_total_tokens = _prompt_cache_total_token_budget_for_model(model_path)
     prompt_cache_kv_bytes = _prompt_cache_kv_bytes_per_token(model_path)
+    prompt_cache_fixed_bytes = _prompt_cache_fixed_bytes_per_entry_for_model(model_path)
+    prompt_cache_total_bytes = _prompt_cache_total_byte_budget_for_model(model_path)
     prompt_cache_lru = (
         _PromptCacheLRU(
             max_size=prompt_cache_budget,
             max_entry_tokens=prompt_cache_token_cap,
             max_total_tokens=prompt_cache_total_tokens,
             kv_bytes_per_token=prompt_cache_kv_bytes,
+            fixed_bytes_per_entry=prompt_cache_fixed_bytes,
+            max_total_bytes=prompt_cache_total_bytes,
         )
         if prompt_cache_budget > 0
         else None
@@ -7067,13 +7206,15 @@ def _mlx_worker_loop(
     else:
         logger.info(
             "Prompt cache budget for %s: %d entries, per-entry token cap %d, "
-            "total token budget %d (~%.1fGB of KV at %dKB/token).",
+            "total token budget %d (~%.1fGB total envelope at %dKB/token + "
+            "%.1fMB fixed recurrent state/entry).",
             os.path.basename(model_path),
             prompt_cache_budget,
             prompt_cache_token_cap,
             prompt_cache_total_tokens,
-            (prompt_cache_total_tokens * prompt_cache_kv_bytes) / (1024 ** 3),
+            prompt_cache_total_bytes / (1024 ** 3),
             prompt_cache_kv_bytes // 1024,
+            prompt_cache_fixed_bytes / (1024 ** 2),
         )
 
     # Expert-adapter residency: at most one domain adapter attached on top of
