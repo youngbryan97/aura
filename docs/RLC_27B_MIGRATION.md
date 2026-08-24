@@ -91,11 +91,32 @@ Every LoRA adapter, controller, and readout fitted against the 32B: 688 files.
 None of them may be loaded onto the 27B, and none of their measurements
 transfer.
 
-The five tokenizer-bound grounding contracts join them.
-`recurrent_literal_grounding.py` records digit token ids as checkpoint
-identity, and a vocabulary that grew by 96,256 entries retires every id it
-holds. The contracts fail closed rather than mis-decode, which is correct, and
-it means the tissue behind them is unusable until regenerated.
+Two of the three tokenizer-bound grounding contracts join them, and the split
+is measured rather than reasoned. The first pass through this migration
+concluded from the vocabulary growing by 96,256 entries that every bound id
+must be stale. Re-deriving the bindings under both tokenizers says otherwise in
+both directions, and both directions are expensive: calling a portable contract
+dead discards working tissue, and calling a changed one portable serves answers
+assembled from ids that now mean something else.
+
+`tools/verify_27b_grounding_portability.py` reads both tokenizers and reports
+per binding:
+
+| Binding | Consumer | Verdict |
+|---|---|---|
+| digit token ids | `recurrent_literal_grounding.py` | **portable** — identical at 15..24 on both |
+| opcode marker patterns | `recurrent_opcode_grounding.py` | **regenerate** — all seven moved |
+| answer emission prefixes | `recurrent_answer_emission.py` | **regenerate** |
+
+`recurrent_action_schema.py` and `recurrent_state_schema.py` were never at
+risk. "Outside the vocabulary" in those files means an opcode or state slot out
+of range, not a tokenizer id.
+
+The opcode markers moved because they are multi-token English phrases —
+`"Fresh combinatorics task."` and its six siblings — and the merges around them
+changed. The digits are single tokens near the base of the vocabulary and did
+not. A contract whose portability cannot be measured is reported as bound, not
+as fine.
 
 ### Requires rebinding only
 

@@ -1,0 +1,316 @@
+{
+ "changed_opcode_markers": {
+  "10": {
+   "legacy": [
+    55653,
+    3614,
+    17272,
+    1211,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    3493,
+    16762,
+    1171,
+    3274,
+    13
+   ]
+  },
+  "11": {
+   "legacy": [
+    55653,
+    2038,
+    69689,
+    36233,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    1970,
+    67328,
+    35035,
+    3274,
+    13
+   ]
+  },
+  "12": {
+   "legacy": [
+    55653,
+    58457,
+    3419,
+    2202,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    56485,
+    3309,
+    2133,
+    3274,
+    13
+   ]
+  },
+  "13": {
+   "legacy": [
+    55653,
+    9115,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    8842,
+    3274,
+    13
+   ]
+  },
+  "14": {
+   "legacy": [
+    55653,
+    37611,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    36367,
+    3274,
+    13
+   ]
+  },
+  "15": {
+   "legacy": [
+    55653,
+    40202,
+    7409,
+    33887,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    38870,
+    7174,
+    32766,
+    3274,
+    13
+   ]
+  },
+  "9": {
+   "legacy": [
+    55653,
+    12111,
+    3383,
+    13
+   ],
+   "target": [
+    53784,
+    11767,
+    3274,
+    13
+   ]
+  }
+ },
+ "findings": [
+  {
+   "binding": "digit_token_ids",
+   "consumer": "recurrent_literal_grounding.py",
+   "legacy_sha256": "ac0acd7015e7f27a803112c30e47787c9e8db116ec93539d8fe7dfbe1570f4b7",
+   "portable": true,
+   "target_sha256": "ac0acd7015e7f27a803112c30e47787c9e8db116ec93539d8fe7dfbe1570f4b7",
+   "verdict": "portable"
+  },
+  {
+   "binding": "opcode_marker_patterns",
+   "consumer": "recurrent_opcode_grounding.py",
+   "legacy_sha256": "00ecb7966f1e5d1fafd325bd80eebc9d64e08f9e99d0c8208fe989458c07aecb",
+   "portable": false,
+   "target_sha256": "c241bee9f5d668a576f74bef73351e59421c17397a98030c387b05c4e19be137",
+   "verdict": "must_regenerate"
+  },
+  {
+   "binding": "answer_emission_prefixes",
+   "consumer": "recurrent_answer_emission.py",
+   "legacy_sha256": "fb5d5eabbf6ef82c8609cc6cc8972d4b60020a408c57b655c440c33c3a3e2b29",
+   "portable": false,
+   "target_sha256": "7ff1a556c4a385ebca66b9e4599810a35919ede904a74e686a1a8cdd61a9f91e",
+   "verdict": "must_regenerate"
+  }
+ ],
+ "legacy_bindings": {
+  "answer_emission_prefixes": {
+   "khop": [
+    4913,
+    3509,
+    788
+   ],
+   "modular": [
+    4913,
+    416,
+    60607,
+    788
+   ]
+  },
+  "digit_token_ids": [
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24
+  ],
+  "opcode_marker_patterns": {
+   "10": [
+    55653,
+    3614,
+    17272,
+    1211,
+    3383,
+    13
+   ],
+   "11": [
+    55653,
+    2038,
+    69689,
+    36233,
+    3383,
+    13
+   ],
+   "12": [
+    55653,
+    58457,
+    3419,
+    2202,
+    3383,
+    13
+   ],
+   "13": [
+    55653,
+    9115,
+    3383,
+    13
+   ],
+   "14": [
+    55653,
+    37611,
+    3383,
+    13
+   ],
+   "15": [
+    55653,
+    40202,
+    7409,
+    33887,
+    3383,
+    13
+   ],
+   "9": [
+    55653,
+    12111,
+    3383,
+    13
+   ]
+  }
+ },
+ "legacy_checkpoint": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+ "must_regenerate": [
+  "recurrent_answer_emission.py",
+  "recurrent_opcode_grounding.py"
+ ],
+ "portable": [
+  "recurrent_literal_grounding.py"
+ ],
+ "report_sha256": "8a4e46c2fdd8f560a7e27d95278848bb6021bdf15f972bfb11389a046ab1a840",
+ "schema": "aura.rlc.27b_grounding_portability.v1",
+ "target_bindings": {
+  "answer_emission_prefixes": {
+   "khop": [
+    4754,
+    3394,
+    763
+   ],
+   "modular": [
+    4754,
+    408,
+    58564,
+    763
+   ]
+  },
+  "digit_token_ids": [
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24
+  ],
+  "opcode_marker_patterns": {
+   "10": [
+    53784,
+    3493,
+    16762,
+    1171,
+    3274,
+    13
+   ],
+   "11": [
+    53784,
+    1970,
+    67328,
+    35035,
+    3274,
+    13
+   ],
+   "12": [
+    53784,
+    56485,
+    3309,
+    2133,
+    3274,
+    13
+   ],
+   "13": [
+    53784,
+    8842,
+    3274,
+    13
+   ],
+   "14": [
+    53784,
+    36367,
+    3274,
+    13
+   ],
+   "15": [
+    53784,
+    38870,
+    7174,
+    32766,
+    3274,
+    13
+   ],
+   "9": [
+    53784,
+    11767,
+    3274,
+    13
+   ]
+  }
+ },
+ "typed_only_contracts": {
+  "core/learning/recurrent_action_schema.py": "binds a typed opcode vocabulary; no tokenizer involved",
+  "core/learning/recurrent_state_schema.py": "binds a typed opcode vocabulary; no tokenizer involved"
+ }
+}

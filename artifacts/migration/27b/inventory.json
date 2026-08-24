@@ -17258,53 +17258,48 @@
   },
   {
    "detail": {
-    "legacy_vocab_size": 152064,
-    "target_vocab_size": 248320
+    "measured_by": "tools/verify_27b_grounding_portability.py"
    },
    "kind": "grounding_contract",
    "path": "core/learning/recurrent_literal_grounding.py",
-   "reason": "binds tokenizer ids as checkpoint identity; the vocabulary moved",
-   "verdict": "token_id_bound"
+   "reason": "its tokenizer bindings are identical on both checkpoints",
+   "verdict": "model_independent"
   },
   {
    "detail": {
     "legacy_vocab_size": 152064,
+    "measured": true,
     "target_vocab_size": 248320
    },
    "kind": "grounding_contract",
    "path": "core/learning/recurrent_opcode_grounding.py",
-   "reason": "binds tokenizer ids as checkpoint identity; the vocabulary moved",
+   "reason": "its tokenizer bindings differ between the checkpoints",
    "verdict": "token_id_bound"
   },
   {
    "detail": {
     "legacy_vocab_size": 152064,
+    "measured": true,
     "target_vocab_size": 248320
    },
    "kind": "grounding_contract",
    "path": "core/learning/recurrent_answer_emission.py",
-   "reason": "binds tokenizer ids as checkpoint identity; the vocabulary moved",
+   "reason": "its tokenizer bindings differ between the checkpoints",
    "verdict": "token_id_bound"
   },
   {
-   "detail": {
-    "legacy_vocab_size": 152064,
-    "target_vocab_size": 248320
-   },
-   "kind": "grounding_contract",
+   "detail": {},
+   "kind": "typed_vocabulary",
    "path": "core/learning/recurrent_action_schema.py",
-   "reason": "binds tokenizer ids as checkpoint identity; the vocabulary moved",
-   "verdict": "token_id_bound"
+   "reason": "binds a typed opcode or state vocabulary, not tokenizer ids",
+   "verdict": "model_independent"
   },
   {
-   "detail": {
-    "legacy_vocab_size": 152064,
-    "target_vocab_size": 248320
-   },
-   "kind": "grounding_contract",
+   "detail": {},
+   "kind": "typed_vocabulary",
    "path": "core/learning/recurrent_state_schema.py",
-   "reason": "binds tokenizer ids as checkpoint identity; the vocabulary moved",
-   "verdict": "token_id_bound"
+   "reason": "binds a typed opcode or state vocabulary, not tokenizer ids",
+   "verdict": "model_independent"
   },
   {
    "detail": {
@@ -17458,8 +17453,8 @@
  },
  "verdict_counts": {
   "identity_pin": 347,
-  "model_independent": 4,
+  "model_independent": 7,
   "module_absent": 688,
-  "token_id_bound": 5
+  "token_id_bound": 2
  }
 }

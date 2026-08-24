@@ -35,6 +35,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+# Run as a script, sys.path[0] is tools/, so `from tools...` would not resolve
+# and the grounding probe below would silently report every contract unmeasured.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def installation_root() -> Path:
@@ -320,17 +324,47 @@ def classify_json(path: Path, raw: str) -> Artifact | None:
 
 # ── Tokenizer-bound source ──────────────────────────────────────────────
 
-#: Modules that bind tokenizer ids as checkpoint identity. A vocabulary change
-#: retires every id they recorded, so their contracts fail closed rather than
-#: mis-decode -- correct, and it means the tissue behind them is unusable until
-#: it is retrained against the new tokenizer.
+#: Modules that bind tokenizer ids as checkpoint identity.
+#:
+#: A larger vocabulary does not by itself retire an id. The first pass through
+#: this migration assumed it did and listed five files as dead; re-deriving the
+#: bindings under both tokenizers found the ten digit ids unchanged at 15..24,
+#: seven opcode markers moved, and two of the five files not bound to a
+#: tokenizer at all. So the verdict per file comes from
+#: ``tools/verify_27b_grounding_portability.py``, which reads both tokenizers,
+#: and this list only says where to look.
 TOKEN_BOUND_SOURCES = (
     "core/learning/recurrent_literal_grounding.py",
     "core/learning/recurrent_opcode_grounding.py",
     "core/learning/recurrent_answer_emission.py",
+)
+
+#: Typed vocabularies. "Outside the vocabulary" in these files means an opcode
+#: or state slot out of range, never a tokenizer id, so a checkpoint swap
+#: cannot touch them.
+TYPED_VOCABULARY_SOURCES = (
     "core/learning/recurrent_action_schema.py",
     "core/learning/recurrent_state_schema.py",
 )
+
+
+def _grounding_verdicts() -> dict[str, str]:
+    """Per-contract portability, measured rather than assumed.
+
+    Returns an empty mapping when the tokenizers cannot be loaded, and the
+    caller then reports the contracts as unverified. An unmeasured contract is
+    never reported as portable.
+    """
+    try:
+        from tools.verify_27b_grounding_portability import build
+
+        report = build()
+    except (ImportError, OSError, ValueError, RuntimeError):
+        return {}
+    return {
+        f"core/learning/{finding['consumer']}": finding["verdict"]
+        for finding in report["findings"]
+    }
 
 
 def modality_findings(active_path: Path, target: dict[str, Any]) -> list[Artifact]:
@@ -420,20 +454,52 @@ def collect(target_geometry: dict[str, Any], legacy_geometry: dict[str, Any]):
             classify_tensor_file(path, shapes, legacy_geometry, target_geometry)
         )
 
+    verdicts = _grounding_verdicts()
     for relative in TOKEN_BOUND_SOURCES:
+        path = ROOT / relative
+        if not path.exists():
+            continue
+        verdict = verdicts.get(relative)
+        if verdict == "portable":
+            artifacts.append(
+                Artifact(
+                    relative,
+                    "grounding_contract",
+                    "model_independent",
+                    "its tokenizer bindings are identical on both checkpoints",
+                    {"measured_by": "tools/verify_27b_grounding_portability.py"},
+                )
+            )
+        else:
+            artifacts.append(
+                Artifact(
+                    relative,
+                    "grounding_contract",
+                    "token_id_bound",
+                    (
+                        "its tokenizer bindings differ between the checkpoints"
+                        if verdict
+                        else "portability unmeasured; treat as bound until measured"
+                    ),
+                    {
+                        "legacy_vocab_size": legacy_geometry.get("vocab_size"),
+                        "target_vocab_size": target_geometry.get("vocab_size"),
+                        "measured": bool(verdict),
+                    },
+                )
+            )
+
+    for relative in TYPED_VOCABULARY_SOURCES:
         path = ROOT / relative
         if not path.exists():
             continue
         artifacts.append(
             Artifact(
                 relative,
-                "grounding_contract",
-                "token_id_bound",
-                "binds tokenizer ids as checkpoint identity; the vocabulary moved",
-                {
-                    "legacy_vocab_size": legacy_geometry.get("vocab_size"),
-                    "target_vocab_size": target_geometry.get("vocab_size"),
-                },
+                "typed_vocabulary",
+                "model_independent",
+                "binds a typed opcode or state vocabulary, not tokenizer ids",
+                {},
             )
         )
 
