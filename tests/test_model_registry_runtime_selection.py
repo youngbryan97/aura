@@ -152,6 +152,50 @@ def test_model_size_or_name_does_not_assign_a_serving_role(monkeypatch):
     assert model_registry.get_model_lane_role("/unassigned/Aura-32B-Cortex") is None
 
 
+def test_model_identity_compatibility_ignores_parameter_count():
+    assert model_registry.model_identities_compatible(
+        "Qwen2.5-32B-Instruct-4bit",
+        "Qwen2.5-32B-Instruct-8bit",
+    )
+    assert not model_registry.model_identities_compatible(
+        "Qwen2.5-32B-Instruct-4bit",
+        "QwQ-32B-4bit",
+    )
+    assert not model_registry.model_identities_compatible(
+        "Qwen2.5-32B-Instruct-4bit",
+        "DeepSeek-R1-Distill-Qwen-32B-4bit",
+    )
+
+
+def test_unknown_same_size_model_cannot_inherit_a_nonprimary_lane(monkeypatch):
+    monkeypatch.setattr(model_registry, "ACTIVE_MODEL", "Resident-27B-4bit")
+    monkeypatch.setattr(model_registry, "BRAINSTEM_MODEL", "Background-9B-4bit")
+    monkeypatch.setattr(model_registry, "FALLBACK_MODEL", "Reflex-1.5B-4bit")
+    monkeypatch.setattr(
+        model_registry, "get_deep_model_name", lambda: "Specialist-70B-4bit"
+    )
+    monkeypatch.setattr(
+        model_registry, "deep_solver_is_distinctly_configured", lambda: True
+    )
+
+    assert (
+        model_registry.get_endpoint_name_for_model("Unknown-70B-4bit")
+        == model_registry.PRIMARY_ENDPOINT
+    )
+    assert (
+        model_registry.get_endpoint_name_for_model("Unknown-9B-4bit")
+        == model_registry.PRIMARY_ENDPOINT
+    )
+    assert (
+        model_registry.get_endpoint_name_for_model("Unknown-1.5B-4bit")
+        == model_registry.PRIMARY_ENDPOINT
+    )
+    assert (
+        model_registry.get_endpoint_name_for_model("Specialist-70B-4bit")
+        == model_registry.DEEP_ENDPOINT
+    )
+
+
 def test_specialist_admission_cache_invalidates_on_evidence_or_source_change(
     monkeypatch,
     tmp_path,

@@ -1665,7 +1665,18 @@ class TestBackoffAndReadinessNeedCauses:
         assert client._consecutive_spawn_failures == 0
 
     def test_a_memory_refusal_backoff_is_not_a_runtime_backoff(self, client):
+        from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
+
         client.model_path = "/models/Qwen2.5-72B-Instruct-4bit"
+        client.runtime_assignment = ModelRuntimeAssignment.issue(
+            model_path=client.model_path,
+            artifact_identity="a" * 64,
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role="solver",
+            purpose="serve",
+            authority_source="test_registry",
+        )
         client._record_degraded_event = lambda *a, **k: None
         from core.brain.llm.mlx_client import ModelLoadAdmissionRefused
 
@@ -1949,6 +1960,50 @@ class TestProofLaneIdentityIsMeasured:
         # The old test said these were the same model.
         assert model_identities_compatible(
             "Qwen2.5-32B-Instruct-4bit", "Qwen2.5-32B-Instruct-4bit"
+        )
+
+    def test_proof_primary_requires_two_measured_fingerprints(self, monkeypatch):
+        import core.brain.llm.mlx_client as mod
+
+        fingerprints = {"/models/primary": "abc123", "/models/target": ""}
+        monkeypatch.setattr(
+            mod,
+            "_measured_artifact_fingerprint",
+            lambda path: fingerprints[str(path)],
+        )
+
+        with pytest.raises(RuntimeError, match="target artifact fingerprint unavailable"):
+            mod._assert_proof_primary_artifact_identity(
+                "/models/primary",
+                "/models/target",
+            )
+
+    def test_proof_primary_requires_equal_measured_fingerprints(self, monkeypatch):
+        import core.brain.llm.mlx_client as mod
+
+        fingerprints = {"/models/primary": "abc123", "/models/target": "def456"}
+        monkeypatch.setattr(
+            mod,
+            "_measured_artifact_fingerprint",
+            lambda path: fingerprints[str(path)],
+        )
+
+        with pytest.raises(RuntimeError, match="different checkpoint"):
+            mod._assert_proof_primary_artifact_identity(
+                "/models/primary",
+                "/models/target",
+            )
+
+    def test_proof_primary_accepts_equal_measured_fingerprints(self, monkeypatch):
+        import core.brain.llm.mlx_client as mod
+
+        monkeypatch.setattr(
+            mod, "_measured_artifact_fingerprint", lambda _path: "abc123"
+        )
+
+        mod._assert_proof_primary_artifact_identity(
+            "/models/primary",
+            "/models/target",
         )
 
 

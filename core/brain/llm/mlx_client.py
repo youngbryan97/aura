@@ -1167,6 +1167,25 @@ def _measured_artifact_fingerprint(model_path: Any) -> str:
     return str(getattr(profile, "fingerprint", "") or "")
 
 
+def _assert_proof_primary_artifact_identity(primary_path: str, target_path: str) -> None:
+    """Require measured, equal checkpoint identity for a proof-primary lane."""
+
+    primary_fingerprint = _measured_artifact_fingerprint(primary_path)
+    target_fingerprint = _measured_artifact_fingerprint(target_path)
+    if not primary_fingerprint or not target_fingerprint:
+        missing = "primary" if not primary_fingerprint else "target"
+        raise RuntimeError(
+            "Proof-primary run refused an unmeasured checkpoint identity: "
+            f"{missing} artifact fingerprint unavailable"
+        )
+    if primary_fingerprint != target_fingerprint:
+        raise RuntimeError(
+            "Proof-primary run refused a different checkpoint: "
+            f"{os.path.basename(target_path)}({target_fingerprint[:12]}) != "
+            f"{os.path.basename(primary_path)}({primary_fingerprint[:12]})"
+        )
+
+
 def _measured_size_class(model_path: Any) -> str | None:
     """The artifact's measured weight class, or None when unmeasured."""
     try:
@@ -16196,52 +16215,18 @@ def get_mlx_client(
     try:
         from core.runtime.proof_policy import proof_model_tier, proof_run_active
 
-        from .model_registry import model_identities_compatible
-
         if (
             proof_run_active(origin=origin)
             and proof_model_tier() == "primary"
         ):
             primary_path = _real_model_path(get_model_path(ACTIVE_MODEL))
             target_path = _real_model_path(runtime_path)
-            primary_name = os.path.basename(primary_path)
-            target_name = os.path.basename(target_path)
             # CP126 0ad66338. Name comparison and a size-tag compatibility
             # predicate cannot tell two artifacts apart: two directories both
             # called Qwen2.5-32B-Instruct-4bit, holding different weights,
             # both satisfied the proof lane. A proof run is precisely where
             # "probably the same model" is not good enough.
-            #
-            # The artifact profile measures a fingerprint from the checkpoint's
-            # own config and safetensors index. When both sides can be
-            # measured, that is the comparison. Names are the fallback only
-            # when the artifacts cannot be read — and the fallback says so.
-            primary_fingerprint = _measured_artifact_fingerprint(primary_path)
-            target_fingerprint = _measured_artifact_fingerprint(target_path)
-            if primary_fingerprint and target_fingerprint:
-                if primary_fingerprint != target_fingerprint:
-                    raise RuntimeError(
-                        "Proof-primary run refused a different checkpoint: "
-                        f"{target_name}({target_fingerprint[:12]}) != "
-                        f"{primary_name}({primary_fingerprint[:12]})"
-                    )
-            elif target_name != primary_name and not model_identities_compatible(
-                target_name, primary_name
-            ):
-                raise RuntimeError(
-                    "Proof-primary run refused lower local model lane: "
-                    f"{target_name} != {primary_name}"
-                )
-            elif not (primary_fingerprint and target_fingerprint):
-                _record_mlx_degradation(
-                    RuntimeError(
-                        "proof-primary lane admitted on NAME comparison; the "
-                        f"checkpoint fingerprint could not be measured for "
-                        f"{'primary' if not primary_fingerprint else 'target'}"
-                    ),
-                    action="admitted a proof-primary lane without an artifact-identity match",
-                    severity="warning",
-                )
+            _assert_proof_primary_artifact_identity(primary_path, target_path)
     except ImportError as _exc:
         # CP126 84a18b06: swallowing this import failure disabled proof-primary
         # model enforcement EXACTLY when its enforcement infrastructure was

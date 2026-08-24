@@ -246,7 +246,9 @@ class CortexServingLimits:
 
 
 _ACTIVE_CORTEX_SPEC_TTL_S = 5.0
-_active_cortex_spec_cache: tuple[float, Path, ActiveCortexSpec | None] | None = None
+_active_cortex_spec_cache: (
+    tuple[float, Path, tuple[int, int, int, int], ActiveCortexSpec | None] | None
+) = None
 _DEEP_SPECIALIST_STATUS_TTL_S = 30.0
 _deep_specialist_status_cache: dict[
     str,
@@ -457,21 +459,31 @@ def _read_active_cortex_spec(manifest: Path | None = None) -> ActiveCortexSpec |
         return None
 
 
+def _active_cortex_manifest_signature(manifest: Path) -> tuple[int, int, int, int]:
+    try:
+        stat = manifest.stat()
+    except OSError:
+        return (0, 0, 0, 0)
+    return (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size)
+
+
 def get_active_cortex_spec(*, force_refresh: bool = False) -> ActiveCortexSpec | None:
     """Return the single validated active-cortex authority object."""
     global _active_cortex_spec_cache
     manifest = get_fused_model_root() / "active.json"
+    signature = _active_cortex_manifest_signature(manifest)
     now = time.monotonic()
     cached = _active_cortex_spec_cache
     if (
         not force_refresh
         and cached is not None
         and cached[1] == manifest
+        and cached[2] == signature
         and (now - cached[0]) < _ACTIVE_CORTEX_SPEC_TTL_S
     ):
-        return cached[2]
+        return cached[3]
     observed = _read_active_cortex_spec(manifest)
-    _active_cortex_spec_cache = (now, manifest, observed)
+    _active_cortex_spec_cache = (now, manifest, signature, observed)
     return observed
 
 
@@ -851,13 +863,15 @@ def _model_identity_variants(value: str | None) -> set[str]:
         return set()
 
     variants = {normalized}
-    size_tag = _extract_size_tag(normalized)
-    if size_tag:
-        variants.add(size_tag)
-
-    # Drop common quantization / backend suffixes so the same base family can
-    # match across MLX and retired external artifacts when explicitly intended.
-    family = re.sub(r"-(?:q\d.*|[248]bit.*)$", "", normalized)
+    # Packaging may change while the underlying base checkpoint remains the
+    # same. Strip only complete, known packaging suffixes. Parameter count is
+    # deliberately absent: QwQ-32B and Qwen2.5-32B have equal width but
+    # different weights and representational geometry.
+    family = re.sub(
+        r"-(?:(?:mlx-)?[248]bit|[248]bit-mlx|q\d(?:_[a-z0-9]+)*|bf16|fp16|f16)$",
+        "",
+        normalized,
+    )
     if family:
         variants.add(family)
 
@@ -865,19 +879,17 @@ def _model_identity_variants(value: str | None) -> set[str]:
 
 
 def model_identities_compatible(expected_model: str | None, candidate_model: str | None) -> bool:
+    """Return whether two names identify one base checkpoint family.
+
+    This is a packaging-compatibility predicate for adapters, not proof of
+    weight identity. Scientific lanes compare measured artifact fingerprints.
+    """
+
     expected = _model_identity_variants(expected_model)
     candidate = _model_identity_variants(candidate_model)
     if not expected or not candidate:
         return False
-
-    expected_size = _extract_size_tag(str(expected_model or ""))
-    candidate_size = _extract_size_tag(str(candidate_model or ""))
-    exact_match = _normalize_model_identity(expected_model) == _normalize_model_identity(candidate_model)
-    if exact_match:
-        return True
-    if expected_size and candidate_size and expected_size == candidate_size and expected.intersection(candidate):
-        return True
-    return False
+    return bool(expected.intersection(candidate))
 
 
 def _read_adapter_target_model(adapter_dir: Path) -> str:
@@ -1487,7 +1499,11 @@ def guard_solver_request(
 
 
 def get_endpoint_name_for_model(model_name: str | None) -> str:
-    """Map a model name to its logical lane based on the configured tier layout."""
+    """Map an exact configured model identity to its logical lane.
+
+    Unknown identities stay on the primary lane so a directory name or model
+    width cannot confer specialist, brainstem, or fallback authority.
+    """
     name = str(model_name or ACTIVE_MODEL)
     lowered = name.lower()
 
@@ -1507,25 +1523,6 @@ def get_endpoint_name_for_model(model_name: str | None) -> str:
     if lowered == brainstem_lower:
         return BRAINSTEM_ENDPOINT
     if lowered == fallback_lower:
-        return FALLBACK_ENDPOINT
-
-    # Extract the core model identifier (e.g. "72b" from "qwen2.5-72b-instruct-q3_k_m-00001...")
-    size_match = re.search(r'(\d+\.?\d*b)', lowered)
-    model_size = size_match.group(1) if size_match else ""
-
-    active_size = _extract_size_tag(ACTIVE_MODEL)
-    deep_size = _extract_size_tag(deep_name) if deep_solver_is_distinctly_configured() else ""
-    brainstem_size = _extract_size_tag(BRAINSTEM_MODEL)
-    fallback_size = _extract_size_tag(FALLBACK_MODEL)
-
-    # Match by model size across configured model identifiers.
-    if model_size and model_size == active_size:
-        return PRIMARY_ENDPOINT
-    if model_size and model_size == deep_size:
-        return DEEP_ENDPOINT
-    if model_size and model_size == brainstem_size:
-        return BRAINSTEM_ENDPOINT
-    if model_size and model_size == fallback_size:
         return FALLBACK_ENDPOINT
 
     return PRIMARY_ENDPOINT
