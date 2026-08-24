@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end LoRA training + fuse + auto-pickup pipeline.
+"""End-to-end LoRA training, fusion, and qualification handoff.
 
 What this script does, in one run:
 
@@ -9,19 +9,17 @@ What this script does, in one run:
    training/finetune_lora.py hyperparameters.
 3. Fuse the resulting adapter into the base model with mlx_lm.fuse,
    producing a new versioned directory under training/fused-model/.
-4. Write training/fused-model/active.json — a small manifest that Aura's
-   model_registry reads on boot to pick up the newest fused model
-   automatically. No .env edit required.
-5. Verify the new model loads, then atomically swap the manifest.
+4. Verify that the fused artifact loads.
+5. Record an exact candidate receipt without changing Aura's active cortex.
 
-After this script finishes, restarting Aura will use the new weights.
-The previous fused model directory is kept (under a versioned name) so
-you can roll back by editing active.json or pointing AURA_LLM__MLX_MODEL_PATH.
+After this script finishes, the new weights await comparison, migration,
+staging, and explicit activation through ``cortex_generation_upgrade``.
+Restarting Aura before those gates keeps the incumbent cortex.
 
 Usage:
     python training/train_and_fuse.py
     python training/train_and_fuse.py --skip-dataset      # reuse existing data
-    python training/train_and_fuse.py --skip-train        # only fuse + publish
+    python training/train_and_fuse.py --skip-train        # only fuse + record
     python training/train_and_fuse.py --tag mythos-v1     # name this run
 """
 from __future__ import annotations
@@ -44,6 +42,9 @@ if str(REPO_DIR) not in sys.path:
 from core.brain.llm.model_artifact_profile import (  # noqa: E402
     build_model_artifact_descriptor,
     get_model_artifact_profile,
+)
+from core.learning.cortex_generation_upgrade import (  # noqa: E402
+    record_upgrade_candidate,
 )
 from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from core.runtime.model_lane_control import (  # noqa: E402
@@ -69,7 +70,6 @@ ADAPTER_DIR = TRAINING_DIR / "adapters" / "aura-personality"
 CRSM_DELTA_DATA_DIR = DATA_DIR / "crsm_delta"
 CRSM_DELTA_MANIFEST = DATA_DIR / "crsm_delta_manifest.json"
 FUSED_BASE_DIR = TRAINING_DIR / "fused-model"
-ACTIVE_MANIFEST = FUSED_BASE_DIR / "active.json"
 CRSM_DATASET = REPO_DIR / "data" / "synthetic_training" / "lora_dataset.jsonl"
 CRSM_INTEGRATION_MANIFEST = DATA_DIR / "crsm_integration_manifest.json"
 
@@ -878,38 +878,38 @@ def verify_load(fused_path: Path) -> None:
         sys.exit(f"Verification load failed (exit {rc}).")
 
 
-def publish_manifest(fused_path: Path, *, tag: str, base_model: Path) -> None:
-    """Atomically write active.json so Aura's next boot uses the new model.
+def publish_manifest(
+    fused_path: Path,
+    *,
+    tag: str,
+    base_model: Path,
+) -> dict[str, Any]:
+    """Record a fused candidate while leaving the resident pointer unchanged.
 
-    The manifest now includes the base-model size so downstream RAM-aware
-    routing (model_registry, inference_gate) can branch on it without
-    re-parsing the directory name."""
+    The historical function name remains for callers. Publication now means
+    publication to the qualification queue, never direct serving authority.
+    """
     FUSED_BASE_DIR.mkdir(parents=True, exist_ok=True)
     descriptor = build_model_artifact_descriptor(fused_path)
-    manifest = {
-        "active_model_path": str(fused_path),
-        "artifact_descriptor": descriptor,
-        "fused_at": int(time.time()),
-        "tag": tag or "",
-        "size": _model_size_tag(base_model),
-        "base_model": str(base_model),
-        "schema_version": 3,
-    }
     governance = delegated_governance_provenance()
-    if governance:
-        manifest["governance"] = governance
-    atomic_write_text(
-        ACTIVE_MANIFEST,
-        json.dumps(manifest, indent=2, sort_keys=True),
-        encoding="utf-8",
+    receipt = record_upgrade_candidate(
+        candidate_model_path=fused_path,
+        base_model_path=base_model,
+        tag=tag or "",
+        fused_model_dir=FUSED_BASE_DIR,
+        artifact_descriptor=descriptor,
+        source="training.train_and_fuse",
+        metadata={"size": _model_size_tag(base_model)},
+        governance=governance,
     )
-    print(f"\nWrote active manifest: {ACTIVE_MANIFEST}")
-    print(json.dumps(manifest, indent=2))
+    print(f"\nRecorded candidate receipt: {receipt['candidate_receipt_path']}")
+    print(json.dumps(receipt, indent=2, sort_keys=True))
     print(
-        "\nNext Aura boot will use this fused model automatically. "
-        "If AURA_LLM__MLX_MODEL_PATH is set in .env it still wins — "
-        "remove or update that line to let the manifest drive."
+        "\nAura's active cortex is unchanged. Evaluate the candidate, build "
+        "its migration and serving contracts, then stage and activate it "
+        "through core.learning.cortex_generation_upgrade."
     )
+    return receipt
 
 
 def _read_json(path: Path) -> dict:

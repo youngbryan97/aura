@@ -118,26 +118,36 @@ def test_published_model_manifest_preserves_governance_provenance(
     base_model = tmp_path / "Qwen2.5-32B-Instruct-4bit"
     fused_path.mkdir(parents=True)
     base_model.mkdir()
-    active_manifest = fused_root / "active.json"
     monkeypatch.setattr(train_and_fuse, "FUSED_BASE_DIR", fused_root)
-    monkeypatch.setattr(train_and_fuse, "ACTIVE_MANIFEST", active_manifest)
     descriptor = {"descriptor_sha256": "a" * 64}
     monkeypatch.setattr(
         train_and_fuse,
         "build_model_artifact_descriptor",
         lambda _path: descriptor,
     )
+    captured: dict[str, object] = {}
 
-    train_and_fuse.publish_manifest(
+    def _record(**kwargs):
+        captured.update(kwargs)
+        return {
+            "candidate_receipt_path": str(fused_root / "candidates" / "candidate.json"),
+            "active_pointer_unchanged": True,
+        }
+
+    monkeypatch.setattr(train_and_fuse, "record_upgrade_candidate", _record)
+
+    receipt = train_and_fuse.publish_manifest(
         fused_path,
         tag="crsm-closeout",
         base_model=base_model,
     )
 
-    manifest = json.loads(active_manifest.read_text(encoding="utf-8"))
-    assert manifest["schema_version"] == 3
-    assert manifest["artifact_descriptor"] == descriptor
-    assert manifest["governance"] == {
+    assert receipt["active_pointer_unchanged"] is True
+    assert captured["artifact_descriptor"] == descriptor
+    assert captured["candidate_model_path"] == fused_path
+    assert captured["base_model_path"] == base_model
+    assert captured["source"] == "training.train_and_fuse"
+    assert captured["governance"] == {
         "will_receipt_id": "will-train-1",
         "executive_intent_id": "intent-train-1",
         "domain": "semantic_weight_update",

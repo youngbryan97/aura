@@ -40,6 +40,7 @@ from core.learning.cortex_generation_upgrade import (  # noqa: E402
     capability_battery,
     compare_batteries,
     normalize_active_pointer_identity,
+    record_upgrade_candidate,
     rollback_upgrade,
     stage_upgrade,
 )
@@ -387,6 +388,34 @@ def _write_model_artifact(path, weights, *, model_type):
 
 def _digest(label):
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def test_candidate_record_is_exact_and_does_not_change_active_pointer(tmp_path):
+    fused, candidate = _fused_dir(tmp_path)
+    active_before = (fused / "active.json").read_bytes()
+    descriptor = build_model_artifact_descriptor(candidate)
+
+    receipt = record_upgrade_candidate(
+        candidate_model_path=candidate,
+        base_model_path=tmp_path / "current-model",
+        tag="candidate",
+        fused_model_dir=fused,
+        artifact_descriptor=descriptor,
+        source="test",
+        metadata={"load_verified": True},
+    )
+
+    candidate_receipt = Path(receipt["candidate_receipt_path"])
+    persisted = json.loads(candidate_receipt.read_text(encoding="utf-8"))
+    assert receipt["active_pointer_unchanged"] is True
+    assert (fused / "active.json").read_bytes() == active_before
+    assert persisted["schema"] == "aura.cortex_upgrade.candidate.v1"
+    assert persisted["model_descriptor_sha256"] == descriptor["descriptor_sha256"]
+    assert persisted["incumbent_pointer_sha256"] == hashlib.sha256(
+        active_before
+    ).hexdigest()
+    assert persisted["qualification_state"] == "awaiting_evaluation"
+    assert persisted["required_next_step"] == "evaluate_plan_stage_activate"
 
 
 def _upgrade_contracts(candidate, *, repository_id="", revision=""):

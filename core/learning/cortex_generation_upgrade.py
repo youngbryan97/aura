@@ -57,6 +57,7 @@ logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 
 EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v3"
 EVALUATION_PROGRESS_SCHEMA = "aura.cortex_upgrade.evaluation_progress.v1"
+CANDIDATE_SCHEMA = "aura.cortex_upgrade.candidate.v1"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
 MIGRATION_CONTRACT_SCHEMA = "aura.cortex_upgrade.migration_contract.v2"
 STAGING_SCHEMA = "aura.cortex_upgrade.staging.v2"
@@ -83,6 +84,7 @@ _REQUIRED_MIGRATION_COMPONENTS = frozenset(
 STAGED_POINTER_NAME = "active.json.staged"
 ROLLBACK_POINTER_NAME = "active.json.rollback"
 IDENTITY_BACKUP_POINTER_NAME = "active.json.identity-backup"
+CANDIDATE_DIRECTORY_NAME = "candidates"
 
 # Memory guard: candidate projected RSS = on-disk weight bytes × this factor
 # (activation buffers, cache); the host must retain this many GB free AFTER
@@ -825,6 +827,89 @@ def _governed_write(path: Path, payload: bytes, *, source: str) -> None:
         gateway.write_bytes(path, payload, source=source)
 
 
+def record_upgrade_candidate(
+    *,
+    candidate_model_path: Path | str,
+    base_model_path: Path | str,
+    tag: str,
+    fused_model_dir: Path | str | None = None,
+    artifact_descriptor: dict[str, Any] | None = None,
+    source: str,
+    metadata: dict[str, Any] | None = None,
+    governance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record a fused model without granting it serving authority.
+
+    A successful fuse and load prove that an artifact exists. They do not prove
+    capability, serving fitness, identity migration, or lack of regressions.
+    This receipt binds the candidate to exact bytes and to the incumbent it must
+    beat while leaving ``active.json`` unchanged.
+    """
+    if fused_model_dir is None:
+        from core.brain.llm.model_registry import get_fused_model_root
+
+        fused_model_dir = get_fused_model_root()
+    fused_model_dir = Path(fused_model_dir)
+    candidate = Path(candidate_model_path).expanduser().resolve(strict=True)
+    if not candidate.is_dir():
+        raise ValueError(f"candidate model directory missing: {candidate}")
+    base_model = Path(base_model_path).expanduser().resolve(strict=True)
+    if not base_model.is_dir():
+        raise ValueError(f"base model directory missing: {base_model}")
+
+    descriptor = artifact_descriptor or build_model_artifact_descriptor(candidate)
+    validate_model_artifact_descriptor(
+        descriptor,
+        model_path=candidate,
+        verify_full_hash=True,
+    )
+    pointer_path = fused_model_dir / "active.json"
+    incumbent_bytes = pointer_path.read_bytes()
+    incumbent = _read_pointer(pointer_path)
+    material: dict[str, Any] = {
+        "schema": CANDIDATE_SCHEMA,
+        "candidate_model_path": str(candidate),
+        "base_model_path": str(base_model),
+        "artifact_descriptor": descriptor,
+        "model_descriptor_sha256": descriptor["descriptor_sha256"],
+        "incumbent_model_path": str(incumbent["active_model_path"]),
+        "incumbent_pointer_sha256": hashlib.sha256(incumbent_bytes).hexdigest(),
+        "tag": str(tag),
+        "source": str(source),
+        "metadata": dict(metadata or {}),
+        "governance": dict(governance or {}),
+        "qualification_state": "awaiting_evaluation",
+        "required_next_step": "evaluate_plan_stage_activate",
+        "recorded_at": time.time(),
+    }
+    receipt_material = json.dumps(
+        material,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+    material["candidate_receipt_sha256"] = hashlib.sha256(
+        receipt_material
+    ).hexdigest()
+    payload = (json.dumps(material, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    candidate_path = (
+        fused_model_dir
+        / CANDIDATE_DIRECTORY_NAME
+        / f"{descriptor['descriptor_sha256']}.json"
+    )
+    _governed_write(candidate_path, payload, source="cortex_upgrade.candidate")
+    if pointer_path.read_bytes() != incumbent_bytes:
+        raise RuntimeError("candidate_record_changed_active_pointer")
+    return {
+        **material,
+        "candidate_receipt_path": str(candidate_path),
+        "active_pointer_unchanged": True,
+    }
+
+
 def normalize_active_pointer_identity(
     *,
     artifact_descriptor: dict[str, Any],
@@ -1142,6 +1227,8 @@ def rollback_upgrade(*, fused_model_dir: Path | str | None = None) -> dict[str, 
 __all__ = [
     "ACTIVATION_SCHEMA",
     "BREADTH_PROBES",
+    "CANDIDATE_DIRECTORY_NAME",
+    "CANDIDATE_SCHEMA",
     "EVALUATION_SCHEMA",
     "EVALUATION_PROGRESS_SCHEMA",
     "IDENTITY_BACKUP_POINTER_NAME",
@@ -1160,6 +1247,7 @@ __all__ = [
     "capability_battery",
     "compare_batteries",
     "normalize_active_pointer_identity",
+    "record_upgrade_candidate",
     "rollback_upgrade",
     "stage_upgrade",
     "validate_migration_contract",
