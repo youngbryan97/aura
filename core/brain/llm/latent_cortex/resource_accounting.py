@@ -21,12 +21,26 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.brain.llm.decoder_topology import (
+    FULL_ATTENTION,
+    LINEAR_ATTENTION,
+    DecoderTopologyError,
+    decoder_layers,
+    resolve_language_model,
+    topology_from_model,
+)
+
 MODEL_PROFILE_SCHEMA = "aura.rlc.model_compute_profile.v1"
+HYBRID_MODEL_PROFILE_SCHEMA = "aura.rlc.model_compute_profile.v2"
 RESOURCE_ACCOUNTING_SCHEMA = "aura.rlc.resource_accounting.v1"
 INFORMATION_ACCOUNTING_SCHEMA = "aura.rlc.information_accounting.v1"
 COMPARISON_ACCOUNTING_SCHEMA = "aura.rlc.comparison_accounting.v1"
 RESOURCE_DOMINANCE_SCHEMA = "aura.rlc.resource_dominance.v1"
 ESTIMATOR_VERSION = "dense_decoder_gqa_structural_flops_v1"
+#: Hybrid decoders cost different FLOPs per layer kind, so their estimates
+#: cannot be compared against a dense estimator's. A separate version string
+#: keeps a v1 receipt from silently grading a v2 arm.
+HYBRID_ESTIMATOR_VERSION = "hybrid_decoder_gated_delta_structural_flops_v1"
 
 RESOURCE_COUNTERS = (
     "transformer_layer_apps",
@@ -108,11 +122,18 @@ class ModelComputeProfile:
     vocab_size: int
     head_dim: int
     estimator_version: str = ESTIMATOR_VERSION
+    #: One entry per hidden layer when the decoder is hybrid; empty means the
+    #: legacy dense reading, where every layer is an attention layer.
+    layer_kinds: tuple[str, ...] = ()
+    #: GatedDeltaNet geometry, present only on hybrid decoders.
+    linear_key_head_dim: int = 0
+    linear_value_head_dim: int = 0
+    linear_num_key_heads: int = 0
+    linear_num_value_heads: int = 0
+    linear_conv_kernel_dim: int = 0
 
     def __post_init__(self) -> None:
         _bounded_name(self.model_type, field_name="model_type")
-        if self.estimator_version != ESTIMATOR_VERSION:
-            raise ValueError("unsupported compute estimator version")
         for name in (
             "hidden_size",
             "intermediate_size",
@@ -125,21 +146,69 @@ class ModelComputeProfile:
             value = getattr(self, name)
             if type(value) is not int or not 1 <= value <= 10_000_000:
                 raise ValueError(f"{name} must be a bounded positive integer")
-        if self.hidden_size != self.num_attention_heads * self.head_dim:
-            raise ValueError("hidden_size must equal num_attention_heads * head_dim")
+        # A decoder may project to a query width other than its residual
+        # width: Qwen3.5 uses 24 heads of 256 against a 5120 stream, which is
+        # legal and normal. The old equality refused such a checkpoint
+        # outright, so what is checked now is that the projection width is
+        # positive and the KV group divides the query heads.
+        if self.num_attention_heads * self.head_dim < 1:
+            raise ValueError("attention projection width must be positive")
         if self.num_key_value_heads > self.num_attention_heads:
             raise ValueError("num_key_value_heads cannot exceed attention heads")
+        if self.num_attention_heads % self.num_key_value_heads:
+            raise ValueError("attention heads must divide into key/value groups")
+        for entry in self.layer_kinds:
+            if entry not in (FULL_ATTENTION, LINEAR_ATTENTION):
+                raise ValueError("layer kind is not a recognised decoder layer")
+        if self.layer_kinds and len(self.layer_kinds) != self.num_hidden_layers:
+            raise ValueError("layer kinds must cover every hidden layer")
+        if self.layer_kinds and FULL_ATTENTION not in self.layer_kinds:
+            raise ValueError("a decoder profile needs at least one attention layer")
+        if self.is_hybrid and self.estimator_version != HYBRID_ESTIMATOR_VERSION:
+            raise ValueError("a hybrid decoder needs the hybrid estimator")
+        if not self.is_hybrid and self.estimator_version != ESTIMATOR_VERSION:
+            raise ValueError("a dense decoder needs the dense estimator")
+
+    @property
+    def is_hybrid(self) -> bool:
+        return LINEAR_ATTENTION in self.layer_kinds
+
+    @property
+    def attention_layer_count(self) -> int:
+        if not self.layer_kinds:
+            return self.num_hidden_layers
+        return sum(1 for kind in self.layer_kinds if kind == FULL_ATTENTION)
+
+    @property
+    def linear_layer_count(self) -> int:
+        return self.num_hidden_layers - self.attention_layer_count
 
     @classmethod
     def from_model(cls, model: Any) -> ModelComputeProfile:
-        inner = getattr(model, "model", None)
-        args = getattr(model, "args", None) or getattr(inner, "args", None)
-        layers = getattr(inner, "layers", None)
+        """Read the profile off a loaded decoder, whatever wrapper holds it.
+
+        The old walk looked for ``model.model.args`` and reported "no decoder
+        compute profile" for any checkpoint that packaged things differently.
+        Qwen3.5 exposes ``language_model``, so a live 27B failed here before
+        any estimate was attempted.
+        """
+        try:
+            language = resolve_language_model(model)
+            layers = decoder_layers(model)
+        except DecoderTopologyError as exc:
+            raise ValueError(str(exc)) from exc
+        args = getattr(language, "args", None)
         if args is None or not layers:
             raise ValueError("model does not expose a decoder compute profile")
+
         hidden = int(args.hidden_size)
         heads = int(args.num_attention_heads)
         head_dim = int(getattr(args, "head_dim", 0) or hidden // heads)
+        topology = topology_from_model(model)
+        kinds: tuple[str, ...] = ()
+        if topology.is_hybrid:
+            kinds = tuple(entry.kind for entry in topology.layers)
+
         return cls(
             model_type=str(getattr(args, "model_type", type(model).__name__)),
             hidden_size=hidden,
@@ -149,7 +218,83 @@ class ModelComputeProfile:
             num_key_value_heads=int(getattr(args, "num_key_value_heads", heads)),
             vocab_size=int(args.vocab_size),
             head_dim=head_dim,
+            estimator_version=(
+                HYBRID_ESTIMATOR_VERSION if kinds else ESTIMATOR_VERSION
+            ),
+            layer_kinds=kinds,
+            # Gated-delta geometry belongs to a hybrid decoder. Reading it off
+            # a dense one -- an args object can carry defaults it never uses --
+            # puts values in the profile that its own receipt omits, so the
+            # profile stops round-tripping through its receipt.
+            **(
+                {
+                    "linear_key_head_dim": int(
+                        getattr(args, "linear_key_head_dim", 0) or 0
+                    ),
+                    "linear_value_head_dim": int(
+                        getattr(args, "linear_value_head_dim", 0) or 0
+                    ),
+                    "linear_num_key_heads": int(
+                        getattr(args, "linear_num_key_heads", 0) or 0
+                    ),
+                    "linear_num_value_heads": int(
+                        getattr(args, "linear_num_value_heads", 0) or 0
+                    ),
+                    "linear_conv_kernel_dim": int(
+                        getattr(args, "linear_conv_kernel_dim", 0) or 0
+                    ),
+                }
+                if kinds
+                else {}
+            ),
         )
+
+    @property
+    def linear_flops_per_token_layer(self) -> int:
+        """One gated-delta layer's structural cost per token.
+
+        Counted from the block's own projections: ``in_proj_qkv`` to
+        ``2 * key_dim + value_dim``, ``in_proj_z`` to ``value_dim``, the two
+        per-head scalar projections, the depthwise causal convolution, and
+        ``out_proj`` back to the residual width. The recurrent state update
+        itself is linear in the value width and is counted once per token.
+        """
+        if not self.is_hybrid:
+            return 0
+        hidden = self.hidden_size
+        key_dim = self.linear_num_key_heads * self.linear_key_head_dim
+        value_dim = self.linear_num_value_heads * self.linear_value_head_dim
+        conv_dim = 2 * key_dim + value_dim
+        projections = 2 * hidden * (conv_dim + value_dim + 2 * self.linear_num_value_heads)
+        out = 2 * value_dim * hidden
+        convolution = 2 * conv_dim * self.linear_conv_kernel_dim
+        recurrent = 4 * value_dim
+        mlp = 6 * hidden * self.intermediate_size
+        elementwise = 18 * hidden + 4 * value_dim
+        return projections + out + convolution + recurrent + mlp + elementwise
+
+    def flops_per_token_layer(self, kind: str) -> int:
+        """Cost of one layer application, priced by what that layer is."""
+        if kind == LINEAR_ATTENTION:
+            if not self.is_hybrid:
+                raise ValueError("a dense decoder has no linear-attention layers")
+            return self.linear_flops_per_token_layer
+        if kind != FULL_ATTENTION:
+            raise ValueError("layer kind is not a recognised decoder layer")
+        return self.dense_flops_per_token_layer
+
+    @property
+    def flops_per_token_full_stack(self) -> int:
+        """One token through every layer, priced per kind.
+
+        A hybrid decoder charged at the dense rate overstates its own cost,
+        because three layers in four are cheaper than an attention layer. That
+        error inflates an equal-FLOP control and hands the treatment arm a
+        budget it did not earn.
+        """
+        if not self.is_hybrid:
+            return self.num_hidden_layers * self.dense_flops_per_token_layer
+        return sum(self.flops_per_token_layer(kind) for kind in self.layer_kinds)
 
     @property
     def dense_flops_per_token_layer(self) -> int:
@@ -213,8 +358,13 @@ class ModelComputeProfile:
         )
 
     def to_receipt(self) -> dict[str, Any]:
+        # A dense profile keeps emitting v1 byte for byte, so every existing
+        # certificate and preregistered digest still verifies. Hybrid fields
+        # would change those digests, so they travel in v2 instead.
         body = {
-            "schema": MODEL_PROFILE_SCHEMA,
+            "schema": (
+                HYBRID_MODEL_PROFILE_SCHEMA if self.is_hybrid else MODEL_PROFILE_SCHEMA
+            ),
             "estimator_version": self.estimator_version,
             "model_type": self.model_type,
             "hidden_size": self.hidden_size,
@@ -228,6 +378,21 @@ class ModelComputeProfile:
             "flops_per_attention_pair": self.flops_per_attention_pair,
             "flops_per_output_head_token": self.flops_per_output_head_token,
         }
+        if self.is_hybrid:
+            body.update(
+                {
+                    "layer_kinds": list(self.layer_kinds),
+                    "attention_layer_count": self.attention_layer_count,
+                    "linear_layer_count": self.linear_layer_count,
+                    "linear_key_head_dim": self.linear_key_head_dim,
+                    "linear_value_head_dim": self.linear_value_head_dim,
+                    "linear_num_key_heads": self.linear_num_key_heads,
+                    "linear_num_value_heads": self.linear_num_value_heads,
+                    "linear_conv_kernel_dim": self.linear_conv_kernel_dim,
+                    "linear_flops_per_token_layer": self.linear_flops_per_token_layer,
+                    "flops_per_token_full_stack": self.flops_per_token_full_stack,
+                }
+            )
         return {**body, "profile_sha256": _canonical_sha256(body)}
 
     @classmethod
@@ -250,9 +415,33 @@ class ModelComputeProfile:
             "flops_per_output_head_token",
             "profile_sha256",
         }
-        if set(value) != required or value.get("schema") != MODEL_PROFILE_SCHEMA:
+        hybrid_required = required | {
+            "layer_kinds",
+            "attention_layer_count",
+            "linear_layer_count",
+            "linear_key_head_dim",
+            "linear_value_head_dim",
+            "linear_num_key_heads",
+            "linear_num_value_heads",
+            "linear_conv_kernel_dim",
+            "linear_flops_per_token_layer",
+            "flops_per_token_full_stack",
+        }
+        schema = value.get("schema")
+        if schema == HYBRID_MODEL_PROFILE_SCHEMA:
+            if set(value) != hybrid_required:
+                raise ValueError("model compute profile schema is invalid")
+        elif schema == MODEL_PROFILE_SCHEMA:
+            if set(value) != required:
+                raise ValueError("model compute profile schema is invalid")
+        else:
             raise ValueError("model compute profile schema is invalid")
-        body = {key: value[key] for key in required - {"profile_sha256"}}
+        fields = (
+            hybrid_required
+            if schema == HYBRID_MODEL_PROFILE_SCHEMA
+            else required
+        )
+        body = {key: value[key] for key in fields - {"profile_sha256"}}
         if value.get("profile_sha256") != _canonical_sha256(body):
             raise ValueError("model compute profile digest differs")
         profile = cls(
@@ -265,6 +454,12 @@ class ModelComputeProfile:
             vocab_size=value["vocab_size"],
             head_dim=value["head_dim"],
             estimator_version=value["estimator_version"],
+            layer_kinds=tuple(value.get("layer_kinds") or ()),
+            linear_key_head_dim=int(value.get("linear_key_head_dim") or 0),
+            linear_value_head_dim=int(value.get("linear_value_head_dim") or 0),
+            linear_num_key_heads=int(value.get("linear_num_key_heads") or 0),
+            linear_num_value_heads=int(value.get("linear_num_value_heads") or 0),
+            linear_conv_kernel_dim=int(value.get("linear_conv_kernel_dim") or 0),
         )
         expected = profile.to_receipt()
         if dict(value) != expected:
