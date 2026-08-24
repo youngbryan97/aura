@@ -4066,6 +4066,8 @@ class HealthAwareLLMRouter:
         start = time.monotonic()
 
         try:
+            client_generation_metadata_sink: dict[str, Any] = {}
+
             def _call_kwargs(method: Any) -> dict[str, Any]:
                 try:
                     sig = inspect.signature(method)
@@ -4075,6 +4077,10 @@ class HealthAwareLLMRouter:
                 if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
                     payload = dict(clean_kwargs)
                     payload.setdefault("timeout", timeout)
+                    if "_generation_metadata_sink" in sig.parameters:
+                        payload["_generation_metadata_sink"] = (
+                            client_generation_metadata_sink
+                        )
                     return payload
 
                 payload = {
@@ -4084,6 +4090,10 @@ class HealthAwareLLMRouter:
                 }
                 if "timeout" in sig.parameters:
                     payload["timeout"] = timeout
+                if "_generation_metadata_sink" in sig.parameters:
+                    payload["_generation_metadata_sink"] = (
+                        client_generation_metadata_sink
+                    )
                 return payload
 
             # 1. Sanitize kwargs for JSON (remove non-serializable like LLMTier)
@@ -4337,8 +4347,18 @@ class HealthAwareLLMRouter:
                     if raw_text:
                         token_count = len(str(raw_text).split())
                         latency_ms = (time.monotonic() - start) * 1000
-                        surface_control_receipt = {}
-                        if hasattr(client, "get_last_surface_control_receipt"):
+                        raw_sink_receipt = client_generation_metadata_sink.get(
+                            "surface_control_receipt"
+                        )
+                        surface_control_receipt = (
+                            dict(raw_sink_receipt)
+                            if isinstance(raw_sink_receipt, dict)
+                            else {}
+                        )
+                        if (
+                            not surface_control_receipt
+                            and hasattr(client, "get_last_surface_control_receipt")
+                        ):
                             try:
                                 raw_receipt = client.get_last_surface_control_receipt()
                                 if isinstance(raw_receipt, dict):
@@ -4392,11 +4412,13 @@ class HealthAwareLLMRouter:
                             payload["surface_control_receipt"] = surface_control_receipt
                         return payload
                     else:
-                        generation_metadata: dict[str, Any] = {}
+                        generation_metadata: dict[str, Any] = dict(
+                            client_generation_metadata_sink
+                        )
                         metadata_getter = getattr(
                             client, "get_last_generation_metadata", None
                         )
-                        if callable(metadata_getter):
+                        if not generation_metadata and callable(metadata_getter):
                             try:
                                 raw_metadata = metadata_getter()
                                 if isinstance(raw_metadata, dict):

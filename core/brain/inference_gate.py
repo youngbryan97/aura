@@ -14144,7 +14144,14 @@ class InferenceGate:
         """
         return dict(getattr(self, "_last_post_inference_receipt", {}) or {})
 
-    async def think(self, prompt: str, system_prompt: str = "", **kwargs) -> str | None:
+    async def think(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        *,
+        _generation_metadata_sink: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> str | None:
         """Unified thinking interface for cognitive components.
 
         Preserve standard LLM adapter semantics:
@@ -14238,6 +14245,16 @@ class InferenceGate:
                 "think() ignored undeclared kwargs: %s", ", ".join(unknown_keys)
             )
         result = await self.generate(prompt, context=context, timeout=timeout)
+        if isinstance(_generation_metadata_sink, dict):
+            # The health router executes an endpoint call inside its own
+            # ``asyncio.wait_for`` task. ContextVars intentionally do not flow
+            # back from that child task, so a receipt read by the router after
+            # the await is empty even though this exact request produced one.
+            # Publish into a caller-owned mutable object while we are still in
+            # the request task; this is evidence transport, not process-wide
+            # "last call" telemetry.
+            _generation_metadata_sink.clear()
+            _generation_metadata_sink.update(self.get_last_generation_metadata())
         if isinstance(result, str) and result.strip():
             # Close the bidirectional causal loop AFTER the answer is on its
             # way, not in front of it.

@@ -311,6 +311,65 @@ async def test_router_exports_generation_metadata_across_wait_for_task_boundary(
 
 
 @pytest.mark.asyncio
+async def test_router_uses_request_sink_when_client_context_receipt_cannot_escape():
+    resume_handle = "e" * 32
+
+    class NestedTaskGate:
+        async def think(
+            self,
+            prompt,
+            system_prompt="",
+            *,
+            _generation_metadata_sink=None,
+            **_kwargs,
+        ):
+            await asyncio.sleep(0)
+            _generation_metadata_sink.update(
+                {
+                    "ok": True,
+                    "surface_control_receipt": {
+                        "continuation_resume_available": True,
+                        "continuation_resume_handle": resume_handle,
+                    },
+                }
+            )
+            return "retained partial answer"
+
+        @staticmethod
+        def get_last_surface_control_receipt():
+            # A ContextVar set in the endpoint task is empty to its parent.
+            return {}
+
+    router = HealthAwareLLMRouter()
+    router.register(
+        name="Cortex",
+        url="internal",
+        model="cortex-27b",
+        is_local=True,
+        tier="local",
+        client=NestedTaskGate(),
+    )
+    metadata_sink = {}
+
+    text = await asyncio.wait_for(
+        router.think(
+            "Continue the exact generation.",
+            prefer_tier="primary",
+            origin="user",
+            foreground_request=True,
+            skip_runtime_payload=True,
+            _generation_metadata_sink=metadata_sink,
+        ),
+        timeout=1.0,
+    )
+
+    assert text == "retained partial answer"
+    assert metadata_sink["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+
+
+@pytest.mark.asyncio
 async def test_compatibility_reflex_endpoint_is_local_and_excluded_from_cloud_only():
     from types import SimpleNamespace
 

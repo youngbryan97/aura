@@ -3527,6 +3527,48 @@ async def test_inference_gate_receives_quality_rejection_across_wait_for_task_bo
     ] == "valid draft held for review"
 
 
+@pytest.mark.asyncio
+async def test_think_exports_request_metadata_across_parent_wait_for_boundary(monkeypatch):
+    gate = InferenceGate()
+    resume_handle = "f" * 32
+
+    async def _generate(*_args, **_kwargs):
+        gate._publish_generation_metadata(
+            {
+                "ok": True,
+                "surface_control_receipt": {
+                    "continuation_resume_available": True,
+                    "continuation_resume_handle": resume_handle,
+                },
+            },
+            {
+                "continuation_resume_available": True,
+                "continuation_resume_handle": resume_handle,
+            },
+        )
+        return "partial answer"
+
+    async def _skip_post_inference(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(gate, "generate", _generate)
+    monkeypatch.setattr(gate, "_schedule_post_inference_update", _skip_post_inference)
+    metadata_sink = {}
+
+    text = await asyncio.wait_for(
+        gate.think(
+            "Explain the complete result.",
+            _generation_metadata_sink=metadata_sink,
+        ),
+        timeout=1.0,
+    )
+
+    assert text == "partial answer"
+    assert metadata_sink["surface_control_receipt"][
+        "continuation_resume_handle"
+    ] == resume_handle
+
+
 def test_inference_gate_records_stabilization_without_prior_provider_receipt():
     gate = InferenceGate()
     gate._clear_last_generation_metadata()
