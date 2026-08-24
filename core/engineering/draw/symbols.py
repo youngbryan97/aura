@@ -17,6 +17,7 @@ does not needs one badly.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -104,6 +105,35 @@ def _register(
     return decorate
 
 
+def _fitted_label(
+    canvas: Canvas, centre: Point, label: str, width: float, size: float,
+    colour: str, layer: str, *, mono: bool = False, lines: int = 2,
+) -> None:
+    """Write a name inside a symbol, wrapped and shrunk until it fits.
+
+    Truncating to a character count cut a controller labelled "control
+    computer" down to "contro", which reads as a mistake rather than as an
+    abbreviation.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return
+    height = size
+    for _ in range(6):
+        wrapped = canvas.wrap_lines(text, width, height, mono=mono)
+        if len(wrapped) <= lines:
+            break
+        height *= 0.82
+    else:
+        wrapped = canvas.wrap_lines(text, width, height, mono=mono)[:lines]
+    top = centre[1] - (len(wrapped) - 1) * height * 0.62
+    for index, line in enumerate(wrapped[:lines]):
+        canvas.text(
+            (centre[0], top + index * height * 1.24), line, size=height,
+            anchor="middle", colour=colour, layer=layer, baseline="central", mono=mono,
+        )
+
+
 def _p(centre: Point, size: float, x: float, y: float) -> Point:
     return (centre[0] + x * size, centre[1] + y * size)
 
@@ -146,7 +176,7 @@ def _resistor(canvas: Canvas, centre: Point, size: float, colour: str, layer: st
 
 @_register("capacitor", "Capacitor", "capacitor", "IEC 60617", "electrical", LEFT_RIGHT,
            "Stores a little charge; passes changing signals and blocks steady ones.",
-           keywords=("capacitor", "cap"))
+           keywords=("capacitor",))
 def _capacitor(canvas: Canvas, centre: Point, size: float, colour: str, layer: str,
                polarised: bool = False, **_: Any) -> None:
     canvas.line(_p(centre, size, -1.0, 0.0), _p(centre, size, -0.16, 0.0),
@@ -398,9 +428,7 @@ def _controller(canvas: Canvas, centre: Point, size: float, colour: str, layer: 
                     kind="thin", colour=colour, layer=layer)
         canvas.line(_p(centre, size, 0.9, offset), _p(centre, size, 1.0, offset),
                     kind="thin", colour=colour, layer=layer)
-    if label:
-        canvas.text(centre, label[:6], size=size * 0.5, anchor="middle",
-                    colour=colour, layer=layer, baseline="central", mono=True)
+    _fitted_label(canvas, centre, label, size * 1.7, size * 0.44, colour, layer, mono=True)
 
 
 @_register("sensor", "Sensor", "sensor", "IEC 60617", "signal",
@@ -659,9 +687,7 @@ def _macromolecule(canvas: Canvas, centre: Point, size: float, colour: str, laye
     canvas.rect(_p(centre, size, -0.95, -0.55), size * 1.9, size * 1.1,
                 kind="visible", colour=colour, fill=canvas.theme.paper,
                 radius=size * 0.3, layer=layer)
-    if label:
-        canvas.text(centre, label[:14], size=size * 0.42, anchor="middle",
-                    colour=colour, layer=layer, baseline="central")
+    _fitted_label(canvas, centre, label, size * 1.8, size * 0.42, colour, layer)
 
 
 @_register("simple_chemical", "Simple chemical", "small molecule", "SBGN PD", "biological",
@@ -672,9 +698,7 @@ def _simple_chemical(canvas: Canvas, centre: Point, size: float, colour: str, la
                      label: str = "", **_: Any) -> None:
     canvas.circle(centre, size * 0.8, kind="visible", colour=colour,
                   fill=canvas.theme.paper, layer=layer)
-    if label:
-        canvas.text(centre, label[:8], size=size * 0.42, anchor="middle",
-                    colour=colour, layer=layer, baseline="central")
+    _fitted_label(canvas, centre, label, size * 1.4, size * 0.42, colour, layer)
 
 
 @_register("process_node", "Process", "reaction", "SBGN PD", "biological",
@@ -726,9 +750,7 @@ def _block(canvas: Canvas, centre: Point, size: float, colour: str, layer: str,
                 kind="thin", colour=colour, layer=layer)
     canvas.line(_p(centre, size, 0.95, 0.0), _p(centre, size, 1.0, 0.0),
                 kind="thin", colour=colour, layer=layer)
-    if label:
-        canvas.text(centre, label[:16], size=size * 0.4, anchor="middle",
-                    colour=colour, layer=layer, baseline="central")
+    _fitted_label(canvas, centre, label, size * 1.8, size * 0.4, colour, layer)
 
 
 @_register("summing", "Summing junction", "adder", "ISO 14617", "signal",
@@ -767,7 +789,9 @@ def _gain(canvas: Canvas, centre: Point, size: float, colour: str, layer: str,
            (Pin("a", -1.0, 0.0, "structural", "bidirectional"),
             Pin("b", 1.0, 0.0, "structural", "bidirectional")),
            "A beam, strut or bracket that carries load between two points.",
-           keywords=("beam", "strut", "bracket", "frame", "member", "hull", "chassis", "plate"),
+           keywords=("beam", "strut", "bracket", "frame", "member", "hull", "chassis", "plate",
+                     "dome", "cap", "cover", "lid", "housing", "enclosure", "shell", "case",
+                     "panel", "rib", "spar", "mount", "body"),
            aspect=2.0)
 def _structure(canvas: Canvas, centre: Point, size: float, colour: str, layer: str, **_: Any) -> None:
     canvas.rect(_p(centre, size, -1.0, -0.22), size * 2.0, size * 0.44,
@@ -779,23 +803,47 @@ def _structure(canvas: Canvas, centre: Point, size: float, colour: str, layer: s
     )
 
 
-def symbol_for(text: str, *, domain: str = "") -> Symbol:
+#: Whole words only. Substring matching drew a hemispherical "end cap" as a
+#: capacitor, because "cap" is one of that symbol's keywords.
+_WORD_CACHE: dict[str, "re.Pattern[str]"] = {}
+
+
+def _mentions(haystack: str, word: str) -> bool:
+    pattern = _WORD_CACHE.get(word)
+    if pattern is None:
+        pattern = re.compile(rf"(?<![a-z]){re.escape(word)}(?![a-z])")
+        _WORD_CACHE[word] = pattern
+    return bool(pattern.search(haystack))
+
+
+def symbol_for(
+    text: str, *, domain: str = "", tags: tuple[str, ...] = (), description: str = ""
+) -> Symbol:
     """Pick the symbol a part's name, tags and domain point at.
+
+    What the part IS outweighs what its description mentions. The first pass
+    drew a hemispherical end cap as a sensor, because its one-line function
+    said it "carries the camera window" and the word camera was worth more
+    than everything else. A part's own name and tags are searched at full
+    weight; its prose only breaks a tie.
 
     Falls back to a plain block, because an unlabelled box in the right place
     with the right connections is still a readable schematic, and a wrong
     symbol is worse than a neutral one.
     """
-    haystack = str(text or "").lower()
+    strong = " ".join([str(text or ""), " ".join(tags)]).lower()
+    weak = str(description or "").lower()
     best: Symbol | None = None
-    best_score = 0
+    best_score = 0.0
     for symbol in SYMBOLS.values():
-        score = 0
+        score = 0.0
         for word in symbol.keywords:
-            if word in haystack:
-                score += len(word)
-        if domain and symbol.domain == domain:
-            score += 1
+            if _mentions(strong, word):
+                score += len(word) * 4.0
+            elif _mentions(weak, word):
+                score += len(word) * 0.5
+        if domain and symbol.domain == domain and score > 0:
+            score += 1.0
         if score > best_score:
             best = symbol
             best_score = score
