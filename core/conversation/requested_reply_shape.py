@@ -79,6 +79,8 @@ _MANNER_WORDS = frozenset(
     apologizing collapsing lecture lecturing
     ai assistant answer answers answering reply replies replying respond
     responding response point words word question questions
+    stop stopping end ending cut cutoff off mid sentence sentences omit omits
+    omitted omission requested request part parts complete completely completion
     """.split()
 )
 

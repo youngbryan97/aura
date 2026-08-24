@@ -206,6 +206,40 @@ def test_semantic_stop_waits_for_every_compound_request_obligation():
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=120)
 
 
+def test_semantic_stop_accepts_numbered_sections_after_fenced_pseudocode():
+    prompt = (
+        "Explain Dijkstra's algorithm in one complete response. Include: "
+        "(1) its core invariant, (2) numbered pseudocode, (3) a worked example "
+        "with at least five weighted edges, (4) heap and array complexity, and "
+        "(5) negative-weight failure and the alternative. Do not stop mid-sentence "
+        "or omit a requested part."
+    )
+    answer = """Dijkstra computes shortest paths on nonnegative graphs.
+## (1) Core invariant
+The core invariant finalizes the minimum unsettled distance.
+## (2) Numbered pseudocode
+```text
+1. Initialize distances.
+2. Extract the minimum.
+3. Relax outgoing edges.
+4. Repeat.
+```
+## (3) Worked example
+Use A-B: 4, A-C: 2, C-B: 1, B-D: 5, and C-D: 8. The final distance to D is 8.
+## (4) Complexity
+A binary heap takes O((V+E) log V), while an array takes O(V^2 + E).
+## (5) Failure and alternative
+Negative weights break the invariant; use Bellman-Ford instead.
+"""
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": prompt,
+    }
+
+    assert _semantic_surface_stop_ready(job, answer, generated_tokens=160)
+
+
 def test_deadline_terminal_grace_requires_all_semantics_except_final_boundary():
     prompt = (
         "Explain Dijkstra's algorithm in one complete response. Include: "

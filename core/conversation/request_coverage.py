@@ -209,6 +209,14 @@ _ALTERNATIVE_REVERSE_NOMINAL_RE = re.compile(
     r"(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4})",
     re.IGNORECASE,
 )
+_ALTERNATIVE_LABEL_RE = re.compile(
+    r"\b(?:correct\s+|recommended\s+|safe\s+)?"
+    r"(?:alternative|replacement)\s*(?::|=|[-\u2013\u2014])\s*"
+    r"(?:[*_`]{1,3})?(?P<candidate>"
+    r"[A-Za-z][A-Za-z0-9+*'-]*(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4}"
+    r")",
+    re.IGNORECASE,
+)
 _ALTERNATIVE_CAPABILITY_RE = re.compile(
     r"(?P<candidate>[A-Za-z][A-Za-z0-9+*'-]*"
     r"(?:[ \t]+[A-Za-z][A-Za-z0-9+*'-]*){0,4})[ \t]+"
@@ -362,7 +370,10 @@ _GRAPH_EDGE_RE = re.compile(
     r"\(\s*[A-Z]\s*[,\-]\s*[A-Z]\s*\)"
     r"|\(\s*[A-Z]{2}\s*\)"
     r"|\b[A-Z]\s*(?:->|→|--?|–|—|\bto\b)\s*[A-Z]\b"
-    r")\s*(?::|=|\(|\[)?\s*-?\d+(?:\.\d+)?",
+    # A Markdown table separates the endpoint pair and weight with a cell
+    # boundary (``| A-B | 4 |``).  That is the same structured edge witness as
+    # ``A-B: 4``; dropping it made a five-row table count as zero edges.
+    r")\s*(?:(?::|=|\(|\[)\s*|\|\s*)?-?\d+(?:\.\d+)?",
     re.IGNORECASE,
 )
 
@@ -598,7 +609,23 @@ def _numbered_answer_sections(body: Any) -> dict[int, str]:
     """Return numbered response bodies without confusing exponents for items."""
 
     text = str(body or "")
-    matches = list(_NUMBERED_ANSWER_SECTION_RE.finditer(text))
+    fenced_spans = _markdown_fence_spans(text)
+    matches = [
+        match
+        for match in _NUMBERED_ANSWER_SECTION_RE.finditer(text)
+        if not _offset_is_inside_markdown_fence(fenced_spans, match.start())
+    ]
+    # When an answer uses numbered Markdown headings, those headings are the
+    # strongest available section boundary.  Numbered pseudocode inside the
+    # section can otherwise become the first observed ``3``/``4``/``5`` and
+    # steal the identity of later answer sections.  Prefer the authored
+    # headings as one structural family; retain the compact-list fallback for
+    # answers that do not use headings.
+    heading_matches = [
+        match for match in matches if _numbered_match_is_markdown_heading(text, match)
+    ]
+    if len({int(match.group("number")) for match in heading_matches}) >= 2:
+        matches = heading_matches
     if len(matches) < 2:
         return {}
     sections: dict[int, str] = {}
@@ -609,6 +636,45 @@ def _numbered_answer_sections(body: Any) -> dict[int, str]:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         sections[number] = text[match.end() : end].strip()
     return sections
+
+
+def _markdown_fence_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Return byte-aligned spans occupied by fenced Markdown code blocks."""
+
+    spans: list[tuple[int, int]] = []
+    open_start: int | None = None
+    open_char = ""
+    open_width = 0
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})", line)
+        if marker is not None:
+            fence = marker.group("fence")
+            if open_start is None:
+                open_start = offset
+                open_char = fence[0]
+                open_width = len(fence)
+            elif fence[0] == open_char and len(fence) >= open_width:
+                spans.append((open_start, offset + len(line)))
+                open_start = None
+                open_char = ""
+                open_width = 0
+        offset += len(line)
+    if open_start is not None:
+        spans.append((open_start, len(text)))
+    return tuple(spans)
+
+
+def _offset_is_inside_markdown_fence(
+    spans: tuple[tuple[int, int], ...], offset: int
+) -> bool:
+    return any(start <= offset < end for start, end in spans)
+
+
+def _numbered_match_is_markdown_heading(text: str, match: re.Match[str]) -> bool:
+    line_start = text.rfind("\n", 0, match.start()) + 1
+    prefix = text[line_start : match.start()]
+    return bool(re.fullmatch(r"[ \t]{0,3}#{1,6}[ \t]*", prefix))
 
 
 def merge_numbered_answer_section(
@@ -804,6 +870,7 @@ def _alternative_is_covered(segment: Any, body: Any) -> bool | None:
             _ALTERNATIVE_ACTION_RE,
             _ALTERNATIVE_NOMINAL_RE,
             _ALTERNATIVE_REVERSE_NOMINAL_RE,
+            _ALTERNATIVE_LABEL_RE,
         ):
             for match in pattern.finditer(response):
                 candidate = match.group("candidate")

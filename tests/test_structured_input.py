@@ -116,8 +116,10 @@ def test_live_dijkstra_wording_keeps_every_semantic_obligation() -> None:
         "Include the binary-heap time complexity",
         "explain what algorithm should be used instead when negative edges are possible",
     )
-    assert answer_surface_token_floor(prompt) == 1920
-    assert answer_surface_planning_tokens(prompt) == 1024
+    # Time complexity is independently budgeted by the capacity estimator; it
+    # is executable work, not free prose attached to the graph example.
+    assert answer_surface_token_floor(prompt) == 2048
+    assert answer_surface_planning_tokens(prompt) == 1152
 
 
 def test_completion_planning_never_reduces_available_answer_capacity() -> None:
@@ -152,6 +154,35 @@ def test_inline_parenthesized_obligations_are_first_class_request_parts() -> Non
         "a negative-weight failure and the correct alternative",
     )
     assert answer_surface_token_floor(prompt) == 2304
+
+
+def test_inline_numbered_list_does_not_absorb_following_sentence() -> None:
+    prompt = (
+        "Explain Dijkstra. Include: (1) its invariant, (2) pseudocode, "
+        "(3) a worked example, (4) complexity, and (5) its failure case. "
+        "Do not stop mid-sentence or omit a requested part."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.question_segments[-1] == "its failure case"
+    assert all("Do not stop" not in segment for segment in shape.question_segments)
+
+
+def test_inline_numbered_list_preserves_a_substantive_following_request() -> None:
+    prompt = (
+        "Explain the queue. Include: (1) insertion, (2) removal. "
+        "Compare its array and linked-list implementations."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.question_segments == (
+        "Explain the queue.",
+        "insertion",
+        "removal",
+        "Compare its array and linked-list implementations.",
+    )
 
 
 def test_dense_technical_request_reserves_capacity_for_every_work_type() -> None:

@@ -504,22 +504,50 @@ def _inline_numbered_segments(text: str) -> tuple[str, ...]:
     into a multi-part request.
     """
 
+    parsed = _inline_numbered_obligation_list(text)
+    return parsed[0] if parsed is not None else ()
+
+
+def _inline_numbered_obligation_list(
+    text: str,
+) -> tuple[tuple[str, ...], int, int, int] | None:
+    """Return list items and the exact span occupied by their sentence.
+
+    The final parenthesized item does not own every sentence that follows it.
+    Without an explicit end boundary, ``(5) explain the failure. Do not stop
+    mid-sentence`` became one semantic obligation and made a complete answer
+    impossible to prove.  Preserve the list sentence and leave its suffix for
+    the ordinary ask parser, which can classify content and presentation
+    constraints independently.
+    """
+
     raw = str(text or "")
     matches = tuple(_INLINE_NUMBERED_ITEM_RE.finditer(raw))
     if len(matches) < 2:
-        return ()
+        return None
     numbers = tuple(int(match.group("number")) for match in matches)
     if numbers != tuple(range(1, len(matches) + 1)):
-        return ()
+        return None
+
+    last_item_end = len(raw)
+    suffix_start = len(raw)
+    sentence_boundary = re.search(r"(?<=[.!?])(?:\s+|$)", raw[matches[-1].end() :])
+    if sentence_boundary is not None:
+        last_item_end = matches[-1].end() + sentence_boundary.start()
+        suffix_start = matches[-1].end() + sentence_boundary.end()
 
     segments: list[str] = []
     for index, match in enumerate(matches):
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+        end = (
+            matches[index + 1].start()
+            if index + 1 < len(matches)
+            else last_item_end
+        )
         segment = raw[match.end() : end].strip(" \t\r\n,;:.!")
         if not segment:
-            return ()
+            return None
         segments.append(segment)
-    return tuple(segments)
+    return tuple(segments), matches[0].start(), last_item_end, suffix_start
 
 
 def _coordinated_directive_segments(text: str) -> tuple[str, ...]:
@@ -611,21 +639,29 @@ def _question_segments(text: str) -> tuple[str, ...]:
             part.endswith("?") or _DIRECTIVE_LINE_RE.match(part)
         ) and not _EMPTY_CONTAINER_DIRECTIVE_RE.match(part):
             sentence_asks.append(part)
-    inline_obligations = _inline_numbered_segments(raw)
-    if not inline_obligations:
+    inline_list = _inline_numbered_obligation_list(raw)
+    if inline_list is None:
         return tuple(sentence_asks)
+    inline_obligations, list_start, _list_end, suffix_start = inline_list
 
     # The sentence containing the inline list is a container for the same
-    # obligations, not an additional request. Keep unrelated asks before it,
-    # then expose each numbered requirement independently to coverage checks.
-    first_marker = _INLINE_NUMBERED_ITEM_RE.search(raw)
-    prefix = raw[: first_marker.start()] if first_marker is not None else ""
+    # obligations, not an additional request. Keep unrelated asks on both
+    # sides, then expose each numbered requirement independently to coverage
+    # checks. The suffix matters: it may be another substantive request or a
+    # presentation-only constraint, and neither belongs inside item N.
+    prefix = raw[:list_start]
+    suffix = raw[suffix_start:]
     prefix_asks = tuple(
         part
         for part in _question_segments(prefix)
         if part not in inline_obligations
     )
-    return (*prefix_asks, *inline_obligations)
+    suffix_asks = tuple(
+        part
+        for part in _question_segments(suffix)
+        if part not in inline_obligations
+    )
+    return (*prefix_asks, *inline_obligations, *suffix_asks)
 
 
 def analyze_prompt_shape(text: str) -> PromptShape:

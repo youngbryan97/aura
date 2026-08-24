@@ -101,6 +101,12 @@ def test_content_request_that_names_a_paragraph_is_not_only_reply_shape():
     )
 
 
+def test_completeness_prohibition_is_reply_shape_not_subject_matter():
+    assert is_reply_shape_constraint_segment(
+        "Do not stop mid-sentence or omit a requested part."
+    )
+
+
 def test_a_one_line_compound_message_is_detected_as_compound():
     """The detection half. This scored 1 part live."""
     shape = analyze_prompt_shape(LIVE_MESSAGE)
@@ -177,6 +183,20 @@ def test_each_numbered_obligation_is_proved_by_its_own_answer_section():
     assert any("correct alternative" in segment for segment in missed)
 
 
+def test_labeled_alternative_binds_a_substantive_replacement():
+    user = (
+        "Explain the failure. Include: (1) the cause, (2) the correct alternative."
+    )
+    reply = (
+        "## (1) Cause\nThe failure occurs because negative weights break the "
+        "greedy invariant.\n"
+        "## (2) Correct alternative\n**Correct alternative: Bellman-Ford.** "
+        "It handles negative weights."
+    )
+
+    assert not _unanswered_question_parts(reply, _Contract(analyze_prompt_shape(user)))
+
+
 def test_numbered_section_marker_satisfies_numbered_pseudocode_structure():
     user = (
         "Explain Dijkstra. Include: (1) its core invariant, (2) numbered pseudocode, "
@@ -188,6 +208,45 @@ def test_numbered_section_marker_satisfies_numbered_pseudocode_structure():
         "## (2) Pseudocode\nInitialize every distance, select the minimum, and relax each edge.\n"
         "## (3) Worked graph example\nThe worked graph example follows A -> B: 2."
     )
+
+    assert not _unanswered_question_parts(reply, _Contract(analyze_prompt_shape(user)))
+
+
+def test_fenced_pseudocode_cannot_steal_later_answer_sections():
+    user = (
+        "Explain Dijkstra. Include: (1) its core invariant, (2) numbered pseudocode, "
+        "(3) a worked example with at least five weighted edges, (4) time complexity "
+        "with both a binary heap and an array, and (5) a negative-weight failure "
+        "case and the correct alternative. Do not stop mid-sentence or omit a "
+        "requested part."
+    )
+    reply = """Dijkstra computes shortest paths on nonnegative weighted graphs.
+## (1) Core invariant
+The core invariant finalizes the minimum unsettled distance.
+## (2) Numbered pseudocode
+```text
+1. Initialize every distance.
+2. Extract the minimum vertex.
+3. Relax each outgoing edge.
+4. Repeat until the queue is empty.
+```
+## (3) Worked example
+Use this five-edge graph:
+
+| Edge | Weight |
+|------|--------|
+| A-B | 4 |
+| A-C | 2 |
+| C-B | 1 |
+| B-D | 5 |
+| C-D | 8 |
+
+Starting at A gives final distances A=0, C=2, B=3, D=8.
+## (4) Time complexity
+A binary heap takes O((V+E) log V), while an array takes O(V^2 + E).
+## (5) Negative-weight failure
+Negative weights invalidate the greedy invariant; use Bellman-Ford instead.
+"""
 
     assert not _unanswered_question_parts(reply, _Contract(analyze_prompt_shape(user)))
 
