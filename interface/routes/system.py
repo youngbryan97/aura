@@ -39,12 +39,17 @@ from core.runtime.health_contract import (
     required_probe_blockers,
     required_probe_groups_pass,
 )
+from core.runtime.host_clock import read_host_clock_text
 from core.runtime.launch_provenance import (
     capture_runtime_shell_assets as _capture_runtime_shell_assets,
+)
+from core.runtime.launch_provenance import (
     runtime_shell_assets_sha256 as _runtime_shell_assets_sha256,
 )
 from core.runtime.runtime_shell_snapshot import (
     clear_runtime_shell_snapshots as _clear_runtime_shell_snapshots,
+)
+from core.runtime.runtime_shell_snapshot import (
     publish_runtime_shell_snapshot as _publish_runtime_shell_snapshot,
 )
 from core.runtime.service_access import optional_service
@@ -455,10 +460,6 @@ _DESKTOP_ACCESS_NATIVE_PROBE_TIMEOUT_S = _env_positive_float(
 _DESKTOP_ACCESS_DIRECT_PROBE_TIMEOUT_S = _env_positive_float(
     "AURA_DESKTOP_ACCESS_DIRECT_PROBE_TIMEOUT_S",
     2.0,
-)
-_DESKTOP_ACCESS_MENU_CLOCK_TIMEOUT_S = _env_positive_float(
-    "AURA_DESKTOP_ACCESS_MENU_CLOCK_TIMEOUT_S",
-    0.5,
 )
 _SSE_IDLE_HEARTBEAT_S = _env_positive_float("AURA_SSE_IDLE_HEARTBEAT_S", 15.0)
 _SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(os.getenv("AURA_SSE_QUEUE_BACKLOG_LIMIT", ""), 100))
@@ -3064,31 +3065,19 @@ async def _probe_desktop_access_summary(*, allow_probe: bool = True) -> dict[str
         payload["screen_text_ready"] = (
             effective_automation_granted and effective_accessibility_granted
         )
-        # The clock is host state, not UI content. Its native Foundation read
-        # is independent of Accessibility and Apple Events readiness.
+        # The clock is host state, not UI content. Keep this read independent
+        # of the desktop skill, PyObjC, Accessibility, and Apple Events.
         payload["menu_clock_ready"] = sys.platform == "darwin"
         if payload["menu_clock_ready"]:
-            from core.skills.computer_use import ComputerUseSkill
-
-            def _probe_menu_clock() -> dict[str, Any]:
-                from core.governance_context import local_internal_governed_scope
-                skill = ComputerUseSkill()
-                try:
-                    with local_internal_governed_scope("system.probe_menu_clock", domain="tool_execution"):
-                        text = skill._read_menu_clock_macos()
-                    return {"ready": True, "text": text[:240]}
-                except _SYSTEM_RECOVERABLE_ERRORS as exc:
-                    return {"ready": False, "error": str(exc)[:240]}
-
             try:
-                menu_clock_probe = await asyncio.wait_for(
-                    asyncio.to_thread(_probe_menu_clock),
-                    timeout=max(0.25, _DESKTOP_ACCESS_MENU_CLOCK_TIMEOUT_S),
-                )
-            except (TimeoutError, *_SYSTEM_RECOVERABLE_ERRORS) as exc:
+                menu_clock_probe = {
+                    "ready": True,
+                    "text": read_host_clock_text(),
+                }
+            except _SYSTEM_RECOVERABLE_ERRORS as exc:
                 _record_desktop_access_probe_issue(
                     "menu_clock",
-                    "system_events",
+                    "host_clock",
                     exc,
                 )
                 menu_clock_probe = {
@@ -3604,7 +3593,7 @@ def _collect_imagination_status() -> dict[str, Any]:
 # Renders of imagination frames, newest last. Keyed by frame_id so a frame is
 # never rendered twice and the panel can pair an image with the frame that
 # produced it. Bounded: this is a view cache, not a gallery.
-_IMAGINATION_RENDERS: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+_IMAGINATION_RENDERS: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _IMAGINATION_RENDER_LIMIT = 12
 _IMAGINATION_RENDER_LOCK = asyncio.Lock()
 

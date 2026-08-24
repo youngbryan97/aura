@@ -1103,9 +1103,15 @@ def test_desktop_access_summary_one_shot_bridge_does_not_count_as_ready(monkeypa
     assert any("one-shot Aura.app bridge" in line for line in payload["desktop_access_diagnosis"])
 
 
-def test_desktop_access_summary_menu_clock_probe_is_bounded(monkeypatch):
+def test_desktop_access_summary_reads_host_clock_without_desktop_stack(monkeypatch):
+    import inspect
+
     import core.security.permission_guard as permission_guard_module
     from interface.routes import system as system_routes
+
+    probe_source = inspect.getsource(system_routes._probe_desktop_access_summary)
+    assert "ComputerUseSkill" not in probe_source
+    assert "_probe_menu_clock" not in probe_source
 
     class _Guard:
         def current_process_identity(self):
@@ -1119,17 +1125,8 @@ def test_desktop_access_summary_menu_clock_probe_is_bounded(monkeypatch):
             self.python_probe_calls = getattr(self, "python_probe_calls", 0) + 1
             raise AssertionError("native-ready bridge should bypass direct Python TCC probes")
 
-    original_to_thread = system_routes.asyncio.to_thread
-
-    async def _bounded_to_thread(func, /, *args, **kwargs):
-        if getattr(func, "__name__", "") == "_probe_menu_clock":
-            await asyncio.sleep(10.0)
-            return {"ready": True, "text": "late"}
-        return await original_to_thread(func, *args, **kwargs)
-
     monkeypatch.setattr(system_routes.sys, "platform", "darwin")
-    monkeypatch.setattr(system_routes, "_DESKTOP_ACCESS_MENU_CLOCK_TIMEOUT_S", 0.01)
-    monkeypatch.setattr(system_routes.asyncio, "to_thread", _bounded_to_thread)
+    monkeypatch.setattr(system_routes, "read_host_clock_text", lambda: "Fri Aug 15 2026 08:06:31 PM PDT")
     monkeypatch.setattr(permission_guard_module, "get_permission_guard", lambda: _Guard())
     monkeypatch.setattr(system_routes.ServiceContainer, "get", staticmethod(lambda name, default=None: default))
     monkeypatch.setattr("core.skills._pyautogui_runtime.get_pyautogui", lambda: (object(), None))
@@ -1151,19 +1148,68 @@ def test_desktop_access_summary_menu_clock_probe_is_bounded(monkeypatch):
     original_cache = dict(system_routes._desktop_access_cache)
     system_routes._desktop_access_cache["captured_at"] = 0.0
     system_routes._desktop_access_cache["payload"] = None
-    started = time.monotonic()
     try:
         payload = asyncio.run(system_routes._collect_desktop_access_summary())
     finally:
         system_routes._desktop_access_cache.update(original_cache)
-    elapsed = time.monotonic() - started
 
-    assert elapsed < 0.5
     assert payload["overall_status"] == "ready"
     assert payload["desktop_control_ready"] is True
     assert payload["screen_text_ready"] is True
+    assert payload["menu_clock_ready"] is True
+    assert payload["menu_clock_text"] == "Fri Aug 15 2026 08:06:31 PM PDT"
+    assert payload["menu_clock_error"] == ""
+
+
+def test_desktop_access_summary_reports_host_clock_failure_without_blocking_desktop(monkeypatch):
+    import core.security.permission_guard as permission_guard_module
+    from interface.routes import system as system_routes
+
+    class _Guard:
+        def current_process_identity(self):
+            return {"pid": 789, "bundle_identifier": "org.python.python"}
+
+        async def check_permission(self, ptype, force=False):
+            raise AssertionError("resident bridge should bypass Python TCC probes")
+
+        async def check_permission_direct(self, ptype):
+            raise AssertionError("resident bridge should bypass direct Python TCC probes")
+
+    monkeypatch.setattr(system_routes.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        system_routes,
+        "read_host_clock_text",
+        lambda: (_ for _ in ()).throw(RuntimeError("clock unavailable")),
+    )
+    monkeypatch.setattr(permission_guard_module, "get_permission_guard", lambda: _Guard())
+    monkeypatch.setattr(system_routes.ServiceContainer, "get", staticmethod(lambda name, default=None: default))
+    monkeypatch.setattr("core.skills._pyautogui_runtime.get_pyautogui", lambda: (object(), None))
+    monkeypatch.setattr(
+        "core.security.native_desktop_bridge.probe_native_desktop_bridge",
+        lambda force=False, prefer_one_shot=False: {
+            "ok": True,
+            "screen_recording": True,
+            "accessibility": True,
+            "automation": True,
+            "frontmost_app": "Aura",
+            "bundle_identifier": "com.aura.desktop",
+            "bridge_executable": "/Applications/Aura.app/Contents/MacOS/aura-launcher",
+            "bridge_transport": "resident_ipc",
+            "code_signature": {"stable_tcc_identity": True},
+        },
+    )
+
+    original_cache = dict(system_routes._desktop_access_cache)
+    system_routes._desktop_access_cache["captured_at"] = 0.0
+    system_routes._desktop_access_cache["payload"] = None
+    try:
+        payload = asyncio.run(system_routes._collect_desktop_access_summary())
+    finally:
+        system_routes._desktop_access_cache.update(original_cache)
+
+    assert payload["overall_status"] == "ready"
     assert payload["menu_clock_ready"] is False
-    assert payload["menu_clock_error"]
+    assert payload["menu_clock_error"] == "clock unavailable"
 
 
 def test_desktop_access_summary_keeps_resident_probe_authoritative_by_default(monkeypatch):

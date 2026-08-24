@@ -6018,7 +6018,11 @@ def _attach_affective_steering(
             engine.attach(model, tokenizer, model_path=model_path)
         else:
             engine.attach(model, tokenizer)
-        if substrate_mem is not None:
+        available = bool(
+            getattr(engine, "_model_attached", False)
+            and (getattr(engine, "_hooks", None) or [])
+        )
+        if substrate_mem is not None and available:
             engine.start_substrate_sync(shared_state=substrate_mem)
         if phi_residual_mem is not None:
             for hook in getattr(engine, "_hooks", None) or []:
@@ -6027,11 +6031,6 @@ def _attach_affective_steering(
                 except (AttributeError, TypeError):
                     continue
         active = engine.is_active()
-        available = bool(
-            getattr(engine, "_model_attached", False)
-            and (getattr(engine, "_hooks", None) or [])
-        )
-
         if steering_active_flag is not None:
             steering_active_flag.value = active
 

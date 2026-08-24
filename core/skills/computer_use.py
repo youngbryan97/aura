@@ -23,6 +23,7 @@ from core.runtime.app_target_resolution import resolve_installed_app_target
 from core.runtime.atomic_writer import atomic_write_bytes, atomic_write_text
 from core.runtime.content_integrity import paragraph_sha256s, text_sha256
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.host_clock import read_host_clock_text
 from core.runtime.os_automation_effects import canonical_app_target
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.skills._pyautogui_runtime import get_pyautogui
@@ -5049,29 +5050,14 @@ end tell
 
 
     def _read_menu_clock_macos(self) -> str:
-        """Read the host clock through macOS' locale-aware Foundation API.
+        """Read the host clock without traversing macOS desktop UI.
 
         Time is OS state, not accessibility content. Walking ControlCenter's
         UI tree required two unrelated TCC grants and routinely outlived the
         desktop-readiness route's deadline, leaving abandoned Apple Events
-        work behind. Foundation reads the same system wall clock directly and
-        formats it with the user's macOS locale without touching the desktop.
+        work behind. The shared host-clock primitive reads the same wall clock
+        without importing PyObjC or touching the desktop.
         """
         if sys.platform != "darwin":
             raise RuntimeError("native macOS system clock is unavailable")
-        from Foundation import (
-            NSDate,
-            NSDateFormatter,
-            NSDateFormatterMediumStyle,
-            NSDateFormatterShortStyle,
-        )
-
-        value = NSDateFormatter.localizedStringFromDate_dateStyle_timeStyle_(
-            NSDate.date(),
-            NSDateFormatterMediumStyle,
-            NSDateFormatterShortStyle,
-        )
-        text = str(value or "").strip()
-        if not text:
-            raise RuntimeError("native macOS system clock returned no value")
-        return text[:240]
+        return read_host_clock_text()

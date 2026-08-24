@@ -172,6 +172,43 @@ def test_failed_steering_attach_keeps_resident_model_available(monkeypatch):
     assert flag.value is False
 
 
+def test_deferred_steering_does_not_start_sync_without_hooks(monkeypatch):
+    from core.brain.llm import mlx_worker
+    from core.consciousness import affective_steering
+
+    sync_calls = []
+
+    class Engine:
+        _model_attached = False
+        _hooks = []
+        _model_info = {"attachment_error": "steering_generation_deferred"}
+
+        def attach(self, _model, _tokenizer, **_kwargs):
+            return False
+
+        def start_substrate_sync(self, shared_state=None):
+            sync_calls.append(shared_state)
+
+        def is_active(self):
+            return False
+
+    engine = Engine()
+    monkeypatch.setattr(affective_steering, "get_steering_engine", lambda: engine)
+
+    attached, active = mlx_worker._attach_affective_steering(
+        SimpleNamespace(),
+        SimpleNamespace(),
+        object(),
+        None,
+        SimpleNamespace(value=True),
+        model_path="/models/deferred",
+    )
+
+    assert attached is engine
+    assert active is False
+    assert sync_calls == []
+
+
 def test_zero_surface_control_needs_no_steering_engine():
     from core.brain.llm.mlx_worker import (
         _apply_surface_generation_controls,
