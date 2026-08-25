@@ -52267,3 +52267,49 @@ Migration suites pass `157/157`. Ruff, compilation, layering, governance
 ownership, writing and doc-drift pass. Canonical smoke passes `120/121` with the
 known-red bounded-WOW alarm above and one environment-dependent skip. Next:
 Codex completes live boot validation, then the frozen bundle launches.
+
+## Checkpoint 2026-08-25-1057: Preserve Governed Action Evidence Across Restarts
+
+CP1054-CP1057 close the action-result continuity path from execution through a
+later conversational question.
+
+- A governed desktop execution becomes a typed `ActionEpisode`. A claimed
+  success receives authority only after every critical effect is verified; a
+  governed failure receives authority for the narrower fact that the requested
+  effect did not occur and for the executor's recorded cause.
+- Conversation persistence stores bounded canonical metadata with the Aura
+  turn. Existing databases migrate in place, idempotent replay may fill empty
+  metadata once, and a conflicting replay is rejected.
+- A later outcome question loads the episode from durable storage and projects
+  the exact verified cause without foreground generation. Open-ended questions
+  still use cognition with the same typed episode as evidence.
+- Application routing now shares the executor's typed target grammar. An unseen
+  product name in `Open ProductName` or `Could you launch ProductName?` reaches
+  desktop execution; metaphors, negations, retrospective remarks and
+  explanatory questions do not. The live request had previously become an
+  unrelated web search and consumed `88.7` seconds.
+- Current-turn failure serialization now reads the episode's governed authority
+  instead of applying the success-only effect verifier to a known failure.
+
+**Live proof.** Source-matched Aura ran commit `352a0706e` under the supported
+resident launcher. Session `cp1057-live-1787680666` requested `Open
+DefinitelyNotInstalledAuraProbe.` The governed path returned
+`desktop_objective_failed` in `4.78` seconds with the exact LaunchServices
+failure, zero foreground generations, `response_authority_proven=true`,
+`semantic_completion_satisfied=true`, `answer_delivery_proven=true`, and
+state-native `verified_action_receipt_serialization` authorship. The Aura turn
+stored an authoritative failure episode in `conversations.db`.
+
+After a controlled process replacement, `Do you know why that broke?` in the
+same session returned in `1.88` seconds with status `verified_action_episode`
+and the persisted cause. It used zero foreground generations and proved runtime
+grounding, response authority, semantic completion, delivery, and state-native
+authorship. The replacement process had healthy launch provenance, runtime
+revision and runtime contract checks.
+
+Focused action, persistence and route tests pass `47/47`; adjacent desktop
+intent and effect tests pass `83/83`; route-specific tests pass `3/3`; canonical
+smoke passes `121/121` with one environment-dependent skip. Compilation and
+layering pass. The action-evidence continuity item is closed. Long soaks and the
+separate repository-wide semantic ledger remain deferred until the shorter live
+runtime gates are green.
