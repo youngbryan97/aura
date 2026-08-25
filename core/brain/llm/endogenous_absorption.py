@@ -41,6 +41,7 @@ from typing import Any
 from core.brain.llm.endogenous_state import (
     EndogenousState,
     assemble_state,
+    reset_state_cache,
 )
 
 logger = logging.getLogger("Aura.EndogenousAbsorption")
@@ -203,6 +204,10 @@ def absorb(
         )
     try:
         deliver(outcome.as_observation())
+        # The next turn must not read a state assembled before this landed.
+        # The assembler caches for a quarter second, which is shorter than any
+        # turn and longer than the gap between a reply and its follow-up.
+        reset_state_cache()
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
         return AbsorptionReceipt(
             accepted=False,

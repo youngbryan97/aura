@@ -73,6 +73,37 @@ def load_head(directory: Path | None = None) -> tuple[EndogenousVocabHead | None
     return head, reason
 
 
+_SIGNATURE_CACHE: tuple[Any, str] | None = None
+
+
+def cached_tokenizer_signature(tokenizer: Any) -> str:
+    """Fingerprint the tokenizer once per process, not once per generation.
+
+    The fingerprint hashes every id-to-token pair, which is the point — two
+    tokenizers can agree on size and disagree on every id. It is also a
+    hundred thousand string operations, and this runs inside the path that
+    builds a decode loop. A worker holds one tokenizer for its whole life, so
+    a single slot is the whole cache; the tokenizer is held by strong
+    reference so its identity cannot be reused by a later object.
+    """
+    global _SIGNATURE_CACHE
+    with _LOAD_LOCK:
+        cached = _SIGNATURE_CACHE
+        if cached is not None and cached[0] is tokenizer:
+            return cached[1]
+    signature = tokenizer_signature(tokenizer)
+    with _LOAD_LOCK:
+        _SIGNATURE_CACHE = (tokenizer, signature)
+    return signature
+
+
+def reset_tokenizer_signature_cache() -> None:
+    """Forget the fingerprint. For tests, and for a swapped tokenizer."""
+    global _SIGNATURE_CACHE
+    with _LOAD_LOCK:
+        _SIGNATURE_CACHE = None
+
+
 def reset_head_cache() -> None:
     """Forget the loaded head. For tests, and for a head retrained in place."""
     global _CACHED
@@ -162,7 +193,7 @@ def build_endogenous_processor(
         return None, receipt
 
     try:
-        signature = tokenizer_signature(tokenizer)
+        signature = cached_tokenizer_signature(tokenizer)
     except HeadUnusableError as exc:
         receipt["reason"] = f"tokenizer_unfingerprintable:{exc}"
         return None, receipt
@@ -205,7 +236,9 @@ __all__ = [
     "build_endogenous_processor",
     "decision_is_expected_absence",
     "load_head",
+    "cached_tokenizer_signature",
     "reset_head_cache",
+    "reset_tokenizer_signature_cache",
 ]
 
 

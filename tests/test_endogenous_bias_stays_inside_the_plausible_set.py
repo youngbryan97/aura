@@ -118,3 +118,47 @@ def test_health_separates_expected_absence_from_a_fault():
 
 def test_the_layout_travels_on_every_state_payload():
     assert empty_state().to_payload()["layout"] == layout_digest()
+
+
+class TestTheFingerprintIsNotRecomputedPerGeneration:
+    """Hashing a hundred thousand id-to-token pairs belongs outside the loop."""
+
+    def test_the_same_tokenizer_is_hashed_once(self):
+        from core.brain.llm.endogenous_decode import (
+            cached_tokenizer_signature,
+            reset_tokenizer_signature_cache,
+        )
+
+        calls: list[int] = []
+
+        class _Counting:
+            def get_vocab(self):
+                calls.append(1)
+                return {f"tok{i}": i for i in range(64)}
+
+        reset_tokenizer_signature_cache()
+        tokenizer = _Counting()
+        first = cached_tokenizer_signature(tokenizer)
+        second = cached_tokenizer_signature(tokenizer)
+        assert first == second
+        assert len(calls) == 1, "the vocabulary was walked twice for one tokenizer"
+        reset_tokenizer_signature_cache()
+
+    def test_a_different_tokenizer_is_hashed_again(self):
+        from core.brain.llm.endogenous_decode import (
+            cached_tokenizer_signature,
+            reset_tokenizer_signature_cache,
+        )
+
+        class _Vocab:
+            def __init__(self, offset: int) -> None:
+                self._offset = offset
+
+            def get_vocab(self):
+                return {f"tok{i + self._offset}": i for i in range(64)}
+
+        reset_tokenizer_signature_cache()
+        assert cached_tokenizer_signature(_Vocab(0)) != cached_tokenizer_signature(
+            _Vocab(1)
+        )
+        reset_tokenizer_signature_cache()

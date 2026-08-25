@@ -166,3 +166,23 @@ def test_a_response_frame_reads_as_an_outcome():
     assert outcome.confidence == 0.4
     assert outcome_from_response({"status": "error", "text": "x"}).refused is True
     assert outcome_from_response(None).summary == ""
+
+
+def test_absorption_invalidates_the_cached_state():
+    """The next turn must not read a state assembled before this landed."""
+    from core.brain.llm.endogenous_state import assemble_state, reset_state_cache
+
+    reset_state_cache()
+    before = assemble_state()
+    assert assemble_state() is before, "the assembler stopped caching"
+    absorb(TurnOutcome(summary="a conclusion"), substrate=_AdditiveSubstrate())
+    assert assemble_state() is not before
+
+
+def test_a_refused_absorption_leaves_the_cache_alone():
+    from core.brain.llm.endogenous_state import assemble_state, reset_state_cache
+
+    reset_state_cache()
+    before = assemble_state()
+    absorb(TurnOutcome(summary="x"), substrate=_ReplacingSubstrate())
+    assert assemble_state() is before
