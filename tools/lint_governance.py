@@ -207,6 +207,16 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
             # caller-selected file path and writes only from its named scope.
             "core/brain/external_execute_coordinator.py",
             "core/brain/llm/latent_cortex/persistence.py",
+            # Endogenous vocabulary persistence owns one schema-bound pair of
+            # model-specific weights and a digest-binding manifest. Runtime
+            # callers provide learned arrays, never an arbitrary file effect;
+            # both payloads commit through one rollback-safe gateway batch.
+            "core/brain/llm/endogenous_vocab_head.py",
+            # Endogenous pair persistence owns one bounded JSONL corpus and
+            # its fixed rotation namespace beneath the configured Aura data
+            # root. It records only state/text pairs from completed turns and
+            # serializes every rotate/append transaction through this owner.
+            "core/brain/llm/endogenous_pair_recorder.py",
             # Qualified recurrent authority publishes only its schema-bound,
             # CAS-guarded activation and digest-addressed retirement receipt
             # under a fixed Aura state root and named governance scopes.

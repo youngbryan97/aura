@@ -3586,6 +3586,30 @@
     },
     {
       "callee": "<file_write_gateway>.append_text",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/endogenous_pair_recorder.py",
+      "scope": "<module>.record_pair"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/endogenous_pair_recorder.py",
+      "scope": "<module>.record_pair"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes_batch",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/endogenous_vocab_head.py",
+      "scope": "<module>.EndogenousVocabHead.save"
+    },
+    {
+      "callee": "<file_write_gateway>.append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -15890,6 +15914,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0afd652be8c5797fb8643a5549daa4e56877668e8cae0d214eacaacccb13aa43",
+  "inventory_sha256": "0639966174c2f80a84d78f2fa36b98dc935fef2875c01b3797505fe4a38793f7",
   "schema_version": 1
 }

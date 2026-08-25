@@ -20,6 +20,7 @@ from an event loop without the async path.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -51,6 +52,11 @@ MAX_TEXT_CHARS = 4000
 #: outage waiting for a busy week.
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_ROLLED_FILES = 8
+
+#: Rotation and append are one storage transaction inside this process. Without
+#: this lock, two completed turns can both rotate the same active file and one
+#: can replace the other's generation before either appends.
+_STORE_LOCK = threading.Lock()
 
 
 def store_directory() -> Path:
@@ -158,9 +164,14 @@ def record_pair(
         gateway = get_file_write_gateway()
         target = _active_path()
         with local_internal_governed_scope("endogenous_pair_recorder"):
-            gateway.ensure_directory(target.parent, source="endogenous_pair_recorder")
-            _rotate_if_needed(gateway, target)
-            gateway.append_text(target, line, source="endogenous_pair_recorder")
+            with _STORE_LOCK:
+                gateway.ensure_directory(target.parent, source="endogenous_pair_recorder")
+                _rotate_if_needed(
+                    gateway,
+                    target,
+                    incoming_bytes=len(line.encode("utf-8")),
+                )
+                gateway.append_text(target, line, source="endogenous_pair_recorder")
         return True
     except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous pair not recorded: %s", exc)
@@ -175,38 +186,32 @@ async def record_pair_async(
     model: str = "",
     prompt: str = "",
 ) -> bool:
-    """The same, from an event loop. An on-loop fsync once froze the runtime."""
-    if not _should_record(state, text):
-        return False
-    payload = _record_payload(state, text, lane=lane, model=model, prompt=prompt)
-    line = json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
-    try:
-        from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
-
-        gateway = get_file_write_gateway()
-        target = _active_path()
-        with local_internal_governed_scope("endogenous_pair_recorder"):
-            await gateway.ensure_directory_async(
-                target.parent, source="endogenous_pair_recorder"
-            )
-            await gateway.append_text_async(
-                target, line, source="endogenous_pair_recorder"
-            )
-        return True
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("endogenous pair not recorded: %s", exc)
-        return False
+    """Run the complete bounded storage transaction away from the event loop."""
+    return await asyncio.to_thread(
+        record_pair,
+        state,
+        text,
+        lane=lane,
+        model=model,
+        prompt=prompt,
+    )
 
 
-def _rotate_if_needed(gateway: Any, target: Path) -> None:
+def _rotation_stamp() -> str:
+    return time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + f"-{time.time_ns()}"
+
+
+def _rotate_if_needed(gateway: Any, target: Path, *, incoming_bytes: int) -> None:
     """Roll the active file at the size bound and drop the oldest roll."""
     try:
-        if not target.exists() or target.stat().st_size < MAX_FILE_BYTES:
+        if (
+            not target.exists()
+            or target.stat().st_size + max(0, int(incoming_bytes)) <= MAX_FILE_BYTES
+        ):
             return
     except OSError:
         return
-    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    stamp = _rotation_stamp()
     gateway.move_path(target, target.with_name(f"pairs-{stamp}.jsonl"),
                       source="endogenous_pair_recorder")
     rolled = sorted(target.parent.glob("pairs-*.jsonl"))

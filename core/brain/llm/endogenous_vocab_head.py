@@ -32,6 +32,7 @@ module attaches nothing and says why.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -65,6 +66,10 @@ MIN_COVERAGE = 0.10
 
 #: Where a trained head lives unless told otherwise.
 DEFAULT_HEAD_DIR = Path("artifacts/endogenous_language")
+
+#: The manifest is the commit record for exactly one serialized weight payload.
+#: A loader must not infer compatibility for pre-binding artifacts.
+HEAD_ARTIFACT_SCHEMA = "aura.endogenous_vocab_head.v1"
 
 
 class HeadUnusableError(Exception):
@@ -209,13 +214,17 @@ class EndogenousVocabHead:
 
     # ── persistence ───────────────────────────────────────────────────────
     def save(self, directory: str | Path = DEFAULT_HEAD_DIR, *, name: str = "vocab_head") -> Path:
-        """Write weights and report together, atomically, through the gateway.
+        """Write one mutually bound weight/report generation through the gateway.
 
         A half-written weight file beside a complete report would load, produce
         numbers, and carry a report claiming they were measured. That is worse
         than no head at all.
         """
-        from core.runtime.file_write_gateway import get_file_write_gateway
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import (
+            FileWriteBatchEntry,
+            get_file_write_gateway,
+        )
 
         gateway = get_file_write_gateway()
         target = Path(directory)
@@ -225,10 +234,11 @@ class EndogenousVocabHead:
             weights=self.weights.astype(np.float32),
             bias=self.bias.astype(np.float32),
         )
-        gateway.write_bytes(
-            target / f"{name}.npz", buffer.getvalue(), source="endogenous_vocab_head"
-        )
+        weights_payload = buffer.getvalue()
+        weights_path = target / f"{name}.npz"
+        manifest_path = target / f"{name}.json"
         manifest = {
+            "schema": HEAD_ARTIFACT_SCHEMA,
             "vocab_size": int(self.vocab_size),
             "state_dim": int(STATE_DIM),
             "layout": self.layout,
@@ -236,14 +246,38 @@ class EndogenousVocabHead:
             "trained": bool(self.trained),
             "trained_at": self.trained_at or time.time(),
             "max_abs_bias": MAX_ABS_BIAS,
+            "weights_bytes": len(weights_payload),
+            "weights_sha256": hashlib.sha256(weights_payload).hexdigest(),
             "report": dict(self.report),
         }
-        gateway.write_text(
-            target / f"{name}.json",
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-            source="endogenous_vocab_head",
+        manifest_payload = (
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        entries = (
+            FileWriteBatchEntry(weights_path, weights_payload),
+            FileWriteBatchEntry(manifest_path, manifest_payload),
         )
-        return target / f"{name}.npz"
+        with local_internal_governed_scope("endogenous_vocab_head_persistence"):
+            receipt = gateway.write_bytes_batch(
+                entries,
+                source="endogenous_vocab_head.persistence",
+            )
+        expected = {
+            str(path.parent.resolve() / path.name): hashlib.sha256(payload).hexdigest()
+            for path, payload in (
+                (weights_path, weights_payload),
+                (manifest_path, manifest_payload),
+            )
+        }
+        if (
+            not receipt.transaction_id
+            or receipt.paths != tuple(expected)
+            or dict(receipt.sha256) != expected
+        ):
+            raise HeadUnusableError(
+                "head persistence receipt does not match the committed generation"
+            )
+        return weights_path
 
     @classmethod
     def load(
@@ -258,8 +292,31 @@ class EndogenousVocabHead:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise HeadUnusableError(f"head manifest unreadable: {exc}") from exc
+        if manifest.get("schema") != HEAD_ARTIFACT_SCHEMA:
+            raise HeadUnusableError("head manifest does not bind a supported weight generation")
         try:
-            with np.load(weights_path, allow_pickle=False) as bundle:
+            weights_payload = weights_path.read_bytes()
+        except OSError as exc:
+            raise HeadUnusableError(f"head weights unreadable: {exc}") from exc
+        declared_size = manifest.get("weights_bytes")
+        declared_digest = manifest.get("weights_sha256")
+        if type(declared_size) is not int or declared_size < 0:
+            raise HeadUnusableError("head manifest has no valid weight size binding")
+        if (
+            not isinstance(declared_digest, str)
+            or len(declared_digest) != 64
+            or any(character not in "0123456789abcdef" for character in declared_digest)
+        ):
+            raise HeadUnusableError("head manifest has no valid weight digest binding")
+        if len(weights_payload) != declared_size:
+            raise HeadUnusableError("head weight size does not match its manifest")
+        if not hmac.compare_digest(
+            hashlib.sha256(weights_payload).hexdigest(),
+            declared_digest,
+        ):
+            raise HeadUnusableError("head weight digest does not match its manifest")
+        try:
+            with np.load(io.BytesIO(weights_payload), allow_pickle=False) as bundle:
                 weights = np.asarray(bundle["weights"], dtype=np.float32)
                 bias = np.asarray(bundle["bias"], dtype=np.float32)
         except (OSError, ValueError, KeyError) as exc:
@@ -337,6 +394,7 @@ def alpha_from_env(default: float = 0.6) -> float:
 
 __all__ = [
     "DEFAULT_HEAD_DIR",
+    "HEAD_ARTIFACT_SCHEMA",
     "MAX_ABS_BIAS",
     "MIN_COVERAGE",
     "BiasDecision",
