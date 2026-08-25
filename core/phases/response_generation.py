@@ -1831,6 +1831,7 @@ class ResponseGenerationPhase(BasePhase):
                 logger.error("SubstrateVoiceEngine compile failed: %s", _sve_exc, exc_info=True)
 
             is_background = not background_policy.is_user_facing_origin(origin)
+            foreground_user_surface_owned = bool(not is_background and not is_test_run)
             explicit_tool_composition = origin in _EXPLICIT_TOOL_COMPOSITION_ORIGINS
             if is_background and not is_test_run and not explicit_tool_composition:
                 try:
@@ -2105,6 +2106,7 @@ class ResponseGenerationPhase(BasePhase):
             clean_user_surface_contract = bool(
                 runtime_context.get("clean_user_surface_contract", False)
                 or desktop_cognitive_engine_required
+                or foreground_user_surface_owned
             )
             user_surface_validation_prompt = str(
                 runtime_context.get("user_surface_validation_prompt")
@@ -2449,10 +2451,7 @@ class ResponseGenerationPhase(BasePhase):
                         runtime_fact_status_contract=runtime_fact_status_contract,
                         grounded_runtime_status_contract=runtime_fact_status_contract,
                         clean_user_surface_contract=clean_user_surface_contract,
-                        semantic_completion_contract=bool(
-                            clean_user_surface_contract
-                            and structural_answer_floor >= 384
-                        ),
+                        semantic_completion_contract=clean_user_surface_contract,
                         user_surface_validation_prompt=user_surface_validation_prompt,
                         user_surface_prompt_binding=dict(
                             runtime_context.get("user_surface_prompt_binding") or {}
@@ -3156,10 +3155,7 @@ class ResponseGenerationPhase(BasePhase):
                     runtime_fact_status_contract=runtime_fact_status_contract,
                     grounded_runtime_status_contract=runtime_fact_status_contract,
                     clean_user_surface_contract=clean_user_surface_contract,
-                    semantic_completion_contract=bool(
-                        clean_user_surface_contract
-                        and structural_answer_floor >= 384
-                    ),
+                    semantic_completion_contract=clean_user_surface_contract,
                     user_surface_validation_prompt=user_surface_validation_prompt,
                     user_surface_prompt_binding=dict(
                         runtime_context.get("user_surface_prompt_binding") or {}
@@ -3228,6 +3224,9 @@ class ResponseGenerationPhase(BasePhase):
                 return retried_text
 
             pre_dialogue_text = cleaned_response
+            foreground_draft_owned = bool(
+                foreground_user_surface_owned and str(cleaned_response or "").strip()
+            )
             if append_only_continuation_pending:
                 dialogue_validation = validate_dialogue_response(
                     cleaned_response,
@@ -3250,6 +3249,7 @@ class ResponseGenerationPhase(BasePhase):
                             and not is_test_run
                             and not latent_response_owned
                             and amplifier_promotion_authority == "none"
+                            and not foreground_draft_owned
                             # Foreground chat has one completion owner: the route's
                             # typed append-only continuation. A second full decode
                             # here recomputes a substantial incumbent, doubles

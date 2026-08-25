@@ -5222,16 +5222,10 @@ class CognitiveEngine:
                 ),
                 "capability_inventory_contract": capability_inventory_contract,
                 "clean_user_surface_contract": True,
-                # Multipart and extended requests need a semantic terminal, not
-                # only a token cap. Stop as soon as every measured obligation is
-                # present, before an already complete answer can drift into
-                # self-revision or repeat itself.
-                "semantic_completion_contract": bool(
-                    self_condition_contract_covers_turn
-                    or continuation_contract
-                    or obligation_contract
-                    or shape_wants_room
-                ),
+                # Every clean user turn measures semantic completion. Natural
+                # EOS remains available; this contract preserves an incomplete
+                # deadline/max-token draft and its exact continuation state.
+                "semantic_completion_contract": True,
                 "user_surface_validation_prompt": validation_prompt,
                 "user_surface_sensory_evidence": context.get(
                     "turn_sensory_evidence"

@@ -5859,13 +5859,7 @@ async def _run_cognitive_engine_chat_turn(
         sensory_evidence_payload = {}
     mode = _select_cognitive_chat_mode(visible, effective_user_message)
     shape = analyze_prompt_shape(visible)
-    semantic_completion_expected = bool(
-        str(continuation_partial or "").strip()
-        or shape.prefers_extended_answer
-        or shape.requires_single_reply_coverage
-        or shape.question_parts >= 2
-        or answer_surface_token_floor(visible) > 256
-    )
+    semantic_completion_expected = True
     _mark_turn_trace(semantic_completion_contract_expected=semantic_completion_expected)
     capability_inventory_contract = _chat_preflight._is_explicit_capability_inventory_request(
         visible
@@ -20666,13 +20660,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 route.get("prefer_tier", "primary"),
                 direct_budget,
             )
-            prompt_shape = analyze_prompt_shape(_semantic_user_message)
-            semantic_completion_expected = bool(
-                prompt_shape.prefers_extended_answer
-                or prompt_shape.requires_single_reply_coverage
-                or prompt_shape.question_parts >= 2
-                or answer_surface_token_floor(_semantic_user_message) > 256
-            )
+            semantic_completion_expected = True
             try:
                 direct_reply = await asyncio.wait_for(
                     gate.generate(

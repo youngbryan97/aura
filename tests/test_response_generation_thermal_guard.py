@@ -1655,6 +1655,63 @@ async def test_desktop_owner_cannot_be_reopened_by_mislabeled_dialogue_contract(
 
 
 @pytest.mark.asyncio
+async def test_foreground_origin_derives_clean_completion_without_caller_labels(
+    monkeypatch,
+):
+    from core.phases.response_contract import build_response_contract
+
+    state = AuraState()
+    visible = "Explain why exact cache ownership matters."
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "user"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+    mislabeled = build_response_contract(state, visible, is_user_facing=False)
+    retry_owners = []
+
+    async def _capture_dialogue_owner(
+        text,
+        _contract,
+        *,
+        retry_generate=None,
+        **_kwargs,
+    ):
+        retry_owners.append(retry_generate)
+        return text, SimpleNamespace(to_dict=lambda: {}, selected_source="incumbent"), False
+
+    router = _Router()
+
+    async def _single_owner_think(**kwargs):
+        router.calls.append(kwargs)
+        return "Exact cache ownership prevents one request from resuming another request's state."
+
+    router.think = _single_owner_think
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    monkeypatch.setattr(
+        "core.phases.response_generation.build_response_contract",
+        lambda *_args, **_kwargs: mislabeled,
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.enforce_dialogue_contract",
+        _capture_dialogue_owner,
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [{"role": "user", "content": visible}],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    await phase.execute(state, context={})
+
+    assert len(router.calls) == 1
+    assert router.calls[0]["clean_user_surface_contract"] is True
+    assert router.calls[0]["semantic_completion_contract"] is True
+    assert retry_owners == [None]
+
+
+@pytest.mark.asyncio
 async def test_response_generation_quality_gate_uses_visible_desktop_prompt(monkeypatch):
     state = AuraState()
     visible = (

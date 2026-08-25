@@ -382,3 +382,38 @@ def test_incomplete_semantic_candidate_remains_eligible_for_append_only_completi
         generated_tokens=32,
         max_tokens=512,
     ) == "configured_stop"
+
+
+def test_post_generation_completion_accepts_a_short_terminal_answer():
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": "Are you ready?",
+    }
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        "Yes.",
+        generated_tokens=2,
+    )
+
+    assert receipt["semantic_completion_satisfied"] is True
+    assert receipt["semantic_completion_incomplete"] is False
+
+
+def test_post_generation_completion_rejects_a_clipped_short_answer():
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": "Name the latest release and cite its source.",
+    }
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        "The latest release is",
+        generated_tokens=5,
+    )
+
+    assert receipt["semantic_completion_satisfied"] is False
+    assert receipt["semantic_completion_incomplete"] is True
+    assert receipt["semantic_completion_terminal_boundary"] is False

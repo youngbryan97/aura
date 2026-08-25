@@ -1138,13 +1138,20 @@ def _semantic_surface_stop_ready(
     response_text: Any,
     *,
     generated_tokens: int,
+    minimum_tokens: int | None = None,
 ) -> bool:
     """Stop a bounded decode once its visible contract is demonstrably complete."""
 
     if not bool(job.get("semantic_completion_contract", False)):
         return False
-    minimum_tokens = 8 if job.get("user_surface_continuation_contract") else 24
-    if int(generated_tokens) < minimum_tokens:
+    required_tokens = (
+        max(1, int(minimum_tokens))
+        if minimum_tokens is not None
+        else 8
+        if job.get("user_surface_continuation_contract")
+        else 24
+    )
+    if int(generated_tokens) < required_tokens:
         return False
     candidate = _surface_quality_candidate(job, response_text).rstrip()
     if not candidate.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]")):
@@ -1226,6 +1233,10 @@ def _semantic_completion_receipt_state(
             job,
             response_text,
             generated_tokens=generated_tokens,
+            # The default keeps an early sentence from stopping a longer
+            # decode. After generation ends, semantic and terminal evidence,
+            # rather than length alone, decides whether the answer is complete.
+            minimum_tokens=1,
         )
     )
     return {
