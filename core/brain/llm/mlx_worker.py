@@ -6548,6 +6548,37 @@ class AffectiveSteeringAttachment:
     disposition: str
 
 
+def _finish_affective_attachment(
+    engine: Any,
+    *,
+    substrate_mem: Any,
+    phi_residual_mem: Any,
+    steering_active_flag: Any,
+) -> bool:
+    """Hand both shared-memory channels to an attached engine.
+
+    Separate from the attach itself so the wiring can be checked against a
+    stand-in engine. Every hook gets the residual channel; a hook that refuses
+    the attribute is skipped rather than aborting the rest.
+    """
+    available = bool(
+        getattr(engine, "_model_attached", False)
+        and (getattr(engine, "_hooks", None) or [])
+    )
+    if substrate_mem is not None and available:
+        engine.start_substrate_sync(shared_state=substrate_mem)
+    if phi_residual_mem is not None:
+        for hook in getattr(engine, "_hooks", None) or []:
+            try:
+                hook._phi_residual_channel = phi_residual_mem
+            except (AttributeError, TypeError):
+                continue
+    active = bool(engine.is_active())
+    if steering_active_flag is not None:
+        steering_active_flag.value = active
+    return active
+
+
 def _attach_affective_steering(
     model: Any,
     tokenizer: Any,
@@ -6602,21 +6633,12 @@ def _attach_affective_steering(
             )
         else:
             engine.attach(model, tokenizer)
-        available = bool(
-            getattr(engine, "_model_attached", False)
-            and (getattr(engine, "_hooks", None) or [])
+        active = _finish_affective_attachment(
+            engine,
+            substrate_mem=substrate_mem,
+            phi_residual_mem=phi_residual_mem,
+            steering_active_flag=steering_active_flag,
         )
-        if substrate_mem is not None and available:
-            engine.start_substrate_sync(shared_state=substrate_mem)
-        if phi_residual_mem is not None:
-            for hook in getattr(engine, "_hooks", None) or []:
-                try:
-                    hook._phi_residual_channel = phi_residual_mem
-                except (AttributeError, TypeError):
-                    continue
-        active = engine.is_active()
-        if steering_active_flag is not None:
-            steering_active_flag.value = active
 
         if active:
             logger.info(

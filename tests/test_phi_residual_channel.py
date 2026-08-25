@@ -147,9 +147,51 @@ class TestTheWiringIsActuallyPresent:
 
         from core.brain.llm import mlx_worker
 
-        source = inspect.getsource(mlx_worker._mlx_worker_loop)
-        assert "phi_residual_mem" in source
-        assert "_phi_residual_channel" in source
+        # Follow the parameter rather than grepping one function body for the
+        # attribute name. The attachment moved into its own helper once, and a
+        # text match on the loop reported the channel unwired while it was
+        # working.
+        loop = inspect.signature(mlx_worker._mlx_worker_loop)
+        assert "phi_residual_mem" in loop.parameters
+
+        attach = mlx_worker._attach_affective_steering
+        assert "phi_residual_mem" in inspect.signature(attach).parameters
+
+        finish = mlx_worker._finish_affective_attachment
+        assert "phi_residual_mem" in inspect.signature(finish).parameters
+        assert "_phi_residual_channel" in inspect.getsource(finish)
+        assert "_finish_affective_attachment" in inspect.getsource(attach)
+
+        called = inspect.getsource(mlx_worker._mlx_worker_loop)
+        assert "_attach_affective_steering" in called
+        assert "phi_residual_mem" in called
+
+    def test_every_hook_gets_the_channel(self):
+        """The attachment reaches all hooks, not just the first one."""
+        from core.brain.llm import mlx_worker
+
+        class _Hook:
+            pass
+
+        class _Engine:
+            _model_attached = True
+
+            def __init__(self):
+                self._hooks = [_Hook(), _Hook(), _Hook()]
+
+            def is_active(self):
+                return True
+
+            def start_substrate_sync(self, shared_state=None):
+                pass
+
+        engine = _Engine()
+        channel = object()
+        mlx_worker._finish_affective_attachment(
+            engine, substrate_mem=None, phi_residual_mem=channel,
+            steering_active_flag=None,
+        )
+        assert all(h._phi_residual_channel is channel for h in engine._hooks)
 
     def test_the_hook_publishes_rather_than_looking_up_a_local_phi_core(self):
         import inspect
