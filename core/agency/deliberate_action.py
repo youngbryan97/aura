@@ -22,8 +22,9 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Mapping, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -55,7 +56,7 @@ class Expectation:
     absent: tuple[str, ...] = ()
     describes: str = ""
 
-    def check(self, before: str, after: str) -> "Verdict":
+    def check(self, before: str, after: str) -> Verdict:
         missing: list[str] = []
         lingering: list[str] = []
         after_lower = after.lower()
@@ -271,7 +272,7 @@ def _distinctive(text: str) -> set[str]:
     }
 
 
-def _describes_the_same_thing(wanted: str, option: "ActionOption") -> float:
+def _describes_the_same_thing(wanted: str, option: ActionOption) -> float:
     """How much an option's own description matches what she is trying to do.
 
     The only way to tell a place from a page about the place, without asking
@@ -555,7 +556,11 @@ def _open_episode(
     if deliberation.chosen is None:
         return None
     try:
-        from core.ontogeny.experience import Episode, Provenance, get_experience_spine  # noqa: PLC0415
+        from core.ontogeny.experience import (  # noqa: PLC0415
+            Episode,
+            Provenance,
+            get_experience_spine,
+        )
 
         store = spine if spine is not None else get_experience_spine()
         episode = Episode(
