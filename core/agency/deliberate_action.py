@@ -511,7 +511,7 @@ async def deliberate(
         situation=situation,
         chosen=chosen,
         spoke=spoke,
-        rationale=_reason_or_nothing(_rationale(reply, chosen), evidence),
+        rationale=_reason_or_nothing(_rationale(reply, chosen), evidence, options),
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
         recalled=tuple(recalled),
@@ -610,8 +610,26 @@ def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
 
 
 
-def _reason_or_nothing(rationale: str, evidence: Sequence[str]) -> str:
-    """The rationale, unless it is the evidence read back.
+def _is_just_the_options(said: str, options: Sequence[ActionOption]) -> bool:
+    """Whether a rationale is the list of choices read back.
+
+    "Available moves up/down/left/right" names every option and says nothing
+    about any of them. A reason has to contain something the options do not.
+    """
+    words = _distinctive(said)
+    if not words:
+        return False
+    names = set()
+    for option in options:
+        names |= _distinctive(f"{option.name} {option.detail}")
+    names |= {"available", "move", "moves", "option", "options", "press"}
+    return bool(words) and words <= names
+
+
+def _reason_or_nothing(
+    rationale: str, evidence: Sequence[str], options: Sequence[ActionOption] = ()
+) -> str:
+    """The rationale, unless it is the evidence or the options read back.
 
     A reply that repeats what it was given has not reasoned about it, and
     presenting an echo as a reason is worse than saying nothing: it looks
@@ -620,6 +638,8 @@ def _reason_or_nothing(rationale: str, evidence: Sequence[str]) -> str:
     """
     said = " ".join(str(rationale or "").split())
     if not said:
+        return ""
+    if _is_just_the_options(said, options):
         return ""
     plain = said.lower().strip(" .,:;-")
     for line in evidence:

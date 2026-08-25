@@ -491,3 +491,20 @@ def test_the_newest_outcomes_survive_the_budget():
     evidence = " ".join(_situation_evidence("goal", "board", options, history, []))
     assert "move59" in evidence
     assert "move0 " not in evidence
+
+
+def test_a_list_of_the_choices_is_not_a_reason():
+    """LIVE: "Board: Up — Available moves up/down/left/right".
+
+    That names every option and says nothing about any of them. A reason has
+    to contain something the options do not.
+    """
+    from core.agency.deliberate_action import _reason_or_nothing
+
+    options = [_option(name, detail=f"press {name}") for name in ("up", "down", "left", "right")]
+    assert _reason_or_nothing("Available moves up/down/left/right", ["Goal: play"], options) == ""
+    assert _reason_or_nothing("up down left right", ["Goal: play"], options) == ""
+    assert (
+        _reason_or_nothing("the corner holds if I go up", ["Goal: play"], options)
+        == "the corner holds if I go up"
+    )
