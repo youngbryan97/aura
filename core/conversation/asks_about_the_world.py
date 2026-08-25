@@ -59,10 +59,20 @@ _NAME_SHAPE = re.compile(
     r"|[A-Z][a-z0-9&.'-]+)"
 )
 
+#: "live" is missing from the bare recency alternation on purpose.
+#:
+#: It is the one word there with a second, commoner meaning: running, as in
+#: "the live runtime", "the live instance", "the live response path". Reading
+#: it as recency sent a turn about her own machinery to a web search —
+#: "plan how you would debug the live response path" came back as "I don't
+#: have grounded results for that yet, and I shouldn't guess", because the
+#: contract had already decided the answer was outside. The recency sense is
+#: still caught where the word is the object of a lookup, in the
+#: "find live ..." branch above it.
 _EXPLICIT_EXTERNAL_LOOKUP = re.compile(
     r"\b(?:search(?: the)? (?:web|internet|online)|browse(?: the)? (?:web|internet)|"
     r"look (?:it |this |that )?up|find (?:recent|current|latest|live) |"
-    r"(?:current|latest|recent|live|today'?s|this week'?s)\b)",
+    r"(?:current|latest|recent|today'?s|this week'?s)\b)",
     re.IGNORECASE,
 )
 

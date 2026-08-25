@@ -1459,7 +1459,6 @@ core/swarm/worker_pool.py
 core/synthesis.py
 core/tasks/celery_app.py
 core/tasks/managed_command.py
-core/temp_fix_test.py
 core/tools/computer_use.py
 core/tools/runtime_tools.py
 core/tools/tool_permission.py

@@ -195,3 +195,33 @@ class TestTheWorkerMakesOneCall:
             self._Tokenizer(), {JOB_STATE_KEY: payload}, []
         )
         assert fault == "state_payload_rejected"
+
+
+def test_the_health_block_reaches_the_runtime_integrity_report():
+    """Registered through the runtime registry, which is what health reads.
+
+    ``core/runtime`` resolves services through the low-level registry by
+    contract — the foundation has to be able to come up and report without the
+    container. A first attempt registered the provider in the container and
+    read it from there, which worked and violated that contract.
+    """
+    from core.brain.llm.endogenous_decode import register_pathway_health
+    from core.runtime import service_registry
+
+    registered: dict[str, object] = {}
+    service_registry.install_service_registration_sink(
+        lambda name, instance, required, metadata: registered.__setitem__(name, instance)
+    )
+    service_registry.install_service_resolver(
+        lambda name, default=None: registered.get(name, default)
+    )
+    try:
+        register_pathway_health()
+        from core.runtime.health_contract import _runtime_integrity_block
+
+        block = _runtime_integrity_block()
+        assert "endogenous_language" in block
+        assert "unexpected_refusals" in block["endogenous_language"]
+    finally:
+        service_registry.install_service_resolver(None)
+        service_registry.install_service_registration_sink(None)

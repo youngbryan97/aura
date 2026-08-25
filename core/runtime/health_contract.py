@@ -1314,12 +1314,13 @@ def _runtime_integrity_block() -> dict[str, Any]:
     # while a head on disk that refuses to attach is a mismatch with the
     # resident model.
     try:
-        from core.container import ServiceContainer
         from core.runtime.service_registry import get_runtime_service
 
+        # The runtime registry only. This package resolves services through
+        # the low-level registry by contract, so that the foundation can come
+        # up and report without the container — and a test pins that this file
+        # never reaches for ServiceContainer.
         provider = get_runtime_service("endogenous_language_health", default=None)
-        if not callable(provider):
-            provider = ServiceContainer.get("endogenous_language_health", default=None)
         if callable(provider):
             block["endogenous_language"] = provider()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive

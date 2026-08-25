@@ -164,3 +164,34 @@ def test_a_real_answer_is_left_alone():
     ):
         assert not contains_unfilled_placeholder(kept), kept
         assert repair_runtime_boilerplate(kept) == kept
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Please plan how you would debug the live response path.",
+        "is the live runtime still up",
+        "walk me through the live instance's boot order",
+        "what did live testing show last night",
+    ],
+)
+def test_live_as_an_adjective_on_her_own_machinery_is_not_a_web_question(message):
+    """"Live" meaning running is not "live" meaning recent.
+
+    It was in the recency list, so a turn about her own runtime was routed to
+    a web search and answered "I don't have grounded results for that yet, and
+    I shouldn't guess" — a refusal produced before the model was ever asked.
+    """
+    assert not wants_outside_evidence(message), message
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "find live scores for the match",
+        "what are the latest results",
+        "search the web for the response path",
+    ],
+)
+def test_the_recency_sense_still_reaches_evidence(message):
+    assert wants_outside_evidence(message), message
