@@ -66,14 +66,21 @@ def test_an_abbreviation_gains_a_space_and_that_is_correct() -> None:
     assert _restore_sentence_spacing("saw Dr.Smith today") == "saw Dr. Smith today"
 
 
-def test_it_runs_before_the_cutoff_trim() -> None:
-    """Spacing is restored first, so the trim measures the real text."""
+def test_it_runs_before_the_reply_is_judged() -> None:
+    """Spacing is restored first, so every later check measures the real text.
+
+    This used to say "before the cutoff trim" and pinned the ordering against
+    `_complete_reply_tail`. That trimmer was deliberately taken off the chat
+    path — a punctuation trimmer can make a fragment look complete by throwing
+    away the answer someone asked for — so the substring was gone and the test
+    raised ValueError rather than failing about anything. What still has to
+    hold is that restoration happens before the surface gate reads the text.
+    """
     from pathlib import Path
 
     src = Path("core/brain/cognitive_engine.py").read_text(encoding="utf-8")
-    # The trim is reached through _complete_reply_tail, which is what the
-    # serving path calls; asserting on the wrapper keeps this test honest
-    # across the rename rather than pinning a call site that moved.
-    assert src.index("_restore_sentence_spacing(text)") < src.index(
-        "_complete_reply_tail(text)"
-    )
+    restored = src.index("_restore_sentence_spacing(text)")
+    judged = src.index("surface_quality_gate_reasons", restored)
+    assert restored < judged
+    # And the trimmer stays off this path.
+    assert "_complete_reply_tail(text)" not in src
