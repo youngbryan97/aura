@@ -100,3 +100,88 @@ def test_the_live_corpus_is_not_carried_by_affect_alone():
     fit = _fit_with(live)
     assert fit.only_affect_varied is False
     assert "memory" in live and live["memory"] >= 1
+
+
+def test_a_dimension_that_is_pinned_but_sometimes_absent_is_not_varying():
+    """The presence mask is not variance in the dimension.
+
+    Measured before this was handled: 24 dimensions read as varying on the
+    live corpus, and the real number was 18. `goal.age`, `attention.load`,
+    `recurrence.budget_used` and `temporal.horizon` were pinned at 1.0 and
+    unreachable on 3% of turns; measuring the masked column turned that
+    unreachability into apparent signal, and then reported all four as
+    duplicates of each other because their masked columns matched.
+    """
+    pinned = 3
+    turns = []
+    for index in range(40):
+        state = np.full(STATE_DIM, 0.5, dtype=np.float64)
+        present = np.ones(STATE_DIM, dtype=bool)
+        state[pinned] = 1.0
+        if index % 10 == 0:
+            present[pinned] = False
+            state[pinned] = 0.0
+        turns.append(
+            TurnTokens(
+                state=state,
+                tokens=np.asarray([index], dtype=np.int64),
+                present=present,
+            )
+        )
+
+    report = varying_dimensions(turns)
+
+    assert FEATURES[pinned].name in report["constant"]
+    assert FEATURES[pinned].name not in report["varying"]
+
+
+def test_a_dimension_never_read_is_neither_varying_nor_constant():
+    """Absent and pinned are different findings and are reported apart."""
+    missing = 5
+    turns = []
+    for index in range(20):
+        present = np.ones(STATE_DIM, dtype=bool)
+        present[missing] = False
+        state = np.full(STATE_DIM, 0.5, dtype=np.float64)
+        state[missing] = 0.0
+        state[1] = index / 20
+        turns.append(
+            TurnTokens(
+                state=state,
+                tokens=np.asarray([index], dtype=np.int64),
+                present=present,
+            )
+        )
+
+    report = varying_dimensions(turns)
+
+    assert FEATURES[missing].name in report["never_present"]
+    assert FEATURES[missing].name not in report["constant"]
+    assert FEATURES[missing].name not in report["varying"]
+
+
+def test_two_dimensions_carrying_one_value_are_reported_as_one():
+    """Collinear columns corrupt the causal work, not just the count.
+
+    An ablation of one channel is silently a partial ablation of another when
+    a dimension is duplicated across them, which is why the live corpus's
+    channel influence map has to be read with this list in view.
+    """
+    left, right = 1, 2
+    turns = []
+    for index in range(30):
+        state = np.full(STATE_DIM, 0.5, dtype=np.float64)
+        state[left] = index / 30
+        state[right] = index / 30
+        turns.append(
+            TurnTokens(
+                state=state,
+                tokens=np.asarray([index], dtype=np.int64),
+                present=np.ones(STATE_DIM, dtype=bool),
+            )
+        )
+
+    report = varying_dimensions(turns)
+
+    pair = [FEATURES[left].name, FEATURES[right].name]
+    assert pair in report["collinear_pairs"]

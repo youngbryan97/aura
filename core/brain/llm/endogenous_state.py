@@ -446,7 +446,14 @@ def _log_age(seconds: Any, *, span: float = 3600.0) -> float:
 
 def _probe_affect() -> dict[str, float] | None:
     engine = _service("affect_engine") or _service("affect_manager")
-    substrate = _service("continuous_substrate") or _service("liquid_state")
+    # `conscious_substrate` first: it is the name the container registers, and
+    # the other two are aliases that may not be. The substrate probe had the
+    # same miss and read 1 of its 34 dimensions on every live turn.
+    substrate = (
+        _service("conscious_substrate")
+        or _service("liquid_state")
+        or _service("continuous_substrate")
+    )
     out: dict[str, float] = {}
     snapshot: Any = None
     if engine is not None and hasattr(engine, "get_snapshot"):
@@ -486,6 +493,23 @@ def _probe_affect() -> dict[str, float] | None:
             value = _first_number(summary, keys)
             if value is not None:
                 out[name] = value
+
+    # Curiosity is a NAMED AXIS of the substrate's own state vector, and
+    # `current()` is the public accessor for it on the live organ. It was
+    # reached for only through `get_state_summary`, which this build does not
+    # have, so `affect.curiosity` read absent on all 1,629 recorded turns
+    # while the number sat one call away. CuriosityEngine.get_curiosity_level
+    # reads exactly this and nothing else.
+    if "affect.curiosity" not in out and substrate is not None:
+        reading = getattr(substrate, "current", None)
+        if callable(reading):
+            try:
+                curiosity = getattr(reading(), "curiosity", None)
+            except _LOOKUP_ERRORS as exc:
+                logger.debug("substrate current() declined: %s", exc)
+            else:
+                if isinstance(curiosity, (int, float)):
+                    out["affect.curiosity"] = max(0.0, min(1.0, float(curiosity)))
     return out or None
 
 
@@ -671,6 +695,13 @@ def _goal_features(goals: Sequence[Any]) -> dict[str, float]:
     out: dict[str, float] = {"goal.active": 1.0}
     if priorities:
         out["goal.priority"] = max(0.0, min(1.0, max(priorities)))
+    # Whether she is getting anywhere, which the goal records themselves do
+    # not say: goal.blocked read a constant 0.0 across every recorded turn.
+    frustration = _welfare_reading()
+    if frustration is not None:
+        blocked = _welfare_number(frustration[0], "goal_frustration")
+        if blocked is not None:
+            out["goal.blocked"] = blocked
         # Two goals both near the top is the shape of a pull in two
         # directions. One goal, however urgent, is not a conflict.
         ranked = sorted(priorities, reverse=True)
@@ -764,6 +795,16 @@ def _probe_memory() -> dict[str, float] | None:
         )
         if recency is not None:
             out["memory.episodic_recency"] = 1.0 - _log_age(recency)
+
+    # How much of what she holds disagrees with itself. The memory facade
+    # publishes which stores exist and nothing about their coherence, so this
+    # read absent on all 1,629 recorded turns; the welfare model maintains it
+    # because it is one of the inputs distress is computed from.
+    reading = _welfare_reading()
+    if reading is not None:
+        coherence = _welfare_number(reading[0], "memory_coherence")
+        if coherence is not None:
+            out.setdefault("memory.contradiction", 1.0 - coherence)
     return out or None
 
 
@@ -781,6 +822,43 @@ def _mapping_from(organ: Any, accessors: Sequence[str]) -> Mapping[str, Any] | N
         if isinstance(value, Mapping) and value:
             return value
     return None
+
+
+def _welfare_reading() -> tuple[Mapping[str, Any], Mapping[str, Any]] | None:
+    """The welfare model's inputs and outputs, or None.
+
+    This is the organ several channels were looking for and none of them
+    named. It computes from state already in this process — no store, no
+    query — and costs 16 microseconds warm, measured over 20 calls on
+    2026-08-25. The hundred milliseconds it appears to cost the first time is
+    import, which has happened long before a generation.
+
+    Read here rather than through the container because WelfareState is a
+    process singleton with its own accessor, and the four service names the
+    uncertainty channel used to try are registered nowhere.
+    """
+    try:
+        from core.being.body_state_service import BodyStateService
+        from core.being.welfare_state import WelfareState
+
+        welfare = WelfareState.get()
+        body = BodyStateService.get().snapshot()
+        inputs = welfare.gather_inputs(body=body)
+        outputs = welfare.compute(inputs)
+    except _LOOKUP_ERRORS as exc:
+        logger.debug("welfare reading unavailable: %s", exc)
+        return None
+    return vars(inputs), vars(outputs)
+
+
+def _welfare_number(source: Mapping[str, Any], key: str) -> float | None:
+    value = source.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if number != number:
+        return None
+    return max(0.0, min(1.0, number))
 
 
 def _probe_uncertainty() -> dict[str, float] | None:
@@ -819,6 +897,27 @@ def _probe_uncertainty() -> dict[str, float] | None:
     # per-answer reading and a measured confidence-to-outcome gap, and binding
     # a belief-graph average to either would be the exact substitution this
     # probe's own docstring warns against.
+    # The welfare model computes confidence from truth integrity, model
+    # stability, tool reliability and prediction error, and it computes the
+    # pull toward not acting directly. Both are readings about NOW, which is
+    # what these two dimensions declare themselves to be — unlike a
+    # belief-graph average, which is a reading about what she holds.
+    reading = _welfare_reading()
+    if reading is not None:
+        inputs, outputs = reading
+        confidence = _welfare_number(outputs, "confidence")
+        if confidence is not None:
+            out["uncertainty.confidence"] = confidence
+        inhibition = _welfare_number(outputs, "action_inhibition")
+        if inhibition is not None:
+            out["uncertainty.abstention_pressure"] = inhibition
+        # The gap between what was expected and what happened is exactly what
+        # this dimension declares, and it is an input the welfare model
+        # already maintains.
+        error = _welfare_number(inputs, "prediction_error")
+        if error is not None:
+            out["uncertainty.calibration_error"] = error
+
     world = _service("epistemic_state") or _service("world_model")
     summary = _mapping_from(world, ("get_summary", "summary"))
     if isinstance(summary, Mapping):
@@ -831,8 +930,9 @@ def _probe_uncertainty() -> dict[str, float] | None:
             # A pull toward saying nothing, read as the share of held beliefs
             # that have collided. Not a rate anyone tuned: it is the graph's
             # own contradiction count over its own size.
-            out["uncertainty.abstention_pressure"] = max(
-                0.0, min(1.0, contradictions / max(1.0, held))
+            out.setdefault(
+                "uncertainty.abstention_pressure",
+                max(0.0, min(1.0, contradictions / max(1.0, held))),
             )
 
     for key in ("calibration_tracker", "confidence_calibrator", "epistemics", "uncertainty_engine"):
@@ -901,6 +1001,26 @@ def _probe_self_state() -> dict[str, float] | None:
     integrity = _first_number(health, ("integrity", "health_score")) if health else None
     if integrity is not None:
         out["self.integrity"] = min(1.0, abs(integrity))
+
+    # `ghost`, `soul`, `health_monitor` and `watchdog` are registered nowhere
+    # in this tree, so both dimensions read absent on all 1,629 recorded
+    # turns. The welfare model maintains both: how far her account of things
+    # still holds together, and how free she currently is to act.
+    #
+    # Agency is `permission_confidence` and NOT `1 - action_inhibition`,
+    # deliberately: the latter would be a perfect negative copy of
+    # uncertainty.abstention_pressure, and a duplicated dimension makes an
+    # ablation of one channel silently a partial ablation of another. Three
+    # such pairs already existed and were found by measuring the corpus.
+    reading = _welfare_reading()
+    if reading is not None:
+        inputs, _outputs = reading
+        truth = _welfare_number(inputs, "truth_integrity")
+        if truth is not None:
+            out.setdefault("self.integrity", truth)
+        permitted = _welfare_number(inputs, "permission_confidence")
+        if permitted is not None:
+            out.setdefault("self.agency", permitted)
     return out or None
 
 
@@ -929,9 +1049,20 @@ def _probe_attention() -> dict[str, float] | None:
         if weights:
             total = sum(abs(w) for w in weights) or 1.0
             peak = max(abs(w) for w in weights)
+            # `focus` is a SHARE and `salience_peak` is a MAGNITUDE, and they
+            # were the same number. `peak / max(1.0, total)` and `peak / total`
+            # differ only when the weights sum to less than one, which they
+            # never do, so two named dimensions carried one value on all 1,629
+            # recorded turns — inflating coverage, giving the head two
+            # collinear columns, and making an intervention on either one
+            # secretly an intervention on both.
+            #
+            # Declared meanings, restored: narrowness of the focus is the
+            # peak's share of the whole, and strength of the most salient item
+            # is the peak itself.
             return {
-                "attention.salience_peak": min(1.0, peak / max(1.0, total)),
                 "attention.focus": min(1.0, peak / total),
+                "attention.salience_peak": min(1.0, peak),
                 "attention.load": min(1.0, len(weights) / _ATTENTION_FOCUS_SIZE),
             }
     return _probe_attention_by_accessor()

@@ -136,12 +136,14 @@ class _WorldModelShaped:
         }
 
 
-def test_uncertainty_reads_the_organ_that_is_registered(monkeypatch):
+def test_evidence_support_comes_from_the_belief_graph(monkeypatch):
     """Measured 2026-08-25: this channel read absent on all 1,729 turns.
 
     It resolved calibration_tracker, confidence_calibrator, epistemics and
-    uncertainty_engine. None of the four is registered anywhere in the tree,
-    so the channel could not fire and its four dimensions were 0 of 4 present.
+    uncertainty_engine. None of the four is registered anywhere in the tree.
+    The world model is, and how well supported her held beliefs are is an
+    honest reading of evidence_support — a reading about what she HOLDS,
+    which is why it is not bound to confidence in the answer forming.
     """
     from core.brain.llm.endogenous_state import _probe_uncertainty
 
@@ -149,6 +151,9 @@ def test_uncertainty_reads_the_organ_that_is_registered(monkeypatch):
     monkeypatch.setattr(
         "core.brain.llm.endogenous_state._service",
         lambda name: world if name == "epistemic_state" else None,
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._welfare_reading", lambda: None
     )
 
     read = _probe_uncertainty()
@@ -158,31 +163,41 @@ def test_uncertainty_reads_the_organ_that_is_registered(monkeypatch):
     assert read["uncertainty.abstention_pressure"] == pytest.approx(0.2)
 
 
-def test_the_two_dimensions_with_no_honest_source_stay_absent(monkeypatch):
-    """A belief-graph average is not confidence in the answer forming.
+def test_the_welfare_reading_wins_over_the_belief_ratio(monkeypatch):
+    """Two sources for one dimension, and the better one is not overwritten.
 
-    Binding it to `uncertainty.confidence` would be the substitution this
-    probe's own docstring warns against, so those two read absent instead.
+    The belief-graph contradiction ratio is a fallback. The welfare model
+    computes the pull toward not acting directly, so it is what
+    abstention_pressure means when both are available.
     """
     from core.brain.llm.endogenous_state import _probe_uncertainty
 
-    world = _WorldModelShaped(avg=0.9, contradictions=0, held=5)
+    world = _WorldModelShaped(avg=0.6, contradictions=9, held=10)
     monkeypatch.setattr(
         "core.brain.llm.endogenous_state._service",
         lambda name: world if name == "epistemic_state" else None,
     )
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._welfare_reading",
+        lambda: ({"prediction_error": 0.1}, {"action_inhibition": 0.4,
+                                              "confidence": 0.7}),
+    )
 
     read = _probe_uncertainty()
 
-    assert "uncertainty.confidence" not in read
-    assert "uncertainty.calibration_error" not in read
+    assert read["uncertainty.abstention_pressure"] == pytest.approx(0.4)
+    assert read["uncertainty.confidence"] == pytest.approx(0.7)
+    assert read["uncertainty.evidence_support"] == pytest.approx(0.6)
 
 
-def test_no_world_model_still_reads_absent(monkeypatch):
+def test_neither_source_still_reads_absent(monkeypatch):
     from core.brain.llm.endogenous_state import _probe_uncertainty
 
     monkeypatch.setattr(
         "core.brain.llm.endogenous_state._service", lambda name: None
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._welfare_reading", lambda: None
     )
     assert _probe_uncertainty() is None
 

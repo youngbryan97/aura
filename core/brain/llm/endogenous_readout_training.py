@@ -131,6 +131,11 @@ class TurnTokens:
     state: np.ndarray
     tokens: np.ndarray
     group: str = ""
+    #: Which dimensions were reachable for this turn. Carried so variance can
+    #: be measured over the turns where a dimension was actually READ. Without
+    #: it, a dimension pinned at one value but occasionally absent shows
+    #: variance that belongs to the presence mask, not to the dimension.
+    present: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -492,6 +497,7 @@ def tokenize_pairs(
                 # same words are one unit for splitting, whatever else differed
                 # about them.
                 group=hashlib.sha256(pair.text.encode("utf-8")).hexdigest()[:16],
+                present=np.asarray(pair.present, dtype=bool),
             )
         )
     return out
@@ -513,27 +519,86 @@ def varying_dimensions(turns: Sequence[TurnTokens]) -> dict[str, Any]:
     read as evidence about goals, memory or recurrence.
     """
     if not turns:
-        return {"varying": [], "constant": [], "by_channel": {}}
+        return {
+            "varying": [],
+            "constant": [],
+            "never_present": [],
+            "by_channel": {},
+            "collinear_pairs": [],
+            "cross_channel_collinear": [],
+        }
 
     from core.brain.llm.endogenous_state import FEATURES
 
     states = np.stack([turn.state for turn in turns])
-    spread = states.std(axis=0)
+    if any(turn.present is not None for turn in turns):
+        present = np.stack(
+            [
+                turn.present
+                if turn.present is not None
+                else np.ones(states.shape[1], dtype=bool)
+                for turn in turns
+            ]
+        )
+    else:
+        present = np.ones_like(states, dtype=bool)
+
     varying: list[str] = []
     constant: list[str] = []
+    absent: list[str] = []
     by_channel: dict[str, int] = {}
+    spread = np.zeros(states.shape[1], dtype=float)
     for index, feature in enumerate(FEATURES):
-        if index >= spread.size:
+        if index >= states.shape[1]:
             break
-        if float(spread[index]) > 0.0:
+        # Variance among the turns where the dimension was READ. Measured over
+        # the masked column instead, a dimension pinned at one value but
+        # unreachable on 3% of turns reads as varying — and that variance
+        # belongs to the presence mask, not to the dimension.
+        seen = states[present[:, index], index]
+        if seen.size == 0:
+            absent.append(feature.name)
+            continue
+        spread[index] = float(seen.std())
+        if spread[index] > 0.0:
             varying.append(feature.name)
             by_channel[feature.channel] = by_channel.get(feature.channel, 0) + 1
         else:
             constant.append(feature.name)
+    # Two dimensions carrying one value are not two dimensions. Collinear
+    # columns inflate the coverage figure, give the head two gradient paths to
+    # the same signal, and — the part that matters for the causal work —
+    # make an ablation of one channel silently an ablation of part of another.
+    #
+    # Measured on the live corpus, 2026-08-25: `temporal.future` was exactly
+    # `goal.priority` and `temporal.past` exactly `memory.recall_hits`,
+    # because the temporal channel is DERIVED from those two and the goal was
+    # continuously active. That derivation is deliberate and documented; the
+    # collinearity it produces is reported rather than hidden, so a channel
+    # influence map built on this corpus is read with it in view.
+    duplicates: list[tuple[str, str]] = []
+    for left in range(min(len(FEATURES), states.shape[1])):
+        if float(spread[left]) <= 0.0:
+            continue
+        for right in range(left + 1, min(len(FEATURES), states.shape[1])):
+            if float(spread[right]) <= 0.0:
+                continue
+            both = present[:, left] & present[:, right]
+            if both.sum() < 2:
+                continue
+            if np.allclose(states[both, left], states[both, right]):
+                duplicates.append((FEATURES[left].name, FEATURES[right].name))
     return {
         "varying": varying,
         "constant": constant,
+        "never_present": absent,
         "by_channel": dict(sorted(by_channel.items())),
+        "collinear_pairs": [list(pair) for pair in duplicates],
+        "cross_channel_collinear": [
+            list(pair)
+            for pair in duplicates
+            if pair[0].split(".", 1)[0] != pair[1].split(".", 1)[0]
+        ],
     }
 
 

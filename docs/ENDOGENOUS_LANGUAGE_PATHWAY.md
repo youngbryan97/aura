@@ -105,13 +105,28 @@ frequent ones — the shape a register shift cannot produce. Refitting the whole
 head on permuted states gives rare gains of 3e-05, three orders of magnitude
 below.
 
-What that verdict is a claim about, and what it is not: 24 of the 74
-dimensions varied in that corpus. Affect (7), temporal (4), goal (4),
-attention (3), memory (2), recurrence (2), self-state (2). The substrate and
-uncertainty channels contributed nothing. It is not carried by affect alone —
-`memory.recall_confidence` had the widest spread of any dimension — and the
-report says so, because a gain carried only by affect is indistinguishable
-from a learned style adapter however significant it is.
+What that verdict is a claim about, and what it is not. Of 74 named
+dimensions, **47 were never present, 9 were pinned at one value, and 18
+varied** — and three of those eighteen are exact copies of another dimension,
+so the state carries about **fifteen independent numbers**, seven of them
+affect. The substrate and uncertainty channels contributed nothing at all.
+
+It is not carried by affect alone: `memory.recall_confidence` has the widest
+spread of any dimension in the corpus and is collinear with nothing. The
+report says which channels varied for exactly this reason, because a gain
+carried only by affect is indistinguishable from a learned style adapter
+however significant it is.
+
+The three collinear pairs are `attention.focus` = `attention.salience_peak`,
+`goal.priority` = `temporal.future`, and `memory.recall_hits` =
+`temporal.past`. The first was a defect — `peak / max(1.0, total)` and
+`peak / total` differ only when the weights sum to under one, which they never
+do — and the other two follow from the temporal channel being DERIVED from the
+goal and memory channels, which is deliberate and documented. Either way a
+duplicated dimension gives the head two gradient paths to one signal and makes
+an ablation of one channel silently a partial ablation of another, so the fit
+reports its collinear pairs and a channel influence map is read with them in
+view.
 
 **Fit on the past, scored on the future.** The control a random split cannot
 give: endogenous state drifts slowly and topics cluster in time, so a held-out
