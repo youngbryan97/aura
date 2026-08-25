@@ -218,6 +218,30 @@ _MEMORY_OPERATION_RE = re.compile(
 )
 
 
+#: Setting something aside is a discourse move, not a request to act on it.
+#:
+#: "Forget the tests for a second" means stop talking about them. The comment
+#: below _MEMORY_OPERATION_RE names this exact turn — an intimate question
+#: answered with a status line about the belief store — because "forget" is a
+#: capability verb and "tests" is both a capability verb and a capability
+#: object, so the general matcher found a verb and an object in one clause and
+#: called it a request.
+#:
+#: Matched on the idiom rather than on which nouns follow it: what makes this
+#: a set-aside is "for a second" or "for now" after it, or the bare "forget
+#: it" / "never mind" that takes no object at all.
+_SET_ASIDE_RE = re.compile(
+    r"\b(?:forget|ignore|leave|put)\s+(?:\w+\s+){0,4}?"
+    r"(?:for\s+(?:a|the)\s+(?:second|moment|minute|bit|while)|for\s+now|aside)\b"
+    # "forget that" ENDING the clause is dismissal; "forget that my sister's
+    # name is Ada" is a memory operation with a complement.
+    r"|\bforget\s+(?:it|that)\s*(?:[,.!?;]|$)"
+    r"|\bforget\s+about\s+it\b"
+    r"|\bnever\s*mind\b",
+    re.IGNORECASE,
+)
+
+
 def asked_to_act_in_a_capability_domain(text: str) -> bool:
     """True when the turn is ABOUT something she has skills for.
 
@@ -252,6 +276,8 @@ def asked_to_act_in_a_capability_domain(text: str) -> bool:
     # something of the speaker's. "Forget the tests for a second" takes a bare
     # noun phrase and means set aside, which is how the flat word list turned
     # an intimate question into a status line about the belief store.
+    if _SET_ASIDE_RE.search(candidate):
+        return False
     if _MEMORY_OPERATION_RE.search(candidate):
         return True
     try:
