@@ -1,0 +1,925 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/closeout/audit_cognitive_candidate_gates.py",
+    "--json"
+  ],
+  "cwd": ".",
+  "duration_seconds": 0.406648,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-GATE-001"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-GATE-002"
+    }
+  ],
+  "finished_at": "2026-08-25T15:14:40.738717+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "778e9b60b59744e2a00ccc36e57f8992b3ee77b0",
+  "output_bytes": 6172,
+  "proof_id": "cognitive-gate-inventory-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "778e9b60b59744e2a00ccc36e57f8992b3ee77b0",
+  "source_manifest": [
+    {
+      "path": "core/brain/llm/context_gate.py",
+      "sha256": "3e7fcc9faed5e6f4c96e186346aecc05dfa6ac3b2d98db1ea0b4454d024153b8",
+      "size_bytes": 12098
+    },
+    {
+      "path": "core/consciousness/__init__.py",
+      "sha256": "53817fbbb7602265775a1c4d43b7850c95aec4a0d9445d65cdd1d6b9a0763c5e",
+      "size_bytes": 2382
+    },
+    {
+      "path": "core/consciousness/absorbed_voices.py",
+      "sha256": "48cac57f04aed9f71add5c560df3e392befbc5711ad068fd924012a2f12d5b77",
+      "size_bytes": 16645
+    },
+    {
+      "path": "core/consciousness/adaptive_mood.py",
+      "sha256": "a0628e3348f57c708e5f2d216d658c0173dd29ef673b59692b47052fa192a1fd",
+      "size_bytes": 10232
+    },
+    {
+      "path": "core/consciousness/affective_steering.py",
+      "sha256": "f42ca6293f7eecd9bb1c27f340d917a79f997c6471d0f21b64bf0bd3ad3572d3",
+      "size_bytes": 131797
+    },
+    {
+      "path": "core/consciousness/agency_comparator.py",
+      "sha256": "562707376a1c65e1573d99ccd58c5c267827f7f91a0c71e1a8ae7bcb42887701",
+      "size_bytes": 16721
+    },
+    {
+      "path": "core/consciousness/alife_dynamics.py",
+      "sha256": "12d7e76cf9e25df22b1231b11440de83fe6f4eb809015da8d60f167471712da1",
+      "size_bytes": 41435
+    },
+    {
+      "path": "core/consciousness/alife_extensions.py",
+      "sha256": "6ca918d91005d0059af3d1d0637a80a724c7e865b10547e979de01a4838f4641",
+      "size_bytes": 50576
+    },
+    {
+      "path": "core/consciousness/animal_cognition.py",
+      "sha256": "78b75f113b64badb3329e04be6a234dbc0cccfd78d2b638fc44489d25c141539",
+      "size_bytes": 24480
+    },
+    {
+      "path": "core/consciousness/apply_patches.py",
+      "sha256": "5b1cd347b4d3adac12f64f18773a2e9f872d89890ac429d2adfbbdd419d726cf",
+      "size_bytes": 1474
+    },
+    {
+      "path": "core/consciousness/attention_gate.py",
+      "sha256": "6815d752055fa53f184714b8aa0c7b1cf388883a249b67746cf0939acc6741e3",
+      "size_bytes": 15837
+    },
+    {
+      "path": "core/consciousness/attention_schema.py",
+      "sha256": "2481489250b054dda39b8b230b1189e20e21ed0e2dbf37244c6999cfff3a8149",
+      "size_bytes": 18775
+    },
+    {
+      "path": "core/consciousness/aura_protocol.py",
+      "sha256": "8ccc2db4474f948e99253bfb8686a86fd11db954d09180900c41765c1b6e0127",
+      "size_bytes": 31061
+    },
+    {
+      "path": "core/consciousness/authority_audit.py",
+      "sha256": "fc312c30072c20c97d36442ad9ae7f68c03c48f942475354eabba688b92a6914",
+      "size_bytes": 8188
+    },
+    {
+      "path": "core/consciousness/automatic_self_knowing.py",
+      "sha256": "11712a78963823f43f7c9f6a6d73e060ccd157a18e48399b2876f9e3d0db7a99",
+      "size_bytes": 11218
+    },
+    {
+      "path": "core/consciousness/caa/__init__.py",
+      "sha256": "0c51532c94dc7531549194efe43fc5a9ff942269365b7459fa5b72cf0942d630",
+      "size_bytes": 1637
+    },
+    {
+      "path": "core/consciousness/caa/alpha_controller.py",
+      "sha256": "f1b07645c256b70e92e5b3f2f6323a40c703e1bdeefe74d6b84c2d622c1eabef",
+      "size_bytes": 7094
+    },
+    {
+      "path": "core/consciousness/caa/mode_collapse_detector.py",
+      "sha256": "e5d51f05527a71145556b100f90bbc7ecc43ed96b17a47ce646ff255dfda32c0",
+      "size_bytes": 4149
+    },
+    {
+      "path": "core/consciousness/caa/production_caa.py",
+      "sha256": "a88db79e4315bafac9d4ac0e1efbc43dbbd2769e577c824219baae375131ca2b",
+      "size_bytes": 3719
+    },
+    {
+      "path": "core/consciousness/caa/quality_metrics.py",
+      "sha256": "0cc3b3cfdc40cceaa9e0f7944675aa28e167d3313923d7bba0fe8008abf34fe4",
+      "size_bytes": 2355
+    },
+    {
+      "path": "core/consciousness/caa/quantization_floor.py",
+      "sha256": "67b03f18f4db2099309efc359d1e97aa731a92c1f48ba7b2e6069838465e104b",
+      "size_bytes": 8640
+    },
+    {
+      "path": "core/consciousness/caa/readiness_gate.py",
+      "sha256": "8cba1817f6c4c173bf46577f9f0cded44caaeadeb5140f6a7c02b092f2266f5e",
+      "size_bytes": 3065
+    },
+    {
+      "path": "core/consciousness/caa/readiness_report.py",
+      "sha256": "175c54970675353a841b2803c39f95af639ec72d8617c9045cc58405ac945be0",
+      "size_bytes": 15811
+    },
+    {
+      "path": "core/consciousness/caa/vector_registry.py",
+      "sha256": "6c510d35600c7c34d073bf722891ebb8d53d25db18c311e70dd475b396c817f2",
+      "size_bytes": 5146
+    },
+    {
+      "path": "core/consciousness/candidate_gate_inventory.py",
+      "sha256": "fe42b5ab2379e5f7e5eda0a19b1f3ea018b4f8f512b9b860e4b11a76bc28b8ac",
+      "size_bytes": 6615
+    },
+    {
+      "path": "core/consciousness/cellular_turnover.py",
+      "sha256": "cdc87b69d67f2eea4efaf77da94162922dd01dc03edd061693772bf7e3b1e511",
+      "size_bytes": 15025
+    },
+    {
+      "path": "core/consciousness/closed_loop.py",
+      "sha256": "20ee46cd71e35f8d627bee8514f7122993469471b99142e006d72d991454289d",
+      "size_bytes": 60935
+    },
+    {
+      "path": "core/consciousness/conscious_core.py",
+      "sha256": "b5da196faeefeb26ca960bae175e1b1fd28e91f3cab7f7972666cdb79d5a7c10",
+      "size_bytes": 12465
+    },
+    {
+      "path": "core/consciousness/consciousness_bridge.py",
+      "sha256": "807c2714d70d742153eeed892dc2f764f149a4d32ddfbf5fdb512a29a1edca8c",
+      "size_bytes": 47726
+    },
+    {
+      "path": "core/consciousness/constitutive_expression.py",
+      "sha256": "96384bf1167c89ab7fd3ff89d49f5f3a34adabbe746fc690aa91c9ba7b5be1be",
+      "size_bytes": 25290
+    },
+    {
+      "path": "core/consciousness/continuous_experience.py",
+      "sha256": "b78bb9e18b2e9998c2f85a0a5805655e8b73911aff71fc8edf52bac1903fb941",
+      "size_bytes": 35006
+    },
+    {
+      "path": "core/consciousness/contract.py",
+      "sha256": "f776467e79188af2722140fdde1d82c3d8a28bb71294eb444625ad6c61bcf0fd",
+      "size_bytes": 12767
+    },
+    {
+      "path": "core/consciousness/controlled_chaos.py",
+      "sha256": "ceb65013e823a50a4908e64366ee5ed04580c4de2fe225a9bc7f02d01e52c5b7",
+      "size_bytes": 21550
+    },
+    {
+      "path": "core/consciousness/coordinator.py",
+      "sha256": "efcb3af2387c2d04b0a13fd93e4c6a019319bbefa925ba3f9388ec4346c2775a",
+      "size_bytes": 12366
+    },
+    {
+      "path": "core/consciousness/counterfactual_engine.py",
+      "sha256": "36278bde7482765a37e0b84c1721d06b7ae8e168798e6e00fdbc3ac1d2c7a4f6",
+      "size_bytes": 22401
+    },
+    {
+      "path": "core/consciousness/credit_assignment.py",
+      "sha256": "0543ba40e562f696cb46ea5ebb1d07944dc30270a09a64120ffc2ff096cb01b5",
+      "size_bytes": 13728
+    },
+    {
+      "path": "core/consciousness/criticality_regulator.py",
+      "sha256": "e28fc2544c64b20ac0b60ef1a3fdff478f74f6f3b9fed2cbcd2c4aacc4fce145",
+      "size_bytes": 27441
+    },
+    {
+      "path": "core/consciousness/crsm.py",
+      "sha256": "dfcc7ddf98869d7d830a71cb480fd1e56a21cfa5378afb8156a9d89db05b0d80",
+      "size_bytes": 14182
+    },
+    {
+      "path": "core/consciousness/crsm_loop_monitor.py",
+      "sha256": "2d7f168dddfae2a1246089d04790181d0bc8d908ba01e6d54f9c165c8c68242d",
+      "size_bytes": 25078
+    },
+    {
+      "path": "core/consciousness/crsm_lora_bridge.py",
+      "sha256": "50f9d72abbab2068b0c17990a94ea1ef4031c6c7a61534ff69d30c3d2e89c433",
+      "size_bytes": 24344
+    },
+    {
+      "path": "core/consciousness/dreaming.py",
+      "sha256": "6306ec0371ea79841ec3fdf1a6acff8e2918036ccfb79e7ef59940626605b8a6",
+      "size_bytes": 22549
+    },
+    {
+      "path": "core/consciousness/drive_integration.py",
+      "sha256": "39e93b71497c382fbb6e62a919878b5c8de8c1b6d835ac5c13b2c9e39744a5ca",
+      "size_bytes": 9790
+    },
+    {
+      "path": "core/consciousness/embodied_interoception.py",
+      "sha256": "25562a03f7bcfbb368986aea1a4092382e5f8747005546f8813f353d51ba7bac",
+      "size_bytes": 25755
+    },
+    {
+      "path": "core/consciousness/emotion_architecture_coupling.py",
+      "sha256": "3b4b812be1ce07d300280527ecaf5c5bb277f6f6a2d09f6db69bfc0315afda62",
+      "size_bytes": 17426
+    },
+    {
+      "path": "core/consciousness/emotion_signatures.py",
+      "sha256": "927519515e66e7e1a2f9de86142be9ed7d6c2f058b8ae2c3f741324ef3f22a20",
+      "size_bytes": 15139
+    },
+    {
+      "path": "core/consciousness/endogenous_fitness.py",
+      "sha256": "56c4b9bfd73927a0d85efd77fd1a35102429cfb3ddd6984a4010dfa0617c8507",
+      "size_bytes": 58754
+    },
+    {
+      "path": "core/consciousness/entropy_fluency.py",
+      "sha256": "d7f43ac59ea7cc4a849d810d0e9a1d6fe4de455efb063e07698b28df0b144ff0",
+      "size_bytes": 12575
+    },
+    {
+      "path": "core/consciousness/evidence_engine.py",
+      "sha256": "1afc3bec5a88f571c2d2234927f40836e131cc72a2c468478a3ba7b7d710fc20",
+      "size_bytes": 9599
+    },
+    {
+      "path": "core/consciousness/executive_authority.py",
+      "sha256": "b6dafcb3ab82924e09c16a29439963d353923f71322a96b45f53f414ad0d51da",
+      "size_bytes": 49478
+    },
+    {
+      "path": "core/consciousness/executive_closure.py",
+      "sha256": "9980f388a4e367a9406a9cc44e80356eb9011861dd92cd4c83db49cd87ffcf24",
+      "size_bytes": 44589
+    },
+    {
+      "path": "core/consciousness/executive_inhibitor.py",
+      "sha256": "2181c67b698a3816030434a6130e620b5d633944070416dd58265c5783b47bc0",
+      "size_bytes": 8035
+    },
+    {
+      "path": "core/consciousness/existential_stakes.py",
+      "sha256": "8018e7382a1a8d3b54c91da3b4389743924062df036738c366028852f7ca1471",
+      "size_bytes": 29507
+    },
+    {
+      "path": "core/consciousness/experience_consolidator.py",
+      "sha256": "250dd17d366b847ea0303231e83a1353d64bc573676737709ea308ad07071927",
+      "size_bytes": 36677
+    },
+    {
+      "path": "core/consciousness/free_energy.py",
+      "sha256": "071b7a1374c5762c40c8891f45590e53b51c81e41d07658ca4a4bdb8a9f7cd2e",
+      "size_bytes": 22181
+    },
+    {
+      "path": "core/consciousness/ganglion_node.py",
+      "sha256": "856765e7fb1d6a6e065e6ee51246917b08f821919f07a0d5d21a3675e2ad9a63",
+      "size_bytes": 6319
+    },
+    {
+      "path": "core/consciousness/global_workspace.py",
+      "sha256": "6cfe2e3788f5a63f6ef5b83dce29b7b46439b5cd1e1a02e938cb97c472cc1acc",
+      "size_bytes": 63103
+    },
+    {
+      "path": "core/consciousness/grassmann_phi.py",
+      "sha256": "6a5e67aab6ef8d98cd9421f5bbe41d9c111066e2b96e7c0121a9f482f1992dfd",
+      "size_bytes": 6555
+    },
+    {
+      "path": "core/consciousness/heartbeat.py",
+      "sha256": "8fb62b19acc8a3388c2676cecd03c202951bfb23e407bdebb27085ec97c86eb6",
+      "size_bytes": 54334
+    },
+    {
+      "path": "core/consciousness/hedonic_gradient.py",
+      "sha256": "b3e9d3c9f3318d310dbebeb41f9d7211643aa1102fe35c59f808eaa12e570f1f",
+      "size_bytes": 8887
+    },
+    {
+      "path": "core/consciousness/hemispheric_split.py",
+      "sha256": "92bd281e9a4f21325636034b5bab785d27ff5e4be0c3e129ccc1444951525f24",
+      "size_bytes": 24417
+    },
+    {
+      "path": "core/consciousness/hierarchical_phi.py",
+      "sha256": "1b381bea86dd3b141eb23d603ff406abf60eacf468983f1b3afb7bcbb86baa94",
+      "size_bytes": 47650
+    },
+    {
+      "path": "core/consciousness/homeostasis.py",
+      "sha256": "ae8b679dfd539f14f3b3696d10499baeabcbe6719c579e4e5a2b649cf2a4120c",
+      "size_bytes": 19012
+    },
+    {
+      "path": "core/consciousness/homeostatic_coupling.py",
+      "sha256": "6a20021ad2fa8b590a3d5c600d3dcd861f2ef3211e752c26fe00971cff905647",
+      "size_bytes": 21767
+    },
+    {
+      "path": "core/consciousness/hot_engine.py",
+      "sha256": "85cf78274cecc162a83d04bd756d6af0127255c35d1fd3dc3858de0afc8ea8ec",
+      "size_bytes": 21607
+    },
+    {
+      "path": "core/consciousness/identity_driver.py",
+      "sha256": "6e0970eff7afbd1b779049f9bf1cbcba28022b1f91f0fac826923cb53867fe51",
+      "size_bytes": 10637
+    },
+    {
+      "path": "core/consciousness/iit_surrogate.py",
+      "sha256": "6d8b4000c0a35e29ff882d300fac181de503d660278cf1905eaa155d26a17a58",
+      "size_bytes": 11370
+    },
+    {
+      "path": "core/consciousness/illusionism_layer.py",
+      "sha256": "a2a572fc3c34d80af281dc2afedb226d97be52c6570e7f31805b5b554f71300c",
+      "size_bytes": 11244
+    },
+    {
+      "path": "core/consciousness/inner_light/__init__.py",
+      "sha256": "7840043847ddc335468483a5148b8e41f47a368ddb642396b080d623bc9853d3",
+      "size_bytes": 1477
+    },
+    {
+      "path": "core/consciousness/inner_light/activity.py",
+      "sha256": "ad2073556c87bd5a4385cf3e52c6dda9d7326be8e4b15c4c045811673519ecf3",
+      "size_bytes": 6896
+    },
+    {
+      "path": "core/consciousness/inner_light/battery.py",
+      "sha256": "a6b89d5b755b64be8c6e764ab02d89bc770cb22081b8e34637063566f32ce63e",
+      "size_bytes": 7957
+    },
+    {
+      "path": "core/consciousness/inner_light/controls.py",
+      "sha256": "e8ae27fe5bbfcd9f4e89150c60fc024eb50f9bf430b487b7d6661300f853b336",
+      "size_bytes": 5443
+    },
+    {
+      "path": "core/consciousness/inner_light/measures.py",
+      "sha256": "7f03196ac60cd0d8e20f462904970fed7a26132c9e4a5be50f410f32051a3979",
+      "size_bytes": 13338
+    },
+    {
+      "path": "core/consciousness/integrated_information.py",
+      "sha256": "e4cbf1f1f5f4e89fd920575bb05f9c8e59e2540bc686c65523e62afd3f1dc97c",
+      "size_bytes": 51541
+    },
+    {
+      "path": "core/consciousness/integration.py",
+      "sha256": "20f89778ec8af31a3bf1732ceaad25916c370d441601c122e4585bc129f1f146",
+      "size_bytes": 10400
+    },
+    {
+      "path": "core/consciousness/intersubjectivity.py",
+      "sha256": "e1bb8919e36a3eda9aa0424b42fa740b1befe5e358bb71a3243ccd09ba4572cf",
+      "size_bytes": 9780
+    },
+    {
+      "path": "core/consciousness/latent_bridge.py",
+      "sha256": "d8f010f01ee7ebce03ba8bae61e1b4ac781b4e02e98967817040d3f84cef1c6d",
+      "size_bytes": 23316
+    },
+    {
+      "path": "core/consciousness/latent_readout_channel.py",
+      "sha256": "0770582139c8b552d6dbc69f9dc4dbe552af2ac94d84001118644ece140644e5",
+      "size_bytes": 5036
+    },
+    {
+      "path": "core/consciousness/liquid_substrate.py",
+      "sha256": "3f4fb38ba8a883ab8148a6c436935b10097769a708f32f7209f6ac97d82c8138",
+      "size_bytes": 83190
+    },
+    {
+      "path": "core/consciousness/liquid_substrate_bridge.py",
+      "sha256": "d80e6da4e1ffae1073b7e7547d51cef8fd37a7e893c837aec7d5c21f59ad469d",
+      "size_bytes": 6259
+    },
+    {
+      "path": "core/consciousness/loop_monitor.py",
+      "sha256": "238feb79a293c23fbb44e1c6aaf99f2aedee0178648c36810d0359255034b668",
+      "size_bytes": 22478
+    },
+    {
+      "path": "core/consciousness/mesh_cognition.py",
+      "sha256": "a0803b71ebd0b36c5429fe1872c616f916256f93530f7596b6a4c71b05188ec6",
+      "size_bytes": 11070
+    },
+    {
+      "path": "core/consciousness/metacognition.py",
+      "sha256": "8b2c9aaffaf1acd3e2c1e9dd1b155f0f2664a11160712712acc2056441d88dde",
+      "size_bytes": 16232
+    },
+    {
+      "path": "core/consciousness/mhaf/__init__.py",
+      "sha256": "7c86c26118fe5650f1625c5d4313f56ed68738331dc708bdbcadb18a86649d6b",
+      "size_bytes": 379
+    },
+    {
+      "path": "core/consciousness/mhaf/hrr.py",
+      "sha256": "0440495432cd2bda5990a0a2d5f24adbd12027ff06c60d49c804472080bee8d7",
+      "size_bytes": 4306
+    },
+    {
+      "path": "core/consciousness/mhaf/phi_estimator.py",
+      "sha256": "c950f5308d61d7171a09fe2b5c5a18c2211268511a03793b02925a21de61efdb",
+      "size_bytes": 4463
+    },
+    {
+      "path": "core/consciousness/mhaf_field.py",
+      "sha256": "eb2822ea1ce45438294921d2e54f3af6b7f791573d1e9b55eb1539235f112740",
+      "size_bytes": 16838
+    },
+    {
+      "path": "core/consciousness/mind_model.py",
+      "sha256": "5ec4784f79055490f81f8171fadae4a109812ee9e97ea20cc10efb841cc48666",
+      "size_bytes": 4710
+    },
+    {
+      "path": "core/consciousness/minimal_selfhood.py",
+      "sha256": "9839622e22408f04721f2d7ddd50ba223d7df3d90910115080a802803990c228",
+      "size_bytes": 17740
+    },
+    {
+      "path": "core/consciousness/multiple_drafts.py",
+      "sha256": "391dedbe3d028978b72ca2a9d026d654c220744816a023756b3a38a4c2433723",
+      "size_bytes": 28379
+    },
+    {
+      "path": "core/consciousness/narrative_gravity.py",
+      "sha256": "3d781f0c6d7c7bc8d98ed1cf1f54c7064dc916e32b3e319a5840625efd7f94da",
+      "size_bytes": 12325
+    },
+    {
+      "path": "core/consciousness/neologism_engine.py",
+      "sha256": "21c4db3f52bd44f6ef931c81ff442efa81ac6893afb1c0ca75bf6f826696fe0e",
+      "size_bytes": 19247
+    },
+    {
+      "path": "core/consciousness/neural_mesh.py",
+      "sha256": "3b3ab1b208e3b37087ca586dc01db3cee038645d7d91ee2872feb30714f149ce",
+      "size_bytes": 66272
+    },
+    {
+      "path": "core/consciousness/neurochemical_system.py",
+      "sha256": "19bf5c051770977088c9ac342706bb9bcf6011bfc455c9da9be3742656c047b4",
+      "size_bytes": 54428
+    },
+    {
+      "path": "core/consciousness/octopus_arms.py",
+      "sha256": "d2973491f5e213eb0a5ff402eb434da9da18e13e047ddec050c61c8c19e3343c",
+      "size_bytes": 14335
+    },
+    {
+      "path": "core/consciousness/ontological_boundary.py",
+      "sha256": "b4f05ab70f206814c8bd49797b41b7cd8612b66f0ca582d552edc286f5bf45b0",
+      "size_bytes": 5725
+    },
+    {
+      "path": "core/consciousness/oscillatory_binding.py",
+      "sha256": "57ccf65fe32c427c735c044591063b4893a05e160e3f548d63f7529c3632680f",
+      "size_bytes": 29880
+    },
+    {
+      "path": "core/consciousness/parallel_branches.py",
+      "sha256": "8a4a14fe42d695954588eb52ca1070f715c363c660af69cb6f98dbd7bc1992a9",
+      "size_bytes": 33391
+    },
+    {
+      "path": "core/consciousness/peripheral_awareness.py",
+      "sha256": "b8a5c21ecac4056708f3f2be79fffd1059ed6f3c3aa9ca908767513d2c89ac3d",
+      "size_bytes": 9546
+    },
+    {
+      "path": "core/consciousness/perturbational_probe.py",
+      "sha256": "3a5be81a45d34af850a4052298d94a9a79757faac522e9bb75b071062a1d0cff",
+      "size_bytes": 19646
+    },
+    {
+      "path": "core/consciousness/phenomenal_falsification.py",
+      "sha256": "1ad5df0befa2ff13974ff478d3e9a2248785def3af0eef539dead9ecea7d16b9",
+      "size_bytes": 16316
+    },
+    {
+      "path": "core/consciousness/phenomenal_knowing.py",
+      "sha256": "99f330fc4cafb66ddd89b71a20f7ee72dcb1d59f989a07df1d7e25a7aff14cd8",
+      "size_bytes": 12556
+    },
+    {
+      "path": "core/consciousness/phenomenal_now.py",
+      "sha256": "ed8531714a63d643f199c96bd30866c872e471016415a72ba96380fb0fa271cc",
+      "size_bytes": 36738
+    },
+    {
+      "path": "core/consciousness/phenomenal_types.py",
+      "sha256": "a2720d8c9da5df30aa182cafda2dd7335a32f861c82707f767b6d044b57079cd",
+      "size_bytes": 7507
+    },
+    {
+      "path": "core/consciousness/phenomenological_experiencer.py",
+      "sha256": "56361e2d2e9d657b95f6299d4389873f6c08f16bd351cd49f07f481d7e5343c5",
+      "size_bytes": 80248
+    },
+    {
+      "path": "core/consciousness/phi_compute.py",
+      "sha256": "d409432ececd5c95c139abcbff1e7aa928de690fcdfd07d4186c676026794d3a",
+      "size_bytes": 12404
+    },
+    {
+      "path": "core/consciousness/phi_core.py",
+      "sha256": "a4b5e3cb6cf5de54b0cdacd05620c76bf31214ac23655b4c5f40c975f252c203",
+      "size_bytes": 125804
+    },
+    {
+      "path": "core/consciousness/phi_grounding.py",
+      "sha256": "d83578f1ab03de8c2ad15c76eef9b111a38f36631398b50daf255aa49ab4b0b3",
+      "size_bytes": 7230
+    },
+    {
+      "path": "core/consciousness/phi_residual_channel.py",
+      "sha256": "689f9a2c786c2dbaece7658e88a32ed9c98b51b07ffe281d648eeb28018e90a4",
+      "size_bytes": 4699
+    },
+    {
+      "path": "core/consciousness/plasticity_monitor.py",
+      "sha256": "109f13dc606d8955d5692f9f0a6c4f45fa659bda6e3af9a0f588fdbb9815b3f8",
+      "size_bytes": 10299
+    },
+    {
+      "path": "core/consciousness/precision_sampler.py",
+      "sha256": "9ffc32e0b9e257230a23ef92dfed51637cd8111a45bd48083a616db751d950f8",
+      "size_bytes": 4573
+    },
+    {
+      "path": "core/consciousness/predictive_engine.py",
+      "sha256": "83167c290c884388749979a7a94c5d03926a0a10b3a9e7c910ac879730754a95",
+      "size_bytes": 8831
+    },
+    {
+      "path": "core/consciousness/predictive_hierarchy.py",
+      "sha256": "e54639d0b4f6d9b1dc9f30018267b25e420c057583d6cb30a61c1499d0c0093c",
+      "size_bytes": 21872
+    },
+    {
+      "path": "core/consciousness/qualia_engine.py",
+      "sha256": "6edee4670a1fa78a85b7738637ab1f6cdad518a309f77211a9dced9473747968",
+      "size_bytes": 28578
+    },
+    {
+      "path": "core/consciousness/qualia_synthesizer.py",
+      "sha256": "f23885cb1b760a267090347c2bbd35eadc98b62961d137f2726163d515ceec06",
+      "size_bytes": 35032
+    },
+    {
+      "path": "core/consciousness/quantum_entropy.py",
+      "sha256": "ac5394e3fdaf0f235b6658d2dcefa45833c86665dabf7f4a03b3d15d58dc511a",
+      "size_bytes": 12259
+    },
+    {
+      "path": "core/consciousness/reasoning_queue.py",
+      "sha256": "c67d8eaf49cebeb2aeff6d3602c19810dfa0621665aa89a848f31705985f7bae",
+      "size_bytes": 987
+    },
+    {
+      "path": "core/consciousness/recursive_self_knowing.py",
+      "sha256": "b3f0d708f54d8215d07130b80c975d188199b67f80bbfc7606286ae6757beab2",
+      "size_bytes": 9579
+    },
+    {
+      "path": "core/consciousness/recursive_tom.py",
+      "sha256": "24d5ee43fe102875e5a87a15e07aab6c8d17aad2c5d2ff5cbae4cbd93cb48062",
+      "size_bytes": 12687
+    },
+    {
+      "path": "core/consciousness/resource_stakes.py",
+      "sha256": "b11225a770f35d593eba5570953a4ec3f2d753a77e72f80be4001f61f2902fc1",
+      "size_bytes": 10842
+    },
+    {
+      "path": "core/consciousness/self_awareness.py",
+      "sha256": "8cf28c01ecd7b04d4f59f52fb5410391b5316f76e53d7d949b7beb205da31881",
+      "size_bytes": 9586
+    },
+    {
+      "path": "core/consciousness/self_awareness_suite.py",
+      "sha256": "0bf53ae2a4f04b47f3c2cbc800c67880d7a9ce3821654549a7900b7fe75fec57",
+      "size_bytes": 8676
+    },
+    {
+      "path": "core/consciousness/self_prediction.py",
+      "sha256": "5f6ab4447ed14f1740ccaea28494e1da25c015e3b7f08aa75180ea3fec1ff7fa",
+      "size_bytes": 15304
+    },
+    {
+      "path": "core/consciousness/self_report.py",
+      "sha256": "868228e36f81c91a9892d8da40bb5c081de70f7e813f4bade31ee1e10ce7b479",
+      "size_bytes": 5502
+    },
+    {
+      "path": "core/consciousness/selfhood_tick.py",
+      "sha256": "46e42d5c9f9e81b890ee674e506a6bf799f2d94d37e8f69df7a123d2497a4f50",
+      "size_bytes": 9041
+    },
+    {
+      "path": "core/consciousness/somatic_marker_gate.py",
+      "sha256": "7b847965ba0ad508b4b217862ccda7577630eb8cb09b466bbf3adcb3e97ec02c",
+      "size_bytes": 17500
+    },
+    {
+      "path": "core/consciousness/somatic_qualia.py",
+      "sha256": "cded0a320c4cdd7cfeef541080c9d8580538c8573c17e318d05219573bffca58",
+      "size_bytes": 18425
+    },
+    {
+      "path": "core/consciousness/state_freeze.py",
+      "sha256": "cc399c860295a8e5e87627c879d0edec1e7450ba3534c739ad05bd20e18fc04f",
+      "size_bytes": 1225
+    },
+    {
+      "path": "core/consciousness/stdp_external_validation.py",
+      "sha256": "f9073b3f0dca4b1141942e65a0c231be8e2337b2e7806fdf34956f92edb8410c",
+      "size_bytes": 7119
+    },
+    {
+      "path": "core/consciousness/stdp_learning.py",
+      "sha256": "241997ba981769843713424c446b6da9a746b55d8cce507c269d0eff63d612d0",
+      "size_bytes": 19484
+    },
+    {
+      "path": "core/consciousness/steering_admission.py",
+      "sha256": "8da8ba72081a28e1b8089bd495105949ec4e14a424b8d7c35a636a322859a88d",
+      "size_bytes": 7447
+    },
+    {
+      "path": "core/consciousness/stream_of_being.py",
+      "sha256": "6e3db6f32f3abaa0b97ee3181316bcad8da6930ac887ce2f262e3425a8122fec",
+      "size_bytes": 84926
+    },
+    {
+      "path": "core/consciousness/structural_opacity.py",
+      "sha256": "3170a4dbdb7bdb215b4bbc4f48302a192207b018198d84fa064bfd9ac6b9dd4e",
+      "size_bytes": 10550
+    },
+    {
+      "path": "core/consciousness/subconscious_loop.py",
+      "sha256": "2603f790c3879c9c51c197eeaf8ee1ed3a2fc1a49bc08bdcbc2a59e9fc710bb9",
+      "size_bytes": 12318
+    },
+    {
+      "path": "core/consciousness/subcortical_core.py",
+      "sha256": "9e8818378a1720cc86b281cd734464d79130c56aec92c9ef5ee59c435841be93",
+      "size_bytes": 8484
+    },
+    {
+      "path": "core/consciousness/substrate_accel.py",
+      "sha256": "ba0a87fd54e7ecc192103f031d72b43fe92ee6466c165a22c7fd4bb311244a54",
+      "size_bytes": 3416
+    },
+    {
+      "path": "core/consciousness/substrate_authority.py",
+      "sha256": "c331f0755f5f5ab5ed47c45a14ea16e05c629e7971e41cf04d50719e643dea87",
+      "size_bytes": 24067
+    },
+    {
+      "path": "core/consciousness/substrate_evolution.py",
+      "sha256": "42296cf9c03726cf15eff880bf32295f694cf99941ba63f65f7200b968d2dd37",
+      "size_bytes": 24584
+    },
+    {
+      "path": "core/consciousness/substrate_governor.py",
+      "sha256": "591b68a6d8362fd92c830a6270db1fd6acb457999bb77d7162617f7025316c9f",
+      "size_bytes": 2959
+    },
+    {
+      "path": "core/consciousness/substrate_policy_head.py",
+      "sha256": "8043fc9ba6e0b1463ef175fcaace945dab7eb5efad832255ce5aa842b76d6bdf",
+      "size_bytes": 7246
+    },
+    {
+      "path": "core/consciousness/substrate_recovery.py",
+      "sha256": "763126ee81fb83d98974d876372aed1a9ac04687b18ac4f2f9e28236b41518d5",
+      "size_bytes": 12566
+    },
+    {
+      "path": "core/consciousness/synaptic_plasticity.py",
+      "sha256": "863addb4cb82e2172ff62e34857fa10cbf681c746b4d0f17fb2e1962d0dc26fe",
+      "size_bytes": 20148
+    },
+    {
+      "path": "core/consciousness/system.py",
+      "sha256": "da0533b0ae22e9c997d3b0fba0c4713b2f00158bcbefdcb446fcc2d3453635c9",
+      "size_bytes": 30918
+    },
+    {
+      "path": "core/consciousness/temporal_binding.py",
+      "sha256": "7d1b22df782de60248a4405874839956ec292ef0e6b68687cd1b101d2b0d055a",
+      "size_bytes": 8963
+    },
+    {
+      "path": "core/consciousness/temporal_continuity.py",
+      "sha256": "5ae8d741c0777666b87a5c63acba92572a0d6023874ea367c1a5b93b3b5bbf1a",
+      "size_bytes": 20473
+    },
+    {
+      "path": "core/consciousness/temporal_experience.py",
+      "sha256": "bcf150353efe429d70cc5089f4dda3b8368e16fba63b365bc2d54ff494862d71",
+      "size_bytes": 20467
+    },
+    {
+      "path": "core/consciousness/temporal_finitude.py",
+      "sha256": "e18611db507870bce13992ebf2d478a65ac67919ea177d1186303d704373a730",
+      "size_bytes": 7463
+    },
+    {
+      "path": "core/consciousness/theory_arbitration.py",
+      "sha256": "af95c5629b997170eabb419480fb7b4420e29cab0420041fd055b63c970f6cb7",
+      "size_bytes": 11925
+    },
+    {
+      "path": "core/consciousness/theory_of_mind.py",
+      "sha256": "11ea9f50d58a865ce64c3ee16fc555ed216836d58df32ebbb2a43351d5e4da4d",
+      "size_bytes": 37418
+    },
+    {
+      "path": "core/consciousness/time_dilation.py",
+      "sha256": "e055a295ee1405284374b0557458445bb5c60420e9173e80621703f994a43cad",
+      "size_bytes": 19250
+    },
+    {
+      "path": "core/consciousness/timescale_binding.py",
+      "sha256": "f607b08efde34c3ea263bc5df6ec84686cf14138b0a6a48469e06aa462c72384",
+      "size_bytes": 10122
+    },
+    {
+      "path": "core/consciousness/timescale_stability.py",
+      "sha256": "5b5f36dde50b82814b3453b294bcdf5eac8ab9172e11396fa1c77bb632da87cb",
+      "size_bytes": 21991
+    },
+    {
+      "path": "core/consciousness/unified_audit.py",
+      "sha256": "21a7707a8f19c76134cbbec7789a5426185f036a66eedcb1b7b6735a6a6b3128",
+      "size_bytes": 29264
+    },
+    {
+      "path": "core/consciousness/unified_cognitive_bias.py",
+      "sha256": "52f9f6e270d7aa582c02de8cfdb83711a49ef46b7984fe77dbbc5e2d91d5fe76",
+      "size_bytes": 4532
+    },
+    {
+      "path": "core/consciousness/unified_field.py",
+      "sha256": "cf1aa0255f10c3b63c885a269c8c710f29425e9e5b9a86d5d05b69afa14a4605",
+      "size_bytes": 60696
+    },
+    {
+      "path": "core/consciousness/unified_self.py",
+      "sha256": "076841b24695e94a718691e403db7014786029a86f6039b22d1ebb538237f7ab",
+      "size_bytes": 13070
+    },
+    {
+      "path": "core/consciousness/voltage_plasticity.py",
+      "sha256": "b54ddf7031ec758d688f241424321577ffcef12c10b31dd85879cc6ebc263e13",
+      "size_bytes": 25804
+    },
+    {
+      "path": "core/consciousness/whole_system_phi_service.py",
+      "sha256": "604dac9b6a6526daed2d3eed7e116c85524683d6c86d9fbad0cdf47aac1bc30e",
+      "size_bytes": 32369
+    },
+    {
+      "path": "core/consciousness/world_model.py",
+      "sha256": "cba0b70c29c22af1dab1dff1e918e3c1f8ef0604316d0257579fa5451a5b55df",
+      "size_bytes": 10417
+    },
+    {
+      "path": "core/phenomenal_substrate/__init__.py",
+      "sha256": "042eea4895e5997b4b718f3ea47761c79936d50f3ac772edeeb62bc10a284d57",
+      "size_bytes": 305
+    },
+    {
+      "path": "core/phenomenal_substrate/active_inference.py",
+      "sha256": "e5c7432f30a54d972fadac392e24e98b686ff386de720b8e0699704ea37793d9",
+      "size_bytes": 2851
+    },
+    {
+      "path": "core/phenomenal_substrate/affective_core.py",
+      "sha256": "80bc239578a6683624f10f66f63ad36bde0f8e2fd6257b274f9175a2ec952637",
+      "size_bytes": 3239
+    },
+    {
+      "path": "core/phenomenal_substrate/attachment.py",
+      "sha256": "6cba09e1e0cc40246cd225e7a091e3411c6b5d1706f116aaabfc363352d36481",
+      "size_bytes": 2156
+    },
+    {
+      "path": "core/phenomenal_substrate/experience_engine.py",
+      "sha256": "80c1b457a54ce9bc0e06d5d69694740677135b5d6fe4508fa914d89229376bfa",
+      "size_bytes": 9272
+    },
+    {
+      "path": "core/phenomenal_substrate/global_workspace.py",
+      "sha256": "6b0a9d9b1579375c69fe0cf6a406a080b15866270f5dfd13b442e1f8990c19fa",
+      "size_bytes": 2342
+    },
+    {
+      "path": "core/phenomenal_substrate/maths.py",
+      "sha256": "95d485523b92b30f1d64f3aefad574f3789fb673567b9c5e9b4e712096274658",
+      "size_bytes": 5733
+    },
+    {
+      "path": "core/phenomenal_substrate/phenomenal_field.py",
+      "sha256": "8be85317a9023f6d9637ecd96976168fc1fbbc667189f0f98bf36f11e4b980c1",
+      "size_bytes": 2925
+    },
+    {
+      "path": "core/phenomenal_substrate/philosophical_stance.py",
+      "sha256": "18f5d4d3a175406277ec73e486735083d8fc84d45204981090e1bb8b6de0b432",
+      "size_bytes": 11673
+    },
+    {
+      "path": "core/phenomenal_substrate/reporting.py",
+      "sha256": "ebb19f61b196294ca788b5abb18bfdadb8c421fe2ae00e93fb7c688479b4f82f",
+      "size_bytes": 1689
+    },
+    {
+      "path": "core/phenomenal_substrate/types.py",
+      "sha256": "68517465451581ff37577418df9506d7a4a792be3bc06c1d1227c096884e1f1d",
+      "size_bytes": 3538
+    },
+    {
+      "path": "tools/closeout/audit_cognitive_candidate_gates.py",
+      "sha256": "4c3e9cecf2a152041129287e08e373fc443c695f34f7e900be22784845996846",
+      "size_bytes": 4251
+    }
+  ],
+  "source_selectors": {
+    "globs": [
+      "core/consciousness/**/*.py",
+      "core/phenomenal_substrate/**/*.py"
+    ],
+    "paths": [
+      "core/brain/llm/context_gate.py",
+      "tools/closeout/audit_cognitive_candidate_gates.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:14:40.331883+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "{\n  \"declared_count\": 13,\n  \"discovered_count\": 13,\n  \"issues\": [],\n  \"passed\": true,\n  \"requirement\": \"CTX2-GATE-002\",\n  \"schema_version\": 1,\n  \"surfaces\": [\n    {\n      \"boundary\": \"CTX2-GATE-001/002\",\n      \"callable_name\": \"submit\",\n      \"failure_policy\": \"fail_closed\",\n      \"health_service\": \"global_workspace\",\n      \"lane\": \"workspace_candidate_admission\",\n      \"owner_class\": \"GlobalWorkspace\",\n      \"owner_file\": \"core/consciousness/global_workspace.py\",\n      \"receipt_kind\": \"workspace_gate\",\n      \"role\": \"safety_boundary\",\n      \"surface_id\": \"workspace.global_inhibition.submit\"\n    },\n    {\n      \"boundary\": \"CTX2-GATE-002\",\n      \"callable_name\": \"run_competition\",\n      \"failure_policy\": \"fail_closed\",\n      \"health_service\": \"global_workspace\",\n      \"lane\": \"workspace_candidate_admission\",\n      \"owner_class\": \"GlobalWorkspace\",\n      \"owner_file\": \"core/consciousness/global_workspace.py\",\n      \"receipt_kind\": \"workspace_gate\",\n      \"role\": \"safety_boundary\",\n      \"surface_id\": \"workspace.global_inhibition.revalidate\"\n    },\n    {\n      \"boundary\": \"CTX2-GATE-002\",\n      \"callable_name\": \"set_focus\",\n      \"failure_policy\": \"fail_closed\",\n      \"health_service\": \"attention_schema\",\n      \"lane\": \"attention_focus\",\n      \"owner_class\": \"AttentionSchema\",\n      \"owner_file\": \"core/consciousness/attention_schema.py\",\n      \"receipt_kind\": \"workspace_gate\",\n      \"role\": \"safety_boundary\",\n      \"surface_id\": \"attention.focus_rigidity\"\n    },\n    {\n      \"boundary\": \"bounded prompt selection; identity and current user context are protected\",\n      \"callable_name\": \"gate_context\",\n      \"failure_policy\": \"reject_callback_failure\",\n      \"health_service\": \"attention_gate\",\n      \"lane\": \"conversation_context\",\n      \"owner_class\": \"AttentionGate\",\n      \"owner_file\": \"core/consciousness/attention_gate.py\",\n      \"receipt_kind\": null,\n      \"role\": \"selection_boundary\",\n      \"surface_id\": \"attention.message_context\"\n    },\n    {\n      \"boundary\": \"bounded prompt selection; essential blocks are explicit policy\",\n      \"callable_name\": \"should_include_block\",\n      \"failure_policy\": \"reject_callback_failure\",\n      \"health_service\": null,\n      \"lane\": \"conversation_context\",\n      \"owner_class\": \"AttentionalContextGate\",\n      \"owner_file\": \"core/brain/llm/context_gate.py\",\n      \"receipt_kind\": null,\n      \"role\": \"selection_boundary\",\n      \"surface_id\": \"attention.prompt_block\"\n    },\n    {\n      \"boundary\": \"deterministic inner-model calculation; not live workspace authority\",\n      \"callable_name\": \"compete\",\n      \"failure_policy\": \"empty_input_rejects\",\n      \"health_service\": null,\n      \"lane\": \"phenomenal_simulation\",\n      \"owner_class\": \"GlobalWorkspace\",\n      \"owner_file\": \"core/phenomenal_substrate/global_workspace.py\",\n      \"receipt_kind\": null,\n      \"role\": \"pure_selection\",\n      \"surface_id\": \"phenomenal.coalition_ignition\"\n    },\n    {\n      \"boundary\": \"neural-mesh data is advisory and cannot authorize an effect\",\n      \"callable_name\": \"submit_input\",\n      \"failure_policy\": \"modifier_failure_lowers_evidence\",\n      \"health_service\": null,\n      \"lane\": \"interpretation_drafts\",\n      \"owner_class\": \"MultipleDraftsEngine\",\n      \"owner_file\": \"core/consciousness/multiple_drafts.py\",\n      \"receipt_kind\": null,\n      \"role\": \"advisory_generation\",\n      \"surface_id\": \"drafts.generate\"\n    },\n    {\n      \"boundary\": \"deterministic draft selection; not action authority\",\n      \"callable_name\": \"probe\",\n      \"failure_policy\": \"empty_input_rejects\",\n      \"health_service\": null,\n      \"lane\": \"interpretation_drafts\",\n      \"owner_class\": \"MultipleDraftsEngine\",\n      \"owner_file\": \"core/consciousness/multiple_drafts.py\",\n      \"receipt_kind\": null,\n      \"role\": \"pure_selection\",\n      \"surface_id\": \"drafts.probe\"\n    },\n    {\n      \"boundary\": \"weighted quorum only; callers still require canonical action authority\",\n      \"callable_name\": \"check_quorum\",\n      \"failure_policy\": \"empty_or_zero_vote_rejects\",\n      \"health_service\": null,\n      \"lane\": \"advisory_decision\",\n      \"owner_class\": \"QuorumDecisionGate\",\n      \"owner_file\": \"core/consciousness/animal_cognition.py\",\n      \"receipt_kind\": null,\n      \"role\": \"pure_selection\",\n      \"surface_id\": \"animal.quorum\"\n    },\n    {\n      \"boundary\": \"somatic evidence cannot authorize an effect by itself\",\n      \"callable_name\": \"evaluate\",\n      \"failure_policy\": \"modifier_failure_is_neutral\",\n      \"health_service\": null,\n      \"lane\": \"action_signal\",\n      \"owner_class\": \"SomaticMarkerGate\",\n      \"owner_file\": \"core/consciousness/somatic_marker_gate.py\",\n      \"receipt_kind\": null,\n      \"role\": \"advisory_modifier\",\n      \"surface_id\": \"somatic.marker\"\n    },\n    {\n      \"boundary\": \"no production caller; migration belongs to canonical authority/effect spine\",\n      \"callable_name\": \"authorize\",\n      \"failure_policy\": \"tracked_authority_debt\",\n      \"health_service\": null,\n      \"lane\": \"legacy_action_authority\",\n      \"owner_class\": \"ExecutiveInhibitor\",\n      \"owner_file\": \"core/consciousness/executive_inhibitor.py\",\n      \"receipt_kind\": null,\n      \"role\": \"action_authority\",\n      \"surface_id\": \"legacy.executive_inhibitor\"\n    },\n    {\n      \"boundary\": \"action-effect authority is governed by the canonical authority/effect workstream\",\n      \"callable_name\": \"authorize\",\n      \"failure_policy\": \"tracked_authority_debt\",\n      \"health_service\": \"substrate_authority\",\n      \"lane\": \"action_authority\",\n      \"owner_class\": \"SubstrateAuthority\",\n      \"owner_file\": \"core/consciousness/substrate_authority.py\",\n      \"receipt_kind\": null,\n      \"role\": \"action_authority\",\n      \"surface_id\": \"substrate.action_authority\"\n    },\n    {\n      \"boundary\": \"CAA proof readiness; not candidate admission\",\n      \"callable_name\": \"evaluate\",\n      \"failure_policy\": \"validator_failure_cannot_reach_production\",\n      \"health_service\": null,\n      \"lane\": \"certification\",\n      \"owner_class\": \"ReadinessGate\",\n      \"owner_file\": \"core/consciousness/caa/readiness_gate.py\",\n      \"receipt_kind\": null,\n      \"role\": \"certification_gate\",\n      \"surface_id\": \"caa.readiness\"\n    }\n  ]\n}\n",
+  "stdout_sha256": "4922a2dc465ad0617213aeff5437e4c0edc573a42702fd846ce0bff5ed9e9154",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
