@@ -200,6 +200,8 @@ class AstLinter(ast.NodeVisitor):
         self.rel = rel
         self.findings: list[LintFinding] = []
         self.async_depth = 0
+        #: Innermost-first: whether the function we are inside is a plain def.
+        self._in_sync_function: list[bool] = []
         self.func_depth = 0
         self.file_gateway_vars: set[str] = set()
         self.in_memory_binary_vars: set[str] = set()
@@ -218,14 +220,29 @@ class AstLinter(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self.async_depth += 1
         self.func_depth += 1
+        self._in_sync_function.append(False)
         self.generic_visit(node)
+        self._in_sync_function.pop()
         self.async_depth -= 1
         self.func_depth -= 1
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self.func_depth += 1
+        # A plain def nested inside a coroutine is a THREAD BODY, not the
+        # coroutine. core/brain/llm/nucleus_manager.py defines _thread_worker
+        # inside an async generator and runs it on a worker thread, where
+        # time.sleep is the correct call — and was reported as a blocking
+        # sleep on the event loop because any enclosing async def counted.
+        self._in_sync_function.append(True)
         self.generic_visit(node)
+        self._in_sync_function.pop()
         self.func_depth -= 1
+
+    @property
+    def _on_the_event_loop(self) -> bool:
+        return self.async_depth > 0 and not (
+            self._in_sync_function and self._in_sync_function[-1]
+        )
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -302,7 +319,7 @@ class AstLinter(ast.NodeVisitor):
                 node,
                 f"Raw task creation {name} is blocked in production code.",
             )
-        elif name == "time.sleep" and self.async_depth > 0:
+        elif name == "time.sleep" and self._on_the_event_loop:
             self.add(
                 "high",
                 "blocking_sleep_in_async",

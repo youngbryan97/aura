@@ -197,7 +197,12 @@ class DistributedResilienceCore:
         if asyncio.iscoroutine(result):
             # Repair on the monitor's own loop, bounded, so a hung repair
             # cannot stall health reporting for every other subsystem.
-            task = asyncio.ensure_future(self._await_recovery(name, label, result))
+            from core.utils.task_tracker import get_task_tracker
+
+            task = get_task_tracker().track(
+                self._await_recovery(name, label, result),
+                name=f"skynet.recovery.{name}",
+            )
             self._recovery_tasks.add(task)
             task.add_done_callback(self._recovery_tasks.discard)
         return True

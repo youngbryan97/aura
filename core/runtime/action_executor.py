@@ -1651,7 +1651,18 @@ async def _invoke_effect_handler(
         return value
 
     started = time.monotonic()
-    work = asyncio.ensure_future(asyncio.gather(invoke(), return_exceptions=True))
+
+    async def _gathered() -> list[Any]:
+        return await asyncio.gather(invoke(), return_exceptions=True)
+
+    # Tracked, not raw: a task nobody owns is invisible to shutdown and to the
+    # runtime's task census. The tracker takes a COROUTINE, so the gather is
+    # wrapped in one — handing it the gather future itself is not a coroutine
+    # and the task never ran, which turned every governed effect into
+    # failed_recoverable.
+    from core.utils.task_tracker import get_task_tracker
+
+    work = get_task_tracker().track(_gathered(), name="action_executor.effect")
     while True:
         silent_for = time.monotonic() - last_sign_of_life
         total_left = timeout_s - (time.monotonic() - started)

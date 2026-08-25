@@ -16480,7 +16480,13 @@ async def _finalize_regenerated_reply_write(
 
     try:
         receipt = record.task.result()
-    except Exception:  # noqa: BLE001 - state/error already retained by registry
+    except Exception as exc:  # noqa: BLE001 - the answer is False either way
+        record_degradation(
+            "chat.receipt",
+            exc,
+            severity="info",
+            action="treated a raising receipt as not applied",
+        )
         return False
     if not isinstance(receipt, dict) or not bool(receipt.get("applied")):
         return False

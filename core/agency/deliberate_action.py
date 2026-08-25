@@ -502,11 +502,16 @@ def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
         return
     coroutine = publish(**fields)
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         coroutine.close()
         return
-    task = loop.create_task(coroutine)
+    # Tracked, not raw. A fire-and-forget task nobody owns is invisible to
+    # shutdown and to the runtime's own task census; the tracker gives it a
+    # name and an owner while keeping the same non-blocking behaviour.
+    from core.utils.task_tracker import get_task_tracker
+
+    task = get_task_tracker().track(coroutine, name="deliberate_action.notice")
     # Deciding must not wait on being noticed.
     task.add_done_callback(lambda done: done.exception())
 

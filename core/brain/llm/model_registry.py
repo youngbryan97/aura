@@ -25,6 +25,7 @@ from core.brain.llm.context_window_evidence import (
     measured,
     note_assumption,
 )
+from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.model_runtime_assignment import (
@@ -1833,7 +1834,13 @@ def _served_cortex_window() -> int | None:
     """What window the promoted cortex was qualified for, or None."""
     try:
         limits = get_active_cortex_serving_limits()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - an unknown window is reported as unknown
+        record_degradation(
+            "model_registry",
+            exc,
+            severity="info",
+            action="reported no served window because the cortex limits could not be read",
+        )
         return None
     served = getattr(limits, "served_context_tokens", None)
     return served if isinstance(served, int) and served > 0 else None
@@ -1853,7 +1860,13 @@ def resident_model_label(*, default: str = "Cortex") -> str:
     """
     try:
         spec = get_active_cortex_spec()
-    except Exception:  # noqa: BLE001 - a name is never worth an exception here
+    except Exception as exc:  # noqa: BLE001 - a name is never worth an exception here
+        record_degradation(
+            "model_registry",
+            exc,
+            severity="info",
+            action=f"used the default label {default!r} because the cortex spec could not be read",
+        )
         return default
     if spec is None:
         return default

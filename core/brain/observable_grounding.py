@@ -46,6 +46,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 __all__ = [
     "Observable",
     "OBSERVABLES",
@@ -141,7 +143,13 @@ async def _read_one(observable: Observable, prompt: str) -> tuple[str, str]:
     try:
         if not observable.matches(prompt):
             return observable.name, ""
-    except Exception:  # noqa: BLE001 - a matcher must never break a turn
+    except Exception as exc:  # noqa: BLE001 - a matcher must never break a turn
+        record_degradation(
+            "observable_grounding",
+            exc,
+            severity="info",
+            action=f"skipped the {observable.name} observable after its matcher raised",
+        )
         return observable.name, ""
     try:
         body = await asyncio.wait_for(
@@ -149,7 +157,13 @@ async def _read_one(observable: Observable, prompt: str) -> tuple[str, str]:
         )
     except (TimeoutError, asyncio.CancelledError):
         return observable.name, ""
-    except Exception:  # noqa: BLE001 - a failed reading is not a failed turn
+    except Exception as exc:  # noqa: BLE001 - a failed reading is not a failed turn
+        record_degradation(
+            "observable_grounding",
+            exc,
+            severity="info",
+            action=f"served the turn without the {observable.name} reading",
+        )
         return observable.name, ""
     text = str(body or "").strip()
     if not text:

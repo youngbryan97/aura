@@ -31,6 +31,8 @@ import importlib
 from functools import lru_cache
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 __all__ = [
     "EFFECT_SCOPE_RANK",
     "action_effect_scope",
@@ -48,7 +50,13 @@ __all__ = [
 def _import_class(module_path: str, class_name: str) -> Any:
     try:
         return getattr(importlib.import_module(module_path), class_name, None)
-    except Exception:  # noqa: BLE001 - a skill that cannot import declares nothing
+    except Exception as exc:  # noqa: BLE001 - a skill that cannot import declares nothing
+        record_degradation(
+            "action_scope",
+            exc,
+            severity="info",
+            action=f"read no declaration from {module_path}.{class_name}",
+        )
         return None
 
 
@@ -64,7 +72,13 @@ def _declared_classes() -> dict[str, tuple[str, str]]:
         from core.skills.discovery import build_skill_catalog
 
         catalog = build_skill_catalog()
-    except Exception:  # noqa: BLE001 - no catalogue means no declaration to read
+    except Exception as exc:  # noqa: BLE001 - no catalogue means no declaration to read
+        record_degradation(
+            "action_scope",
+            exc,
+            severity="info",
+            action="read no skill declarations because the catalogue is unavailable",
+        )
         return {}
     found: dict[str, tuple[str, str]] = {}
     for declaration in getattr(catalog, "accepted", ()) or ():

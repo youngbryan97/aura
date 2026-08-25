@@ -236,23 +236,25 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
         # Await every member even when one fails.  Abandoning a to_thread task
         # while retrying starts a second dependency transaction beside the
         # first and recreates the import/lifecycle race this owner prevents.
+        # Handed to gather as coroutines. asyncio.gather schedules each one
+        # itself, so wrapping them in create_task first added a raw task
+        # creation for something that is awaited in the same expression — the
+        # shape the ownership rule exists to catch is a task nobody awaits.
         _, _, snapshot, foreground_services = await _complete_named_stage(
             "readers",
             (
-                asyncio.create_task(ProfileManager.get_instance()),
-                asyncio.create_task(get_unified_self()),
-                asyncio.create_task(asyncio.to_thread(prewarm_shared_embedding_runtime)),
-                asyncio.create_task(
-                    asyncio.to_thread(materialize_foreground_chat_dependencies)
-                ),
+                ProfileManager.get_instance(),
+                get_unified_self(),
+                asyncio.to_thread(prewarm_shared_embedding_runtime),
+                asyncio.to_thread(materialize_foreground_chat_dependencies),
             ),
             ("profile", "unified_self", "embedding", "foreground_services"),
         )
         projection, evidence_routing = await _complete_named_stage(
             "semantic_projection",
             (
-                asyncio.create_task(asyncio.to_thread(build_self_condition_projection)),
-                asyncio.create_task(asyncio.to_thread(prewarm_evidence_relevance)),
+                asyncio.to_thread(build_self_condition_projection),
+                asyncio.to_thread(prewarm_evidence_relevance),
             ),
             ("self_condition", "evidence_relevance"),
         )

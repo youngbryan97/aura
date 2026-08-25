@@ -118,7 +118,9 @@ class Narrator:
         if self._task is not None:
             return
         self._loop = asyncio.get_running_loop()
-        self._task = asyncio.create_task(self._run(), name="aura.narrator")
+        from core.utils.task_tracker import get_task_tracker
+
+        self._task = get_task_tracker().track(self._run(), name="aura.narrator")
         workspace = self._find_workspace()
         subscribe = getattr(workspace, "register_processor", None) if workspace else None
         if subscribe is not None:

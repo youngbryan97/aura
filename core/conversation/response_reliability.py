@@ -1888,7 +1888,13 @@ def _registered_capability_names() -> frozenset[str]:
         from core.skills.discovery import build_skill_catalog
 
         catalogue = build_skill_catalog()
-    except Exception:  # noqa: BLE001 - no catalogue means no contradiction
+    except Exception as exc:  # noqa: BLE001 - no catalogue means no contradiction
+        record_degradation(
+            "response_reliability",
+            exc,
+            severity="info",
+            action="checked no capability contradictions because the catalogue is unavailable",
+        )
         return frozenset()
     names: set[str] = set()
     for declaration in getattr(catalogue, "accepted", ()) or ():

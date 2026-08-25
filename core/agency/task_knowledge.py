@@ -499,11 +499,13 @@ def _announce(knowledge: TaskKnowledge) -> None:
             content_type=ContentType.MEMORIAL,
         )
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             coroutine.close()
             return
-        task = loop.create_task(coroutine)
+        from core.utils.task_tracker import get_task_tracker
+
+        task = get_task_tracker().track(coroutine, name="task_knowledge.learn")
         task.add_done_callback(lambda done: done.exception())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("task_knowledge", exc, severity="info", action="learned without saying so")

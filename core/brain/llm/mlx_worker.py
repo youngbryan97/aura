@@ -1711,7 +1711,7 @@ def _shrink_scaffold_to_context_window(
                 add_generation_prompt=True,
                 tokenize=False,
             )
-        except Exception:  # noqa: BLE001 - a failed trim must never kill the worker
+        except Exception as exc:  # noqa: BLE001 - a failed trim must never kill the worker
             # A template refusing a message list is a caller's mistake, and
             # the cost of it here is the whole model process.
             #
@@ -1725,6 +1725,11 @@ def _shrink_scaffold_to_context_window(
             # Failing to trim is a recoverable outcome: the caller keeps the
             # untrimmed prompt and finds out it is too long, which is a far
             # smaller problem than having no model.
+            _record_mlx_degradation(
+                exc,
+                action="kept the untrimmed prompt after the chat template refused it",
+                severity="info",
+            )
             return None
         try:
             return str(rendered), list(tokenizer.encode(str(rendered)))
