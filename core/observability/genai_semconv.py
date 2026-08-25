@@ -30,9 +30,10 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Generator, Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from enum import StrEnum
-from typing import Any, Generator, Iterable, Mapping, Sequence
+from typing import Any
 
 from core.observability import histograms
 from core.observability.logging_config import redact_text
@@ -127,7 +128,12 @@ TOKEN_USAGE_INPUT_METRIC = "gen_ai.client.token.usage.input"
 TOKEN_USAGE_OUTPUT_METRIC = "gen_ai.client.token.usage.output"
 OPERATION_DURATION_METRIC = "gen_ai.client.operation.duration"
 
-_OWNER = "observability/genai"
+#: Who to ask about these numbers. A repo-relative FILE, because that is
+#: what an owner is for and what the ratchet checks: a path that does not
+#: exist answers nobody. "observability/genai" was neither a file nor a
+#: directory, and the three histograms below failed the owner check on
+#: every run that imported this module beside it.
+_OWNER = "core/observability/genai_semconv.py"
 
 histograms.declare_histogram(
     TOKEN_USAGE_INPUT_METRIC,

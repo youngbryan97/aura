@@ -16,10 +16,7 @@ Covers:
 """
 from __future__ import annotations
 
-
-import asyncio
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -49,18 +46,18 @@ class TestConsciousnessE2E:
     async def test_full_consciousness_loop(self):
         _clear_container()
         try:
-            from core.container import ServiceContainer
-            from core.consciousness.homeostasis import HomeostasisEngine
-            from core.consciousness.free_energy import FreeEnergyEngine
-            from core.consciousness.credit_assignment import CreditAssignmentSystem
             from core.consciousness.attention_schema import AttentionSchema
+            from core.consciousness.credit_assignment import CreditAssignmentSystem
+            from core.consciousness.free_energy import FreeEnergyEngine
             from core.consciousness.global_workspace import (
-                GlobalWorkspace,
                 CognitiveCandidate,
                 ContentType,
+                GlobalWorkspace,
             )
-            from core.consciousness.world_model import EpistemicState
+            from core.consciousness.homeostasis import HomeostasisEngine
             from core.consciousness.predictive_engine import PredictiveEngine
+            from core.consciousness.world_model import EpistemicState
+            from core.container import ServiceContainer
 
             # ── 1. Instantiate all consciousness modules ─────────────────
             homeostasis = HomeostasisEngine()
@@ -80,7 +77,9 @@ class TestConsciousnessE2E:
             ServiceContainer.register_instance("epistemic_state", epistemic)
             ServiceContainer.register_instance("predictive_engine", predictive)
 
-            # Record starting integrity for later comparison
+            # Recorded so the comparison the section below promises can be
+            # made. It was assigned and never read, so ten cycles could have
+            # driven integrity anywhere and nothing here would have noticed.
             starting_integrity = homeostasis.integrity
 
             # ── 3. Simulate 10 heartbeat cycles ──────────────────────────
@@ -105,13 +104,17 @@ class TestConsciousnessE2E:
                     )
                     await gwt.submit(candidate)
 
-                # (c) Run GWT competition
+                # (c) Run GWT competition. Something has to win: nine sources
+                # bid every cycle, and a competition that broadcasts nothing
+                # would leave every assertion below reading an empty workspace.
                 winner = await gwt.run_competition()
+                assert winner is not None, f"cycle {cycle} broadcast nothing"
 
                 # (d) Feed predictive engine with a prediction + surprise
                 prediction = await predictive.predict_next_state(
                     {"type": "search", "cycle": cycle}
                 )
+                assert prediction is not None
                 import numpy as np
                 actual_substrate = np.random.randn(predictive.neuron_count) * 0.1
                 surprise = predictive.compute_surprise(
@@ -125,7 +128,7 @@ class TestConsciousnessE2E:
                     free_energy.accept_attention_complexity(
                         attention.get_coherence_for_complexity()
                     )
-                fe_state = free_energy.compute(
+                free_energy.compute(
                     prediction_error=surprise,
                     belief_system=epistemic,
                     recent_action_count=cycle,
@@ -174,6 +177,14 @@ class TestConsciousnessE2E:
             )
             assert attention.current_focus is not None, (
                 "AttentionSchema should have a current focus after 10 cycles"
+            )
+
+            # Ten ordinary cycles are not an injury. Integrity may drift but
+            # must stay in range and must not collapse.
+            assert 0.0 <= homeostasis.integrity <= 1.0
+            assert homeostasis.integrity >= starting_integrity - 0.5, (
+                f"integrity fell from {starting_integrity} to "
+                f"{homeostasis.integrity} over ten ordinary cycles"
             )
 
             # Homeostasis vitality is within bounds
@@ -253,15 +264,25 @@ class TestConsciousnessE2E:
             _clear_container()
 
     @pytest.mark.asyncio
-    async def test_gwt_inhibition_prevents_resubmission(self):
-        """Losers of a GWT competition should be inhibited for subsequent ticks."""
+    async def test_gwt_costs_the_winner_and_not_the_loser(self):
+        """Losing a competition costs the loser nothing; winning costs the winner.
+
+        This test asserted the opposite until now: that a loser was barred
+        from bidding again. 259cb2aec replaced that policy deliberately —
+        banning the loser bans whoever happened to come second, which is
+        arrival order wearing a policy's clothes — and noted three tests still
+        reading the always-empty `_inhibited` dict. This was a fourth, and it
+        had been red ever since. What the mechanism actually guarantees is
+        that no source can hold the broadcast indefinitely, so that is what is
+        checked here.
+        """
         _clear_container()
         try:
-            from core.consciousness.global_workspace import (
-                GlobalWorkspace,
-                CognitiveCandidate,
-            )
             from core.consciousness.attention_schema import AttentionSchema
+            from core.consciousness.global_workspace import (
+                CognitiveCandidate,
+                GlobalWorkspace,
+            )
 
             attention = AttentionSchema()
             gwt = GlobalWorkspace(attention_schema=attention)
@@ -285,15 +306,32 @@ class TestConsciousnessE2E:
             assert result is not None
             assert result.source == "high_priority"
 
-            # Loser should be inhibited -- resubmission should return False
+            # The loser may bid again straight away. Losing is not a penalty.
             resubmit = CognitiveCandidate(
                 content="Trying again",
                 source="low_priority",
                 priority=0.9,
             )
             accepted = await gwt.submit(resubmit)
-            assert accepted is False, (
-                "Inhibited source should not be able to resubmit immediately"
+            assert accepted is True, (
+                "a loser that cannot bid again is barred for coming second"
+            )
+
+            # The winner carries fatigue, which is what stops one source from
+            # holding the broadcast. Without it, the 0.9 source wins forever.
+            assert gwt._fatigue.get("high_priority", 0.0) > 0.0
+
+            # And it is consequential: on the next competition the rested
+            # source at equal priority takes the broadcast.
+            await gwt.submit(
+                CognitiveCandidate(
+                    content="I am rested", source="high_priority", priority=0.9
+                )
+            )
+            second = await gwt.run_competition()
+            assert second is not None
+            assert second.source == "low_priority", (
+                "a winner's fatigue did not let an equal-priority source through"
             )
         finally:
             _clear_container()

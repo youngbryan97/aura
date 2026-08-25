@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document</title>
+<style>
+:root { color-scheme: light dark;
+  --ink:#14171a; --paper:#fbfbfa; --line:#d8d6d1; --quiet:#6b6f76; --accent:#2f5d50; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#ecebe8; --paper:#16181a; --line:#33373b; --quiet:#9aa0a6; --accent:#7fbfa8; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; }
+h1 { font-weight:600; letter-spacing:-0.02em; }
+h2 { font-weight:600; letter-spacing:-0.01em; }
+.sub { color:var(--quiet); }
+ul { margin:0; padding:0; list-style:none; }
+li { position:relative; padding-left:1.4rem; }
+li::before { content:""; position:absolute; left:0; top:0.62em; width:0.5rem; height:1px;
+  background:var(--accent); }
+.notes { display:none; }
+
+.section { min-height:100vh; padding:9vh 8vw; display:none; flex-direction:column;
+  justify-content:center; }
+.section.on { display:flex; }
+h1 { font-size:clamp(1.8rem,4vw,3rem); margin:0 0 2rem; }
+h2 { font-size:clamp(1.4rem,3vw,2.2rem); margin:0 0 1.6rem; }
+.sub { font-size:1.1rem; margin-top:-1.2rem; margin-bottom:2rem; }
+ul { max-width:52rem; }
+li { margin-bottom:1rem; font-size:clamp(1rem,1.6vw,1.25rem); }
+.bar { position:fixed; left:0; bottom:0; height:2px; background:var(--accent); transition:width .2s; }
+.count { position:fixed; right:1.5rem; bottom:1.2rem; color:var(--quiet); font-size:0.8rem;
+  font-variant-numeric:tabular-nums; }
+@media print { .section { display:flex; page-break-after:always; min-height:auto; }
+  .bar,.count { display:none; } }
+</style>
+</head>
+<body>
+<section class="section on"><h1>Document</h1></section><section class="section"><h2>Part 1</h2><ul><li>p1</li></ul></section><section class="section"><h2>Part 2</h2><ul><li>p2</li></ul></section><section class="section"><h2>Part 3</h2><ul><li>p3</li></ul></section><div class="bar" style="width:25.00%"></div><div class="count">1 / 4</div>
+<script>
+const sections = Array.from(document.querySelectorAll('.section'));
+const bar = document.querySelector('.bar');
+const count = document.querySelector('.count');
+let at = 0;
+function show(next) {
+  at = Math.max(0, Math.min(sections.length - 1, next));
+  sections.forEach((section, index) => section.classList.toggle('on', index === at));
+  bar.style.width = ((at + 1) / sections.length * 100).toFixed(2) + '%';
+  count.textContent = (at + 1) + ' / ' + sections.length;
+}
+document.addEventListener('keydown', (event) => {
+  if (['ArrowRight', 'PageDown', ' '].includes(event.key)) { event.preventDefault(); show(at + 1); }
+  if (['ArrowLeft', 'PageUp'].includes(event.key)) { event.preventDefault(); show(at - 1); }
+  if (event.key === 'Home') show(0);
+  if (event.key === 'End') show(sections.length - 1);
+});
+document.addEventListener('click', (event) =>
+  show(at + (event.clientX < window.innerWidth / 3 ? -1 : 1)));
+show(0);
+</script>
+</body>
+</html>
