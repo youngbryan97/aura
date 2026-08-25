@@ -325,15 +325,12 @@ async def test_desktop_task_derives_general_plan_from_desktop_objective(monkeypa
     assert result["steps_requested"] >= 5
     actions = [call[1]["action"] for call in calls]
     assert actions[:2] == ["create_folder", "open_app"]
-    assert "open_url" in actions
+    assert "fetch_topic_image" in actions
+    assert "open_url" not in actions
     assert "write_text_file" in actions
     assert "render_text_pdf" in actions
-    assert "fetch_topic_image" in actions
     folder_payload = json.loads(calls[0][1]["target"])
     assert folder_payload["path"] == "Aura's Journal"
-    open_urls = [call[1]["target"] for call in calls if call[1]["action"] == "open_url"]
-    assert any(url.startswith("https://duckduckgo.com/?q=") for url in open_urls)
-    assert any("iax=images" in url for url in open_urls)
     pdf_calls = [call for call in calls if call[1]["action"] == "render_text_pdf"]
     assert pdf_calls
     pdf_payload = json.loads(pdf_calls[0][1]["target"])
@@ -342,7 +339,6 @@ async def test_desktop_task_derives_general_plan_from_desktop_objective(monkeypa
     assert "Image request: robot" in pdf_payload["body"]
     assert "receipt records the source page" in pdf_payload["body"]
     assert actions.index("fetch_topic_image") < actions.index("render_text_pdf")
-    assert actions.index("open_url") > actions.index("render_text_pdf")
     assert calls[0][2]["route"] == "desktop_task.computer_use"
     assert calls[0][2]["origin"] == "desktop_ui"
 
@@ -2502,6 +2498,37 @@ def test_wallpaper_derivation_fetches_controls_and_shows_source():
     assert source_steps, actions
 
 
+def test_typed_image_acquisition_does_not_depend_on_a_search_tab():
+    """A browser surface does not produce the image consumed by the effect.
+
+    The governed fetch receipt does. A browser confirmation failure must not
+    block an otherwise executable image-valued setting request.
+    """
+    from core.skills.desktop_task import DesktopTaskSkill
+
+    steps = DesktopTaskSkill()._derive_steps_from_objective(
+        "Find a blue whale image online and set it as my desktop wallpaper.",
+        {},
+    )
+    actions = [step.action for step in steps]
+
+    assert actions == ["fetch_topic_image", "system_control"]
+
+
+def test_explicit_source_visibility_uses_the_verified_fetch_source_after_effect():
+    from core.skills.desktop_task import FETCHED_IMAGE_SOURCE_SENTINEL, DesktopTaskSkill
+
+    steps = DesktopTaskSkill()._derive_steps_from_objective(
+        "Find a blue whale image online, set it as my desktop wallpaper, and show me the source.",
+        {},
+    )
+    actions = [step.action for step in steps]
+    source = next(step for step in steps if step.action == "open_url")
+
+    assert actions == ["fetch_topic_image", "system_control", "open_url"]
+    assert FETCHED_IMAGE_SOURCE_SENTINEL in str(source.target)
+
+
 def test_background_wording_maps_to_wallpaper_affordance():
     from core.skills.os_affordances import detect_os_settings
 
@@ -2581,7 +2608,7 @@ def test_demo_class_objective_stays_on_verified_primitive_lane():
     ]
     assert docs_targets
     assert all(target.get("requires_editable_focus") is True for target in docs_targets)
-    assert any(
+    assert not any(
         "q=eagle" in url and ("tbm=isch" in url or "iax=images" in url)
         for url in url_values
     )

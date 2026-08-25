@@ -4479,7 +4479,6 @@ class DesktopTaskSkill(BaseSkill):
 
         query = self._extract_search_query(text)
         search_url = self._search_url(query, engine=engine_hint) if query else ""
-        image_search_surface_deferred = False
         if wants_search and query:
             steps.append(
                 DesktopTaskStep(
@@ -4530,10 +4529,17 @@ class DesktopTaskSkill(BaseSkill):
             if wants_image
             else ""
         )
+        typed_image_acquisition = bool(wants_artifact_file and image_query) or any(
+            affordance is not None
+            and affordance.needs_image
+            and not Path(str(value or "")).expanduser().is_absolute()
+            for domain, value in os_setting_requests
+            if (affordance := get_affordance(domain)) is not None
+        )
         open_image_search_surface = bool(
             image_search_url
             and image_search_url != search_url
-            and not (wants_artifact_file and image_query)
+            and not typed_image_acquisition
         )
         if open_image_search_surface:
             steps.append(
@@ -4544,8 +4550,6 @@ class DesktopTaskSkill(BaseSkill):
                     expect=f"{browser_label} accepts the image search URL.",
                 )
             )
-        elif image_search_url and image_search_url != search_url:
-            image_search_surface_deferred = True
 
         if wants_interactive_text_entry:
             body = self._document_body_with_references(
@@ -4780,21 +4784,6 @@ class DesktopTaskSkill(BaseSkill):
                         expect="PDF artifact exists and starts with a PDF header.",
                     )
                 )
-        if image_search_surface_deferred and not self._wants_image_source_shown(text):
-            # Leave the core artifact chain uninterrupted. The verified image
-            # download receipt is the proof that the visual came from the web;
-            # a browser tab for image search is useful ambience, but it must not
-            # steal focus before Notes/Docs writing or block the PDF if Chrome
-            # cannot semantically confirm its active tab.
-            steps.append(
-                DesktopTaskStep(
-                    action="open_url",
-                    target=_open_url_target(image_search_url),
-                    reason="Optionally leave the image-search surface visible after the requested writing/PDF artifact is complete.",
-                    expect=f"{browser_label} accepts the image search URL.",
-                    critical=False,
-                )
-            )
         if image_query and wants_artifact_file and self._wants_image_source_shown(text):
             steps.append(
                 DesktopTaskStep(
