@@ -1269,16 +1269,24 @@ async def pursue_on_screen(
                     intending["value"] = START_OVER
                     frame = list(first.get("bounds") or [])
                     if await click_normalized(rx, ry, expect_app=target_app, bounds=frame):
-                        restarts["count"] += 1
-                        restarts["because"] = settle.rationale or "the goal was already met by an old game"
-                        # Look again before judging anything.
+                        # Look again before judging anything, and before
+                        # claiming anything.
                         #
-                        # A reset takes a moment to land, and the reading taken
-                        # before it did is of the game she just abandoned.
-                        # Measured live: she began again and immediately
-                        # reported the goal reached "after 0 move(s)" — the
-                        # 128 she was looking at belonged to the old board.
-                        await _settled_after(first, target_app)
+                        # A reset takes a moment to land, and the reading
+                        # taken before it did is of the game she just
+                        # abandoned. A click that lands on nothing still
+                        # reports success — the click happened — so waiting
+                        # is not enough on its own. Measured live: "Began
+                        # again 1 time(s)" while the score sat unchanged at
+                        # 996 the whole time.
+                        _after, began = await _settled_after(first, target_app)
+                        if began:
+                            restarts["count"] += 1
+                            restarts["because"] = (
+                                settle.rationale or "the goal was already met by an old game"
+                            )
+                        else:
+                            already["value"] = True
                     else:
                         already["value"] = True
                 else:
@@ -1459,12 +1467,19 @@ def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
 
 
 
-async def _settled_after(before: dict[str, Any], app: str, *, patience: float = 4.0) -> dict[str, Any]:
-    """The screen once it has actually changed, or the last reading tried.
+async def _settled_after(
+    before: dict[str, Any], app: str, *, patience: float = 4.0
+) -> tuple[dict[str, Any], bool]:
+    """The screen once it has changed, and whether it changed at all.
 
     An action that resets a surface is not done when the click returns; it is
     done when the surface says so. Waiting on the change rather than on a
     fixed delay means a slow page is waited for and a fast one is not.
+
+    The second value is the part that matters. A click that lands on nothing
+    still reports success — the click happened — so a caller that only waits
+    goes on to claim a reset that never occurred. Measured live: "Began again
+    1 time(s)" while the score sat unchanged at 996 the whole time.
     """
     was = str(before.get("text") or "")
     started = time.monotonic()
@@ -1473,11 +1488,11 @@ async def _settled_after(before: dict[str, Any], app: str, *, patience: float = 
         await asyncio.sleep(0.3)
         try:
             seen = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             continue
         if str(seen.get("text") or "") != was:
-            return seen
-    return seen
+            return seen, True
+    return seen, False
 
 
 async def _say_line(line: str) -> None:
