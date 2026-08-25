@@ -16,6 +16,7 @@ from core.runtime.errors import record_degradation
 from .base import VerificationResult, Verifier, combine_results
 from .citation_engine import CitationEngine
 from .code_engine import CodeTruthEngine
+from .engineering_engine import EngineeringTruthEngine
 from .experience_engines import (
     OutcomeLedgerVerifier,
     PredictionResolutionVerifier,
@@ -33,6 +34,8 @@ _TASK_ALIASES = {
     "code": "code", "coding": "code", "code_audit": "code_audit", "code_patch": "code_patch",
     "debug": "debug", "bugfix": "code_patch",
     "math": "math", "arithmetic": "math", "calculation": "math",
+    "engineering": "engineering", "design": "design", "schematic": "design",
+    "mechanical": "mechanical", "electrical": "electrical",
     "repo": "repo", "repo_audit": "repo_audit", "codebase": "repo_audit",
     "architecture": "architecture", "self_claim": "self_claim",
     "factual": "factual", "fact": "factual", "qa": "factual",
@@ -48,6 +51,7 @@ class VerifierRegistry:
         self._verifiers: list[Verifier] = verifiers or [
             CodeTruthEngine(),
             MathTruthEngine(),
+            EngineeringTruthEngine(),
             LogicTruthEngine(),
             StateTraceTruthEngine(),
             RepoEvidenceEngine(),

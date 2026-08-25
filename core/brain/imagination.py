@@ -488,6 +488,69 @@ def _subject_key(subject: Any) -> str:
     return cleaned[:64] or _ANONYMOUS_SUBJECT
 
 
+#: A word has to be worth this much before an imagined subject counts as a
+#: physical thing. An unambiguous engineering noun or a real material is
+#: worth two on its own; a word that names a part in engineering and
+#: something ordinary elsewhere — light, model, frame — is worth one, so it
+#: takes two of them. A poem about light stays a poem.
+_ENGINEERABLE_THRESHOLD = 2
+
+
+def _engineerable_score(focus: list[str]) -> tuple[int, str]:
+    """How much of an imagined subject could be DRAWN rather than pictured.
+
+    Asked against the live registries rather than a word list kept here: the
+    engineering object class, the materials table, the solid kinds and the
+    part tags the layout understands. That keeps this true when a material
+    or a shape is added, and stops it claiming a subject that was removed.
+    """
+    try:
+        from core.engineering.geometry import SOLID_KINDS
+        from core.engineering.layout import _ENCLOSURE_TAGS, _EXTERNAL_TAGS
+        from core.engineering.materials import closest_material
+        from core.intent.declared_capability import object_class_of
+    except ImportError:
+        return (0, "")
+
+    strong = set(object_class_of("schematic")) | set(SOLID_KINDS)
+    weak = set(_EXTERNAL_TAGS) | set(_ENCLOSURE_TAGS)
+    score = 0
+    best = ""
+    for word in focus[:5]:
+        lowered = str(word or "").strip().lower()
+        if len(lowered) < 3:
+            continue
+        if lowered in strong or closest_material(lowered) is not None:
+            score += 2
+            best = best or lowered
+        elif lowered in weak:
+            score += 1
+            best = best or lowered
+    return (score, best)
+
+
+def _externalization_path(focus: list[str], text: str) -> str:
+    """How this canvas would be made visible, if anybody asked to see it.
+
+    A physical or electrical subject externalises as a schematic, because a
+    schematic is computed from a model and can be measured off. Anything
+    else externalises as an image. Getting that the wrong way round produces
+    a picture of a machine that cannot work, which is the failure the
+    engineering module exists to prevent.
+    """
+    score, subject = _engineerable_score(focus)
+    if score >= _ENGINEERABLE_THRESHOLD and subject:
+        return (
+            f"If the user asks to see this, {subject} is a physical thing, so the "
+            "honest externalisation is a computed schematic through design_engineering "
+            "rather than a generated image. Otherwise keep it private."
+        )
+    return (
+        "If the user asks to see or generate this, request governed image/tool execution; "
+        "otherwise keep it private."
+    )
+
+
 class ImaginationEngine:
     """Generator of bounded internal imagination frames.
 
@@ -1420,10 +1483,7 @@ class ImaginationEngine:
             "linguistic_surface": linguistic_surface[:160],
             "thought_form": thought_form[:280],
             "memory_anchor": memory_anchor,
-            "externalization_path": (
-                "If the user asks to see or generate this, request governed image/tool execution; "
-                "otherwise keep it private."
-            ),
+            "externalization_path": _externalization_path(focus, text),
         }
 
     @staticmethod

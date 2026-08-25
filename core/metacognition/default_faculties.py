@@ -277,6 +277,30 @@ def declare_default_faculties(registry: FacultyRegistry | None = None) -> Facult
     return target
 
 
+def _declare_owned_faculties(registry: FacultyRegistry) -> None:
+    """Let a package declare its own faculty, without this module knowing it.
+
+    Engineering design is measurable — whether its formulas still reproduce
+    their published answers, what share of its results carried their working
+    — and the probes for that belong beside the code they measure, not here.
+    The import is local so that a runtime without the package still has a
+    self-model, and a failure to declare is recorded rather than raised: a
+    faculty that cannot be declared is a blind spot, and a blind spot must
+    not take metacognition down with it.
+    """
+    from core.runtime.errors import record_degradation
+
+    try:
+        from core.engineering.faculty import declare_engineering_faculty
+
+        declare_engineering_faculty(registry)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "metacognition.faculties", exc,
+            action="engineering design could not declare itself as a faculty",
+        )
+
+
 def ensure_default_faculties() -> FacultyRegistry:
     """Declare the defaults once, on first use of the self-model."""
     global _declared
@@ -285,7 +309,9 @@ def ensure_default_faculties() -> FacultyRegistry:
         if _declared:
             return registry
         _declared = True
-    return declare_default_faculties(registry)
+    declared = declare_default_faculties(registry)
+    _declare_owned_faculties(declared)
+    return declared
 
 
 def reset_default_faculties_for_test() -> None:
