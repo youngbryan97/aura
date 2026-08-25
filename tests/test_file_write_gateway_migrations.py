@@ -390,6 +390,8 @@ def test_directory_relative_batch_rolls_back_second_replace_failure(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     gateway = gateway_module.FileWriteGateway()
     (tmp_path / "a.bin").write_bytes(b"old-a")
@@ -439,9 +441,11 @@ def test_directory_relative_batch_cleans_staging_failure_and_retries(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     gateway = gateway_module.FileWriteGateway()
-    real_stage = gateway_module._stage_bytes_at
+    real_stage = primitives_module.stage_bytes_at
     failed = False
 
     def fail_after_stage(directory_fd, name, payload, mode):
@@ -452,8 +456,8 @@ def test_directory_relative_batch_cleans_staging_failure_and_retries(
             raise OSError("injected staging fsync failure")
 
     monkeypatch.setattr(
-        gateway_module,
-        "_stage_bytes_at",
+        primitives_module,
+        "stage_bytes_at",
         fail_after_stage,
     )
     with pytest.raises(
@@ -480,7 +484,7 @@ def test_directory_relative_batch_cleans_staging_failure_and_retries(
         path.name for path in tmp_path.iterdir()
     } == {".aura_file_write_batch.lock"}
 
-    monkeypatch.setattr(gateway_module, "_stage_bytes_at", real_stage)
+    monkeypatch.setattr(primitives_module, "stage_bytes_at", real_stage)
     gateway.write_bytes_batch_in_directory(
         tmp_path,
         (
@@ -505,6 +509,8 @@ def test_directory_relative_batch_recovers_process_death_before_retry(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
@@ -554,7 +560,7 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     assert crashed.returncode == 91
     assert (tmp_path / ".aura_file_write_batch.journal").exists()
 
-    real_stage = gateway_module._stage_bytes_at
+    real_stage = primitives_module.stage_bytes_at
 
     def stop_after_recovery(directory_fd, name, payload, mode):
         if "-recover-" in name:
@@ -562,8 +568,8 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
         raise OSError("stop after recovery")
 
     monkeypatch.setattr(
-        gateway_module,
-        "_stage_bytes_at",
+        primitives_module,
+        "stage_bytes_at",
         stop_after_recovery,
     )
     with pytest.raises(gateway_module.FileWriteTransactionError):
@@ -587,7 +593,7 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     assert (tmp_path / "manifest.json").read_bytes() == b"old-manifest"
     assert not (tmp_path / ".aura_file_write_batch.journal").exists()
 
-    monkeypatch.setattr(gateway_module, "_stage_bytes_at", real_stage)
+    monkeypatch.setattr(primitives_module, "stage_bytes_at", real_stage)
     gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
         tmp_path,
         (
@@ -612,6 +618,8 @@ def test_directory_relative_batch_commit_cleanup_survives_process_death(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
@@ -620,16 +628,17 @@ def test_directory_relative_batch_commit_cleanup_survives_process_death(
 import os
 import sys
 import core.runtime.file_write_gateway as gateway_module
+import core.runtime.file_write_primitives as primitives_module
 
 target = sys.argv[1]
-real_unlink = gateway_module._unlink_private_regular_at
+real_unlink = primitives_module.unlink_private_regular_at
 
 def crash_on_disposable_backup(directory_fd, name):
     if name.endswith(".bak"):
         os._exit(92)
     return real_unlink(directory_fd, name)
 
-gateway_module._unlink_private_regular_at = crash_on_disposable_backup
+primitives_module.unlink_private_regular_at = crash_on_disposable_backup
 gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     target,
     (
@@ -656,14 +665,14 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     assert not (tmp_path / ".aura_file_write_batch.journal").exists()
     assert any(path.name.endswith(".bak") for path in tmp_path.iterdir())
 
-    real_stage = gateway_module._stage_bytes_at
+    real_stage = primitives_module.stage_bytes_at
 
     def stop_new_transaction(*_args, **_kwargs):
         raise OSError("stop after abandoned-backup cleanup")
 
     monkeypatch.setattr(
-        gateway_module,
-        "_stage_bytes_at",
+        primitives_module,
+        "stage_bytes_at",
         stop_new_transaction,
     )
     with pytest.raises(gateway_module.FileWriteTransactionError):
@@ -684,13 +693,15 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     assert (tmp_path / "data.bin").read_bytes() == b"new-data"
     assert not any(path.name.endswith(".bak") for path in tmp_path.iterdir())
 
-    monkeypatch.setattr(gateway_module, "_stage_bytes_at", real_stage)
+    monkeypatch.setattr(primitives_module, "stage_bytes_at", real_stage)
 
 
 def test_directory_relative_batch_recovery_cleanup_survives_process_death(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
@@ -738,14 +749,15 @@ gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
 import os
 import sys
 import core.runtime.file_write_gateway as gateway_module
+import core.runtime.file_write_primitives as primitives_module
 
 target = sys.argv[1]
-real_unlink = gateway_module._unlink_private_regular_at
+real_unlink = primitives_module.unlink_private_regular_at
 def crash(directory_fd, name):
     if name.endswith(".bak"):
         os._exit(94)
     return real_unlink(directory_fd, name)
-gateway_module._unlink_private_regular_at = crash
+primitives_module.unlink_private_regular_at = crash
 gateway_module.FileWriteGateway().write_bytes_batch_in_directory(
     target,
     (
@@ -794,11 +806,13 @@ def test_directory_relative_batch_refuses_unrecoverable_journal_size(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
     monkeypatch.setattr(
-        gateway_module,
-        "_MAX_DIRECTORY_BATCH_JOURNAL_BYTES",
+        journal_module,
+        "MAX_DIRECTORY_BATCH_JOURNAL_BYTES",
         128,
     )
     with pytest.raises(
@@ -824,6 +838,8 @@ def test_directory_relative_batch_reports_durable_committed_state(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
     real_write_journal = gateway_module._write_directory_batch_journal
@@ -858,10 +874,12 @@ def test_directory_relative_batch_classifies_persistent_committed_cleanup_failur
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
     real_write_journal = gateway_module._write_directory_batch_journal
-    real_unlink = gateway_module._unlink_private_regular_at
+    real_unlink = primitives_module.unlink_private_regular_at
 
     def fail_after_committed_journal(*args, state, **kwargs):
         real_write_journal(*args, state=state, **kwargs)
@@ -869,7 +887,7 @@ def test_directory_relative_batch_classifies_persistent_committed_cleanup_failur
             raise OSError("failure after durable committed journal")
 
     def refuse_committed_journal_cleanup(directory_fd, name):
-        if name == gateway_module._DIRECTORY_BATCH_JOURNAL_FILE:
+        if name == primitives_module.DIRECTORY_BATCH_JOURNAL_FILE:
             raise OSError("persistent committed cleanup failure")
         return real_unlink(directory_fd, name)
 
@@ -879,8 +897,8 @@ def test_directory_relative_batch_classifies_persistent_committed_cleanup_failur
         fail_after_committed_journal,
     )
     monkeypatch.setattr(
-        gateway_module,
-        "_unlink_private_regular_at",
+        primitives_module,
+        "unlink_private_regular_at",
         refuse_committed_journal_cleanup,
     )
     with pytest.raises(
@@ -911,6 +929,8 @@ def test_directory_relative_batch_rejects_hardlinked_lock_without_chmod(
     import fcntl
 
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     backing = tmp_path.parent / f"{tmp_path.name}-lock-backing"
     backing.write_bytes(b"lock")
@@ -945,6 +965,8 @@ def test_directory_relative_batch_never_writes_to_swapped_path(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
+    import core.runtime.file_write_batch_journal as journal_module
+    import core.runtime.file_write_primitives as primitives_module
 
     directory = tmp_path / "bound"
     moved = tmp_path / "moved"
