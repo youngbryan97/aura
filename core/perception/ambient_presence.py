@@ -346,6 +346,22 @@ class AmbientPresence:
         self._pending_utterance = self._narration.popleft()
         self._utterance_at = time.time()
 
+    def narration_backlog(self) -> dict[str, int]:
+        """How far behind the voice is, so she can notice and decide about it.
+
+        Two faculties running at once will not run at the same speed, and the
+        one that falls behind is normally invisible to the one that does not.
+        Publishing the gap is what lets her reason about her own pacing —
+        speak faster, act slower, or accept that some of it goes unsaid — as
+        a choice rather than a silent loss.
+        """
+        with self._lock:
+            return {
+                "waiting": len(self._narration),
+                "showing": 1 if self._pending_utterance else 0,
+                "capacity": self._narration.maxlen or 0,
+            }
+
     def clear_utterance(self) -> None:
         """The person dismissed it. It does not come back.
 

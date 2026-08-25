@@ -363,3 +363,20 @@ async def test_she_acts_and_says_why_while_the_model_is_reloading():
     assert "slide up" in spoken
     assert "without words" in spoken
     assert "the board to shift" in spoken
+
+
+def test_a_name_that_contains_another_name_is_not_mistaken_for_it():
+    """"slow down" contains "down".
+
+    Ranking a mention by where it starts picks the shorter name and turns a
+    decision about her own pacing into an arrow key.
+    """
+    options = [_option(name) for name in ("up", "down", "left", "right", "slow down", "say less")]
+    assert choose_named("slow down", options).name == "slow down"
+    assert choose_named("down", options).name == "down"
+    assert choose_named("say less", options).name == "say less"
+
+
+def test_the_conclusion_still_wins_over_an_earlier_mention():
+    options = [_option(name) for name in ("up", "down", "left", "slow down")]
+    assert choose_named("Up is tempting and down is safe, but the corner argues for left.", options).name == "left"

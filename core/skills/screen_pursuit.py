@@ -632,6 +632,77 @@ def ways_out(observation: dict[str, Any]) -> list[Any]:
     return options
 
 
+
+#: What she can do when her voice falls behind her hands. Moves about
+#: herself rather than about the task, in the same shape as the ways out of
+#: an impasse: offered only when the situation is real, chosen through the
+#: ordinary deliberation, and recorded with a reason.
+SLOW_DOWN = "slow down"
+SAY_LESS = "say less"
+PRESS_ON = "press on"
+
+
+def narration_backlog() -> dict[str, int]:
+    """How far behind the voice is. Empty when there is no surface to speak to."""
+    try:
+        from core.perception.ambient_presence import get_ambient_presence
+
+        return dict(get_ambient_presence().narration_backlog())
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return {}
+
+
+def pacing_options(backlog: dict[str, int]) -> list[Any]:
+    """What she can do about acting faster than she can speak.
+
+    Two faculties running at once will not run at the same speed. Noticing
+    that is not enough on its own — noticing without a lever is a status
+    line — so each of these is something she can actually do: wait for the
+    voice to catch up, say less per move, or carry on and let some of it go
+    unsaid. Any of the three is a defensible answer, which is why it is a
+    decision and not a rule.
+    """
+    from core.agency.deliberate_action import ActionOption, Expectation
+
+    waiting = int(backlog.get("waiting", 0) or 0)
+    if waiting <= 0:
+        return []
+    return [
+        ActionOption(
+            name=SLOW_DOWN,
+            detail=f"wait for my commentary to catch up — {waiting} line(s) behind",
+            expectation=Expectation(changed=False, describes="my words to catch up with my hands"),
+        ),
+        ActionOption(
+            name=SAY_LESS,
+            detail="name each move without explaining it, and keep this pace",
+            expectation=Expectation(changed=False, describes="to keep up by saying less"),
+        ),
+        ActionOption(
+            name=PRESS_ON,
+            detail="carry on at this pace and let some of it go unsaid",
+            expectation=Expectation(changed=False, describes="to keep playing and lose some commentary"),
+        ),
+    ]
+
+
+async def let_the_voice_catch_up(before: dict[str, int], *, patience: float = 4.0) -> None:
+    """Wait for the backlog to drain, bounded, without inventing a delay.
+
+    Sized by the thing actually being waited for rather than by a number
+    somebody picked: it returns as soon as the queue is shorter than it was,
+    and gives up after ``patience`` seconds so a surface nobody is reading
+    cannot stall the run.
+    """
+    started = time.monotonic()
+    was = int(before.get("waiting", 0) or 0)
+    while time.monotonic() - started < patience:
+        await asyncio.sleep(0.25)
+        now = int(narration_backlog().get("waiting", 0) or 0)
+        if now < was:
+            return
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -692,6 +763,8 @@ async def pursue_on_screen(
     intending: dict[str, str] = {"value": ""}
     #: Attempts she chose to begin again, and why.
     restarts: dict[str, Any] = {"count": 0, "because": ""}
+    #: How she has decided to handle acting faster than she can speak.
+    pacing: dict[str, Any] = {"choice": "", "because": "", "brief": False, "waits": 0}
     #: What she knows about doing this, learned once at the start and again
     #: whenever what she is doing stops working.
     knowledge: dict[str, Any] = {"held": None, "relearned": 0, "meant": []}
@@ -1023,6 +1096,10 @@ async def pursue_on_screen(
             available = screen_options(move_keys)
             if stuck(history) and not seen_through["value"]:
                 available = available + ways_out(observation)
+            # Her own pacing is hers to decide, once there is really a gap.
+            behind = narration_backlog() if narrate else {}
+            if behind.get("waiting") and not pacing["choice"]:
+                available = available + pacing_options(behind)
 
             chosen = await deliberate(
                 goal,
@@ -1047,6 +1124,21 @@ async def pursue_on_screen(
                 return None
             key = chosen.chosen.name
             because = chosen.rationale
+
+            if key in {SLOW_DOWN, SAY_LESS, PRESS_ON}:
+                # A decision about herself. It changes how the next moves are
+                # made rather than being one, so the cycle ends here and the
+                # next one acts on it.
+                pacing["choice"] = key
+                pacing["because"] = because
+                pacing["brief"] = key == SAY_LESS
+                if key == SLOW_DOWN:
+                    await let_the_voice_catch_up(behind)
+                    pacing["waits"] += 1
+                    # Chosen once and then re-decided as the gap changes,
+                    # rather than committing the rest of the run to one pace.
+                    pacing["choice"] = ""
+                return None
 
             if key == SEE_IT_THROUGH:
                 # Chosen once. It says "stop offering me the way out", not
@@ -1095,7 +1187,9 @@ async def pursue_on_screen(
             # order it did it.
             landed = await press(key, expect_app=target_app)
             if landed:
-                _say_move(key, made)
+                _say_move(key, None if pacing["brief"] else made)
+                if pacing["choice"] == SLOW_DOWN:
+                    await let_the_voice_catch_up(narration_backlog())
             return landed
 
         return Step(name=f"press {key}", action=act)
@@ -1234,6 +1328,12 @@ async def pursue_on_screen(
         result["outcome"] = "already_true"
         result["completed"] = False
     result["restarts"] = restarts["count"]
+    if pacing["choice"] or pacing["waits"]:
+        result["pacing"] = {
+            "chose": pacing["choice"],
+            "because": pacing["because"],
+            "waited": pacing["waits"],
+        }
     if restarts["because"]:
         result["restarted_because"] = restarts["because"]
     if seen_through["value"]:

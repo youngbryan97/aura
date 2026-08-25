@@ -243,14 +243,23 @@ def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | 
     several, so the last one named wins: reasoning concludes at the end.
     """
     lowered = reply.lower()
-    latest: tuple[int, ActionOption] | None = None
+    best: tuple[int, int, ActionOption] | None = None
     for option in options:
-        where = lowered.rfind(option.name.lower())
+        name = option.name.lower()
+        where = lowered.rfind(name)
         if where < 0:
             continue
-        if latest is None or where > latest[0]:
-            latest = (where, option)
-    return latest[1] if latest else None
+        # Ranked by where the mention ENDS, then by how specific it is.
+        #
+        # One option's name can sit inside another's: "slow down" contains
+        # "down". Ranking on where a mention starts picks the shorter one and
+        # turns a decision about her own pacing into an arrow key. Both end
+        # at the same place, so the longer name — the one that accounts for
+        # more of what she actually said — wins.
+        ends = where + len(name)
+        if best is None or (ends, len(name)) > (best[0], best[1]):
+            best = (ends, len(name), option)
+    return best[2] if best else None
 
 
 def _distinctive(text: str) -> set[str]:
