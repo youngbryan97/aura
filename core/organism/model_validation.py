@@ -405,7 +405,7 @@ class Claim:
                 "measured one"
             )
 
-    def effective_evidence(self) -> tuple["Evidence", str]:
+    def effective_evidence(self) -> tuple[Evidence, str]:
         """Evidence as it stands NOW, after checking bound telemetry.
 
         The declared value is what someone wrote down; this is what the
@@ -1052,6 +1052,75 @@ def install_runtime_validation() -> dict[str, Any]:
                 subject="Reality Reach metrology source separation",
             ),
             owner="core/reality_reach/metrology.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="endogenous_verdict_is_earned_on_known_corpora",
+            description=(
+                "the readout trainer reports no_signal on a corpus with no "
+                "state-token relationship and style_prior on a register effect"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="verdicts_match_the_known_answers",
+                value=True,
+                source=(
+                    "core/brain/llm/endogenous_readout_training.py "
+                    "known-answer corpora"
+                ),
+            ),
+            predict=lambda _m: _endogenous_verdict_is_earned(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="endogenous readout verdict",
+            ),
+            owner="core/brain/llm/endogenous_readout_training.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="endogenous_bias_cannot_promote_a_ruled_out_token",
+            description=(
+                "the vocabulary bias lands only inside the model's plausible "
+                "set, so it re-ranks near-ties and cannot invent"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="implausible_token_unchanged",
+                value=True,
+                source="core/brain/llm/endogenous_decode.py plausibility gate",
+            ),
+            predict=lambda _m: _endogenous_bias_cannot_promote_a_ruled_out_token(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="endogenous vocabulary bias",
+            ),
+            owner="core/brain/llm/endogenous_decode.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="endogenous_arbitration_follows_the_state",
+            description=(
+                "one proposal is rejected under low confidence and a held goal, "
+                "and accepted under high confidence with no goal"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="decision_changes_with_the_state",
+                value=True,
+                source="core/brain/llm/endogenous_absorption.py arbitration",
+            ),
+            predict=lambda _m: _endogenous_arbitration_follows_the_state(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="endogenous arbitration",
+            ),
+            owner="core/brain/llm/endogenous_absorption.py",
         )
     )
     suite.add_test(
@@ -1767,6 +1836,74 @@ def install_runtime_validation() -> dict[str, Any]:
                 "a watched field; 28 of 29 phases do not yet declare a contract, "
                 "so their criteria are absent from it even though their writes "
                 "are measured."
+            ),
+        )
+    )
+
+    # The endogenous language pathway. Stated narrowly on purpose: what is
+    # measured is the fitting procedure, not a fitted head on live traffic.
+    # No corpus of live turns has been fitted yet, so nothing here says the
+    # substrate steers Aura's words; it says the machinery that would decide
+    # that question answers it correctly when the answer is known.
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A verdict that Aura's cognitive state shapes her word choice "
+                "is issued only when the fit beats shuffles of its own held-out "
+                "state-to-turn correspondence, and a register effect is never "
+                "reported as propositional content."
+            ),
+            test="endogenous_verdict_is_earned_on_known_corpora",
+            owner="core/brain/llm/endogenous_readout_training.py",
+            asserted_in="docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Measured on three corpora built with a known answer: no "
+                "state-token relationship reports no_signal, a register effect "
+                "reports style_prior, and a rare-word identity effect reports "
+                "content_bearing. NOT measured: any fit on live turns. No head "
+                "exists on this machine, so no generation has been biased by "
+                "the substrate and the pathway's live effect is unmeasured "
+                "rather than small."
+            ),
+            live_channels=("endogenous.head_verdict", "endogenous.corpus_turns"),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A trained vocabulary head can re-rank the transformer's own "
+                "plausible set and cannot promote a token the model ruled out."
+            ),
+            test="endogenous_bias_cannot_promote_a_ruled_out_token",
+            owner="core/brain/llm/endogenous_decode.py",
+            asserted_in="docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "The plausibility gate and the centred, clipped bias are "
+                "contract-tested against constructed logits. Behaviour inside a "
+                "live MLX decode loop is untested, because no head has been "
+                "fitted to attach."
+            ),
+            live_channels=("endogenous.bias_applied_share",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A proposal returned by the transformer is checked against the "
+                "named channels of the state Aura is in, and the same proposal "
+                "is rejected or accepted according to that state."
+            ),
+            test="endogenous_arbitration_follows_the_state",
+            owner="core/brain/llm/endogenous_absorption.py",
+            asserted_in="docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Arbitration is measured on constructed states. It is a library "
+                "the runtime can call and is not yet on the turn path, so no "
+                "live proposal has been arbitrated. A channel nothing answered "
+                "for is reported as skipped rather than as agreement."
             ),
         )
     )
@@ -3014,6 +3151,118 @@ def _metrology_source_contract_holds() -> bool:
     else:
         refused = False
     return bool(hil.mode is AcquisitionMode.HARDWARE_IN_LOOP and refused)
+
+
+def _endogenous_verdict_is_earned() -> bool:
+    """Run the verdict procedure against two corpora whose answer is known.
+
+    Small on purpose — this runs at boot. A corpus with no state-token
+    relationship must report no_signal and a register effect must report
+    style_prior. A procedure that cannot tell those apart has no business
+    issuing a verdict about the live substrate.
+    """
+    try:
+        import numpy as np
+
+        from core.brain.llm.endogenous_readout_training import (
+            TurnTokens,
+            fit_vocab_head,
+        )
+        from core.brain.llm.endogenous_state import STATE_DIM
+    except ImportError:
+        return False
+
+    vocabulary = 60
+    base = 1.0 / np.arange(1, vocabulary + 1) ** 1.1
+    base /= base.sum()
+
+    def corpus(mode: str, seed: int, turns: int = 300, tokens: int = 30):
+        rng = np.random.default_rng(seed)
+        out = []
+        for _ in range(turns):
+            state = np.clip(rng.normal(0.0, 0.6, STATE_DIM), -1.0, 1.0)
+            probabilities = base.copy()
+            if mode == "style":
+                shift = float(np.tanh(state[0]))
+                probabilities[0] *= 1.0 + 0.95 * shift
+                probabilities[1] *= 1.0 - 0.95 * shift
+            probabilities /= probabilities.sum()
+            out.append(
+                TurnTokens(
+                    state=state.astype(np.float64),
+                    tokens=rng.choice(
+                        vocabulary, size=tokens, p=probabilities
+                    ).astype(np.int64),
+                )
+            )
+        return out
+
+    verdicts = {}
+    for mode in ("null", "style"):
+        fit = fit_vocab_head(
+            corpus(mode, 5),
+            vocab_size=vocabulary,
+            tokenizer_signature="validation",
+            permutations=40,
+            null_refits=0,
+            seed=5,
+            decays=(1e-1, 1.0),
+        )
+        if fit is None:
+            return False
+        verdicts[mode] = fit.verdict
+    return verdicts == {"null": "no_signal", "style": "style_prior"}
+
+
+def _endogenous_bias_cannot_promote_a_ruled_out_token() -> bool:
+    """A token outside the model's plausible set must come back untouched."""
+    try:
+        import numpy as np
+
+        from core.brain.llm.endogenous_decode import EndogenousLogitBiasProcessor
+    except ImportError:
+        return False
+    processor = EndogenousLogitBiasProcessor(
+        np.array([1.0, -1.0, 8.0, 0.0], dtype=np.float32)
+    )
+    logits = np.array([5.0, 4.9, -40.0, 0.1])
+    out = processor.apply_numpy(logits)
+    return bool(out[2] == logits[2] and out[0] > logits[0])
+
+
+def _endogenous_arbitration_follows_the_state() -> bool:
+    """The same proposal, two states, two decisions."""
+    try:
+        from core.brain.llm.endogenous_absorption import Proposal, arbitrate
+        from core.brain.llm.endogenous_state import empty_state
+    except ImportError:
+        return False
+    proposal = Proposal(
+        summary="commit and drop the goal",
+        asserted_confidence=0.95,
+        abandons_active_goal=True,
+        requires_action=True,
+    )
+    unsure = empty_state().do(
+        **{
+            "uncertainty.confidence": 0.1,
+            "uncertainty.evidence_support": 0.1,
+            "goal.active": 1.0,
+            "goal.priority": 0.95,
+        }
+    )
+    settled = empty_state().do(
+        **{
+            "uncertainty.confidence": 0.95,
+            "uncertainty.evidence_support": 0.9,
+            "goal.active": 0.0,
+            "goal.priority": 0.0,
+        }
+    )
+    return (
+        arbitrate(proposal, unsure).decision == "reject"
+        and arbitrate(proposal, settled).decision == "accept"
+    )
 
 
 def _health() -> dict[str, Any]:
