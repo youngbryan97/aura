@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import copy
+import hashlib
 import importlib
 import os
 import queue
@@ -49,11 +50,35 @@ from core.brain.llm.unified_recurrent_shadow_contract import (
 from core.brain.llm.unified_recurrent_shadow_contract import (
     seal_shadow_load_receipt,
 )
+from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 from core.utils.deadlines import get_deadline
 from tests.fixtures.rlc_runtime_integrity import complete_serving_stack
 
 TMP_ROOT = Path(tempfile.gettempdir())
 QWEN32_MODEL = str(TMP_ROOT / "Qwen2.5-32B-Instruct-8bit")
+
+
+def assigned_client(model_path: str, *, role: str) -> MLXLocalClient:
+    """A client whose serving role is declared rather than read off its path.
+
+    CP941 replaced the path-token heuristic — "32b" means cortex, "72b" means
+    solver — with an assignment the registry issues against artifact identity.
+    A test using a temp-directory path therefore gets `auxiliary/best_effort`,
+    which is correct and is not the scenario any of these tests mean. Saying
+    the role out loud is what CP941 asked callers to do.
+    """
+    return MLXLocalClient(
+        model_path=model_path,
+        runtime_assignment=ModelRuntimeAssignment.issue(
+            model_path=model_path,
+            artifact_identity=hashlib.sha256(model_path.encode("utf-8")).hexdigest(),
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role=role,
+            purpose="serve",
+            authority_source="test_mlx_client_resilience",
+        ),
+    )
 TEST_MODEL = str(TMP_ROOT / "test-model")
 
 def ready_init_receipt(
@@ -938,8 +963,8 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         primary_path = "/models/32B"
         deep_path = "/models/72B"
 
-        primary = MLXLocalClient(model_path=primary_path)
-        solver = MLXLocalClient(model_path=deep_path)
+        primary = assigned_client(primary_path, role="cortex")
+        solver = assigned_client(deep_path, role="solver")
 
         primary_proc = ProcessProbe(alive=True)
         primary._process = primary_proc
@@ -1793,7 +1818,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_resident_primary_readiness_probe_bypasses_only_headroom_reservation(self):
         from core.brain.llm import mlx_client as mlx_client_module
 
-        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client = assigned_client(QWEN32_MODEL, role="cortex")
         client._process = ProcessProbe(alive=True)
         client._init_done = True
         admitted_probe = AsyncCallProbe(return_value=False)
