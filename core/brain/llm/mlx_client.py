@@ -4669,6 +4669,49 @@ def _build_the_generation_request(
     return req
 
 
+def _observe_endogenous_receipt(response: Mapping[str, Any]) -> None:
+    """Fold the worker's endogenous receipt into the parent's health view.
+
+    The bias is applied in the worker process, so without this the parent
+    could report a pathway as wired while every generation refused it.
+    """
+    try:
+        receipt = response.get("endogenous_bias")
+        if not receipt:
+            return
+        from core.brain.llm.endogenous_decode import observe_receipt
+
+        observe_receipt(receipt)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("endogenous receipt not observed: %s", exc)
+
+def _attach_endogenous_state(req: dict[str, Any]) -> None:
+    """Put z_Aura on an outbound generation job.
+
+    Fail-open by construction: a turn that cannot assemble a state is a turn
+    that generates the way it always did. What must never happen is a job
+    carrying a state that looks live and is not, so a state whose channels
+    are all absent is left off the job rather than shipped as zeros.
+    """
+    try:
+        from core.brain.llm.endogenous_decode import JOB_STATE_KEY
+        from core.brain.llm.endogenous_state import assemble_state
+        from core.brain.llm.endogenous_vocab_head import (
+            MIN_COVERAGE,
+            alpha_from_env,
+        )
+
+        alpha = alpha_from_env()
+        if alpha <= 0.0:
+            return
+        state = assemble_state()
+        if state.coverage < MIN_COVERAGE:
+            return
+        req[JOB_STATE_KEY] = state.to_payload()
+        req["endogenous_alpha"] = alpha
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("endogenous state not attached to job: %s", exc)
+
 class MLXLocalClient:
     """
     Parent-process client for the isolated MLX worker.
@@ -11886,6 +11929,7 @@ class MLXLocalClient:
                     )
                 ):
                     _observe_worker_prompt_tokenization(res)
+                    _observe_endogenous_receipt(res)
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
@@ -14535,6 +14579,12 @@ class MLXLocalClient:
         for stop in default_stops:
             if stop not in req["stop_sequences"]:
                 req["stop_sequences"].append(stop)
+        # z_Aura rides along the same way. The worker cannot reach the
+        # substrate, the goal system, or anything else in this process, so
+        # the state travels as declared floats on the job. A worker with no
+        # trained head ignores the field; the receipt says which happened.
+        _attach_endogenous_state(req)
+
         # Activation-steering offsets ride along when present; the worker
         # consumes them if its build supports residual-stream injection,
         # otherwise it ignores the field with no harm.

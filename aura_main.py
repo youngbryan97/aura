@@ -1301,6 +1301,31 @@ async def _boot_runtime_orchestrator(
             record_degradation("aura_main", exc)
             logger.warning("Whole-system Φ boot failed: %s", exc)
 
+    try:
+        from core.brain.llm.endogenous_decode import boot_endogenous_language
+
+        endogenous_status = boot_endogenous_language()
+        if endogenous_status.get("head_present"):
+            logger.info(
+                "🧬 Endogenous language pathway bound — head over %d tokens, "
+                "alpha %.2f, z_Aura coverage %.0f%% (%s).",
+                int(endogenous_status.get("head_vocab_size") or 0),
+                float(endogenous_status.get("alpha") or 0.0),
+                100.0 * float(endogenous_status.get("state_coverage") or 0.0),
+                ", ".join(endogenous_status.get("live_channels") or ["no live channel"]),
+            )
+        else:
+            logger.info(
+                "🧬 Endogenous language pathway waiting for a fit (%s); z_Aura "
+                "coverage %.0f%% across %s.",
+                endogenous_status.get("head_reason"),
+                100.0 * float(endogenous_status.get("state_coverage") or 0.0),
+                ", ".join(endogenous_status.get("live_channels") or ["no live channel"]),
+            )
+    except _AURA_MAIN_BOUNDARY_ERRORS as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("Endogenous language pathway boot failed: %s", exc)
+
     if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_SENSORIMOTOR_GROUNDING", True):
         try:
             from core.brain.llm.sensorimotor_grounding import SensorimotorGroundingBridge

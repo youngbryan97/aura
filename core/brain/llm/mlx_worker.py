@@ -7313,6 +7313,13 @@ def _mlx_worker_loop(
 
             action = job.get("action")
             if action == "generate":
+                # Bound before any path that can build the response, so a
+                # generation that never reached the processor stage still
+                # reports why rather than raising NameError on the receipt.
+                _endo_receipt: dict[str, Any] = {
+                    "pathway": "endogenous_vocab_bias",
+                    "reason": "not_evaluated",
+                }
                 prompt = job.get("prompt")
                 messages = job.get("messages")
                 tools = job.get("tools")
@@ -7739,6 +7746,39 @@ def _mlx_worker_loop(
                         severity="warning",
                     )
 
+                # The endogenous language pathway: L_final = L_LLM + alpha*(W*z + b).
+                # The state arrived on the job because this process cannot reach
+                # the organs that produced it. The bias is computed once here and
+                # added inside the model's own plausible set, so a half-trained
+                # head re-ranks near-ties and cannot promote a ruled-out token.
+                try:
+                    from core.brain.llm.endogenous_decode import (
+                        build_endogenous_processor,
+                        decision_is_expected_absence,
+                    )
+
+                    _endo_proc, _endo_receipt = build_endogenous_processor(
+                        tokenizer, job
+                    )
+                    if _endo_proc is not None:
+                        logits_processors.append(_endo_proc)
+                        logger.info(
+                            "🧬 [WORKER] Endogenous vocabulary bias ACTIVE (alpha=%.3f, %d tokens).",
+                            float(_endo_receipt.get("alpha") or 0.0),
+                            int(_endo_receipt.get("nonzero_tokens") or 0),
+                        )
+                    elif not decision_is_expected_absence(_endo_receipt.get("reason", "")):
+                        _record_mlx_degradation(
+                            ValueError(
+                                "endogenous head present but unusable: "
+                                + str(_endo_receipt.get("reason"))
+                            ),
+                            action="generated without the endogenous vocabulary bias",
+                            severity="warning",
+                        )
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+                    _endo_receipt = {"pathway": "endogenous_vocab_bias", "reason": f"unavailable:{e}"}
+                    logger.debug("Endogenous vocabulary bias unavailable: %s", e)
                 # Foreground non-parametric memory (KV-cache-correct): the tap captures the
                 # hidden state the generation forward already computes, so the processor adds
                 # recall at O(1)/token — no O(n²) recompute. Off by default, fail-open, and
@@ -9735,6 +9775,11 @@ def _mlx_worker_loop(
                         "action": "generate",
                         "status": "ok",
                         "text": response_text.strip(),
+                        # Whether the endogenous pathway touched this
+                        # generation, and if not, which check refused it.
+                        # A turn that ran without it and a turn that ran
+                        # with it have to be distinguishable afterwards.
+                        "endogenous_bias": dict(_endo_receipt or {}),
                         "tokens_used": total_generated_tokens,
                         # The parent assembles prompts in characters but the
                         # tokenizer lives here. Carry the exact final rendered

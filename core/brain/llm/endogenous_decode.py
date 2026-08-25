@@ -207,3 +207,130 @@ __all__ = [
     "load_head",
     "reset_head_cache",
 ]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Health. A pathway nobody can see the state of is a pathway nobody can trust.
+# ──────────────────────────────────────────────────────────────────────────
+
+_HEALTH_LOCK = threading.Lock()
+_HEALTH: dict[str, Any] = {
+    "generations_seen": 0,
+    "bias_applied": 0,
+    "reasons": {},
+    "last_receipt": {},
+    "last_applied_at": 0.0,
+    "unexpected_refusals": 0,
+}
+
+
+def observe_receipt(receipt: Mapping[str, Any] | None) -> None:
+    """Fold one worker receipt into the parent's view of the pathway."""
+    if not isinstance(receipt, Mapping) or not receipt:
+        return
+    reason = str(receipt.get("reason") or "unknown")
+    with _HEALTH_LOCK:
+        _HEALTH["generations_seen"] = int(_HEALTH["generations_seen"]) + 1
+        counts: dict[str, int] = _HEALTH["reasons"]
+        counts[reason] = int(counts.get(reason, 0)) + 1
+        _HEALTH["last_receipt"] = dict(receipt)
+        if receipt.get("applied"):
+            _HEALTH["bias_applied"] = int(_HEALTH["bias_applied"]) + 1
+            _HEALTH["last_applied_at"] = time.time()
+        elif not decision_is_expected_absence(reason):
+            _HEALTH["unexpected_refusals"] = int(_HEALTH["unexpected_refusals"]) + 1
+
+
+def pathway_health() -> dict[str, Any]:
+    """What the endogenous pathway has actually done, since this process began.
+
+    ``unexpected_refusals`` is the field that matters: a head on disk that
+    refuses to attach is a wiring fault, while no head at all is the pathway
+    waiting for a fit.
+    """
+    with _HEALTH_LOCK:
+        seen = int(_HEALTH["generations_seen"])
+        applied = int(_HEALTH["bias_applied"])
+        return {
+            "generations_seen": seen,
+            "bias_applied": applied,
+            "applied_share": round(applied / seen, 4) if seen else 0.0,
+            "reasons": dict(_HEALTH["reasons"]),
+            "unexpected_refusals": int(_HEALTH["unexpected_refusals"]),
+            "last_applied_at": float(_HEALTH["last_applied_at"]),
+            "last_receipt": dict(_HEALTH["last_receipt"]),
+        }
+
+
+def reset_pathway_health() -> None:
+    with _HEALTH_LOCK:
+        _HEALTH.update(
+            generations_seen=0,
+            bias_applied=0,
+            reasons={},
+            last_receipt={},
+            last_applied_at=0.0,
+            unexpected_refusals=0,
+        )
+
+
+__all__ += ["observe_receipt", "pathway_health", "reset_pathway_health"]
+
+
+def register_pathway_health() -> None:
+    """Publish the pathway's health where the runtime can read it.
+
+    Published rather than imported: ``core/runtime`` is forbidden from
+    reaching ``core.brain`` by its DEPS rule, and a health block that needed
+    that edge would be a layering violation dressed as observability.
+    """
+    from core.container import ServiceContainer
+    from core.runtime.service_registry import register_runtime_service
+
+    # Both registries, because neither is a superset of the other and the
+    # registry sink is only installed once a runtime owns the process. A
+    # provider registered in one place and read from the other is the exact
+    # half-wiring this pathway is supposed to make visible.
+    ServiceContainer.register_instance(
+        "endogenous_language_health", pathway_health, required=False
+    )
+    register_runtime_service(
+        "endogenous_language_health",
+        pathway_health,
+        required=False,
+        owner="core/brain/llm/endogenous_decode.py",
+        registered_by="register_pathway_health",
+    )
+
+
+def boot_endogenous_language(*, directory: Path | None = None) -> dict[str, Any]:
+    """Bring the pathway up at boot and report exactly what is bound.
+
+    Boot is where a half-wired pathway gets caught. This asks the three
+    questions that decide whether anything can happen at all — is there a
+    head, does it match the channel layout in this build, and does z_Aura
+    have any live channels — and returns the answers rather than logging a
+    reassuring line.
+    """
+    from core.brain.llm.endogenous_state import assemble_state, layout_digest
+
+    register_pathway_health()
+    head, reason = load_head(directory)
+    state = assemble_state()
+    status: dict[str, Any] = {
+        "head_present": head is not None,
+        "head_reason": reason,
+        "layout": layout_digest(),
+        "state_coverage": round(state.coverage, 4),
+        "live_channels": list(state.live_channels),
+        "alpha": alpha_from_env(),
+    }
+    if head is not None:
+        status["head_trained"] = bool(head.trained)
+        status["head_layout_matches"] = head.layout == layout_digest()
+        status["head_vocab_size"] = int(head.vocab_size)
+        status["head_tokenizer"] = head.tokenizer
+    return status
+
+
+__all__ += ["boot_endogenous_language", "register_pathway_health"]

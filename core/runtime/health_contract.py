@@ -727,7 +727,7 @@ def _service_status_payload(status: ServiceStatus) -> dict[str, Any]:
     }
 
 
-def _liveness_failure_reason(svc: Any, requirement: "ServiceRequirement") -> str:
+def _liveness_failure_reason(svc: Any, requirement: ServiceRequirement) -> str:
     """Ask a service to explain its own failed liveness check.
 
     Best-effort and never fatal: a service that cannot explain itself keeps the
@@ -1041,7 +1041,7 @@ def _runtime_pressure_status() -> ServiceStatus:
     )
 
 
-def _read_participation(service: Any, requirement: "ServiceRequirement") -> float | None:
+def _read_participation(service: Any, requirement: ServiceRequirement) -> float | None:
     """Evidence that this service has actually done work, or None if unmeasured.
 
     Never raises and never guesses. A probe that errors, is missing, or returns
@@ -1088,7 +1088,7 @@ def _tier_summary(services: list[ServiceStatus], tier: ServiceTier) -> dict[str,
     }
 
 
-def recover_failed_services(verdict: "HealthVerdict") -> dict[str, str]:
+def recover_failed_services(verdict: HealthVerdict) -> dict[str, str]:
     """Repair services whose liveness failed, for callers that asked to.
 
     Deliberately NOT part of evaluate_health. The repair used to live inside
@@ -1305,6 +1305,25 @@ def _runtime_integrity_block() -> dict[str, Any]:
     attaches the caveat the verdict cannot express on its own.
     """
     block: dict[str, Any] = {}
+
+    # Whether Aura's own cognitive state reached the words she produced. Read
+    # through the registry rather than imported: this package may not reach
+    # core.brain, and a health block that needed that edge would be a layering
+    # violation dressed as observability. ``unexpected_refusals`` is the field
+    # that matters — no trained head at all is the pathway waiting for a fit,
+    # while a head on disk that refuses to attach is a mismatch with the
+    # resident model.
+    try:
+        from core.container import ServiceContainer
+        from core.runtime.service_registry import get_runtime_service
+
+        provider = get_runtime_service("endogenous_language_health", default=None)
+        if not callable(provider):
+            provider = ServiceContainer.get("endogenous_language_health", default=None)
+        if callable(provider):
+            block["endogenous_language"] = provider()
+    except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
+        block["endogenous_language_error"] = repr(exc)
 
     # Who this runtime is, and where its state lives. Every persistent record
     # is stamped with this, so a store found in the wrong place can be traced
