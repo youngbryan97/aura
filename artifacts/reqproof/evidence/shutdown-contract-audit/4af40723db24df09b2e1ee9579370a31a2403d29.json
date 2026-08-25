@@ -1,0 +1,160 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/closeout/audit_shutdown_contract.py",
+    "--json"
+  ],
+  "cwd": ".",
+  "duration_seconds": 0.170977,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1",
+        "A2",
+        "A3",
+        "A4"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "ADDENDUM-32"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-SHUTDOWN-001"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-SHUTDOWN-002"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-SHUTDOWN-003"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "SHUTDOWN-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:16:37.656820+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
+  "output_bytes": 1227,
+  "proof_id": "shutdown-contract-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
+  "source_manifest": [
+    {
+      "path": "aura_main.py",
+      "sha256": "aca71cd6970ec16f58305738e5695585081360e219da09914fffa640c45f98e4",
+      "size_bytes": 194089
+    },
+    {
+      "path": "core/container.py",
+      "sha256": "7600d51324e97a481fcaf6624db16891cedf3e2fcf3859657985620d78fd0f89",
+      "size_bytes": 69634
+    },
+    {
+      "path": "core/runtime/operator_control_plane.py",
+      "sha256": "105ac514ad0c05cc3a7b8cb96aee47184e67c4a1f73c79bfaf9060c91ac58cbc",
+      "size_bytes": 12899
+    },
+    {
+      "path": "core/runtime/root_signal_owner.py",
+      "sha256": "c7e5d02fff3b7df2c8db702b62e45a049ed6ea4eed69e7b039f610f94b4b7040",
+      "size_bytes": 6942
+    },
+    {
+      "path": "core/runtime/runtime_hygiene.py",
+      "sha256": "b6ac63648f80a772f40169a3a7c3154948134567fe0589760efaed75a354c01a",
+      "size_bytes": 97085
+    },
+    {
+      "path": "core/runtime/shutdown_coordinator.py",
+      "sha256": "c8960ad7d1915d232bc4e023c7e18f537455b5d9f516c4accb8f2be3ff5a9198",
+      "size_bytes": 54507
+    },
+    {
+      "path": "core/runtime/subprocess_gateway.py",
+      "sha256": "2ca7bd5912aab4da664110867f18a6f6bee83c18b5a0da3854987ba120e1bd03",
+      "size_bytes": 75854
+    },
+    {
+      "path": "core/runtime/task_ownership.py",
+      "sha256": "2a9b66def318c64888e7063d0123959e5061b13b2ee29ca5dc39e44624566009",
+      "size_bytes": 8534
+    },
+    {
+      "path": "interface/routes/system.py",
+      "sha256": "f38aa8e40c8880492fd4659d5b9bf490b31852363bd50f5fb58fa3694eb8c16f",
+      "size_bytes": 253337
+    },
+    {
+      "path": "tools/closeout/audit_shutdown_contract.py",
+      "sha256": "beaf80fa2a0db70d7aa18257195ed1f202926b61d6bdaad05197d8befdc524e1",
+      "size_bytes": 10638
+    },
+    {
+      "path": "tools/shutdown_signal_matrix.py",
+      "sha256": "36652ebead3701c8324dcdd2e3d69115678493aec211b8c91513490f390d6715",
+      "size_bytes": 44259
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "aura_main.py",
+      "core/container.py",
+      "core/runtime/operator_control_plane.py",
+      "core/runtime/root_signal_owner.py",
+      "core/runtime/runtime_hygiene.py",
+      "core/runtime/shutdown_coordinator.py",
+      "core/runtime/subprocess_gateway.py",
+      "core/runtime/task_ownership.py",
+      "interface/routes/system.py",
+      "tools/closeout/audit_shutdown_contract.py",
+      "tools/shutdown_signal_matrix.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:16:37.485690+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "{\n  \"canonical_phases\": [\n    \"output_flush\",\n    \"memory_commit\",\n    \"state_vault\",\n    \"actors\",\n    \"model_runtime\",\n    \"event_bus\",\n    \"task_supervisor\"\n  ],\n  \"checked_functions\": 12,\n  \"issues\": [],\n  \"passed\": true,\n  \"request_snapshot_fields\": [\n    \"deadline_at_unix\",\n    \"deadline_exhausted\",\n    \"deadline_source\",\n    \"deadline_tighten_count\",\n    \"elapsed_seconds\",\n    \"first_reason\",\n    \"first_requested_at_unix\",\n    \"initial_budget_seconds\",\n    \"last_reason\",\n    \"remaining_budget_seconds\",\n    \"request_count\",\n    \"requested\"\n  ],\n  \"required_owner_classes\": [\n    \"process\",\n    \"thread\",\n    \"task\",\n    \"listener\",\n    \"sentinel\",\n    \"actor\",\n    \"model_worker\",\n    \"lock\"\n  ],\n  \"schema\": \"aura.closeout.shutdown_contract_audit.v1\",\n  \"signal_matrix_cases\": [\n    \"active_foreground_repeated\",\n    \"actors_repeated\",\n    \"container_repeated\",\n    \"event_bus_repeated\",\n    \"launcher_bootstrap\",\n    \"memory_commit_repeated\",\n    \"model_recovery_signal\",\n    \"model_runtime_repeated\",\n    \"model_warmup_signal\",\n    \"orchestrator_boot_repeated\",\n    \"output_flush_repeated\",\n    \"ready_repeated\",\n    \"root_finalization_repeated\",\n    \"state_vault_repeated\",\n    \"task_supervisor_repeated\"\n  ]\n}\n",
+  "stdout_sha256": "f097fa5affea833bdc5a365401b4af1c47b8559fe219ec3d0b168fcbf1568928",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}

@@ -1,5 +1,5 @@
 {
-  "content_sha256": "c2e4215660ec86bc0b86a4a1521bf879d2b3f8ae9e649aceb9e208b52789d2fd",
+  "content_sha256": "6f8fef3f6484ace063c98442b546f1078cb700765248372e4930333db108fe09",
   "entries": [
     {
       "acceptance_ids": [
@@ -150,12 +150,12 @@
         "A3",
         "A4"
       ],
-      "commit": "60fc66c9f7205b2fd3b5d1d30bab7d544cea5551",
+      "commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/60fc66c9f7205b2fd3b5d1d30bab7d544cea5551.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/4af40723db24df09b2e1ee9579370a31a2403d29.json",
       "requirement_id": "ADDENDUM-32",
-      "sha256": "8604f0aa720d5c285cbf4eb47a63e3d02dad2b5860b90c1121405a7db8ab297a"
+      "sha256": "317f01a06f7208992e608028b67566d002dbad31cd44d009042e8e34b7d65d30"
     },
     {
       "acceptance_ids": [
@@ -339,12 +339,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "60fc66c9f7205b2fd3b5d1d30bab7d544cea5551",
+      "commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/60fc66c9f7205b2fd3b5d1d30bab7d544cea5551.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/4af40723db24df09b2e1ee9579370a31a2403d29.json",
       "requirement_id": "CTX2-SHUTDOWN-001",
-      "sha256": "8604f0aa720d5c285cbf4eb47a63e3d02dad2b5860b90c1121405a7db8ab297a"
+      "sha256": "317f01a06f7208992e608028b67566d002dbad31cd44d009042e8e34b7d65d30"
     },
     {
       "acceptance_ids": [
@@ -361,12 +361,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "60fc66c9f7205b2fd3b5d1d30bab7d544cea5551",
+      "commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/60fc66c9f7205b2fd3b5d1d30bab7d544cea5551.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/4af40723db24df09b2e1ee9579370a31a2403d29.json",
       "requirement_id": "CTX2-SHUTDOWN-002",
-      "sha256": "8604f0aa720d5c285cbf4eb47a63e3d02dad2b5860b90c1121405a7db8ab297a"
+      "sha256": "317f01a06f7208992e608028b67566d002dbad31cd44d009042e8e34b7d65d30"
     },
     {
       "acceptance_ids": [
@@ -383,12 +383,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "60fc66c9f7205b2fd3b5d1d30bab7d544cea5551",
+      "commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/60fc66c9f7205b2fd3b5d1d30bab7d544cea5551.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/4af40723db24df09b2e1ee9579370a31a2403d29.json",
       "requirement_id": "CTX2-SHUTDOWN-003",
-      "sha256": "8604f0aa720d5c285cbf4eb47a63e3d02dad2b5860b90c1121405a7db8ab297a"
+      "sha256": "317f01a06f7208992e608028b67566d002dbad31cd44d009042e8e34b7d65d30"
     },
     {
       "acceptance_ids": [
@@ -684,12 +684,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "60fc66c9f7205b2fd3b5d1d30bab7d544cea5551",
+      "commit": "4af40723db24df09b2e1ee9579370a31a2403d29",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/60fc66c9f7205b2fd3b5d1d30bab7d544cea5551.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/4af40723db24df09b2e1ee9579370a31a2403d29.json",
       "requirement_id": "SHUTDOWN-001",
-      "sha256": "8604f0aa720d5c285cbf4eb47a63e3d02dad2b5860b90c1121405a7db8ab297a"
+      "sha256": "317f01a06f7208992e608028b67566d002dbad31cd44d009042e8e34b7d65d30"
     },
     {
       "acceptance_ids": [
