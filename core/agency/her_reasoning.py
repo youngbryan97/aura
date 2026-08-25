@@ -181,9 +181,41 @@ def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):
     return think
 
 
+def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOICE_TOKENS):
+    """One pass at the model, for a decision that has to keep up with a loop.
+
+    The amplifier's value is agreement between several attempts and a
+    verifier's opinion on the result. That is worth the wall-clock on a hard
+    answer and wrong on a move in a game: a loop acting once a second cannot
+    spend several generations per decision, and a choice between four named
+    options has little for a verifier to check.
+
+    So effort follows what rides on the decision — one pass here, agreement
+    when something is at stake, a sharpened question when a lot is.
+    """
+    produce = generator(origin=origin, max_tokens=max_tokens)
+
+    async def think(objective: str, evidence: Sequence[str]) -> str:
+        said = await produce("\n".join([objective, *evidence]), 0.3)
+        answer = str(said or "").strip()
+        if not answer:
+            raise RuntimeError("her reasoning produced nothing (no text came back)")
+        return answer
+
+    return think
+
+
 def reasoning_for(stakes: float):
-    """Pick how hard to think by how much rides on the move."""
-    return deep_reasoning() if stakes >= 0.7 else her_reasoning()
+    """Pick how hard to think by how much rides on the move.
+
+    Three tiers rather than two, because the middle one was being paid for
+    on every routine step of a live loop.
+    """
+    if stakes >= 0.7:
+        return deep_reasoning()
+    if stakes >= 0.45:
+        return her_reasoning()
+    return quick_reasoning()
 
 
 def narrate_through(voice: Any, line: str) -> bool:

@@ -202,3 +202,29 @@ async def test_a_silent_run_is_never_asked_about_pacing(body):
     )
     offered = [line for line in think.asked[0] if line.startswith("Available move")]
     assert not any(SLOW_DOWN in line for line in offered)
+
+
+def test_effort_follows_what_rides_on_the_decision():
+    """The amplifier's value is agreement between attempts and a verifier's
+    opinion. That is worth the wall-clock on a hard answer and wrong on a
+    move in a game — a loop acting once a second cannot spend several
+    generations per decision.
+    """
+    from core.agency.her_reasoning import reasoning_for
+
+    assert reasoning_for(0.2).__qualname__.startswith("quick_reasoning")
+    assert reasoning_for(0.5).__qualname__.startswith("her_reasoning")
+    assert reasoning_for(0.9).__qualname__.startswith("deep_reasoning")
+
+
+def test_a_routine_move_is_treated_as_routine():
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    assert "min(stakes, 0.3)" in source, "every step was being paid for at full weight"
+    where = source.index("min(stakes, 0.3)")
+    assert "stuck(history)" in source[max(0, where - 300) : where], (
+        "being stuck has to still be worth more than one pass"
+    )

@@ -1101,11 +1101,15 @@ async def pursue_on_screen(
             if behind.get("waiting") and not pacing["choice"]:
                 available = available + pacing_options(behind)
 
+            # Effort follows what rides on this one. A routine move is a
+            # routine move; a run that has stopped getting anywhere, or one
+            # weighing whether to start over, is worth more than one pass.
+            weight = stakes if (stuck(history) or len(available) > len(move_keys)) else min(stakes, 0.3)
             chosen = await deliberate(
                 goal,
                 seen,
                 available,
-                think=think or _her_reasoning(stakes),
+                think=think or _her_reasoning(weight),
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,
