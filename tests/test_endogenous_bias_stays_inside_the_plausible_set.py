@@ -162,3 +162,36 @@ class TestTheFingerprintIsNotRecomputedPerGeneration:
             _Vocab(1)
         )
         reset_tokenizer_signature_cache()
+
+
+class TestTheWorkerMakesOneCall:
+    """The worker owns degradation recording; the pathway owns the decision."""
+
+    class _Tokenizer:
+        def get_vocab(self):
+            return {f"tok{i}": i for i in range(32)}
+
+    def test_an_expected_absence_is_not_reported_as_a_fault(self):
+        from core.brain.llm.endogenous_decode import install_endogenous_processor
+
+        processors: list[object] = []
+        receipt, fault = install_endogenous_processor(
+            self._Tokenizer(), {}, processors
+        )
+        assert receipt["reason"] == "no_state_on_job"
+        assert fault == ""
+        assert processors == []
+
+    def test_a_mismatch_is(self):
+        from core.brain.llm.endogenous_decode import (
+            JOB_STATE_KEY,
+            install_endogenous_processor,
+        )
+        from core.brain.llm.endogenous_state import empty_state
+
+        payload = empty_state().to_payload()
+        payload["layout"] = "0" * 32
+        _receipt, fault = install_endogenous_processor(
+            self._Tokenizer(), {JOB_STATE_KEY: payload}, []
+        )
+        assert fault == "state_payload_rejected"

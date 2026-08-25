@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4309 files.
+# 4311 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -168,9 +168,11 @@ core/brain/llm/decoder_topology.py
 core/brain/llm/deferral_record.py
 core/brain/llm/endogenous_absorption.py
 core/brain/llm/endogenous_anticipation.py
+core/brain/llm/endogenous_client_hooks.py
 core/brain/llm/endogenous_decode.py
 core/brain/llm/endogenous_intervention.py
 core/brain/llm/endogenous_invariants.py
+core/brain/llm/endogenous_known_answers.py
 core/brain/llm/endogenous_pair_recorder.py
 core/brain/llm/endogenous_readout_training.py
 core/brain/llm/endogenous_state.py

@@ -380,3 +380,39 @@ def boot_endogenous_language(*, directory: Path | None = None) -> dict[str, Any]
 
 
 __all__ += ["boot_endogenous_language", "register_pathway_health"]
+
+
+def install_endogenous_processor(
+    tokenizer: Any,
+    job: Mapping[str, Any],
+    processors: list[Any],
+    *,
+    directory: Path | None = None,
+    beta: float = DEFAULT_BETA,
+) -> tuple[dict[str, Any], str]:
+    """Build the processor, append it, and say whether a fault needs recording.
+
+    One call for the worker to make. The worker owns degradation recording, so
+    this returns the fault reason rather than reaching for the worker's
+    recorder — and returns an empty string when the absence is the expected
+    kind, which is most of the time and is not a fault.
+    """
+    try:
+        processor, receipt = build_endogenous_processor(
+            tokenizer, job, directory=directory, beta=beta
+        )
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        return {"pathway": "endogenous_vocab_bias", "reason": f"unavailable:{exc}"}, ""
+    if processor is not None:
+        processors.append(processor)
+        logger.info(
+            "🧬 Endogenous vocabulary bias ACTIVE (alpha=%.3f, %d tokens).",
+            float(receipt.get("alpha") or 0.0),
+            int(receipt.get("nonzero_tokens") or 0),
+        )
+        return receipt, ""
+    reason = str(receipt.get("reason") or "")
+    return receipt, "" if decision_is_expected_absence(reason) else reason
+
+
+__all__ += ["install_endogenous_processor"]
