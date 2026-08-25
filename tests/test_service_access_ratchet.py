@@ -20,8 +20,10 @@ pytestmark = pytest.mark.unit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Exact occurrence count at ratchet introduction (July 8, 2026). ONLY goes down.
-RAW_GET_BUDGET = 1714
+# Exact occurrence count at ratchet introduction (July 8, 2026): 1714.
+# ONLY goes down. Lowered to 1709 on 2026-08-25 when llm_health_router moved
+# seven inference-gate and orchestrator lookups onto the facade.
+RAW_GET_BUDGET = 1709
 
 # The facade itself is the one sanctioned wrapper around the container.
 FACADE = REPO_ROOT / "core" / "runtime" / "service_access.py"

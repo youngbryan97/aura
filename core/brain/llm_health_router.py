@@ -1417,9 +1417,9 @@ class HealthAwareLLMRouter:
         for endpoint in self.endpoints.values():
             _abort_client(getattr(endpoint, "client", None))
         try:
-            from core.container import ServiceContainer
+            from core.runtime.service_access import resolve_inference_gate
 
-            _abort_client(ServiceContainer.get("inference_gate", default=None))
+            _abort_client(resolve_inference_gate())
         except (ImportError, AttributeError, RuntimeError):
             pass
         return aborted
@@ -2750,9 +2750,9 @@ class HealthAwareLLMRouter:
             reason = "background_policy_unavailable"
         if not reason:
             try:
-                from core.container import ServiceContainer
+                from core.runtime.service_access import resolve_inference_gate
 
-                gate = ServiceContainer.get("inference_gate", default=None)
+                gate = resolve_inference_gate()
                 if gate and hasattr(gate, "_background_local_deferral_reason"):
                     reason = str(gate._background_local_deferral_reason(origin=origin) or "")
             except (ImportError, AttributeError, RuntimeError) as exc:
@@ -2850,9 +2850,9 @@ class HealthAwareLLMRouter:
     @classmethod
     def _foreground_user_turn_active(cls) -> bool:
         try:
-            from core.container import ServiceContainer
+            from core.runtime.service_access import resolve_orchestrator
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if not orch:
                 # No orchestrator (tests, standalone scripts): genuinely no
                 # foreground turn to protect.
@@ -2882,9 +2882,9 @@ class HealthAwareLLMRouter:
     @classmethod
     def _foreground_quiet_window_active(cls) -> bool:
         try:
-            from core.container import ServiceContainer
+            from core.runtime.service_access import resolve_orchestrator
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if not orch:
                 return False
 
@@ -3052,9 +3052,9 @@ class HealthAwareLLMRouter:
             return False
 
         try:
-            from core.container import ServiceContainer
+            from core.runtime.service_access import resolve_inference_gate
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "get_conversation_status"):
                 lane = gate.get_conversation_status() or {}
                 if lane.get("conversation_ready"):
@@ -3595,9 +3595,9 @@ class HealthAwareLLMRouter:
         )
         if is_bg and not _is_explicit_tool_composition:
             try:
-                from core.container import ServiceContainer
+                from core.runtime.service_access import resolve_inference_gate
 
-                gate = ServiceContainer.get("inference_gate", default=None)
+                gate = resolve_inference_gate()
                 if gate and hasattr(gate, "_background_local_deferral_reason"):
                     background_deferral = gate._background_local_deferral_reason(origin=origin)
                     if background_deferral:
@@ -4769,11 +4769,11 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         def generate_text(self, prompt: str, **kwargs):
             return self._get_client().generate_text(prompt, **kwargs)
 
-    from core.container import ServiceContainer
+    from core.runtime.service_access import resolve_inference_gate
 
-    # Prefer the established InferenceGate from the ServiceContainer.
-    # If it exists, avoid spinning up a second primary client and warmup path.
-    inference_gate = ServiceContainer.get("inference_gate", default=None)
+    # Prefer the established InferenceGate. If it exists, avoid spinning up a
+    # second primary client and warmup path.
+    inference_gate = resolve_inference_gate()
 
     local_client = None
     if inference_gate is None:
