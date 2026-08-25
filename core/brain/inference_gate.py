@@ -12821,7 +12821,17 @@ class InferenceGate:
                 conversation_reliability_system_block(visible_user_prompt)
             )
         history = context.get("history", [])
-        use_rich_context = False if isolated_generation_contract or benchmark_request else bool(
+        # An internal decision does not need her whole self in front of it.
+        #
+        # Measured live: choosing between four named moves loaded a 2385-char
+        # persona scaffold in front of a 1130-char request, once per move, on
+        # a loop that has to act about once a second. The scaffold is what
+        # makes her sound like herself when she is talking to somebody; a
+        # deliberation is not talking to anybody, and it pays for the whole
+        # thing in latency on every cycle.
+        use_rich_context = False if (
+            isolated_generation_contract or benchmark_request or internal_inference_call
+        ) else bool(
             context.get(
                 "rich_context",
                 self._should_use_rich_context(

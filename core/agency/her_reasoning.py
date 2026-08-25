@@ -18,14 +18,26 @@ evidence of anything later.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 
 #: A move decided under this much delay stops being a move in a live loop.
-DECISION_BUDGET_S = 20.0
+#:
+#: Measured live: a board move was taking about thirty seconds, because a
+#: choice between four named options was being generated with the same budget
+#: as an essay. A decision is not a composition.
+DECISION_BUDGET_S = 8.0
+#: How much room a choice needs to be said.
+#:
+#: Naming one option out of a closed set, with a sentence of reason, is tens
+#: of tokens. Asking for five hundred does not make the answer better; it
+#: makes the model keep writing after it has answered, and a loop that has to
+#: move once a second waits for all of it.
+CHOICE_TOKENS = 96
 #: Deliberation this long is for a decision that carries real weight.
 DELIBERATE_BUDGET_S = 45.0
 #: The role given to the model when it is choosing rather than answering.
@@ -54,7 +66,12 @@ def _router() -> Any:
         return None
 
 
-def generator(*, origin: str = "agency_next_move", tier: str = "primary"):
+def generator(
+    *,
+    origin: str = "agency_next_move",
+    tier: str = "primary",
+    max_tokens: int = CHOICE_TOKENS,
+):
     """A generate function over the resident model, shaped for the amplifier."""
 
     async def generate(prompt: str, temperature: float) -> str:
@@ -74,6 +91,7 @@ def generator(*, origin: str = "agency_next_move", tier: str = "primary"):
             is_background=False,
             foreground_request=True,
             allow_cloud_fallback=False,
+            max_tokens=max_tokens,
             # Deciding a move is not answering a person. Without this the
             # user-surface reply contract is applied to the decision and
             # grades it against a question invented from its own prompt:
@@ -98,6 +116,7 @@ def her_reasoning(
     time_budget_s: float = DECISION_BUDGET_S,
     risk_level: str = "normal",
     origin: str = "agency_next_move",
+    max_tokens: int = CHOICE_TOKENS,
 ):
     """Her reasoning, as the ``think`` callable a deliberation asks for.
 
@@ -105,7 +124,7 @@ def her_reasoning(
     unreachable mind as a reason to stop, and turning that into a quiet
     default would put her back to acting without deciding.
     """
-    produce = generate or generator(origin=origin)
+    produce = generate or generator(origin=origin, max_tokens=max_tokens)
 
     async def think(objective: str, evidence: Sequence[str]) -> str:
         from core.brain.reasoning_amplifier_v2 import amplify_turn  # noqa: PLC0415
