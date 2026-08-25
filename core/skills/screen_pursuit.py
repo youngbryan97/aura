@@ -1279,7 +1279,9 @@ async def pursue_on_screen(
                         # is not enough on its own. Measured live: "Began
                         # again 1 time(s)" while the score sat unchanged at
                         # 996 the whole time.
-                        _after, began = await _settled_after(first, target_app)
+                        _after, began = await _answer_own_confirmation(
+                            first, target_app, label
+                        )
                         if began:
                             restarts["count"] += 1
                             restarts["because"] = (
@@ -1488,11 +1490,112 @@ async def _settled_after(
         await asyncio.sleep(0.3)
         try:
             seen = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             continue
         if str(seen.get("text") or "") != was:
             return seen, True
     return seen, False
+
+
+
+#: Words a dialog uses when it is asking whether you meant it.
+ASKING_TO_CONFIRM = ("are you sure", "do you want to", "confirm", "this will")
+
+
+
+def _where_it_asks(observation: dict[str, Any]) -> float | None:
+    """How far down the question sits, when something is asking one."""
+    for region in observation.get("layout") or []:
+        text = str(region.get("text") or "").strip().lower()
+        if any(phrase in text for phrase in ASKING_TO_CONFIRM):
+            try:
+                return float(region.get("center_y", region.get("y")))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+async def _answer_own_confirmation(
+    before: dict[str, Any], app: str, label: str
+) -> tuple[dict[str, Any], bool]:
+    """Finish a reset that asked "are you sure".
+
+    A consequential control usually asks. An agent that clicks it and walks
+    away leaves the question open and nothing happens — measured live: the
+    click on "New Game" landed correctly, play2048 asked "Are you sure you
+    want to start a new game?", and the score sat unchanged while the run
+    reported it had begun again.
+
+    The dialog's own button is found by the question, not by classifying the
+    dialog: whatever is asking sits next to the control that answers it, and
+    the control that answers is not the one already pressed. On that page the
+    question is "Are you sure you want to start a new game?" and the answer
+    is "Start New Game", directly below it.
+
+    Only ever done when she chose the action being confirmed, and only for a
+    control carrying the label she already decided to press.
+    """
+    seen, changed = await _settled_after(before, app)
+
+    # A change that is a question is not a completed action.
+    #
+    # The screen does change when a dialog opens, so "it changed" would have
+    # been read as "it worked" — and the run would carry on with the question
+    # still up and nothing actually done.
+    asked_at = _where_it_asks(seen)
+    if asked_at is None:
+        return seen, changed
+
+    pressed = _where_clicked(before, label)
+    best: tuple[float, float, float] | None = None
+    for region in seen.get("layout") or []:
+        text = str(region.get("text") or "").strip().lower()
+        if not any(word in text for word in RESTART_LABELS):
+            continue
+        try:
+            cx = float(region.get("center_x", region.get("x")))
+            cy = float(region.get("center_y", region.get("y")))
+        except (TypeError, ValueError):
+            continue
+        if pressed is not None and abs(cx - pressed[0]) < 0.02 and abs(cy - pressed[1]) < 0.02:
+            # The control she already pressed. Pressing it again re-asks.
+            continue
+        # The answer sits below the question and near it.
+        if cy <= asked_at:
+            continue
+        distance = cy - asked_at
+        if best is None or distance < best[0]:
+            best = (distance, cx, cy)
+
+    if best is None:
+        return seen, False
+    _distance, cx, cy = best
+    if not await click_normalized(cx, cy, expect_app=app, bounds=list(seen.get("bounds") or [])):
+        return seen, False
+    answered, moved = await _settled_after(seen, app)
+    # And it is only done when nothing is still asking.
+    return answered, bool(moved and _where_it_asks(answered) is None)
+
+
+def _where_clicked(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
+    """Where the control she pressed was, so it is not pressed again."""
+    found = restart_control(observation)
+    if found is None:
+        return None
+    _label, x, y = found
+    return (x, y)
+
+
+def _where(region: Any) -> tuple[str, float, float]:
+    """A text run's identity: what it says and roughly where it says it."""
+    try:
+        return (
+            str(region.get("text") or "").strip().lower(),
+            round(float(region.get("center_x", region.get("x", 0.0))), 2),
+            round(float(region.get("center_y", region.get("y", 0.0))), 2),
+        )
+    except (TypeError, ValueError, AttributeError):
+        return ("", 0.0, 0.0)
 
 
 async def _say_line(line: str) -> None:
