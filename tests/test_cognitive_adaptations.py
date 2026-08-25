@@ -100,8 +100,14 @@ async def test_dream_fragments(tmp_path):
         fragment_file = tmp_path / "data" / "dream_fragments.jsonl"
         assert not fragment_file.exists()
 
-        # Call record_dream_fragment
-        kernel._record_dream_fragment("Optimize swarms", kernel._phases[0], "TestPhase")
+        # Awaited. The recorder moved onto the async lane — every caller is a
+        # preemption path with a user already waiting, so a blocking append
+        # plus fsync was happening at the worst possible moment — and calling
+        # it without awaiting produced a coroutine nobody ran and a file
+        # nobody wrote.
+        await kernel._record_dream_fragment(
+            "Optimize swarms", kernel._phases[0], "TestPhase"
+        )
 
         assert fragment_file.exists()
         fragment_text = await asyncio.to_thread(fragment_file.read_text, encoding="utf-8")

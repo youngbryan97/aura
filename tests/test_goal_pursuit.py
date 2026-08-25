@@ -13,10 +13,23 @@ class _Verifier:
         self._results = {k: list(v) for k, v in (results or {}).items()}
 
     async def verify(self, predicate, args=None):
+        """Scripted results, with the LAST one repeating once the script ends.
+
+        It used to fall back to True for every call past the script, so
+        ``{"bad": [False, False, False]}`` meant "fails three times, then
+        passes" — and a fourth verification, from an attempt the executor was
+        entitled to make, turned a test about never succeeding into a
+        completed pursuit. A predicate nobody scripted still passes.
+        """
         from types import SimpleNamespace
 
         seq = self._results.get(predicate)
-        ok = seq.pop(0) if seq else True
+        if seq is None:
+            ok = True
+        elif len(seq) > 1:
+            ok = seq.pop(0)
+        else:
+            ok = seq[0]
         return SimpleNamespace(success=ok, detail=str(ok))
 
 
@@ -87,7 +100,10 @@ async def test_follow_through_replans_after_stall():
 
 @pytest.mark.asyncio
 async def test_no_replan_returns_not_completed():
-    eng = _engine(_Verifier({"bad": [False, False, False]}))
+    # No replan means max_replans=0. The engine defaults to 1 and builds its
+    # own repairer, so this ran a second attempt with a repaired plan — which
+    # is the engine working, and the opposite of what the test is named for.
+    eng = _engine(_Verifier({"bad": [False, False, False]}), max_replans=0)
     out = await eng.pursue("ship it", [Step("broken", _noop, verify="bad", max_retries=2)])
     assert not out.completed and not out.deferred and out.attempts == 1
     assert out.receipts and not out.receipts[0].completed
