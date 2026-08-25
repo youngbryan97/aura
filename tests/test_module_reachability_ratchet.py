@@ -47,7 +47,7 @@ def test_no_new_unreachable_modules(report, baseline):
     new = sorted(now - known)
     assert not new, (
         "these modules became unreachable — wire them to something or retire "
-        f"them:\n  " + "\n  ".join(new)
+        "them:\n  " + "\n  ".join(new)
     )
 
 
@@ -146,3 +146,30 @@ def test_the_wire_pending_set_is_real_debt_and_stays_visible():
     assert len(pending) <= 53, (
         f"modules written to be wired but unreachable grew to {len(pending)}"
     )
+
+
+def test_the_refresh_command_cannot_raise_the_count(tmp_path, monkeypatch):
+    """A refresh that can loosen the gate is how debt becomes the new normal."""
+    import json
+
+    import tools.lint_module_reachability as gate
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"orphan_count": 0, "orphans": []}) + "\n")
+    monkeypatch.setattr(gate, "BASELINE", baseline)
+    monkeypatch.setattr("sys.argv", ["lint_module_reachability", "--write-baseline"])
+
+    assert gate.main() == 1, "a rise was written"
+    assert json.loads(baseline.read_text())["orphan_count"] == 0
+
+
+def test_a_package_reached_only_through_a_submodule_is_reached(report):
+    """Importing core.engineering.draw.schematic executes the package.
+
+    Counting only the leaf reported three packages unreachable while their own
+    submodules were imported across the tree — the implicit-import blind spot
+    this scanner already names when it excludes packages from the test-only
+    count.
+    """
+    for package in ("core.engineering.draw", "core.construction", "core.diagnosis"):
+        assert package not in report["orphans"], package

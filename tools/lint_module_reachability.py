@@ -34,6 +34,7 @@ import json
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "config" / "module_reachability_baseline.json"
@@ -100,6 +101,27 @@ def _catalog_reachable(core_modules: dict[str, Path]) -> set[str]:
     return reachable
 
 
+def _with_ancestor_packages(name: str, core_modules: dict[str, Any]) -> list[str]:
+    """The module, plus every package Python would import on the way to it.
+
+    ``from core.engineering.draw.schematic import x`` executes
+    core/engineering/draw/__init__.py. Counting only the leaf left three
+    packages reported unreachable while their own submodules were imported
+    all over the tree — the same implicit-import blind spot this file already
+    names when it excludes packages from the test-only count, applied one
+    list over.
+    """
+    if name not in core_modules:
+        return []
+    found = [name]
+    parts = name.split(".")
+    for depth in range(len(parts) - 1, 0, -1):
+        ancestor = ".".join(parts[:depth])
+        if ancestor in core_modules:
+            found.append(ancestor)
+    return found
+
+
 def scan() -> dict[str, object]:
     sources = _iter_sources()
     core_modules = {
@@ -162,9 +184,10 @@ def scan() -> dict[str, object]:
                 if candidate.startswith("core.") and " " not in candidate:
                     names = [candidate]
             for name in names:
-                if name in core_modules and name != me:
-                    referenced.add(name)
-                    importers[name].add(me)
+                for candidate in _with_ancestor_packages(name, core_modules):
+                    if candidate != me:
+                        referenced.add(candidate)
+                        importers[candidate].add(me)
 
     referenced |= _catalog_reachable(core_modules)
 
@@ -280,6 +303,22 @@ def main() -> int:
         print()
 
     if args.write_baseline:
+        # The same guard core/runtime's lock ratchet needed: a refresh command
+        # that can write a HIGHER count records the debt as the new normal and
+        # the gate passes on it forever. Refreshing after a genuine
+        # improvement is the only reason to run this.
+        if BASELINE.is_file():
+            try:
+                was = int(json.loads(BASELINE.read_text()).get("orphan_count", 0))
+            except (OSError, ValueError):
+                was = 0
+            if int(report["orphan_count"]) > was:
+                print(
+                    f"❌ refusing to raise the baseline: {was} -> "
+                    f"{report['orphan_count']}. Wire the new orphans to "
+                    "something, or retire them."
+                )
+                return 1
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(
             json.dumps(
