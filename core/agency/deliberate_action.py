@@ -243,6 +243,29 @@ def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | 
     several, so the last one named wins: reasoning concludes at the end.
     """
     lowered = reply.lower()
+
+    # A mention that follows a decision verb is the decision.
+    #
+    # "Last one named" is a good rule for a reply that works through the
+    # options and settles, and a bad one for a sentence that names something
+    # else afterwards. Measured live: "I'm going to press right because the
+    # left column is full" was read as a decision to press left, and she
+    # announced a move she had not made.
+    decided: tuple[int, int, ActionOption] | None = None
+    for option in options:
+        name = re.escape(option.name.lower())
+        for found in re.finditer(
+            rf"\b(?:press|hit|go|move|slide|choose|pick|take|do)\s+(?:the\s+)?{name}\b"
+            rf"|\bi(?:'| a)?m going to\s+(?:press\s+)?{name}\b"
+            rf"|\b{name}\s+it\s+is\b",
+            lowered,
+        ):
+            ends = found.end()
+            if decided is None or (ends, len(option.name)) > (decided[0], decided[1]):
+                decided = (ends, len(option.name), option)
+    if decided is not None:
+        return decided[2]
+
     best: tuple[int, int, ActionOption] | None = None
     for option in options:
         name = option.name.lower()

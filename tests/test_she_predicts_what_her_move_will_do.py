@@ -380,3 +380,28 @@ def test_a_name_that_contains_another_name_is_not_mistaken_for_it():
 def test_the_conclusion_still_wins_over_an_earlier_mention():
     options = [_option(name) for name in ("up", "down", "left", "slow down")]
     assert choose_named("Up is tempting and down is safe, but the corner argues for left.", options).name == "left"
+
+
+def test_the_move_she_decided_on_beats_a_word_that_appears_later():
+    """LIVE: "I'm going to press right because the left column is full" was
+    read as a decision to press left, and she announced a move she had not
+    made.
+
+    "Last one named" is right for a reply that works through the options and
+    settles, and wrong for one that names something else afterwards.
+    """
+    options = [_option(name) for name in ("up", "down", "left", "right")]
+    assert choose_named("I'm going to press right because the left column is full", options).name == "right"
+    assert choose_named("press up to keep the corner, avoiding right", options).name == "up"
+
+
+def test_a_reply_that_settles_at_the_end_still_settles_there():
+    options = [_option(name) for name in ("up", "down", "left", "right")]
+    assert choose_named(
+        "Up looks tempting and down is safe, but the corner argues for left.", options
+    ).name == "left"
+
+
+def test_a_bare_answer_is_still_read():
+    options = [_option(name) for name in ("up", "down", "left", "right")]
+    assert choose_named("down", options).name == "down"
