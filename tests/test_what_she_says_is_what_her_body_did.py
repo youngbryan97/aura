@@ -52,7 +52,7 @@ def body(monkeypatch):
     async def identity():
         return {"url": "https://example.test/", "title": "board", "error": ""}
 
-    def said(key, because=""):
+    def said(key, chosen=None, *, out_loud=False):
         state["said"].append(f"Board: {str(key).capitalize()}")
 
     monkeypatch.setattr(sp, "read_screen", read)
@@ -313,3 +313,58 @@ def test_the_conversation_does_not_collapse_repeated_moves():
     where = source.index("rememberMessageFingerprint(fingerprint)", handler)
     guard = source[handler:where]
     assert "meta.narration" in guard, "a stream of events is being de-duplicated as a reply"
+
+
+@pytest.mark.asyncio
+async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(body):
+    """The workspace broadcasts one winner a tick.
+
+    That is the right way to decide what she is ATTENDING to and the wrong
+    way to decide whether a commentary somebody asked for gets delivered.
+    Measured live: she played steadily and one move in twenty reached her
+    voice.
+    """
+    out_loud = []
+
+    def said(key, chosen=None, *, out_loud_flag=None, **kw):
+        out_loud.append(bool(kw.get("out_loud")))
+
+    import core.skills.screen_pursuit as sp_module
+
+    sp_module._say_move = said
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=_thinks("up", "left"),
+        max_cycles=2,
+        max_seconds=10.0,
+        narrate=True,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert out_loud and all(out_loud), "a narrated run did not say its moves out loud"
+
+
+@pytest.mark.asyncio
+async def test_a_silent_run_still_publishes_but_does_not_speak(body):
+    spoken = []
+
+    def said(key, chosen=None, **kw):
+        spoken.append(bool(kw.get("out_loud")))
+
+    import core.skills.screen_pursuit as sp_module
+
+    sp_module._say_move = said
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=_thinks("up"),
+        max_cycles=1,
+        max_seconds=10.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert spoken and not any(spoken)

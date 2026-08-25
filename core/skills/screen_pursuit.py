@@ -1191,7 +1191,7 @@ async def pursue_on_screen(
             # order it did it.
             landed = await press(key, expect_app=target_app)
             if landed:
-                _say_move(key, None if pacing["brief"] else made)
+                _say_move(key, None if pacing["brief"] else made, out_loud=narrate)
                 if pacing["choice"] == SLOW_DOWN:
                     await let_the_voice_catch_up(narration_backlog())
             return landed
@@ -1370,7 +1370,7 @@ async def pursue_on_screen(
 
 
 
-def _say_move(key: str, chosen: Any = None) -> None:
+def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
     """Report a move her body has just made, and why she made it.
 
     Both halves, in one record, at one moment. The key is the one actually
@@ -1427,6 +1427,23 @@ def _say_move(key: str, chosen: Any = None) -> None:
         task.add_done_callback(lambda done: done.exception())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("screen_pursuit", exc, severity="info", action="moved without saying so")
+
+    if not out_loud:
+        return
+    # Said because it was asked for, not because it won a competition.
+    #
+    # The workspace broadcasts one winner a tick, which is the right way to
+    # decide what she is ATTENDING to and the wrong way to decide whether a
+    # commentary somebody requested gets delivered. Measured live: she played
+    # steadily and one move in twenty reached her voice.
+    try:
+        from core.agency.narrator import Narrator
+
+        line = f"Board: {str(key).strip().capitalize()}"
+        because = str(getattr(chosen, "rationale", "") or "") if chosen is not None else ""
+        Narrator.say_everywhere(f"{line} — {because}" if because else line)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("screen_pursuit", exc, severity="info", action="moved without saying it out loud")
 
 
 async def _say_line(line: str) -> None:
