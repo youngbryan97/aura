@@ -30,6 +30,7 @@ import httpx
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
+from core.runtime.launch_provenance import bind_runtime_source_snapshot
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.root_signal_owner import RootShutdownSignalOwner
 from core.runtime.shutdown_coordinator import is_shutdown_requested, request_shutdown
@@ -142,6 +143,11 @@ with contextlib.suppress(ImportError):
 # 1. Path Resolution & Environment Locking (Radical Fix)
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# The signed app records where it was built; the runtime separately freezes the
+# exact live-source revision this child starts before services bind model,
+# tissue, or learning identities.
+bind_runtime_source_snapshot(PROJECT_ROOT)
 
 def _env_flag(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)

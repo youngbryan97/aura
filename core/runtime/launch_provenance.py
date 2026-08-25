@@ -16,7 +16,7 @@ import stat
 import sys
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -402,6 +402,56 @@ def collect_source_identity(root: str | Path) -> dict[str, Any]:
     }
 
 
+def bind_runtime_source_snapshot(
+    root: str | Path,
+    *,
+    env: MutableMapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Freeze the source identity used by this launched runtime.
+
+    ``AURA_LAUNCH_EXPECTED_*`` names immutable app-build provenance. It cannot
+    also name the source a live-source launcher starts days later. Bind the
+    latter once so health can detect changes after boot without mistaking every
+    post-build commit for runtime drift.
+    """
+
+    environment = os.environ if env is None else env
+    canonical_input = Path(root).expanduser().resolve()
+    if not _truthy(environment.get("AURA_LAUNCHED_FROM_APP")):
+        return {"bound": False, "reason": "direct_launch"}
+
+    expected_root_text = str(environment.get("AURA_LAUNCH_EXPECTED_ROOT") or "").strip()
+    if not expected_root_text:
+        raise RuntimeError("signed app launch is missing AURA_LAUNCH_EXPECTED_ROOT")
+    expected_root = Path(expected_root_text).expanduser().resolve()
+    if canonical_input != expected_root:
+        raise RuntimeError("runtime source root does not match the signed app checkout")
+
+    bindings = {
+        "source_root": "AURA_RUNTIME_SOURCE_ROOT",
+        "commit_sha": "AURA_RUNTIME_SOURCE_COMMIT",
+        "branch": "AURA_RUNTIME_SOURCE_BRANCH",
+        "workspace_state_sha256": "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256",
+        "shell_assets_sha256": "AURA_RUNTIME_SOURCE_SHELL_SHA256",
+    }
+    existing = {
+        field: str(environment.get(name) or "").strip()
+        for field, name in bindings.items()
+    }
+    if any(existing.values()):
+        missing = sorted(field for field, value in existing.items() if not value)
+        if missing:
+            raise RuntimeError("runtime source snapshot is incomplete: " + ",".join(missing))
+        if Path(existing["source_root"]).expanduser().resolve() != canonical_input:
+            raise RuntimeError("inherited runtime source snapshot belongs to another checkout")
+        return {"bound": True, "reused": True, **existing}
+
+    snapshot = collect_source_identity(canonical_input)
+    for field, name in bindings.items():
+        environment[name] = str(snapshot[field])
+    return {"bound": True, "reused": False, **snapshot}
+
+
 def build_launch_manifest(
     root: str | Path,
     *,
@@ -498,9 +548,13 @@ def validate_launch_source(
     manifest_path_text = str(environment.get("AURA_LAUNCH_MANIFEST_PATH") or "").strip()
     executable_text = str(environment.get("AURA_LAUNCH_APP_EXECUTABLE") or "").strip()
     expected_root = str(environment.get("AURA_LAUNCH_EXPECTED_ROOT") or "").strip()
-    expected_commit = str(environment.get("AURA_LAUNCH_EXPECTED_COMMIT") or "").strip().lower()
-    expected_branch = str(environment.get("AURA_LAUNCH_EXPECTED_BRANCH") or "").strip()
-    expected_workspace = (
+    bundle_expected_commit = str(
+        environment.get("AURA_LAUNCH_EXPECTED_COMMIT") or ""
+    ).strip().lower()
+    bundle_expected_branch = str(
+        environment.get("AURA_LAUNCH_EXPECTED_BRANCH") or ""
+    ).strip()
+    bundle_expected_workspace = (
         str(environment.get("AURA_LAUNCH_EXPECTED_WORKSPACE_SHA256") or "").strip().lower()
     )
     expected_bundle_id = str(environment.get("AURA_LAUNCH_BUNDLE_ID") or "").strip()
@@ -509,9 +563,9 @@ def validate_launch_source(
         "manifest_path": manifest_path_text,
         "app_executable": executable_text,
         "expected_root": expected_root,
-        "expected_commit": expected_commit,
-        "expected_branch": expected_branch,
-        "expected_workspace_sha256": expected_workspace,
+        "expected_commit": bundle_expected_commit,
+        "expected_branch": bundle_expected_branch,
+        "expected_workspace_sha256": bundle_expected_workspace,
         "bundle_identifier": expected_bundle_id,
     }
     for name, value in required_values.items():
@@ -562,8 +616,24 @@ def validate_launch_source(
         if expected and str(expected) != str(manifest_value or ""):
             issues.append(f"manifest_{field}_mismatch")
 
-    # FRESHNESS — how far the workspace has moved since the bundle was built.
-    # These are MEASURED here, live, and reported; they are not a verdict.
+    runtime_values = {
+        "source_root": str(environment.get("AURA_RUNTIME_SOURCE_ROOT") or "").strip(),
+        "commit_sha": str(environment.get("AURA_RUNTIME_SOURCE_COMMIT") or "").strip().lower(),
+        "branch": str(environment.get("AURA_RUNTIME_SOURCE_BRANCH") or "").strip(),
+        "workspace_state_sha256": str(
+            environment.get("AURA_RUNTIME_SOURCE_WORKSPACE_SHA256") or ""
+        ).strip().lower(),
+        "shell_assets_sha256": str(
+            environment.get("AURA_RUNTIME_SOURCE_SHELL_SHA256") or ""
+        ).strip().lower(),
+    }
+    runtime_snapshot_present = any(runtime_values.values())
+    if runtime_snapshot_present and not all(runtime_values.values()):
+        issues.append("runtime_source_snapshot_incomplete")
+
+    # RUNTIME FRESHNESS — whether source moved after this process captured its
+    # boot identity. Older launchers do not bind a runtime snapshot, so retain
+    # the build snapshot as a backwards-compatible fallback.
     #
     # They used to be identity: the manifest pinned commit_sha and
     # workspace_state_sha256 at build time and any difference failed the whole
@@ -579,7 +649,12 @@ def validate_launch_source(
     # freshness FACT, and a fact measured at launch is strictly more accurate
     # than one copied from build time — the recorded commit now always
     # describes the code that is actually running.
-    drift: list[str] = []
+    expected_commit = runtime_values["commit_sha"] or bundle_expected_commit
+    expected_branch = runtime_values["branch"] or bundle_expected_branch
+    expected_workspace = (
+        runtime_values["workspace_state_sha256"] or bundle_expected_workspace
+    )
+    runtime_drift: list[str] = []
     freshness_comparisons = {
         "commit_sha": (expected_commit, actual.get("commit_sha")),
         "branch": (expected_branch, actual.get("branch")),
@@ -587,28 +662,57 @@ def validate_launch_source(
     }
     for field, (expected, observed) in freshness_comparisons.items():
         if expected and str(expected) != str(observed or ""):
-            drift.append(field)
+            runtime_drift.append(field)
+
+    # BUNDLE FRESHNESS remains useful audit evidence, but an intentionally thin
+    # live-source app is expected to outlive the commit from which it was built.
+    bundle_drift: list[str] = []
+    bundle_comparisons = {
+        "commit_sha": (bundle_expected_commit, actual.get("commit_sha")),
+        "branch": (bundle_expected_branch, actual.get("branch")),
+        "workspace_state_sha256": (
+            bundle_expected_workspace,
+            actual.get("workspace_state_sha256"),
+        ),
+    }
+    for field, (expected, observed) in bundle_comparisons.items():
+        if expected and str(expected) != str(observed or ""):
+            bundle_drift.append(field)
 
     # Identity findings decide whether this signed bundle belongs to this
     # checkout. Freshness findings are still issues a health consumer must be
     # able to see, but they are non-blocking because Aura.app intentionally
     # launches live source that can advance after the binary was signed.
     source_verified = not issues
-    freshness_issues = [f"source_revision_drift:{field}" for field in drift]
-    source_current = source_verified and not drift
+    freshness_issues = [f"source_revision_drift:{field}" for field in runtime_drift]
+    source_current = source_verified and not runtime_drift
+    bundle_source_current = source_verified and not bundle_drift
     return {
         "schema": LAUNCH_PROVENANCE_SCHEMA,
         "required": True,
         "launch_mode": "signed_app",
         "source_verified": source_verified,
         "verification_scope": "bundle_identity",
-        # True when the bundle was built from exactly this workspace state.
-        # Informational: the workspace moving on is normal, not a fault.
+        "runtime_snapshot_bound": runtime_snapshot_present,
+        # True when source still matches the immutable snapshot captured for
+        # this process, rather than the older app-build commit.
         "source_current": source_current,
         "freshness_status": (
             "current" if source_current else "drifted" if source_verified else "unverified"
         ),
-        "source_drift": sorted(set(drift)),
+        "source_drift": sorted(set(runtime_drift)),
+        "bundle_source_current": bundle_source_current,
+        "bundle_freshness_status": (
+            "current"
+            if bundle_source_current
+            else "drifted"
+            if source_verified
+            else "unverified"
+        ),
+        "bundle_drift": sorted(set(bundle_drift)),
+        "bundle_freshness_issues": [
+            f"bundle_source_revision_drift:{field}" for field in sorted(set(bundle_drift))
+        ],
         "verified": False,
         "issues": sorted(set(issues + freshness_issues)),
         "manifest_path": str(manifest_path or ""),
@@ -618,6 +722,20 @@ def validate_launch_source(
             "commit_sha": expected_commit,
             "branch": expected_branch,
             "workspace_state_sha256": expected_workspace,
+            "shell_assets_sha256": (
+                runtime_values["shell_assets_sha256"]
+                or str(manifest.get("shell_assets_sha256") or "").strip().lower()
+            ),
+            "bundle_identifier": expected_bundle_id,
+        },
+        "bundle_expected": {
+            "source_root": expected_root,
+            "commit_sha": bundle_expected_commit,
+            "branch": bundle_expected_branch,
+            "workspace_state_sha256": bundle_expected_workspace,
+            "shell_assets_sha256": str(manifest.get("shell_assets_sha256") or "")
+            .strip()
+            .lower(),
             "bundle_identifier": expected_bundle_id,
         },
         "actual": actual,
@@ -775,6 +893,7 @@ __all__ = [
     "LAUNCH_PROVENANCE_SCHEMA",
     "RUNTIME_SHELL_ASSETS",
     "RUNTIME_SHELL_PUBLIC_ASSETS",
+    "bind_runtime_source_snapshot",
     "build_launch_manifest",
     "capture_runtime_shell_assets",
     "collect_source_identity",

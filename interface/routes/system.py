@@ -1082,7 +1082,9 @@ def _runtime_revision_from_provenance(
         and actual_workspace == expected_workspace
     )
     expected_shell_digest = str(
-        manifest.get("shell_assets_sha256") or ""
+        expected.get("shell_assets_sha256")
+        or manifest.get("shell_assets_sha256")
+        or ""
     ).strip().lower()
     actual_shell_digest = str(shell_assets_sha256 or "").strip().lower()
     shell_exact = bool(
@@ -1129,8 +1131,8 @@ def _runtime_revision_from_provenance(
         "required": required,
         "verified": verified,
         "source_verified": source_verified,
-        # Whether the bundle was built from exactly this workspace state. The
-        # workspace moving on is normal; this reports it without failing it.
+        # Whether live source still matches the snapshot frozen for this
+        # process. Bundle-build freshness is reported separately by provenance.
         "source_current": current,
         "revision_token": revision_token,
         "expected_source_root_sha256": expected_root_sha256,

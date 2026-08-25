@@ -1295,9 +1295,10 @@ def _deep_specialist_identity_signature(
 
 
 def _current_specialist_source_commit() -> str:
-    expected = str(os.getenv("AURA_LAUNCH_EXPECTED_COMMIT", "") or "").strip().lower()
-    if expected:
-        return expected
+    for name in ("AURA_RUNTIME_SOURCE_COMMIT", "AURA_LAUNCH_EXPECTED_COMMIT"):
+        expected = str(os.getenv(name, "") or "").strip().lower()
+        if expected:
+            return expected
     from core.runtime.release_certificate import current_commit
 
     return str(current_commit() or "").strip().lower()

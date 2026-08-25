@@ -1057,8 +1057,8 @@ class OntogenyCore(AuthorityObservationMixin):
 def _runtime_revision() -> str:
     """Stable source identity supplied by the signed launcher, without git I/O."""
     for name in (
-        "AURA_LAUNCH_EXPECTED_COMMIT",
         "AURA_RUNTIME_SOURCE_COMMIT",
+        "AURA_LAUNCH_EXPECTED_COMMIT",
         "AURA_SOURCE_COMMIT",
     ):
         value = str(os.environ.get(name) or "").strip().lower()
