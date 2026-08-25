@@ -39,7 +39,7 @@ A row is closed only when its check runs.
 
 | # | Item | Where | Status |
 | :-- | :-- | :-- | :-- |
-| 1 | z_Aura is more than an affect summary | `endogenous_state.py` | **built, not yet true live** — 74 named dimensions across nine channels, and an unreachable source reads absent rather than zero. But measured on 1,629 live turns only 24 of them varied: substrate and uncertainty contributed nothing, and 50 dimensions were pinned at one value. The substrate probe named services no writer registers and is fixed; the uncertainty channel names four organs that exist nowhere and is open |
+| 1 | z_Aura is more than an affect summary | `endogenous_state.py` | closed, and it took measuring to close — 74 named dimensions across nine channels, an unreachable source reading absent rather than zero. Fitting the first live corpus showed 47 of them had never fired: every probe was naming an organ or a key no writer publishes. Substrate, uncertainty, self-state, memory recency and curiosity are wired to organs that exist; three collinear pairs are three dimensions again. 48 of 74 present and 25 varying from a bare organ set, against 27 and 18 before, with a test holding that floor |
 | 2 | A single dimension can be intervened on | `EndogenousState.do` | closed — returns a copy, records the intervention, and the mark survives the process boundary so an experiment cannot be recorded as an observation |
 | 3 | Structured native readout | `cognitive_code.py` | closed — nine lines from state, two from organs and marked as such, one learned head that abstains until fitted. Never user-presentable |
 | 4 | Δlogits over the full model vocabulary | `endogenous_vocab_head.py` | closed — bound to a tokenizer fingerprint and a layout digest, refuses on either mismatch |
@@ -158,20 +158,45 @@ Coverage reads 0.365 in the running instance. That number is kinder than the
 truth: of 74 named dimensions, **50 were pinned at one value across all 1,629
 turns**, and a constant dimension pads coverage while carrying nothing.
 
-Two channels could never have fired. The substrate probe resolved
-`continuous_substrate` and `liquid_state`, neither of which any writer in the
-tree registers, and asked for a `get_state_vector()` the live organ does not
-have — 1 of its 34 dimensions present, none varying. It reads the registered
-`conscious_substrate` through the snapshot accessor now, and refuses a stale
-snapshot rather than fitting a vector against words it did not precede. The
-uncertainty channel names four organs that are registered nowhere, and reads
-absent by construction; that one is open.
+Every cause was one shape: a reader naming an organ or a key that no writer
+publishes. The substrate probe resolved `continuous_substrate` and
+`liquid_state`, registered nowhere, and asked for a `get_state_vector()` the
+live organ lacks. Uncertainty named four organs that do not exist. Self-state
+named three more. The memory probe asked the facade for `semantic_density` and
+`contradiction_rate`; the facade publishes which stores exist and
+`last_commit`. Affect reached for curiosity through a summary this build does
+not have, while `current` held it — and then the first fix for that guarded on
+`callable()`, which is False for a property, so it stayed dead on the shape
+the live organ actually uses.
 
-Five of the six goal dimensions were constant: the same goal, the same
-priority, zero progress, never blocked, for the whole recorded period.
-`attention.load` and `recurrence.budget_used` sat at their ceiling throughout.
-Those are readings about the runtime, not about this pathway, and they are
-recorded here because the pathway is where they became visible.
+None of it failed loudly. Each probe is fail-open by design, which is right —
+a turn that cannot read an organ should still generate — and it means a
+channel absent forever looks exactly like a channel that does not exist.
+
+**What is fixed.** The substrate reads the registered `conscious_substrate`
+through its non-blocking snapshot and refuses a stale one, taking 34
+dimensions from one present to all of them. Uncertainty, self-state and the
+memory readings come from the welfare model, which computes from state already
+in this process and was never found because it is a singleton with its own
+accessor rather than a container registration. Curiosity and episodic recency
+read the accessors that exist. Three collinear pairs are three separate
+dimensions again: `attention.focus` is a share and `salience_peak` a
+magnitude, `temporal.past` is episodic recency rather than a copy of
+`recall_hits`, and `temporal.future` is priority scaled by what remains rather
+than a copy of `goal.priority`.
+
+Measured against a bare organ set, 48 of 74 dimensions are now present and 25
+carry variance, against 27 present and 18 varying before. `tests/
+test_the_state_is_not_mostly_dead.py` holds that floor, because nothing else
+was measuring it.
+
+**What is still open.** Three dimensions have no source and say so: attention
+novelty needs a history of the salient item across turns, and the two
+recurrence readings belong to a running recurrent turn. And five of the six
+goal dimensions were constant across the whole recorded period — the same
+goal, the same priority, zero progress, never blocked. That is a reading about
+the goal engine rather than about this pathway, and it is recorded here
+because this is where it became visible.
 
 `runtime_health_report()["integrity"]["endogenous_language"]` says which of
 these is true at any moment, and separates a head that will not attach from no
