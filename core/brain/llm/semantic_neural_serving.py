@@ -30,8 +30,12 @@ PACKAGE_ID: Final = "cp568-resident-semantic-neural-active-r1"
 RECOVERY_PACKAGE_CAMPAIGN: Final = "rlc-27b-recovery"
 PROMOTION_MODE: Final = "active"
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
-DEFAULT_ACTIVATION_PATH: Final = (
+LEGACY_ACTIVATION_PATH: Final = (
     REPO_ROOT / "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/activation.json"
+)
+DEFAULT_ACTIVATION_PATH: Final = (
+    REPO_ROOT
+    / "artifacts/migration/27b/recovery/cp1041-source-continuity/activation.json"
 )
 ACTIVE_ACTIVATION_PATH: Final = (
     REPO_ROOT / "training/fused-model/semantic-neural-active.json"
@@ -410,7 +414,7 @@ def _verify_resident_evidence(
         )
     elif claim == LEGACY_ADJUDICATION_CLAIM:
         legacy_activation, _legacy_raw = _read_bounded_json(
-            DEFAULT_ACTIVATION_PATH,
+            LEGACY_ACTIVATION_PATH,
             maximum_bytes=512 * 1024,
         )
         identities_match = bool(
@@ -1078,6 +1082,7 @@ __all__ = [
     "DEFAULT_ACTIVATION_PATH",
     "EVIDENCE_DOMAINS",
     "INTEGRATION_SOURCE_CONTRACTS",
+    "LEGACY_ACTIVATION_PATH",
     "INTEGRATION_SOURCE_FILES",
     "PACKAGE_ID",
     "PROMOTION_MODE",

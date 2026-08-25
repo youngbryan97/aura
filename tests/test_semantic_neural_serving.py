@@ -175,7 +175,7 @@ def test_active_serving_receipt_exposes_only_verified_qualification_evidence():
         ],
         "runtime_task_count": 120,
         "runtime_exact_count": 120,
-        "runtime_max_latency_ms": 38.696,
+        "runtime_max_latency_ms": 53.248,
     }
 
 
