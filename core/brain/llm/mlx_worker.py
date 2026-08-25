@@ -6554,6 +6554,13 @@ class AffectiveSteeringAttachment:
     disposition: str
 
 
+def _affective_attachment_available(engine: Any) -> bool:
+    return bool(
+        getattr(engine, "_model_attached", False)
+        and (getattr(engine, "_hooks", None) or [])
+    )
+
+
 def _finish_affective_attachment(
     engine: Any,
     *,
@@ -6567,10 +6574,7 @@ def _finish_affective_attachment(
     stand-in engine. Every hook gets the residual channel; a hook that refuses
     the attribute is skipped rather than aborting the rest.
     """
-    available = bool(
-        getattr(engine, "_model_attached", False)
-        and (getattr(engine, "_hooks", None) or [])
-    )
+    available = _affective_attachment_available(engine)
     if substrate_mem is not None and available:
         engine.start_substrate_sync(shared_state=substrate_mem)
     if phi_residual_mem is not None:
@@ -6654,7 +6658,7 @@ def _attach_affective_steering(
             )
             return AffectiveSteeringAttachment(engine, True, True, "active")
 
-        if available:
+        if _affective_attachment_available(engine):
             logger.info(
                 "Affective Steering Engine attached in neutral mode "
                 "(alpha=%.3f, hooks=%d).",

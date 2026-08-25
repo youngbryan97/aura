@@ -2029,6 +2029,10 @@ class MindTick:
                                     self._mark_loop_progress("dream_research_timeout_yield")
                                 except (TypeError, ValueError, RuntimeError, ImportError) as _drm:
                                     logger.debug("MindTick: Dream research modules skipped: %s", _drm)
+                                _schedule_mind_task(
+                                    self._replay_deferred_memory_writes(),
+                                    name="mind_tick.replay_deferred_memory_writes",
+                                )
                                 self.set_mode(CognitiveMode.SLEEP)
                 
                 # NOTE: tick_count and cycle_count increment moved to finally block
@@ -2285,27 +2289,26 @@ class MindTick:
         except (TypeError, ValueError) as exc:
             logger.debug("Dream: EWC consolidation skipped: %s", exc)
 
-        # 7. Replay memory writes that were deferred rather than refused.
-        # Dream is exactly the right moment: the runtime is quiet, welfare
-        # recovery has had its rest, and a write the Will said "later" to has
-        # its later. Without this the holding queue is write-only and the work
-        # is lost anyway, just more slowly.
+    async def _replay_deferred_memory_writes(self) -> None:
+        """Replay retained writes on the mind loop that owns async services.
+
+        The blocking dream-research bundle runs in ``asyncio.to_thread``.
+        Scheduling this coroutine from inside that bundle left no running loop,
+        so every dream reported a degradation and retained work never moved.
+        The caller creates this task after returning to the owner loop.
+        """
+
         try:
             from core.memory.deferred_retention import get_deferred_retention_queue
 
             queue = get_deferred_retention_queue()
-
-            async def _replay_deferred_writes() -> None:
-                report = await queue.replay()
-                if report.committed or report.refused or report.expired:
-                    logger.info(
-                        "🧠 Dream: deferred memory writes — %s.", report.narrative()
-                    )
-
-            get_task_tracker().create_task(
-                _replay_deferred_writes(),
-                name="mind_tick.replay_deferred_memory_writes",
-            )
+            report = await queue.replay()
+            if report.committed or report.refused or report.expired:
+                logger.info(
+                    "🧠 Dream: deferred memory writes — %s.", report.narrative()
+                )
+        except asyncio.CancelledError:
+            raise
         except (ImportError, RuntimeError, OSError, TypeError, ValueError) as exc:
             _record_mind_degradation(
                 exc, severity="warning",

@@ -898,6 +898,54 @@ def test_dream_research_runs_off_thread_under_a_bound():
     assert "dream_research_modules>120s" in source
 
 
+def test_deferred_memory_replay_is_scheduled_after_returning_to_the_owner_loop():
+    """The worker-thread dream bundle cannot create an asyncio task."""
+    import inspect as _inspect
+
+    from core import mind_tick as mind_tick_mod
+
+    loop_source = _loop_source()
+    replay_source = _inspect.getsource(
+        mind_tick_mod.MindTick._replay_deferred_memory_writes
+    )
+    blocking_source = _inspect.getsource(mind_tick_mod.MindTick._dream_research_modules)
+
+    worker_call = loop_source.index("asyncio.to_thread(self._dream_research_modules)")
+    replay_schedule = loop_source.index("self._replay_deferred_memory_writes()")
+    assert replay_schedule > worker_call
+    assert "get_task_tracker" not in blocking_source
+    assert "report = await queue.replay()" in replay_source
+
+
+@pytest.mark.asyncio
+async def test_deferred_memory_replay_executes_on_the_callers_event_loop(monkeypatch):
+    from core.memory import deferred_retention
+
+    owner_loop = asyncio.get_running_loop()
+    observed = {}
+
+    class Report:
+        committed = 1
+        refused = 0
+        expired = 0
+
+        @staticmethod
+        def narrative():
+            return "one write landed"
+
+    class Queue:
+        async def replay(self):
+            observed["loop"] = asyncio.get_running_loop()
+            return Report()
+
+    monkeypatch.setattr(deferred_retention, "get_deferred_retention_queue", Queue)
+
+    tick = MindTick.__new__(MindTick)
+    await tick._replay_deferred_memory_writes()
+
+    assert observed["loop"] is owner_loop
+
+
 def test_the_immune_pulse_does_not_stop_the_world_inline():
     import inspect as _inspect
 
