@@ -800,6 +800,7 @@ class TurnOutcome:
 
         declared = [e for e in self._effects.values() if e.requested]
         confirmed = [e for e in declared if e.is_confirmed]
+        observed = [e for e in declared if e.observed is not None]
         served = bool((self._served or "").strip())
         fallback_succeeded = any(f["succeeded"] for f in self._fallbacks)
         degraded = fallback_succeeded or self._user_visible in (
@@ -824,11 +825,27 @@ class TurnOutcome:
                     OutcomeStatus.PARTIALLY_SUCCEEDED,
                     f"effects_confirmed:{len(confirmed)}/{len(declared)}",
                 )
-            # Nothing observed. "The tool returned" is not success.
+            # No requested effect was confirmed. A failed postcondition is
+            # still an observation, and must not be reported as if nobody
+            # established what happened. Separately recorded errors carry the
+            # retry class; an assertion of success without an independent
+            # observation remains unknown rather than becoming success.
             if self._terminal_errors:
-                return OutcomeStatus.TERMINAL_FAILURE, "requested_effect_never_observed"
+                rationale = (
+                    "requested_effect_observed_failed"
+                    if observed
+                    else "requested_effect_never_observed"
+                )
+                return OutcomeStatus.TERMINAL_FAILURE, rationale
             if self._retryable_errors:
-                return OutcomeStatus.RETRYABLE_FAILURE, "requested_effect_never_observed"
+                rationale = (
+                    "requested_effect_observed_failed"
+                    if observed
+                    else "requested_effect_never_observed"
+                )
+                return OutcomeStatus.RETRYABLE_FAILURE, rationale
+            if observed:
+                return OutcomeStatus.UNKNOWN, "requested_effect_observed_but_unconfirmed"
             return OutcomeStatus.UNKNOWN, "requested_effect_declared_but_never_observed"
 
         if served:

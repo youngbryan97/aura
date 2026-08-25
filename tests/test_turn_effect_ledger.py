@@ -16,7 +16,12 @@ from core.epistemics.turn_effects import (
     turn_effect_evidence,
     turn_has_verified_effect,
 )
-from core.runtime.turn_outcome import TurnOutcome, VerificationGrade, bind_turn
+from core.runtime.turn_outcome import (
+    OutcomeStatus,
+    TurnOutcome,
+    VerificationGrade,
+    bind_turn,
+)
 
 
 def test_no_bound_turn_reports_no_evidence() -> None:
@@ -53,14 +58,48 @@ def test_failed_receipt_is_recorded_but_never_counts_as_evidence() -> None:
     under test rather than evidence for it.
     """
 
-    with bind_turn(TurnOutcome("t-failed", origin="test")):
+    with bind_turn(TurnOutcome("t-failed", origin="test")) as outcome:
         record_verified_effects(
-            [{"action": "create_folder", "ok": False, "index": 0, "error": "denied"}]
+            [
+                {
+                    "action": "create_folder",
+                    "ok": False,
+                    "index": 0,
+                    "result": {
+                        "error": "denied",
+                        "retryable": False,
+                    },
+                }
+            ]
         )
         assert turn_has_verified_effect() is False
         evidence = turn_effect_evidence()
         assert evidence["declared_effects"] == 1
         assert evidence["verified_effects"] == 0
+        receipt = outcome.finalize(subsystem="test")
+        assert receipt.status is OutcomeStatus.TERMINAL_FAILURE
+        assert receipt.rationale == "requested_effect_observed_failed"
+        assert receipt.observed_effects == ("denied",)
+
+
+def test_retryable_failed_receipt_is_known_and_retryable() -> None:
+    with bind_turn(TurnOutcome("t-retryable", origin="test")) as outcome:
+        record_verified_effects(
+            [
+                {
+                    "action": "open_app",
+                    "ok": False,
+                    "index": 0,
+                    "result": {
+                        "error": "window service temporarily unavailable",
+                        "retryable": True,
+                    },
+                }
+            ]
+        )
+        receipt = outcome.finalize(subsystem="test")
+        assert receipt.status is OutcomeStatus.RETRYABLE_FAILURE
+        assert receipt.rationale == "requested_effect_observed_failed"
 
 
 def test_asserted_grade_alone_does_not_confirm() -> None:

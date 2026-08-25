@@ -90,6 +90,13 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
                 or receipt.get("summary")
                 or ""
             )
+        failure_detail = str(
+            receipt.get("error")
+            or result.get("error")
+            or receipt.get("effect_evidence")
+            or result.get("status")
+            or "step did not verify"
+        ).strip()
         try:
             from core.conversation.surface_disposition import record_tool_receipt
 
@@ -100,7 +107,7 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
                 ok=bool(receipt.get("ok")),
                 effect_observed=bool(receipt.get("ok")),
                 verification="postcondition_verified" if receipt.get("ok") else "failed",
-                evidence=evidence or str(receipt.get("error") or ""),
+                evidence=evidence or failure_detail,
                 observed_content=observed_content,
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -119,8 +126,17 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
                 outcome.declare_effect(name, action)
                 outcome.observe_effect(
                     name,
-                    str(receipt.get("error") or "step did not verify"),
+                    failure_detail,
                     verification=VerificationGrade.ASSERTED,
+                )
+                # A failed postcondition is still an observation of what
+                # happened. Put its retry class on the same turn record so the
+                # finalizer reports a known failure instead of "never
+                # observed". Missing retryability remains retryable: another
+                # attempt may succeed unless the child contract says it cannot.
+                outcome.record_error(
+                    failure_detail,
+                    retryable=result.get("retryable") is not False,
                 )
         except RuntimeError:
             # The turn finalized underneath us. Late evidence cannot change a

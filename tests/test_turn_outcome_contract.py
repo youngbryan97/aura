@@ -136,6 +136,7 @@ def test_a_component_asserting_its_own_success_does_not_confirm_an_effect():
         "a component's testimony about itself is the claim under test, not "
         "evidence for it"
     )
+    assert receipt.rationale == "requested_effect_observed_but_unconfirmed"
 
 
 def test_a_refusal_is_not_a_malfunction():
