@@ -1,0 +1,120 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/reqproof/progress.py",
+    "--report",
+    "/tmp/aura-reqproof-progress-report.json",
+    "--markdown",
+    "/tmp/aura-reqproof-progress.md"
+  ],
+  "cwd": ".",
+  "duration_seconds": 14.142202,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "PROGRESS-CONTROL-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:16:03.024593+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "c52b1efb191032063aa5a3616326fe5e5daad17b",
+  "output_bytes": 532,
+  "proof_id": "reqproof-progress-engine-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "c52b1efb191032063aa5a3616326fe5e5daad17b",
+  "source_manifest": [
+    {
+      "path": "config/reqproof_progress_policy.json",
+      "sha256": "923405ffa9aa3c3aa99d23163dab489727cf7c1e515bf2a5f2cd1f028af6d083",
+      "size_bytes": 548
+    },
+    {
+      "path": "config/reqproof_scope_baseline.json",
+      "sha256": "ba12d381fbfd4fd7edd76f997312eac7644d89536e2e9e068709a9f90e73bfa9",
+      "size_bytes": 45044
+    },
+    {
+      "path": "config/requirement_registry.json",
+      "sha256": "57a8bec052529a9c3177b27b24b2869cc27441c4b74301d243a9402dd9e6a463",
+      "size_bytes": 579128
+    },
+    {
+      "path": "docs/AURA_EXECUTION_TRACKER.md",
+      "sha256": "cc192fe81946f30c41f5446a53222cc76d5651109bf90a594fbb83d164ecf983",
+      "size_bytes": 3349799
+    },
+    {
+      "path": "tools/reqproof/evidence.py",
+      "sha256": "a9189b867f3bde6008230b6892f85a135c464671c3c6ff74d185b9545c2dc4bd",
+      "size_bytes": 26783
+    },
+    {
+      "path": "tools/reqproof/progress.py",
+      "sha256": "a9de2ced1a2e1de920a13ffb87e1f38ba5517af89f669fe0b8376e1246d2bbff",
+      "size_bytes": 31153
+    },
+    {
+      "path": "tools/reqproof/schema.py",
+      "sha256": "c8e0dbe9eff03c52e9e4e98d6116dfdac0f31fc1d24454c0a679a2a70669364a",
+      "size_bytes": 25216
+    },
+    {
+      "path": "tools/reqproof/tracker_parse.py",
+      "sha256": "5c0f4d7e5d3dcb2e7ae6b2776d925edb5edac397daeb9d80861290a806c43290",
+      "size_bytes": 15831
+    },
+    {
+      "path": "tools/reqproof/validate.py",
+      "sha256": "592fc8fc00439f80711dbaf3f5b4e1b2a746cba1135133ed8c28b856d8011762",
+      "size_bytes": 22439
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "config/reqproof_progress_policy.json",
+      "config/reqproof_scope_baseline.json",
+      "config/requirement_registry.json",
+      "docs/AURA_EXECUTION_TRACKER.md",
+      "tools/reqproof/evidence.py",
+      "tools/reqproof/progress.py",
+      "tools/reqproof/schema.py",
+      "tools/reqproof/tracker_parse.py",
+      "tools/reqproof/validate.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:15:48.882706+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "{\n  \"forecast\": {\n    \"calibration\": \"policy_prior_only\",\n    \"confidence\": \"low\",\n    \"conservative_weighted_points_per_checkpoint\": 10,\n    \"optimistic_weighted_points_per_checkpoint\": 30,\n    \"remaining_checkpoint_records_high\": 292,\n    \"remaining_checkpoint_records_low\": 98,\n    \"total_checkpoint_records_high\": 1148,\n    \"total_checkpoint_records_low\": 954\n  },\n  \"machine_certified_percent\": \"2.27\",\n  \"pushed_checkpoint_records\": 856,\n  \"report_sha256\": \"c9bcc756e2ddd7262de48806410a8127ecf61e24451a99de756a2643661354e9\"\n}\n",
+  "stdout_sha256": "ee7ccac803766a6a792f71f1f426fd8048792991f51b65e1863082661013705a",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}

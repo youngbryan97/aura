@@ -1,5 +1,5 @@
 {
-  "content_sha256": "806ba4e126f1908a6093adf8a1358cea18ddf37fb08675ceea2b17fa9c504a97",
+  "content_sha256": "6c727a82206dc952649f72d3390cb1434bc39e0ca6b4ee6dbbf5dfe0047803db",
   "entries": [
     {
       "acceptance_ids": [
@@ -618,12 +618,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "deb089f5d8b78dd92c962c0bbabdf9edaa11ee89",
+      "commit": "c52b1efb191032063aa5a3616326fe5e5daad17b",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/reqproof-progress-engine-audit/deb089f5d8b78dd92c962c0bbabdf9edaa11ee89.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/reqproof-progress-engine-audit/c52b1efb191032063aa5a3616326fe5e5daad17b.json",
       "requirement_id": "PROGRESS-CONTROL-001",
-      "sha256": "de0a9239feef28ac501766a5c5deb12b0128151c8c985e96e5938a0a5a7a018b"
+      "sha256": "c7006500703270b037d84cfa4fa8e502f790947564bcaa42feae0f99d2758d61"
     },
     {
       "acceptance_ids": [
