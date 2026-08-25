@@ -504,19 +504,6 @@ def build_bundle(
                 f"{stem}_{sheet.kind}.svg", "svg", text=sheet.svg,
                 description=SHEET_CAPTIONS.get(sheet.kind, ""),
             ))
-    if "json" in wanted:
-        payload = {
-            "design": design.to_dict(),
-            "findings": [f.to_dict() for f in findings],
-            "verification": verdict.to_dict(),
-        }
-        if plan is not None:
-            payload["build"] = plan.to_dict()
-        files.append(ExportedFile(
-            f"{stem}.json", "json",
-            text=json.dumps(payload, indent=2, sort_keys=True, default=str),
-            description=FORMATS["json"],
-        ))
     if "csv" in wanted:
         files.append(ExportedFile(
             f"{stem}_parts.csv", "csv", text=_bom_csv(design, plan),
@@ -555,6 +542,33 @@ def build_bundle(
                 f"{stem}.scad", "scad", text=openscad_text(design),
                 description=MESH_FORMATS["scad"][2],
             ))
+    if "json" in wanted:
+        # Written after the geometry so its file list is the real one. The
+        # first version carried neither the narrative nor the sheet list, so
+        # the panel reading it back could show neither.
+        payload = {
+            "design": design.to_dict(),
+            "findings": [f.to_dict() for f in findings],
+            "verification": verdict.to_dict(),
+            "narrative": narrative,
+            "sheets": [sheet.to_dict() for sheet in sheets],
+        }
+        if plan is not None:
+            payload["build"] = plan.to_dict()
+        # The two files that do not exist yet when this list is built are
+        # this one and the page, so both are named rather than left out.
+        listed = [entry.to_dict() for entry in files]
+        listed.append({"name": f"{stem}.json", "kind": "json",
+                       "bytes": 0, "description": FORMATS["json"]})
+        if "html" in wanted:
+            listed.insert(0, {"name": f"{stem}.html", "kind": "html",
+                              "bytes": 0, "description": FORMATS["html"]})
+        payload["bundle"] = {"slug": stem, "files": listed}
+        files.append(ExportedFile(
+            f"{stem}.json", "json",
+            text=json.dumps(payload, indent=2, sort_keys=True, default=str),
+            description=FORMATS["json"],
+        ))
     if "html" in wanted:
         # Written last so its file list can name everything else.
         files.insert(0, ExportedFile(

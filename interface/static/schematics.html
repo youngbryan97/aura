@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aura — Drawings</title>
+<link rel="stylesheet" href="/static/design_tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--aura-bg, #0d0c0f);
+    color: var(--aura-fg, #f4ede4);
+    font: var(--aura-text-1, 14px)/var(--aura-text-1h, 1.5) var(--aura-font-ui, system-ui);
+    display: grid;
+    grid-template-columns: 264px 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--aura-space-4, 18px);
+    padding: var(--aura-space-3, 12px) var(--aura-space-5, 24px);
+    border-bottom: 1px solid var(--aura-card-border, #ffffff14);
+  }
+  h1 {
+    margin: 0;
+    font-size: var(--aura-text-h, 22px);
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  .verdict { color: var(--aura-fg-dim); font-size: var(--aura-text-2, 12.5px); }
+  .verdict.bad { color: var(--aura-error, #f17a7a); }
+  .verdict.good { color: var(--aura-fg-dim); }
+
+  aside {
+    border-right: 1px solid var(--aura-card-border, #ffffff14);
+    overflow-y: auto;
+    padding: var(--aura-space-3, 12px);
+  }
+  .design {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--aura-radius-1, 6px);
+    color: inherit;
+    font: inherit;
+    padding: var(--aura-space-2, 8px) var(--aura-space-3, 12px);
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .design:hover { background: var(--aura-card, #ffffff0a); }
+  .design[aria-current="true"] {
+    background: var(--aura-accent-soft, #b1a4ff2e);
+    border-color: var(--aura-accent, #b1a4ff);
+  }
+  .design b { display: block; font-weight: 600; }
+  .design span { color: var(--aura-fg-mute); font-size: var(--aura-text-2, 12.5px); }
+  .flag {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    background: var(--aura-fg-mute);
+  }
+  .flag.ok { background: #6fcf97; }
+  .flag.bad { background: var(--aura-error, #f17a7a); }
+
+  main { overflow-y: auto; padding: var(--aura-space-4, 18px) var(--aura-space-5, 24px); }
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--aura-space-1, 4px);
+    margin-bottom: var(--aura-space-4, 18px);
+  }
+  nav button {
+    background: var(--aura-card, #ffffff0a);
+    border: 1px solid var(--aura-card-border, #ffffff14);
+    border-radius: var(--aura-radius-pill, 999px);
+    color: var(--aura-fg-dim);
+    font: inherit;
+    font-size: var(--aura-text-2, 12.5px);
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+  nav button[aria-selected="true"] {
+    background: var(--aura-fg, #f4ede4);
+    color: var(--aura-bg, #0d0c0f);
+    border-color: var(--aura-fg, #f4ede4);
+  }
+
+  .sheet {
+    background: var(--aura-card, #ffffff0a);
+    border: 1px solid var(--aura-card-border, #ffffff14);
+    border-radius: var(--aura-radius-2, 12px);
+    overflow: hidden;
+  }
+  .sheet img { width: 100%; height: auto; display: block; }
+
+  .tiles { display: flex; flex-wrap: wrap; gap: var(--aura-space-5, 24px); margin-bottom: var(--aura-space-4, 18px); }
+  .tile b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .tile span {
+    color: var(--aura-fg-mute);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  table { border-collapse: collapse; width: 100%; font-size: var(--aura-text-2, 12.5px); }
+  th {
+    text-align: left; color: var(--aura-fg-mute); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px;
+    padding: 6px 10px; border-bottom: 1px solid var(--aura-card-border, #ffffff14);
+  }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--aura-card-border, #ffffff14); vertical-align: top; }
+  td.num { text-align: right; font-family: var(--aura-font-mono); font-variant-numeric: tabular-nums; }
+
+  .finding { border-left: 2px solid var(--aura-card-border); padding-left: 12px; margin-bottom: 16px; }
+  .finding.fail { border-left-color: var(--aura-error, #f17a7a); }
+  .finding.watch { border-left-color: var(--aura-warn, #f0a06a); }
+  .finding.pass { border-left-color: #6fcf97; }
+  .finding .value { font-family: var(--aura-font-mono); font-weight: 600; }
+  .work {
+    font-family: var(--aura-font-mono); font-size: 11px; color: var(--aura-fg-mute);
+    background: var(--aura-card, #ffffff0a); padding: 5px 8px;
+    border-radius: var(--aura-radius-1, 6px); margin-top: 4px; overflow-x: auto;
+  }
+  .advice { color: var(--aura-warn, #f0a06a); font-size: var(--aura-text-2, 12.5px); }
+  .files { display: flex; flex-wrap: wrap; gap: var(--aura-space-2, 8px); }
+  .files a {
+    display: block; min-width: 168px;
+    border: 1px solid var(--aura-card-border, #ffffff14);
+    border-radius: var(--aura-radius-1, 6px);
+    padding: 9px 12px; text-decoration: none; color: inherit;
+  }
+  .files a:hover { border-color: var(--aura-accent, #b1a4ff); }
+  .files b { display: block; font-family: var(--aura-font-mono); font-size: 12px; }
+  .files span { color: var(--aura-fg-mute); font-size: 11px; }
+  .empty { color: var(--aura-fg-mute); padding: var(--aura-space-6, 36px) 0; }
+  .step { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--aura-card-border); }
+  .step .n { flex: 0 0 26px; font-family: var(--aura-font-mono); color: var(--aura-fg-mute); }
+  .note { color: var(--aura-fg-dim); }
+  @media (max-width: 720px) {
+    body { grid-template-columns: 1fr; }
+    aside { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Drawings</h1>
+  <span class="verdict" id="verdict"></span>
+</header>
+<aside id="list"></aside>
+<main>
+  <nav id="tabs"></nav>
+  <div id="view"><p class="empty">Nothing drawn yet.</p></div>
+</main>
+<script src="/static/schematics.js"></script>
+</body>
+</html>

@@ -1071,6 +1071,7 @@ from interface.routes import privacy as privacy_routes
 from interface.routes import reality_reach as reality_reach_routes
 from interface.routes import rpc as rpc_routes
 from interface.routes import settings as settings_routes
+from interface.routes import engineering as engineering_routes
 from interface.routes import subsystems as subsystem_routes
 from interface.routes import system as system_routes
 from interface.routes import worlds as worlds_routes
@@ -1082,6 +1083,7 @@ app.include_router(memory_ui.router, prefix="/memory", tags=["memory"])
 app.include_router(chat_routes.router, prefix="/api", tags=["chat"])
 app.include_router(devices_routes.router, prefix="/api", tags=["devices"])
 app.include_router(worlds_routes.router, prefix="/api", tags=["worlds"])
+app.include_router(engineering_routes.router, prefix="/api", tags=["engineering"])
 app.include_router(system_routes.router, prefix="/api", tags=["system"])
 app.include_router(subsystem_routes.router, prefix="/api", tags=["subsystems"])
 app.include_router(memory_routes.router, prefix="/api", tags=["memory-api"])
