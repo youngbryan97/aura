@@ -5009,8 +5009,12 @@ class CapabilityEngine(AuraBaseModule):
         # cortex. It spent forty to seventy seconds of each turn and failed
         # every time. This is the rule the deep solver lane already follows:
         # a lane that cannot load is a hole, not a fallback.
-        target = meta.instance or meta.skill_class
-        available = getattr(target, "available_here", None)
+        # Read defensively, like active_skills above. Metadata reaches here
+        # from several registration paths and one that carries neither field
+        # raised AttributeError out of tool selection — a turn losing every
+        # tool because one record was shaped differently.
+        target = getattr(meta, "instance", None) or getattr(meta, "skill_class", None)
+        available = getattr(target, "available_here", None) if target else None
         if callable(available):
             try:
                 if available() is False:

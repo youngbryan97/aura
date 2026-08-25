@@ -32,10 +32,25 @@ def test_mark_is_a_neuron_not_an_atom():
 
 
 def test_orbital_atom_is_gone():
-    # The old mark drove "electrons" around ellipses; none of that should remain.
+    """The old mark drove "electrons" around ellipses; none of that remains.
+
+    The check used to ban the substring "electron" anywhere in the file. It is
+    also the name of a UI framework, and a comment explaining why WKWebView
+    does not honour Electron's `-webkit-app-region: drag` failed a test about
+    a drawing. Bans the mark's own vocabulary instead.
+    """
     assert "Aura's orbital mark" not in SWIFT
-    assert "electron" not in SWIFT.lower()
     assert 'forKey: "orbit"' not in SWIFT
+    lowered = SWIFT.lower()
+    for token in ("electronlayer", "electrons", "electronpath", "orbitlayer"):
+        assert token not in lowered, token
+    # And no bare "electron" outside the one framework mention.
+    framework_mentions = lowered.count("electron property") + lowered.count(
+        "electron's"
+    )
+    assert lowered.count("electron") == framework_mentions, (
+        "an electron survived that is not the UI framework"
+    )
 
 
 def test_retro_arcade_idiom_is_present():
