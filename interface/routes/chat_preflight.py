@@ -606,6 +606,7 @@ async def _complete_logged_exchange(
     *,
     regenerated: bool = False,
     record_experience: bool = True,
+    exchange_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Finalize a pending exchange in place so history is never duplicated."""
     final_response = aura_response or "…"
@@ -641,6 +642,13 @@ async def _complete_logged_exchange(
         target["durability_state"] = "pending"
         target.setdefault("revision", 1)
         target["aura_sha256"] = hashlib.sha256(final_response.encode("utf-8")).hexdigest()
+        if isinstance(exchange_metadata, dict):
+            current_metadata = target.get("metadata")
+            merged_metadata = (
+                dict(current_metadata) if isinstance(current_metadata, dict) else {}
+            )
+            merged_metadata.update(dict(exchange_metadata))
+            target["metadata"] = merged_metadata
         if regenerated:
             target["regenerated"] = True
         _trim_conversation_log_locked()
@@ -675,6 +683,7 @@ async def _complete_logged_exchange(
         final_response,
         session_id=str(target.get("session_id") or ""),
         exchange_id=str(target.get("id") or exchange_id or ""),
+        exchange_metadata=target.get("metadata"),
     )
 
     if record_experience and not learning_owned_by_outbox:
@@ -697,6 +706,7 @@ def _record_unified_transcript_exchange(
     *,
     session_id: str,
     exchange_id: str,
+    exchange_metadata: Any = None,
 ) -> None:
     """Put the terminally delivered HTTP exchange into core continuity.
 
@@ -712,6 +722,8 @@ def _record_unified_transcript_exchange(
             "exchange_id": str(exchange_id or "")[:64],
             "origin": "desktop_ui",
         }
+        if isinstance(exchange_metadata, dict):
+            metadata.update(dict(exchange_metadata))
         transcript.add_text_input(
             str(user_message or ""),
             metadata=metadata,
@@ -727,12 +739,33 @@ def _record_unified_transcript_exchange(
         logger.warning("Live transcript exchange recording failed: %s", exc)
 
 
+async def _attach_logged_exchange_metadata(
+    exchange_id: str | None,
+    metadata: dict[str, Any],
+) -> bool:
+    """Attach typed evidence to the exchange that owns it."""
+
+    if not exchange_id or not isinstance(metadata, dict):
+        return False
+    async with _chat_memory_state._get_convo_lock():
+        for entry in reversed(_conversation_log):
+            if str(entry.get("id") or "") != str(exchange_id):
+                continue
+            current = entry.get("metadata")
+            merged = dict(current) if isinstance(current, dict) else {}
+            merged.update(dict(metadata))
+            entry["metadata"] = merged
+            return True
+    return False
+
+
 async def _log_exchange(
     user_msg: str,
     aura_response: str,
     *,
     record_experience: bool = True,
     session_id: str = "",
+    exchange_metadata: dict[str, Any] | None = None,
 ):
     """Record a conversation exchange for session tracking."""
     exchange_id = await _begin_logged_exchange(user_msg, session_id=session_id)
@@ -741,6 +774,7 @@ async def _log_exchange(
         user_msg,
         aura_response,
         record_experience=record_experience,
+        exchange_metadata=exchange_metadata,
     )
 
 

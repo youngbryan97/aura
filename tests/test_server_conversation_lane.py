@@ -6685,6 +6685,11 @@ async def test_api_chat_desktop_surface_plans_with_cognitive_engine_before_execu
     assert "Timestamped Aura summary from CognitiveEngine." in skill_calls[0]["extra_context"]["cognitive_reply"]
     assert completed_exchanges
     assert completed_exchanges[-1][0][0] == "desktop-objective"
+    action_episode = completed_exchanges[-1][1]["exchange_metadata"]["action_episode"]
+    assert action_episode["objective"] == skill_calls[0]["params"]["objective"]
+    assert action_episode["capability"] == "desktop_task"
+    assert action_episode["status"] == "desktop_objective_completed"
+    assert action_episode["succeeded"] is True
     # The logged exchange and the output receipt carry what the person was
     # actually told, so they carry the same plain confirmation the reply does —
     # not the executor's step count, which lives in the result payload.

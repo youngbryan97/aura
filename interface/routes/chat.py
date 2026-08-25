@@ -2925,6 +2925,13 @@ def _is_referential_followup_request(user_message: str) -> bool:
     if not text or len(text) > 120:
         return False
     try:
+        from core.conversation.action_episode import is_action_episode_question
+
+        if is_action_episode_question(user_message):
+            return True
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.action_outcome_language", exc)
+    try:
         from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
         if looks_like_deep_mind_probe(user_message):
@@ -3015,6 +3022,34 @@ async def _resolve_referential_followup_anchor(
             continue
         return candidate_text
     return None
+
+
+async def _resolve_action_episode_grounding(
+    user_message: str,
+    *,
+    session_id: str = "",
+) -> str:
+    """Ground a question about a prior action in that action's receipt facts."""
+
+    from core.conversation.action_episode import (
+        ActionEpisode,
+        action_episode_grounding,
+        select_action_episode,
+    )
+
+    recent_exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
+        current_user_message=user_message,
+        session_id=session_id,
+        limit=12,
+        allow_cross_session=False,
+    )
+    episodes = []
+    for exchange in recent_exchanges:
+        episode = ActionEpisode.from_dict(exchange.get("action_episode"))
+        if episode is not None:
+            episodes.append(episode)
+    selected = select_action_episode(user_message, episodes)
+    return action_episode_grounding(selected) if selected is not None else ""
 
 
 def _classify_self_condition_contract(
@@ -19706,6 +19741,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         desktop_memory_state_evidence: tuple[str, str] | None = None
 
         _desktop_exec_state = {"attempted": False, "result": None}
+        action_episode_evidence = ""
+
+        def _current_exchange_metadata() -> dict[str, Any] | None:
+            episode = _desktop_exec_state.get("action_episode")
+            return {"action_episode": dict(episode)} if isinstance(episode, dict) else None
 
         async def _run_desktop_objective_tracked(
             message: str, *, cognitive_reply: str
@@ -19735,6 +19775,24 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if isinstance(executed, dict):
                 _desktop_exec_state["result"] = executed.get("result")
+                try:
+                    from core.conversation.action_episode import (
+                        action_episode_from_execution,
+                    )
+
+                    action_episode = action_episode_from_execution(
+                        message,
+                        executed,
+                        capability="desktop_task",
+                    )
+                    if action_episode is not None:
+                        _desktop_exec_state["action_episode"] = action_episode.to_dict()
+                        await _chat_preflight._attach_logged_exchange_metadata(
+                            pending_exchange_id,
+                            {"action_episode": action_episode.to_dict()},
+                        )
+                except _CHAT_RECOVERABLE_ERRORS as episode_exc:
+                    record_degradation("chat.action_episode", episode_exc)
             return executed
 
         async def _apply_desktop_objective_chokepoint(
@@ -20655,6 +20713,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     pending_exchange_id,
                     _semantic_user_message,
                     final_text,
+                    exchange_metadata=_current_exchange_metadata(),
                 )
                 pending_exchange_id = None
             else:
@@ -20662,6 +20721,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     _original_user_message,
                     final_text,
                     session_id=_chat_session_id,
+                    exchange_metadata=_current_exchange_metadata(),
                 )
             await _emit_chat_output_receipt(
                 final_text,
@@ -20919,10 +20979,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     )
             return None
 
+        if not _qualified_state_serialization_owner:
+            try:
+                action_episode_evidence = await _resolve_action_episode_grounding(
+                    _semantic_user_message,
+                    session_id=_chat_session_id,
+                )
+            except _CHAT_RECOVERABLE_ERRORS as action_context_exc:
+                record_degradation("chat.action_episode_context", action_context_exc)
+                action_episode_evidence = ""
+
         if (
             not is_benchmark
             and not conversation_only_surface
             and not _qualified_state_serialization_owner
+            and not action_episode_evidence
         ):
             governed_capability_response = await _chat_capability_inventory._execute_governed_capability_request_from_chat(
                 _semantic_user_message
@@ -21364,6 +21435,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "[REFERENTIAL ANCHOR]\n"
                 "The user is referring to this earlier user question/request:\n"
                 f"{referential_anchor}"
+            )
+        if action_episode_evidence:
+            from core.conversation.turn_evidence_custody import record_turn_grounding
+
+            record_turn_grounding(action_episode_evidence)
+            effective_user_message = (
+                f"{effective_user_message}\n\n{action_episode_evidence}"
             )
         conversation_recall_evidence = (
             None
@@ -23279,6 +23357,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 pending_exchange_id,
                 _semantic_user_message,
                 _final_reply or "…",
+                exchange_metadata=_current_exchange_metadata(),
             )
             pending_exchange_id = None
         else:
@@ -23286,6 +23365,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _original_user_message,
                 _final_reply or "…",
                 session_id=_chat_session_id,
+                exchange_metadata=_current_exchange_metadata(),
             )
         _delivery_timing["persistence_ms"] = (
             time.monotonic() - _persistence_started_at

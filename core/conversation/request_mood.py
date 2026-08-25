@@ -38,6 +38,8 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 
+from core.language.action_outcome import action_outcome_question
+
 
 class RequestMood(StrEnum):
     DIRECTIVE = "directive"
@@ -260,6 +262,8 @@ def _assess_clause(text: str) -> MoodVerdict:
     mention_reasons = [
         name for pattern, name in _MENTION_FRAMES if re.search(pattern, text, re.IGNORECASE)
     ]
+    if action_outcome_question(text).asks_about_outcome:
+        mention_reasons.append("retrospective_request")
     if (
         "indirect_request" in directive_reasons
         and "hypothetical" in mention_reasons

@@ -1611,7 +1611,7 @@ async def _recent_completed_conversation_exchanges(
     session_id: str = "",
     limit: int = 6,
     allow_cross_session: bool = True,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     current = str(current_user_message or "").strip()
     safe_session_id = str(session_id or "")[:64]
     principal_id, principal_surface = _chat_memory_identity()
@@ -1636,6 +1636,10 @@ async def _recent_completed_conversation_exchanges(
             continue
         if not user_text and not aura_text:
             continue
+        action_episode = None
+        metadata = entry.get("metadata")
+        if isinstance(metadata, dict) and isinstance(metadata.get("action_episode"), dict):
+            action_episode = dict(metadata["action_episode"])
         exchanges.append(
             # Stamped per entry: the cognitive engine promotes these straight
             # into chat roles, so a forged entry mixed into a real list would
@@ -1653,6 +1657,7 @@ async def _recent_completed_conversation_exchanges(
                     ),
                     "timestamp": str(entry.get("completed_at") or entry.get("timestamp") or ""),
                     "session_id": str(entry.get("session_id") or "")[:64],
+                    "action_episode": action_episode,
                 }
             )
         )
