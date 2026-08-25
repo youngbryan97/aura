@@ -40,12 +40,23 @@ def test_the_live_ledger_has_no_unreadable_rows():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+#: A status no reader will ever recognise. Synthetic on purpose.
+#:
+#: These tests used to use "remediated_scope_named", which was the
+#: unrecognised status at the time they were written. It was then added to
+#: VALID_STATUSES — correctly, that is how the campaign closes a finding — and
+#: both tests went red, because they were pinned to one instance of the defect
+#: rather than to the rule. The rule is what matters: a closure the report
+#: cannot read must fail rather than warn.
+UNRECOGNISED_STATUS = "status_no_reader_will_ever_know"
+
+
 def test_verify_fails_on_a_status_no_reader_recognises(tmp_path):
     rows = [json.loads(line) for line in LEDGER.read_text().splitlines() if line.strip()]
     assert rows, "the ledger is empty; this test proves nothing"
 
     doctored = dict(rows[0])
-    doctored["status"] = "remediated_scope_named"
+    doctored["status"] = UNRECOGNISED_STATUS
     target = tmp_path / "ledger.jsonl"
     target.write_text(json.dumps(doctored) + "\n")
 
@@ -55,13 +66,38 @@ def test_verify_fails_on_a_status_no_reader_recognises(tmp_path):
     assert doctored["finding_id"] in result.stdout
 
 
-def test_record_refuses_the_status_in_the_first_place():
+def test_every_status_the_tool_accepts_is_one_the_reader_counts():
+    """The two sets are one set, or a closure can be recorded and not counted."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("semantic_ledger", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.STATUSES_REQUIRING_NOTE <= module.VALID_STATUSES
+    assert UNRECOGNISED_STATUS not in module.VALID_STATUSES
+
+
+def test_record_refuses_the_status_in_the_first_place(tmp_path):
+    """Against a COPY of the ledger, never the ledger.
+
+    This ran against the live file. It expected a refusal, so nothing was
+    supposed to be written — and when the status it used became a valid one,
+    the refusal stopped happening and the record went through. Four rows
+    closing a critical finding with the note "n" reached the tracked ledger
+    that way, three of them committed. A test that only avoids writing to an
+    evidence record while it is passing is a test that writes to one.
+    """
+    target = tmp_path / "ledger.jsonl"
+    target.write_text(LEDGER.read_text())
+    before = target.read_text()
+
     result = subprocess.run(
         [
             sys.executable, str(TOOL), "record",
             "--finding", "semantic-afa4ee984634c351",
-            "--status", "remediated_scope_named",
+            "--status", UNRECOGNISED_STATUS,
             "--note", "n",
+            "--ledger", str(target),
         ],
         capture_output=True,
         text=True,
@@ -70,3 +106,4 @@ def test_record_refuses_the_status_in_the_first_place():
     )
     assert result.returncode == 2
     assert "--status must be one of" in result.stderr
+    assert target.read_text() == before, "a refused record still wrote a row"
