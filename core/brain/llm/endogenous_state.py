@@ -37,6 +37,7 @@ import math
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -640,15 +641,19 @@ def _probe_substrate() -> dict[str, float] | None:
 
     # Energy is a named axis of the state vector, not a summary statistic, and
     # `current()` is the public accessor for it on the live build.
-    reading = getattr(substrate, "current", None)
-    if callable(reading):
-        try:
-            energy = getattr(reading(), "energy", None)
-        except _LOOKUP_ERRORS as exc:
-            logger.debug("substrate current() declined: %s", exc)
-        else:
-            if isinstance(energy, (int, float)):
-                out["substrate.energy"] = float(energy)
+    # `current` is a PROPERTY on the live substrate, so `callable()` on it is
+    # False and a method-only read skipped it silently. Both shapes are
+    # handled because which one an organ uses is not this probe's business.
+    try:
+        reading = getattr(substrate, "current", None)
+        if callable(reading):
+            reading = reading()
+    except _LOOKUP_ERRORS as exc:
+        logger.debug("substrate current declined: %s", exc)
+        reading = None
+    energy = getattr(reading, "energy", None) if reading is not None else None
+    if isinstance(energy, (int, float)) and not isinstance(energy, bool):
+        out["substrate.energy"] = max(0.0, min(1.0, float(energy)))
 
     summary = _substrate_summary(substrate)
     if summary is not None:
@@ -695,13 +700,6 @@ def _goal_features(goals: Sequence[Any]) -> dict[str, float]:
     out: dict[str, float] = {"goal.active": 1.0}
     if priorities:
         out["goal.priority"] = max(0.0, min(1.0, max(priorities)))
-    # Whether she is getting anywhere, which the goal records themselves do
-    # not say: goal.blocked read a constant 0.0 across every recorded turn.
-    frustration = _welfare_reading()
-    if frustration is not None:
-        blocked = _welfare_number(frustration[0], "goal_frustration")
-        if blocked is not None:
-            out["goal.blocked"] = blocked
         # Two goals both near the top is the shape of a pull in two
         # directions. One goal, however urgent, is not a conflict.
         ranked = sorted(priorities, reverse=True)
@@ -709,6 +707,19 @@ def _goal_features(goals: Sequence[Any]) -> dict[str, float]:
             out["goal.conflict"] = min(1.0, ranked[1])
         else:
             out["goal.conflict"] = 0.0
+    # Whether she is getting anywhere, which the goal records themselves do
+    # not say: goal.blocked read a constant 0.0 across every recorded turn.
+    #
+    # This sits OUTSIDE the priorities branch and the conflict computation
+    # stays inside it. Nested together, goal.conflict stopped being a fact
+    # about the goals and became conditional on the welfare model being
+    # readable — a reading about two goals pulling apart would vanish on any
+    # turn where an unrelated organ was unavailable.
+    frustration = _welfare_reading()
+    if frustration is not None:
+        blocked = _welfare_number(frustration[0], "goal_frustration")
+        if blocked is not None:
+            out["goal.blocked"] = blocked
     progress = _first_number(leader, ("progress",))
     if progress is not None:
         out["goal.progress"] = max(0.0, min(1.0, progress))
@@ -748,6 +759,18 @@ def _probe_goal_by_accessor() -> dict[str, float] | None:
         if goal:
             return _goal_features([goal])
     return None
+
+
+def _seconds_since_iso(value: Any) -> float | None:
+    """Age in seconds of an ISO-8601 timestamp, or None if it is not one."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    now = datetime.now(stamp.tzinfo) if stamp.tzinfo else datetime.now()
+    return max(0.0, (now - stamp).total_seconds())
 
 
 def _probe_memory() -> dict[str, float] | None:
@@ -793,6 +816,13 @@ def _probe_memory() -> dict[str, float] | None:
         recency = _first_number(
             stats, ("seconds_since_last_episode", "last_episode_age_s")
         )
+        if recency is None:
+            # What the facade actually publishes is `last_commit`, an ISO
+            # timestamp of the most recent write. Neither key above exists on
+            # it, so this dimension read absent on all 1,629 recorded turns
+            # while the answer was in the same dict under a different name and
+            # a different type.
+            recency = _seconds_since_iso(stats.get("last_commit"))
         if recency is not None:
             out["memory.episodic_recency"] = 1.0 - _log_age(recency)
 
@@ -1099,10 +1129,16 @@ def _probe_attention_by_accessor() -> dict[str, float] | None:
 def _probe_recurrence() -> dict[str, float] | None:
     """How much recurrent work this surface is admitted to do.
 
-    The admitted loop count and its ceiling are the same policy the worker
-    enforces, computed in-process from configuration rather than read from an
-    organ. Convergence and per-turn delta belong to a running turn and are
-    left absent unless an organ reports them.
+    Depth and budget prefer what the last turn MEASURABLY did, from the latent
+    cortex service's own receipt, and fall back to what policy admits. Read
+    from configuration alone they were constants — 0.125 and 1.0 on every one
+    of 1,629 recorded turns — which describes the settings file rather than
+    any turn.
+
+    Convergence and per-turn delta belong to a running turn and no organ
+    publishes them: the service's receipt carries steps taken and a halt
+    reason, not the agreement between passes. They stay absent, which is the
+    honest state rather than an invented one.
     """
     out: dict[str, float] = {}
     try:
@@ -1118,6 +1154,29 @@ def _probe_recurrence() -> dict[str, float] | None:
     else:
         out["recurrence.depth"] = min(1.0, admitted / 8.0)
         out["recurrence.budget_used"] = min(1.0, admitted / max(1.0, ceiling))
+
+    # What recurrence ACTUALLY did beats what policy admits it to do. The two
+    # lines above are computed from configuration, so both read a constant —
+    # 0.125 and 1.0 — on all 1,629 recorded turns, which is a description of
+    # the settings file rather than of any turn. The service reports the steps
+    # the last turn really took, and that is the number this dimension
+    # declares itself to be.
+    cortex = _service("latent_cortex_service") or _service("latent_cortex")
+    status = getattr(cortex, "recurrence_depth_status", None)
+    if callable(status):
+        try:
+            measured = status()
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("recurrence depth status declined: %s", exc)
+            measured = None
+        if isinstance(measured, Mapping) and measured.get("measured"):
+            steps = _first_number(measured, ("steps_taken",))
+            if steps is not None:
+                out["recurrence.depth"] = min(1.0, steps / 8.0)
+                if ceiling_hint := _first_number(measured, ("requested_loops",)):
+                    out["recurrence.budget_used"] = min(
+                        1.0, steps / max(1.0, ceiling_hint)
+                    )
 
     for key in ("latent_cortex", "cognitive_engine"):
         report = _mapping_from(
@@ -1146,8 +1205,29 @@ def _probe_temporal() -> dict[str, float] | None:
     """
     memory = _probe_memory() or {}
     goal = _probe_goal() or {}
-    past = float(memory.get("memory.recall_hits", 0.0))
-    future = float(goal.get("goal.active", 0.0)) * float(goal.get("goal.priority", 0.5) or 0.5)
+    # `episodic_recency` first, and `recall_hits` only as a fallback.
+    #
+    # Measured on the live corpus: `temporal.past` was EXACTLY
+    # `memory.recall_hits` on every turn, because the derivation was an
+    # identity. Two names carrying one number are one dimension counted twice
+    # — it inflates coverage, gives the head two gradient paths to the same
+    # signal, and makes an ablation of the memory channel silently a partial
+    # ablation of the temporal one. How recent the last episode is answers
+    # "orientation towards what happened" at least as well, and is a
+    # different number.
+    past = float(
+        memory.get(
+            "memory.episodic_recency",
+            memory.get("memory.recall_hits", 0.0),
+        )
+    )
+    # Unfinished work, not priority. `goal.active * goal.priority` was exactly
+    # `goal.priority` whenever a goal was active, which was every recorded
+    # turn — the same duplication one channel over. What is still ahead is
+    # what remains of the leading goal.
+    future = float(goal.get("goal.active", 0.0)) * (
+        1.0 - float(goal.get("goal.progress", 0.0) or 0.0)
+    ) * float(goal.get("goal.priority", 0.5) or 0.5)
     if not memory and not goal:
         return None
     present = max(0.0, 1.0 - 0.5 * (past + future))
