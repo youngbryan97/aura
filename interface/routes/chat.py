@@ -9409,6 +9409,28 @@ def _status_represents_governed_action_result(status: str | None) -> bool:
     }
 
 
+def _governed_desktop_response_authority(
+    *,
+    desktop_result: Any,
+    action_episode: Any,
+) -> tuple[bool, str]:
+    """Prove an exact action-result serialization from its governed source.
+
+    Successful actions require observable effect receipts. Failed actions have
+    a different truth condition: a governed executor authoritatively reported
+    that the requested effect did not occur. The action episode records which
+    condition was established, so the response contract must consult it before
+    applying the success-only verifier.
+    """
+
+    if isinstance(action_episode, dict) and action_episode.get("authority_proven") is True:
+        reason = str(action_episode.get("authority_reason") or "").strip()
+        return True, reason or "governed_action_episode"
+    if isinstance(desktop_result, dict):
+        return _chat_desktop_objective._verified_desktop_task_result(desktop_result)
+    return False, "desktop_result_missing"
+
+
 def _status_represents_memory_state_result(status: str | None) -> bool:
     return str(status or "").strip() in {
         "owner_identity_recall",
@@ -20512,14 +20534,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "desktop_objective"
             ):
                 desktop_result = _desktop_exec_state.get("result")
-                authority_proven = False
-                authority_reason = "desktop_result_missing"
-                if isinstance(desktop_result, dict):
-                    authority_proven, authority_reason = (
-                        _chat_desktop_objective._verified_desktop_task_result(
-                            desktop_result
-                        )
+                authority_proven, authority_reason = (
+                    _governed_desktop_response_authority(
+                        desktop_result=desktop_result,
+                        action_episode=_desktop_exec_state.get("action_episode"),
                     )
+                )
                 _live_turn_trace.update(
                     {
                         "response_authority_kind": (

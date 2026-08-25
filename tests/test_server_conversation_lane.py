@@ -13126,6 +13126,49 @@ def test_verified_action_serialization_is_proven_without_model_authorship() -> N
     )
 
 
+def test_governed_failure_episode_proves_its_exact_response_serialization() -> None:
+    from interface.routes import chat as chat_routes
+
+    proven, reason = chat_routes._governed_desktop_response_authority(
+        desktop_result={
+            "ok": False,
+            "steps_requested": 1,
+            "steps_completed": 0,
+            "error": "application not found",
+        },
+        action_episode={
+            "status": "desktop_objective_failed",
+            "succeeded": False,
+            "authority_kind": "governed_action_episode",
+            "authority_proven": True,
+            "authority_reason": "governed_executor_reported_failure",
+        },
+    )
+
+    assert proven is True
+    assert reason == "governed_executor_reported_failure"
+
+
+def test_unproven_failure_cannot_bypass_action_response_authority() -> None:
+    from interface.routes import chat as chat_routes
+
+    proven, reason = chat_routes._governed_desktop_response_authority(
+        desktop_result={
+            "ok": False,
+            "steps_requested": 1,
+            "steps_completed": 0,
+        },
+        action_episode={
+            "status": "desktop_objective_failed",
+            "succeeded": False,
+            "authority_proven": False,
+        },
+    )
+
+    assert proven is False
+    assert reason == "desktop_task_result_not_ok"
+
+
 def test_protected_foreground_transaction_identity_is_worker_bound() -> None:
     from interface.routes import chat as chat_routes
 
