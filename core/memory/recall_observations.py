@@ -34,6 +34,7 @@ __all__ = [
     "RecallObservation",
     "RecallObservationRing",
     "get_recall_observations",
+    "peek_recall_observations",
     "record_ranking",
 ]
 
@@ -423,13 +424,35 @@ _ring_lock = checked_lock("recall_observations.singleton", rank=LockRank.REGISTR
 _recording_failures = 0
 
 
-def get_recall_observations() -> RecallObservationRing:
-    global _ring
-    if _ring is None:
-        with _ring_lock:
-            if _ring is None:
-                _ring = RecallObservationRing()
+def peek_recall_observations() -> RecallObservationRing | None:
+    """The ring if one exists, and never a reason to build one.
+
+    A read-only consumer — telemetry, a state probe, a health block — must not
+    be the thing that constructs the store. Construction resolves the memory
+    directory, which imports the configuration, which touches disk; doing that
+    on a request path because something wanted to look is how a read turns
+    into a stall.
+    """
     return _ring
+
+
+def get_recall_observations() -> RecallObservationRing:
+    """The ring, building one if this is the first caller.
+
+    Built OUTSIDE the singleton lock and published under it. Construction
+    resolves the store path, which imports the configuration and can touch
+    disk, and lockdep saw exactly that: an fsync attempted while holding
+    ``recall_observations.singleton``. A racing second caller builds a ring
+    that is discarded unread, which costs nothing and holds no lock.
+    """
+    global _ring
+    if _ring is not None:
+        return _ring
+    candidate = RecallObservationRing()
+    with _ring_lock:
+        if _ring is None:
+            _ring = candidate
+        return _ring
 
 
 def record_ranking(activations: Iterable[float], *, returned_count: int) -> None:

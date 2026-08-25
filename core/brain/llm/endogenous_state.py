@@ -34,6 +34,7 @@ import inspect
 import json
 import logging
 import math
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -560,7 +561,67 @@ def _probe_substrate() -> dict[str, float] | None:
 
 
 def _probe_goal() -> dict[str, float] | None:
-    for key in ("volition", "goal_manager", "goals", "objective_manager"):
+    """What she is actually trying to do, from the durable goal engine.
+
+    ``get_active_goals`` serves a cached snapshot with a five-second TTL
+    precisely because every tool authorization already descends through it, so
+    reading it here costs a dict copy rather than a query.
+    """
+    engine = _service("goal_engine") or _service("goal_manager")
+    goals: list[Any] = []
+    if engine is not None and hasattr(engine, "get_active_goals"):
+        try:
+            goals = list(engine.get_active_goals(limit=8) or [])
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("active goals unavailable: %s", exc)
+            goals = []
+    if goals:
+        return _goal_features(goals)
+    return _probe_goal_by_accessor()
+
+
+def _goal_features(goals: Sequence[Any]) -> dict[str, float]:
+    """Reduce the active set to the declared goal dimensions."""
+    priorities = [
+        value
+        for value in (_first_number(goal, ("priority",)) for goal in goals)
+        if value is not None
+    ]
+    top = max(range(len(goals)), key=lambda i: _first_number(goals[i], ("priority",)) or 0.0)
+    leader = goals[top]
+    out: dict[str, float] = {"goal.active": 1.0}
+    if priorities:
+        out["goal.priority"] = max(0.0, min(1.0, max(priorities)))
+        # Two goals both near the top is the shape of a pull in two
+        # directions. One goal, however urgent, is not a conflict.
+        ranked = sorted(priorities, reverse=True)
+        if len(ranked) > 1 and ranked[0] >= 0.6 and ranked[1] >= 0.6:
+            out["goal.conflict"] = min(1.0, ranked[1])
+        else:
+            out["goal.conflict"] = 0.0
+    progress = _first_number(leader, ("progress",))
+    if progress is not None:
+        out["goal.progress"] = max(0.0, min(1.0, progress))
+    created = _first_number(leader, ("created_at", "started_at"))
+    if created is not None and created > 0:
+        out["goal.age"] = _log_age(time.time() - created)
+    status = ""
+    if isinstance(leader, Mapping):
+        status = str(leader.get("status") or "")
+    else:
+        status = str(getattr(leader, "status", "") or "")
+    out["goal.blocked"] = 1.0 if status.lower() in _BLOCKED_STATUSES else 0.0
+    return out
+
+
+#: Goal statuses that mean the top goal cannot advance right now. Read from the
+#: engine's own vocabulary rather than inferred from progress being flat.
+_BLOCKED_STATUSES = frozenset({"blocked", "stalled", "waiting", "paused", "deferred"})
+
+
+def _probe_goal_by_accessor() -> dict[str, float] | None:
+    """Any other organ that will hand over a single current goal."""
+    for key in ("volition", "objective_manager", "goals"):
         organ = _service(key)
         if organ is None:
             continue
@@ -574,60 +635,73 @@ def _probe_goal() -> dict[str, float] | None:
                 goal = None
             if goal:
                 break
-        if not goal:
-            continue
-        out: dict[str, float] = {"goal.active": 1.0}
-        priority = _first_number(goal, ("priority", "weight", "urgency"))
-        if priority is not None:
-            out["goal.priority"] = min(1.0, abs(priority) / 10.0 if priority > 1.0 else abs(priority))
-        progress = _first_number(goal, ("progress", "completion"))
-        if progress is not None:
-            out["goal.progress"] = progress
-        started = _first_number(goal, ("started_at", "created_at"))
-        if started is not None and started > 0:
-            out["goal.age"] = _log_age(time.time() - started)
-        blocked = _first_number(goal, ("blocked", "is_blocked", "stalled"))
-        if blocked is not None:
-            out["goal.blocked"] = 1.0 if blocked else 0.0
-        conflict = _first_number(organ, ("goal_conflict", "conflict_score"))
-        if conflict is not None:
-            out["goal.conflict"] = conflict
-        return out
+        if goal:
+            return _goal_features([goal])
     return None
 
 
 def _probe_memory() -> dict[str, float] | None:
-    facade = _service("memory_facade") or _service("episodic_memory")
-    if facade is None:
-        return None
-    stats: Any = None
-    for accessor in ("get_activation_summary", "get_stats", "stats", "get_status"):
-        candidate = getattr(facade, accessor, None)
-        try:
-            stats = candidate() if callable(candidate) else candidate
-        except _LOOKUP_ERRORS as exc:
-            logger.debug("memory accessor %s declined: %s", accessor, exc)
-            stats = None
-        if isinstance(stats, Mapping) and stats:
-            break
-        stats = None
-    if not isinstance(stats, Mapping):
-        return None
+    """How much recall is live, from the ring the recall path already fills.
+
+    The observation ring is in memory and bounded, which is what makes it
+    usable here: the state is assembled on the request path, and a probe that
+    opened a database would put a query in front of every generation. It is
+    PEEKED, never fetched — building the ring resolves a store path and
+    touches disk, and a probe must not be the thing that does that.
+    """
+    try:
+        from core.memory.recall_observations import peek_recall_observations
+
+        ring = peek_recall_observations()
+        samples = list(ring.samples()) if ring is not None else []
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("recall observations unavailable: %s", exc)
+        samples = []
     out: dict[str, float] = {}
-    for name, keys in (
-        ("memory.recall_hits", ("recent_recall_hits", "recall_hits", "hits")),
-        ("memory.recall_confidence", ("recall_confidence", "grounding_confidence")),
-        ("memory.semantic_density", ("semantic_density", "graph_density")),
-        ("memory.working_load", ("working_load", "working_set_pressure")),
-        ("memory.contradiction", ("contradiction_rate", "contradictions")),
-    ):
-        value = _first_number(stats, keys)
-        if value is not None:
-            out[name] = min(1.0, abs(value)) if abs(value) > 1.0 else abs(value)
-    recency = _first_number(stats, ("seconds_since_last_episode", "last_episode_age_s"))
-    if recency is not None:
-        out["memory.episodic_recency"] = 1.0 - _log_age(recency)
+    if samples:
+        recent = samples[-64:]
+        returned = [1.0 if count else 0.0 for _activation, count in recent]
+        activations = [float(activation) for activation, _count in recent]
+        out["memory.recall_hits"] = float(np.mean(returned))
+        out["memory.recall_confidence"] = max(
+            0.0, min(1.0, float(np.mean(activations)))
+        )
+
+    facade = _service("memory_facade") or _service("episodic_memory")
+    stats = _mapping_from(
+        facade, ("get_activation_summary", "get_stats", "stats", "get_status")
+    )
+    if isinstance(stats, Mapping):
+        for name, keys in (
+            ("memory.semantic_density", ("semantic_density", "graph_density")),
+            ("memory.working_load", ("working_load", "working_set_pressure")),
+            ("memory.contradiction", ("contradiction_rate", "contradictions")),
+        ):
+            value = _first_number(stats, keys)
+            if value is not None:
+                out[name] = min(1.0, abs(value))
+        recency = _first_number(
+            stats, ("seconds_since_last_episode", "last_episode_age_s")
+        )
+        if recency is not None:
+            out["memory.episodic_recency"] = 1.0 - _log_age(recency)
     return out or None
+
+
+def _mapping_from(organ: Any, accessors: Sequence[str]) -> Mapping[str, Any] | None:
+    """First accessor that hands back a non-empty mapping."""
+    if organ is None:
+        return None
+    for accessor in accessors:
+        candidate = getattr(organ, accessor, None)
+        try:
+            value = candidate() if callable(candidate) else candidate
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("organ accessor %s declined: %s", accessor, exc)
+            continue
+        if isinstance(value, Mapping) and value:
+            return value
+    return None
 
 
 def _probe_uncertainty() -> dict[str, float] | None:
@@ -683,21 +757,49 @@ def _probe_self_state() -> dict[str, float] | None:
 
 
 def _probe_attention() -> dict[str, float] | None:
-    for key in ("atomspace", "attention_manager", "workspace", "global_workspace"):
-        organ = _service(key)
-        if organ is None:
-            continue
-        report: Any = None
-        for accessor in ("attention_summary", "get_attention", "get_focus", "summary"):
-            candidate = getattr(organ, accessor, None)
+    """Where attention sits, from the ECAN focus the atomspace maintains.
+
+    ``attentional_focus`` ranks the atoms that hold any short-term importance
+    at all. Three of the four attention dimensions fall straight out of that
+    ranking; novelty does not, and is left absent rather than invented.
+    """
+    space = _service("atomspace")
+    focus: list[Any] = []
+    if space is not None and hasattr(space, "attentional_focus"):
+        try:
+            focus = list(space.attentional_focus(_ATTENTION_FOCUS_SIZE) or [])
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("attentional focus unavailable: %s", exc)
+            focus = []
+    if focus:
+        weights = []
+        for entry in focus:
             try:
-                report = candidate() if callable(candidate) else candidate
-            except _LOOKUP_ERRORS as exc:
-                logger.debug("organ accessor %s declined: %s", accessor, exc)
-                report = None
-            if isinstance(report, Mapping) and report:
-                break
-            report = None
+                weights.append(float(entry[1]))
+            except (IndexError, TypeError, ValueError):
+                continue
+        if weights:
+            total = sum(abs(w) for w in weights) or 1.0
+            peak = max(abs(w) for w in weights)
+            return {
+                "attention.salience_peak": min(1.0, peak / max(1.0, total)),
+                "attention.focus": min(1.0, peak / total),
+                "attention.load": min(1.0, len(weights) / _ATTENTION_FOCUS_SIZE),
+            }
+    return _probe_attention_by_accessor()
+
+
+#: How many focus atoms are read. Bounded because the atomspace ranks every
+#: atom holding importance, and this runs on the request path.
+_ATTENTION_FOCUS_SIZE = 16
+
+
+def _probe_attention_by_accessor() -> dict[str, float] | None:
+    for key in ("attention_manager", "workspace", "global_workspace"):
+        report = _mapping_from(
+            _service(key),
+            ("attention_summary", "get_attention", "get_focus", "summary"),
+        )
         if not isinstance(report, Mapping):
             continue
         out: dict[str, float] = {}
@@ -716,38 +818,43 @@ def _probe_attention() -> dict[str, float] | None:
 
 
 def _probe_recurrence() -> dict[str, float] | None:
-    for key in ("latent_cortex", "recurrent_depth", "cognitive_engine"):
-        organ = _service(key)
-        if organ is None:
-            continue
-        report: Any = None
-        for accessor in ("recurrence_summary", "last_recurrence", "get_recurrence"):
-            candidate = getattr(organ, accessor, None)
-            try:
-                report = candidate() if callable(candidate) else candidate
-            except _LOOKUP_ERRORS as exc:
-                logger.debug("organ accessor %s declined: %s", accessor, exc)
-                report = None
-            if isinstance(report, Mapping) and report:
-                break
-            report = None
+    """How much recurrent work this surface is admitted to do.
+
+    The admitted loop count and its ceiling are the same policy the worker
+    enforces, computed in-process from configuration rather than read from an
+    organ. Convergence and per-turn delta belong to a running turn and are
+    left absent unless an organ reports them.
+    """
+    out: dict[str, float] = {}
+    try:
+        from core.brain.llm.user_surface_recurrence import (
+            admit_user_surface_recurrent_loops,
+            user_surface_recurrent_ceiling,
+        )
+
+        admitted = float(admit_user_surface_recurrent_loops())
+        ceiling = float(user_surface_recurrent_ceiling())
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("recurrent admission unavailable: %s", exc)
+    else:
+        out["recurrence.depth"] = min(1.0, admitted / 8.0)
+        out["recurrence.budget_used"] = min(1.0, admitted / max(1.0, ceiling))
+
+    for key in ("latent_cortex", "cognitive_engine"):
+        report = _mapping_from(
+            _service(key), ("recurrence_summary", "last_recurrence", "get_recurrence")
+        )
         if not isinstance(report, Mapping):
             continue
-        out: dict[str, float] = {}
-        depth = _first_number(report, ("depth", "loops", "passes"))
-        if depth is not None:
-            out["recurrence.depth"] = min(1.0, abs(depth) / 8.0)
         for name, keys in (
             ("recurrence.convergence", ("convergence", "cosine", "agreement")),
             ("recurrence.delta", ("delta", "change")),
-            ("recurrence.budget_used", ("budget_used", "budget_fraction")),
         ):
             value = _first_number(report, keys)
             if value is not None:
                 out[name] = max(-1.0, min(1.0, value))
-        if out:
-            return out
-    return None
+        break
+    return out or None
 
 
 def _probe_temporal() -> dict[str, float] | None:
@@ -787,17 +894,47 @@ PROBES: dict[str, Callable[[], dict[str, float] | None]] = {
 }
 
 
+#: How long an assembled state may be reused. Every probe is memory-only, but
+#: "cheap" is not "free" and the state is read once per generation while
+#: generation takes seconds. A quarter second is shorter than any turn and
+#: long enough that a burst of calls costs one assembly.
+CACHE_TTL_S = 0.25
+
+_CACHE: tuple[float, EndogenousState] | None = None
+_CACHE_LOCK = threading.Lock()
+
+
+def reset_state_cache() -> None:
+    """Forget the cached state. For tests, and after an organ is replaced."""
+    global _CACHE
+    with _CACHE_LOCK:
+        _CACHE = None
+
+
 def assemble_state(
     *,
     overrides: Mapping[str, float] | None = None,
     probes: Mapping[str, Callable[[], dict[str, float] | None]] | None = None,
+    max_age_s: float = CACHE_TTL_S,
 ) -> EndogenousState:
     """Read every organ once and build z_Aura.
 
     ``overrides`` is for experiments and for tests: named dimensions forced to
     a value, marked present, and recorded as interventions so no downstream
     consumer can mistake a constructed state for an observed one.
+
+    A caller supplying its own probes or overrides never reads the cache and
+    never writes to it, because a constructed state must not be handed to the
+    next caller as an observation.
     """
+    global _CACHE
+    constructed = probes is not None or bool(overrides)
+    if not constructed and max_age_s > 0.0:
+        with _CACHE_LOCK:
+            cached = _CACHE
+        if cached is not None and (time.time() - cached[0]) <= max_age_s:
+            return cached[1]
+
     values = np.zeros(STATE_DIM, dtype=np.float32)
     present = np.zeros(STATE_DIM, dtype=bool)
     sources: dict[str, str] = {}
@@ -841,6 +978,9 @@ def assemble_state(
     )
     if overrides:
         state = state.do(**{k: float(v) for k, v in overrides.items()})
+    elif not constructed:
+        with _CACHE_LOCK:
+            _CACHE = (time.time(), state)
     return state
 
 
@@ -876,9 +1016,11 @@ __all__ = [
     "EndogenousState",
     "Feature",
     "Intervention",
+    "CACHE_TTL_S",
     "assemble_state",
     "describe_layout",
     "empty_state",
     "layout_digest",
     "pool_substrate",
+    "reset_state_cache",
 ]
