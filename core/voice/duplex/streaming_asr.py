@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import importlib
+
 # `import importlib` does NOT bind importlib.util — the submodule must be
 # imported explicitly. Every find_spec() call below sat inside an
 # `except AttributeError`, so on any interpreter where nothing else had
@@ -26,7 +27,6 @@ import importlib
 import importlib.util
 import logging
 import re
-import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -34,8 +34,12 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
-from core.voice.duplex.config import CAPTURE_RATE, AsrConfig
 from core.runtime.lockdep import LockRank, checked_async_lock, checked_lock
+from core.runtime.third_party_imports import (
+    import_attribute_serialized,
+    import_module_serialized,
+)
+from core.voice.duplex.config import CAPTURE_RATE, AsrConfig
 
 logger = logging.getLogger("Aura.Voice.Asr")
 
@@ -214,8 +218,8 @@ class _WhisperBackend:
             return
         if self._impl == "mlx":
             try:
-                self._mlx = importlib.import_module("mlx_whisper")
-                transcribe_module = importlib.import_module("mlx_whisper.transcribe")
+                self._mlx = import_module_serialized("mlx_whisper")
+                transcribe_module = import_module_serialized("mlx_whisper.transcribe")
                 self._mlx_holder = getattr(transcribe_module, "ModelHolder", None)
                 if self._mlx_holder is None:
                     logger.warning(
@@ -240,12 +244,15 @@ class _WhisperBackend:
             key = f"fw::{repo}"
             model = self._cache.get(key)
             if model is None:
-                from faster_whisper import WhisperModel
+                whisper_model_cls = import_attribute_serialized(
+                    "faster_whisper",
+                    "WhisperModel",
+                )
 
                 # Repo ids carry an mlx-community prefix that faster-whisper
                 # does not understand; fall back to a size it does.
                 size = "small.en" if "small" in repo else "large-v3"
-                model = WhisperModel(size, device="cpu", compute_type="int8")
+                model = whisper_model_cls(size, device="cpu", compute_type="int8")
                 self._cache[key] = model
             return model
 

@@ -362,9 +362,13 @@ def load_encoder(*, model_lane_lease: Any, device: str | None = None) -> Any:
     )
 
     require_active_synchronous_in_process_model_lane(model_lane_lease)
-    from sentence_transformers import SentenceTransformer
+    from core.runtime.third_party_imports import import_attribute_serialized
 
-    model = SentenceTransformer(REPO_ID, truncate_dim=VECTOR_DIM)
+    sentence_transformer_cls = import_attribute_serialized(
+        "sentence_transformers",
+        "SentenceTransformer",
+    )
+    model = sentence_transformer_cls(REPO_ID, truncate_dim=VECTOR_DIM)
     assert_window_matches_model(model)
     if device:
         model = model.to(device)

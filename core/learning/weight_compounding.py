@@ -251,8 +251,12 @@ def _resolve_model_dir(model_path: str) -> Path | None:
         return candidate
     if _HF_REPO_ID_RE.fullmatch(model_path or ""):
         try:
-            from huggingface_hub import snapshot_download
+            from core.runtime.third_party_imports import import_attribute_serialized
 
+            snapshot_download = import_attribute_serialized(
+                "huggingface_hub",
+                "snapshot_download",
+            )
             return Path(snapshot_download(repo_id=model_path, local_files_only=True))
         except (ImportError, OSError, ValueError):
             return None

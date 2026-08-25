@@ -213,7 +213,9 @@ class MicProvider:
 
     def _transcribe(self, audio: np.ndarray) -> str:
         try:
-            import mlx_whisper
+            from core.runtime.third_party_imports import import_module_serialized
+
+            mlx_whisper = import_module_serialized("mlx_whisper")
             result = mlx_whisper.transcribe(
                 audio, path_or_hf_repo="mlx-community/whisper-small.en-mlx",
             )

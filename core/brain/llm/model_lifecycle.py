@@ -356,7 +356,12 @@ class ModelLifecycleManager:
 
     def _default_downloader(self) -> Callable[[str, str], None]:
         def _download(repo: str, target_dir: str) -> None:
-            from huggingface_hub import snapshot_download
+            from core.runtime.third_party_imports import import_attribute_serialized
+
+            snapshot_download = import_attribute_serialized(
+                "huggingface_hub",
+                "snapshot_download",
+            )
 
             Path(target_dir).mkdir(parents=True, exist_ok=True)
             # snapshot_download resumes partial files by default.

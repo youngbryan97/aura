@@ -167,6 +167,8 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     *,
     readiness_timeout_s: float = 180.0,
     poll_interval_s: float = 0.5,
+    dependency_attempts: int = 3,
+    dependency_retry_delay_s: float = 0.5,
 ) -> None:
     """Materialize the complete foreground read path before advertising chat."""
 
@@ -201,50 +203,102 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     if is_shutdown_requested():
         return
 
-    started = time.perf_counter()
-    try:
-        from core.cognition.evidence_relevance import prewarm_evidence_relevance
-        from core.consciousness.unified_self import get_unified_self
-        from core.memory.embedding_runtime import prewarm_shared_embedding_runtime
-        from core.memory.profile_manager import ProfileManager
-        from core.self.self_condition import build_self_condition_projection
-        from interface.chat_dependencies import materialize_foreground_chat_dependencies
+    from core.cognition.evidence_relevance import prewarm_evidence_relevance
+    from core.consciousness.unified_self import get_unified_self
+    from core.memory.embedding_runtime import prewarm_shared_embedding_runtime
+    from core.memory.profile_manager import ProfileManager
+    from core.self.self_condition import build_self_condition_projection
+    from interface.chat_dependencies import materialize_foreground_chat_dependencies
 
-        # The identity readers are independent and cheap once materialized.
-        # Load them concurrently, while model-backed semantic memory starts in
-        # its own worker.  The self-condition projection follows because it
-        # consumes identity/body authorities initialized by those readers.
-        embedding_task = asyncio.create_task(
-            asyncio.to_thread(prewarm_shared_embedding_runtime)
+    async def _complete_named_stage(
+        stage: str,
+        awaitables: tuple[Any, ...],
+        names: tuple[str, ...],
+    ) -> tuple[Any, ...]:
+        results = await asyncio.gather(*awaitables, return_exceptions=True)
+        failures = [
+            (name, result)
+            for name, result in zip(names, results, strict=True)
+            if isinstance(result, _SERVER_BOUNDARY_ERRORS)
+        ]
+        if failures:
+            name, failure = failures[0]
+            raise RuntimeError(
+                f"chat_dependency_stage_failed:{stage}:{name}:"
+                f"{type(failure).__name__}:{failure}"
+            ) from failure
+        unexpected = [result for result in results if isinstance(result, BaseException)]
+        if unexpected:
+            raise unexpected[0]
+        return tuple(results)
+
+    async def _materialize_once() -> tuple[dict[str, Any], dict[str, Any], Any, Any]:
+        # Await every member even when one fails.  Abandoning a to_thread task
+        # while retrying starts a second dependency transaction beside the
+        # first and recreates the import/lifecycle race this owner prevents.
+        _, _, snapshot, foreground_services = await _complete_named_stage(
+            "readers",
+            (
+                asyncio.create_task(ProfileManager.get_instance()),
+                asyncio.create_task(get_unified_self()),
+                asyncio.create_task(asyncio.to_thread(prewarm_shared_embedding_runtime)),
+                asyncio.create_task(
+                    asyncio.to_thread(materialize_foreground_chat_dependencies)
+                ),
+            ),
+            ("profile", "unified_self", "embedding", "foreground_services"),
         )
-        foreground_services_task = asyncio.create_task(
-            asyncio.to_thread(materialize_foreground_chat_dependencies)
-        )
-        profile_task = asyncio.create_task(ProfileManager.get_instance())
-        unified_self_task = asyncio.create_task(get_unified_self())
-        _, _, snapshot, foreground_services = await asyncio.gather(
-            profile_task,
-            unified_self_task,
-            embedding_task,
-            foreground_services_task,
-        )
-        projection, evidence_routing = await asyncio.gather(
-            asyncio.to_thread(build_self_condition_projection),
-            asyncio.to_thread(prewarm_evidence_relevance),
+        projection, evidence_routing = await _complete_named_stage(
+            "semantic_projection",
+            (
+                asyncio.create_task(asyncio.to_thread(build_self_condition_projection)),
+                asyncio.create_task(asyncio.to_thread(prewarm_evidence_relevance)),
+            ),
+            ("self_condition", "evidence_relevance"),
         )
         if not getattr(projection, "evidence_id", ""):
             raise RuntimeError("self-condition warmup produced no evidence identity")
-    except _SERVER_BOUNDARY_ERRORS as exc:
-        if callable(set_ready):
-            set_ready(False, blocker="chat_dependencies_failed")
-        record_degradation(
-            "server.chat_dependency_warmup",
-            exc,
-            severity="degraded",
-            action="kept conversation readiness blocked after dependency warmup failed",
-        )
-        logger.error("Chat dependency warmup failed: %s", exc)
-        return
+        return snapshot, foreground_services, projection, evidence_routing
+
+    started = time.perf_counter()
+    attempts = max(1, int(dependency_attempts))
+    last_error: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            snapshot, foreground_services, projection, evidence_routing = (
+                await _materialize_once()
+            )
+            break
+        except _SERVER_BOUNDARY_ERRORS as exc:
+            last_error = exc
+            if attempt >= attempts:
+                if callable(set_ready):
+                    set_ready(False, blocker="chat_dependencies_failed")
+                record_degradation(
+                    "server.chat_dependency_warmup",
+                    exc,
+                    severity="degraded",
+                    action=(
+                        "kept conversation readiness blocked after bounded "
+                        "dependency recovery was exhausted"
+                    ),
+                )
+                logger.error(
+                    "Chat dependency warmup failed after %d attempt(s): %s",
+                    attempt,
+                    exc,
+                )
+                return
+            logger.warning(
+                "Chat dependency warmup attempt %d/%d failed; retrying the "
+                "completed transaction: %s",
+                attempt,
+                attempts,
+                exc,
+            )
+            await asyncio.sleep(max(0.0, float(dependency_retry_delay_s)))
+    else:  # pragma: no cover - loop exits through success or terminal return
+        raise RuntimeError("chat dependency warmup exhausted without a verdict") from last_error
 
     if callable(set_ready):
         set_ready(True)

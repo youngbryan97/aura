@@ -125,6 +125,7 @@ def test_evidence_prewarm_batches_the_fixed_document_cohort_once(monkeypatch) ->
         def __init__(self) -> None:
             self._model = object()
             self.batch_calls: list[tuple[str, ...]] = []
+            self.document_calls: list[str] = []
             self.query_calls: list[str] = []
 
         def _checkout_model(self):
@@ -142,6 +143,10 @@ def test_evidence_prewarm_batches_the_fixed_document_cohort_once(monkeypatch) ->
             self.query_calls.append(f"{task}:{text}")
             return [1.0, 1.0]
 
+        def embed(self, text):
+            self.document_calls.append(text)
+            return [1.0, 1.0]
+
     engine = _BatchEngine()
     monkeypatch.setattr(evidence_relevance, "_embedder", lambda: engine)
     monkeypatch.setattr(evidence_relevance, "_ANCHOR_CACHE", {})
@@ -155,7 +160,8 @@ def test_evidence_prewarm_batches_the_fixed_document_cohort_once(monkeypatch) ->
         row["concept_vectors"] + row["baseline_vectors"]
         for row in receipt["families"].values()
     )
-    assert engine.query_calls == ["evidence:How are you feeling today?"]
+    assert engine.document_calls == ["How are you feeling today?"]
+    assert engine.query_calls == []
 
 
 def test_evidence_anchor_batch_cardinality_failure_never_misbinds_vectors(monkeypatch) -> None:
@@ -334,4 +340,183 @@ def test_server_prewarm_binds_gate_that_registers_after_lifespan(monkeypatch) ->
     assert gate.ready_events == [
         (False, "chat_dependencies_warming"),
         (True, ""),
+    ]
+
+
+def test_server_prewarm_retries_a_completed_dependency_transaction(monkeypatch) -> None:
+    import core.cognition.evidence_relevance as evidence_relevance_module
+    import core.consciousness.unified_self as unified_self_module
+    import core.memory.embedding_runtime as embedding_runtime
+    import core.memory.profile_manager as profile_manager_module
+    import core.self.self_condition as self_condition_module
+    import interface.chat_dependencies as chat_dependencies_module
+    from interface import server
+
+    class _Gate:
+        def __init__(self) -> None:
+            self.ready_events: list[tuple[bool, str]] = []
+
+        def get_cortex_readiness_status(self):
+            return {"conversation_ready": True}
+
+        def set_chat_dependencies_ready(self, ready, *, blocker=""):
+            self.ready_events.append((bool(ready), str(blocker)))
+
+    gate = _Gate()
+    attempts = 0
+    foreground_calls = 0
+
+    def _embedding():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise KeyError("huggingface_hub.utils")
+        return {"vector_dimensions": 384, "lease_count": 1}
+
+    def _foreground():
+        nonlocal foreground_calls
+        foreground_calls += 1
+        return {"skill_count": 87, "expression_path": {"elapsed_ms": 1.0}}
+
+    async def _ready_object():
+        return object()
+
+    monkeypatch.setattr(
+        server.ServiceContainer,
+        "get",
+        classmethod(
+            lambda _cls, key, default=None: gate
+            if key == "inference_gate"
+            else default
+        ),
+    )
+    monkeypatch.setattr(server, "is_shutdown_requested", lambda: False)
+    monkeypatch.setattr(embedding_runtime, "prewarm_shared_embedding_runtime", _embedding)
+    monkeypatch.setattr(
+        evidence_relevance_module,
+        "prewarm_evidence_relevance",
+        lambda: {"elapsed_ms": 1.0},
+    )
+    monkeypatch.setattr(profile_manager_module.ProfileManager, "get_instance", _ready_object)
+    monkeypatch.setattr(unified_self_module, "get_unified_self", _ready_object)
+    monkeypatch.setattr(
+        self_condition_module,
+        "build_self_condition_projection",
+        lambda: type("Projection", (), {"evidence_id": "condition-proof"})(),
+    )
+    monkeypatch.setattr(
+        chat_dependencies_module,
+        "materialize_foreground_chat_dependencies",
+        _foreground,
+    )
+    monkeypatch.setattr(
+        server,
+        "record_degradation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("a recovered attempt is not terminal degradation")
+        ),
+    )
+
+    asyncio.run(
+        server._prewarm_chat_dependencies_after_cortex_ready(
+            readiness_timeout_s=0.1,
+            poll_interval_s=0.01,
+            dependency_attempts=2,
+            dependency_retry_delay_s=0.0,
+        )
+    )
+
+    assert attempts == 2
+    assert foreground_calls == 2
+    assert gate.ready_events == [
+        (False, "chat_dependencies_warming"),
+        (True, ""),
+    ]
+
+
+def test_server_prewarm_names_terminal_dependency_failure(monkeypatch) -> None:
+    import core.cognition.evidence_relevance as evidence_relevance_module
+    import core.consciousness.unified_self as unified_self_module
+    import core.memory.embedding_runtime as embedding_runtime
+    import core.memory.profile_manager as profile_manager_module
+    import core.self.self_condition as self_condition_module
+    import interface.chat_dependencies as chat_dependencies_module
+    from interface import server
+
+    class _Gate:
+        def __init__(self) -> None:
+            self.ready_events: list[tuple[bool, str]] = []
+
+        def get_cortex_readiness_status(self):
+            return {"conversation_ready": True}
+
+        def set_chat_dependencies_ready(self, ready, *, blocker=""):
+            self.ready_events.append((bool(ready), str(blocker)))
+
+    gate = _Gate()
+    degradations: list[tuple[str, str, str]] = []
+
+    async def _ready_object():
+        return object()
+
+    monkeypatch.setattr(
+        server.ServiceContainer,
+        "get",
+        classmethod(
+            lambda _cls, key, default=None: gate
+            if key == "inference_gate"
+            else default
+        ),
+    )
+    monkeypatch.setattr(server, "is_shutdown_requested", lambda: False)
+    monkeypatch.setattr(
+        embedding_runtime,
+        "prewarm_shared_embedding_runtime",
+        lambda: (_ for _ in ()).throw(KeyError("huggingface_hub.utils")),
+    )
+    monkeypatch.setattr(
+        evidence_relevance_module,
+        "prewarm_evidence_relevance",
+        lambda: {"elapsed_ms": 1.0},
+    )
+    monkeypatch.setattr(profile_manager_module.ProfileManager, "get_instance", _ready_object)
+    monkeypatch.setattr(unified_self_module, "get_unified_self", _ready_object)
+    monkeypatch.setattr(
+        self_condition_module,
+        "build_self_condition_projection",
+        lambda: type("Projection", (), {"evidence_id": "condition-proof"})(),
+    )
+    monkeypatch.setattr(
+        chat_dependencies_module,
+        "materialize_foreground_chat_dependencies",
+        lambda: {"skill_count": 87, "expression_path": {"elapsed_ms": 1.0}},
+    )
+    monkeypatch.setattr(
+        server,
+        "record_degradation",
+        lambda subsystem, error, **kwargs: degradations.append(
+            (str(subsystem), str(error), str(kwargs.get("severity")))
+        ),
+    )
+
+    asyncio.run(
+        server._prewarm_chat_dependencies_after_cortex_ready(
+            readiness_timeout_s=0.1,
+            poll_interval_s=0.01,
+            dependency_attempts=2,
+            dependency_retry_delay_s=0.0,
+        )
+    )
+
+    assert gate.ready_events == [
+        (False, "chat_dependencies_warming"),
+        (False, "chat_dependencies_failed"),
+    ]
+    assert degradations == [
+        (
+            "server.chat_dependency_warmup",
+            "chat_dependency_stage_failed:readers:embedding:KeyError:"
+            "'huggingface_hub.utils'",
+            "degraded",
+        )
     ]

@@ -28,11 +28,31 @@ class _SlowModel:
     def __init__(self, delay_s: float = 0.4) -> None:
         self.delay_s = delay_s
         self.calls = 0
+        self.tokenizer = _Tokenizer()
 
     def encode(self, text, **kwargs):
         self.calls += 1
         time.sleep(self.delay_s)
         return [0.0, 1.0, 0.0]
+
+
+class _Tokenizer:
+    """Minimal exact-offset tokenizer for the embedding lifecycle tests."""
+
+    def __call__(self, text, **_kwargs):
+        words = str(text).split()
+        offsets = []
+        cursor = 0
+        for word in words:
+            start = str(text).find(word, cursor)
+            end = start + len(word)
+            offsets.append((start, end))
+            cursor = end
+        return {"input_ids": list(range(len(words))), "offset_mapping": offsets}
+
+    @staticmethod
+    def num_special_tokens_to_add(*, pair=False):
+        return 0
 
 
 def _engine_with_model(model) -> EmbeddingEngine:

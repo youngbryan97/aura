@@ -2027,6 +2027,7 @@ async def test_user_facing_secondary_uses_compact_foreground_context_builders(mo
         gate._build_system_prompt = CallProbe(side_effect=AssertionError("full system prompt should not be used"))
         gate._build_living_mind_context = AsyncCallProbe(side_effect=AssertionError("full living context should not be used"))
         gate._schedule_primary_restore_after_deep_handoff = CallProbe()
+        gate._local_deep_solver_block_reason = CallProbe(return_value="")
 
         def _fake_get_mlx_client(model_path=None, **kwargs):
             if model_path == "/models/deep":
@@ -4753,9 +4754,14 @@ async def test_deferred_cortex_prewarm_defers_active_generation_without_degradat
             await gate._deferred_prewarm_task
 
 
+@pytest.mark.parametrize(
+    "dependency_blocker",
+    ("chat_dependencies_warming", "chat_dependencies_failed"),
+)
 @pytest.mark.asyncio
 async def test_deferred_cortex_prewarm_stands_down_for_chat_dependency_owner(
     monkeypatch,
+    dependency_blocker,
 ):
     gate = InferenceGate()
     status_read = asyncio.Event()
@@ -4769,8 +4775,8 @@ async def test_deferred_cortex_prewarm_stands_down_for_chat_dependency_owner(
                 "conversation_ready": False,
                 "state": "ready",
                 "warmup_in_flight": False,
-                "readiness_blockers": ["chat_dependencies_warming"],
-                "last_failure_reason": "chat_dependencies_warming",
+                "readiness_blockers": [dependency_blocker],
+                "last_failure_reason": dependency_blocker,
                 "chat_dependencies_ready": False,
                 "active_generations": 0,
             }

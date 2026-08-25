@@ -147,16 +147,21 @@ def _get_whisper_model_class():
     if _whisper_import_attempted:
         return None
 
-    _whisper_import_attempted = True
     try:
-        from faster_whisper import WhisperModel as FasterWhisperModel
+        from core.runtime.third_party_imports import import_attribute_serialized
 
-        _WhisperModel = FasterWhisperModel
+        whisper_model_cls = import_attribute_serialized(
+            "faster_whisper",
+            "WhisperModel",
+        )
+        _WhisperModel = whisper_model_cls
     except ImportError:
         logger.warning("faster-whisper not installed — STT unavailable")
     except (AttributeError, RuntimeError) as exc:
         record_degradation('voice_engine', exc)
         logger.error("❌ faster-whisper import failed — STT unavailable: %s", exc)
+    finally:
+        _whisper_import_attempted = True
     return _WhisperModel
 
 
