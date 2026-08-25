@@ -871,21 +871,47 @@ def test_host_bypass_accepts_unavailability_but_rejects_integrity_failures(
             offer=forged_absence,
             reason="latent_cortex_absent_integrity_failure",
         )
+
+    # An integrity failure never bypasses, however it is worded. This is the
+    # case the eligibility rule exists for: the rehearsal RAN and refused, and
+    # calling that unavailability would let a verdict masquerade as an absence.
+    for index, reason in enumerate(
+        (
+            "episode_integrity_hash_mismatch",
+            "episode_integrity_failure:trace_truncated",
+            "not_an_availability_failure:client_unavailable:OSError",
+        )
+    ):
+        integrity_failure = _offer(action_id=f"action-integrity-{index}")
+        coordinator.prepare(integrity_failure)
+        with pytest.raises(ValueError, match="not eligible"):
+            coordinator.record_bypass(offer=integrity_failure, reason=reason)
+
+
+def test_an_unlisted_exception_class_still_counts_as_unavailability(
+    tmp_path: Path,
+) -> None:
+    """Eligibility is by class, because an ineligible bypass refuses the action.
+
+    preaction_cortex composes its reasons as
+    `availability_failure:{type(exc).__name__}`, so while the rule was an exact
+    list, any exception nobody had enumerated made the bypass ineligible and
+    took the whole action down with it. Live 2026-08-18 a user-requested
+    browser task died that way after clearing every authority gate before it.
+    """
+    coordinator = ExternalExecuteCoordinator(tmp_path / "transactions")
     for index, reason in enumerate(
         (
             "availability_failure:client_unavailable:RuntimeError",
             "availability_failure:generation_lease_unavailable:RuntimeError",
+            "availability_failure:SomeClassInventedNextYear",
         )
     ):
-        integrity_failure = _offer(
-            action_id=f"action-runtime-integrity-{index}"
-        )
-        coordinator.prepare(integrity_failure)
-        with pytest.raises(ValueError, match="not eligible"):
-            coordinator.record_bypass(
-                offer=integrity_failure,
-                reason=reason,
-            )
+        offer = _offer(action_id=f"action-unlisted-{index}")
+        coordinator.prepare(offer)
+        bypassed = coordinator.record_bypass(offer=offer, reason=reason)
+        assert bypassed["state"] == "DECIDED"
+        assert bypassed["decision_source"] == "host_fallback"
 
 
 def test_complete_trace_rejects_missing_prior_action_lineage(tmp_path: Path) -> None:
