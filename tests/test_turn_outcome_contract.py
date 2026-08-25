@@ -115,6 +115,75 @@ def test_a_tool_returning_is_not_success_when_an_effect_was_requested():
     assert receipt.rationale == "requested_effect_declared_but_never_observed"
 
 
+def test_a_proven_served_task_failure_is_not_a_runtime_degradation(monkeypatch):
+    """A failed task remains failed without falsely declaring chat broken."""
+    from core.runtime import turn_outcome
+
+    recorded = []
+    monkeypatch.setattr(
+        turn_outcome,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+    outcome = TurnOutcome(origin="desktop_task")
+    outcome.declare_effect("application_opened", "open MissingApplication")
+    outcome.observe_effect(
+        "application_opened",
+        "no installed application matched",
+        verification=VerificationGrade.ASSERTED,
+    )
+    outcome.record_error("no installed application matched", retryable=False)
+    outcome.record_receipt(
+        "served_response_authority",
+        {
+            "authority_verified": True,
+            "delivery_verified": True,
+        },
+    )
+    outcome.mark_served("No installed application matches 'MissingApplication'.")
+
+    receipt = outcome.finalize(subsystem="chat")
+
+    assert receipt.status is OutcomeStatus.TERMINAL_FAILURE
+    assert receipt.rationale == "requested_effect_observed_failed"
+    assert receipt.handled_task_failure is True
+    assert recorded == []
+
+
+def test_an_unproven_served_task_failure_still_escalates(monkeypatch):
+    """Text delivery alone cannot launder an infrastructure failure."""
+    from core.runtime import turn_outcome
+
+    recorded = []
+    monkeypatch.setattr(
+        turn_outcome,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+    outcome = TurnOutcome(origin="desktop_task")
+    outcome.declare_effect("application_opened", "open MissingApplication")
+    outcome.observe_effect(
+        "application_opened",
+        "execution channel crashed",
+        verification=VerificationGrade.ASSERTED,
+    )
+    outcome.record_error("execution channel crashed", retryable=False)
+    outcome.record_receipt(
+        "served_response_authority",
+        {
+            "authority_verified": False,
+            "delivery_verified": True,
+        },
+    )
+    outcome.mark_served("Something went wrong.")
+
+    receipt = outcome.finalize(subsystem="chat")
+
+    assert receipt.handled_task_failure is False
+    assert recorded
+    assert recorded[0][1]["severity"] == "degraded"
+
+
 def test_an_observed_effect_does_make_it_a_success():
     """The control: the effect path must still be able to succeed."""
     outcome = TurnOutcome(origin="desktop_task")

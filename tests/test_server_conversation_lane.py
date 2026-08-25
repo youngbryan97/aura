@@ -13126,6 +13126,40 @@ def test_verified_action_serialization_is_proven_without_model_authorship() -> N
     )
 
 
+def test_http_delivery_records_the_proven_response_authority() -> None:
+    from starlette.responses import JSONResponse
+
+    from core.runtime.turn_outcome import TurnOutcome
+    from interface.routes import chat as chat_routes
+
+    outcome = TurnOutcome(origin="user_chat")
+    response = JSONResponse(
+        {
+            "response": "No installed application matches 'MissingApplication'.",
+            "live_turn_contract": {
+                "response_authority_kind": "verified_action_receipt_serialization",
+                "response_authority_proven": True,
+                "response_authority_reason": "governed_executor_reported_failure",
+                "answer_delivery_proven": True,
+            },
+        }
+    )
+
+    chat_routes._mark_http_turn_served(outcome, response)
+
+    authority = [
+        receipt
+        for receipt in outcome.receipts()
+        if receipt.get("kind") == "served_response_authority"
+    ]
+    assert len(authority) == 1
+    assert authority[0]["payload"]["authority_verified"] is True
+    assert authority[0]["payload"]["delivery_verified"] is True
+    assert outcome.finalize(subsystem="test").served_answer.startswith(
+        "No installed application"
+    )
+
+
 def test_governed_failure_episode_proves_its_exact_response_serialization() -> None:
     from interface.routes import chat as chat_routes
 

@@ -17539,6 +17539,31 @@ def _mark_http_turn_served(outcome: Any, response: Any) -> None:
             data = json.loads(payload)
             if isinstance(data, dict):
                 served = str(data.get("response") or "")
+                live_contract = data.get("live_turn_contract")
+                if isinstance(live_contract, dict):
+                    outcome.record_receipt(
+                        "served_response_authority",
+                        {
+                            # Use the turn ledger's redaction-safe evidence
+                            # vocabulary. Raw HTTP contract names containing
+                            # "auth" are intentionally redacted as possible
+                            # credentials by record_receipt().
+                            "evidence_kind": live_contract.get(
+                                "response_authority_kind"
+                            ),
+                            "authority_verified": live_contract.get(
+                                "response_authority_proven"
+                            )
+                            is True,
+                            "evidence_reason": live_contract.get(
+                                "response_authority_reason"
+                            ),
+                            "delivery_verified": live_contract.get(
+                                "answer_delivery_proven"
+                            )
+                            is True,
+                        },
+                    )
         if served.strip():
             outcome.mark_served(served)
         else:

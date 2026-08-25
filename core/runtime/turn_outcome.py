@@ -920,6 +920,37 @@ class TurnReceipt:
         """
         return bool(self.answer_candidate) and not (self.served_answer or "").strip()
 
+    @property
+    def handled_task_failure(self) -> bool:
+        """A requested effect failed, but its proven report reached the person.
+
+        Task failure and runtime failure are different axes.  A governed tool
+        can authoritatively establish that an effect did not occur and the HTTP
+        boundary can prove that exact report was delivered.  Escalating that
+        completed reporting path as a broken chat subsystem creates a second,
+        false incident for the first, real task outcome.
+
+        The delivery receipt is required.  Merely serving an apology, or a
+        component asserting that its own error was handled, does not qualify.
+        """
+
+        if not self.status.is_failure or not self.requested_effects:
+            return False
+        if not (self.served_answer or "").strip():
+            return False
+        for receipt in self.causal_receipts:
+            if receipt.get("kind") != "served_response_authority":
+                continue
+            payload = receipt.get("payload")
+            if not isinstance(payload, Mapping):
+                continue
+            if (
+                payload.get("authority_verified") is True
+                and payload.get("delivery_verified") is True
+            ):
+                return True
+        return False
+
     def to_dict(self) -> dict[str, Any]:
         """Telemetry-safe view. Answer TEXT is never included.
 
@@ -981,6 +1012,14 @@ def _report(receipt: TurnReceipt, *, subsystem: str) -> None:
     one is how health reports learned to cry wolf.
     """
     if receipt.status.is_success or receipt.status is OutcomeStatus.REFUSED:
+        return
+
+    # The task did fail, so the immutable receipt remains a failure.  But the
+    # chat runtime successfully delivered an authoritative account of that
+    # failure.  The failing capability owns any component-level degradation;
+    # reporting a second chat degradation here would turn honest adaptation
+    # into an incident and dispatch irrelevant self-repair work.
+    if receipt.handled_task_failure:
         return
 
     if receipt.held_an_unserved_answer:
