@@ -17425,12 +17425,24 @@ _SERVED_FROM_RECORD_OPENINGS = (
     "Earlier today you asked me:",
     "My record holds",
     "Positions I have actually revised",
+    # The trailing space is load-bearing: it is the word boundary that keeps
+    # "Awake 61.6 days" in and "Awakening" out.
     "Awake ",
-    "By ",
 )
 
 #: The queued-work answer opens with a count, so it is recognised by shape.
 _SERVED_COUNT_OPENING = re.compile(r"^\d+\s+jobs?\s+waiting\s+to\s+run\b")
+
+#: The tabular answer opens "By <column>, <aggregation> <column> ... (N of M
+#: rows):". It used to be recognised by the prefix "By " alone, which is two
+#: letters of ordinary English — "By the way", "By default the timeout is
+#: 30s". A generated reply opening that way was read as a served record and
+#: therefore not badged as a guess, which is the wrong direction for a mistake
+#: to run. The row count the composer always emits is what no ordinary
+#: sentence carries.
+_SERVED_TABULAR_OPENING = re.compile(
+    r"^By \S[^\n,]*,[^\n]*\(\d+ of \d+ rows\):"
+)
 
 
 async def _recorded_answer_corrections(
@@ -17463,7 +17475,7 @@ async def _recorded_answer_corrections(
 
 def _reply_was_served_from_a_record(reply: object) -> bool:
     body = str(reply or "").lstrip()
-    if _SERVED_COUNT_OPENING.match(body):
+    if _SERVED_COUNT_OPENING.match(body) or _SERVED_TABULAR_OPENING.match(body):
         return True
     return any(body.startswith(opening) for opening in _SERVED_FROM_RECORD_OPENINGS)
 

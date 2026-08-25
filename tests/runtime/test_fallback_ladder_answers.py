@@ -164,8 +164,15 @@ def test_the_identity_comes_from_the_canonical_file() -> None:
 
 
 def test_a_missing_identity_file_does_not_break_the_ladder(monkeypatch) -> None:
+    """Patched where the function reads it, which is core.utils.paths.
+
+    It used to patch core.identity.CORE_DIR. That module only re-exports the
+    path as a side effect of its own import, and the resolver was moved to the
+    module that owns it — so the patch stopped reaching the code under test
+    and the assertion started measuring the real file.
+    """
     monkeypatch.setattr(
-        "core.identity.CORE_DIR", __import__("pathlib").Path("/nonexistent-dir")
+        "core.utils.paths.CORE_DIR", __import__("pathlib").Path("/nonexistent-dir")
     )
 
     assert chat_module._fallback_ladder_identity() == ""
