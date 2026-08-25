@@ -18,9 +18,21 @@ recorded after everything the head was fitted on. States drift slowly, so a
 randomly chosen other-turn state is often similar to the real one; that makes
 this a conservative test rather than a generous one.
 
-Measured 2026-08-25 on 453 held-out turns of the 9B utility lane: 57.0% of
-turns favoured her own state, sign test p = 0.0018. Real, above chance, and
-modest.
+The corpus is PINNED, and it has to be. The live runtime keeps recording, so
+"held out from the end" names different turns every time this is run: the same
+head over the same lane returned 453 turns at 57.0%, then 488 turns at 53.5%,
+because 412 more turns had arrived in between and the tail moved. An
+experiment whose input changes underneath it is not reproducible, whatever its
+p-value. `--upto` fixes the corpus at a recorded-at boundary and every report
+carries the boundary, the count and a digest of exactly which turns were
+scored.
+
+The one run this repository cites is
+docs/evidence/endogenous_language/paired_recovery_9b.json: 491 held-out turns
+of the 9B utility lane, 54.0% favouring her own state, sign test p = 0.043.
+Above chance and close to the line. Earlier figures of 57.0% at p = 0.0018 and
+57% at p = 0.008 came from unpinned runs over a corpus that grew between them
+and should not be quoted.
 """
 
 from __future__ import annotations
@@ -63,6 +75,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True, help="recorded model basename")
     parser.add_argument("--corpus", default=None)
     parser.add_argument("--seed", type=int, default=11)
+    parser.add_argument(
+        "--upto",
+        type=float,
+        default=None,
+        help=(
+            "pin the corpus to turns recorded at or before this unix time, so "
+            "the run is reproducible while the runtime keeps recording"
+        ),
+    )
     parser.add_argument("--json", default=None)
     args = parser.parse_args(argv)
 
@@ -76,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
         (p for p in iter_pairs(directory=corpus) if p.model == args.model),
         key=lambda pair: pair.recorded_at,
     )
+    if args.upto is not None:
+        pairs = [pair for pair in pairs if pair.recorded_at <= float(args.upto)]
     if not pairs:
         raise SystemExit(f"no recorded turns for model {args.model!r}")
 
@@ -113,7 +136,25 @@ def main(argv: list[str] | None = None) -> int:
     other_scores = np.asarray(other)
     difference = own_scores - other_scores
     wins = int((difference > 0).sum())
+    # Exactly which turns were scored, so a later run can be shown to be the
+    # same experiment rather than merely the same command.
+    corpus_digest = hashlib.sha256(
+        "\n".join(f"{pair.recorded_at:.6f}:{pair.model}" for pair in pairs).encode()
+    ).hexdigest()[:32]
     report = {
+        "corpus": {
+            "model": args.model,
+            "turns": len(pairs),
+            "earliest": round(pairs[0].recorded_at, 3),
+            "latest": round(pairs[-1].recorded_at, 3),
+            "pinned_upto": args.upto,
+            "digest": corpus_digest,
+        },
+        "head": {
+            "layout": head.layout,
+            "semantics": head.semantics,
+            "tokenizer": head.tokenizer,
+        },
         "held_out_turns": len(difference),
         "own_state_mean_bias": round(float(own_scores.mean()), 6),
         "other_state_mean_bias": round(float(other_scores.mean()), 6),

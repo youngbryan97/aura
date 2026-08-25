@@ -53,7 +53,7 @@ from typing import Any
 import numpy as np
 
 from core.brain.llm.endogenous_pair_recorder import RecordedPair
-from core.brain.llm.endogenous_state import STATE_DIM, layout_digest
+from core.brain.llm.endogenous_state import STATE_DIM, layout_digest, semantics_digest
 from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
 
 logger = logging.getLogger("Aura.EndogenousTraining")
@@ -226,6 +226,9 @@ class VocabFit:
     top_k: int
     layout: str
     tokenizer: str
+    #: The DERIVATIONS this was fitted against, not just the feature names. A
+    #: head is fitted to what the numbers meant.
+    semantics: str = ""
     #: What actually moved in the corpus this was fitted on. A verdict can
     #: only be a claim about the part of the state that varied.
     state_variance: dict[str, Any] = field(default_factory=dict)
@@ -357,6 +360,7 @@ class VocabFit:
     def as_report(self) -> dict[str, Any]:
         return {
             "layout": self.layout,
+            "semantics": self.semantics,
             "tokenizer": self.tokenizer,
             "state_variance": self.state_variance,
             "only_affect_varied": self.only_affect_varied,
@@ -428,6 +432,7 @@ class VocabFit:
             weights=weights,
             bias=np.zeros(self.vocab_size, dtype=np.float32),
             vocab_size=int(self.vocab_size),
+            semantics=self.semantics,
             layout=self.layout,
             tokenizer=self.tokenizer,
             trained=bool(self.usable),
@@ -1167,6 +1172,7 @@ def fit_vocab_head(
         refit_null_scores=tuple(refit_nulls),
         top_k=int(max(1, min(int(top_k), active.size))),
         layout=layout_digest(),
+        semantics=semantics_digest(),
         tokenizer=str(tokenizer_signature),
     )
     logger.info(

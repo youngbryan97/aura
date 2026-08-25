@@ -1,0 +1,22 @@
+{
+  "corpus": {
+    "model": "8b2b98c00a6b4d291155e4890773ca8f769aee53",
+    "turns": 2037,
+    "earliest": 1787631251.764,
+    "latest": 1787688454.901,
+    "pinned_upto": 1787688454.901,
+    "digest": "8c463740d9b66f096d7120ac52bc6577"
+  },
+  "head": {
+    "layout": "d3a59c56a36248d52b67d8282bf2f702",
+    "semantics": "",
+    "tokenizer": "45800e709f822c71375ad7c2e4ba67cb"
+  },
+  "held_out_turns": 491,
+  "own_state_mean_bias": -0.077221,
+  "other_state_mean_bias": -0.091119,
+  "paired_difference": 0.013898,
+  "turns_favouring_own_state": 265,
+  "share": 0.5397,
+  "sign_test_p": 0.043128491776091314
+}

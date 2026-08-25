@@ -151,11 +151,22 @@ held-out turn, score the tokens she actually produced under the state that
 actually held, and again under a state that belonged to a different turn.
 Same head, same words, same tokenizer; only the state differs.
 
-On 454 held-out turns, every one recorded after everything the head was
-fitted on, her own state favoured her own words in **57%** of them — sign
-test p = 0.008. A head that had learned nothing about states would win half.
+On 491 held-out turns, every one recorded after everything the head was
+fitted on, her own state favoured her own words in **54.0%** of them — sign
+test p = 0.043. A head that had learned nothing about states would win half.
 States drift slowly, so a randomly borrowed state is often similar to the real
 one, which makes this conservative rather than generous.
+
+That figure is above chance and close to the line, and it replaces two earlier
+ones. 57.0% at p = 0.0018 and 57% at p = 0.008 were both real runs of the same
+command over a corpus that grew between them: the runtime keeps recording, so
+"held out from the end" named different turns each time, and the effect
+weakened as the tail moved. An experiment whose input changes underneath it is
+not reproducible whatever its p-value, so the corpus is pinned at a
+recorded-at boundary now and every report carries that boundary, the turn
+count and a digest of exactly which turns were scored. The single run this
+document cites is
+[`docs/evidence/endogenous_language/paired_recovery_9b.json`](evidence/endogenous_language/paired_recovery_9b.json).
 
 Real, above chance, and modest. `tools/endogenous_paired_recovery.py` runs it.
 

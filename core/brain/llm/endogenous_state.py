@@ -29,11 +29,14 @@ measured nothing.
 
 from __future__ import annotations
 
+import ast
+import copy
 import hashlib
 import inspect
 import json
 import logging
 import math
+import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -160,6 +163,94 @@ def layout_digest() -> str:
             "features": [[f.name, f.channel, f.low, f.high] for f in FEATURES],
         },
         sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:32]
+
+
+def _derivation_closure() -> list[str]:
+    """Every function in this module that a probe transitively depends on."""
+    try:
+        source = inspect.getsource(sys.modules[__name__])
+        tree = ast.parse(source)
+    except (OSError, SyntaxError, TypeError, KeyError):
+        return []
+    defined = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    wanted = sorted(probe.__name__ for probe in PROBES.values())
+    seen: set[str] = set()
+    queue = list(wanted)
+    while queue:
+        name = queue.pop()
+        if name in seen or name not in defined:
+            continue
+        seen.add(name)
+        for node in ast.walk(defined[name]):
+            called = None
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    called = node.func.id
+                elif isinstance(node.func, ast.Attribute):
+                    called = node.func.attr
+            if called and called in defined and called not in seen:
+                queue.append(called)
+    return sorted(seen)
+
+
+def _semantic_body(node: ast.AST) -> str:
+    """A function's structure with its docstring removed.
+
+    Comments are already absent from an AST. Dropping the docstring too means
+    rewriting an explanation does not look like rewriting a derivation.
+    """
+    clone = copy.deepcopy(node)
+    body = getattr(clone, "body", None)
+    if (
+        isinstance(body, list)
+        and body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(getattr(body[0], "value", None), ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        clone.body = body[1:] or [ast.Pass()]
+    return ast.dump(clone, annotate_fields=False)
+
+
+def semantics_digest() -> str:
+    """Fingerprint of HOW each dimension is derived, not what it is called.
+
+    ``layout_digest`` covers names, channels and ranges, so a head trained
+    before a probe was rewired still matches the state it now receives. That
+    is exactly the case this repository produced on 2026-08-25: the substrate
+    channel went from unreachable to 34 live readings, uncertainty from absent
+    to real numbers, ``temporal.past`` from a copy of ``memory.recall_hits``
+    to episodic recency, and ``temporal.future`` from a copy of
+    ``goal.priority`` to priority scaled by what remains. Same names, same
+    ranges, same digest — and a different meaning behind every one of them.
+
+    Same number and same name is not the same feature. A head is fitted to
+    what the numbers MEANT, so this fingerprints the derivations themselves:
+    every probe plus the closure of module functions it calls, structurally,
+    with docstrings dropped so prose is not mistaken for logic.
+    """
+    parts: list[tuple[str, str]] = []
+    try:
+        tree = ast.parse(inspect.getsource(sys.modules[__name__]))
+    except (OSError, SyntaxError, TypeError, KeyError):
+        return "unreadable"
+    defined = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    for name in _derivation_closure():
+        node = defined.get(name)
+        if node is not None:
+            parts.append((name, _semantic_body(node)))
+    payload = json.dumps(
+        {"version": LAYOUT_VERSION, "derivations": parts}, sort_keys=True
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:32]
 
@@ -1390,6 +1481,7 @@ __all__ = [
     "describe_layout",
     "empty_state",
     "layout_digest",
+    "semantics_digest",
     "pool_substrate",
     "reset_state_cache",
 ]

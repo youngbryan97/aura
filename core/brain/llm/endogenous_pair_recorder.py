@@ -38,6 +38,7 @@ from core.brain.llm.endogenous_state import (
     STATE_DIM,
     EndogenousState,
     layout_digest,
+    semantics_digest,
 )
 from core.runtime.flags import FlagKind, declare
 from core.runtime.lockdep import LockRank, checked_lock
@@ -130,6 +131,11 @@ def _record_payload(
     return {
         "v": 1,
         "layout": layout_digest(),
+        # What the numbers MEANT when this turn was recorded. The layout
+        # covers names and ranges, so a corpus recorded before a probe was
+        # rewired is indistinguishable from one recorded after it — same
+        # dimension, different derivation, one pile of training data.
+        "semantics": semantics_digest(),
         "t": round(time.time(), 3),
         "lane": str(lane or "")[:48],
         "model": os.path.basename(str(model or ""))[:96],
@@ -244,6 +250,7 @@ def iter_pairs(
     directory: Path | None = None,
     limit: int | None = None,
     require_layout: bool = True,
+    require_semantics: bool = False,
 ) -> Iterator[RecordedPair]:
     """Read the corpus back, newest files last, skipping anything malformed.
 
@@ -251,7 +258,15 @@ def iter_pairs(
     Mixing layouts would fit one matrix to two different meanings of the same
     column, which is the quiet way to get a head that measures well and means
     nothing.
+
+    ``require_semantics`` is the sharper version of the same rule and is OFF
+    by default, because turning it on retroactively discards every turn
+    recorded before the derivations were fingerprinted. The layout can match
+    while the meaning behind a dimension has changed — `temporal.past` was a
+    copy of `memory.recall_hits` and is episodic recency now, under the same
+    name and the same range. Pass it when a corpus must be one experiment.
     """
+    current_semantics = semantics_digest()
     root = Path(directory) if directory is not None else store_directory()
     current = layout_digest()
     files = sorted(root.glob("pairs-*.jsonl")) + [root / "pairs.jsonl"]
@@ -268,7 +283,13 @@ def iter_pairs(
             for line in handle:
                 if limit is not None and seen >= limit:
                     return
-                pair = _parse_line(line, current=current, require_layout=require_layout)
+                pair = _parse_line(
+                    line,
+                    current=current,
+                    require_layout=require_layout,
+                    current_semantics=current_semantics,
+                    require_semantics=require_semantics,
+                )
                 if pair is None:
                     continue
                 seen += 1
@@ -276,13 +297,20 @@ def iter_pairs(
 
 
 def _parse_line(
-    line: str, *, current: str, require_layout: bool
+    line: str,
+    *,
+    current: str,
+    require_layout: bool,
+    current_semantics: str = "",
+    require_semantics: bool = False,
 ) -> RecordedPair | None:
     try:
         payload = json.loads(line)
     except ValueError:
         return None
     if not isinstance(payload, Mapping):
+        return None
+    if require_semantics and str(payload.get("semantics") or "") != current_semantics:
         return None
     if require_layout and str(payload.get("layout") or "") != current:
         return None

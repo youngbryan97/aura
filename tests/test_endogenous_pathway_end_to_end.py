@@ -27,7 +27,7 @@ from core.brain.llm.endogenous_intervention import (
     measure_contrast,
 )
 from core.brain.llm.endogenous_readout_training import TurnTokens, fit_vocab_head
-from core.brain.llm.endogenous_state import STATE_DIM, assemble_state
+from core.brain.llm.endogenous_state import semantics_digest, STATE_DIM, assemble_state
 from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
 
 VOCAB = 120
@@ -99,6 +99,9 @@ def head_on_disk(fitted, tmp_path, monkeypatch):
         bias=head.bias,
         vocab_size=head.vocab_size,
         layout=head.layout,
+        # Rebinding to another tokenizer keeps the semantics: what the
+        # dimensions MEAN did not change because the vocabulary did.
+        semantics=head.semantics,
         tokenizer=tokenizer_signature(tokenizer),
         trained=head.trained,
         report=head.report,

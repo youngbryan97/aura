@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from core.brain.llm.endogenous_state import STATE_DIM, layout_digest
+from core.brain.llm.endogenous_state import semantics_digest, STATE_DIM, layout_digest
 from core.brain.llm.endogenous_vocab_head import (
     HEAD_ARTIFACT_SCHEMA,
     EndogenousVocabHead,
@@ -22,6 +22,7 @@ def _head(*, offset: float = 0.0) -> EndogenousVocabHead:
         bias=np.asarray([0.1, -0.2, 0.3], dtype=np.float32) + offset,
         vocab_size=3,
         layout=layout_digest(),
+        semantics=semantics_digest(),
         tokenizer="tokenizer-fixture",
         trained=True,
         report={"held_out_gain": 0.25},

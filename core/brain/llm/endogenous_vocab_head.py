@@ -49,6 +49,7 @@ from core.brain.llm.endogenous_state import (
     STATE_DIM,
     EndogenousState,
     layout_digest,
+    semantics_digest,
 )
 from core.runtime.flags import FlagKind, declare
 
@@ -135,6 +136,7 @@ class BiasDecision:
     max_abs_delta: float = 0.0
     nonzero_tokens: int = 0
     layout: str = ""
+    semantics: str = ""
     tokenizer: str = ""
     state_digest: str = ""
 
@@ -147,6 +149,7 @@ class BiasDecision:
             "max_abs_delta": round(self.max_abs_delta, 6),
             "nonzero_tokens": self.nonzero_tokens,
             "layout": self.layout,
+            "semantics": self.semantics,
             "tokenizer": self.tokenizer,
             "state_digest": self.state_digest,
         }
@@ -160,8 +163,15 @@ class EndogenousVocabHead:
     bias: np.ndarray  # (vocab,)
     vocab_size: int
     layout: str
-    tokenizer: str
-    trained: bool
+    #: Fingerprint of the DERIVATIONS behind the dimensions, not just their
+    #: names. A head fitted before a probe was rewired matches the layout and
+    #: was fitted to numbers that no longer mean the same thing.
+    #:
+    #: Defaults to "" — a head that never declared its provenance — and the
+    #: guard in `decide` refuses that, so nothing attaches by omission.
+    semantics: str = ""
+    tokenizer: str = ""
+    trained: bool = False
     report: Mapping[str, Any] = field(default_factory=dict)
     trained_at: float = 0.0
 
@@ -200,6 +210,7 @@ class EndogenousVocabHead:
             alpha=float(alpha),
             coverage=state.coverage,
             layout=self.layout,
+            semantics=self.semantics,
             tokenizer=self.tokenizer,
             state_digest=state.digest,
         )
@@ -207,6 +218,14 @@ class EndogenousVocabHead:
             return None, _with(base, reason="head_untrained")
         if self.layout != layout_digest():
             return None, _with(base, reason="layout_mismatch")
+        # Same names and ranges, different meaning behind them. A head
+        # fitted while `temporal.past` was a copy of `memory.recall_hits`
+        # matches the layout of a state where it is episodic recency, and
+        # is applied to a number it never saw. An empty field is a head
+        # from before this was recorded: it cannot be shown to match, so
+        # it does not.
+        if self.semantics != semantics_digest():
+            return None, _with(base, reason="semantics_mismatch")
         if tokenizer_sig and self.tokenizer != tokenizer_sig:
             return None, _with(base, reason="tokenizer_mismatch")
         if not math.isfinite(float(alpha)) or float(alpha) <= 0.0:
@@ -258,6 +277,7 @@ class EndogenousVocabHead:
             "vocab_size": int(self.vocab_size),
             "state_dim": int(STATE_DIM),
             "layout": self.layout,
+            "semantics": self.semantics,
             "tokenizer": self.tokenizer,
             "trained": bool(self.trained),
             "trained_at": self.trained_at or time.time(),
@@ -342,6 +362,7 @@ class EndogenousVocabHead:
             bias=bias,
             vocab_size=int(manifest.get("vocab_size") or weights.shape[0]),
             layout=str(manifest.get("layout") or ""),
+            semantics=str(manifest.get("semantics") or ""),
             tokenizer=str(manifest.get("tokenizer") or ""),
             trained=bool(manifest.get("trained")),
             report=manifest.get("report") or {},
@@ -361,6 +382,7 @@ class EndogenousVocabHead:
             bias=self.bias,
             vocab_size=self.vocab_size,
             layout=self.layout,
+            semantics=self.semantics,
             tokenizer=tokenizer,
             trained=False,
             report={**dict(self.report), "rebound_from": self.tokenizer},
@@ -385,6 +407,7 @@ def untrained_head(vocab_size: int, tokenizer: str) -> EndogenousVocabHead:
         bias=np.zeros(int(vocab_size), dtype=np.float32),
         vocab_size=int(vocab_size),
         layout=layout_digest(),
+        semantics=semantics_digest(),
         tokenizer=tokenizer,
         trained=False,
     )

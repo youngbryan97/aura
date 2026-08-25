@@ -20,6 +20,7 @@ from core.brain.llm.endogenous_intervention import (
     text_distance,
 )
 from core.brain.llm.endogenous_state import (
+    semantics_digest,
     CHANNELS,
     FEATURE_INDEX,
     STATE_DIM,
@@ -36,6 +37,7 @@ def _head(seed: int = 1, vocab: int = 128) -> EndogenousVocabHead:
         bias=np.zeros(vocab, dtype=np.float32),
         vocab_size=vocab,
         layout=layout_digest(),
+        semantics=semantics_digest(),
         tokenizer="sig",
         trained=True,
     )

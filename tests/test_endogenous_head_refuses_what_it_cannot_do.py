@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from core.brain.llm.endogenous_state import (
+    semantics_digest,
     STATE_DIM,
     empty_state,
     layout_digest,
@@ -34,6 +35,7 @@ def _trained(vocab: int = 256, tokenizer: str = "sig", seed: int = 0) -> Endogen
         bias=np.zeros(vocab, dtype=np.float32),
         vocab_size=vocab,
         layout=layout_digest(),
+        semantics=semantics_digest(),
         tokenizer=tokenizer,
         trained=True,
     )
@@ -107,6 +109,7 @@ def test_a_head_of_the_wrong_shape_is_rejected_at_construction():
             bias=np.zeros(10, dtype=np.float32),
             vocab_size=10,
             layout=layout_digest(),
+        semantics=semantics_digest(),
             tokenizer="sig",
             trained=True,
         )
@@ -121,6 +124,7 @@ def test_non_finite_weights_are_rejected():
             bias=np.zeros(4, dtype=np.float32),
             vocab_size=4,
             layout=layout_digest(),
+        semantics=semantics_digest(),
             tokenizer="sig",
             trained=True,
         )
