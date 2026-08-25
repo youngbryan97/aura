@@ -52,10 +52,16 @@ class _Snap:
         self.reason = "test"
 
 
-def _make_alive_client(monkeypatch, *, idle_s: float) -> MLXLocalClient:
+def _make_alive_client(
+    monkeypatch,
+    *,
+    idle_s: float,
+    model_path: str = _TEST_MODEL_PATH,
+    runtime_assignment=None,
+) -> MLXLocalClient:
     """An MLXLocalClient that looks alive+initialized and idle for idle_s, with
     the teardown path stubbed so the test exercises only scavenge logic."""
-    c = MLXLocalClient(model_path=_TEST_MODEL_PATH)
+    c = MLXLocalClient(model_path=model_path, runtime_assignment=runtime_assignment)
     c._init_done = True
     c._process = _FakeProc(alive=True)
     now = time.time()
@@ -193,8 +199,22 @@ def test_driver_iterates_clients_and_counts(monkeypatch):
 # moment RAM matters. Small lanes keep the citizenship unload.
 
 def _make_primary_client(monkeypatch, *, idle_s: float) -> MLXLocalClient:
-    c = _make_alive_client(monkeypatch, idle_s=idle_s)
-    c.model_path = "/models/Qwen2.5-32B-cortex-test"
+    """A client the runtime recognises as the primary lane.
+
+    Assigning `model_path` after construction does not make one: since CP941
+    the lane comes from the runtime assignment the client was built with, not
+    from tokens in its path, so this produced an auxiliary client and the
+    primary-lane branch under test never ran.
+    """
+    from core.brain.llm.model_runtime_roles_for_tests import assignment_for
+
+    cortex_path = "/models/Qwen2.5-32B-cortex-test"
+    c = _make_alive_client(
+        monkeypatch,
+        idle_s=idle_s,
+        model_path=cortex_path,
+        runtime_assignment=assignment_for(cortex_path, role="cortex"),
+    )
     return c
 
 

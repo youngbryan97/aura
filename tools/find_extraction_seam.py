@@ -727,9 +727,14 @@ def implementation_source(owner: object, name: str, *, depth: int = 3) -> str:
         source = source_of(target_name)
         if not source:
             return
-        parts.append(source)
+        # Dedented per part. A method's source carries four spaces of class
+        # indentation and a module-level helper carries none, so joining them
+        # raw and dedenting the whole left the methods indented under nothing
+        # — every caller that parsed the result got IndentationError as soon
+        # as the walk reached its first module-level helper.
+        parts.append(textwrap_dedent(source))
         try:
-            tree = ast.parse(textwrap_dedent(source))
+            tree = ast.parse(parts[-1])
         except SyntaxError:
             return
         for node in ast.walk(tree):
