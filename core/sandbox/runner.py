@@ -18,6 +18,10 @@ from core.runtime.task_ownership import create_tracked_task
 
 logger = logging.getLogger(__name__)
 
+#: The tree the sandboxed runner adds to its path, so the engineering
+#: primitives can be handed to code that has no import of its own.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 DEFAULT_TIMEOUT = 10
 DEFAULT_MEM_BYTES = 500 * 1024 * 1024  # 500MB limit
 DEFAULT_OUTPUT_LIMIT = 200 * 1024  # 200KB limit for std output
@@ -50,7 +54,41 @@ params = json.loads(sys.stdin.read())
 code = params.get("code", "")
 mem_bytes = params.get("mem_bytes", None)
 cpu_seconds = params.get("cpu_seconds", None)
+repo_root = params.get("repo_root", "")
 resource_warning = None
+
+# Engineering primitives, imported HERE while real builtins still exist and
+# handed to the sandboxed code as ready-made names. The sandbox has no
+# __import__ by design, and it stays that way: these are pure computation
+# with no file, network or process reach, so making them available adds
+# arithmetic that carries its units rather than any new capability.
+#
+# Without this the only way to do dimensional arithmetic in the REPL was to
+# open the import door for everything.
+engineering_namespace = {}
+engineering_error = None
+if repo_root and repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+try:
+    from core.engineering.geometry import (
+        Box, Capsule, Cone, Cylinder, Dome, Ellipsoid, Frustum, Plate, Prism,
+        Sphere, Torus, Tube, solid_from_spec,
+    )
+    from core.engineering.materials import fluid, material
+    from core.engineering.uncertainty import Uncertain, propagate, rss_stack
+    from core.engineering.units import Q, DimensionError, parse_quantity
+    engineering_namespace = {
+        "Q": Q, "parse_quantity": parse_quantity, "DimensionError": DimensionError,
+        "material": material, "fluid": fluid,
+        "Box": Box, "Plate": Plate, "Cylinder": Cylinder, "Tube": Tube,
+        "Sphere": Sphere, "Dome": Dome, "Cone": Cone, "Frustum": Frustum,
+        "Torus": Torus, "Capsule": Capsule, "Prism": Prism,
+        "Ellipsoid": Ellipsoid, "solid_from_spec": solid_from_spec,
+        "Uncertain": Uncertain, "propagate": propagate, "rss_stack": rss_stack,
+    }
+except (ImportError, AttributeError) as exc:
+    # A REPL without the engineering package is still a REPL.
+    engineering_error = repr(exc)
 RUNNER_RUNTIME_ERRORS = (Exception, KeyboardInterrupt, SystemExit)
 
 try:
@@ -104,6 +142,7 @@ safe_builtins = {
 
 try:
     globals_dict = {"__name__": "__main__", "__builtins__": safe_builtins}
+    globals_dict.update(engineering_namespace)
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
@@ -163,6 +202,31 @@ def _termination_detail(returncode: int | None) -> str:
     return f"child terminated by {signal_name}"
 
 
+#: The only variables untrusted code's process is given. Everything else in
+#: the parent environment — API keys, tokens, session paths — was being
+#: handed to it, which the subprocess gateway had been recording as a
+#: privilege-inheritance degradation on every single run. The child needs a
+#: PATH to find nothing in particular and a temp directory it can write to,
+#: and it is started with -I so it reads no user site or PYTHONPATH anyway.
+_UNTRUSTED_ENV_KEYS = ("PATH", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
+
+
+def _untrusted_environment() -> dict[str, str]:
+    """A minimal environment for the untrusted child."""
+    import os
+
+    env = {
+        key: os.environ[key]
+        for key in _UNTRUSTED_ENV_KEYS
+        if os.environ.get(key)
+    }
+    env.setdefault("PATH", "/usr/bin:/bin")
+    # A home it cannot learn anything from, and no site packages of its own.
+    env["HOME"] = env.get("TMPDIR", "/tmp")
+    env["PYTHONNOUSERSITE"] = "1"
+    return env
+
+
 async def _communicate_process(
     command: tuple[str, ...],
     payload: bytes,
@@ -176,6 +240,7 @@ async def _communicate_process(
         stderr=_PIPE,
         source="sandbox.runner.untrusted_child",
         accelerator_capability="auto",
+        env=_untrusted_environment(),
     )
     communicate_task = create_tracked_task(
         process.communicate(input=payload),
@@ -290,6 +355,10 @@ def run_untrusted(
                 "code": code,
                 "mem_bytes": mem_bytes,
                 "cpu_seconds": timeout,
+                # The runner starts with -I, so it inherits no path. It needs
+                # this to find the engineering primitives it hands the
+                # sandboxed code; nothing else is read from the tree.
+                "repo_root": str(_REPO_ROOT),
             }
         ).encode("utf-8")
 
