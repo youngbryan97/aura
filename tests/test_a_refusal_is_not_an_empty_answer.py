@@ -213,17 +213,37 @@ def test_every_local_attempt_is_capped_by_the_request_deadline(variable):
     raise AssertionError(f"{variable} was not found")
 
 
-def test_both_cloud_paths_are_capped_by_the_request_deadline():
+def test_no_attempt_runs_on_its_own_clock():
+    """Every attempt window comes out of the caller's budget.
+
+    This used to name cloud_window_s and router_window_s. The remote
+    inference provider was removed, so both identifiers went with it and the
+    test pinned two names instead of the property they existed to protect —
+    that no attempt opens a clock the caller never agreed to.
+    """
     import core.brain.inference_gate as gate_mod
 
     source = inspect.getsource(gate_mod)
 
-    assert "cloud_window_s = self._window_within(" in source
-    assert "router_window_s = self._window_within(" in source
-    # And no hard 30-second cloud budget survives.
-    assert "timeout=30.0," not in source, (
-        "a cloud attempt still runs on its own thirty-second clock"
+    assert "def _window_within(" in source, (
+        "the helper that bounds an attempt by the request deadline is gone"
     )
+    assert source.count("_window_within(") > 1, (
+        "nothing calls the helper that bounds an attempt"
+    )
+    # No hard budget survives anywhere in the gate.
+    assert "timeout=30.0," not in source, (
+        "an attempt still runs on its own thirty-second clock"
+    )
+
+
+def test_the_remote_inference_provider_is_gone():
+    """It was removed; nothing should be able to reintroduce it quietly."""
+    import core.brain.inference_gate as gate_mod
+
+    source = inspect.getsource(gate_mod)
+    for name in ("cloud_window_s", "router_window_s", "_call_cloud"):
+        assert name not in source, f"{name} came back without a window"
 
 
 # ────────────────────────── a draft handed downstream is not yet an answer

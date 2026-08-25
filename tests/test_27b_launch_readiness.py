@@ -68,11 +68,26 @@ def test_environmental_and_package_blockers_are_separated(monkeypatch):
         ],
     )
     monkeypatch.setattr(readiness, "_package_findings", list)
+    # Silenced too: this reports on real repo state, so leaving it live made
+    # the counts below depend on whether a campaign config happened to be
+    # materialized on this machine.
+    monkeypatch.setattr(readiness, "_campaign_config_findings", list)
     report = readiness.build()
     assert report["blocker_counts"] == {"environmental": 1, "package": 1}
     classes = {b["kind"]: b["class"] for b in report["blockers"]}
     assert classes["insufficient_ram"] == "environmental"
     assert classes["source_drifted"] == "package"
+
+
+def test_every_blocker_carries_a_class(monkeypatch):
+    """Whatever the sources report, nothing reaches the report unclassified.
+
+    The counts above are hermetic by construction. This one runs the real
+    sources, because an unclassified blocker is the failure that would hide in
+    a source nobody thought to silence.
+    """
+    for blocker in readiness.build()["blockers"]:
+        assert blocker.get("class") in {"environmental", "package"}, blocker
 
 
 def test_a_package_carrying_a_verdict_before_the_run_blocks(monkeypatch, tmp_path):
