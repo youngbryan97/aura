@@ -278,3 +278,33 @@ async def test_an_unfinished_pursuit_says_how_far_it_got(monkeypatch):
     assert "Made 40 move(s)" in result["said"]
     assert "ran out of moves" in result["said"]
     assert "30 of them did what I expected" in result["said"]
+
+
+def test_what_a_step_said_about_itself_is_the_answer():
+    """LIVE: she played a game to a score of 996 and the turn replied "I
+    couldn't get to an answer I'd stand behind."
+
+    The work was done and reported in words. Reaching past that for a screen
+    buffer, a step count, or an apology is the same mistake in three
+    different directions.
+    """
+    from interface.routes.chat_desktop_objective import _desktop_task_observation
+
+    result = {
+        "ok": True,
+        "steps_requested": 1,
+        "steps_completed": 1,
+        "receipts": [
+            {
+                "action": "pursue_on_screen",
+                "ok": True,
+                "result": {
+                    "said": "Reached it: '128' appeared after 47 move(s). 31 of them did what I expected.",
+                    "text": "2048 SCORE 996 BEST 6068 New Game",
+                },
+            }
+        ],
+    }
+    observed = _desktop_task_observation(result)
+    assert "Reached it" in observed
+    assert "SCORE 996 BEST" not in observed, "the screen buffer stood in for the answer again"

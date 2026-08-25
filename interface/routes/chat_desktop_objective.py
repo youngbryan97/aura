@@ -746,6 +746,12 @@ def _desktop_task_observation(result: dict[str, Any]) -> str:
         return ""
 
     observation_keys = (
+        # What a step said about itself, first. An action that reports in
+        # words — "Reached it: '128' appeared after 47 moves" — has already
+        # answered the person, and reaching past it for a screen buffer or a
+        # step count is the same mistake this function exists to avoid, in a
+        # third direction.
+        "said",
         "observation",
         "screen_text",
         "accessibility_text",
