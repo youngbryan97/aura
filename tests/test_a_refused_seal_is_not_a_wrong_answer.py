@@ -284,6 +284,56 @@ def test_health_reuses_a_strict_verdict_only_while_dependencies_are_unchanged(
     admission._HEALTH_ADMISSION_CACHE.clear()
 
 
+def test_event_loop_health_refresh_never_waits_for_strict_admission(
+    monkeypatch,
+) -> None:
+    """The runtime loop reads a projection while strict I/O runs elsewhere."""
+    import asyncio
+    import threading
+
+    import core.learning.sealed_artifact_admission as admission
+
+    started = threading.Event()
+    release = threading.Event()
+    admission._HEALTH_ADMISSION_CACHE.clear()
+    admission._HEALTH_ADMISSION_REFRESHING.clear()
+
+    def blocked_signature(*_args):
+        started.set()
+        assert release.wait(timeout=5.0)
+        return ("measured",)
+
+    monkeypatch.setattr(admission, "_artifact_dependency_signature", blocked_signature)
+    monkeypatch.setattr(
+        admission,
+        "artifact_admission_status",
+        lambda name, _module, _attribute: {
+            "artifact": name,
+            "admitted": True,
+            "reason": "",
+            "drifted_sources": [],
+            "pinned_source_count": 0,
+        },
+    )
+
+    async def read_on_loop():
+        return admission.sealed_artifact_admission_report()
+
+    report = asyncio.run(read_on_loop())
+    assert report["artifacts"][0]["verification_pending"] is True
+    assert started.wait(timeout=2.0)
+    release.set()
+    for _ in range(100):
+        with admission._HEALTH_ADMISSION_LOCK:
+            if not admission._HEALTH_ADMISSION_REFRESHING:
+                break
+        threading.Event().wait(0.01)
+    else:
+        raise AssertionError("background admission refresh did not finish")
+
+    admission._HEALTH_ADMISSION_CACHE.clear()
+
+
 def test_capability_admission_never_uses_the_health_memo(monkeypatch) -> None:
     """The optimization belongs to observability, not execution authority."""
     import core.learning.sealed_artifact_admission as admission

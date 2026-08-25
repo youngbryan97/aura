@@ -26,9 +26,11 @@ hash the diagnostic reports on. A probe must not change what it measures.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import threading
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -60,6 +62,7 @@ _HEALTH_ADMISSION_LOCK = checked_lock("core.learning.sealed_artifact_admission")
 _HEALTH_ADMISSION_CACHE: dict[
     tuple[str, str, str], tuple[tuple[Any, ...], dict[str, Any]]
 ] = {}
+_HEALTH_ADMISSION_REFRESHING: set[tuple[str, str, str]] = set()
 
 
 def _file_sha256(path: Path) -> str:
@@ -141,18 +144,74 @@ def _health_artifact_admission_status(
 ) -> dict[str, Any]:
     """Strict verdict memoized until any consumed dependency changes."""
     key = (name, module, attribute)
+    if asyncio.events._get_running_loop() is not None:  # noqa: SLF001
+        with _HEALTH_ADMISSION_LOCK:
+            cached = _HEALTH_ADMISSION_CACHE.get(key)
+        _schedule_health_artifact_refresh(key)
+        if cached is not None:
+            status = deepcopy(cached[1])
+            status["health_cache_refreshing"] = True
+            return status
+        return {
+            "artifact": name,
+            "admitted": False,
+            "reason": "admission verification warming off the event loop",
+            "drifted_sources": [],
+            "pinned_source_count": 0,
+            "verification_pending": True,
+            "health_cache_refreshing": True,
+        }
+
     signature = _artifact_dependency_signature(module, attribute)
     with _HEALTH_ADMISSION_LOCK:
         cached = _HEALTH_ADMISSION_CACHE.get(key)
         if cached is not None and cached[0] == signature:
             return deepcopy(cached[1])
 
-        # Singleflight the expensive verification. Health polling is the only
-        # caller of this helper; capability admission remains independently
-        # strict on every use.
-        status = artifact_admission_status(name, module, attribute)
+    # Strict source hashing and tissue loading are deliberately outside the
+    # cache mutex. The mutex owns publication, not the filesystem transaction.
+    status = artifact_admission_status(name, module, attribute)
+    with _HEALTH_ADMISSION_LOCK:
         _HEALTH_ADMISSION_CACHE[key] = (signature, deepcopy(status))
-        return status
+    return status
+
+
+def _schedule_health_artifact_refresh(key: tuple[str, str, str]) -> None:
+    """Singleflight one exact health refresh away from the event-loop thread."""
+    with _HEALTH_ADMISSION_LOCK:
+        if key in _HEALTH_ADMISSION_REFRESHING:
+            return
+        _HEALTH_ADMISSION_REFRESHING.add(key)
+
+    def refresh() -> None:
+        try:
+            name, module, attribute = key
+            signature = _artifact_dependency_signature(module, attribute)
+            with _HEALTH_ADMISSION_LOCK:
+                cached = _HEALTH_ADMISSION_CACHE.get(key)
+                if cached is not None and cached[0] == signature:
+                    return
+            status = artifact_admission_status(name, module, attribute)
+            with _HEALTH_ADMISSION_LOCK:
+                _HEALTH_ADMISSION_CACHE[key] = (signature, deepcopy(status))
+        finally:
+            with _HEALTH_ADMISSION_LOCK:
+                _HEALTH_ADMISSION_REFRESHING.discard(key)
+
+    try:
+        threading.Thread(
+            target=refresh,
+            name=f"AuraSealedAdmission-{_thread_label(key[0])}",
+            daemon=True,
+        ).start()
+    except RuntimeError:
+        with _HEALTH_ADMISSION_LOCK:
+            _HEALTH_ADMISSION_REFRESHING.discard(key)
+
+
+def _thread_label(value: str) -> str:
+    """Return a bounded thread-label component for diagnostics."""
+    return "".join(character for character in value if character.isalnum())[:32] or "artifact"
 
 
 def artifact_admission_status(name: str, module: str, attribute: str) -> dict[str, Any]:
@@ -223,7 +282,12 @@ def sealed_artifact_admission_report() -> dict[str, Any]:
         _health_artifact_admission_status(name, module, attribute)
         for name, module, attribute in _SEALED_ARTIFACTS
     ]
-    refused = [a for a in artifacts if not a["admitted"]]
+    pending = [a for a in artifacts if a.get("verification_pending") is True]
+    refused = [
+        artifact
+        for artifact in artifacts
+        if not artifact["admitted"] and artifact.get("verification_pending") is not True
+    ]
     # A capability that has gone offline because its provenance no longer holds
     # is worth saying out loud. It was previously visible only as a registered
     # claim reporting False. This is a query a health surface polls, so it
@@ -248,6 +312,7 @@ def sealed_artifact_admission_report() -> dict[str, Any]:
         "admitted": sum(1 for a in artifacts if a["admitted"]),
         "declared": len(artifacts),
         "refused": [a["artifact"] for a in refused],
+        "pending": [a["artifact"] for a in pending],
     }
 
 
