@@ -1,5 +1,5 @@
 {
-  "content_sha256": "1ead3e5252c1af3018f10dd2b4ecb3811e4d0e3ffae636326dc3ad7b2d7090f8",
+  "content_sha256": "8f61b9bbbf585e1143810318e00003e0b9d98eccbc82069f25b2e9bd43f380cb",
   "entries": [
     {
       "acceptance_ids": [
@@ -122,26 +122,16 @@
       "acceptance_ids": [
         "A1",
         "A2",
-        "A3"
-      ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
-      "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
-      "requirement_id": "ADDENDUM-23",
-      "sha256": "131d2933a92df7718d5c28a5f537a165eba894c57ba243588130d6d9b46e48c9"
-    },
-    {
-      "acceptance_ids": [
+        "A3",
         "A4",
         "A5"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "e0b44467e7edb6a14ae3300951b1b8c4b0bd6777",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "a9c51be07d1aaa64b7701b23e3201dc7a541cb823f36ac1380d39a141e45ec16"
+      "sha256": "927f3b9f9b4211fd25570964d0666e7a7f7cbc2d0c19cf06e75e9d00b86e869f"
     },
     {
       "acceptance_ids": [
@@ -416,12 +406,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "e0b44467e7edb6a14ae3300951b1b8c4b0bd6777",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json",
       "requirement_id": "CTX2-SKILL-001",
-      "sha256": "131d2933a92df7718d5c28a5f537a165eba894c57ba243588130d6d9b46e48c9"
+      "sha256": "927f3b9f9b4211fd25570964d0666e7a7f7cbc2d0c19cf06e75e9d00b86e869f"
     },
     {
       "acceptance_ids": [
@@ -471,12 +461,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "e0b44467e7edb6a14ae3300951b1b8c4b0bd6777",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "a9c51be07d1aaa64b7701b23e3201dc7a541cb823f36ac1380d39a141e45ec16"
+      "sha256": "927f3b9f9b4211fd25570964d0666e7a7f7cbc2d0c19cf06e75e9d00b86e869f"
     },
     {
       "acceptance_ids": [
@@ -717,12 +707,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "e0b44467e7edb6a14ae3300951b1b8c4b0bd6777",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json",
       "requirement_id": "SKILLS-001",
-      "sha256": "131d2933a92df7718d5c28a5f537a165eba894c57ba243588130d6d9b46e48c9"
+      "sha256": "927f3b9f9b4211fd25570964d0666e7a7f7cbc2d0c19cf06e75e9d00b86e869f"
     },
     {
       "acceptance_ids": [
