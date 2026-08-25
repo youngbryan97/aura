@@ -647,10 +647,35 @@ class TestSheReadsThePhrasingNotTheQuestion:
         "Was that... Was that humor?",
     )
 
+    @pytest.fixture(autouse=True)
+    def _warm_routing(self):
+        """Warm the router, because a cold turn deliberately answers no.
+
+        `wants_evidence` refuses to load a model to decide anything: a turn
+        arriving before the embedding is warm gets the lexical floor and asks
+        for a warm in the background. Cold, every phrasing here comes back
+        False — which fails the positive cases and passes the negative ones
+        for the wrong reason. The live runtime prewarms at boot; so does this.
+        """
+        from core.cognition.evidence_relevance import (
+            semantic_routing_available,
+            warm_semantic_routing,
+        )
+
+        if not semantic_routing_available():
+            pytest.skip("semantic evidence routing is unavailable offline")
+        assert warm_semantic_routing(), "the router would not warm"
+
     def _lane(self, text: str) -> bool:
         from interface.routes.chat import _turn_may_concern_own_source
 
         return _turn_may_concern_own_source(text)
+
+    def test_the_router_is_warm_so_these_answers_mean_something(self):
+        """Guards the rest of the class: cold, every assertion below is vacuous."""
+        from core.cognition.evidence_relevance import semantic_routing_ready
+
+        assert semantic_routing_ready()
 
     def test_every_live_phrasing_reaches_her_source(self):
         missed = [ask for ask in self.LIVE_ASKS if not self._lane(ask)]
