@@ -144,9 +144,29 @@ def main(argv: list[str]) -> int:
     print(f"raw lock constructions: {raw}")
 
     if "--write-baseline" in argv:
+        # A ratchet whose refresh command can loosen it is not a ratchet.
+        # Writing a HIGHER count would record the debt as the new normal and
+        # the gate would pass on it forever — which is the failure this file
+        # exists to prevent, reached through its own maintenance path.
+        previous = _load_baseline()
+        was = int((previous or {}).get("raw_lock_calls", 0))
+        if previous is not None and raw > was:
+            print(
+                f"❌ refusing to raise the baseline: {was} -> {raw}. "
+                "Migrate the new raw locks to checked_lock / checked_async_lock, "
+                "or adopt the section with instrument()."
+            )
+            return 1
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        print(f"baseline written: {BASELINE.relative_to(ROOT)}")
+        try:
+            shown = BASELINE.relative_to(ROOT)
+        except ValueError:
+            # A baseline outside the repo is a test pointing this somewhere
+            # temporary. Reporting the absolute path is the honest answer;
+            # raising out of a successful write is not.
+            shown = BASELINE
+        print(f"baseline written: {shown} ({was} -> {raw})")
         return 0
 
     baseline = _load_baseline()

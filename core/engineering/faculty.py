@@ -20,11 +20,12 @@ which is the honest answer to "can you do this?" before she has tried.
 
 from __future__ import annotations
 
-import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import LockRank, checked_lock
 
 __all__ = [
     "DesignRecord",
@@ -39,7 +40,7 @@ __all__ = [
 #: small enough that it costs nothing.
 _HISTORY = 64
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("engineering_faculty.singleton", rank=LockRank.REGISTRY)
 _RECORDS: deque[DesignRecord] = deque(maxlen=_HISTORY)
 
 
@@ -214,8 +215,8 @@ def capability_statement() -> str:
         f"I draw {len(SHEET_KINDS)} kinds of sheet and use the standard symbol sets "
         f"({', '.join(sorted(STANDARDS))}), and export in "
         f"{len(FORMATS)} formats including printable mesh and editable CAD source.",
-        f"Every number on a drawing carries its formula, its inputs and its reference, "
-        f"and anything that cannot is dropped before rendering rather than shown.",
+        "Every number on a drawing carries its formula, its inputs and its reference, "
+        "and anything that cannot is dropped before rendering rather than shown.",
         report.plain(),
     ]
     if records:

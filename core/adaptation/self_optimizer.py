@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import sys
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -20,6 +19,7 @@ from core.runtime import resource_psutil as psutil
 from core.runtime.background_policy import background_activity_reason
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
@@ -377,7 +377,7 @@ _optimizer_instance = None
 # Serialize first-access construction so concurrent callers cannot build two
 # SelfOptimizer instances (each with its own event-bus binding and training
 # owner) racing against the same adapter path.
-_optimizer_lock = threading.Lock()
+_optimizer_lock = checked_lock("self_optimizer.singleton", rank=LockRank.REGISTRY)
 
 def get_self_optimizer() -> SelfOptimizer:
     global _optimizer_instance

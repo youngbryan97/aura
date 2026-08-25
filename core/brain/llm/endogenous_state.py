@@ -34,7 +34,6 @@ import inspect
 import json
 import logging
 import math
-import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -43,6 +42,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.EndogenousState")
 
@@ -930,7 +930,7 @@ PROBES: dict[str, Callable[[], dict[str, float] | None]] = {
 CACHE_TTL_S = 0.25
 
 _CACHE: tuple[float, EndogenousState] | None = None
-_CACHE_LOCK = threading.Lock()
+_CACHE_LOCK = checked_lock("endogenous_state.cache", rank=LockRank.LEAF)
 
 
 def reset_state_cache() -> None:

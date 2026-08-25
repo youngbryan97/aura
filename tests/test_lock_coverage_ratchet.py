@@ -57,3 +57,38 @@ def test_coverage_is_reported_so_the_claim_can_state_its_scope():
     raw = int(current["files_with_raw_locks"])
     assert checked > 0, "no file uses checked locks; lockdep would see nothing"
     assert raw + checked > 100, "the scanner stopped seeing the codebase"
+
+
+def test_the_refresh_command_cannot_loosen_the_ratchet(tmp_path, monkeypatch):
+    """A ratchet whose maintenance path can raise it is not a ratchet.
+
+    --write-baseline wrote whatever it measured. A run after new raw locks
+    landed would have recorded the debt as the new normal, and the gate would
+    have passed on it forever — the failure this file exists to prevent,
+    reached through its own refresh command.
+    """
+    import json
+
+    import tools.lint_lock_coverage as gate
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"raw_lock_calls": 1, "raw_by_file": {}}) + "\n")
+    monkeypatch.setattr(gate, "BASELINE", baseline)
+
+    assert gate.main(["--write-baseline"]) == 1, "a rise was written"
+    assert json.loads(baseline.read_text())["raw_lock_calls"] == 1
+
+
+def test_the_refresh_command_still_tightens(tmp_path, monkeypatch):
+    import json
+
+    import tools.lint_lock_coverage as gate
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps({"raw_lock_calls": 10_000, "raw_by_file": {}}) + "\n"
+    )
+    monkeypatch.setattr(gate, "BASELINE", baseline)
+
+    assert gate.main(["--write-baseline"]) == 0
+    assert json.loads(baseline.read_text())["raw_lock_calls"] < 10_000

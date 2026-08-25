@@ -18,7 +18,6 @@ import random
 import re
 import secrets
 import statistics
-import threading
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -29,6 +28,7 @@ from core.brain.canonical_json import (
     CANONICAL_JSON_PROFILE,
     canonical_json_bytes,
 )
+from core.runtime.lockdep import LockRank, checked_lock
 
 PROTOCOL_VERSION = 5
 MAX_CHALLENGE_LIFETIME_S = 3_600.0
@@ -1660,7 +1660,9 @@ def _chain_key() -> bytes | None:
 
 
 _CHAIN_KEY_CACHE: bytes | None = None
-_CHAIN_KEY_LOCK = threading.Lock()
+_CHAIN_KEY_LOCK = checked_lock(
+    "frontier_evidence.chain_key", rank=LockRank.REGISTRY
+)
 
 
 def sign_chain_head(head_sha256: str | None) -> str:

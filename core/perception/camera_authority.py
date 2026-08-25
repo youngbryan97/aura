@@ -51,13 +51,12 @@ from __future__ import annotations
 import importlib.util
 import io
 import logging
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.permission_gates import camera_allowed
 
 logger = logging.getLogger("Perception.CameraAuthority")
@@ -728,7 +727,7 @@ class CameraAuthority:
 
 
 _authority: CameraAuthority | None = None
-_authority_lock = threading.Lock()
+_authority_lock = checked_lock("camera_authority.singleton", rank=LockRank.REGISTRY)
 
 
 def get_camera_authority() -> CameraAuthority:

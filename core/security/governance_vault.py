@@ -28,6 +28,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.GovernanceVault")
@@ -383,7 +384,9 @@ class GovernanceVault:
 
 _instance: GovernanceVault | None = None
 _shutdown_registered = False
-_instance_lock = threading.RLock()
+_instance_lock = checked_lock(
+    "governance_vault.singleton", rank=LockRank.REGISTRY, reentrant=True
+)
 
 
 def _register_vault_lifecycle() -> None:

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 import math
-import threading
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -35,6 +34,7 @@ from core.brain.llm.endogenous_vocab_head import (
     head_directory,
     tokenizer_signature,
 )
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.EndogenousDecode")
 
@@ -45,7 +45,10 @@ JOB_STATE_KEY = "endogenous_state"
 #: token's probability before the endogenous term may touch it.
 DEFAULT_BETA = 0.1
 
-_LOAD_LOCK = threading.Lock()
+#: Guards the one-shot head load and the tokenizer fingerprint cache.
+#: A checked lock rather than a raw one: lockdep only sees the locks it
+#: wraps, and this one is held across a file read.
+_LOAD_LOCK = checked_lock("endogenous_decode.head", rank=LockRank.REGISTRY)
 _CACHED: tuple[str, EndogenousVocabHead | None, str] | None = None
 
 
@@ -246,7 +249,7 @@ __all__ = [
 # Health. A pathway nobody can see the state of is a pathway nobody can trust.
 # ──────────────────────────────────────────────────────────────────────────
 
-_HEALTH_LOCK = threading.Lock()
+_HEALTH_LOCK = checked_lock("endogenous_decode.health", rank=LockRank.LEAF)
 _HEALTH: dict[str, Any] = {
     "generations_seen": 0,
     "bias_applied": 0,

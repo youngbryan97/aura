@@ -25,7 +25,6 @@ import hashlib
 import json
 import logging
 import os
-import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterator, Mapping
@@ -41,6 +40,7 @@ from core.brain.llm.endogenous_state import (
     layout_digest,
 )
 from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.EndogenousPairs")
 
@@ -72,7 +72,9 @@ _RECORD_FLAG = declare(
 #: Rotation and append are one storage transaction inside this process. Without
 #: this lock, two completed turns can both rotate the same active file and one
 #: can replace the other's generation before either appends.
-_STORE_LOCK = threading.Lock()
+_STORE_LOCK = checked_lock(
+    "endogenous_pair_recorder.store", rank=LockRank.RESOURCE
+)
 
 
 def store_directory() -> Path:
@@ -369,7 +371,9 @@ __all__ = [
 
 _PENDING_LIMIT = 64
 _PENDING: OrderedDict[str, tuple[dict[str, Any], str, str, float]] = OrderedDict()
-_PENDING_LOCK = threading.Lock()
+_PENDING_LOCK = checked_lock(
+    "endogenous_pair_recorder.pending", rank=LockRank.LEAF
+)
 
 #: A request older than this lost its response. Dropped rather than paired
 #: with whatever comes next.

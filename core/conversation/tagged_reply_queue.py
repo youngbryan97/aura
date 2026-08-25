@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import logging
-import threading
 import time
 import uuid
 from collections import defaultdict, deque
@@ -19,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LockRank, checked_lock
 from core.utils.queues import LoopAgnosticQueue
 
 logger = logging.getLogger("Aura.TaggedReplyQueue")
@@ -86,7 +86,11 @@ class TaggedReplyQueue:
         self.maxsize = maxsize
         self._queue = LoopAgnosticQueue(maxsize=maxsize)
         self._deferred: deque[TaggedReply] = deque()
-        self._lock = threading.RLock()
+        self._lock = checked_lock(
+            f"tagged_reply_queue.{id(self):x}",
+            rank=LockRank.RESOURCE,
+            reentrant=True,
+        )
         self._waiters: dict[
             tuple[str, str],
             deque[asyncio.Future[TaggedReply]],

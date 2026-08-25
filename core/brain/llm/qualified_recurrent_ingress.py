@@ -20,13 +20,17 @@ from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any, Final
 
+from core.runtime.lockdep import LockRank, checked_lock
+
 QUALIFIED_RECURRENT_INGRESS_SCHEMA: Final = "aura.unified_intrinsic.qualified_ingress.v1"
 QUALIFIED_RECURRENT_RESULT_SCHEMA: Final = "aura.unified_intrinsic.qualified_foreground_result.v1"
 QUALIFIED_ANSWER_BRIDGE: Final = "\n\nFINAL_ANSWER: "
 _HEX: Final = frozenset("0123456789abcdef")
 _QUALIFIED_CPU_WORKERS: Final = 2
 _qualified_cpu_executor_instance: ThreadPoolExecutor | None = None
-_qualified_cpu_executor_lock = threading.Lock()
+_qualified_cpu_executor_lock = checked_lock(
+    "qualified_recurrent_ingress.executor", rank=LockRank.REGISTRY
+)
 _qualified_cpu_thread_state = threading.local()
 
 _TERMINAL = (

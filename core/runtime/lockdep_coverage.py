@@ -131,12 +131,25 @@ class LockdepCoverageReport:
         }
 
 
+#: Counting primitives that register no lock ordering. CheckedSemaphore says
+#: the same thing: N simultaneous holders have no ordering to violate, so the
+#: only property the wrapper adds is a BOUNDED acquire.
+_COUNTING_PRIMITIVES = frozenset({"Semaphore", "BoundedSemaphore"})
+
+
 class _LockVisitor(ast.NodeVisitor):
     def __init__(self, rel_path: str) -> None:
         self.rel_path = rel_path
         self.raw: list[RawLock] = []
         self.checked = 0
         self._scope: list[str] = []
+        #: name -> RawLock, for counting primitives only. Resolved against the
+        #: acquires below once the whole module has been walked.
+        self._counting: dict[str, RawLock] = {}
+        #: Names acquired at least once WITHOUT blocking=False.
+        self._waited_on: set[str] = set()
+        #: Names acquired at all.
+        self._acquired: set[str] = set()
 
     def _enter(self, node: Any) -> None:
         self._scope.append(node.name)
@@ -146,6 +159,19 @@ class _LockVisitor(ast.NodeVisitor):
     visit_FunctionDef = _enter          # noqa: N815 - ast API casing
     visit_AsyncFunctionDef = _enter     # noqa: N815
     visit_ClassDef = _enter             # noqa: N815
+
+    def visit_Assign(self, node: ast.Assign) -> None:  # noqa: N802 - ast API
+        """Remember the NAME a counting primitive was assigned to.
+
+        A semaphore acquired only with ``blocking=False`` cannot wedge — the
+        call returns immediately either way — so it is not what this gate is
+        looking for. Deciding that needs the name, and the name is only here.
+        """
+        name = _assigned_name(node)
+        if name:
+            for raw in _counting_constructions(node.value, self.rel_path, self._scope):
+                self._counting[name] = raw
+        self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802 - ast API
         func = node.func
@@ -160,9 +186,73 @@ class _LockVisitor(ast.NodeVisitor):
                         function=".".join(self._scope),
                     )
                 )
+            elif func.attr == "acquire":
+                target = _receiver_name(func.value)
+                if target:
+                    self._acquired.add(target)
+                    if not _is_non_blocking_acquire(node):
+                        self._waited_on.add(target)
         elif isinstance(func, ast.Name) and func.id in _CHECKED_CONSTRUCTORS:
             self.checked += 1
         self.generic_visit(node)
+
+    def resolve(self) -> None:
+        """Drop counting primitives this module never waits on."""
+        exempt = {
+            raw
+            for name, raw in self._counting.items()
+            if name in self._acquired and name not in self._waited_on
+        }
+        if exempt:
+            self.raw = [raw for raw in self.raw if raw not in exempt]
+
+
+def _assigned_name(node: ast.Assign) -> str:
+    for target in node.targets:
+        if isinstance(target, ast.Name):
+            return target.id
+        if isinstance(target, ast.Attribute):
+            return target.attr
+    return ""
+
+
+def _receiver_name(value: ast.expr) -> str:
+    if isinstance(value, ast.Name):
+        return value.id
+    if isinstance(value, ast.Attribute):
+        return value.attr
+    return ""
+
+
+def _counting_constructions(
+    value: ast.expr, rel_path: str, scope: list[str]
+) -> list[RawLock]:
+    if not isinstance(value, ast.Call):
+        return []
+    func = value.func
+    if not isinstance(func, ast.Attribute):
+        return []
+    module = getattr(func.value, "id", "")
+    if module not in _RAW_LOCK_MODULES or func.attr not in _COUNTING_PRIMITIVES:
+        return []
+    return [
+        RawLock(
+            path=rel_path,
+            line=value.lineno,
+            kind=f"{module}.{func.attr}",
+            function=".".join(scope),
+        )
+    ]
+
+
+def _is_non_blocking_acquire(node: ast.Call) -> bool:
+    for keyword in node.keywords:
+        if keyword.arg == "blocking":
+            return isinstance(keyword.value, ast.Constant) and keyword.value.value is False
+    if node.args:
+        first = node.args[0]
+        return isinstance(first, ast.Constant) and first.value is False
+    return False
 
 
 def scan_lock_coverage(
@@ -194,6 +284,7 @@ def scan_lock_coverage(
                 continue
             visitor = _LockVisitor(str(rel))
             visitor.visit(tree)
+            visitor.resolve()
             report.raw.extend(visitor.raw)
             report.checked += visitor.checked
     report.raw.sort(key=lambda lock: (lock.path, lock.line))

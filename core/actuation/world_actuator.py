@@ -16,12 +16,12 @@ import asyncio
 import hashlib
 import json
 import logging
-import threading
 import time
 import uuid
 from typing import Any
 
 from core.runtime.action_executor import ActionExecutor
+from core.runtime.lockdep import LockRank, checked_lock
 from core.will import ActionDomain
 
 logger = logging.getLogger("Aura.WorldActuator")
@@ -117,7 +117,9 @@ class WorldActuator:
 
     def __init__(self) -> None:
         self.last_actuations: list[dict[str, Any]] = []
-        self._audit_lock = threading.Lock()
+        self._audit_lock = checked_lock(
+            f"world_actuator.audit.{id(self):x}", rank=LockRank.LEAF
+        )
 
     @staticmethod
     def _param_aware_high_risk(action_name: str, params: dict[str, Any]) -> bool:
@@ -245,7 +247,7 @@ class WorldActuator:
 
 
 _actuator_instance: WorldActuator | None = None
-_instance_lock = threading.Lock()
+_instance_lock = checked_lock("world_actuator.singleton", rank=LockRank.REGISTRY)
 
 
 def get_world_actuator() -> WorldActuator:
