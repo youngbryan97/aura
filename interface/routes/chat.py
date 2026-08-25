@@ -5460,6 +5460,7 @@ async def _run_cognitive_engine_chat_turn(
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
     continuation_evidence: dict[str, Any] | None = None,
+    completed_capability_evidence: dict[str, Any] | None = None,
     evidence_profile: str = _chat_preflight._CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE,
 ) -> str | None:
     """Run a live desktop/user chat turn through CognitiveEngine.
@@ -6237,6 +6238,7 @@ async def _run_cognitive_engine_chat_turn(
             else dict(lane or {})
         ),
         "prompt_shape": dict(prompt_shape_payload),
+        "completed_capability_evidence": completed_capability_evidence,
     }
     from core.conversation.user_surface_contract import bind_user_surface_prompt
 
@@ -14496,14 +14498,18 @@ async def _collect_desktop_required_search_evidence(
             enforce_failure_policy=False,
         )
 
-    return {
-        "ok": bool(result.get("ok")),
-        "query": tool_query or query or user_message,
-        "result": result,
-        "evidence": evidence_text,
-        "memory_saved": memory_saved,
-        "contract": contract.to_dict() if hasattr(contract, "to_dict") else None,
-    }
+    return stamp_runtime_payload(
+        {
+            "schema": "aura.completed_capability_evidence.v1",
+            "ok": bool(result.get("ok")),
+            "completed_capabilities": sorted(_SEARCH_SKILL_NAMES),
+            "query": tool_query or query or user_message,
+            "result": result,
+            "evidence": evidence_text,
+            "memory_saved": memory_saved,
+            "contract": contract.to_dict() if hasattr(contract, "to_dict") else None,
+        }
+    )
 
 
 
@@ -21572,6 +21578,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     principal_id=_profile_user_id,
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
+                    completed_capability_evidence=desktop_required_search_evidence,
                     evidence_profile=_preflight.evidence_profile,
                 )
                 _cognitive_reply_returned_at = time.monotonic()

@@ -15279,9 +15279,10 @@ class MLXLocalClient:
                             "type": "function",
                             "function": {
                                 "name": tool_name,
-                                "arguments": json.dumps(
-                                    tool_args
-                                ),  # [STABILITY v53] Must be a JSON string, not a dict
+                                # Canonical state keeps the typed object the
+                                # executor consumed. chat_format adapts this
+                                # at the active tokenizer's wire boundary.
+                                "arguments": dict(tool_args),
                             },
                         }
                     ],
@@ -16918,7 +16919,7 @@ def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
     if not isinstance(evidence, (list, tuple)):
         return []
     try:
-        from core.utils.injected_blocks import carries_read_evidence
+        from core.utils.injected_blocks import carries_read_evidence, stamp_grounding
     except ImportError:  # pragma: no cover - the module ships with the runtime
         return []
     carried: list[dict[str, Any]] = []
@@ -16933,7 +16934,7 @@ def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
             continue
         content = content[:budget]
         budget -= len(content)
-        carried.append({"role": "system", "content": content})
+        carried.append(stamp_grounding({"role": "system", "content": content}))
         if budget <= 0:
             break
     return carried

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib as _hashlib
+import json
 import logging
 import os
 import re
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional
+from collections.abc import Iterable, Mapping
+from typing import Any, Dict, List, NamedTuple, Optional
 
 logger = logging.getLogger("Aura.ChatFormat")
 
@@ -57,6 +59,153 @@ def _normalize_role(role: Optional[str]) -> str:
 #: so it runs once per distinct template, not once per render.
 _THINKING_SUPPORT: Dict[str, bool] = {}
 _THINKING_PROBE = [{"role": "user", "content": "probe"}]
+
+# Chat templates disagree about the wire type of function arguments. Qwen2.5
+# templates accepted the OpenAI-style JSON string; Qwen3.5 iterates the value
+# with Jinja's ``items`` filter and therefore requires a mapping. Geometry and
+# model-family names cannot establish that contract, so probe the active
+# tokenizer once and adapt only at its serialization boundary.
+_TOOL_ARGUMENT_MODE: Dict[str, str] = {}
+_TOOL_ARGUMENT_PROBE_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "aura_probe",
+            "description": "Probe the tokenizer's tool transcript contract.",
+            "parameters": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+            },
+        },
+    }
+]
+
+
+def _tool_argument_mode(tokenizer: object) -> str:
+    """Return the argument representation the active template demonstrates."""
+
+    template = getattr(tokenizer, "chat_template", None)
+    apply = getattr(tokenizer, "apply_chat_template", None)
+    if not isinstance(template, str) or not template or not callable(apply):
+        return "preserve"
+
+    key = _hashlib.sha256(template.encode("utf-8", "replace")).hexdigest()
+    cached = _TOOL_ARGUMENT_MODE.get(key)
+    if cached is not None:
+        return cached
+
+    def _renders(arguments: object) -> bool:
+        messages = [
+            {"role": "user", "content": "probe"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_probe",
+                        "type": "function",
+                        "function": {
+                            "name": "aura_probe",
+                            "arguments": arguments,
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_probe",
+                "name": "aura_probe",
+                "content": '{"ok":true}',
+            },
+        ]
+        try:
+            apply(
+                messages,
+                tools=_TOOL_ARGUMENT_PROBE_TOOLS,
+                add_generation_prompt=True,
+                tokenize=False,
+            )
+        except Exception:  # the tokenizer owns this compatibility contract
+            return False
+        return True
+
+    mapping_works = _renders({"value": "probe"})
+    string_works = _renders('{"value":"probe"}')
+    if mapping_works:
+        mode = "mapping"
+    elif string_works:
+        mode = "json_string"
+    else:
+        mode = "preserve"
+    _TOOL_ARGUMENT_MODE[key] = mode
+    return mode
+
+
+def normalize_tool_transcript_for_template(
+    tokenizer: object,
+    messages: object,
+) -> object:
+    """Adapt canonical tool arguments to the active template without mutation.
+
+    Aura's internal transcript uses mappings because that is the typed value
+    the executor consumed. A legacy tokenizer may require a JSON string on its
+    wire; a current tokenizer may require the mapping itself. Only messages
+    containing affected calls are copied.
+    """
+
+    if not isinstance(messages, (list, tuple)) or not messages:
+        return messages
+    mode = _tool_argument_mode(tokenizer)
+    if mode == "preserve":
+        return messages
+
+    normalized = list(messages)
+    changed = False
+    for message_index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            continue
+        calls = message.get("tool_calls")
+        if not isinstance(calls, (list, tuple)):
+            continue
+        normalized_calls = list(calls)
+        message_changed = False
+        for call_index, call in enumerate(calls):
+            if not isinstance(call, dict):
+                continue
+            function = call.get("function")
+            if not isinstance(function, dict) or "arguments" not in function:
+                continue
+            arguments = function.get("arguments")
+            replacement: object = arguments
+            if mode == "mapping" and isinstance(arguments, str):
+                try:
+                    decoded = json.loads(arguments)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("tool-call arguments are not valid JSON") from exc
+                if not isinstance(decoded, dict):
+                    raise ValueError("tool-call arguments must decode to an object")
+                replacement = decoded
+            elif mode == "json_string" and isinstance(arguments, Mapping):
+                replacement = json.dumps(
+                    dict(arguments),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            if replacement is arguments:
+                continue
+            normalized_function = dict(function)
+            normalized_function["arguments"] = replacement
+            normalized_call = dict(call)
+            normalized_call["function"] = normalized_function
+            normalized_calls[call_index] = normalized_call
+            message_changed = True
+        if message_changed:
+            normalized_message = dict(message)
+            normalized_message["tool_calls"] = normalized_calls
+            normalized[message_index] = normalized_message
+            changed = True
+    return normalized if changed else messages
 
 
 def template_supports_thinking(tokenizer: object) -> bool:
@@ -274,7 +423,12 @@ def render_chat_template(
     }
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
-    return str(apply(system_first(messages), **kwargs))
+    return str(
+        apply(
+            normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+            **kwargs,
+        )
+    )
 
 
 def render_chat_continuation_template(
@@ -313,7 +467,12 @@ def render_chat_continuation_template(
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
     try:
-        rendered = str(apply(system_first(messages), **kwargs))
+        rendered = str(
+            apply(
+                normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+                **kwargs,
+            )
+        )
     except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
         fallback_kwargs = {
             "tools": tools,
@@ -322,7 +481,12 @@ def render_chat_continuation_template(
         }
         if enable_thinking is not None and template_supports_thinking(tokenizer):
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
-        rendered = str(apply(system_first(messages), **fallback_kwargs))
+        rendered = str(
+            apply(
+                normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+                **fallback_kwargs,
+            )
+        )
         prefix_end = rendered.rfind(partial)
         if prefix_end < 0:
             raise ValueError("chat template did not preserve the continuation prefix")

@@ -16012,6 +16012,12 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
     assert skill_calls[0]["params"]["deep"] is False
     assert skill_calls[0]["params"]["retain"] is True
     assert cognitive_calls
+    completed = cognitive_calls[0]["kwargs"]["completed_capability_evidence"]
+    assert completed["schema"] == "aura.completed_capability_evidence.v1"
+    assert completed["ok"] is True
+    assert {"web_search", "search_web"}.issubset(
+        set(completed["completed_capabilities"])
+    )
     assert memory.calls
     assert output_receipts
 

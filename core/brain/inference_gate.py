@@ -7712,6 +7712,7 @@ class InferenceGate:
         system_prompt: Any,
         timeout_s: float,
         evidence: Any = None,
+        completed_capability_evidence: Any = None,
         allow_tools: bool = True,
     ) -> str | None:
         """Answer by running the capability the request needs, or return None.
@@ -7760,6 +7761,34 @@ class InferenceGate:
             required = derive_capability_set(text)
             if not required:
                 return None
+            satisfied: set[str] = set()
+            try:
+                from core.utils.injected_blocks import is_stamped_runtime_payload
+
+                if (
+                    is_stamped_runtime_payload(completed_capability_evidence)
+                    and str(completed_capability_evidence.get("schema") or "")
+                    == "aura.completed_capability_evidence.v1"
+                    and bool(completed_capability_evidence.get("ok"))
+                ):
+                    satisfied = {
+                        str(name).strip()
+                        for name in completed_capability_evidence.get(
+                            "completed_capabilities", ()
+                        )
+                        if str(name).strip()
+                    }
+            except (ImportError, AttributeError, TypeError, ValueError):
+                satisfied = set()
+            if satisfied:
+                required = [name for name in required if name not in satisfied]
+                if not required:
+                    logger.info(
+                        "🔧 Tool handoff skipped: every required capability already "
+                        "has runtime-stamped evidence (%s).",
+                        ",".join(sorted(satisfied)),
+                    )
+                    return None
             tools = build_agentic_tool_map(
                 required, objective=text, max_tools=len(required)
             )
@@ -7863,6 +7892,23 @@ class InferenceGate:
             # answer is ungrounded by construction, and it is exactly how
             # "Output: 7" reached the screen.
             return None
+        model_path = str(getattr(client, "model_path", "") or "").strip()
+        if text and model_path:
+            self._record_client_generation_metadata(
+                client,
+                label=os.path.basename(model_path),
+                success=True,
+                text=text,
+                generation_metadata={
+                    "provider": "mlx_local",
+                    "model": model_path,
+                    "endpoint": os.path.basename(model_path),
+                    "is_local": True,
+                    "provider_verified": True,
+                    "tool_loop": True,
+                    "tool_calls": len(called),
+                },
+            )
         from core.conversation.surface_disposition import record_tool_receipt
 
         for call in called:
@@ -13239,6 +13285,9 @@ class InferenceGate:
                             system_prompt=system_prompt,
                             timeout_s=float(timeout_val),
                             evidence=messages,
+                            completed_capability_evidence=context.get(
+                                "completed_capability_evidence"
+                            ),
                             allow_tools=(
                                 bool(context.get("allow_tools", True))
                                 and not bool(

@@ -103,6 +103,40 @@ def test_drawing_a_new_design_is_owner_only():
         assert "_require_owner" not in inspect.getsource(reader)
 
 
+@pytest.mark.asyncio
+async def test_design_deletion_uses_the_governed_filesystem_owner(tmp_path, monkeypatch):
+    from core.engineering import export
+
+    folder = tmp_path / "widget"
+    folder.mkdir()
+    (folder / "widget.json").write_text("{}")
+    calls = []
+
+    class _Gateway:
+        async def delete_path_async(self, path, *, recursive, source):
+            calls.append((path, recursive, source))
+            for child in path.iterdir():
+                child.unlink()
+            path.rmdir()
+            return True
+
+    monkeypatch.setattr(routes, "DESIGN_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(export, "_target_directory", lambda _out_dir: tmp_path.resolve())
+    monkeypatch.setattr(routes, "_require_owner", lambda _request: None)
+    monkeypatch.setattr(
+        "core.runtime.file_write_gateway.get_file_write_gateway",
+        lambda: _Gateway(),
+    )
+
+    result = await routes.delete_design("widget", object())
+
+    assert result == {"ok": True, "removed": "widget"}
+    assert calls == [
+        (folder.resolve(), True, "engineering_export.delete_design_bundle")
+    ]
+    assert not folder.exists()
+
+
 def test_the_model_json_carries_what_the_panel_needs_to_render():
     """The first version carried neither the narrative nor the sheet list."""
     from core.engineering.export import build_bundle

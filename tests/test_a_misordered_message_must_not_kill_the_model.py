@@ -112,10 +112,97 @@ def test_every_render_path_goes_through_it():
 
     from core.brain.llm import chat_format
 
-    source = inspect.getsource(chat_format)
-    renders = [line for line in source.splitlines() if "str(apply(" in line]
-    assert renders, "the render calls moved; this test needs to follow them"
-    assert all("system_first(" in line for line in renders), renders
+    for render in (
+        chat_format.render_chat_template,
+        chat_format.render_chat_continuation_template,
+    ):
+        source = inspect.getsource(render)
+        assert "system_first(messages)" in source
+        assert "normalize_tool_transcript_for_template" in source
+
+
+def test_mapping_tool_template_receives_an_object_without_mutating_history():
+    class _MappingTokenizer:
+        chat_template = "tool_call.arguments|items"
+
+        def __init__(self):
+            self.seen = []
+
+        def apply_chat_template(self, messages, **_kwargs):
+            for message in messages:
+                for call in message.get("tool_calls", ()):
+                    arguments = call["function"]["arguments"]
+                    list(arguments.items())
+                    self.seen.append(arguments)
+            return "rendered"
+
+    from core.brain.llm import chat_format
+
+    chat_format._TOOL_ARGUMENT_MODE.clear()
+    tokenizer = _MappingTokenizer()
+    messages = [
+        {"role": "user", "content": "search"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"current release"}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    assert chat_format.render_chat_template(tokenizer, messages) == "rendered"
+    assert tokenizer.seen[-1] == {"query": "current release"}
+    assert isinstance(messages[-1]["tool_calls"][0]["function"]["arguments"], str)
+
+
+def test_legacy_tool_template_receives_a_json_string_from_canonical_state():
+    class _StringTokenizer:
+        chat_template = "legacy-json-string-arguments"
+
+        def __init__(self):
+            self.seen = []
+
+        def apply_chat_template(self, messages, **_kwargs):
+            for message in messages:
+                for call in message.get("tool_calls", ()):
+                    arguments = call["function"]["arguments"]
+                    if not isinstance(arguments, str):
+                        raise TypeError("arguments must be JSON text")
+                    self.seen.append(arguments)
+            return "rendered"
+
+    import json
+
+    from core.brain.llm import chat_format
+
+    chat_format._TOOL_ARGUMENT_MODE.clear()
+    tokenizer = _StringTokenizer()
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "code_repl",
+                        "arguments": {"code": "print(7)"},
+                    },
+                }
+            ],
+        }
+    ]
+
+    assert chat_format.render_chat_template(tokenizer, messages) == "rendered"
+    assert json.loads(tokenizer.seen[-1]) == {"code": "print(7)"}
+    assert isinstance(messages[0]["tool_calls"][0]["function"]["arguments"], dict)
 
 
 def test_the_assemblers_own_note_goes_with_the_system_content():
@@ -171,7 +258,8 @@ def test_native_template_failure_cannot_escape_the_generation_job():
 
     source = inspect.getsource(mlx_worker._mlx_worker_loop)
     start = source.index('logger.info("🎯 [WORKER] Rendering native chat/tool template.")')
-    body = source[start : start + 4200]
+    end = source.index('temp = _admit_sampling_control(job, "temp")', start)
+    body = source[start:end]
     assert "except Exception" in body
     assert '"chat_template_failed_with_tools:"' in body
     assert '"status": "error"' in body

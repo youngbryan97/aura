@@ -291,6 +291,62 @@ async def test_think_and_act_missing_engine_uses_canonical_code_repl_result(
 
 
 @pytest.mark.asyncio
+async def test_think_and_act_keeps_executed_arguments_typed_in_its_transcript(
+    monkeypatch,
+) -> None:
+    from core.container import ServiceContainer
+
+    client = mlx_client.MLXLocalClient.__new__(mlx_client.MLXLocalClient)
+    client.max_tokens = 64
+    responses = [
+        '{"tool":"code_repl","args":{"code":"print(1)"}}',
+        "The result was 1.",
+    ]
+    transcripts = []
+
+    async def generate_text_async(*_args, **kwargs):
+        transcripts.append(kwargs["messages"])
+        return responses.pop(0)
+
+    class _CapabilityEngine:
+        async def execute(self, *_args, **_kwargs):
+            return {"ok": True, "status": "ok", "returncode": 0, "stdout": "1\n"}
+
+    client.generate_text_async = generate_text_async
+    monkeypatch.setattr(
+        ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: _CapabilityEngine()
+            if name == "capability_engine"
+            else default
+        ),
+    )
+
+    result = await client.think_and_act(
+        "calculate",
+        "system",
+        tools={
+            "code_repl": {
+                "description": "execute code",
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {"code": {"type": "string"}},
+                    "required": ["code"],
+                },
+            }
+        },
+        max_turns=2,
+        context={"authorised_effect_scope": "read_write_artifacts"},
+    )
+
+    function = transcripts[1][-2]["tool_calls"][0]["function"]
+    assert function["arguments"] == {"code": "print(1)"}
+    assert result["content"] == "The result was 1."
+
+
+@pytest.mark.asyncio
 async def test_live_safe_execute_result_matches_model_visible_contract(
     monkeypatch,
     tmp_path,

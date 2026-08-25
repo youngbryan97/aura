@@ -268,13 +268,15 @@ async def draw_design(request: Request) -> JSONResponse:
 async def delete_design(design_id: str, request: Request) -> dict[str, Any]:
     """Remove a design and everything written with it. Owner-only."""
     _require_owner(request)
-    import shutil
+    from core.engineering.export import delete_design_bundle_async
 
     folder = _resolved(design_id)
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail="No such design")
     try:
-        shutil.rmtree(folder)
-    except OSError as exc:
+        removed = await delete_design_bundle_async(design_id)
+    except (OSError, ValueError) as exc:
         raise HTTPException(status_code=500, detail="Could not remove it") from exc
+    if not removed:
+        raise HTTPException(status_code=404, detail="No such design")
     return {"ok": True, "removed": design_id}

@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 
 from core.brain.llm.mlx_client import MLXLocalClient, _tool_loop_evidence_messages
+from core.utils.injected_blocks import is_stamped_grounding
 
 
 def test_only_what_a_skill_produced_is_carried() -> None:
@@ -22,7 +23,10 @@ def test_only_what_a_skill_produced_is_carried() -> None:
             {"role": "user", "content": "the request"},
         ]
     )
-    assert carried == [{"role": "system", "content": "READ https://x: 11.7"}]
+    assert len(carried) == 1
+    assert carried[0]["role"] == "system"
+    assert carried[0]["content"] == "READ https://x: 11.7"
+    assert is_stamped_grounding(carried[0])
 
 
 def test_a_banner_is_recognised_without_matching_metadata() -> None:

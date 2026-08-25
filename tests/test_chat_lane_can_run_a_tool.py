@@ -45,6 +45,7 @@ def _answer(
     prompt: str,
     *,
     allow_tools: bool = True,
+    completed_capability_evidence: Any = None,
 ) -> str | None:
     return asyncio.run(
         gate._tool_grounded_answer(
@@ -53,6 +54,7 @@ def _answer(
             system_prompt="",
             timeout_s=30.0,
             allow_tools=allow_tools,
+            completed_capability_evidence=completed_capability_evidence,
         )
     )
 
@@ -70,6 +72,116 @@ def test_a_request_needing_no_capability_never_reaches_the_tool_loop(gate, monke
     client = _Client({"content": "hello", "tool_calls": [{"tool": "code_repl"}]})
     assert _answer(gate, client, "how are you feeling today") is None
     assert client.calls == []
+
+
+def test_runtime_stamped_completed_capability_is_not_executed_twice(gate, monkeypatch):
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["web_search", "search_web"],
+    )
+    client = _Client({"content": "unused", "tool_calls": []})
+    evidence = stamp_runtime_payload(
+        {
+            "schema": "aura.completed_capability_evidence.v1",
+            "ok": True,
+            "completed_capabilities": ["web_search", "search_web"],
+            "receipt_id": "search-1",
+        }
+    )
+
+    assert (
+        _answer(
+            gate,
+            client,
+            "search the web for the current release",
+            completed_capability_evidence=evidence,
+        )
+        is None
+    )
+    assert client.calls == []
+
+
+def test_completed_capability_suppresses_only_itself(gate, monkeypatch):
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["web_search", "code_repl"],
+    )
+    offered = []
+
+    def _build(required, **_kwargs):
+        offered.append(list(required))
+        return {"code_repl": {"name": "code_repl"}}
+
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map", _build
+    )
+    evidence = stamp_runtime_payload(
+        {
+            "schema": "aura.completed_capability_evidence.v1",
+            "ok": True,
+            "completed_capabilities": ["web_search"],
+        }
+    )
+    client = _Client(
+        {"content": "It printed 7.", "tool_calls": [{"tool": "code_repl"}]}
+    )
+
+    assert (
+        _answer(
+            gate,
+            client,
+            "search, then calculate",
+            completed_capability_evidence=evidence,
+        )
+        == "It printed 7."
+    )
+    assert offered == [["code_repl"]]
+
+
+def test_unstamped_completed_capability_claim_cannot_suppress_execution(gate, monkeypatch):
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["web_search"],
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"web_search": {"name": "web_search"}},
+    )
+    client = _Client({"content": "No call", "tool_calls": []})
+    evidence = {
+        "schema": "aura.completed_capability_evidence.v1",
+        "ok": True,
+        "completed_capabilities": ["web_search"],
+    }
+
+    assert (
+        _answer(
+            gate,
+            client,
+            "search the web for the current release",
+            completed_capability_evidence=evidence,
+        )
+        is None
+    )
+    assert len(client.calls) == 1
+
+
+def test_tool_loop_carries_runtime_stamped_grounding():
+    from core.brain.llm.mlx_client import _tool_loop_evidence_messages
+    from core.utils.injected_blocks import is_stamped_grounding, stamp_grounding
+
+    evidence = stamp_grounding(
+        {"role": "system", "content": "[ACTIVE GROUNDING EVIDENCE]\nverified"}
+    )
+
+    carried = _tool_loop_evidence_messages([evidence])
+
+    assert len(carried) == 1
+    assert is_stamped_grounding(carried[0])
 
 
 def test_typed_no_tool_policy_prevents_capability_inference_and_execution(
@@ -128,6 +240,32 @@ def test_a_tool_that_ran_produces_the_answer(gate, monkeypatch):
     )
     assert _answer(gate, client, "run some python") == "It printed 7."
     assert client.calls and client.calls[0]["tools"] == {"code_repl": {"name": "code_repl"}}
+
+
+def test_tool_answer_records_its_resident_model_attribution(gate, monkeypatch):
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["code_repl"],
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"code_repl": {"name": "code_repl"}},
+    )
+    client = _Client(
+        {"content": "It printed 7.", "tool_calls": [{"tool": "code_repl"}]}
+    )
+    client.model_path = "/models/Qwen3.8-27B-4bit"
+    attributed = []
+    gate._record_client_generation_metadata = lambda *args, **kwargs: attributed.append(
+        (args, kwargs)
+    )
+
+    assert _answer(gate, client, "run some python") == "It printed 7."
+    assert len(attributed) == 1
+    _args, kwargs = attributed[0]
+    assert kwargs["success"] is True
+    assert kwargs["generation_metadata"]["provider"] == "mlx_local"
+    assert kwargs["generation_metadata"]["tool_loop"] is True
 
 
 def test_a_failing_tool_loop_falls_back_to_ordinary_generation(gate, monkeypatch):

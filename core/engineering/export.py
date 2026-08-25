@@ -642,3 +642,27 @@ async def write_bundle_async(bundle: ExportBundle, out_dir: str | None = None) -
             await gateway.write_text_async(str(path), entry.text or "", source="engineering_export")
         written.append(str(path))
     return ExportBundle(bundle.slug, bundle.files, tuple(written))
+
+
+async def delete_design_bundle_async(
+    design_id: str,
+    out_dir: str | None = None,
+) -> bool:
+    """Delete one canonical design bundle from the engineering-owned tree.
+
+    The HTTP surface supplies an identifier, never a path. Keeping path
+    construction here makes export the single lifecycle owner for the fixed
+    ``artifacts/live_designs`` namespace it already creates.
+    """
+    from core.engineering.model import slug as make_slug
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    identity = str(design_id or "").strip()
+    if not identity or identity != make_slug(identity):
+        raise ValueError("engineering design id is not canonical")
+    target = _target_directory(out_dir) / identity
+    return await get_file_write_gateway().delete_path_async(
+        target,
+        recursive=True,
+        source="engineering_export.delete_design_bundle",
+    )
