@@ -471,12 +471,14 @@ async def deliberate(
         # what the consequence graph and the last few attempts already say,
         # and that is what happens here — she acts, and cannot narrate it in
         # her own words until the model is back.
-        record_degradation(
-            "deliberate_action",
-            exc,
-            severity="info",
-            action="chose the next move without language",
-        )
+        # Logged, not recorded as a fault.
+        #
+        # Deciding without language is a designed path — the whole point of
+        # being able to act while the model reloads — and recording each one
+        # as a degradation made a working fallback look like a failing
+        # subsystem: 31 of them in half an hour opened a runtime concern
+        # incident about deliberate_action while she played perfectly well.
+        logger.info("Deciding without language (%s): %s", type(exc).__name__, exc)
         spoke = False
 
     chosen = choose_named(reply or "", options) if spoke else None

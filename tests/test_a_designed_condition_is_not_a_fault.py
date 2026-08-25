@@ -83,3 +83,19 @@ def test_a_worker_that_is_already_gone_is_not_a_gate_failure():
     guard = source[max(0, where - 900) : where]
     assert "process object is closed" in guard
     assert "continue" in guard, "an already-dead worker must not be recorded as a fault"
+
+
+def test_deciding_without_language_is_not_recorded_as_a_degradation():
+    """LIVE: 31 of them in half an hour opened a runtime concern incident
+    about deliberate_action while she played perfectly well.
+
+    Deciding without language is the designed path — the whole point of being
+    able to act while the model reloads.
+    """
+    from core.agency import deliberate_action
+
+    source = inspect.getsource(deliberate_action.deliberate)
+    where = source.index("spoke = False")
+    guard = source[max(0, where - 700) : where]
+    assert "record_degradation(" not in guard, "a working fallback is being counted as a fault"
+    assert "logger.info(" in guard, "and it should still be visible"
