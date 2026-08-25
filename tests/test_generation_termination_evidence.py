@@ -417,3 +417,38 @@ def test_post_generation_completion_rejects_a_clipped_short_answer():
     assert receipt["semantic_completion_satisfied"] is False
     assert receipt["semantic_completion_incomplete"] is True
     assert receipt["semantic_completion_terminal_boundary"] is False
+
+
+def test_semantic_stop_waits_for_the_answers_own_declared_items() -> None:
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": "Do you know why that broke?",
+    }
+    partial = (
+        "The break is likely one of two things:\n"
+        "1. The automation timed out while waiting for verification."
+    )
+    complete = partial + "\n2. The application lookup never found an installed target."
+
+    assert not _semantic_surface_stop_ready(job, partial, generated_tokens=88)
+    assert _semantic_surface_stop_ready(job, complete, generated_tokens=112)
+    assert _has_truncated_tail(partial)
+    assert not _has_truncated_tail(complete)
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        partial,
+        generated_tokens=88,
+    )
+    assert receipt["semantic_completion_satisfied"] is False
+    assert receipt["semantic_completion_incomplete"] is True
+    assert receipt["semantic_completion_unfulfilled_discourse_count"] == 1
+    assert receipt["semantic_completion_unfulfilled_discourse"] == [
+        {
+            "expected_count": 2,
+            "observed_count": 1,
+            "kind": "things",
+            "declaration": "one of two things:",
+        }
+    ]

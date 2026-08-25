@@ -61,6 +61,9 @@ from core.conversation.requested_reply_shape import reply_scope_text
 from core.conversation.word_markers import names_any
 from core.dialogue.referents import borrowed_first_person_spans
 from core.dialogue.shared_history import has_fabricated_shared_history
+from core.language.discourse_commitments import unfulfilled_commitments
+from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
+from core.language.model_features import model_hidden_features as _model_hidden_features
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -6243,9 +6246,6 @@ _SCREEN_PERCEPTION_CLAIM_RE = re.compile(
 #: Acting on the machine. Evidence is a tool receipt: nothing observes an
 #: action into existence.
 #: A file, named as one: something with an extension, or a path.
-from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
-from core.language.model_features import model_hidden_features as _model_hidden_features
-
 _FILE_ARTIFACT_PATTERN = (
     r"(?:\b[\w][\w.\-]{0,60}\.(?:html?|css|js|jsx|ts|tsx|py|json|csv|tsv|txt|md|"
     r"pdf|sh|zsh|ya?ml|toml|xml|sql|ini|cfg|log|png|jpe?g|svg|zip)\b"
@@ -7432,6 +7432,8 @@ def _has_truncated_tail(
     generation_stop_reason: Any = "",
 ) -> bool:
     body = str(reply_text or "").strip()
+    if unfulfilled_commitments(body):
+        return True
     # Grammar first, length second. A sentence left hanging on a conjunction
     # is cut whether it is 23 characters or 230, and the floor below is about
     # not demanding punctuation from a legitimately terse reply — a different

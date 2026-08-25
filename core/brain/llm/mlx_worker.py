@@ -1162,8 +1162,11 @@ def _semantic_surface_stop_ready(
             requested_epistemic_partition_is_covered,
             unanswered_question_parts,
         )
+        from core.language.discourse_commitments import unfulfilled_commitments
         from core.runtime.structured_input import analyze_prompt_shape
 
+        if unfulfilled_commitments(candidate):
+            return False
         validation_prompt = _surface_validation_prompt(job)
         if not requested_epistemic_partition_is_covered(validation_prompt, candidate):
             return False
@@ -1196,6 +1199,7 @@ def _semantic_completion_receipt_state(
         candidate.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]"))
     )
     missing_indexes: list[int] = []
+    discourse_missing: list[dict[str, Any]] = []
     quality_reasons: list[str] = []
     epistemic_covered: bool | None = None
     if required:
@@ -1204,6 +1208,7 @@ def _semantic_completion_receipt_state(
                 requested_epistemic_partition_is_covered,
                 unanswered_question_parts,
             )
+            from core.language.discourse_commitments import unfulfilled_commitments
             from core.runtime.structured_input import analyze_prompt_shape
 
             validation_prompt = _surface_validation_prompt(job)
@@ -1218,6 +1223,15 @@ def _semantic_completion_receipt_state(
                 candidate,
             )
             quality_reasons = list(_surface_quality_failure_reasons(job, candidate))
+            discourse_missing = [
+                {
+                    "expected_count": item.expected_count,
+                    "observed_count": item.observed_count,
+                    "kind": item.kind,
+                    "declaration": item.declaration,
+                }
+                for item in unfulfilled_commitments(candidate)
+            ]
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _record_mlx_degradation(
                 exc,
@@ -1246,6 +1260,8 @@ def _semantic_completion_receipt_state(
         "semantic_completion_incomplete": bool(required and not satisfied),
         "semantic_completion_missing_part_count": len(missing_indexes),
         "semantic_completion_missing_part_indexes": missing_indexes,
+        "semantic_completion_unfulfilled_discourse": discourse_missing,
+        "semantic_completion_unfulfilled_discourse_count": len(discourse_missing),
         "semantic_completion_quality_reasons": quality_reasons,
         "semantic_completion_epistemic_partition_covered": epistemic_covered,
         "semantic_completion_terminal_boundary": terminal_boundary,
