@@ -1997,18 +1997,47 @@ def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     assert 'progress_anchor <= 0.0' in client_source
     assert '"recurrent_depth",' in gate_source
     assert 'and foreground_request and not strict_answer_contract' in client_source
-    assert 'disable_prompt_cache = bool(job.get("disable_prompt_cache", False)) or strict_answer_contract' in worker_source
+    # The bypass is derived, not spelled. That exact line survives only as a
+    # COMMENT above the live one — which reads
+    # `... or prompt_cache_bypass`, a predicate that covers the strict
+    # contract and more — so the assertion was passing on commented-out code.
+    live_source = "\n".join(
+        line for line in worker_source.splitlines() if not line.strip().startswith("#")
+    )
+    assert (
+        'disable_prompt_cache = bool(job.get("disable_prompt_cache", False))'
+        " or prompt_cache_bypass" in live_source
+    )
+    assert "def _job_requires_prompt_cache_bypass" in live_source
     assert 'prompt = _build_strict_answer_prompt(messages, prompt)' in worker_source
     assert "def _first_token_suppression_ids" in worker_source
     assert "def _normalize_strict_value_response" in worker_source
     assert "_STRICT_VALUE_UNUSABLE_RE" in worker_source
-    assert "print(" not in worker_source
+    # Parsed, not matched. "print(" is a substring of
+    # "_PromptCacheFootprint(", so the worker failed a check about stray
+    # printing because of a class name. The worker logs; it does not print.
+    import ast as _ast
+
+    printed = [
+        node.lineno
+        for node in _ast.walk(_ast.parse(worker_source))
+        if isinstance(node, _ast.Call)
+        and isinstance(node.func, _ast.Name)
+        and node.func.id == "print"
+    ]
+    assert not printed, f"the worker prints at lines {printed}"
     assert "pass  # no-op" not in worker_source
     assert "Rendering exact strict-value prompt" in worker_source
     assert "Strict contract non-empty start guard ACTIVE" in worker_source
     assert 'response_text = _normalize_strict_answer_response(' in worker_source
     assert 'envelope_prefixed=strict_envelope_prefixed' in worker_source
-    assert 'if prompt_cache_lru is not None and not disable_prompt_cache:' in worker_source
+    # Every cache read is guarded, checked by counting reads against guards
+    # rather than by matching one formatting of the condition. The guard grew
+    # a `resume_applied` term and became a multi-line `if`, so the single-line
+    # match failed about isolation that was still in force.
+    assert live_source.count("not disable_prompt_cache") >= live_source.count(
+        "fetch_nearest_cache("
+    ), "a prompt-cache read is not guarded by the bypass"
     assert 'if strict_answer_contract:' in worker_source
 
 

@@ -227,6 +227,10 @@ class TestWiring:
         block = source.split("target=_mlx_worker_loop", 1)[1][:400]
         assert "self._contract_key," in block
 
+    @staticmethod
+    def _shutdown_sentinel(node) -> bool:
+        return isinstance(node, ast.Constant) and node.value is None
+
     def test_every_submission_site_authorizes(self):
         from core.brain.llm import mlx_client
 
@@ -243,7 +247,8 @@ class TestWiring:
                 and node.args
                 and ast.unparse(node.func.value).endswith(("_req_q", "request_queue"))
             ):
-                submitted_jobs.append(node.args[0])
+                if not self._shutdown_sentinel(node.args[0]):
+                    submitted_jobs.append(node.args[0])
             # Async paths pass queue.put and the job to run_io_bound.
             if (
                 isinstance(node.func, ast.Name)
@@ -255,6 +260,9 @@ class TestWiring:
             ):
                 submitted_jobs.append(node.args[1])
 
+        # `_req_q.put(None)` is the worker's shutdown sentinel, not a job: it
+        # carries no action and no principal, and there is nothing to
+        # authorise. Every real payload still has to cross _authorize_job.
         assert submitted_jobs
         assert all(
             isinstance(job, ast.Call)
