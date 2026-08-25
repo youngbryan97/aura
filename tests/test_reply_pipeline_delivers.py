@@ -268,3 +268,41 @@ class TestFallbacksDoNotClaimWhatTheyLack:
         reasons = assess_user_facing_reply("Are you with me?", diagnostic).reasons
         assert "stale_diagnostic_floor_leak" in reasons
         assert disposition_for(reasons) is SurfaceDisposition.DISCARD
+
+
+class TestAnInstructionAboutTheAnswerIsNotASecondQuestion:
+    """"Show the reasoning, then give the exact fraction" is one ask, shaped.
+
+    Coverage compares words, so a draft that derived the probability step by
+    step and ended on 19/66 was scored as having dropped both clauses — it
+    never wrote "reasoning" or "fraction". Three complete answers went for
+    repair on that.
+    """
+
+    def test_answer_form_clauses_are_presentation(self):
+        from core.conversation.requested_reply_shape import (
+            is_reply_shape_constraint_segment,
+        )
+
+        for clause in (
+            "Show the reasoning",
+            "then give the exact fraction",
+            "show your working",
+            "state the final answer",
+            "give the answer as a decimal",
+        ):
+            assert is_reply_shape_constraint_segment(clause), clause
+
+    def test_a_content_ask_is_still_a_content_ask(self):
+        from core.conversation.requested_reply_shape import (
+            is_reply_shape_constraint_segment,
+        )
+
+        for clause in (
+            "give three examples of graph algorithms",
+            "explain the tradeoffs",
+            "what is the capital of France",
+            "give me the file path",
+            "show me the failing test output",
+        ):
+            assert not is_reply_shape_constraint_segment(clause), clause

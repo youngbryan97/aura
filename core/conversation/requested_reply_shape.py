@@ -146,6 +146,67 @@ _MANNER_OPENER_WORDS = frozenset(
 )
 
 
+#: Verbs that ask for the answer to be PRESENTED, not for a second subject.
+_ANSWER_FORM_VERBS = frozenset(
+    """
+    show give state provide include end finish close report present return
+    """.split()
+)
+
+#: Nouns naming a form the answer itself takes. "the exact fraction" and "your
+#: working" are the same answer in a requested shape; they are not another
+#: thing to talk about.
+_ANSWER_FORM_NOUNS = frozenset(
+    """
+    reasoning reason working workings work steps step derivation calculation
+    calculations math arithmetic answer result fraction number figure value
+    total sum probability conclusion final
+    exact precise simplified reduced decimal integer percentage
+    """.split()
+)
+
+_ANSWER_FORM_OPENER_RE = re.compile(
+    r"^\s*(?:and\s+|then\s+|finally\s+|please\s+){0,2}(?P<verb>[A-Za-z]+)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_answer_form_clause(segment: str) -> bool:
+    """True when a clause asks for the answer in a form, not for more content.
+
+    LIVE: "What's the probability both are the same colour? Show the
+    reasoning, then give the exact fraction." split into three segments, and
+    two of them were scored as parts the reply had dropped — by a draft that
+    derived the probability step by step and ended on 19/66. The coverage
+    check compares words, so obeying "show the reasoning" without writing the
+    word "reasoning" read as ignoring it, and three complete answers were sent
+    for repair.
+
+    Structural, like the manner test beside it: a presentation verb, and every
+    remaining content word naming a form the answer takes. Whether the number
+    is actually there stays with the checks that can verify it — the
+    arithmetic verifier and the numeric-answer gate — rather than being
+    guessed from vocabulary here.
+    """
+    opener = _ANSWER_FORM_OPENER_RE.match(segment or "")
+    if opener is None or opener.group("verb").lower() not in _ANSWER_FORM_VERBS:
+        return False
+    words = [
+        word.lower().replace("'", "").replace("\u2019", "")
+        for word in re.findall(r"[A-Za-z']+", segment)
+    ]
+    content = [
+        word
+        for word in words
+        if word not in _MANNER_FUNCTION_WORDS and word not in _ANSWER_FORM_VERBS
+    ]
+    if not content:
+        return False
+    return all(
+        word in _ANSWER_FORM_NOUNS or word in _MANNER_WORDS for word in content
+    )
+
+
 def is_reply_shape_constraint_segment(segment: Any) -> bool:
     """Whether a whole clause constrains presentation instead of content.
 
@@ -158,7 +219,7 @@ def is_reply_shape_constraint_segment(segment: Any) -> bool:
     text = str(segment or "").strip()
     if _REPLY_SHAPE_SEGMENT_RE.fullmatch(text):
         return True
-    return _is_manner_only_clause(text)
+    return _is_manner_only_clause(text) or _is_answer_form_clause(text)
 
 
 def reply_scope_text(user_message: Any) -> str:
