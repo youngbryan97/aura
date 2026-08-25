@@ -31,19 +31,34 @@ def test_unique_inflection_is_corrected_without_guessing() -> None:
     assert result.method == "installed_inflection"
 
 
-def test_ambiguous_or_weak_similarity_remains_launchservices_unverified() -> None:
+def test_ambiguous_or_weak_similarity_is_not_launchable_without_os_evidence() -> None:
     result = resolve_installed_app_target(
         "Studio",
         installed_apps=(
             InstalledApp("Audio Studio", "/Applications/Audio Studio.app"),
             InstalledApp("Video Studio", "/Applications/Video Studio.app"),
         ),
+        launchservices_lookup=lambda _name: "",
     )
 
-    assert result.resolved == "Studio"
+    assert result.resolved == ""
     assert result.app_path == ""
-    assert result.method == "launchservices_unverified"
+    assert result.method == "application_not_found"
     assert result.alternatives
+
+
+def test_launchservices_can_ground_an_app_outside_the_bounded_inventory() -> None:
+    result = resolve_installed_app_target(
+        "Remote Studio",
+        installed_apps=(InstalledApp("Notes", "/Applications/Notes.app"),),
+        launchservices_lookup=lambda name: (
+            "/Volumes/Apps/Remote Studio.app" if name == "Remote Studio" else ""
+        ),
+    )
+
+    assert result.resolved == "Remote Studio"
+    assert result.app_path == "/Volumes/Apps/Remote Studio.app"
+    assert result.method == "launchservices_exact"
 
 
 def test_generic_app_word_is_not_launchable() -> None:

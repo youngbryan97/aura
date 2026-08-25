@@ -6,6 +6,7 @@ from core.runtime.os_automation_effects import (
     build_effect_contract,
     canonical_app_target,
     evaluate_effect_contract,
+    extract_target_apps,
 )
 
 
@@ -94,6 +95,17 @@ def test_user_app_wording_resolves_to_launchservices_identity() -> None:
         for item in contract.requirements
         if item.kind == EffectKind.APP_FRONTMOST
     } == {"Notes"}
+
+
+def test_app_target_language_separates_apps_from_browser_surfaces() -> None:
+    assert extract_target_apps(
+        "Open the application DefinitelyNotInstalledAuraProbe."
+    ) == ("DefinitelyNotInstalledAuraProbe",)
+    assert extract_target_apps("Launch the app named Remote Studio.") == (
+        "Remote Studio",
+    )
+    assert extract_target_apps("Open a tab for Google Docs.") == ()
+    assert extract_target_apps("Open Google Docs and start typing.") == ()
 
 
 def test_search_contract_verifies_active_browser_destination() -> None:

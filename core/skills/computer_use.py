@@ -4222,6 +4222,21 @@ end tell
                 # frontmost readback. The readback is part of the effect proof,
                 # so a cached or environment-level permission assumption is not
                 # enough for live desktop reliability.
+                resolution = await asyncio.to_thread(
+                    resolve_installed_app_target,
+                    params.target,
+                )
+                app_target = resolution.resolved
+                if not resolution.launchable:
+                    return {
+                        "ok": False,
+                        "status": "application_not_found",
+                        "retryable": False,
+                        "error": f"No installed application matches {params.target!r}.",
+                        "opened": "",
+                        "app_resolution": resolution.to_dict(),
+                        "launch_attempts": [],
+                    }
                 blocked = await self._require_permissions(
                     "opening an app and verifying it is frontmost",
                     "ACCESSIBILITY",
@@ -4229,13 +4244,6 @@ end tell
                 )
                 if blocked:
                     return blocked
-                resolution = await asyncio.to_thread(
-                    resolve_installed_app_target,
-                    params.target,
-                )
-                app_target = resolution.resolved
-                if not resolution.launchable:
-                    return {"ok": False, "error": "A concrete application name is required."}
                 candidate = resolution
                 attempted_args: list[list[str]] = []
                 result = None

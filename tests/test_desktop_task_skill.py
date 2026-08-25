@@ -826,6 +826,61 @@ def test_desktop_task_extracts_generic_named_app_mentions():
     assert DesktopTaskSkill._generic_open_app_mentions("Open TextEdit application and create a draft.") == [
         "TextEdit"
     ]
+    assert DesktopTaskSkill._generic_open_app_mentions(
+        "Open the application DefinitelyNotInstalledAuraProbe."
+    ) == ["DefinitelyNotInstalledAuraProbe"]
+    assert DesktopTaskSkill._generic_open_app_mentions(
+        "Launch the app named Remote Studio."
+    ) == ["Remote Studio"]
+
+
+@pytest.mark.asyncio
+async def test_unknown_noun_first_app_request_stays_in_the_typed_desktop_lane(
+    monkeypatch,
+):
+    from core.container import ServiceContainer
+
+    calls = []
+
+    class FakeCapabilityEngine:
+        async def execute(self, skill_name, params, context=None):
+            calls.append((skill_name, params, context or {}))
+            assert skill_name == "computer_use"
+            assert params["action"] == "open_app"
+            return {
+                "ok": False,
+                "status": "application_not_found",
+                "retryable": False,
+                "error": "No installed application matches the requested name.",
+                "app_resolution": {
+                    "requested": params["target"],
+                    "resolved": "",
+                    "method": "application_not_found",
+                },
+            }
+
+    monkeypatch.setattr(
+        ServiceContainer,
+        "get",
+        lambda name, default=None: (
+            FakeCapabilityEngine() if name == "capability_engine" else default
+        ),
+    )
+
+    result = await DesktopTaskSkill().execute(
+        {
+            "objective": "Open the application DefinitelyNotInstalledAuraProbe.",
+            "steps": [],
+        },
+        {"origin": "desktop_ui"},
+    )
+
+    assert result["ok"] is False
+    assert result["steps_requested"] == 1
+    assert result["steps_completed"] == 0
+    assert result["failures"][0]["action"] == "open_app"
+    assert result["failures"][0]["result"]["status"] == "application_not_found"
+    assert [call[0] for call in calls] == ["computer_use"]
 
 
 def test_desktop_task_contract_action_list_matches_step_validator():

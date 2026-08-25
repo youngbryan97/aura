@@ -2234,6 +2234,45 @@ async def test_open_app_canonicalizes_user_wording_at_execution_boundary(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_open_app_rejects_an_unknown_target_before_permissions_or_launch(monkeypatch):
+    from core.runtime.app_target_resolution import AppTargetResolution
+
+    skill = ComputerUseSkill()
+    permission_calls = []
+
+    async def permissions(*args, **kwargs):
+        permission_calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(skill, "_require_permissions", permissions)
+    monkeypatch.setattr(
+        "core.skills.computer_use.resolve_installed_app_target",
+        lambda target: AppTargetResolution(
+            requested=target,
+            canonical=target,
+            resolved="",
+            method="application_not_found",
+            inventory_available=True,
+        ),
+    )
+    monkeypatch.setattr(
+        "core.skills.computer_use.get_subprocess_gateway",
+        lambda: (_ for _ in ()).throw(AssertionError("launch must not run")),
+    )
+
+    result = await skill.execute(
+        {"action": "open_app", "target": "DefinitelyNotInstalledAuraProbe"},
+        {},
+    )
+
+    assert result["ok"] is False
+    assert result["status"] == "application_not_found"
+    assert result["retryable"] is False
+    assert result["launch_attempts"] == []
+    assert permission_calls == []
+
+
+@pytest.mark.asyncio
 async def test_open_app_refreshes_a_stale_bundle_path_before_failing(monkeypatch):
     from core.runtime.app_target_resolution import AppTargetResolution
 

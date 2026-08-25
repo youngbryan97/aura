@@ -68,11 +68,30 @@ _GENERIC_APP_TARGETS = frozenset(
         "app",
         "current",
         "default",
+        "document",
         "existing",
         "new",
+        "page",
         "some",
+        "tab",
         "target",
         "visible",
+        "window",
+    }
+)
+_WEB_SURFACE_TARGETS = frozenset(
+    {
+        "google doc",
+        "google docs",
+        "google drive",
+        "google presentation",
+        "google presentations",
+        "google sheet",
+        "google sheets",
+        "google slide",
+        "google slides",
+        "google spreadsheet",
+        "google spreadsheets",
     }
 )
 _UNVERIFIED_CONTROL_OPERATIONS = (
@@ -996,7 +1015,6 @@ def extract_target_apps(goal: str) -> tuple[str, ...]:
         if (
             re.search(phrase, lowered)
             or re.search(window_phrase, lowered)
-            or (alias == "google chrome" and "google docs" in lowered)
         ) and canonical not in apps:
             apps.append(canonical)
 
@@ -1019,9 +1037,10 @@ def _extract_action_targets(goal: str, actions: Sequence[str]) -> tuple[str, ...
     action_pattern = "|".join(re.escape(action) for action in actions)
     pattern = (
         rf"\b(?:{action_pattern})\s+(?:up\s+)?(?:a\s+|an\s+|my\s+|the\s+)?"
+        r"(?:(?:app|application)\s+(?:(?:called|named)\s+)?)?"
         r"([A-Za-z][A-Za-z0-9 &._-]{1,60}?)"
         r"(?:\s+(?:app|application))?"
-        r"(?=\s*(?:,|\.|;|\b(?:and|then|before|after|to)\b|$))"
+        r"(?=\s*(?:,|\.|;|\b(?:and|then|before|after|for|to)\b|$))"
     )
     targets: list[str] = []
     for match in re.finditer(pattern, goal, flags=re.IGNORECASE):
@@ -1050,6 +1069,8 @@ def canonical_app_target(value: str) -> str:
         return ""
     tokens = set(re.findall(r"[a-z]+", lowered))
     if tokens and tokens <= _GENERIC_APP_TARGETS:
+        return ""
+    if lowered in _WEB_SURFACE_TARGETS:
         return ""
     return _APP_ALIASES.get(lowered, candidate[:80])
 

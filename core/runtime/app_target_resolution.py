@@ -12,7 +12,7 @@ from __future__ import annotations
 import difflib
 import os
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +69,17 @@ def _normal_name(value: str) -> str:
     if raw.endswith(".app"):
         raw = raw[:-4]
     return "".join(character for character in raw if character.isalnum())
+
+
+def _launchservices_app_path(name: str) -> str | None:
+    """Return LaunchServices' bundle path without launching the application."""
+    try:
+        from AppKit import NSWorkspace
+
+        path = NSWorkspace.sharedWorkspace().fullPathForApplication_(name)
+    except (ImportError, AttributeError, OSError, RuntimeError):
+        return None
+    return str(path).strip() if path else ""
 
 
 def _scan_root(root: Path) -> list[InstalledApp]:
@@ -130,6 +141,7 @@ def _resolve_from_inventory(
     requested: str,
     canonical: str,
     apps: tuple[InstalledApp, ...],
+    launchservices_lookup: Callable[[str], str | None],
 ) -> AppTargetResolution:
     canonical_key = _normal_name(canonical)
     requested_key = _normal_name(requested)
@@ -206,14 +218,28 @@ def _resolve_from_inventory(
         )
 
     alternatives = tuple(item.name for _score, item in ranked[:3])
+    launchservices_path = launchservices_lookup(canonical)
+    if launchservices_path:
+        resolved_name = Path(launchservices_path).stem or canonical
+        return AppTargetResolution(
+            requested=requested,
+            canonical=canonical,
+            resolved=resolved_name,
+            app_path=launchservices_path,
+            method="launchservices_exact",
+            inventory_available=bool(apps),
+            corrected=_normal_name(requested) != _normal_name(resolved_name),
+            alternatives=alternatives,
+        )
     return AppTargetResolution(
         requested=requested,
         canonical=canonical,
-        # LaunchServices may know apps outside the bounded filesystem roots.
-        # Preserve that route, but mark it as unverified rather than pretending
-        # the inventory proved the target exists.
-        resolved=canonical,
-        method="launchservices_unverified",
+        resolved="",
+        method=(
+            "application_not_found"
+            if launchservices_path == ""
+            else "launchservices_unavailable"
+        ),
         inventory_available=bool(apps),
         corrected=_normal_name(requested) != canonical_key,
         alternatives=alternatives,
@@ -225,6 +251,7 @@ def resolve_installed_app_target(
     *,
     installed_apps: Iterable[InstalledApp] | None = None,
     refresh: bool = False,
+    launchservices_lookup: Callable[[str], str | None] | None = None,
 ) -> AppTargetResolution:
     requested = str(value or "").strip()
     canonical = canonical_app_target(requested)
@@ -240,15 +267,8 @@ def resolve_installed_app_target(
         if installed_apps is not None
         else installed_app_inventory(refresh=refresh)
     )
-    if not apps:
-        return AppTargetResolution(
-            requested=requested,
-            canonical=canonical,
-            resolved=canonical,
-            method="inventory_unavailable",
-            corrected=_normal_name(requested) != _normal_name(canonical),
-        )
-    return _resolve_from_inventory(requested, canonical, apps)
+    lookup = launchservices_lookup or _launchservices_app_path
+    return _resolve_from_inventory(requested, canonical, apps, lookup)
 
 
 __all__ = [

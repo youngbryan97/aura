@@ -36,7 +36,11 @@ from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_RETRY_SAFE_ACTIONS,
 )
 from core.runtime.errors import record_degradation
-from core.runtime.os_automation_effects import canonical_app_target, extract_target_paths
+from core.runtime.os_automation_effects import (
+    canonical_app_target,
+    extract_target_apps,
+    extract_target_paths,
+)
 from core.runtime.watched_goal import read_watched_goal
 from core.skills.base_skill import BaseSkill
 from core.skills.file_modification_intent import requested_file_modification
@@ -4044,23 +4048,8 @@ class DesktopTaskSkill(BaseSkill):
 
     @staticmethod
     def _generic_open_app_mentions(objective: str) -> list[str]:
-        text = str(objective or "")
-        apps: list[str] = []
-        patterns = (
-            r"\bopen\s+(?:up\s+)?(?:my\s+|the\s+)?([A-Za-z][A-Za-z0-9 &._-]{1,60}?)\s+(?:app|application)\b",
-            r"\blaunch\s+(?:my\s+|the\s+)?([A-Za-z][A-Za-z0-9 &._-]{1,60}?)\b",
-        )
-        stopwords = {"a", "an", "the", "my", "new"}
-        for pattern in patterns:
-            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-                candidate = canonical_app_target(match.group(1))
-                if not candidate or candidate.lower() in stopwords:
-                    continue
-                if candidate.lower() == "browser":
-                    candidate = "Safari"
-                if candidate not in apps:
-                    apps.append(candidate)
-        return apps[:4]
+        apps = list(extract_target_apps(str(objective or "")))
+        return ["Safari" if app.casefold() == "browser" else app for app in apps[:4]]
 
     @staticmethod
     def _writing_app_from_apps(apps: list[str]) -> str:
@@ -6602,6 +6591,8 @@ class DesktopTaskSkill(BaseSkill):
                     result,
                 )
                 if bool(result.get("ok")) and effect_verified:
+                    break
+                if result.get("retryable") is False:
                     break
                 if attempt < attempt_limit:
                     self._emit_progress(
