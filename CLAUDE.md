@@ -141,6 +141,12 @@ replies — is checked against [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
   `get_tracer().write()` writes a Perfetto-loadable trace;
   `get_memory_infra().diff(a, b).narrative()` names what grew.
 - Full map: [docs/ENGINEERING_ADOPTION.md](docs/ENGINEERING_ADOPTION.md).
+- **Design and drawing** is a separate thing from the above:
+  `core/engineering/` computes a physical design and draws it, and its
+  `DEPS` forbids it reaching anything that generates a number. A value
+  reaches a drawing only as a Finding carrying its formula, its inputs and
+  its reference. 29 published-answer problems gate the formulas
+  themselves. See [docs/ENGINEERING_DESIGN.md](docs/ENGINEERING_DESIGN.md).
 
 ## Session mechanics for this repo
 
