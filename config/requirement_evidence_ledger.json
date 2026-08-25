@@ -1,5 +1,5 @@
 {
-  "content_sha256": "a5c4a4aad7fb50a50316fcdf49f5227adcb9e98a3e53befd5026c2944ec85640",
+  "content_sha256": "b82279c10b71d2a5656e18f92de3b4665ddf3669a72961f9d44e1613e2ac02b1",
   "entries": [
     {
       "acceptance_ids": [
@@ -111,12 +111,12 @@
       "acceptance_ids": [
         "A4"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "0ce99a7acd5b72c2286b29e3bffbbe75cb1e7e67",
       "evidence_class": "portability",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-portability-audit/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-portability-audit/0ce99a7acd5b72c2286b29e3bffbbe75cb1e7e67.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "3195c58735bdf7dc9ad0b1beb03ce6f5daf65e4199fbbedcbead8c8c6d2d1b7a"
+      "sha256": "e78e3ad4f344b4fcceb51f4bf8cd464d18ab1dc3237a0195b8087a6585f35d02"
     },
     {
       "acceptance_ids": [
@@ -450,12 +450,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "68b9eeb792398fb22ad81dcd7835b29c4c120c65",
+      "commit": "0ce99a7acd5b72c2286b29e3bffbbe75cb1e7e67",
       "evidence_class": "portability",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/skill-portability-audit/68b9eeb792398fb22ad81dcd7835b29c4c120c65.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/skill-portability-audit/0ce99a7acd5b72c2286b29e3bffbbe75cb1e7e67.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "3195c58735bdf7dc9ad0b1beb03ce6f5daf65e4199fbbedcbead8c8c6d2d1b7a"
+      "sha256": "e78e3ad4f344b4fcceb51f4bf8cd464d18ab1dc3237a0195b8087a6585f35d02"
     },
     {
       "acceptance_ids": [
