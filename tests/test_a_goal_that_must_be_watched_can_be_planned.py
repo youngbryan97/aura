@@ -230,3 +230,51 @@ def test_the_pursuit_declares_its_own_limit_so_the_layers_can_read_it():
 
     goal = read_watched_goal("play 2048 until you get 128")
     assert goal.as_target()["max_seconds"] == PURSUIT_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_a_pursuit_reports_what_it_did_in_words(monkeypatch):
+    """A step count is bookkeeping. What she did is the answer."""
+    import core.skills.screen_pursuit as sp
+
+    async def finished(**_kw):
+        return {
+            "completed": True,
+            "outcome": "goal_reached",
+            "moves": [{"key": "up"}, {"key": "left"}, {"key": "down"}],
+            "attempts": [{"held": True}, {"held": True}, {"held": False}],
+            "restarts": 1,
+            "pacing": {"chose": "slow down"},
+        }
+
+    monkeypatch.setattr(sp, "pursue_on_screen", finished)
+    result = await ComputerUseSkill()._pursue_on_screen(
+        json.dumps({"goal": "play until 128", "success_when": "128"})
+    )
+    said = result["said"]
+    assert "Reached it" in said and "128" in said
+    assert "3 move(s)" in said
+    assert "2 of them did what I expected" in said
+    assert "Began again 1 time(s)" in said
+    assert "slow down" in said
+
+
+@pytest.mark.asyncio
+async def test_an_unfinished_pursuit_says_how_far_it_got(monkeypatch):
+    import core.skills.screen_pursuit as sp
+
+    async def gave_up(**_kw):
+        return {
+            "completed": False,
+            "outcome": "out_of_cycles",
+            "moves": [{"key": "up"}] * 40,
+            "attempts": [{"held": True}] * 30,
+        }
+
+    monkeypatch.setattr(sp, "pursue_on_screen", gave_up)
+    result = await ComputerUseSkill()._pursue_on_screen(
+        json.dumps({"goal": "play until 128", "success_when": "128"})
+    )
+    assert "Made 40 move(s)" in result["said"]
+    assert "ran out of moves" in result["said"]
+    assert "30 of them did what I expected" in result["said"]

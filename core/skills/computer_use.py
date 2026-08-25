@@ -2019,6 +2019,8 @@ end tell
         )
         outcome = str(result.get("outcome") or "")
         moves = result.get("moves") or []
+        graded = result.get("attempts") or []
+        held = sum(1 for row in graded if isinstance(row, dict) and row.get("held"))
         # Name the reason at the point it is known.
         #
         # The step verifier reports a failed action's own "error", falling
@@ -2043,9 +2045,29 @@ end tell
                 }.get(outcome, outcome or "the goal was not reached")
             )
             reason = f"{reason} (after {len(moves)} move(s))"
+        # What she did, in words, so the turn can report it rather than
+        # handing somebody a step count. General to any pursuit: how many
+        # moves, how many did what she expected, and how it ended.
+        made = len(moves)
+        if result.get("completed"):
+            said = f"Reached it: {success_when!r} appeared after {made} move(s)."
+        elif made:
+            said = f"Made {made} move(s) and stopped — {reason}."
+        else:
+            said = f"Did not get started — {reason}."
+        if made:
+            said += f" {held} of them did what I expected."
+        if result.get("restarts"):
+            said += f" Began again {result['restarts']} time(s)."
+        pace = result.get("pacing") or {}
+        if pace.get("chose"):
+            said += f" I chose to {pace['chose']} to keep my commentary with my hands."
+
         return {
             "ok": bool(result.get("completed")),
             "error": reason,
+            "said": said,
+            "summary": said,
             "action": "pursue_on_screen",
             "goal": goal,
             "outcome": outcome,
@@ -2055,6 +2077,8 @@ end tell
             "blocked_by": result.get("blocked_by", ""),
             "needs_person": result.get("needs_person", ""),
             "cannot_decide": result.get("cannot_decide", ""),
+            "restarts": result.get("restarts", 0),
+            "pacing": result.get("pacing") or {},
             "could_not_get_there": result.get("could_not_get_there", ""),
             "wanted": result.get("wanted", ""),
             "verification": f"pursuit ended {outcome or 'without a named outcome'}",
