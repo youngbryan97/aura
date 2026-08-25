@@ -247,6 +247,7 @@ _INTROSPECTIVE_STATE_RE = re.compile(
 # desktop). Presence of one means the turn genuinely wants execution.
 _EXTERNAL_EFFECT_RE = re.compile(
     r"\b(?:open|launch|run|execute|install|download|save|create|build|make|"
+    r"change|set|adjust|enable|disable|turn\s+(?:on|off)|put|copy|"
     r"write|draft|generate|compose|organize|automate|set\s+up|fix|refactor|"
     r"rename|move|delete|remove|clean\s+up|sort|schedule|send|email|browse|"
     r"navigate|visit|click|type|edit|update|research|search|find|look\s+up|"
@@ -320,7 +321,27 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
         _CAPABILITY_INVENTORY_RE.search(normalized)
         or _ASKS_INVENTORY_DIRECTLY_RE.search(normalized)
     )
-    return asks_inventory and not direct_execution
+    if not asks_inventory or direct_execution:
+        return False
+
+    # Modal requests are ordinary English requests, not automatically
+    # capability questions. The old broad inventory pattern read any
+    # ``can/could ... you ... desktop/computer/browser`` sentence as asking
+    # what Aura can do, so "Can you change my desktop background?" was
+    # intercepted before the action router. Keep explicit answer surfaces
+    # ("tell me whether", "explain whether") in dialogue; otherwise let the
+    # shared grammatical substrate decide whether this is a present directive
+    # whose object is a concrete external effect.
+    if not _ANSWER_SURFACE_REQUEST_RE.search(sanitized):
+        try:
+            from core.conversation.request_mood import assess_request_mood
+
+            mood = assess_request_mood(normalized)
+            if mood.asks_for_action and _EXTERNAL_EFFECT_RE.search(sanitized):
+                return False
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+    return True
 
 
 def looks_like_execution_report(text: str) -> bool:

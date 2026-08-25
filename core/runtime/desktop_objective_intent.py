@@ -558,16 +558,19 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         return _learned_actuation_decision(user_message) is True
 
     try:
-        from core.phases.action_intent import detect_action_intent
+        from core.conversation.request_mood import assess_request_mood
 
-        intent = detect_action_intent(user_message)
-        if bool(getattr(intent, "should_execute", False)):
-            return True
-        if bool(getattr(intent, "has_action_request", False)) and re.search(
-            r"\b(?:can|could|will|would)\s+you\b",
-            sanitized_text,
-            flags=re.IGNORECASE,
-        ):
+        # The action and machine surface are already established above. What
+        # remains is grammatical: is the person asking for that action now, or
+        # merely discussing it? ``ActionIntent`` used to be queried here for a
+        # ``should_execute`` attribute its result type does not define, then a
+        # modal-verb regex rescued only "can/could/will/would you" requests.
+        # Imperatives such as "find an image and make it my background" were
+        # therefore discarded even though the language substrate had already
+        # split them into present actionable clauses. Use that shared typed
+        # judgement directly so chat, voice, and every desktop action inherit
+        # the same request semantics.
+        if assess_request_mood(user_message).asks_for_action:
             return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         pass

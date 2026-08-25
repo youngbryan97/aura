@@ -21,6 +21,45 @@ def test_shared_desktop_objective_detector_covers_general_document_tasks() -> No
     )
 
 
+def test_present_desktop_requests_use_the_shared_language_substrate() -> None:
+    """Imperative and polite syntax must not require different action routes."""
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+    from interface.routes.chat import _desktop_objective_self_sufficient_without_cognitive_text
+
+    requests = (
+        "Find a suitable image of a blue whale online and make it my desktop background.",
+        "Please find a nebula image and use it as my wallpaper.",
+        "Could you find a redwood photo and set it as the desktop background?",
+    )
+    for request in requests:
+        assert looks_like_desktop_objective(request), request
+        assert _desktop_objective_self_sufficient_without_cognitive_text(request), request
+
+    assert not looks_like_desktop_objective(
+        "Why would someone find a nebula image and use it as a desktop background?"
+    )
+
+
+def test_capability_questions_do_not_intercept_concrete_external_requests() -> None:
+    from core.runtime.skill_task_bridge import (
+        looks_like_capability_inventory_dialogue_request,
+    )
+
+    for request in (
+        "Can you change my desktop background to a blue whale?",
+        "Could you find a redwood photo and set it as the desktop background?",
+        "Would you open Notes and copy this text into it?",
+    ):
+        assert not looks_like_capability_inventory_dialogue_request(request), request
+
+    for question in (
+        "Do you have tools for changing the desktop background?",
+        "Could you tell me whether you can change my desktop background?",
+        "What desktop capabilities do you have?",
+    ):
+        assert looks_like_capability_inventory_dialogue_request(question), question
+
+
 def test_shared_desktop_objective_detector_rejects_explanation_only_requests() -> None:
     from core.runtime.desktop_objective_intent import looks_like_desktop_objective
 
