@@ -3515,10 +3515,20 @@ class CognitiveEngine:
                             ],
                             "at": time.time(),
                         }
+                        # A receipt about the recovery, not a second fault.
+                        #
+                        # cognitive_engine is a required subsystem, so a
+                        # warning here escalates: this note became CRITICAL
+                        # SERVICE FAILURE, which aborted the whole turn and
+                        # answered the person "I couldn't get to an answer
+                        # I'd stand behind." The phase failure itself is
+                        # recorded where it happens; this line only says what
+                        # the restore did and did not cover, and saying so
+                        # must not cost the turn it was trying to save.
                         record_degradation(
                             "cognitive_engine",
                             RuntimeError("phase_failure_partial_rollback"),
-                            severity="warning",
+                            severity="info",
                             action="restored the cognitive state snapshot; external phase effects are not reversible here",
                         )
                 except (OSError, ConnectionError, TimeoutError) as _e:

@@ -99,3 +99,20 @@ def test_deciding_without_language_is_not_recorded_as_a_degradation():
     guard = source[max(0, where - 700) : where]
     assert "record_degradation(" not in guard, "a working fallback is being counted as a fault"
     assert "logger.info(" in guard, "and it should still be visible"
+
+
+def test_a_rollback_receipt_does_not_abort_the_turn_it_describes():
+    """LIVE: "I couldn't get to an answer I'd stand behind" on an ordinary
+    research question.
+
+    The cause was a note saying what a partial rollback had restored.
+    cognitive_engine is a required subsystem, so a warning escalates — the
+    receipt became CRITICAL SERVICE FAILURE and aborted the turn it was
+    written to explain.
+    """
+    from core.brain import cognitive_engine
+
+    source = inspect.getsource(cognitive_engine)
+    where = source.index('RuntimeError("phase_failure_partial_rollback")')
+    window = source[where : where + 300]
+    assert 'severity="info"' in window, "a receipt about recovery is escalating again"
