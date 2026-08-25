@@ -1,0 +1,190 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/production_surface_lint.py",
+    "--scope",
+    "production"
+  ],
+  "cwd": ".",
+  "duration_seconds": 14.084063,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "STORAGE-GATEWAY-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:15:45.355022+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "666bf0ce73f87c86f79fc79a03f795d5db4207eb",
+  "output_bytes": 188,
+  "proof_id": "production-surface-ownership-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "666bf0ce73f87c86f79fc79a03f795d5db4207eb",
+  "source_manifest": [
+    {
+      "path": "core/actuators/actuator_registry.py",
+      "sha256": "28f890961f2b1395039af963fd58b7b2a9fcfd4f0cb4e77147ddf79a5230e88a",
+      "size_bytes": 74651
+    },
+    {
+      "path": "core/brain/cognitive_ingress.py",
+      "sha256": "215cc381531aef93aa4218d1b95392505182731dd07742e9aceb188d0dbef168",
+      "size_bytes": 60173
+    },
+    {
+      "path": "core/brain/inference_gate.py",
+      "sha256": "ca7323dcadbadcd3d0d474c7e109f0f1bc0230741a4821b402e33090dcdb292c",
+      "size_bytes": 707491
+    },
+    {
+      "path": "core/brain/llm/mlx_client.py",
+      "sha256": "f8a84049681b2bc18ee3fef9716d73963ea175d1e29a6750e742891de1a3d479",
+      "size_bytes": 788412
+    },
+    {
+      "path": "core/brain/reasoning_queue.py",
+      "sha256": "1cb6f1fb0bf971f34bda25c8a8e2ec889e72a652f49e3d693fa704d713133bae",
+      "size_bytes": 24076
+    },
+    {
+      "path": "core/communication/messages_transport.py",
+      "sha256": "ef9ff74e08ed1297de9c43d38ce84f282b362aacb7b1c9a30e3f0efb1600de98",
+      "size_bytes": 36164
+    },
+    {
+      "path": "core/embodiment/ros2_connector.py",
+      "sha256": "04aa61e034c4cc4920db6da2aef1995caf6f5e9be143f73582925caf251a54ed",
+      "size_bytes": 23903
+    },
+    {
+      "path": "core/fsw/rate_groups.py",
+      "sha256": "9dad92f854f3df6c6799ec0665309eff42a47cf33e0e7cb411aac933fc90c30f",
+      "size_bytes": 14173
+    },
+    {
+      "path": "core/reality_reach/attachments.py",
+      "sha256": "2aa9c9846c30a90b896b03728c6d2587d963c7cf3a5a147d526643b023d92532",
+      "size_bytes": 101252
+    },
+    {
+      "path": "core/reality_reach/metrology.py",
+      "sha256": "a1eba9efaab3577bae5491927793b24283521ffd8542d0c5bc2ff2e98c82f294",
+      "size_bytes": 42554
+    },
+    {
+      "path": "core/runtime/action_executor.py",
+      "sha256": "8f998be97f5d32041691574caf63286154004b890a4de4905f4db4939b57740a",
+      "size_bytes": 103386
+    },
+    {
+      "path": "core/runtime/foundations.py",
+      "sha256": "a61843d861b9125b13f634920f5b3c002924ac1ae13e87b0c09a3c5d9ad0e965",
+      "size_bytes": 54551
+    },
+    {
+      "path": "core/runtime/lease.py",
+      "sha256": "9f92c0f736f1d66f8176cb835d7791eceac8cc4fee8feac732af48ec1efa4aad",
+      "size_bytes": 23636
+    },
+    {
+      "path": "core/runtime/reconcile.py",
+      "sha256": "a1d34481d3cb63e1cd5483a29ff9e9b7ff5fa231e85d7abc78f50806c7cf4aeb",
+      "size_bytes": 24902
+    },
+    {
+      "path": "core/voice/duplex/mind_bridge.py",
+      "sha256": "d03e3d56de98a31d2cb80cb7c4f8a8822ca8936204a2e805609fdefd42d315bf",
+      "size_bytes": 28329
+    },
+    {
+      "path": "core/voice/duplex/session.py",
+      "sha256": "1899ffffe96360eee88eea4554c12f48bd13bba5569a3247f32a4350cfc6dd0d",
+      "size_bytes": 88004
+    },
+    {
+      "path": "core/voice/duplex/tts_stream.py",
+      "sha256": "5c1b3d15bbe641970df8a4da5b31e51e5f033b03d07bfa1d736ae8ddf3f742e2",
+      "size_bytes": 29071
+    },
+    {
+      "path": "interface/routes/chat.py",
+      "sha256": "3a28fb6ba895f24520f26251eeb6a15b061ef37e812bf1cea55328104e88b40a",
+      "size_bytes": 1029688
+    },
+    {
+      "path": "interface/routes/voice_duplex.py",
+      "sha256": "21a504a1d4ff04c1867e304ca8fc537cac377ba1ecbb25f5503248572a844ae6",
+      "size_bytes": 23496
+    },
+    {
+      "path": "interface/server.py",
+      "sha256": "f9f35e407388cf84863efb5ce3bf2c4820f22b520296cb1e116bcea5db27b7ec",
+      "size_bytes": 83765
+    },
+    {
+      "path": "tools/production_surface_lint.py",
+      "sha256": "e83096165b0b9584e47eb17a5e0f33cf871999fa3f0060642da29db9125430fa",
+      "size_bytes": 21792
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "core/actuators/actuator_registry.py",
+      "core/brain/cognitive_ingress.py",
+      "core/brain/inference_gate.py",
+      "core/brain/llm/mlx_client.py",
+      "core/brain/reasoning_queue.py",
+      "core/communication/messages_transport.py",
+      "core/embodiment/ros2_connector.py",
+      "core/fsw/rate_groups.py",
+      "core/reality_reach/attachments.py",
+      "core/reality_reach/metrology.py",
+      "core/runtime/action_executor.py",
+      "core/runtime/foundations.py",
+      "core/runtime/lease.py",
+      "core/runtime/reconcile.py",
+      "core/voice/duplex/mind_bridge.py",
+      "core/voice/duplex/session.py",
+      "core/voice/duplex/tts_stream.py",
+      "interface/routes/chat.py",
+      "interface/routes/voice_duplex.py",
+      "interface/server.py",
+      "tools/production_surface_lint.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:15:31.271244+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "{\n  \"audited_exemptions_count\": 0,\n  \"findings\": [],\n  \"findings_count\": 0,\n  \"generated_at\": 1787670945.344945,\n  \"high_or_critical_count\": 0,\n  \"passed\": true,\n  \"scope\": \"production\"\n}\n",
+  "stdout_sha256": "0a2980fc4b3cfe091fe98ee0a2620b0a0c57b50d168b5f8bbaaaf26e9d365b3f",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
