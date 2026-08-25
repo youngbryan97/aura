@@ -27,7 +27,18 @@ from core.brain.inference_gate import InferenceGate
 
 
 def _generate_source() -> str:
-    return inspect.getsource(InferenceGate.generate)
+    """The generation body, followed through the delegation that holds it.
+
+    ``generate`` now does one thing: it calls
+    ``_generate_with_metadata_sink``. Reading only ``generate`` found none of
+    the binding logic and three tests failed about code that had not moved off
+    the path at all.
+    """
+    entry = inspect.getsource(InferenceGate.generate)
+    assert "_generate_with_metadata_sink(" in entry, (
+        "generate no longer delegates; the body may have moved somewhere else"
+    )
+    return entry + inspect.getsource(InferenceGate._generate_with_metadata_sink)
 
 
 def test_the_fallback_is_reached_only_for_an_origin_that_is_a_person():

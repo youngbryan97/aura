@@ -132,7 +132,12 @@ def findings() -> dict[str, list[tuple[int, str, list[str]]]]:
     out: dict[str, list[tuple[int, str, list[str]]]] = {}
     for scan_root in SCAN_ROOTS:
         for path in (ROOT / scan_root).rglob("*.py"):
-            if set(path.parts) & SKIP_PARTS:
+            # Relative to the root being scanned. SKIP_PARTS is a set of
+            # directory NAMES, and matching them against the absolute path
+            # skips the whole tree whenever the checkout itself lives under
+            # one — a worktree under .claude, which is where CONTRIBUTING says
+            # to work, and the scan then finds nothing and reports clean.
+            if set(path.relative_to(ROOT).parts) & SKIP_PARTS:
                 continue
             hits = scan_file(path, vocabulary)
             if hits:

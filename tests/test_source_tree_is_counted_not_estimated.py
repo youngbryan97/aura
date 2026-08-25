@@ -32,10 +32,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _source_files() -> list[Path]:
+    """The same walk the production counter does, judged the same way.
+
+    The exclusion is a set of directory NAMES, and the counter prunes them
+    while walking — so the question is about the path RELATIVE to the root.
+    Testing the absolute path excluded everything whenever the checkout itself
+    lived under one of those names: a worktree under .claude, which is where
+    CONTRIBUTING says to work, produced an empty list and a count of zero.
+    """
     return [
         path
         for path in REPO_ROOT.rglob("*.py")
-        if not set(path.parts) & set(_UNCOUNTED_DIRS)
+        if not set(path.relative_to(REPO_ROOT).parts) & set(_UNCOUNTED_DIRS)
     ]
 
 
