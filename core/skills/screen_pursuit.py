@@ -1157,7 +1157,11 @@ async def pursue_on_screen(
                 rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
                 frame = list(observation.get("bounds") or [])
                 restarts["count"] += 1
-                restarts["because"] = because
+                # Always a reason, even when her wording was unusable. The
+                # filters drop an echo of the evidence, which is right, and a
+                # decision with no recorded reason is not much better than an
+                # unexplained one.
+                restarts["because"] = because or "nothing here was moving the board"
                 intending["value"] = START_OVER
                 history.clear()
 
@@ -1267,6 +1271,14 @@ async def pursue_on_screen(
                     if await click_normalized(rx, ry, expect_app=target_app, bounds=frame):
                         restarts["count"] += 1
                         restarts["because"] = settle.rationale or "the goal was already met by an old game"
+                        # Look again before judging anything.
+                        #
+                        # A reset takes a moment to land, and the reading taken
+                        # before it did is of the game she just abandoned.
+                        # Measured live: she began again and immediately
+                        # reported the goal reached "after 0 move(s)" — the
+                        # 128 she was looking at belonged to the old board.
+                        await _settled_after(first, target_app)
                     else:
                         already["value"] = True
                 else:
@@ -1444,6 +1456,28 @@ def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
         Narrator.say_everywhere(f"{line} — {because}" if because else line)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("screen_pursuit", exc, severity="info", action="moved without saying it out loud")
+
+
+
+async def _settled_after(before: dict[str, Any], app: str, *, patience: float = 4.0) -> dict[str, Any]:
+    """The screen once it has actually changed, or the last reading tried.
+
+    An action that resets a surface is not done when the click returns; it is
+    done when the surface says so. Waiting on the change rather than on a
+    fixed delay means a slow page is waited for and a fast one is not.
+    """
+    was = str(before.get("text") or "")
+    started = time.monotonic()
+    seen = before
+    while time.monotonic() - started < patience:
+        await asyncio.sleep(0.3)
+        try:
+            seen = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
+        except TimeoutError:
+            continue
+        if str(seen.get("text") or "") != was:
+            return seen
+    return seen
 
 
 async def _say_line(line: str) -> None:

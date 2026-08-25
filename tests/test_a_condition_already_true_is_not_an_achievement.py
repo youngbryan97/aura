@@ -235,3 +235,67 @@ async def test_accepting_a_pre_met_goal_is_still_reported_honestly(monkeypatch):
     )
     assert result["outcome"] == "already_true"
     assert result["completed"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_reset_is_waited_for_before_anything_is_judged(monkeypatch):
+    """LIVE: she began again and immediately reported the goal reached "after
+    0 move(s)" — the 128 she was looking at belonged to the old board.
+
+    An action that resets a surface is not done when the click returns; it is
+    done when the surface says so.
+    """
+    reads = {"n": 0}
+    old_board = dict(BOARD_WITH_TILE)
+    old_board["layout"] = BOARD_WITH_TILE["layout"] + [
+        {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
+    ]
+    fresh_board = {
+        "ok": True,
+        "text": "2048 SCORE 0 2 4",
+        "layout": [
+            {"text": "SCORE 0", "center_y": 0.15},
+            {"text": "2", "center_y": 0.5},
+            {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02},
+        ],
+    }
+    state = {"reset": False}
+
+    async def read(app_name=""):
+        reads["n"] += 1
+        return fresh_board if state["reset"] else old_board
+
+    async def click(x, y, *, expect_app="", bounds=None):
+        state["reset"] = True
+        return True
+
+    async def press(key, *, expect_app=""):
+        return True
+
+    async def frontmost(_app):
+        return True
+
+    async def identity():
+        return {"url": "https://play2048.co/", "title": "2048", "error": ""}
+
+    async def think(objective, evidence):
+        return "start over"
+
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "click_normalized", click)
+    monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
+    monkeypatch.setattr(sp, "current_page_identity", identity)
+
+    result = await sp.pursue_on_screen(
+        goal="play until a 128 tile",
+        success_when="128",
+        region_top=0.12,
+        think=think,
+        max_cycles=1,
+        max_seconds=8.0,
+        narrate=False,
+        lived=False,
+    )
+    assert result["restarts"] >= 1
+    assert result.get("outcome") != "already_true", "she judged the board she had just abandoned"
