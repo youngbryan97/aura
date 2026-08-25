@@ -17,7 +17,6 @@ wrong rather than a matter of style, so it is safe on every path.
 """
 from __future__ import annotations
 
-import inspect
 import re
 from pathlib import Path
 
@@ -28,19 +27,42 @@ pytestmark = pytest.mark.unit
 _CHAT = Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat.py"
 
 
-def _finalizer_source() -> str:
-    """The whole body of _finalize_fastpath, to its next sibling definition.
+#: Helpers the finalizer delegates to. Their bodies are part of the gate.
+#:
+#: tools/extract_seam.py moves blocks out of long functions into module-level
+#: helpers, token for token. The gate is exactly as present afterwards and a
+#: slice of the finalizer alone can no longer see it, so five tests about code
+#: that had not changed went red. Following the call is the fix; pinning the
+#: gate inside one function body would only forbid the refactor.
+_FINALIZER_DELEGATES = ("_hold_a_reasoning_answer_to_its_contract",)
 
-    This used to be a fixed `start + 4600` slice, which silently measured a
-    shrinking fraction of the function as the gate grew: adding a check at the
-    top pushed the later assertions out of the window and failed tests about
-    code that was still present and still correct. Bound it to the function.
-    """
+
+def _function_source(name: str) -> str:
+    """One function's body, resolved by parsing rather than by slicing text."""
+    import ast
+
     src = _CHAT.read_text(encoding="utf-8")
-    start = src.index("async def _finalize_fastpath(")
-    body = src[start:]
-    sibling = re.search(r"\n        (?:async def |def )", body[1:])
-    return body[: sibling.start() + 1] if sibling else body
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return ast.get_source_segment(src, node) or ""
+    raise AssertionError(f"{name} is gone from {_CHAT.name}")
+
+
+def _finalizer_source() -> str:
+    """The finalizer, plus every helper it hands the reply to.
+
+    What these tests protect is that the last gate before a person runs the
+    checks. Which function body the code happens to live in is not the claim.
+    """
+    blocks = [_function_source("_finalize_fastpath")]
+    for delegate in _FINALIZER_DELEGATES:
+        assert f"{delegate}(" in blocks[0], (
+            f"the finalizer no longer calls {delegate}; the gate may have "
+            "moved off the serving path rather than into a helper"
+        )
+        blocks.append(_function_source(delegate))
+    return "\n".join(blocks)
 
 
 class TestTheGateIsAtTheChokepoint:

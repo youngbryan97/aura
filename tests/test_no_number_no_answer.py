@@ -129,9 +129,17 @@ def test_the_cognitive_engine_path_also_consults_it() -> None:
 def test_the_serving_gate_consults_it_before_the_arithmetic_verdict() -> None:
     """It must run on the path a reply actually leaves by."""
 
+    # The checks moved into a helper the finalizer calls — token for token,
+    # by tools/extract_seam.py — so a slice of the finalizer alone stopped
+    # seeing them. The claim is that the serving path runs them, so follow
+    # the call.
     chat = chat_lane_source()
     gate = chat[chat.index("async def _finalize_fastpath") :]
-    gate = gate[: gate.index("requires_reasoning_lane(_semantic_user_message)")]
+    assert "_hold_a_reasoning_answer_to_its_contract(" in gate, (
+        "the finalizer no longer reaches the contract holder"
+    )
+    holder = chat[chat.index("def _hold_a_reasoning_answer_to_its_contract") :]
+    gate = holder[: holder.index("requires_reasoning_lane(_semantic_user_message)")]
     assert "numeric_answer_missing(_semantic_user_message, final_text)" in gate
     assert 'status = "numeric_answer_missing"' in gate
     # The honest sentence replaces the text rather than the reply being dropped.
