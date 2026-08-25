@@ -20,6 +20,7 @@ from core.goals.objective_lifecycle import (
     is_foreground_objective_origin,
     normalize_objective_origin,
 )
+from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime import background_policy, response_policy
 from core.runtime.errors import record_degradation
@@ -282,9 +283,6 @@ def _combine_advisory_token_factors(factors: list[float]) -> float:
     return min(reductions) if reductions else max(factors)
 
 
-_REPLY_TERMINATOR_CHARS = ".!?…\"'”’)]}`"
-
-
 # Shortest trimmed reply still worth serving instead of losing the turn.
 # "The answer is 27." is seventeen characters and is the whole point of the
 # turn, so this floor only has to exclude a stub like "Hi." or "Sure.".
@@ -386,7 +384,7 @@ def _trim_midsentence_cutoff(text: str) -> tuple[str, bool]:
     stripped = str(text or "").rstrip()
     if not stripped:
         return stripped, False
-    if stripped[-1] in _REPLY_TERMINATOR_CHARS or stripped.endswith("```"):
+    if has_terminal_sentence_boundary(stripped) or stripped.endswith("```"):
         return stripped, False
     last_boundary = max(stripped.rfind(ch) for ch in ".!?…")
     # Keep whatever complete sentences exist, measured in what SURVIVES rather

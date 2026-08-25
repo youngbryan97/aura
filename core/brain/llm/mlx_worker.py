@@ -36,6 +36,7 @@ from core.conversation.user_surface_contract import (
     UserSurfacePromptResolution,
     resolve_user_surface_prompt,
 )
+from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
@@ -1172,7 +1173,7 @@ def _semantic_surface_stop_ready(
     if int(generated_tokens) < required_tokens:
         return False
     candidate = _surface_quality_candidate(job, response_text).rstrip()
-    if not candidate.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]")):
+    if not has_terminal_sentence_boundary(candidate):
         return False
     try:
         from core.conversation.request_coverage import (
@@ -1212,9 +1213,7 @@ def _semantic_completion_receipt_state(
 
     required = bool(job.get("semantic_completion_contract", False))
     candidate = _surface_quality_candidate(job, response_text).rstrip()
-    terminal_boundary = bool(
-        candidate.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]"))
-    )
+    terminal_boundary = has_terminal_sentence_boundary(candidate)
     missing_indexes: list[int] = []
     discourse_missing: list[dict[str, Any]] = []
     quality_reasons: list[str] = []

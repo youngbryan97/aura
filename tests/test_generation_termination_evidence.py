@@ -244,6 +244,40 @@ def test_semantic_stop_waits_for_all_requested_epistemic_facets():
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=64)
 
 
+def test_a_quoted_word_does_not_end_the_surrounding_sentence() -> None:
+    """A closing quote is syntax, not terminal punctuation."""
+    from core.language.terminal_boundary import has_terminal_sentence_boundary
+
+    prompt = (
+        "What does Dijkstra's shortest-path algorithm guarantee, and why do "
+        "negative edge weights break that guarantee?"
+    )
+    live_cutoff = (
+        "Dijkstra finalizes the smallest tentative distance because nonnegative "
+        "edges cannot later reduce it. Negative weights can reduce a settled "
+        "distance, so the greedy choice is only safe when “closest”"
+    )
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": prompt,
+    }
+
+    assert not has_terminal_sentence_boundary(live_cutoff)
+    assert has_terminal_sentence_boundary('The invariant is called “safe.”')
+    assert has_terminal_sentence_boundary(
+        'The invariant holds (when weights are nonnegative.)'
+    )
+    assert not _semantic_surface_stop_ready(job, live_cutoff, generated_tokens=200)
+    receipt = _semantic_completion_receipt_state(job, live_cutoff, generated_tokens=200)
+    assert receipt["semantic_completion_satisfied"] is False
+    assert receipt["semantic_completion_terminal_boundary"] is False
+    assert _has_truncated_tail(
+        live_cutoff,
+        generation_stop_reason="semantic_contract_satisfied",
+    )
+
+
 def test_semantic_stop_waits_for_every_compound_request_obligation():
     prompt = (
         "Explain Dijkstra's algorithm in one complete response. Include: "

@@ -64,6 +64,10 @@ from core.dialogue.shared_history import has_fabricated_shared_history
 from core.language.discourse_commitments import unfulfilled_commitments
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
+from core.language.terminal_boundary import (
+    has_terminal_sentence_boundary,
+    terminal_content,
+)
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -6607,7 +6611,7 @@ def complete_truncated_tail(text: Any) -> str:
 
     if len(repaired) < 24:
         return original
-    if repaired.endswith((".", "!", "?", '"', "'", "\u201d", "\u2019", ")", "]")):
+    if has_terminal_sentence_boundary(repaired):
         return repaired
     # A list item is a complete unit without a full stop.
     #
@@ -7473,7 +7477,7 @@ def _has_truncated_tail(
     if (
         len(body) >= 80
         and _word_count(body) >= 12
-        and not body.endswith((".", "!", "?", "\"", "'", "”", "’", ")", "]"))
+        and not has_terminal_sentence_boundary(body)
         and _BARE_NUMERIC_RANGE_TAIL_RE.search(body)
     ):
         return True
@@ -7497,7 +7501,7 @@ def _has_truncated_tail(
         return True
     if re.search(r"(?:^|\n)\s*(?:[-*]|\d+[.)])\s*$", body):
         return True
-    if body.endswith((".", "!", "?", "\"", "'", "”", "’", ")", "]")):
+    if has_terminal_sentence_boundary(body):
         return False
     if re.search(r"(?:^|\n)\s*\d+\.\s+\S+", body) or re.search(r"\*\*[^*\n]{2,80}:\*\*", body):
         # A structured answer legitimately ends on its last item with no full
@@ -7535,9 +7539,10 @@ def _has_truncated_tail(
         )
         if ends_on_bare_heading or not ends_on_complete_item or inconsistent_tail:
             return True
-    if body.endswith(("-", "—", ":", ";", ",")):
+    unwrapped_body = terminal_content(body)
+    if unwrapped_body.endswith(("-", "—", ":", ";", ",")):
         return True
-    match = re.search(r"([A-Za-z]+)$", body)
+    match = re.search(r"([A-Za-z]+)$", unwrapped_body)
     if not match:
         return False
     last_word = match.group(1).lower()
