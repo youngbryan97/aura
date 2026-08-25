@@ -7978,6 +7978,7 @@ def _model_text_integrity_reasons(
     user_facing: bool = False,
     antecedent: Any = None,
     sensory_evidence: Any = None,
+    tool_receipts: Iterable[Any] | None = None,
     generation_stop_reason: Any = "",
 ) -> list[str]:
     raw = str(reply_text or "").strip()
@@ -8120,25 +8121,33 @@ def _model_text_integrity_reasons(
                 enforce_failure_policy=False,
             )
     if user_facing:
-        try:
-            from core.conversation.surface_disposition import turn_tool_receipts
+        receipts: Iterable[Any]
+        if tool_receipts is not None:
+            # The MLX worker is a separate process and therefore cannot read
+            # the parent's ContextVar custody.  An explicit tuple is the
+            # request-bound IPC evidence for that exact decode, including an
+            # intentionally empty tuple when no tool ran.
+            receipts = tuple(tool_receipts)
+        else:
+            try:
+                from core.conversation.surface_disposition import turn_tool_receipts
 
-            receipts = turn_tool_receipts()
-        except Exception as exc:  # noqa: BLE001 - reported below, then fails closed
-            # Silent before this. The empty tuple is what
-            # `_has_unfounded_tool_execution_claim` reads to decide whether a
-            # claim about running a tool is founded, so losing the receipts
-            # makes every such claim look unfounded — or, if the check is
-            # inverted anywhere downstream, makes none of them checkable. A
-            # reliability gate whose evidence quietly became empty is the
-            # absence of a check reported as a passed check.
-            record_degradation(
-                "response_reliability",
-                exc,
-                severity="warning",
-                action="evaluated tool-execution claims with no receipts available",
-            )
-            receipts = ()
+                receipts = turn_tool_receipts()
+            except Exception as exc:  # noqa: BLE001 - reported below, then fails closed
+                # Silent before this. The empty tuple is what
+                # `_has_unfounded_tool_execution_claim` reads to decide whether a
+                # claim about running a tool is founded, so losing the receipts
+                # makes every such claim look unfounded — or, if the check is
+                # inverted anywhere downstream, makes none of them checkable. A
+                # reliability gate whose evidence quietly became empty is the
+                # absence of a check reported as a passed check.
+                record_degradation(
+                    "response_reliability",
+                    exc,
+                    severity="warning",
+                    action="evaluated tool-execution claims with no receipts available",
+                )
+                receipts = ()
         if _has_unfounded_tool_execution_claim(
             raw,
             tool_receipts=receipts,
@@ -8387,6 +8396,7 @@ def assess_user_facing_reply(
     antecedent: Any = None,
     provenance: Any = None,
     sensory_evidence: Any = None,
+    tool_receipts: Iterable[Any] | None = None,
     generation_stop_reason: Any = "",
 ) -> ConversationReplyAssessment:
     """Classify a reply, and record the verdict on the turn's candidate ledger.
@@ -8457,6 +8467,7 @@ def assess_user_facing_reply(
         grounding=bound_grounding,
         antecedent=antecedent,
         sensory_evidence=bound_sensory_evidence,
+        tool_receipts=tool_receipts,
         generation_stop_reason=generation_stop_reason,
     )
     assessment = _apply_reply_provenance(
@@ -8579,6 +8590,7 @@ def _assess_user_facing_reply(
     grounding: Iterable[str] | None = None,
     antecedent: Any = None,
     sensory_evidence: Any = None,
+    tool_receipts: Iterable[Any] | None = None,
     generation_stop_reason: Any = "",
 ) -> ConversationReplyAssessment:
     """Classify whether a reply is safe to present as a completed chat turn."""
@@ -8639,6 +8651,7 @@ def _assess_user_facing_reply(
             prompt=user_message,
             user_facing=True,
             sensory_evidence=sensory_evidence,
+            tool_receipts=tool_receipts,
             generation_stop_reason=generation_stop_reason,
         )
         if request_is_knowable:
@@ -8694,6 +8707,7 @@ def _assess_user_facing_reply(
             user_facing=True,
             antecedent=antecedent,
             sensory_evidence=sensory_evidence,
+            tool_receipts=tool_receipts,
             generation_stop_reason=generation_stop_reason,
         )
     )

@@ -178,6 +178,56 @@ def test_worker_admits_shared_history_only_with_bound_grounding_evidence():
     )
 
 
+def test_worker_admits_execution_claim_only_with_exact_turn_receipt():
+    prompt = "Search the web for the latest Mistral model release."
+    reply = "I ran the search and found Mistral 3 on Mistral AI's release page."
+    unreceipted = _job_for(prompt)
+    receipted = {
+        **unreceipted,
+        "user_surface_tool_receipts": [
+            {
+                "receipt_id": "a" * 32,
+                "tool": "web_search",
+                "action": "web_search",
+                "object_ref": "latest Mistral model release",
+                "ok": True,
+                "effect_observed": True,
+                "verification": "result_received",
+            }
+        ],
+    }
+
+    assert "unfounded_tool_execution_claim" in _surface_quality_failure_reasons(
+        unreceipted, reply
+    )
+    assert "unfounded_tool_execution_claim" not in _surface_quality_failure_reasons(
+        receipted, reply
+    )
+
+
+def test_parent_projects_only_custodied_tool_receipts_for_worker_ipc():
+    from core.brain.llm.mlx_client import _bounded_surface_tool_receipts
+    from core.conversation.surface_disposition import record_tool_receipt
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    with bind_turn_evidence_custody(session_id="session", turn_id="turn"):
+        assert record_tool_receipt(
+            "web_search",
+            ok=True,
+            action="web_search",
+            object_ref="latest Mistral release",
+            effect_observed=True,
+            verification="result_received",
+            evidence="large source payload deliberately not sent to the worker",
+        )
+        receipts = _bounded_surface_tool_receipts()
+
+    assert len(receipts) == 1
+    assert receipts[0]["tool"] == "web_search"
+    assert receipts[0]["effect_observed"] is True
+    assert "evidence" not in receipts[0]
+
+
 def test_worker_admits_typed_camera_evidence_and_rejects_scope_overclaim():
     from core.senses.turn_evidence import build_camera_turn_evidence
 

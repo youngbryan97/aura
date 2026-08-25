@@ -25,6 +25,7 @@ from core.conversation.response_reliability import (
     repair_instruction_shape,
     requested_output_contract,
 )
+from core.conversation.surface_disposition import COMPLETION_REASONS
 from core.intent.opaque_spans import first_named_url as _first_named_url
 from core.phases.dialogue_policy import (
     enforce_dialogue_contract,
@@ -75,14 +76,27 @@ def _append_only_continuation_pending(
         return False
     receipt = generation_metadata.get("surface_control_receipt")
     if not isinstance(receipt, dict):
-        return False
-    if receipt.get("semantic_completion_incomplete") is not True:
+        receipt = {}
+    parent_completion_reasons = {
+        str(reason or "").strip().lower()
+        for reason in (
+            generation_metadata.get("post_generation_completion_evidence")
+            or generation_metadata.get("failure_reasons")
+            or ()
+        )
+        if str(reason or "").strip()
+    } & COMPLETION_REASONS
+    if (
+        receipt.get("semantic_completion_incomplete") is not True
+        and not parent_completion_reasons
+    ):
         return False
     reasons = {
         str(reason or "").strip().lower()
         for reason in receipt.get("surface_quality_gate_reasons") or ()
         if str(reason or "").strip()
     }
+    reasons.update(parent_completion_reasons)
     try:
         from core.conversation.surface_disposition import draft_is_servable
 
@@ -2719,6 +2733,7 @@ class ResponseGenerationPhase(BasePhase):
                         latent_response_owned
                         or amplifier_promotion_authority != "none"
                         or append_only_continuation_pending
+                        or foreground_user_surface_owned
                     )
                     else self.container.get("composer_node", default=None)
                 )

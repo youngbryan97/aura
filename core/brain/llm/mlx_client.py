@@ -3271,6 +3271,44 @@ def _bounded_surface_sensory_evidence(value: Any = None) -> dict[str, Any]:
     return bounded
 
 
+def _bounded_surface_tool_receipts() -> list[dict[str, Any]]:
+    """Carry exact-turn execution evidence across worker IPC.
+
+    The worker cannot inherit the parent's ContextVar custody.  It receives a
+    bounded projection of receipts owned by the current turn instead; callers
+    cannot supply arbitrary receipts through generation kwargs.
+    """
+
+    try:
+        from core.conversation.surface_disposition import turn_tool_receipts
+
+        available = turn_tool_receipts()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return []
+    bounded: list[dict[str, Any]] = []
+    total_chars = 0
+    for raw in available[:16]:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            "receipt_id": str(raw.get("receipt_id") or "").strip()[:64],
+            "tool": str(raw.get("tool") or "").strip()[:128],
+            "action": str(raw.get("action") or "").strip()[:128],
+            "object_ref": str(raw.get("object_ref") or "").strip()[:500],
+            "ok": bool(raw.get("ok")),
+            "effect_observed": bool(raw.get("effect_observed")),
+            "verification": str(raw.get("verification") or "").strip()[:160],
+        }
+        if not item["receipt_id"] or not item["tool"]:
+            continue
+        item_chars = sum(len(str(value)) for value in item.values())
+        if total_chars + item_chars > 8_000:
+            break
+        bounded.append(item)
+        total_chars += item_chars
+    return bounded
+
+
 def _rejected_surface_draft(value: Any) -> str:
     """The draft the worker's quality gate rejected, if it carried one."""
     receipt = value if isinstance(value, dict) else {}
@@ -4655,6 +4693,7 @@ def _build_the_generation_request(
         "user_surface_sensory_evidence": _bounded_surface_sensory_evidence(
             kwargs.get("user_surface_sensory_evidence")
         ),
+        "user_surface_tool_receipts": _bounded_surface_tool_receipts(),
         "clean_user_surface_steering_alpha": kwargs.get("clean_user_surface_steering_alpha"),
         "clean_user_surface_recurrent_loops": (
             kwargs.get("clean_user_surface_recurrent_loops")

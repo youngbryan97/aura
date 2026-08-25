@@ -1049,6 +1049,7 @@ def _surface_quality_failure_reasons(
         recent_user_messages=recent_messages,
         grounding=grounding,
         sensory_evidence=job.get("user_surface_sensory_evidence"),
+        tool_receipts=job.get("user_surface_tool_receipts", ()),
     )
     sanitizer_reasons = _telemetry_sanitization_failure_reasons(
         candidate,

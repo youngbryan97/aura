@@ -5,7 +5,10 @@ from types import SimpleNamespace
 import pytest
 
 from core.brain.generation_provenance import generation_metadata_of
-from core.phases.response_generation import ResponseGenerationPhase
+from core.phases.response_generation import (
+    ResponseGenerationPhase,
+    _append_only_continuation_pending,
+)
 from core.state.aura_state import AuraState, CognitiveMode
 from tests.support.amplifier_doubles import amplified_answer
 
@@ -116,6 +119,20 @@ class _StaleSinkFreshSnapshotRouter(_Router):
 
     def get_last_generation_metadata(self):
         return dict(self._fresh_metadata)
+
+
+def test_parent_completion_evidence_overrides_a_stale_positive_worker_receipt():
+    assert _append_only_continuation_pending(
+        {
+            "surface_control_receipt": {
+                "semantic_completion_contract": True,
+                "semantic_completion_satisfied": True,
+                "semantic_completion_incomplete": False,
+            },
+            "post_generation_completion_evidence": ["truncated_tail"],
+        },
+        clean_user_surface_contract=True,
+    )
 
 
 class _SearchCapability:
@@ -935,7 +952,18 @@ async def test_response_generation_required_search_uses_service_container_fallba
 
     router = _EvidenceRouter()
     capability = _SearchCapability()
-    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    phase = ResponseGenerationPhase(
+        _Container(
+            {
+                "llm_router": router,
+                "composer_node": SimpleNamespace(
+                    refine=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                        AssertionError("composer reopened a foreground draft")
+                    )
+                ),
+            }
+        )
+    )
 
     def _messages_from_state(state_arg, _objective):
         skill_blocks = [
@@ -1110,7 +1138,18 @@ async def test_response_generation_rejects_internal_cap_below_visible_surface(mo
     state.response_modifiers["bicameral_sampling_bias"] = {"max_tokens_factor": 1.25}
 
     router = _Router()
-    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    phase = ResponseGenerationPhase(
+        _Container(
+            {
+                "llm_router": router,
+                "composer_node": SimpleNamespace(
+                    refine=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                        AssertionError("composer reopened a foreground draft")
+                    )
+                ),
+            }
+        )
+    )
     monkeypatch.setattr(
         "core.phases.response_generation.ContextAssembler.build_messages",
         lambda *_args, **_kwargs: [{"role": "system", "content": "context"}],
@@ -1623,7 +1662,18 @@ async def test_desktop_owner_cannot_be_reopened_by_mislabeled_dialogue_contract(
         return text, SimpleNamespace(to_dict=lambda: {}, selected_source="incumbent"), False
 
     router = _Router()
-    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    phase = ResponseGenerationPhase(
+        _Container(
+            {
+                "llm_router": router,
+                "composer_node": SimpleNamespace(
+                    refine=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                        AssertionError("composer reopened a foreground draft")
+                    )
+                ),
+            }
+        )
+    )
     monkeypatch.setattr(
         "core.phases.response_generation.build_response_contract",
         lambda *_args, **_kwargs: mislabeled,
