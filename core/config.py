@@ -80,7 +80,16 @@ class Paths(BaseModel):
             candidate.mkdir(parents=True, exist_ok=True)
             from core.runtime.atomic_writer import atomic_write_text
             probe = candidate / ".aura_write_probe"
-            atomic_write_text(probe, "ok", encoding="utf-8")
+            # durable=False. The question is whether this directory can be
+            # written to, not whether the answer survives a crash — the file
+            # is deleted on the next line. It defaulted to durable, so asking
+            # it fsynced the file and then the directory, and this runs at
+            # import of core.config: whatever holds a lock when some other
+            # module first reaches for `config` pays for two fsyncs while
+            # holding it. Lockdep caught it under
+            # core.language.desktop_actuation, which imports config to find
+            # the intention database.
+            atomic_write_text(probe, "ok", encoding="utf-8", durable=False)
             probe.unlink(missing_ok=True)
             self.__class__._runtime_home_cache = candidate
             return candidate

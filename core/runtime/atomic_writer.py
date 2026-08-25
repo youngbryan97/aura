@@ -148,13 +148,20 @@ def _fsync_dir(directory: Path, *, full: bool = False) -> None:
         os.close(dir_fd)
 
 
-def ensure_private_directory(path: PathLike) -> Path:
-    """Create a durability directory and restrict it to the current user."""
+def ensure_private_directory(path: PathLike, *, durable: bool = True) -> Path:
+    """Create a durability directory and restrict it to the current user.
+
+    ``durable=False`` skips the fsync of the parent. Use it when the directory
+    holds nothing worth recovering — a lock file, a probe, a cache — because
+    the fsync is a blocking disk operation and callers reach this while
+    holding locks.
+    """
 
     directory = Path(path)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory.chmod(0o700)
-    _fsync_dir(directory.parent)
+    if durable:
+        _fsync_dir(directory.parent)
     return directory
 
 
@@ -180,7 +187,12 @@ def interprocess_file_lock(path: PathLike) -> Iterator[None]:
     state.thread_lock.acquire()
     try:
         if state.depth == 0:
-            ensure_private_directory(target.parent)
+            # durable=False: this directory exists to hold a lock file, which
+            # is worthless after a crash. Fsyncing its parent to take a lock
+            # put a blocking disk operation inside every first acquisition —
+            # and callers reach here already holding their own locks, which is
+            # how lockdep found it.
+            ensure_private_directory(target.parent, durable=False)
             flags = os.O_RDWR | os.O_CREAT
             if hasattr(os, "O_CLOEXEC"):
                 flags |= os.O_CLOEXEC
