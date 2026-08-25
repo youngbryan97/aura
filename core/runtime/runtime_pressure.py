@@ -87,7 +87,17 @@ def _model_resource_lifecycle_snapshot() -> dict[str, Any]:
         process = getattr(client, "_process", None)
         try:
             alive = bool(process is not None and process.is_alive())
-        except (AttributeError, OSError, RuntimeError):
+        except (AttributeError, OSError, RuntimeError, ValueError):
+            # A closed handle means the process is gone, which is an answer.
+            #
+            # multiprocessing raises ValueError("process object is closed")
+            # once a worker has been reaped and its handle closed — and that
+            # was the one exception this did not catch. It escaped into every
+            # reader of the pressure snapshot at once: allostasis skipped its
+            # vitals pulse, the stability guardian reported DEGRADED, and
+            # inference_gate escalated it to CRITICAL SERVICE FAILURE because
+            # a required subsystem is fail-closed. Measured live, three
+            # subsystems failing on one stale handle while she was mid-task.
             alive = False
         if alive:
             live_lanes += 1
