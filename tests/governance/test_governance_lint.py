@@ -111,6 +111,36 @@ def test_subprocess_gateway_requires_accelerator_declaration() -> None:
     assert "accelerator_capability_undeclared" in visitor.violations[0].problem
 
 
+def test_threaded_subprocess_gateway_requires_accelerator_declaration() -> None:
+    tree = ast.parse(
+        textwrap.dedent(
+            """
+            import asyncio
+            from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+            async def perform() -> None:
+                await asyncio.to_thread(
+                    get_subprocess_gateway().run,
+                    ["open", "https://example.test"],
+                    source="test",
+                )
+                await asyncio.to_thread(
+                    get_subprocess_gateway().run,
+                    ["open", "https://example.test"],
+                    source="test",
+                    accelerator_capability="none",
+                )
+            """
+        )
+    )
+    visitor = _SubprocessDeclarationVisitor(relative_path="core/synthetic.py")
+    visitor.visit(tree)
+
+    assert len(visitor.violations) == 1
+    assert "accelerator_capability_undeclared" in visitor.violations[0].problem
+    assert "get_subprocess_gateway().run" in visitor.violations[0].problem
+
+
 def test_scanner_catches_context_bound_multiprocessing_processes() -> None:
     tree = ast.parse(
         textwrap.dedent(

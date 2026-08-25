@@ -947,6 +947,23 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         callee = self._resolve_expr(node.func)
+        self._check_subprocess_declaration(node, callee)
+        delegated = _delegated_call(node, callee)
+        if delegated is not None:
+            self._check_subprocess_declaration(
+                delegated,
+                self._resolve_expr(delegated.func),
+                lineno=node.lineno,
+            )
+        self.generic_visit(node)
+
+    def _check_subprocess_declaration(
+        self,
+        node: ast.Call,
+        callee: str,
+        *,
+        lineno: int | None = None,
+    ) -> None:
         method = callee.rsplit(".", 1)[-1] if callee else ""
         subprocess_gateway_call = (
             "<subprocess_gateway>." in callee
@@ -979,7 +996,7 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
                     ScanProblem(
                         self.relative_path,
                         "python_process_contract_incomplete:"
-                        f"{node.lineno}:{callee}:missing={','.join(missing)}",
+                        f"{lineno or node.lineno}:{callee}:missing={','.join(missing)}",
                     )
                 )
         if subprocess_gateway_call and method in {
@@ -996,10 +1013,10 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
                 self.violations.append(
                     ScanProblem(
                         self.relative_path,
-                        f"subprocess_accelerator_capability_undeclared:{node.lineno}:{callee}",
+                        "subprocess_accelerator_capability_undeclared:"
+                        f"{lineno or node.lineno}:{callee}",
                     )
                 )
-        self.generic_visit(node)
 
 
 def audit_subprocess_accelerator_declarations(

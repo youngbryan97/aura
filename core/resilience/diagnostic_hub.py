@@ -73,6 +73,7 @@ class DiagnosticHub:
                 capture_output=True,
                 source="maintenance_tooling:diagnostic_hub",
                 offline_tooling=True,
+                accelerator_capability="none",
             )
             if result.stdout:
                 return {"ok": False, "issues": json.loads(result.stdout)}
@@ -91,6 +92,7 @@ class DiagnosticHub:
                 capture_output=True,
                 source="maintenance_tooling:diagnostic_hub",
                 offline_tooling=True,
+                accelerator_capability="none",
             )
             if result.stdout:
                 data = json.loads(result.stdout)

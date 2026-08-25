@@ -146,6 +146,7 @@ if __name__ == "__main__":
                             timeout=30,
                             read_only=True,
                             source="skills.branching_futures.diff",
+                            accelerator_capability="none",
                         )
                         if diff_process.stdout:
                             diff_text += diff_process.stdout + "\n"

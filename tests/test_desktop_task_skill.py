@@ -2458,6 +2458,9 @@ def test_os_setting_detection_is_general():
         "Please change my wallpaper to a squid, and show me where you found it"
     ) == [("wallpaper", "squid")]
     assert detect_os_settings("Set the wallpaper to an octopus please") == [("wallpaper", "octopus")]
+    assert detect_os_settings(
+        "I want you to search for an image of a blue whale and make it my desktop background"
+    ) == [("wallpaper", "blue whale")]
     assert detect_os_settings("Turn on dark mode") == [("dark_mode", "true")]
     assert detect_os_settings("turn off dark mode") == [("dark_mode", "false")]
     assert detect_os_settings("set the volume to 30%") == [("volume", "30")]

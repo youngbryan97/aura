@@ -267,6 +267,7 @@ async def test_computer_use_open_url_uses_default_browser_with_verified_permissi
     assert result["action"] == "open_url"
     assert result["url"] == "https://duckduckgo.com/?q=aliens"
     assert calls[0][0] == ["open", "https://duckduckgo.com/?q=aliens"]
+    assert calls[0][1]["accelerator_capability"] == "none"
     assert result["effect_verified"] is True
 
 

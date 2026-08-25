@@ -4382,6 +4382,7 @@ end tell
                         capture_output=True,
                         timeout=10,
                         source="computer_use",
+                        accelerator_capability="none",
                     )
                     if result.returncode != 0:
                         error = (result.stderr or result.stdout or "open command failed").strip()
