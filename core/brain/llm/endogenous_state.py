@@ -535,28 +535,107 @@ def pool_substrate(vector: Any, bands: int = SUBSTRATE_BANDS) -> np.ndarray:
     )
 
 
-def _probe_substrate() -> dict[str, float] | None:
-    substrate = _service("continuous_substrate") or _service("liquid_state")
-    if substrate is None:
+def _substrate_snapshot(substrate: Any) -> Mapping[str, Any] | None:
+    """One non-blocking read of the substrate's own state snapshot.
+
+    Bounded at 50ms by the substrate itself rather than blocking on its lock,
+    and refused when stale: a state vector from an earlier moment, shipped as
+    this turn's, would be fitted against words it did not precede.
+    """
+    getter = getattr(substrate, "_state_snapshot_nowait", None)
+    if not callable(getter):
         return None
-    out: dict[str, float] = {}
+    try:
+        snapshot = getter()
+    except _LOOKUP_ERRORS as exc:
+        logger.debug("substrate snapshot declined: %s", exc)
+        return None
+    if not isinstance(snapshot, Mapping):
+        return None
+    age = _first_number(snapshot, ("snapshot_age_s",))
+    threshold = _first_number(snapshot, ("freshness_threshold_s",))
+    if age is not None and threshold is not None and age > threshold:
+        logger.debug("substrate snapshot is stale (%.3fs); reading absent", age)
+        return None
+    return snapshot
+
+
+def _substrate_vector(substrate: Any) -> Any | None:
+    """The continuous state itself, by whichever accessor this build has.
+
+    ``_state_snapshot_nowait`` is the one the live LiquidSubstrate actually
+    carries, and it is the right one for a probe on the request path: it
+    bounds its own wait at 50ms rather than blocking on the substrate lock.
+    A stale snapshot is refused rather than shipped, because a state vector
+    from some earlier moment shipped as this turn's is worse than no vector —
+    it would be fitted against words it did not precede.
+    """
     getter = getattr(substrate, "get_state_vector", None)
     if callable(getter):
         try:
-            pooled = pool_substrate(getter())
+            return getter()
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("substrate get_state_vector declined: %s", exc)
+
+    snapshot = _substrate_snapshot(substrate)
+    return None if snapshot is None else snapshot.get("x")
+
+
+def _probe_substrate() -> dict[str, float] | None:
+    # `conscious_substrate` is the name the live container registers. The two
+    # names tried before it are not registered anywhere in the tree, so this
+    # channel read absent on every live turn: 1 of 34 dimensions present and
+    # none of them varying, measured across 1,729 recorded turns on
+    # 2026-08-25. A reader whose keys no writer ever publishes is the quiet
+    # way to have a channel that cannot fire.
+    substrate = (
+        _service("conscious_substrate")
+        or _service("continuous_substrate")
+        or _service("liquid_substrate")
+        or _service("liquid_state")
+    )
+    if substrate is None:
+        return None
+    out: dict[str, float] = {}
+    vector = _substrate_vector(substrate)
+    if vector is not None:
+        try:
+            pooled = pool_substrate(vector)
         except _LOOKUP_ERRORS as exc:
             logger.debug("substrate vector unavailable: %s", exc)
         else:
             for i, value in enumerate(pooled):
                 out[f"substrate.band_{i:02d}"] = float(value)
-    summary = _substrate_summary(substrate)
-    if summary is not None:
-        energy = _first_number(summary, ("energy",))
-        if energy is not None:
-            out["substrate.energy"] = energy
-        phi = _first_number(summary, ("phi",))
+    # phi rides in the same snapshot the bands came from, so it costs nothing
+    # extra and cannot disagree with them about which moment it describes.
+    snapshot = _substrate_snapshot(substrate)
+    if snapshot is not None:
+        phi = _first_number(snapshot, ("phi",))
         if phi is not None:
             out["substrate.phi"] = phi
+
+    # Energy is a named axis of the state vector, not a summary statistic, and
+    # `current()` is the public accessor for it on the live build.
+    reading = getattr(substrate, "current", None)
+    if callable(reading):
+        try:
+            energy = getattr(reading(), "energy", None)
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("substrate current() declined: %s", exc)
+        else:
+            if isinstance(energy, (int, float)):
+                out["substrate.energy"] = float(energy)
+
+    summary = _substrate_summary(substrate)
+    if summary is not None:
+        if "substrate.energy" not in out:
+            energy = _first_number(summary, ("energy",))
+            if energy is not None:
+                out["substrate.energy"] = energy
+        if "substrate.phi" not in out:
+            phi = _first_number(summary, ("phi",))
+            if phi is not None:
+                out["substrate.phi"] = phi
     return out or None
 
 

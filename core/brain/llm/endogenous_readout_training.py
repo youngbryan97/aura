@@ -42,6 +42,7 @@ each is tested against the null computed for that same quantity.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import time
@@ -61,6 +62,19 @@ logger = logging.getLogger("Aura.EndogenousTraining")
 #: point: a matrix fitted on forty turns would carry a report claiming it was
 #: measured.
 MIN_TURNS = 60
+
+#: Distinct REPLIES the holdout must contain before a verdict means anything
+#: general. Not a turn count: the same reply repeated four hundred times is one
+#: observation of the state-to-words relationship, however many rows it fills.
+#: Twenty is the point where the rare-token bucket stops being dominated by a
+#: single repeated string on this corpus.
+MIN_HOLDOUT_REPLIES = 20
+
+#: Distinct replies the head must be FITTED on. A grouped split protects the
+#: holdout from memorisation and can starve the training side doing it: the
+#: first live corpus left nine replies to learn from, which no null detects
+#: because the nulls are computed on the holdout.
+MIN_TRAIN_REPLIES = 20
 
 #: A token must appear this often before the head gets a row for it. Rows for
 #: tokens seen twice are noise with a coefficient.
@@ -107,10 +121,16 @@ DECAY_GRID: tuple[float, ...] = (1e-4, 1e-3, 1e-2, 1e-1, 1.0)
 
 @dataclass(frozen=True)
 class TurnTokens:
-    """One turn: the state that held, and the tokens that came out of it."""
+    """One turn: the state that held, and the tokens that came out of it.
+
+    ``group`` is the identity of the REPLY, not of the turn. Turns that said
+    the same thing share one, and the split keeps a group whole. See
+    :func:`_three_way_split` for why that is not a refinement.
+    """
 
     state: np.ndarray
     tokens: np.ndarray
+    group: str = ""
 
 
 @dataclass(frozen=True)
@@ -201,6 +221,12 @@ class VocabFit:
     top_k: int
     layout: str
     tokenizer: str
+    #: How many DIFFERENT replies the holdout scored on, and how many the whole
+    #: corpus held. A repeated reply is one observation of the state-to-words
+    #: relationship however many rows it fills.
+    n_replies_holdout: int = 0
+    n_replies_train: int = 0
+    n_replies_total: int = 0
     trained_at: float = field(default_factory=time.time)
 
     @property
@@ -272,10 +298,27 @@ class VocabFit:
         return self.overall_signal or self.rare_signal
 
     @property
+    def corpus_is_too_repetitive(self) -> bool:
+        """Whether the held-out side has enough DIFFERENT replies to score on.
+
+        A gain measured over a handful of distinct replies is a claim about
+        those replies. Aura's first live corpus held 116 turns and 39 replies,
+        two of which — "ready" and a bare comma — accounted for 78 of them;
+        grouping the split fixed the leakage, and this is what stops the
+        remainder being read as a general result.
+        """
+        return (
+            self.n_replies_holdout < MIN_HOLDOUT_REPLIES
+            or self.n_replies_train < MIN_TRAIN_REPLIES
+        )
+
+    @property
     def verdict(self) -> str:
         """What this fit earns the right to claim, and nothing beyond it."""
         if self.overall_test.permutations == 0:
             return "no_verdict_no_null"
+        if self.corpus_is_too_repetitive:
+            return "no_verdict_corpus_too_repetitive"
         if self.rare_signal:
             return "content_bearing"
         if self.overall_signal:
@@ -298,6 +341,9 @@ class VocabFit:
                 "train": self.n_turns_train,
                 "validation": self.n_turns_validation,
                 "holdout": self.n_turns_holdout,
+                "distinct_replies_holdout": self.n_replies_holdout,
+                "distinct_replies_train": self.n_replies_train,
+                "distinct_replies_total": self.n_replies_total,
             },
             "tokens": {"train": self.n_tokens_train, "holdout": self.n_tokens_holdout},
             "epochs_used": self.epochs_used,
@@ -368,6 +414,10 @@ VERDICT_MEANING = {
         "hedging, directness. A learned style adapter, and not evidence of "
         "propositional content in the substrate"
     ),
+    "no_verdict_corpus_too_repetitive": (
+        "the held-out replies were too few and too alike to support any claim "
+        "about the state-to-words relationship. Record more varied turns"
+    ),
     "content_bearing": (
         "the gain survives on rare, content-carrying tokens, which a register "
         "shift cannot explain. The state carries information about what is "
@@ -404,18 +454,88 @@ def tokenize_pairs(
         state = np.where(pair.present, pair.values, 0.0).astype(np.float64)
         if state.shape != (STATE_DIM,):
             continue
-        out.append(TurnTokens(state=state, tokens=ids))
+        out.append(
+            TurnTokens(
+                state=state,
+                tokens=ids,
+                # The reply itself is the group. Two turns that produced the
+                # same words are one unit for splitting, whatever else differed
+                # about them.
+                group=hashlib.sha256(pair.text.encode("utf-8")).hexdigest()[:16],
+            )
+        )
     return out
+
+
+def _distinct_replies(turns: Sequence[TurnTokens]) -> int:
+    """How many different replies these turns contain.
+
+    An unlabelled turn is its own reply, matching what the splitter does with
+    it. Counting only labelled ones read every constructed corpus as having
+    zero distinct replies, so the repetition gate refused corpora built with a
+    known answer — a gate that fires on everything is the same as no gate.
+    """
+    return len(
+        {turn.group or f"__turn_{index}" for index, turn in enumerate(turns)}
+    )
 
 
 def _three_way_split(
     turns: Sequence[TurnTokens], *, seed: int
 ) -> tuple[list[TurnTokens], list[TurnTokens], list[TurnTokens]]:
+    """Split by REPLY, never by turn.
+
+    Splitting by turn measures memorisation whenever a reply repeats. Measured
+    on Aura's own corpus, 2026-08-25: 116 recorded turns held 39 distinct
+    replies, 41 of them the single word "ready" and 37 a bare comma. Those
+    turns landed on both sides of a turn-wise split, the head learned the
+    region of state space that says "ready", and scoring it on held-out
+    "ready" turns returned a gain on a RARE token — which the trainer read as
+    propositional content and reported `content_bearing`, its strongest
+    verdict.
+
+    Every null in this module endorsed it, and correctly: permuting the
+    state-to-turn correspondence destroys the mapping, so the null sits near
+    zero and the observed gain towers over it. A matched null answers "is this
+    gain bigger than chance"; it cannot answer "was the answer in the training
+    set". Only the split can.
+
+    So a group is whole or absent. The holdout takes whole groups until it has
+    its share of TURNS, which keeps the token counts comparable while making
+    the held-out replies ones the head has never been fitted on.
+    """
     rng = np.random.default_rng(seed)
-    order = rng.permutation(len(turns))
-    holdout_size = max(1, int(len(turns) * HOLDOUT_FRACTION))
-    holdout = [turns[i] for i in order[:holdout_size]]
-    rest = [turns[i] for i in order[holdout_size:]]
+    grouped: dict[str, list[TurnTokens]] = {}
+    for index, turn in enumerate(turns):
+        # A turn with no group identity is its own group, so an unlabelled
+        # corpus behaves exactly as it did before rather than collapsing into
+        # one giant group.
+        grouped.setdefault(turn.group or f"__turn_{index}", []).append(turn)
+
+    keys = list(grouped)
+    order = rng.permutation(len(keys))
+    wanted = max(1, int(len(turns) * HOLDOUT_FRACTION))
+
+    holdout: list[TurnTokens] = []
+    rest: list[TurnTokens] = []
+    for position in order:
+        members = grouped[keys[position]]
+        # A group that would OVERSHOOT the target is passed over rather than
+        # taken. One reply can be most of a corpus — "ready" was 41 of 116
+        # turns here — and taking it whole put 55% of the turns in the holdout
+        # and left nine distinct replies to fit on. Skipping it keeps the
+        # holdout near its share and the training side intact.
+        if len(holdout) < wanted and (
+            not holdout or len(holdout) + len(members) <= wanted
+        ):
+            holdout.extend(members)
+        else:
+            rest.extend(members)
+    if not rest:
+        # One group cannot be split. Say nothing rather than measure the
+        # holdout against itself.
+        return [], [], holdout
+
     validation_size = max(1, int(len(rest) * VALIDATION_FRACTION))
     validation = rest[:validation_size]
     train = rest[validation_size:]
@@ -841,6 +961,9 @@ def fit_vocab_head(
         n_turns_train=len(train_turns),
         n_turns_validation=len(validation_turns),
         n_turns_holdout=len(holdout_turns),
+        n_replies_holdout=_distinct_replies(holdout_turns),
+        n_replies_train=_distinct_replies(train_turns),
+        n_replies_total=_distinct_replies(turns),
         n_tokens_train=int(train_x.shape[0]),
         n_tokens_holdout=int(test_x.shape[0]),
         epochs_used=int(epochs_used),
@@ -888,6 +1011,8 @@ __all__ = [
     "MAX_EPOCHS",
     "MIN_TOKEN_COUNT",
     "MIN_TURNS",
+    "MIN_HOLDOUT_REPLIES",
+    "MIN_TRAIN_REPLIES",
     "DECAY_GRID",
     "MIN_REFITS_TO_GATE",
     "NULL_REFITS",
