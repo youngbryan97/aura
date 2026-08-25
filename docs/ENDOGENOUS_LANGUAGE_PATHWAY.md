@@ -39,14 +39,14 @@ A row is closed only when its check runs.
 
 | # | Item | Where | Status |
 | :-- | :-- | :-- | :-- |
-| 1 | z_Aura is more than an affect summary | `endogenous_state.py` | closed — 74 named dimensions across affect, substrate, goal, memory, uncertainty, self-state, attention, recurrence, temporal orientation. An unreachable source reads absent, never zero |
+| 1 | z_Aura is more than an affect summary | `endogenous_state.py` | **built, not yet true live** — 74 named dimensions across nine channels, and an unreachable source reads absent rather than zero. But measured on 1,629 live turns only 24 of them varied: substrate and uncertainty contributed nothing, and 50 dimensions were pinned at one value. The substrate probe named services no writer registers and is fixed; the uncertainty channel names four organs that exist nowhere and is open |
 | 2 | A single dimension can be intervened on | `EndogenousState.do` | closed — returns a copy, records the intervention, and the mark survives the process boundary so an experiment cannot be recorded as an observation |
 | 3 | Structured native readout | `cognitive_code.py` | closed — nine lines from state, two from organs and marked as such, one learned head that abstains until fitted. Never user-presentable |
 | 4 | Δlogits over the full model vocabulary | `endogenous_vocab_head.py` | closed — bound to a tokenizer fingerprint and a layout digest, refuses on either mismatch |
 | 5 | `L_final = L_LLM + α·L_Aura` inside generation | worker logits processor | closed — bias lands only on tokens the model already finds plausible |
-| 6 | Training pairs come from live traffic | `endogenous_pair_recorder.py` | closed — recorded at the turn boundary, tokenized at fit time. Zero turns recorded on this machine so far |
-| 7 | The trained head must beat what it replaces | `endogenous_readout_training.py` | closed — unigram baseline, the exact random projection, permutation of the held-out correspondence, and refits on permuted states |
-| 8 | Style adapter and content-bearing are not the same result | same | closed — scored apart, each against the null for that same quantity |
+| 6 | Training pairs come from live traffic | `endogenous_pair_recorder.py` | closed — recorded at the turn boundary, tokenized at fit time. 1,729 turns recorded on this machine as of 2026-08-25, across two models, fitted apart |
+| 7 | The trained head must beat what it replaces | `endogenous_readout_training.py` | closed — unigram baseline, the exact random projection, permutation of the held-out correspondence, and refits on permuted states. The split groups by REPLY after the first live fit reported content from a memorised duplicate, and a forward-in-time split is available for the control a random one cannot give |
+| 8 | Style adapter and content-bearing are not the same result | same | closed — scored apart, each against the null for that same quantity, and the report names which channels varied. A gain carried by affect alone is flagged as indistinguishable from a style adapter however significant it is |
 | 9 | Interventions produce measurable downstream change | `endogenous_intervention.py` | closed — every effect carries its matched nulls, and `exceeds_null` is False when there are none |
 | 10 | Information held only in z | `substrate_only_channel.py` | closed as a harness — the live experiment needs the resident model and has not been run |
 | 11 | LLM output is absorbed into state | `endogenous_absorption.py` | closed — through a new additive input path, off by default because it changes live dynamics |
@@ -74,12 +74,75 @@ left epoch zero. A free bias sitting at its own optimum random-walked away
 from it. Requiring overall significance before a rare-token claim reported a
 real content effect as no signal.
 
-**Not measured.** Anything about Aura. No corpus of live turns has been
-fitted, no head exists on this machine, and no generation has been biased by
-the substrate. The pathway's live effect is unmeasured, which is not the same
-as small. `runtime_health_report()["integrity"]["endogenous_language"]` says
-which of those is true at any moment, and separates a head that will not
-attach from no head at all.
+## The first fit on Aura's own turns, 2026-08-25
+
+The runtime recorded 1,729 turns of her state paired with her words. Two
+models produced them, so they are fitted apart: a head is bound to a
+tokenizer, and two models do not share a token distribution.
+
+**The 27B persona lane, 118 turns: `no_verdict_corpus_too_repetitive`.** It
+held 39 distinct replies, 41 of them the single word "ready" and 37 a bare
+comma. No head was written.
+
+That corpus is also where three measurement faults were found, because the
+first run of it returned `content_bearing` — the strongest verdict this
+trainer can give. Split by turn, "ready" sat on both sides; the head learned
+the region of state space preceding it, and because that token is rare the
+gain landed in the bucket read as propositional content. Every null endorsed
+it and each was working correctly: permuting the state-to-turn correspondence
+destroys the mapping, so the null sits at zero while the observed gain towers
+over it. A matched null answers whether a gain beats chance. It cannot answer
+whether the answer was in the training set. Only the split can.
+
+The split groups by reply now, a group that would overshoot the holdout is
+passed over rather than taken, and too few distinct replies on either side is
+its own verdict.
+
+**The 9B utility lane, 1,629 turns: `content_bearing`.** 962 distinct replies
+fitted, 390 held out, no reply on both sides. Held-out gain over the unigram
+baseline of 0.0208 nats overall and 0.0389 on rare tokens against 0.0033 on
+frequent ones — the shape a register shift cannot produce. Refitting the whole
+head on permuted states gives rare gains of 3e-05, three orders of magnitude
+below.
+
+What that verdict is a claim about, and what it is not: 24 of the 74
+dimensions varied in that corpus. Affect (7), temporal (4), goal (4),
+attention (3), memory (2), recurrence (2), self-state (2). The substrate and
+uncertainty channels contributed nothing. It is not carried by affect alone —
+`memory.recall_confidence` had the widest spread of any dimension — and the
+report says so, because a gain carried only by affect is indistinguishable
+from a learned style adapter however significant it is.
+
+**Still not measured.** Her conversational voice: the 9B is the utility lane,
+not the 27B cortex that answers Bryan. No generation has been biased by the
+substrate, because no head has been admitted to a decode loop. And the
+forward-in-time control — fit on the past, score on the future — is what
+separates this from slow state drift alongside topics that cluster in time.
+
+## What z_Aura actually is, live
+
+Coverage reads 0.365 in the running instance. That number is kinder than the
+truth: of 74 named dimensions, **50 were pinned at one value across all 1,629
+turns**, and a constant dimension pads coverage while carrying nothing.
+
+Two channels could never have fired. The substrate probe resolved
+`continuous_substrate` and `liquid_state`, neither of which any writer in the
+tree registers, and asked for a `get_state_vector()` the live organ does not
+have — 1 of its 34 dimensions present, none varying. It reads the registered
+`conscious_substrate` through the snapshot accessor now, and refuses a stale
+snapshot rather than fitting a vector against words it did not precede. The
+uncertainty channel names four organs that are registered nowhere, and reads
+absent by construction; that one is open.
+
+Five of the six goal dimensions were constant: the same goal, the same
+priority, zero progress, never blocked, for the whole recorded period.
+`attention.load` and `recurrence.budget_used` sat at their ceiling throughout.
+Those are readings about the runtime, not about this pathway, and they are
+recorded here because the pathway is where they became visible.
+
+`runtime_health_report()["integrity"]["endogenous_language"]` says which of
+these is true at any moment, and separates a head that will not attach from no
+head at all.
 
 ## What already owns the rest
 
