@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -102,17 +101,25 @@ def _resource_findings(bundle: dict[str, Any], model: Path) -> list[dict[str, st
             }
         )
 
-    try:
-        usage = shutil.disk_usage(model.parent if model.exists() else Path.home())
-    except OSError as exc:
-        findings.append({"kind": "disk_unmeasured", "detail": str(exc)})
+    # Through the observer, like every other resource reading in the tree. A
+    # direct shutil.disk_usage answers with no provenance and no record that
+    # the reading happened, which is what the ownership audit is for.
+    from core.runtime.resource_observation import get_resource_observer
+
+    usage = get_resource_observer().disk(
+        model.parent if model.exists() else Path.home()
+    )
+    if not usage.available:
+        findings.append(
+            {"kind": "disk_unmeasured", "detail": usage.error or "disk unreadable"}
+        )
         return findings
-    if usage.free < _DISK_HEADROOM_BYTES:
+    if usage.free_bytes < _DISK_HEADROOM_BYTES:
         findings.append(
             {
                 "kind": "insufficient_disk",
                 "detail": (
-                    f"{usage.free / 1024**3:.1f} GiB free, "
+                    f"{usage.free_bytes / 1024**3:.1f} GiB free, "
                     f"{_DISK_HEADROOM_BYTES / 1024**3:.0f} GiB needed for export"
                 ),
             }
