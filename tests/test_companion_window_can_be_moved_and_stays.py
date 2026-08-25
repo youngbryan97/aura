@@ -35,65 +35,70 @@ def test_no_surface_relies_on_the_electron_drag_property():
 
 
 def test_the_bubble_drags_from_anywhere_on_its_surface():
-    """The guarantee moved to the window server; the test follows it there.
+    """The guarantee is the panel's own tracking loop, and the test follows it.
 
-    Both of the tests that used to live here read bubble.js for a JS drag
-    recognizer — a mousedown handler, a `drag` object, a `dragJustEnded`
-    suppression window. That implementation is gone, and deliberately: a 56x56
-    WKWebView only receives mousemove for points inside itself, so a JS drag
-    died about 28px in no matter how it was written. The pan recognizer on the
-    host owns it now, in global screen coordinates.
+    Three mechanisms have owned this. A JS drag from mousemove deltas could not
+    work from a 56x56 web view, because WebKit only synthesises mousemove for
+    points inside the view. The pan recognizer that replaced it could not
+    either: the bubble is a .nonactivatingPanel and the report was "pretty sure
+    this icon in companion mode stopped being draggable". What owns it now is
+    AppKit's own event-tracking loop, started from the page's mousedown.
 
-    A test pinned to a deleted mechanism fails without anything being wrong,
-    which is the same amount of information as not existing — and worse,
-    because it trains the reader to ignore it.
+    This test asserted the second mechanism, which the file has not used for
+    some time — so it failed while dragging worked, which is the same amount of
+    information as not existing, and worse, because it trains the reader to
+    ignore it.
     """
 
+    # The page says a gesture began; only the page knows whether the pointer
+    # went down on the x or the reply control.
+    assert 'postToHost({ action: "dragStart" })' in BUBBLE_JS
+    assert 'event.target.closest("#close, #say")' in BUBBLE_JS
+
+    # The host answers with the panel's own tracking loop, in screen
+    # coordinates, so the gesture is not bounded by the web view.
+    assert 'case "dragStart":' in LAUNCHER
+    assert "beginNativeBubbleDrag()" in LAUNCHER
+    assert "panel.trackEvents(" in LAUNCHER
+    assert "matching: [.leftMouseDragged, .leftMouseUp]" in LAUNCHER
+
+    # The companion window is a different kind of window and keeps the
+    # recognizer, with a strip so dragging across the transcript still selects.
     assert "installWindowDrag(on: webView, topStrip:" in LAUNCHER
     assert "final class TopStripPanGestureRecognizer: NSPanGestureRecognizer" in LAUNCHER
-    # topStrip 0 means the whole surface drags. The bubble is all glyph, which
-    # is exactly what the old JS could not express: excluding #glyph from the
-    # handle left only the pixels the controls did not claim.
-    # Two installs, and the difference between them is the whole point: the
-    # bubble takes the default topStrip of 0 (drag from anywhere, it is all
-    # glyph) and the companion takes a strip so dragging across the transcript
-    # still selects text.
-    assert "installWindowDrag(on: webView)\n" in LAUNCHER, (
-        "the bubble no longer drags from its whole surface"
-    )
-    assert "installWindowDrag(on: webView, topStrip: 37)" in LAUNCHER, (
-        "the companion no longer reserves a strip, so its transcript is a handle"
-    )
 
 
 def test_a_drag_does_not_also_open_the_chat():
-    """A pan and a click are different gestures, decided by the recognizer.
+    """A tap opens the chat; a drag moves her. One gesture decides which.
 
-    `delaysPrimaryMouseButtonEvents = false` is what keeps a plain tap opening
-    the chat. The separation in the other direction — a drag not ALSO counting
-    as a tap — is the pan recognizer claiming the gesture once the pointer
-    moves, which is AppKit's behaviour rather than something this page can
-    assert about itself. What is checkable here is that the page holds no
-    competing drag of its own: two recognizers for one gesture is how a move
-    ends with the window it was moved aside for.
+    The tracking loop counts the pointer's travel: under a few pixels of slop
+    it dispatches aura-bubble-click and the page opens the chat, and past it
+    the panel moves and no click is sent. Nothing in the page competes for the
+    gesture — its mousedown starts the host's loop and does no moving itself.
     """
 
     assert "delaysPrimaryMouseButtonEvents = false" in LAUNCHER
+    assert "aura-bubble-click" in LAUNCHER
+    assert 'window.addEventListener("aura-bubble-click", openChat)' in BUBBLE_JS
 
-    # Code only. The prose above these lines quotes the removed approach
-    # verbatim, including `{action:"move"}`, and a check that reads comments
-    # cannot tell an explanation of a mistake from the mistake.
+    # Code only. The prose quotes the removed approach verbatim, including
+    # `{action:"move"}`, and a check that reads comments cannot tell an
+    # explanation of a mistake from the mistake.
     code = re.sub(r"/\*.*?\*/", "", BUBBLE_JS, flags=re.DOTALL)
     code = re.sub(r"^\s*//.*$", "", code, flags=re.MULTILINE)
-    for gesture in ('addEventListener("mousemove"', 'addEventListener("mousedown"'):
-        assert gesture not in code, (
-            f"bubble.js is recognising drags again ({gesture}) alongside the "
-            "host recognizer; two recognizers for one gesture is how a move "
-            "ends with the window it was moved aside for"
-        )
-    # `forwardMove` stays: that is the HOST commanding a position, which is how
-    # a remembered position is restored. It is not a drag the page recognised.
-    assert "function forwardMove(" in code
+    assert 'addEventListener("mousemove"' not in code, (
+        "bubble.js is moving the window again; the host's tracking loop owns "
+        "that, and two movers for one gesture is how a drag ends somewhere "
+        "nobody asked for"
+    )
+    assert "relative: true" not in code, (
+        "the page is posting drag deltas again"
+    )
+    # `{action:"move"}` itself stays: forwardMove carries an ABSOLUTE position
+    # the runtime asked for, with a sequence the host acknowledges. That is her
+    # repositioning herself, not a pointer drag, and banning the message would
+    # ban the wrong thing.
+    assert "forwardMove" in code
 
 
 def test_the_bubble_has_exactly_one_move_mechanism():

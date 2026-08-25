@@ -3617,40 +3617,31 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             panel.contentView = webView
             panel.isReleasedWhenClosed = false
             panel.setFrameOrigin(defaultBubbleOrigin(for: size))
-            // No native drag gesture here on purpose. bubble.js drives the
-            // bubble's move through {action:"move", relative:true}, and it has
-            // to: only the page knows whether the pointer went down on the ×
-            // or the reply control, which must stay clickable. Installing a
-            // second mechanism would move the panel twice per pointer motion.
+            // No native gesture recognizer here, and no drag in the page
+            // either. Both were tried and neither could own this window.
+            //
+            // The page moved it first, from mousemove deltas. That cannot work
+            // from a 56x56 web view — WebKit only synthesises mousemove for
+            // points inside the view, so the gesture died within about 28px,
+            // and only the glyph the x and reply controls did not claim
+            // responded at all: "the native drag kinda works. it just only
+            // works in that upper right quadrant."
+            //
+            // TopStripPanGestureRecognizer replaced it, for the sake of having
+            // ONE mechanism with the companion window. That was wrong too, and
+            // the report was "pretty sure this icon in companion mode stopped
+            // being draggable": the two are not the same kind of window. This
+            // one is a .nonactivatingPanel.
+            //
+            // What owns it now is the panel's own tracking loop, started from
+            // the page's mousedown — the page because only it knows whether
+            // the pointer went down on a control, the loop because it reads
+            // the mouse in screen coordinates and is not bounded by the view.
+            // A tap under a few pixels of travel comes back as
+            // aura-bubble-click, so clicking still opens the chat.
 
             bubblePanel = panel
             bubbleWebView = webView
-            // Drag the bubble from ANY point on it, through the same
-            // recognizer the companion window uses.
-            //
-            // LIVE DEFECT, reported three sittings running — "i cant drag the
-            // bubble across the screen", then "i still cant drag across the
-            // screen", then "the native drag kinda works. it just only works
-            // in that upper right quadrant. Not the whole button".
-            //
-            // The page was doing the dragging: mousedown on the pill, then
-            // mousemove deltas posted back as {action:"move"}. That cannot
-            // work from a 56x56 web view — WebKit only synthesises mousemove
-            // for points inside the view, so the gesture died within about
-            // 28px — and whatever part of the glyph the ×/reply controls did
-            // not claim was the only surface that responded at all, which is
-            // the quadrant.
-            //
-            // TopStripPanGestureRecognizer already solved this for the
-            // companion window, and its own documentation names this window as
-            // the reason it takes a strip height of zero: "Zero drags from
-            // anywhere, which is what the bubble wants: it is all glyph." It
-            // was simply never installed here. One drag mechanism, in global
-            // screen coordinates, for both windows.
-            //
-            // Clicks survive because the recognizer does not delay the primary
-            // mouse button and a pan only begins once the pointer actually
-            // moves: × and the reply control keep taking plain clicks.
             observeBubbleMoves(panel)
         }
 

@@ -234,7 +234,18 @@ def _primary_lane_label() -> str:
         from core.brain.llm.model_registry import resident_model_label
 
         return resident_model_label(default="Cortex")
-    except Exception as exc:  # noqa: BLE001 - a label is not worth a raise
+    except (
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        # Named types rather than Exception: this module forbids broad catches
+        # outright, and _INFERENCE_RECOVERABLE_ERRORS is defined further down
+        # the file than this helper runs.
         _record_inference_degradation(
             exc,
             action="named the resident lane Cortex because the registry could not",
