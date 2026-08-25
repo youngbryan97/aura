@@ -35,12 +35,20 @@ from core.brain.llm.endogenous_absorption import (  # noqa: E402
     Proposal,
     arbitrate,
 )
+from core.brain.llm.endogenous_anticipation import (  # noqa: E402
+    channel_value,
+    measure_anticipation,
+)
 from core.brain.llm.endogenous_intervention import (  # noqa: E402
     channel_influence_map,
     measure_ablation,
     measure_contrast,
     measure_intervention,
     sweep_dimension,
+)
+from core.brain.llm.endogenous_pair_recorder import (  # noqa: E402
+    corpus_summary,
+    iter_pairs,
 )
 from core.brain.llm.endogenous_state import (  # noqa: E402
     CHANNELS,
@@ -154,6 +162,28 @@ def main() -> int:
             arbitrate(proposal, unsure).decision != arbitrate(proposal, settled).decision
         ),
     }
+
+    # Does the state at one turn carry anything about the next? This needs the
+    # recorded corpus rather than a constructed state, so it runs only when
+    # one exists, and reports its own absence when it does not.
+    corpus = corpus_summary()
+    report["corpus"] = corpus
+    anticipation: dict[str, Any] = {}
+    if corpus.get("usable_records", 0) > 0:
+        pairs = list(iter_pairs())
+        for name, target in (
+            ("reply_length", None),
+            ("next.uncertainty.confidence", channel_value("uncertainty.confidence")),
+        ):
+            result = (
+                measure_anticipation(pairs, target_name=name)
+                if target is None
+                else measure_anticipation(pairs, target=target, target_name=name)
+            )
+            anticipation[name] = result.as_dict() if result else "refused"
+    else:
+        anticipation = {"status": "no recorded turns at this layout"}
+    report["anticipation"] = anticipation
 
     from core.runtime.file_write_gateway import get_file_write_gateway
 

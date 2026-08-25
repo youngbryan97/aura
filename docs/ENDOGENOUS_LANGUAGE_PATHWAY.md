@@ -28,6 +28,7 @@ a readout. This pathway is the readout.
 | `core/brain/llm/endogenous_readout_training.py` | the fit, its baselines, its nulls, and the verdict they support |
 | `core/brain/llm/endogenous_intervention.py` | `do()` on one named dimension, and the matched nulls that make it a measurement |
 | `core/brain/llm/substrate_only_channel.py` | can something the prompt never said still reach the words |
+| `core/brain/llm/endogenous_anticipation.py` | does the state at one turn carry anything about the next |
 | `core/brain/llm/endogenous_absorption.py` | the return arrow, and the state's veto over a proposal |
 | `core/brain/llm/endogenous_telemetry.py` | five declared channels |
 | `core/brain/llm/endogenous_invariants.py` | three standing invariants |
@@ -51,12 +52,15 @@ A row is closed only when its check runs.
 | 11 | LLM output is absorbed into state | `endogenous_absorption.py` | closed — through a new additive input path, off by default because it changes live dynamics |
 | 12 | The substrate can disagree with a proposal | same | closed — the same proposal is rejected under low confidence and a held goal, accepted under high confidence with none |
 | 13 | A model swap preserves z | `EndogenousVocabHead.rebind` | closed — the state survives, the head is marked untrained and says why |
-| 14 | The random head never reaches a user | existing gate | unchanged and still holds; the proto generator now names its successor |
+| 14 | The random head never reaches a user | existing gate | unchanged and still holds; the proto generator now names its successor, and a user turn no longer computes one to discard |
+| 15 | Does the readout anticipate the next turn | `endogenous_anticipation.py` | closed — ridge from z at turn t to a measured property of turn t+1, held out from the END of the sequence, against a permutation null. A corpus out of recording order is refused |
 
 ## What has been measured, and what has not
 
 **Measured.** The fitting procedure, against three corpora built with a known
-answer. No state-token relationship reports `no_signal`. A register effect
+answer. The anticipation test, against a corpus where the next reply's length
+is decided by one named dimension of the current state (held-out correlation
+0.999, p = 0.003) and one where it is not (no anticipation). No state-token relationship reports `no_signal`. A register effect
 reports `style_prior`. A rare-word identity effect reports `content_bearing`.
 The whole chain runs end to end with a head fitted to a constructed corpus:
 fit, save, load, job, processor, biased logits, and the dimension the corpus
