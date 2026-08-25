@@ -364,6 +364,22 @@ def _job_requires_prompt_cache_bypass(job: dict[str, Any]) -> bool:
     )
 
 
+def _job_requires_exact_continuation_cache(job: dict[str, Any]) -> bool:
+    """Whether this transaction may need its own one-shot decode state.
+
+    Reusable prefix caching and exact continuation are different ownership
+    contracts. A proof or repair lane may bypass the shared prefix cache while
+    still needing to resume its own semantically incomplete answer without a
+    second prefill. The continuation cache is scoped, short-lived, and consumed
+    once; it never becomes a reusable prefix entry merely because it exists.
+    """
+
+    return bool(
+        job.get("semantic_completion_contract", False)
+        or str(job.get("user_surface_continuation_resume_handle") or "").strip()
+    )
+
+
 def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     """Partition the prompt cache so lanes cannot cross-contaminate.
 
@@ -7446,6 +7462,7 @@ def _mlx_worker_loop(
                 # disable_prompt_cache = bool(job.get("disable_prompt_cache", False)) or strict_answer_contract
                 prompt_cache_bypass = _job_requires_prompt_cache_bypass(job)
                 disable_prompt_cache = bool(job.get("disable_prompt_cache", False)) or prompt_cache_bypass
+                exact_continuation_cache = _job_requires_exact_continuation_cache(job)
                 # Bypass no longer implies CLEAR: health probes fire between
                 # user turns, and clearing on every probe would evict the
                 # conversation's cached prefix before the next turn could
@@ -8088,7 +8105,6 @@ def _mlx_worker_loop(
                                     if (
                                         resume_handle
                                         and prompt_cache_lru is not None
-                                        and not disable_prompt_cache
                                     ):
                                         (
                                             resumed_cache,
@@ -8230,6 +8246,22 @@ def _mlx_worker_loop(
                                             # the measured hit rate was 0/92.
                                             cache = _mlx_make_cache(model)
                                             remaining_tokens = tokens
+
+                                    # A bypassed lane must not read or warm the
+                                    # reusable prefix cache. It can still own an
+                                    # ephemeral cache for this exact transaction,
+                                    # because downstream semantic validation may
+                                    # discover a missing obligation after the raw
+                                    # segment stops. The capability store consumes
+                                    # this state once and never exposes it to a
+                                    # nearest-prefix lookup.
+                                    if (
+                                        cache is None
+                                        and exact_continuation_cache
+                                        and prompt_cache_lru is not None
+                                    ):
+                                        cache = _mlx_make_cache(model)
+                                        remaining_tokens = tokens
 
                                     # Reuse only pays if the prompts share a LONG
                                     # prefix. Measured live, hits reused 13-125
@@ -8399,7 +8431,6 @@ def _mlx_worker_loop(
                                                 )
                                             )
                                             and prompt_cache_lru is not None
-                                            and not disable_prompt_cache
                                             and final_prompt_cache is not None
                                         ):
                                             continuation_cache_rollback = (
@@ -9768,7 +9799,6 @@ def _mlx_worker_loop(
                         resume_required
                         and bool(response_text.strip())
                         and prompt_cache_lru is not None
-                        and not disable_prompt_cache
                         and final_prompt_cache is not None
                         and not sentinel_aborted
                     ):
@@ -9783,7 +9813,10 @@ def _mlx_worker_loop(
                             _continuation_resume_unavailable_reason(
                                 resume_required=resume_required,
                                 cache_lru_available=prompt_cache_lru is not None,
-                                cache_disabled=bool(disable_prompt_cache),
+                                cache_disabled=bool(
+                                    disable_prompt_cache
+                                    and not exact_continuation_cache
+                                ),
                                 final_cache_available=final_prompt_cache is not None,
                                 sentinel_aborted=bool(sentinel_aborted),
                                 response_present=bool(response_text.strip()),

@@ -123,16 +123,30 @@ _ASSERTS_A_READING_RE = re.compile(
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
 
 #: A noun phrase that refers to the user's display. `screen`/`display`/
-#: `monitor`/`desktop` are unambiguous. UI objects (`window`, `tab`, `dialog`)
-#: refer to the display only when a determiner anchors them to something
-#: present — "the tabs", "your window" — never bare "tab" or "window", which
-#: are ordinary words in a conversation about software.
+#: `monitor` are unambiguous. `desktop` and UI objects (`window`, `tab`,
+#: `dialog`) refer to the display only when grammar anchors them to something
+#: present. A bare `desktop` is commonly an attributive software noun, as in
+#: "desktop task lane", and is not evidence of physical perception.
 _DISPLAY_REFERENT_RE = re.compile(
-    r"\b(?:screens?|displays?|monitors?|desktops?"
+    r"\b(?:screens?|displays?|monitors?"
     r"|(?:your|the|those|these|that|this|my|his|her|their|other|another|each|both)\s+"
     r"(?:window|windows|tab|tabs|dialog|dialogs|title\s*bars?|browser)"
     r"|menu\s*bar|status\s*bar|dock\b|frontmost"
     r"|on[-\s]screen)\b",
+    re.IGNORECASE,
+)
+
+# `desktop` is ambiguous until its syntactic role is known. This recognises it
+# only as the head of a present display noun phrase or the object of a spatial
+# preposition. It therefore accepts "your desktop shows" and "on my desktop"
+# while rejecting attributive compounds such as "the desktop task lane".
+_DESKTOP_DISPLAY_REFERENT_RE = re.compile(
+    r"\b(?:"
+    r"(?:your|the|those|these|that|this|my|his|her|their|other|another|each|both)\s+"
+    r"desktops?\b(?=\s*(?:$|[,.!?;:]|['’]s\b|(?:says?|reads?|shows?|displays?|"
+    r"contains?|is|are|has|have)\b))"
+    r"|(?:on|across|over)\s+(?:(?:your|the|my|his|her|their)\s+)?desktops?\b"
+    r")",
     re.IGNORECASE,
 )
 
@@ -148,11 +162,31 @@ _REFERENT_PREDICATE_RE = r"(?:says?|reads?|shows?|displays?|contains?|is\s+showi
 #: Perception → referent ("I can see the screen"), or referent → predicate
 #: ("the tabs say"). `[^.!?\n]{0,60}` keeps both inside one sentence: the
 #: binding is the whole point, so it may not reach across a full stop.
-_BOUND_READING_RE = re.compile(
-    r"(?:\b" + _PERCEPTION_VERB_RE + r"\b[^.!?\n]{0,60}?" + _DISPLAY_REFERENT_RE.pattern + r")"
-    r"|(?:" + _DISPLAY_REFERENT_RE.pattern + r"[^.!?\n]{0,60}?\b" + _REFERENT_PREDICATE_RE + r"\b)",
+_DISPLAY_REFERENT_PATTERN = (
+    r"(?:" + _DISPLAY_REFERENT_RE.pattern + r"|" + _DESKTOP_DISPLAY_REFERENT_RE.pattern + r")"
+)
+_BARE_DESKTOP_SUBJECT_RE = re.compile(
+    r"\bdesktops?\b[^.!?\n]{0,20}?\b" + _REFERENT_PREDICATE_RE + r"\b",
     re.IGNORECASE,
 )
+_BOUND_READING_RE = re.compile(
+    r"(?:\b" + _PERCEPTION_VERB_RE + r"\b[^.!?\n]{0,60}?" + _DISPLAY_REFERENT_PATTERN + r")"
+    r"|(?:" + _DISPLAY_REFERENT_PATTERN + r"[^.!?\n]{0,60}?\b" + _REFERENT_PREDICATE_RE + r"\b)"
+    # A bare noun can be the display subject ("Desktop shows ...") without
+    # making every compound beginning with `desktop` a display reference.
+    r"|(?:\bdesktops?\b[^.!?\n]{0,20}?\b" + _REFERENT_PREDICATE_RE + r"\b)",
+    re.IGNORECASE,
+)
+
+
+def _has_display_referent(text: Any) -> bool:
+    body = str(text or "")
+    return bool(
+        _DISPLAY_REFERENT_RE.search(body)
+        or _DESKTOP_DISPLAY_REFERENT_RE.search(body)
+        or _BARE_DESKTOP_SUBJECT_RE.search(body)
+    )
+
 
 #: Phrases that assert a reading with no referent needed, because the display
 #: is already inside the phrase. These are the live confabulations verbatim.
@@ -238,7 +272,7 @@ def quotes_screen_content(reply_text: Any, *, display_binding_required: bool = F
         # about the display — not because the word "visible" appears in some
         # other paragraph.
         return any(
-            _QUOTED_TEXT_RE.search(sentence) and _DISPLAY_REFERENT_RE.search(sentence)
+            _QUOTED_TEXT_RE.search(sentence) and _has_display_referent(sentence)
             for sentence in _SENTENCE_SPLIT_RE.split(body)
         )
 
@@ -359,7 +393,7 @@ def screen_reading_claim_is_unsupported(
     asked_about_the_screen = asks_to_read_the_screen(user_message)
     if not quotes_screen_content(reply_text, display_binding_required=not asked_about_the_screen):
         return False
-    if not asked_about_the_screen and not _DISPLAY_REFERENT_RE.search(str(reply_text or "")):
+    if not asked_about_the_screen and not _has_display_referent(reply_text):
         return False
     if evidence is None:
         return True

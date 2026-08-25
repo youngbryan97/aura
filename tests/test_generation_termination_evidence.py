@@ -6,6 +6,7 @@ from core.brain.llm.mlx_worker import (
     _classify_generation_stop_reason,
     _continuation_resume_should_bind,
     _continuation_resume_unavailable_reason,
+    _job_requires_exact_continuation_cache,
     _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
     _semantic_terminal_grace_eligible,
@@ -59,6 +60,30 @@ def test_complete_deadline_answer_does_not_claim_resume_failure() -> None:
             response_present=True,
         )
         == ""
+    )
+
+
+def test_cache_bypass_does_not_disable_exact_transaction_continuation() -> None:
+    assert _job_requires_exact_continuation_cache(
+        {
+            "disable_prompt_cache": True,
+            "semantic_completion_contract": True,
+        }
+    )
+    assert _job_requires_exact_continuation_cache(
+        {
+            "disable_prompt_cache": True,
+            "user_surface_continuation_resume_handle": "d" * 32,
+        }
+    )
+
+
+def test_unrelated_cache_bypass_does_not_allocate_continuation_state() -> None:
+    assert not _job_requires_exact_continuation_cache(
+        {
+            "disable_prompt_cache": True,
+            "health_probe": True,
+        }
     )
 
 

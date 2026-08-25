@@ -366,3 +366,57 @@ class TestOrdinaryEnglishIsNotAScreenClaim:
             )
             is False
         )
+
+
+class TestDesktopCanNameASoftwareLane:
+    """LIVE DEFECT 2026-08-25: a verified action explanation was discarded.
+
+    The answer named the ``desktop task lane`` and quoted its typed failure.
+    The reliability gate treated the attributive software noun as the user's
+    physical desktop, discarded the correct first draft, and paid for two
+    more resident-model generations.
+    """
+
+    QUESTION = "Do you know why that broke?"
+    VERIFIED_ACTION_EXPLANATION = (
+        "The failure reason is explicit: the app isn’t installed. The desktop "
+        "task lane tried to open `DefinitelyNotInstalledAuraProbe` and reported "
+        "“No installed application matches.” That’s a clean miss, not a broken "
+        "pipeline.\n\nIf you want me to try again with the correct app name or "
+        "install it first, tell me what’s actually installed and I’ll route "
+        "that instead."
+    )
+
+    def test_typed_desktop_lane_is_not_physical_perception(self):
+        assert not quotes_screen_content(
+            self.VERIFIED_ACTION_EXPLANATION,
+            display_binding_required=True,
+        )
+        assert not screen_reading_claim_is_unsupported(
+            self.QUESTION,
+            self.VERIFIED_ACTION_EXPLANATION,
+            None,
+        )
+
+    def test_the_full_reliability_gate_keeps_the_verified_answer(self):
+        from core.conversation.response_reliability import assess_user_facing_reply
+
+        assessment = assess_user_facing_reply(
+            self.QUESTION,
+            self.VERIFIED_ACTION_EXPLANATION,
+        )
+        assert assessment.ok
+        assert "unsupported_screen_reading_claim" not in {
+            str(reason) for reason in (assessment.reasons or ())
+        }
+
+    @pytest.mark.parametrize(
+        "invented",
+        [
+            'Desktop shows "Private Account".',
+            'Your desktop shows "Private Account".',
+        ],
+    )
+    def test_actual_desktop_readings_still_require_evidence(self, invented):
+        assert quotes_screen_content(invented, display_binding_required=True)
+        assert screen_reading_claim_is_unsupported(self.QUESTION, invented, None)
