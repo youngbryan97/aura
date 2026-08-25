@@ -441,3 +441,53 @@ def test_an_echo_of_the_evidence_is_not_a_reason():
     assert _reason_or_nothing("press up", evidence) == ""
     assert _reason_or_nothing("the corner holds if I go up", evidence) == "the corner holds if I go up"
     assert _reason_or_nothing("", evidence) == ""
+
+
+def test_the_evidence_for_one_decision_is_bounded():
+    """LIVE: a decision that started at 1100 characters was at 6565 by the
+    middle of a run.
+
+    Every graded move and every recalled consequence adds a line and none of
+    them ever leave. The generation slowed with it until it timed out and she
+    stopped playing.
+    """
+    from core.agency.deliberate_action import EVIDENCE_BUDGET_CHARS, _situation_evidence
+
+    options = [_option(name, detail=f"press {name}") for name in ("up", "down", "left", "right")]
+    stalled = Attempt(option="up", expected="a shift", verdict=Verdict(held=False, observed_change=False, stalled=True))
+    evidence = _situation_evidence(
+        "play until 128",
+        "a board",
+        options,
+        [stalled] * 50,
+        [f"up did not work before: a long description number {i}" for i in range(50)],
+        ["Known about this task — keep the largest tile in a corner"],
+    )
+    assert sum(len(line) for line in evidence) <= EVIDENCE_BUDGET_CHARS + 200
+
+
+def test_what_a_decision_cannot_do_without_is_always_there():
+    from core.agency.deliberate_action import _situation_evidence
+
+    options = [_option(name, detail=f"press {name}") for name in ("up", "down", "left", "right")]
+    stalled = Attempt(option="up", expected="a shift", verdict=Verdict(held=False, observed_change=False))
+    evidence = _situation_evidence(
+        "play until 128", "a board", options, [stalled] * 200, ["noise " * 40] * 200
+    )
+    assert any(line.startswith("Goal:") for line in evidence)
+    assert any(line.startswith("What is visible now:") for line in evidence)
+    assert sum(1 for line in evidence if line.startswith("Available move")) == 4
+
+
+def test_the_newest_outcomes_survive_the_budget():
+    """What is dropped is the oldest — already accounted for by what came after."""
+    from core.agency.deliberate_action import _situation_evidence
+
+    options = [_option("up", detail="press up")]
+    history = [
+        Attempt(option=f"move{i}", expected="a shift", verdict=Verdict(held=False, observed_change=False))
+        for i in range(60)
+    ]
+    evidence = " ".join(_situation_evidence("goal", "board", options, history, []))
+    assert "move59" in evidence
+    assert "move0 " not in evidence

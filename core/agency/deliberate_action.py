@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 RECALL_DEPTH = 5
 #: Confidence assigned when nothing has ever been recorded about an option.
 UNTRIED_CONFIDENCE = 0.5
+#: How much context one decision gets. Enough for the goal, the reading, the
+#: moves, what she has learned and the last several outcomes; not enough for
+#: a transcript of the whole run, which is what it grows into otherwise.
+EVIDENCE_BUDGET_CHARS = 2400
 #: Verbs that mean the words after them are the decision, in the shapes
 #: people actually write them.
 _DECIDING_VERB = (
@@ -230,11 +234,41 @@ def _situation_evidence(
     history rather than above them, because a thing she read is evidence and
     not an instruction.
     """
-    evidence = [f"Goal: {goal}", f"What is visible now: {situation}"]
-    evidence.extend(knowledge)
-    evidence.extend(f"Available move — {option.label()}" for option in options)
-    evidence.extend(attempt.as_evidence() for attempt in history)
-    evidence.extend(recalled)
+    # In order of what a decision cannot do without.
+    #
+    # The goal, what is on screen, and what she can do are the decision. What
+    # she has learned and what just happened inform it. What happened further
+    # back informs it less, and there is more of it every cycle.
+    must_have = [f"Goal: {goal}", f"What is visible now: {situation}"]
+    must_have.extend(f"Available move — {option.label()}" for option in options)
+    helpful = list(knowledge)
+    helpful.extend(attempt.as_evidence() for attempt in reversed(list(history)))
+    helpful.extend(recalled)
+    return _within_budget(must_have, helpful)
+
+
+def _within_budget(must_have: list[str], helpful: Sequence[str]) -> list[str]:
+    """As much of the useful part as fits, newest first.
+
+    Evidence accumulates: every graded move and every recalled consequence
+    adds a line, and none of them ever leave. Measured live, a decision that
+    started at 1100 characters was at 6565 by the middle of a run — the
+    generation slowed with it until it timed out and she stopped playing.
+
+    A decision needs a bounded amount of context to be a decision. What is
+    dropped is the oldest, which is the part already accounted for by what
+    came after it.
+    """
+    evidence = list(must_have)
+    room = EVIDENCE_BUDGET_CHARS - sum(len(line) for line in evidence)
+    for line in helpful:
+        if room <= 0:
+            break
+        text = str(line or "")
+        if not text:
+            continue
+        evidence.append(text)
+        room -= len(text)
     return evidence
 
 
