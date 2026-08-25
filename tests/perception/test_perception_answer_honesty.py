@@ -206,6 +206,41 @@ def test_an_unverified_step_is_not_reported_as_an_effect() -> None:
     }) == ""
 
 
+@pytest.mark.parametrize(
+    ("domain", "applied", "expected"),
+    [
+        ("wallpaper", "/tmp/whale.jpg", "set wallpaper to /tmp/whale.jpg."),
+        ("volume", "30", "set volume to 30."),
+        ("focus_mode", "writing", "set focus mode to writing."),
+    ],
+)
+def test_system_control_names_the_verified_goal_state(
+    domain: str,
+    applied: str,
+    expected: str,
+) -> None:
+    """Any registered setting reads from the same domain/readback contract."""
+
+    from interface.routes.chat import _desktop_effect_summary
+
+    assert _desktop_effect_summary(
+        {
+            "receipts": [
+                {
+                    "action": "system_control",
+                    "ok": True,
+                    "effect_verified": True,
+                    "result": {
+                        "domain": domain,
+                        "applied": applied,
+                        "effect_verified": True,
+                    },
+                }
+            ]
+        }
+    ) == expected
+
+
 def test_the_done_branch_uses_the_effect_summary() -> None:
     import inspect
 

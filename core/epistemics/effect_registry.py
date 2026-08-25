@@ -667,8 +667,8 @@ _SPECS: tuple[EffectSpec, ...] = (
         narrates_in_reply=True,
         changes_world=True,
         observable_action=True,
-        render_phrase="changed a system setting",
-        evidence_fields=("setting", "target"),
+        render_phrase="set",
+        evidence_fields=("domain", "applied", "value"),
         recognizer=_rx(
             rf"(?:{_DID})(?:changed|set|adjusted|turned\s+(?:up|down|on|off)|"
             r"muted|unmuted|increased|decreased|lowered|raised)\s+"

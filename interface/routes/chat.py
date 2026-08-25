@@ -20352,6 +20352,39 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 is_governed_action_status = _status_represents_governed_action_result(proof_status)
                 is_memory_state_status = _status_represents_memory_state_result(proof_status)
 
+            # A deterministic tool-result response has an author, but it is
+            # not the language model. Bind that authority after the shared
+            # execution chokepoint, since that chokepoint can turn an ordinary
+            # cognitive status into a completed desktop action. This is
+            # positive evidence: every requested critical step must carry
+            # verified effect evidence. Taking a fast path proves nothing.
+            if is_governed_action_status and str(proof_status).startswith(
+                "desktop_objective"
+            ):
+                desktop_result = _desktop_exec_state.get("result")
+                authority_proven = False
+                authority_reason = "desktop_result_missing"
+                if isinstance(desktop_result, dict):
+                    authority_proven, authority_reason = (
+                        _chat_desktop_objective._verified_desktop_task_result(
+                            desktop_result
+                        )
+                    )
+                _live_turn_trace.update(
+                    {
+                        "response_authority_kind": (
+                            "verified_action_receipt_serialization"
+                        ),
+                        "response_authority_proven": authority_proven,
+                        "response_authority_reason": authority_reason,
+                        "model_generation_used": False,
+                        "live_mind_generation_required": False,
+                        "semantic_completion_contract_expected": True,
+                        "semantic_completion_receipt_present": authority_proven,
+                        "semantic_completion_satisfied": authority_proven,
+                    }
+                )
+
             if is_benchmark:
                 blocked_reply = (
                     "Benchmark request attempted to use a non-canonical chat fastpath "

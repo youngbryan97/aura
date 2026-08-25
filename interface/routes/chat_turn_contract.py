@@ -783,10 +783,26 @@ def _build_live_turn_contract_payload(
         final_output_contract_evaluated
         and (not final_output_contract_required or final_output_contract_satisfied)
     )
+    response_authority_kind = str(trace.get("response_authority_kind") or "").strip()
+    response_authority_proven = bool(
+        response_authority_kind and trace.get("response_authority_proven") is True
+    )
+    # Model-native is a positive authorship claim. The absence of a repair or
+    # state serializer cannot establish that a model generated the bytes.
+    # Fast paths previously satisfied those negative conditions and were
+    # mislabeled model-native even when their generation count was zero.
     model_native_output = bool(
-        not qualified_recurrent_response_path
+        (
+            (engine_think_invoked and engine_reply_accepted)
+            or (
+                response_path == "protected_foreground"
+                and trace.get("protected_foreground_generation_proven") is True
+            )
+        )
+        and not qualified_recurrent_response_path
         and not post_generation_repair_applied
         and not unreceipted_runtime_replacement
+        and not response_authority_kind
     )
     confidence = str(response_confidence or "").strip().lower()
     qualified_recurrent_path_proven = bool(
@@ -993,12 +1009,13 @@ def _build_live_turn_contract_payload(
             )
         )
     answer_delivery_proven = bool(
-        authentic_cognitive_reply
+        (authentic_cognitive_reply or response_authority_proven)
         and authored_answer_completion_proven
         and final_output_contract_proven
     )
     accepted_cognitive_path = bool(
-        answer_delivery_proven
+        authentic_cognitive_reply
+        and answer_delivery_proven
         and confidence == "high"
         and architecture_context_bound
         and live_mind_snapshot_bound
@@ -1082,6 +1099,9 @@ def _build_live_turn_contract_payload(
         ),
         "authored_answer_completion_proven": authored_answer_completion_proven,
         "answer_delivery_proven": answer_delivery_proven,
+        "response_authority_kind": response_authority_kind,
+        "response_authority_proven": response_authority_proven,
+        "response_authority_reason": str(trace.get("response_authority_reason") or ""),
         "certification_complete": full_mind_path,
         "full_mind_missing_proofs": missing_proofs,
         "engine_think_invoked": engine_think_invoked,
@@ -1103,7 +1123,11 @@ def _build_live_turn_contract_payload(
         "semantic_completion_mode": (
             "certified_state_serialization"
             if qualified_recurrent_path_proven
-            else "model_generation"
+            else (
+                response_authority_kind
+                if response_authority_proven
+                else ("model_generation" if model_native_output else "unproven_runtime_output")
+            )
         ),
         "completion_retry_count": completion_retry_count,
         "continuation_evidence_valid": continuation_evidence_valid,
@@ -1203,15 +1227,23 @@ def _build_live_turn_contract_payload(
             "non_cognitive_replacement"
             if authorship_replacement_applied
             else (
-                "certified_recurrent_state_serialization"
-                if state_native_output
+                response_authority_kind
+                if response_authority_proven
                 else (
-                    "cognitive_generation_with_runtime_evidence"
-                    if authorship_augmentation_applied
+                    "certified_recurrent_state_serialization"
+                    if state_native_output
                     else (
-                        "model_native"
-                        if model_native_output
-                        else "cognitive_generation_with_recorded_transformations"
+                        "cognitive_generation_with_runtime_evidence"
+                        if authorship_augmentation_applied
+                        else (
+                            "model_native"
+                            if model_native_output
+                            else (
+                                "cognitive_generation_with_recorded_transformations"
+                                if authored_generation_source_proven
+                                else "unproven_runtime_output"
+                            )
+                        )
                     )
                 )
             )

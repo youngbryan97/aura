@@ -7044,6 +7044,13 @@ async def test_api_chat_desktop_objective_requires_cognitive_planning(monkeypatc
     assert payload["status"] == "desktop_objective_completed"
     assert payload["conversation_lane"]["governed_action_result"] is True
     assert payload["conversation_lane"]["governed_action_status"] == "desktop_objective_completed"
+    assert payload["live_turn_contract"]["foreground_model_generation_count"] == 0
+    assert payload["live_turn_contract"]["model_native_output"] is False
+    assert payload["live_turn_contract"]["response_authority_proven"] is True
+    assert payload["live_turn_contract"]["answer_delivery_proven"] is True
+    assert payload["live_turn_contract"]["final_text_authorship"] == (
+        "verified_action_receipt_serialization"
+    )
     # The reply confirms completion without quoting the planner's bookkeeping.
     # "Desktop task completed 2/2 governed computer-use steps through
     # heuristic_compat planning" is the executor's summary; it is evidence for
@@ -12732,6 +12739,50 @@ def test_protected_foreground_text_requires_receipted_authorship() -> None:
     assert unproven["answer_delivery_proven"] is False
     assert proven["authentic_cognitive_reply"] is True
     assert proven["answer_delivery_proven"] is True
+
+
+def test_verified_action_serialization_is_proven_without_model_authorship() -> None:
+    from interface.routes import chat as chat_routes
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status="desktop_objective_completed",
+        reply_source="fastpath",
+        turn_trace={
+            "engine_think_invoked": False,
+            "cognitive_engine_reply_accepted": False,
+            "cognitive_engine_reply_failed": False,
+            "bounded_contract_used": False,
+            "legacy_fallback_used": False,
+            "response_path": "",
+            "response_authority_kind": "verified_action_receipt_serialization",
+            "response_authority_proven": True,
+            "response_authority_reason": "verified",
+            "live_mind_generation_required": False,
+            "foreground_model_generation_consumed": False,
+            "foreground_model_generation_count": 0,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+            "semantic_completion_contract_expected": True,
+            "semantic_completion_receipt_present": True,
+            "semantic_completion_satisfied": True,
+        },
+    )
+
+    assert contract["model_native_output"] is False
+    assert contract["response_authority_proven"] is True
+    assert contract["answer_delivery_proven"] is True
+    assert contract["full_mind_path"] is False
+    assert contract["semantic_completion_mode"] == (
+        "verified_action_receipt_serialization"
+    )
+    assert contract["final_text_authorship"] == (
+        "verified_action_receipt_serialization"
+    )
 
 
 def test_protected_foreground_transaction_identity_is_worker_bound() -> None:

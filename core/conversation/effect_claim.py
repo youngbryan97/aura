@@ -198,11 +198,26 @@ def claims_from_receipts(receipts: Any) -> list[EffectClaim]:
         payload = inner if isinstance(inner, dict) else receipt
         _phrase, fields = _EFFECT_VOCABULARY[action]
         obj = ""
-        for name in fields:
-            value = str(payload.get(name) or "").strip()
-            if value:
-                obj = value
-                break
+        if action == "system_control":
+            # A system-control receipt already carries the generic affordance
+            # domain and the value confirmed by readback. Preserve both. The
+            # former renderer selected only ``domain`` and produced "changed a
+            # system setting wallpaper", while selecting only ``applied``
+            # would hide which setting changed. This composition remains
+            # domain-agnostic: a newly registered setting becomes narratable
+            # without adding another branch here.
+            domain = str(payload.get("domain") or "").strip().replace("_", " ")
+            applied = str(payload.get("applied") or payload.get("value") or "").strip()
+            if domain and applied:
+                obj = f"{domain} to {applied}"
+            else:
+                obj = domain or applied
+        else:
+            for name in fields:
+                value = str(payload.get(name) or "").strip()
+                if value:
+                    obj = value
+                    break
         if receipt.get("ok"):
             identifier = str(
                 receipt.get("durable_receipt_id") or f"step:{receipt.get('index', index)}"
