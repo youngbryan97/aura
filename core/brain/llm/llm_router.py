@@ -792,6 +792,30 @@ class StaticReflexRouter(StaticReflexClient):
     """Alias for StaticReflexClient to satisfy victory bundle requirements."""
     pass  # no-op: intentional
 
+_UNPRESENTABLE_SUBSTRATE_RECORDED = False
+
+
+def _record_unpresentable_substrate_once() -> None:
+    """Say once that the substrate readout cannot serve a user turn.
+
+    Once per process, not once per turn. The condition is a property of the
+    readout's vocabulary and does not change while the process runs, and a
+    warning recorded on every turn is noise that buries the ones that mean
+    something.
+    """
+    global _UNPRESENTABLE_SUBSTRATE_RECORDED
+    if _UNPRESENTABLE_SUBSTRATE_RECORDED:
+        return
+    _UNPRESENTABLE_SUBSTRATE_RECORDED = True
+    from core.brain.llm.substrate_token_generator import SubstrateTokenGenerator
+    _record_router_degradation(
+        RuntimeError("substrate readout vocabulary is not user-presentable"),
+        action="user-facing turns go straight to the transformer cortex",
+        severity="info",
+        extra={"vocabulary": SubstrateTokenGenerator.VOCABULARY},
+    )
+
+
 class IntelligentLLMRouter:
     """Intelligent LLM router with automatic failover.
     
@@ -1322,8 +1346,25 @@ class IntelligentLLMRouter:
             return None
 
         try:
-            from core.brain.llm.substrate_token_generator import get_substrate_token_generator
+            from core.brain.llm.substrate_token_generator import (
+                SubstrateTokenGenerator,
+                get_substrate_token_generator,
+            )
             from core.container import ServiceContainer
+
+            # A user-facing turn cannot be answered from a vocabulary that is
+            # never presentable, so there is nothing to compute. This used to
+            # run the readout on a worker thread, wait on it, and then defer —
+            # a thread hop and a discarded result on every single user turn,
+            # plus a warning-severity degradation record per turn for a
+            # condition that is permanent.
+            if (
+                not is_background
+                and not kwargs.get("force_substrate")
+                and not SubstrateTokenGenerator.can_be_shown_to_a_person()
+            ):
+                _record_unpresentable_substrate_once()
+                return None
 
             substrate = (
                 ServiceContainer.get("continuous_substrate", default=None)

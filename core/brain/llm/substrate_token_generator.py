@@ -96,6 +96,21 @@ class SubstrateTokenGenerator:
     something without loading the transformer.
     """
 
+    #: The vocabulary every generation from this class is drawn from. A class
+    #: attribute, not a per-result one, because a caller needs to know whether
+    #: the output could EVER be shown to a person before paying for it.
+    VOCABULARY = "proto"
+
+    @classmethod
+    def can_be_shown_to_a_person(cls) -> bool:
+        """Whether this readout's text could ever be served as an answer.
+
+        False for the proto vocabulary, permanently. Callers on a user-facing
+        turn use this to skip the readout entirely rather than computing one
+        and then discarding it, which is what they were doing.
+        """
+        return cls.VOCABULARY != "proto"
+
     def __init__(
         self,
         substrate: Any,

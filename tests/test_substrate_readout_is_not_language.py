@@ -169,3 +169,96 @@ class TestTheRouterDefers:
         served = await router._try_substrate_primary("go", {}, is_background=True)
         assert served is not None
         assert served.startswith("Substrate path:")
+
+
+class TestTheUserTurnDoesNotPayForIt:
+    """A permanent refusal computed once per turn is work nobody uses.
+
+    The router used to run the readout on a worker thread for every user turn,
+    wait up to ten seconds on it, discard the result because the proto
+    vocabulary is not presentable, and record a warning-severity degradation.
+    The condition is a property of the vocabulary and never changes while the
+    process runs.
+    """
+
+    def test_the_class_says_it_can_never_be_shown(self):
+        assert SubstrateTokenGenerator.VOCABULARY == "proto"
+        assert SubstrateTokenGenerator.can_be_shown_to_a_person() is False
+
+    @pytest.mark.asyncio
+    async def test_a_user_turn_never_reaches_the_generator(self, monkeypatch):
+        from core.brain.llm import llm_router
+
+        monkeypatch.setattr(
+            llm_router.IntelligentLLMRouter,
+            "_substrate_primary_enabled",
+            staticmethod(lambda: True),
+        )
+        monkeypatch.setattr(
+            llm_router.IntelligentLLMRouter,
+            "_substrate_user_facing_enabled",
+            staticmethod(lambda: True),
+        )
+
+        def explode(*_args, **_kwargs):  # pragma: no cover - asserted never called
+            raise AssertionError("a user turn built a substrate generator")
+
+        # Patched at the source module: the router imports it inside the
+        # function, so patching the router's namespace would prove nothing.
+        from core.brain.llm import substrate_token_generator as generator_module
+
+        monkeypatch.setattr(
+            generator_module, "get_substrate_token_generator", explode
+        )
+        router = llm_router.IntelligentLLMRouter.__new__(
+            llm_router.IntelligentLLMRouter
+        )
+        router.stats = {}
+        router.last_tier = ""
+        router.last_user_tier = ""
+        result = await router._try_substrate_primary("hello", {}, is_background=False)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_a_background_turn_still_consults_it(self, monkeypatch):
+        """The fingerprint is useful where it is not being served as an answer."""
+        from core.brain.llm import llm_router
+
+        monkeypatch.setattr(
+            llm_router.IntelligentLLMRouter,
+            "_substrate_primary_enabled",
+            staticmethod(lambda: True),
+        )
+        seen: list[str] = []
+
+        class _Probe:
+            def generate(self, prompt, **_kwargs):
+                seen.append(prompt)
+                return _aligned_generator("go").generate("go")
+
+        from core.brain.llm import substrate_token_generator as generator_module
+
+        monkeypatch.setattr(
+            generator_module,
+            "get_substrate_token_generator",
+            lambda _substrate=None: _Probe(),
+        )
+        from core.container import ServiceContainer
+
+        monkeypatch.setattr(
+            ServiceContainer,
+            "get",
+            staticmethod(
+                lambda name, default=None: _FakeSubstrate(np.zeros(64))
+                if name == "continuous_substrate"
+                else default
+            ),
+        )
+        router = llm_router.IntelligentLLMRouter.__new__(
+            llm_router.IntelligentLLMRouter
+        )
+        router.stats = {}
+        router.last_tier = ""
+        router.last_user_tier = ""
+        await router._try_substrate_primary("quiet status", {}, is_background=True)
+        assert seen, "the background lane stopped consulting the substrate"
