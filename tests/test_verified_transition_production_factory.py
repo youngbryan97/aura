@@ -904,11 +904,19 @@ def test_factory_rejects_task_behavior_drift_with_same_task_id(
     tmp_path: Path,
 ) -> None:
     material = _factory_material(tmp_path)
+    original = material["task"]
+    drifted_answer = 'FINAL_ANSWER: {"node":999999}'
+    # A task validates that its solution ends with its answer, so moving only
+    # the answer raises inside the dataclass and the factory is never asked
+    # anything. The drift under test is behavioural: same task_id, different
+    # answer, and a solution that still agrees with it.
     drifted = replace(
-        material["task"],
-        answer='FINAL_ANSWER: {"node":999999}',
+        original,
+        answer=drifted_answer,
+        solution=original.solution[: -len(original.answer)] + drifted_answer,
     )
-    assert drifted.task_id == material["task"].task_id
+    assert drifted.solution.endswith(drifted.answer)
+    assert drifted.task_id == original.task_id
     with pytest.raises(
         VerifiedTransitionProductionFactoryError,
         match="runtime_task_commitment_mismatch",

@@ -1660,10 +1660,18 @@ def build_verified_replay_sft_custody_bundles(
 
     if set(privacy_clearances) != seen_entries:
         _fail("verified_replay_sft_privacy_inventory_mismatch")
+
+    # Contamination is reported before partition power, because it is the
+    # prior fault and the more serious one: an overlap with a sealed
+    # evaluation corpus means this material may not be projected at all,
+    # whatever shape the split has. Reported the other way round, a store that
+    # overlapped AND partitioned thin came back
+    # "verified_replay_sft_partition_underpowered" — a sizing complaint about
+    # a contamination.
+    _assert_no_signature_overlap(signatures, references["records"])
+
     if any(len(rows_by_split[split]) < minimum_rows_per_split for split in SPLITS):
         _fail("verified_replay_sft_partition_underpowered")
-
-    _assert_no_signature_overlap(signatures, references["records"])
 
     partition_body = {
         "schema": VERIFIED_REPLAY_SFT_PARTITION_SCHEMA,
