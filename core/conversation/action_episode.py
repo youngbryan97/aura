@@ -20,6 +20,7 @@ __all__ = [
     "ActionEpisode",
     "action_episode_from_execution",
     "action_episode_grounding",
+    "action_episode_reply",
     "is_action_episode_question",
     "select_action_episode",
 ]
@@ -240,3 +241,51 @@ def action_episode_grounding(episode: ActionEpisode) -> str:
         lines.append(f"evidence_refs: {', '.join(episode.evidence_refs)}")
     lines.append("[END PRIOR ACTION EPISODE]")
     return "\n".join(lines)
+
+
+_FAILED_OPERATION_PREFIX_RE = re.compile(
+    r"^[a-z][a-z0-9_.-]*\s+failed:\s*",
+    re.IGNORECASE,
+)
+
+
+def _causal_detail(value: str) -> str:
+    """Turn a receipt field into a grammatical causal clause."""
+
+    detail = _FAILED_OPERATION_PREFIX_RE.sub("", _text(value, limit=_MAX_DETAIL_CHARS)).strip()
+    detail = detail.rstrip(" .")
+    if len(detail) > 1 and detail[0].isupper() and detail[1].islower():
+        detail = detail[0].lower() + detail[1:]
+    return detail
+
+
+def action_episode_reply(question: str, episode: ActionEpisode) -> str | None:
+    """Project an exact prior-action answer without probabilistic re-interpretation.
+
+    The episode is already the verified reduction of the executor receipts.
+    Questions about whether or why that action succeeded are therefore state
+    reads, like arithmetic or a settings query, rather than model-generation
+    tasks. Open-ended questions continue through normal cognition.
+    """
+
+    relation = action_outcome_question(question)
+    if not relation.asks_about_outcome:
+        return None
+    if relation.asks_about_failure:
+        if episode.succeeded:
+            return "That attempt did not fail; it completed successfully."
+        detail = _causal_detail(episode.failure_detail)
+        if detail:
+            return f"It failed because {detail}."
+        status = _text(episode.status, limit=160).replace("_", " ").strip()
+        return f"It failed with status {status}." if status else "That attempt failed."
+    summary = _text(episode.summary, limit=_MAX_SUMMARY_CHARS)
+    if summary:
+        return summary
+    if episode.succeeded:
+        return "It completed successfully."
+    detail = _causal_detail(episode.failure_detail)
+    if detail:
+        return f"It did not complete because {detail}."
+    status = _text(episode.status, limit=160).replace("_", " ").strip()
+    return f"It ended with status {status}." if status else "It did not complete."

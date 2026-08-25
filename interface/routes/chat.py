@@ -3031,9 +3031,24 @@ async def _resolve_action_episode_grounding(
 ) -> str:
     """Ground a question about a prior action in that action's receipt facts."""
 
+    episode = await _resolve_action_episode(user_message, session_id=session_id)
+    if episode is None:
+        return ""
+
+    from core.conversation.action_episode import action_episode_grounding
+
+    return action_episode_grounding(episode)
+
+
+async def _resolve_action_episode(
+    user_message: str,
+    *,
+    session_id: str = "",
+):
+    """Resolve the verified action episode referred to by this turn."""
+
     from core.conversation.action_episode import (
         ActionEpisode,
-        action_episode_grounding,
         select_action_episode,
     )
 
@@ -3048,8 +3063,28 @@ async def _resolve_action_episode_grounding(
         episode = ActionEpisode.from_dict(exchange.get("action_episode"))
         if episode is not None:
             episodes.append(episode)
-    selected = select_action_episode(user_message, episodes)
-    return action_episode_grounding(selected) if selected is not None else ""
+    return select_action_episode(user_message, episodes)
+
+
+async def _resolve_action_episode_projection(
+    user_message: str,
+    *,
+    session_id: str = "",
+) -> tuple[str, str]:
+    """Return the typed evidence and its exact user-facing state projection."""
+
+    episode = await _resolve_action_episode(user_message, session_id=session_id)
+    if episode is None:
+        return "", ""
+    from core.conversation.action_episode import (
+        action_episode_grounding,
+        action_episode_reply,
+    )
+
+    return (
+        action_episode_grounding(episode),
+        str(action_episode_reply(user_message, episode) or "").strip(),
+    )
 
 
 def _classify_self_condition_contract(
@@ -19758,6 +19793,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         _desktop_exec_state = {"attempted": False, "result": None}
         action_episode_evidence = ""
+        action_episode_projection = ""
 
         def _current_exchange_metadata() -> dict[str, Any] | None:
             episode = _desktop_exec_state.get("action_episode")
@@ -20997,13 +21033,23 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         if not _qualified_state_serialization_owner:
             try:
-                action_episode_evidence = await _resolve_action_episode_grounding(
+                (
+                    action_episode_evidence,
+                    action_episode_projection,
+                ) = await _resolve_action_episode_projection(
                     _semantic_user_message,
                     session_id=_chat_session_id,
                 )
             except _CHAT_RECOVERABLE_ERRORS as action_context_exc:
                 record_degradation("chat.action_episode_context", action_context_exc)
                 action_episode_evidence = ""
+                action_episode_projection = ""
+
+        if action_episode_projection:
+            return await _finalize_fastpath(
+                action_episode_projection,
+                status="verified_action_episode",
+            )
 
         if (
             not is_benchmark

@@ -6,6 +6,7 @@ from core.conversation.action_episode import (
     ActionEpisode,
     action_episode_from_execution,
     action_episode_grounding,
+    action_episode_reply,
     select_action_episode,
 )
 from core.conversation.request_mood import RequestMood, assess_request_mood
@@ -118,6 +119,27 @@ def test_failure_question_selects_relevant_failed_episode_not_latest_success() -
     assert selected is failed_wallpaper
 
 
+def test_verified_failure_episode_projects_the_exact_cause_without_generation() -> None:
+    episode = ActionEpisode(
+        objective="Open DefinitelyNotInstalledAuraProbe.",
+        capability="desktop_task",
+        status="desktop_objective_failed",
+        succeeded=False,
+        failure_kind="error",
+        failure_detail=(
+            "open_app failed: No installed application matches "
+            "'DefinitelyNotInstalledAuraProbe'"
+        ),
+        recorded_at=1.0,
+    )
+
+    assert action_episode_reply("Do you know why that broke?", episode) == (
+        "It failed because no installed application matches "
+        "'DefinitelyNotInstalledAuraProbe'."
+    )
+    assert action_episode_reply("Can you try opening it again?", episode) is None
+
+
 @pytest.mark.asyncio
 async def test_exchange_metadata_reaches_recent_context_and_unified_transcript(
     monkeypatch: pytest.MonkeyPatch,
@@ -168,6 +190,12 @@ async def test_exchange_metadata_reaches_recent_context_and_unified_transcript(
         session_id="action-episode-test",
     )
     assert "failure_detail: browser target unavailable" in grounding
+    projected_grounding, projected_reply = await chat._resolve_action_episode_projection(
+        "Do you know why that broke?",
+        session_id="action-episode-test",
+    )
+    assert projected_grounding == grounding
+    assert projected_reply == "It failed because browser target unavailable."
     aura_entries = [
         entry
         for entry in transcript.get_context_window(

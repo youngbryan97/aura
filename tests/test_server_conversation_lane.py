@@ -10937,6 +10937,111 @@ async def test_cognitive_engine_carries_action_episode_as_task_evidence(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_api_chat_projects_verified_action_episode_without_model_generation(monkeypatch):
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+    from interface.routes import chat_common
+
+    async def _forbidden_cognitive_turn(*_args, **_kwargs):
+        pytest.fail("a verified action-outcome state read must not allocate model generation")
+
+    async def _fake_output_receipt(*_args, **_kwargs):
+        return None
+
+    async def _fake_log_exchange(*_args, **_kwargs):
+        return None
+
+    patch_chat_lane(
+        monkeypatch,
+        "_restore_owner_session_from_request",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
+    monkeypatch.setattr(_chat_preflight, "_log_exchange", _fake_log_exchange)
+    monkeypatch.setattr(
+        _chat_preflight,
+        "_chat_evidence_profile",
+        lambda *_args, **_kwargs: (
+            _chat_preflight._CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE,
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_run_cognitive_engine_chat_turn",
+        _forbidden_cognitive_turn,
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+    patch_chat_lane(
+        monkeypatch,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "desired_model": "Cortex (27B)",
+            "desired_endpoint": "Cortex",
+            "foreground_endpoint": "Cortex",
+            "background_endpoint": "Brainstem",
+        },
+    )
+    chat_common._conversation_log.clear()
+    chat_common._conversation_log.append(
+        {
+            "id": "verified-action-exchange",
+            "user": "Open DefinitelyNotInstalledAuraProbe.",
+            "aura": "The application was not found.",
+            "status": "complete",
+            "session_id": "action-projection-live-route",
+            "metadata": {
+                "action_episode": {
+                    "objective": "Open DefinitelyNotInstalledAuraProbe.",
+                    "capability": "desktop_task",
+                    "status": "desktop_objective_failed",
+                    "succeeded": False,
+                    "failure_kind": "error",
+                    "failure_detail": (
+                        "open_app failed: No installed application matches "
+                        "'DefinitelyNotInstalledAuraProbe'"
+                    ),
+                    "steps_completed": 0,
+                    "steps_requested": 1,
+                    "recorded_at": 1.0,
+                }
+            },
+        }
+    )
+
+    response = await server_module.api_chat(
+        server_module.ChatRequest(
+            message="Do you know why that broke?",
+            session_id="action-projection-live-route",
+        ),
+        SimpleNamespace(
+            headers={
+                "X-Aura-Surface": "desktop-ui",
+                "X-Aura-Require-CognitiveEngine": "true",
+            },
+            client=SimpleNamespace(host="test"),
+        ),
+        None,
+        None,
+    )
+
+    payload = json.loads(response.body)
+    assert response.status_code == 200
+    assert payload["status"] == "verified_action_episode"
+    assert payload["response"] == (
+        "It failed because no installed application matches "
+        "'DefinitelyNotInstalledAuraProbe'."
+    )
+
+
+@pytest.mark.asyncio
 async def test_deep_desktop_followup_keeps_hard_live_token_envelope(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
