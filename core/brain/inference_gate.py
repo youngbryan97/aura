@@ -13953,6 +13953,19 @@ class InferenceGate:
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             logger.debug("Circuit-breaker recovery reset unavailable: %s", exc)
 
+        # An internal caller gets nothing, not an apology written for a person.
+        #
+        # This text exists so somebody waiting on a reply is told honestly
+        # that the language backend is down. Handed to a deliberation it
+        # becomes the answer, and the answer becomes the reasoning: measured
+        # live, a move was narrated as "Board: Right — I can't work through
+        # that right now, my language backend is temporarily unavailable".
+        # She pressed right for reasons that were really a status message.
+        #
+        # Nothing back is the truthful result for a caller that is not a
+        # person: it falls through to deciding from evidence and says so.
+        if not is_user_facing or bool((context or {}).get("internal_inference")):
+            return ""
         recovery_text = self._user_facing_recovery_response(visible_user_prompt)
         return self._finalize_nonlocal_user_facing_text(
             recovery_text,

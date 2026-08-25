@@ -119,3 +119,20 @@ def test_a_real_answer_is_returned_unchanged(monkeypatch):
     monkeypatch.setattr(amp, "amplify_turn", good_amplify)
     think = hr.her_reasoning(generate=lambda prompt, temp: None)
     assert asyncio.run(think("choose a move", [])) == "left, because the corner holds"
+
+
+def test_an_internal_caller_is_not_handed_an_apology_written_for_a_person():
+    """LIVE, in the commentary: "Board: Right — I can't work through that
+    right now, my language backend is temporarily unavailable."
+
+    She pressed right, and the reason she gave was a status message. That
+    text exists so somebody waiting on a reply is told honestly what is
+    wrong; handed to a deliberation it becomes the answer, and the answer
+    becomes the reasoning.
+    """
+    source = inspect.getsource(gate.InferenceGate._finish_local_inference_exhaustion)
+    where = source.index("_user_facing_recovery_response(")
+    guard = source[max(0, where - 900) : where]
+    assert "internal_inference" in guard
+    assert "not is_user_facing" in guard
+    assert 'return ""' in guard, "an internal caller must get nothing back, not prose"
