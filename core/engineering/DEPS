@@ -1,0 +1,50 @@
+# core/engineering — layering rules. Written, not generated.
+#
+# This package earns a real architectural rule rather than a list of what it
+# happens to import, because the rule is the reason it exists.
+#
+# Engineering here is deterministic. Given the same design it produces the
+# same numbers and the same drawings, byte for byte, and every value it
+# reports carries the formula and the inputs that made it. That property
+# survives only while nothing in here can reach a language model, a network,
+# a running conversation or any other source of a number nobody can check.
+# So the forbidden edges below are not incidental: an import of core.brain or
+# core.llm from this package would let a generated figure onto a drawing, and
+# a drawing carrying one is the exact failure the package was built to stop.
+#
+# What it may reach is small and dull on purpose. The write gateway, because
+# files go through it. The degradation recorder, because a broken analysis
+# must be visible rather than absent. The container and the memory facade,
+# reached lazily and behind a null check, so a design can be produced with no
+# runtime up at all. Metacognition, to declare itself as a faculty something
+# else can measure. Nothing else.
+#
+# Traffic runs the other way: core.skills and interface call in here.
+
+description = "core.engineering: computes and draws. It may not reach anything that generates."
+
+include_rules = [
+    "+core.engineering",
+
+    # Files are written through the gateway, never with open().
+    "+core.runtime",
+    # A broken analysis is recorded, never swallowed.
+    "+core.exceptions",
+    # Reached lazily and behind a null check, so a design still works with
+    # no service container: the container itself, and the memory facade that
+    # what a design taught is written into.
+    "+core.container",
+    "+core.service_names",
+    "+core.memory",
+    # Declaring engineering design as a faculty with measurable metrics.
+    "+core.metacognition",
+
+    # Everything else in core. In particular core.brain, core.llm,
+    # core.conversation and core.search: a number that came from any of
+    # those cannot say where it came from.
+    "-core",
+    "-interface",
+    "-skills",
+    "-llm",
+    "-aura_main",
+]

@@ -1060,6 +1060,7 @@ from interface.routes import ambient as ambient_routes
 from interface.routes import chat as chat_routes
 from interface.routes import dashboard as dashboard_routes
 from interface.routes import devices as devices_routes
+from interface.routes import engineering as engineering_routes
 from interface.routes import inner_state as inner_state_routes
 from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import media as media_routes
@@ -1071,7 +1072,6 @@ from interface.routes import privacy as privacy_routes
 from interface.routes import reality_reach as reality_reach_routes
 from interface.routes import rpc as rpc_routes
 from interface.routes import settings as settings_routes
-from interface.routes import engineering as engineering_routes
 from interface.routes import subsystems as subsystem_routes
 from interface.routes import system as system_routes
 from interface.routes import worlds as worlds_routes

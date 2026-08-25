@@ -41,7 +41,14 @@ CORE = ROOT / "core"
 
 #: Hand-written files, left alone. Each states an architectural intent that a
 #: generated closed-world list would replace with a weaker fact.
-HANDWRITTEN = {"fsw", "health", "observability", "persistence", "runtime", "utils", "verify"}
+#: `engineering` is written rather than generated because its rule is the
+#: reason it exists: it may not reach anything that generates a number. A
+#: closed-world list of what it happens to import today would allow a later
+#: import of core.brain the moment somebody added one.
+HANDWRITTEN = {
+    "engineering", "fsw", "health", "observability", "persistence", "runtime",
+    "utils", "verify",
+}
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}
 
