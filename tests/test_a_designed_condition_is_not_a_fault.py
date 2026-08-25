@@ -68,3 +68,18 @@ def test_a_required_subsystem_is_fail_closed_so_a_warning_there_is_never_cosmeti
     optional = ServiceDescriptor(name="something_optional", factory=lambda: None, required=False)
     assert required.failure_policy == "fail-closed"
     assert optional.failure_policy == "degrade_with_receipt"
+
+
+def test_a_worker_that_is_already_gone_is_not_a_gate_failure():
+    """LIVE, mid-game: "ValueError: process object is closed" during idle
+    client recycling became CRITICAL SERVICE FAILURE and took the inference
+    gate's maintenance loop down.
+
+    The handle refers to a process that has exited, which is the outcome the
+    recycling pass is trying to reach — not a failure to reach it.
+    """
+    source = inspect.getsource(InferenceGate)
+    where = source.index("continued recycling other idle local clients")
+    guard = source[max(0, where - 900) : where]
+    assert "process object is closed" in guard
+    assert "continue" in guard, "an already-dead worker must not be recorded as a fault"

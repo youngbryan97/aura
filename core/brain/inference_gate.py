@@ -4601,6 +4601,18 @@ class InferenceGate:
                             mark_failed=False,
                         )
             except _INFERENCE_RECOVERABLE_ERRORS as exc:
+                # A worker that is already gone is what recycling wanted.
+                #
+                # "process object is closed" means the handle refers to a
+                # process that has exited — which is the outcome this pass is
+                # trying to reach, not a failure to reach it. Recorded as a
+                # fault it escalates: inference_gate is a required subsystem,
+                # so a warning here becomes CRITICAL SERVICE FAILURE and takes
+                # the gate's maintenance loop down with it. Measured live,
+                # mid-game, while she was playing.
+                if "process object is closed" in str(exc).lower():
+                    logger.debug("Idle runtime already gone; nothing to recycle: %s", exc)
+                    continue
                 _record_inference_degradation(
                     exc,
                     action="continued recycling other idle local clients",
