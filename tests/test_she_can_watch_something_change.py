@@ -108,11 +108,44 @@ def test_an_unreachable_goal_is_bounded(screen):
     assert result["cycles"] == 6
 
 
-def test_no_policy_stalls_instead_of_spinning(screen):
+def test_no_policy_stops_when_judgement_is_out_of_reach(screen, monkeypatch):
+    """It stops rather than pressing something for no reason.
+
+    This asserted `no_move_available` after four cycles, which was true when
+    the no-policy path returned None. It does not any more: with no policy she
+    reads, learns, and deliberates, and a deliberation that reaches a move IS
+    a decision — so a run against a screen that keeps changing correctly
+    spends its budget. What must not happen is acting once her judgement is
+    unavailable, and that outcome is named.
+    """
+    import core.agency.deliberate_action as deliberate_action
+
+    class _Unreached:
+        reached = False
+        reason = "no judgement is available here"
+        chosen = None
+        rationale = ""
+
+    async def unreachable(*_args, **_kwargs):
+        return _Unreached()
+
+    monkeypatch.setattr(deliberate_action, "deliberate", unreachable)
+
     result = _run(success_when="NOPE", policy=None, max_cycles=50)
 
-    assert result["outcome"] == "no_move_available"
-    assert result["cycles"] <= 4
+    assert result["outcome"] == "cannot_decide"
+    assert result["cannot_decide"] == "no judgement is available here"
+    assert not result["moves"], "she pressed something without deciding to"
+
+
+def test_no_policy_spends_its_budget_rather_than_running_forever(screen):
+    """Every move it does make carries the reason it was made."""
+    result = _run(success_when="NOPE", policy=None, max_cycles=6)
+
+    assert result["outcome"] in {"out_of_cycles", "cannot_decide", "stalled"}
+    assert result["cycles"] <= 6
+    for move in result["moves"]:
+        assert move["because"], move
 
 
 @pytest.mark.parametrize("forbidden", ["cmd+q", "ctrl+c", "delete", "f13", ""])

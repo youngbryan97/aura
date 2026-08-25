@@ -767,7 +767,12 @@ async def pursue_on_screen(
         # being waited for. Measured live: asked to play until a 128 tile,
         # she opened the game, matched the number in the score, and reported
         # the goal reached in 1.2 seconds without a move.
-        if reached and not moves and not restarts["count"]:
+        if (
+            reached
+            and not moves
+            and not restarts["count"]
+            and not blocker_attempts["dismissed"]
+        ):
             already["value"] = True
         return reached
 
@@ -900,7 +905,13 @@ async def pursue_on_screen(
             return Step(name=f"dismiss overlay via {label!r}", action=click_away)
         return None
 
-    blocker_attempts = {"count": 0, "last": ""}
+    #: ``count`` is the consecutive run, reset the moment the screen is clear,
+    #: because that is what decides whether dismissal is working. ``dismissed``
+    #: only goes up: clearing a banner IS something she did, and without a
+    #: record that survives the reset, a goal met on the very next reading was
+    #: reported as "already true before she started" — completed False on a
+    #: pursuit that had just succeeded.
+    blocker_attempts = {"count": 0, "last": "", "dismissed": 0}
     lost_page = {"value": False}
     needs_person: dict[str, str] = {"reason": ""}
     #: The page this run belongs to, learned on the first cycle when the caller
@@ -917,6 +928,7 @@ async def pursue_on_screen(
                 blocker_attempts["last"] = blocker.name
                 return None
             blocker_attempts["count"] += 1
+            blocker_attempts["dismissed"] += 1
             blocker_attempts["last"] = blocker.name
             return blocker
         if needs_person["reason"]:
