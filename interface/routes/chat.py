@@ -6248,6 +6248,22 @@ async def _run_cognitive_engine_chat_turn(
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
+    discourse_repair_contract: dict[str, Any] = {}
+    if recent_exchanges:
+        try:
+            from core.conversation.discourse_repair_pursuit import build_repair_pursuit
+            from core.utils.injected_blocks import stamp_runtime_payload
+
+            pursuit = build_repair_pursuit(visible, recent_exchanges)
+            if pursuit.active:
+                discourse_repair_contract = stamp_runtime_payload(pursuit.to_dict())
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "chat.discourse_repair_pursuit",
+                exc,
+                severity="warning",
+                action="kept ordinary authenticated conversation history",
+            )
     live_mind_context = (
         {}
         if state_native_output_owner
@@ -6274,6 +6290,7 @@ async def _run_cognitive_engine_chat_turn(
         "recent_completed_exchanges": recent_exchanges,
         "recent_conversation_context": recent_conversation_context,
         "recent_context_needed": recent_context_needed,
+        "discourse_repair_contract": discourse_repair_contract,
         "action_episode_evidence": action_episode_evidence[:1800],
         "live_mind_context": live_mind_context,
         "live_mind_context_required": bool(require_engine and not state_native_output_owner),

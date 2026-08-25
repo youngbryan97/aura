@@ -4626,6 +4626,27 @@ class CognitiveEngine:
             if memory_state_contract or runtime_fact_status_contract
             else _desktop_history_messages_from_context(context)
         )
+        discourse_repair_contract = context.get("discourse_repair_contract")
+        if isinstance(discourse_repair_contract, dict):
+            from core.utils.injected_blocks import is_stamped_runtime_payload
+
+            if is_stamped_runtime_payload(discourse_repair_contract) and bool(
+                discourse_repair_contract.get("active")
+            ):
+                from core.conversation.discourse_repair_pursuit import (
+                    apply_repair_pursuit_to_history,
+                )
+
+                # The user's pursuit rejects the prior answer, not the earlier
+                # context.  Leaving that assistant text in history turns it
+                # into the strongest few-shot example for the replacement and
+                # reproduces the same evasion nearly verbatim.
+                history_messages = apply_repair_pursuit_to_history(
+                    history_messages,
+                    discourse_repair_contract,
+                )
+            else:
+                discourse_repair_contract = {}
         if self_condition_contract:
             # Current self-state supersedes old self-descriptions. Preserve
             # prior user context, but do not few-shot the model with assistant
@@ -5024,6 +5045,35 @@ class CognitiveEngine:
                     sort_keys=True,
                 )
                 + "\n[END TURN INTERLOCUTOR]"
+            )
+        if isinstance(discourse_repair_contract, dict) and discourse_repair_contract:
+            # Typed discourse state, not a replacement answer.  The rejected
+            # assistant wording was removed from role history above; this
+            # preserves only the open semantic dimension the user pursued.
+            contract_grounding_blocks.append(
+                "[DISCOURSE REPAIR STATE]\n"
+                + json.dumps(
+                    {
+                        "act": "repair_pursuit",
+                        "focus_kind": str(
+                            discourse_repair_contract.get("focus_kind") or ""
+                        ),
+                        "focus_terms": list(
+                            discourse_repair_contract.get("focus_terms") or ()
+                        )[:8],
+                        "prior_question": str(
+                            discourse_repair_contract.get("prior_question") or ""
+                        )[:420],
+                        "current_question": str(
+                            discourse_repair_contract.get("current_question") or ""
+                        )[:420],
+                        "prior_answer_status": "rejected_by_user_pursuit",
+                    },
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                + "\n[END DISCOURSE REPAIR STATE]"
             )
         live_capability_condition = str(
             context.get("live_capability_condition") or ""
