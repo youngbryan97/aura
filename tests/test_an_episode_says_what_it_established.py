@@ -386,11 +386,39 @@ def test_the_teacher_trajectory_forward_is_causal():
         rendered = ast.get_source_segment(source, node) or ""
         if "embed_tokens(mx.array([context_tokens]))" not in rendered:
             continue
-        assert "create_attention_mask(h, None)" in rendered
-        assert "layer(h, mask, None)" in rendered
+        # The property is causality, not one spelling of it. The forward built
+        # its own create_attention_mask once; it goes through
+        # decoder_layer_masks now, which also keeps the state-space layers of
+        # a hybrid decoder on their own mask contract. What must never come
+        # back is a bare None mask over a multi-token sequence — that is FULL
+        # attention, and it optimises the delta against a function that can
+        # see its own future.
+        assert "decoder_layer_masks(" in rendered
+        assert "layer(h, masks[index], None)" in rendered
         assert "layer(h, None, None)" not in rendered
         return
     raise AssertionError("the teacher-trajectory forward was not found")
+
+
+def test_the_mask_the_teacher_forward_builds_is_actually_causal():
+    """Reading the call is not reading the mask. This runs it."""
+    import mlx.core as mx
+
+    from core.brain.llm.decoder_topology import decoder_layer_masks
+
+    class _Layer:
+        pass
+
+    class _Dense:
+        layers = [_Layer(), _Layer()]
+
+    hidden = mx.zeros((1, 6, 8))
+    masks = decoder_layer_masks(_Dense(), hidden, None)
+    assert len(masks) == 2
+    for mask in masks:
+        # A dense decoder over six tokens must be given a mask. None here is
+        # the full-attention case the forward exists to avoid.
+        assert mask is not None
 
 
 def test_the_identity_probe_stays_deliberately_mask_free():
