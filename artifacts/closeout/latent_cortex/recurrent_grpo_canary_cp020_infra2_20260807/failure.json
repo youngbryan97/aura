@@ -1,0 +1,1 @@
+{"error":"recurrent GRPO canary exhausted admissible samples: admitted=0 requested=2 rejected=16","error_type":"RuntimeError","recorded_at_unix_ns":1786109978990718000,"schema":"aura.recurrent_grpo_behavioral_canary.failure.v1"}

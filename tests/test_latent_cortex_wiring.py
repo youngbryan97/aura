@@ -3218,6 +3218,11 @@ def test_service_applies_resident_identity_profile_before_worker_ipc(monkeypatch
 
 
 def test_compound_objective_expands_answer_surface(monkeypatch):
+    from core.runtime.structured_input import (
+        answer_surface_planning_tokens,
+        answer_surface_token_floor,
+    )
+
     """A request the quality gate will judge on 4 facets must be provisioned
     for 4 facets: more decode room, lower temperature, the coverage-demanding
     v2 bridge, and a wall clock that admits the bigger decode."""
@@ -3307,13 +3312,18 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
             foreground_request=True,
         )
     )
+    # Against the floor the accounting computes, not a copy of one of its
+    # outputs. The obligation counters grow as the reader learns to see more
+    # of a request, and a hard-coded number turns that into a failure about
+    # capacity that was correctly allocated.
+    inline_floor = answer_surface_token_floor(inline_obligations)
     assert captured["config"]["decode_bridge_policy"] == "assistant_answer_v3"
-    assert captured["config"]["decode_max_tokens"] == 1920
+    assert captured["config"]["decode_max_tokens"] == inline_floor
     assert captured["budget"]["wall_clock_s"] >= 264.0
     inline_allocation = svc._last_allocation
     assert inline_allocation["compound_objective"] is True
     assert inline_allocation["objective_prompt_shape"]["numbered_parts"] == 5
-    assert inline_allocation["answer_surface_capacity_tokens"] == 1920
+    assert inline_allocation["answer_surface_capacity_tokens"] == inline_floor
     assert (
         inline_allocation["answer_surface_planning_tokens"]
         < inline_allocation["answer_surface_capacity_tokens"]
@@ -3339,8 +3349,18 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
         )
     )
     assert result["reason"] == "profile_observed"
-    assert captured["config"]["decode_max_tokens"] == 1920
-    assert svc._last_allocation["answer_surface_planning_tokens"] == 1024
+    assert captured["config"]["decode_max_tokens"] == answer_surface_token_floor(
+        live_dijkstra
+    )
+    # Derived too. Planning tokens are a p90-style prior over the same
+    # obligations the floor counts, so a hard-coded copy goes stale with it.
+    assert svc._last_allocation[
+        "answer_surface_planning_tokens"
+    ] == answer_surface_planning_tokens(live_dijkstra)
+    assert (
+        svc._last_allocation["answer_surface_planning_tokens"]
+        < svc._last_allocation["answer_surface_capacity_tokens"]
+    ), "the completion prior must leave room under the capacity"
     assert svc._last_allocation["answer_surface_required_wall_clock_s"] < 472.0
 
     # An owner window that cannot physically hold the answer floor is rejected
