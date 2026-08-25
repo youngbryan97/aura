@@ -111,3 +111,21 @@ def test_provenance_separates_a_readout_from_an_organ_read():
     assert "state" not in {provenances["CONCEPTS"]}, (
         "concepts cannot be a readout of 74 floats and must not claim to be"
     )
+
+
+def test_an_abstention_and_an_impossibility_are_different_claims():
+    """"Nothing answered this time" is not "nothing ever will"."""
+    from core.brain.llm.cognitive_code import UNREPRESENTABLE
+
+    code = read_code(empty_state(), include_organ_lines=False)
+    fields = {line.field for line in code.lines}
+    for name, reason in code.unrepresentable().items():
+        assert name not in fields, f"{name} is listed as unrepresentable and is printed"
+        assert reason.strip(), f"{name} says it cannot be carried and does not say why"
+    assert set(UNREPRESENTABLE) >= {"ASSERTIONS", "QUESTIONS", "SEMANTIC_CONTENT"}
+
+
+def test_token_preferences_point_at_the_head_that_carries_them():
+    from core.brain.llm.cognitive_code import UNREPRESENTABLE
+
+    assert "endogenous_vocab_head" in UNREPRESENTABLE["TOKEN_PREFERENCES"]

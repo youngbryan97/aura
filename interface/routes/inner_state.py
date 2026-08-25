@@ -356,7 +356,34 @@ async def get_inner_state() -> JSONResponse:
         record_degradation('inner_state', e)
         result["philosophy_surface"] = {"error": str(e)}
 
-    # 12. Complete subsystem component registry
+    # 12. The endogenous language pathway — z_Aura as she holds it right now,
+    # read as a cognitive code BEFORE anything is generated. The code is an
+    # instrument and is never shown to a person as a reply; `is_user_presentable`
+    # travels with it so nothing downstream has to remember that.
+    try:
+        from core.brain.llm.cognitive_code import read_code
+        from core.brain.llm.endogenous_decode import pathway_health
+        from core.brain.llm.endogenous_state import assemble_state, layout_digest
+
+        state = assemble_state()
+        code = read_code(state)
+        result["endogenous_language"] = {
+            "layout": layout_digest(),
+            "state_coverage": round(state.coverage, 4),
+            "live_channels": list(state.live_channels),
+            "channel_sources": dict(state.sources),
+            "cognitive_code": code.render(),
+            "code_lines": code.as_dict()["lines"],
+            "abstained_fields": list(code.abstained()),
+            "unrepresentable_fields": code.unrepresentable(),
+            "is_user_presentable": False,
+            "pathway": pathway_health(),
+        }
+    except _INNER_STATE_ERRORS as e:
+        record_degradation('inner_state', e)
+        result["endogenous_language"] = {"error": str(e)}
+
+    # 13. Complete subsystem component registry
     try:
         result["subsystems"] = ServiceContainer.get_all_subsystem_statuses()
     except _INNER_STATE_ERRORS as e:

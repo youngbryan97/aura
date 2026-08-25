@@ -69,6 +69,33 @@ MAX_CONCEPTS = 6
 MAX_REFERENTS = 4
 
 
+#: Fields a reading of this state cannot carry, and the reason for each.
+#:
+#: Listing them is the point. A code that silently omits a field looks the
+#: same as a code whose field came back empty, and the difference is whether
+#: anyone should go looking for the value. Seventy-four floats can carry how
+#: sure she is; they cannot carry which proposition she is sure about.
+UNREPRESENTABLE: dict[str, str] = {
+    "ASSERTIONS": (
+        "which propositions she intends to state. A proposition is content, "
+        "and content does not fit in a fixed-width state vector"
+    ),
+    "QUESTIONS": (
+        "which questions she intends to ask. Same reason: the speech act is "
+        "representable and lives on the INTEND line, the question is not"
+    ),
+    "SEMANTIC_CONTENT": (
+        "the meaning she intends to convey. This is what the transformer is "
+        "for, and reproducing it here is the road to a second, worse decoder"
+    ),
+    "TOKEN_PREFERENCES": (
+        "which words the state favours. Representable, but not as symbols — "
+        "it is the vocabulary bias in endogenous_vocab_head, which is a "
+        "distribution over a hundred thousand tokens rather than a line"
+    ),
+}
+
+
 def _band(state: EndogenousState, feature: str) -> str | None:
     """Low / mid / high, cut at the thirds of the dimension's declared range.
 
@@ -154,6 +181,16 @@ class CognitiveCode:
 
     def abstained(self) -> tuple[str, ...]:
         return tuple(line.field for line in self.lines if line.provenance == "abstained")
+
+    @staticmethod
+    def unrepresentable() -> dict[str, str]:
+        """Fields this code will never carry, each with the reason.
+
+        An abstention says "nothing answered this time". This says "nothing
+        will", which is a different claim and the more useful one when
+        someone is deciding whether to go looking for a value.
+        """
+        return dict(UNREPRESENTABLE)
 
     def diff(self, other: CognitiveCode) -> dict[str, tuple[str | None, str | None]]:
         """Which lines moved between two readings.
@@ -420,6 +457,7 @@ __all__ = [
     "MAX_CONCEPTS",
     "MAX_REFERENTS",
     "SPEECH_ACTS",
+    "UNREPRESENTABLE",
     "CodeLine",
     "CognitiveCode",
     "IntentHead",

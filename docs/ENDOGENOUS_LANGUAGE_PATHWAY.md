@@ -77,6 +77,20 @@ as small. `runtime_health_report()["integrity"]["endogenous_language"]` says
 which of those is true at any moment, and separates a head that will not
 attach from no head at all.
 
+## What already owns the rest
+
+The architecture this pathway comes from also wants the transformer's
+expensive results to be kept, so the same problem costs less next time. That
+is not built here because it exists: `core/knowledge/compiled_understanding.py`
+digests material through the deepest lane available, content-addresses the
+digest, counts its reuse, and exports the heavily-reused ones as consolidation
+evidence for the governed learning lanes.
+
+It is deliberately not a channel of z_Aura. Reading its statistics costs a
+database query, and every probe here runs on the request path and is
+memory-only. A state assembled by opening a database would put a query in
+front of every generation.
+
 ## What this cannot do, said before anyone claims otherwise
 
 A linear map from 74 named state dimensions to a vocabulary cannot encode

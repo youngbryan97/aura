@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4301 files.
+# 4305 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -1265,6 +1265,7 @@ core/runtime/task_ownership.py
 core/runtime/tenant_boundary.py
 core/runtime/tensor_identity.py
 core/runtime/thermal.py
+core/runtime/third_party_imports.py
 core/runtime/thread_inspector.py
 core/runtime/timescale_bridge.py
 core/runtime/tool_result_contracts.py
@@ -1520,6 +1521,7 @@ core/voice/duplex/prosody.py
 core/voice/duplex/protocol.py
 core/voice/duplex/session.py
 core/voice/duplex/spoken_form.py
+core/voice/duplex/streaming_asr.py
 core/voice/duplex/style.py
 core/voice/duplex/tts_stream.py
 core/voice/duplex/vad_gate.py
@@ -1733,6 +1735,7 @@ tests/runtime/test_resource_monitor_measures_state_volume.py
 tests/runtime/test_run_test_chunks_parser.py
 tests/runtime/test_self_mod_safety.py
 tests/runtime/test_shutdown_latch_registration_contract.py
+tests/runtime/test_third_party_imports.py
 tests/runtime/test_welfare_transaction_coverage.py
 tests/sealed_artifact_support.py
 tests/self_improvement/__init__.py
@@ -2647,6 +2650,7 @@ tests/test_injection_canary.py
 tests/test_inline_answer_intent.py
 tests/test_inner_monologue_recovery.py
 tests/test_inner_state_runtime_contract.py
+tests/test_inner_state_shows_the_cognitive_code.py
 tests/test_input_is_aimed_at_a_window.py
 tests/test_inquiry_engine_hardening.py
 tests/test_insight_journal_hardening.py
