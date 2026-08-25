@@ -1,0 +1,77 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_production_surface_lint_contract.py"
+  ],
+  "cwd": ".",
+  "duration_seconds": 2.482329,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "STORAGE-GATEWAY-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:19:58.096046+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "c36edf7bd87b29b6475af91da5529c820fd5fa93",
+  "output_bytes": 99,
+  "proof_id": "production-surface-ownership-contract-tests",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "c36edf7bd87b29b6475af91da5529c820fd5fa93",
+  "source_manifest": [
+    {
+      "path": "tests/test_production_surface_lint_contract.py",
+      "sha256": "47ffe2fbf18e3df1d1950c94a4f3ecd3197e4c2493f154a0bf32cd3dfda8a190",
+      "size_bytes": 7680
+    },
+    {
+      "path": "tools/production_surface_lint.py",
+      "sha256": "e83096165b0b9584e47eb17a5e0f33cf871999fa3f0060642da29db9125430fa",
+      "size_bytes": 21792
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "tests/test_production_surface_lint_contract.py",
+      "tools/production_surface_lint.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:19:55.613660+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "..........................                                               [100%]\n26 passed in 1.32s\n",
+  "stdout_sha256": "063ec091a331e8300194550bc520b7a62fccd54661f8b3b498a62885a0185a7b",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
