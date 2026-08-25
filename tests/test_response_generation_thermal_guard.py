@@ -83,6 +83,41 @@ class _AttributedReceiptRouter(_Router):
         return {}
 
 
+class _StaleSinkFreshSnapshotRouter(_Router):
+    """Reproduce a receipt amended after its first transport publication."""
+
+    def __init__(self):
+        super().__init__()
+        self._fresh_metadata = {}
+
+    async def think(self, **kwargs):
+        self.calls.append(kwargs)
+        stale = _Router.get_last_generation_metadata(self)
+        sink = kwargs.get("_generation_metadata_sink")
+        if isinstance(sink, dict):
+            sink.update(stale)
+        receipt = {
+            **stale["surface_control_receipt"],
+            "semantic_completion_contract": True,
+            "semantic_completion_satisfied": False,
+            "semantic_completion_incomplete": True,
+            "surface_quality_gate_passed": False,
+            "surface_quality_gate_reasons": ["truncated_tail"],
+            "generation_stop_reason": "max_tokens",
+            "continuation_resume_available": True,
+            "continuation_resume_handle": "c" * 32,
+        }
+        self._fresh_metadata = {
+            **stale,
+            "surface_control_receipt": receipt,
+            "post_generation_completion_evidence": ["truncated_tail"],
+        }
+        return "The evidence establishes the current release as"
+
+    def get_last_generation_metadata(self):
+        return dict(self._fresh_metadata)
+
+
 class _SearchCapability:
     def __init__(self):
         self.calls = []
@@ -1496,6 +1531,127 @@ async def test_response_generation_keeps_receipt_attached_to_exact_text(monkeypa
         "The retained draft is complete enough to continue from its exact state."
     )
     assert receipt["text_mutations"] == []
+
+
+@pytest.mark.asyncio
+async def test_fresh_completion_evidence_overrides_stale_transport_sink(monkeypatch):
+    state = AuraState()
+    visible = "Search the web and identify the current release with sources."
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "desktop_ui"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+
+    router = _StaleSinkFreshSnapshotRouter()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+
+    async def _unexpected_amplifier(**_kwargs):
+        raise AssertionError("amplifier reopened an incomplete owned draft")
+
+    async def _unexpected_dialogue_rewrite(*_args, **_kwargs):
+        raise AssertionError("phase reopened the route-owned continuation")
+
+    monkeypatch.setattr(phase, "_maybe_amplify_response", _unexpected_amplifier)
+    monkeypatch.setattr(
+        "core.phases.response_generation.enforce_dialogue_contract",
+        _unexpected_dialogue_rewrite,
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [
+            {"role": "system", "content": "base live Aura context"},
+            {"role": "user", "content": visible},
+        ],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(
+            align=lambda _text: (_ for _ in ()).throw(
+                AssertionError("executive guard touched resumable draft")
+            )
+        ),
+    )
+
+    result = await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "cognitive_engine_required": True,
+            "clean_user_surface_contract": True,
+            "visible_user_message": visible,
+            "user_surface_validation_prompt": visible,
+            "live_mind_controls_bound": True,
+            "live_mind_generation_controls": {
+                "temperature": 0.55,
+                "top_p": 0.88,
+                "clean_user_surface_recurrent_loops": 2,
+                "clean_user_surface_steering_alpha": 0.30,
+            },
+            "live_mind_snapshot_ready": True,
+            "live_mind_required_subsystems_ok": True,
+        },
+    )
+
+    receipt = result.response_modifiers["live_mind_surface_control_receipt"]
+    assert len(router.calls) == 1
+    assert receipt["semantic_completion_incomplete"] is True
+    assert receipt["continuation_resume_handle"] == "c" * 32
+    assert result.cognition.last_response.endswith("release as")
+
+
+@pytest.mark.asyncio
+async def test_desktop_owner_cannot_be_reopened_by_mislabeled_dialogue_contract(
+    monkeypatch,
+):
+    from core.phases.response_contract import build_response_contract
+
+    state = AuraState()
+    visible = "Explain the result completely."
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "desktop_ui"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+    mislabeled = build_response_contract(state, visible, is_user_facing=False)
+    retry_owners = []
+
+    async def _capture_dialogue_owner(
+        text,
+        _contract,
+        *,
+        retry_generate=None,
+        **_kwargs,
+    ):
+        retry_owners.append(retry_generate)
+        return text, SimpleNamespace(to_dict=lambda: {}, selected_source="incumbent"), False
+
+    router = _Router()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    monkeypatch.setattr(
+        "core.phases.response_generation.build_response_contract",
+        lambda *_args, **_kwargs: mislabeled,
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.enforce_dialogue_contract",
+        _capture_dialogue_owner,
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [{"role": "user", "content": visible}],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "clean_user_surface_contract": True,
+            "visible_user_message": visible,
+        },
+    )
+
+    assert len(router.calls) == 1
+    assert retry_owners == [None]
 
 
 @pytest.mark.asyncio

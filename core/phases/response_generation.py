@@ -93,6 +93,31 @@ def _append_only_continuation_pending(
         return True
 
 
+def _resolve_request_generation_metadata(
+    *,
+    sink: Any,
+    task_snapshot: Any,
+    attributed: Any,
+    latent_trace: Any,
+) -> dict[str, Any]:
+    """Merge request evidence in publication order instead of picking a carrier.
+
+    The mutable sink can be populated when the worker first publishes its
+    receipt.  The inference gate may then amend the task-local receipt after
+    inspecting the decoded text (for example, when it discovers a clipped
+    tail).  Choosing the first non-empty carrier resurrects the older receipt
+    and can reopen a second full generation.  Later request-local evidence
+    therefore overrides earlier transport snapshots; metadata attributed to
+    the returned text remains the final authority for those exact bytes.
+    """
+
+    resolved: dict[str, Any] = {}
+    for candidate in (sink, task_snapshot, attributed, latent_trace):
+        if isinstance(candidate, dict):
+            resolved.update(candidate)
+    return resolved
+
+
 def _dialogue_mutation_provenance(
     before: Any,
     after: Any,
@@ -2481,14 +2506,12 @@ class ResponseGenerationPhase(BasePhase):
                     attributed_generation_metadata = generation_metadata_of(
                         response_text
                     )
-                    generation_metadata = {
-                        **(
-                            attributed_generation_metadata
-                            or router_generation_metadata_sink
-                            or self._generation_metadata_snapshot(router)
-                        ),
-                        **latent_trace,
-                    }
+                    generation_metadata = _resolve_request_generation_metadata(
+                        sink=router_generation_metadata_sink,
+                        task_snapshot=self._generation_metadata_snapshot(router),
+                        attributed=attributed_generation_metadata,
+                        latent_trace=latent_trace,
+                    )
 
                 append_only_continuation_pending = (
                     _append_only_continuation_pending(
@@ -3233,6 +3256,8 @@ class ResponseGenerationPhase(BasePhase):
                             # latency, and can replace it with a thinner answer.
                             # Non-user-facing compositions still own their local
                             # retry because no chat route exists above them.
+                            and not clean_user_surface_contract
+                            and not desktop_cognitive_engine_required
                             and not bool(getattr(contract, "is_user_facing", False))
                         )
                         else None
