@@ -122,8 +122,18 @@ async def test_end_to_end_kernel_mission():
 
     try:
         # 2. Execute the mission targeting this temporary directory/file!
-        # The objective is to patch the weakness_module.py file
-        objective = f"inspect the repo, identify weaknesses, and write a patch to {weakness_file}"
+        #
+        # The objective names the gate the mission promises to run. The
+        # council votes on what it can read, and a plan naming no gate, no
+        # test file, no skill and no code gives every role nothing — so it
+        # abstains and the kernel refuses. That refusal is correct, and
+        # `test_a_mission_with_nothing_measurable_is_refused` pins it; here
+        # the objective carries a check that exists, so the council reaches a
+        # verdict from real signal and the rest of the spine runs.
+        objective = (
+            f"inspect the repo, identify weaknesses, write a patch to "
+            f"{weakness_file}, then run make smoke to prove no regression"
+        )
 
         # Override factory.run_mission target path so it patches our temp directory instead of the live repo
         async def mock_run_mission(plan_steps, constraints=None):
@@ -155,3 +165,32 @@ async def test_end_to_end_kernel_mission():
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_a_mission_with_nothing_measurable_is_refused():
+    """A council that read nothing has not approved anything.
+
+    The roles vote from what the runtime can look up: the effect scope of a
+    named skill, whether the code parses, whether the promised gate exists.
+    An objective offering none of those leaves every role abstaining, and an
+    abstention is never counted as a yes.
+    """
+    kernel = get_leviathan_kernel()
+    kernel.subsystems.clear()
+    kernel.register_subsystem("council", GodCouncil())
+    await kernel.initialize()
+
+    result = await kernel.execute_mission(
+        objective="do the thing we discussed",
+        constraints={},
+    )
+
+    assert result["ok"] is False
+    assert result["reason"] == "council_rejected"
+    # A rejection for want of signal is a different fact from twelve roles
+    # voting no, and the status keeps them apart.
+    details = result["details"]
+    assert details["status"] == "no_signal"
+    assert details["dissenters"] == []
+    assert details["approve_ratio"] == 0.0
