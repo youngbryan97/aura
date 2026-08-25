@@ -446,6 +446,17 @@ async def deliberate(
         spoke = False
 
     chosen = choose_named(reply or "", options) if spoke else None
+    if chosen is None and spoke and str(reply or "").strip():
+        # She answered and it named no move. Worth seeing: the run carries on
+        # from evidence, so this is invisible otherwise, and a mind that is
+        # answering but not being understood looks exactly like a mind that
+        # is not answering.
+        record_degradation(
+            "deliberate_action",
+            ValueError(f"no move named in: {' '.join(str(reply).split())[:160]}"),
+            severity="info",
+            action="chose from evidence because the reply named no available move",
+        )
     if chosen is None:
         structural, why = choose_without_language(options, history, recalled, wanted=goal)
         if structural is None:
