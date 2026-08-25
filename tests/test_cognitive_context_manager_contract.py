@@ -432,3 +432,30 @@ def test_both_response_lanes_bind_unified_context_before_assembly():
     unitary_source = inspect.getsource(unitary.UnitaryResponsePhase.execute)
     assert "await bind_unified_context_to_state(state, objective)" in legacy_source
     assert "await bind_unified_context_to_state(new_state, objective)" in unitary_source
+
+
+def test_a_reference_question_is_recognised_past_its_verifier_class():
+    """The reference gate asks its own question, not the router's.
+
+    `classify_task_type` returns one label and settles source-dependent
+    classes first, so an explain-this-algorithm turn comes back `code`. It
+    still wants a definition, and reading the single label denied it every
+    piece of reference evidence.
+    """
+    from core.brain.reasoning_amplifier_v2 import (
+        asks_a_reference_question,
+        classify_task_type,
+    )
+
+    assert classify_task_type("Explain Dijkstra's algorithm.") == "code"
+    assert asks_a_reference_question("Explain Dijkstra's algorithm.") is True
+    assert asks_a_reference_question("What is the capital of France?") is True
+    assert asks_a_reference_question("define entropy") is True
+
+    # A repository question's answer is in the mutable source tree; offline
+    # reference material cannot say anything true about it.
+    assert (
+        asks_a_reference_question("Where is the retry logic in this codebase?")
+        is False
+    )
+    assert asks_a_reference_question("write me a python function that sorts") is False

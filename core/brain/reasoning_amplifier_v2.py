@@ -240,6 +240,24 @@ def classify_task_type(text: str) -> str:
     return "generic"
 
 
+def asks_a_reference_question(text: str) -> bool:
+    """Whether an encyclopedia would help answer this, independent of class.
+
+    `classify_task_type` returns ONE label and checks the source-dependent
+    classes first, so "explain Dijkstra\'s algorithm" comes back `code` — the
+    word algorithm wins before the word explain is reached. That ordering is
+    right for picking a verifier and wrong for deciding whether to fetch
+    reference evidence: the question still wants a definition.
+
+    A repository question is excluded. Its answer lives in the mutable source
+    tree, and offline reference material cannot say anything true about it.
+    """
+    body = str(text or "")
+    if _REPO_HINT.search(body):
+        return False
+    return bool(_FACT_HINT.search(body))
+
+
 _VERIFICATION_PLANS = {
     "code": ["py_compile + AST safety", "ruff static check", "run in symbolic sandbox if assertions present"],
     "math": ["re-check arithmetic exactly", "evaluate with sympy", "run computation in sandbox"],

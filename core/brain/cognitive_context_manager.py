@@ -468,9 +468,13 @@ class CognitiveContextManager:
             "memory",
         ]
         try:
-            from core.brain.reasoning_amplifier_v2 import classify_task_type
+            from core.brain.reasoning_amplifier_v2 import asks_a_reference_question
 
-            factual_reference_turn = classify_task_type(str(message or "")) == "factual"
+            # Not `classify_task_type(...) == "factual"`. That router returns
+            # one label and settles the source-dependent classes first, so
+            # "explain Dijkstra's algorithm" came back `code` and the turn got
+            # no reference evidence at all.
+            factual_reference_turn = asks_a_reference_question(str(message or ""))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             factual_reference_turn = False
         if factual_reference_turn:
