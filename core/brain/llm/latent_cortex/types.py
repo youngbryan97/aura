@@ -105,6 +105,18 @@ class BranchConfig:
     # index, drives differentiated cognitive labor. Must match n_branches.
     roles: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        # Refused at construction, so a mismatched arm cannot exist anywhere.
+        # The check used to live in BranchEnsemble.seed, after the prompt
+        # embeddings were hashed — a misconfigured lesion arm reported a
+        # tensor error rather than the naming mistake that caused it.
+        roles = tuple(self.roles or ())
+        if roles and len(roles) != self.n_branches:
+            raise ValueError(
+                "BranchConfig.roles must name exactly n_branches roles, got "
+                f"{len(roles)} for {self.n_branches} branches"
+            )
+
 
 @dataclass
 class LatentOptConfig:

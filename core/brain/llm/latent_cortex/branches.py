@@ -249,13 +249,16 @@ class BranchEnsemble:
         import mlx.core as mx
 
         branches: list[BranchState] = []
-        context_sha256 = _tensor_sha256(prompt_embeddings)
+        # BranchConfig refuses a role list that does not match n_branches at
+        # construction; repeated here because a config can be mutated after it
+        # is built, and this runs before anything touches a tensor.
         role_override = tuple(branch_cfg.roles or ())
         if role_override and len(role_override) != branch_cfg.n_branches:
             raise ValueError(
                 "BranchConfig.roles must name exactly n_branches roles, got "
                 f"{len(role_override)} for {branch_cfg.n_branches} branches"
             )
+        context_sha256 = _tensor_sha256(prompt_embeddings)
         for k in range(branch_cfg.n_branches):
             role = role_override[k] if role_override else BRANCH_ROLES[k % len(BRANCH_ROLES)]
             operator = operator_for_role(role)
