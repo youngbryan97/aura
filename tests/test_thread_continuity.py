@@ -194,10 +194,43 @@ def test_blocking_and_advisory_reasons_are_separable():
 
 def test_advisory_membership_stays_narrow():
     """A reason belongs here only when a person would rather have the reply
-    than the refusal. Widening this set silently disarms the gate."""
-    from core.conversation.response_reliability import ADVISORY_REASONS
+    than the refusal. Widening this set silently disarms the gate.
 
-    assert ADVISORY_REASONS == frozenset({"reply_abandons_thread"})
+    The check is the property, not the roster. Freezing the exact set made
+    every legitimate addition a test failure and said nothing about what makes
+    an addition legitimate: an advisory reason must never also be one that
+    makes a reply unspeakable or that marks a shortfall, and it must be
+    declared in the module that owns the definition rather than restated
+    beside it.
+    """
+    from core.conversation.response_reliability import ADVISORY_REASONS
+    from core.conversation.surface_disposition import (
+        ADVISORY_ONLY_REASONS,
+        SHORTFALL_REASONS,
+        UNSPEAKABLE_REASONS,
+    )
+
+    assert ADVISORY_REASONS is ADVISORY_ONLY_REASONS, (
+        "two definitions of advisory would eventually disagree"
+    )
+    assert "reply_abandons_thread" in ADVISORY_REASONS
+    assert not ADVISORY_REASONS & UNSPEAKABLE_REASONS
+    assert not ADVISORY_REASONS & SHORTFALL_REASONS
+
+
+def test_an_advisory_reason_never_condemns_the_reply():
+    """The whole point of the set: it informs `ok` without touching it."""
+    from core.conversation.response_reliability import (
+        ADVISORY_REASONS,
+        ConversationReplyAssessment,
+    )
+
+    for reason in sorted(ADVISORY_REASONS):
+        assessment = ConversationReplyAssessment(
+            ok=True, reasons=(reason,), hard_failure=False, retryable=False
+        )
+        assert assessment.advisory_reasons == (reason,), reason
+        assert assessment.ok is True, reason
 
 
 def test_the_gate_uses_the_wider_thread_not_just_the_last_line():
