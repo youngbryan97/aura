@@ -315,6 +315,12 @@ def boot_endogenous_language(*, directory: Path | None = None) -> dict[str, Any]
     from core.brain.llm.endogenous_state import assemble_state, layout_digest
 
     register_pathway_health()
+    # Importing registers the standing invariants; the module is a declaration
+    # site, not a service.
+    from core.brain.llm import endogenous_invariants  # noqa: F401 — registers
+    from core.brain.llm.endogenous_telemetry import declare as declare_telemetry
+
+    declare_telemetry()
     head, reason = load_head(directory)
     state = assemble_state()
     status: dict[str, Any] = {
@@ -330,6 +336,13 @@ def boot_endogenous_language(*, directory: Path | None = None) -> dict[str, Any]
         status["head_layout_matches"] = head.layout == layout_digest()
         status["head_vocab_size"] = int(head.vocab_size)
         status["head_tokenizer"] = head.tokenizer
+        status["head_report"] = dict(head.report or {})
+    try:
+        from core.brain.llm.endogenous_telemetry import publish
+
+        status["telemetry"] = publish(status)
+    except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("endogenous telemetry not published at boot: %s", exc)
     return status
 
 

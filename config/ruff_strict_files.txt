@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4097 files.
+# 4294 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -28,6 +28,7 @@ core/adaptation/immune_system.py
 core/adaptation/nightly_lora.py
 core/adaptation/online_lora_governor.py
 core/adaptation/safe_optimizer.py
+core/adaptation/self_optimizer.py
 core/adaptation/spatial_receptor_code.py
 core/adaptation/value_autopoiesis.py
 core/adaptation/verified_modification_plasticity.py
@@ -131,6 +132,7 @@ core/brain/concept_vector_bridge.py
 core/brain/conversation_outcome.py
 core/brain/conversational_amplifier.py
 core/brain/cortex_compute_acquisition.py
+core/brain/cortex_self_evidence.py
 core/brain/cortex_web_acquisition.py
 core/brain/courtroom.py
 core/brain/deep_deliberation.py
@@ -154,13 +156,24 @@ core/brain/live_mind_contract.py
 core/brain/living_mind_context.py
 core/brain/llm/batch_candidates.py
 core/brain/llm/code_generator.py
+core/brain/llm/cognitive_code.py
 core/brain/llm/compiler.py
 core/brain/llm/context_assembler.py
 core/brain/llm/context_gate.py
 core/brain/llm/context_limit.py
 core/brain/llm/context_window_evidence.py
 core/brain/llm/contract_authority.py
+core/brain/llm/decoder_topology.py
 core/brain/llm/deferral_record.py
+core/brain/llm/endogenous_absorption.py
+core/brain/llm/endogenous_decode.py
+core/brain/llm/endogenous_intervention.py
+core/brain/llm/endogenous_invariants.py
+core/brain/llm/endogenous_pair_recorder.py
+core/brain/llm/endogenous_readout_training.py
+core/brain/llm/endogenous_state.py
+core/brain/llm/endogenous_telemetry.py
+core/brain/llm/endogenous_vocab_head.py
 core/brain/llm/expert_adapter_applier.py
 core/brain/llm/fallback_client.py
 core/brain/llm/function_calling_adapter.py
@@ -261,6 +274,7 @@ core/brain/llm/latent_cortex/penultimate_execution_receipt.py
 core/brain/llm/latent_cortex/persistence.py
 core/brain/llm/latent_cortex/plasticity_sites.py
 core/brain/llm/latent_cortex/prefix_stability.py
+core/brain/llm/latent_cortex/probe_cache.py
 core/brain/llm/latent_cortex/recurrence.py
 core/brain/llm/latent_cortex/recurrence_adapter.py
 core/brain/llm/latent_cortex/recurrence_adapter_identity_v2.py
@@ -317,8 +331,12 @@ core/brain/llm/local_code_model.py
 core/brain/llm/mlx_client.py
 core/brain/llm/mlx_vision_client.py
 core/brain/llm/mlx_worker.py
+core/brain/llm/model_artifact_profile.py
+core/brain/llm/model_bound_steering.py
 core/brain/llm/model_lifecycle.py
 core/brain/llm/model_registry.py
+core/brain/llm/model_runtime_invariants.py
+core/brain/llm/mtp_capability.py
 core/brain/llm/prompt_envelope.py
 core/brain/llm/qualified_recurrent_ingress.py
 core/brain/llm/recurrent_depth.py
@@ -326,6 +344,7 @@ core/brain/llm/retired_external_runtime.py
 core/brain/llm/semantic_neural_serving.py
 core/brain/llm/sensorimotor_grounding.py
 core/brain/llm/somatic_throttle.py
+core/brain/llm/substrate_token_generator.py
 core/brain/llm/token_budget_evidence.py
 core/brain/llm/token_sentinel.py
 core/brain/llm/unified_recurrent_broad_canary.py
@@ -377,6 +396,7 @@ core/brain/unified_inference.py
 core/brain/validated_claims_grounding.py
 core/brain/verifiers/base.py
 core/brain/verifiers/citation_engine.py
+core/brain/verifiers/engineering_engine.py
 core/brain/verifiers/logic_engine.py
 core/brain/verifiers/math_engine.py
 core/brain/verifiers/planning_engine.py
@@ -420,6 +440,7 @@ core/consciousness/affective_steering.py
 core/consciousness/attention_schema.py
 core/consciousness/aura_protocol.py
 core/consciousness/caa/quantization_floor.py
+core/consciousness/caa/readiness_gate.py
 core/consciousness/caa/readiness_report.py
 core/consciousness/candidate_gate_inventory.py
 core/consciousness/conscious_core.py
@@ -453,6 +474,7 @@ core/consciousness/phi_residual_channel.py
 core/consciousness/precision_sampler.py
 core/consciousness/recursive_tom.py
 core/consciousness/resource_stakes.py
+core/consciousness/selfhood_tick.py
 core/consciousness/somatic_marker_gate.py
 core/consciousness/stdp_learning.py
 core/consciousness/steering_admission.py
@@ -476,11 +498,13 @@ core/continuity.py
 core/continuous_cognition.py
 core/control/dynamic_router.py
 core/conversation/apply_response_patches.py
+core/conversation/asks_about_the_world.py
 core/conversation/capability_denial.py
 core/conversation/capability_preconditions.py
 core/conversation/chat_preflight.py
 core/conversation/choice_consistency.py
 core/conversation/claimed_effect.py
+core/conversation/composed_answer.py
 core/conversation/computation_receipts.py
 core/conversation/continuation.py
 core/conversation/conversation_loop.py
@@ -490,6 +514,7 @@ core/conversation/delivered_history.py
 core/conversation/demo_support.py
 core/conversation/durable_turns.py
 core/conversation/engine.py
+core/conversation/escaped_controls.py
 core/conversation/external_chat.py
 core/conversation/external_chat_ipc.py
 core/conversation/failure_context.py
@@ -537,6 +562,8 @@ core/data/project_store.py
 core/data/simulation_well.py
 core/db/orm.py
 core/db/pool.py
+core/diagnosis/experiment.py
+core/diagnosis/repository.py
 core/dialogue/question_shape.py
 core/dialogue/referents.py
 core/dialogue/shared_history.py
@@ -561,6 +588,15 @@ core/embodiment/scpi_connector.py
 core/embodiment/simulator_bridge.py
 core/embodiment/unity_bridge.py
 core/embodiment/voice_presence.py
+core/engineering/analysis/controls.py
+core/engineering/analysis/margins.py
+core/engineering/analysis/mass.py
+core/engineering/analysis/process.py
+core/engineering/domains.py
+core/engineering/draw/views.py
+core/engineering/explain.py
+core/engineering/export.py
+core/engineering/layout.py
 core/environment/ablation.py
 core/environment/abstraction_discovery.py
 core/environment/action_budget.py
@@ -615,10 +651,13 @@ core/epistemics/opinion_engine.py
 core/epistemics/turn_effects.py
 core/evals/adaptive_test_chamber.py
 core/evaluation/behavioral_ledger.py
+core/evaluation/caa_causal_evaluation.py
 core/evaluation/lesion_inference.py
 core/evaluation/matched_budget.py
 core/evaluation/preregistration.py
 core/evaluation/source_attestation.py
+core/evaluation/steering_ab.py
+core/evaluation/steering_injection.py
 core/evolution/persona_evolver.py
 core/evolution/singularity_loops.py
 core/exceptions.py
@@ -667,6 +706,7 @@ core/identity/identity_content_guard.py
 core/identity/narrative_thread.py
 core/identity/self_object.py
 core/initiative_synthesis.py
+core/intent/artifact_request.py
 core/intent/belief_extractor.py
 core/intent/capability_selection.py
 core/intent/declared_capability.py
@@ -696,13 +736,18 @@ core/knowledge/metta.py
 core/knowledge/retrieval.py
 core/knowledge/rule_extractor.py
 core/knowledge/source_registry.py
+core/language/action_semantics.py
+core/language/answer_surface.py
+core/language/asking_clauses.py
 core/language/desktop_actuation.py
 core/language/label_mining.py
 core/language/learned_matcher.py
 core/language/model_features.py
+core/language/proposition_semantics.py
 core/language/semantic_work.py
 core/language/substrate_measurement.py
 core/language/substrate_store.py
+core/language/typography.py
 core/lattice/config.py
 core/learning/adaptive_curriculum.py
 core/learning/adaptive_halting.py
@@ -712,12 +757,23 @@ core/learning/architecture_meta_controller.py
 core/learning/architecture_observations.py
 core/learning/architecture_search.py
 core/learning/auxiliary_objective_curriculum.py
+core/learning/candidate_cortex_admission.py
+core/learning/candidate_cortex_data.py
+core/learning/candidate_cortex_fusion.py
+core/learning/candidate_cortex_kernel.py
+core/learning/candidate_cortex_measurement.py
+core/learning/candidate_cortex_reconciliation.py
+core/learning/candidate_cortex_training.py
 core/learning/certified_transition_program.py
 core/learning/combined_sft_external_audit.py
 core/learning/combined_sft_lineage.py
 core/learning/combined_sft_lineage_publication.py
+core/learning/compounding_scheduler.py
 core/learning/contradiction_tensor.py
 core/learning/cortex_generation_upgrade.py
+core/learning/cortex_migration_authority.py
+core/learning/cortex_migration_authority_issuer.py
+core/learning/cortex_serving_qualification.py
 core/learning/crsm_closure_scheduler.py
 core/learning/deliberate_practice.py
 core/learning/depth_conditioned_lora.py
@@ -732,13 +788,16 @@ core/learning/genuine_learning_pipeline.py
 core/learning/grpo.py
 core/learning/grpo_training_state.py
 core/learning/heldout_battery.py
+core/learning/hybrid_recurrence_geometry.py
 core/learning/intrinsic_recurrence_receipt.py
 core/learning/latent_adapter_distillation.py
 core/learning/latent_consolidation.py
 core/learning/learning_selfreport.py
+core/learning/live_learner.py
 core/learning/lora_trainer.py
 core/learning/mistake_locator.py
 core/learning/model_merge.py
+core/learning/model_tissue_migration_inventory.py
 core/learning/native_recurrent_transition.py
 core/learning/neural_transition_training.py
 core/learning/neural_uncertainty.py
@@ -750,6 +809,7 @@ core/learning/prefix_stability.py
 core/learning/progressive_recurrent_objective.py
 core/learning/proof_obligations.py
 core/learning/public_frontier_action_compiler.py
+core/learning/recovery_package_identity.py
 core/learning/recurrence_checkpoint_migration.py
 core/learning/recurrence_curriculum.py
 core/learning/recurrence_native_objective_v2.py
@@ -796,8 +856,10 @@ core/learning/selfplay_flywheel.py
 core/learning/semantic_neural_controls.py
 core/learning/semantic_neural_machine.py
 core/learning/semantic_neural_runtime_machine.py
+core/learning/specialist_cortex_admission.py
 core/learning/star_iteration_ledger.py
 core/learning/star_iteration_producer.py
+core/learning/steering_regeneration.py
 core/learning/stop_policy.py
 core/learning/structured_sft.py
 core/learning/structured_sft_admission.py
@@ -1034,6 +1096,7 @@ core/reasoning/action_value.py
 core/reasoning/belief_consistency.py
 core/reasoning/critic_engine.py
 core/reasoning/deduction_governance.py
+core/reasoning/game_planner.py
 core/reasoning/natural_deduction.py
 core/reasoning/positional_constraints.py
 core/reasoning/proof_answer_domains.py
@@ -1056,6 +1119,7 @@ core/resilience/memory_governor.py
 core/resilience/memory_watchdog.py
 core/resilience/metrics_exporter.py
 core/resilience/recovery_bridge.py
+core/resilience/resource_arbitrator.py
 core/resilience/resource_governor.py
 core/resilience/runaway_budget.py
 core/resilience/sandbox.py
@@ -1073,6 +1137,7 @@ core/runtime/app_target_resolution.py
 core/runtime/archive_gateway.py
 core/runtime/artifact_integrity.py
 core/runtime/atomic_writer.py
+core/runtime/autonomy_conductor.py
 core/runtime/background_policy.py
 core/runtime/boot_contract.py
 core/runtime/boot_probes.py
@@ -1113,7 +1178,9 @@ core/runtime/foundations.py
 core/runtime/gateways.py
 core/runtime/governance_coverage.py
 core/runtime/hardening.py
+core/runtime/health_contract.py
 core/runtime/health_fragments.py
+core/runtime/host_clock.py
 core/runtime/integration_liveness.py
 core/runtime/integration_liveness_probe.py
 core/runtime/integrity_audit.py
@@ -1132,6 +1199,7 @@ core/runtime/memory_infra.py
 core/runtime/mlx_memory_guard.py
 core/runtime/mode.py
 core/runtime/model_lane_control.py
+core/runtime/model_runtime_assignment.py
 core/runtime/models.py
 core/runtime/network_gateway.py
 core/runtime/numeric_guards.py
@@ -1193,6 +1261,7 @@ core/runtime/subprocess_gateway.py
 core/runtime/taint.py
 core/runtime/task_ownership.py
 core/runtime/tenant_boundary.py
+core/runtime/tensor_identity.py
 core/runtime/thermal.py
 core/runtime/thread_inspector.py
 core/runtime/timescale_bridge.py
@@ -1205,6 +1274,7 @@ core/sandbox/bash_daemon.py
 core/sandbox/untrusted_python.py
 core/schemas.py
 core/science/scientist.py
+core/search/gathered_sources.py
 core/search/research_pipeline.py
 core/security/defensive_runtime.py
 core/security/deletion_guard.py
@@ -1231,6 +1301,8 @@ core/security/zenith_secrets.py
 core/self/belief_history.py
 core/self/capability_inventory.py
 core/self/capability_ledger.py
+core/self/capability_lexicon.py
+core/self/capability_sources.py
 core/self/identity_consistency.py
 core/self/inner_language.py
 core/self/lifetime.py
@@ -1307,6 +1379,7 @@ core/skills/catalog_policy.py
 core/skills/catalog_probe_worker.py
 core/skills/code_repl.py
 core/skills/computer_use.py
+core/skills/diagnose_repo.py
 core/skills/discovery.py
 core/skills/dream_skill.py
 core/skills/effect_reach.py
@@ -1390,6 +1463,7 @@ core/unity/unity_receipts.py
 core/unity/unity_repair.py
 core/utils/asyncio_patch.py
 core/utils/code_guardian.py
+core/utils/completed_capability.py
 core/utils/concurrency.py
 core/utils/conversational_shape.py
 core/utils/deadlines.py
@@ -1424,6 +1498,7 @@ core/verify/influence_campaign.py
 core/verify/influence_channels.py
 core/verify/invariants.py
 core/verify/lesion_registry.py
+core/verify/organ_drivers.py
 core/verify/runtime_invariants.py
 core/verify/system_assumptions.py
 core/verify/turn_receipt.py
@@ -1491,12 +1566,14 @@ interface/routes/ambient.py
 interface/routes/chat_capability_inventory.py
 interface/routes/chat_quality.py
 interface/routes/devices.py
+interface/routes/engineering.py
 interface/routes/inner_state.py
 interface/routes/media.py
 interface/routes/privacy.py
 interface/routes/reality_reach.py
 interface/routes/settings.py
 interface/routes/subsystems.py
+interface/routes/system.py
 interface/routes/voice_duplex.py
 interface/routes/worlds.py
 interface/server.py
@@ -1584,6 +1661,7 @@ tests/conversation/test_effect_claims_cover_the_tenses.py
 tests/conversation/test_file_read_finds_the_relevant_part.py
 tests/conversation/test_intent_matchers_declare_their_phrasings.py
 tests/conversation/test_local_file_is_not_a_web_search.py
+tests/conversation/test_private_planning_surface.py
 tests/conversation/test_prompt_artifacts_are_cut.py
 tests/conversation/test_recall_contract_serves_the_answer.py
 tests/conversation/test_receipts_before_the_canned_line.py
@@ -1637,6 +1715,7 @@ tests/phenomenal/conftest.py
 tests/proof/test_person_box_artifacts.py
 tests/proof/test_sovereignty_artifacts.py
 tests/reqproof_testkit.py
+tests/run_32b_steering_ab_live.py
 tests/runtime/test_action_executor_admission.py
 tests/runtime/test_action_executor_effect_verification.py
 tests/runtime/test_archive_gateway_contract.py
@@ -1663,6 +1742,10 @@ tests/support/__init__.py
 tests/support/amplifier_doubles.py
 tests/support/authority_capability.py
 tests/support/skill_doubles.py
+tests/test_27b_critical_path.py
+tests/test_27b_grounding_portability.py
+tests/test_27b_launch_readiness.py
+tests/test_27b_migration_queue.py
 tests/test_a_broken_channel_is_not_consent.py
 tests/test_a_budget_says_where_its_number_came_from.py
 tests/test_a_call_that_carries_a_file_gets_room.py
@@ -1678,14 +1761,18 @@ tests/test_a_coefficient_is_not_a_cause.py
 tests/test_a_condition_already_true_is_not_an_achievement.py
 tests/test_a_constant_is_not_an_observation.py
 tests/test_a_correction_answers_what_was_asked.py
+tests/test_a_counted_request_gets_room.py
 tests/test_a_declared_capability_must_have_an_implementation.py
+tests/test_a_deferral_survives_a_task_boundary.py
 tests/test_a_deferred_task_is_not_a_failed_one.py
 tests/test_a_delivered_observation_is_never_redelivered.py
 tests/test_a_derivation_gets_room_to_finish.py
 tests/test_a_designed_condition_is_not_a_fault.py
 tests/test_a_desktop_failure_says_why.py
 tests/test_a_detected_task_survives_routing.py
+tests/test_a_diagnosis_feeds_the_pattern_store.py
 tests/test_a_disclosure_is_not_an_ambiguous_request.py
+tests/test_a_document_is_built_and_rendered.py
 tests/test_a_drive_is_not_a_poll_count.py
 tests/test_a_file_can_be_referred_to_again.py
 tests/test_a_file_read_is_not_a_source_question.py
@@ -1699,6 +1786,7 @@ tests/test_a_health_endpoint_is_not_a_window.py
 tests/test_a_known_answer_survives_a_failed_lane.py
 tests/test_a_label_is_not_an_authorization.py
 tests/test_a_local_path_is_not_a_web_query.py
+tests/test_a_measured_fact_answers_its_own_part.py
 tests/test_a_misordered_message_must_not_kill_the_model.py
 tests/test_a_named_file_can_be_read.py
 tests/test_a_named_file_is_read_however_it_is_mentioned.py
@@ -1710,11 +1798,14 @@ tests/test_a_path_is_an_address_not_a_sentence.py
 tests/test_a_perception_never_reaches_the_prompt_as_a_blob.py
 tests/test_a_presupposed_agreement_is_checked.py
 tests/test_a_problem_to_work_out_gets_something_to_work_with.py
+tests/test_a_prohibition_is_not_an_instruction.py
 tests/test_a_prompt_fragment_is_not_a_goal.py
 tests/test_a_pronoun_is_not_a_directory.py
 tests/test_a_protected_lane_gets_a_ceiling_not_an_exemption.py
 tests/test_a_protected_singleton_stays_single.py
+tests/test_a_question_about_a_real_path_gets_tools.py
 tests/test_a_question_about_her_reaches_her.py
+tests/test_a_question_about_the_world_gets_evidence.py
 tests/test_a_queue_reading_answers_a_question.py
 tests/test_a_ranking_of_nothing_is_still_five_things.py
 tests/test_a_receipt_is_not_a_debt.py
@@ -1730,8 +1821,10 @@ tests/test_a_reply_that_contains_a_file.py
 tests/test_a_request_with_a_condition_is_not_one_action.py
 tests/test_a_requested_capability_is_not_discretionary.py
 tests/test_a_requested_short_answer_is_an_answer.py
+tests/test_a_requirement_is_read_from_the_person.py
 tests/test_a_same_worker_repair_is_not_an_allocation.py
 tests/test_a_self_report_cannot_claim_the_impossible.py
+tests/test_a_silent_tick_stays_silent.py
 tests/test_a_skill_can_say_it_cannot_run_here.py
 tests/test_a_skill_cannot_reach_past_its_declaration.py
 tests/test_a_soft_proof_does_not_erase_her_answer.py
@@ -1745,6 +1838,7 @@ tests/test_a_stream_that_cannot_strand_its_reader.py
 tests/test_a_structured_answer_is_not_scaffolding.py
 tests/test_a_structured_answer_survives_its_headings.py
 tests/test_a_subroute_keeps_its_authority.py
+tests/test_a_symptom_with_no_error_is_diagnosed.py
 tests/test_a_table_question_is_computed.py
 tests/test_a_task_knows_which_page_it_is_on.py
 tests/test_a_tool_call_gets_room_to_exist.py
@@ -1752,6 +1846,7 @@ tests/test_a_truncated_fence_is_not_a_lost_build.py
 tests/test_a_turn_count_is_not_a_cost.py
 tests/test_a_turn_engages_what_it_should.py
 tests/test_a_turn_is_answered_once.py
+tests/test_a_turn_never_loads_a_model_to_route.py
 tests/test_a_unit_is_not_a_cut_word.py
 tests/test_a_veto_is_a_decision_not_a_failure.py
 tests/test_a_waiting_user_is_not_background_work.py
@@ -1770,6 +1865,7 @@ tests/test_action_executor_deliberation_loss.py
 tests/test_action_grounding.py
 tests/test_action_intent_preamble.py
 tests/test_action_postcondition_cp126.py
+tests/test_action_semantics.py
 tests/test_action_value_contextual.py
 tests/test_action_value_model.py
 tests/test_actor_bus_drop_visibility.py
@@ -1844,6 +1940,7 @@ tests/test_an_exact_answer_can_account_for_itself.py
 tests/test_an_explicit_lane_handoff_is_honoured.py
 tests/test_an_image_goes_where_you_asked.py
 tests/test_an_image_is_named_what_it_is.py
+tests/test_an_in_turn_planner_gets_the_turn_lane.py
 tests/test_an_instruction_is_not_a_question.py
 tests/test_an_isolation_argument_that_can_be_empty.py
 tests/test_an_unknown_personal_fact_is_named.py
@@ -1871,7 +1968,9 @@ tests/test_artifact_builder.py
 tests/test_artifact_builder_hardening.py
 tests/test_artifact_consistency_validator.py
 tests/test_artifact_integrity.py
+tests/test_asking_for_a_thing_reaches_the_builders.py
 tests/test_asking_for_it_is_consenting_to_it.py
+tests/test_asking_to_design_reaches_the_designer.py
 tests/test_associative_entity_memory.py
 tests/test_assumption_ledger.py
 tests/test_atomspace.py
@@ -1956,8 +2055,12 @@ tests/test_bundler.py
 tests/test_bus_events_cp126.py
 tests/test_bypass_eligibility_is_by_class.py
 tests/test_caa_32b_real_ab.py
+tests/test_caa_causal_evaluation.py
+tests/test_caa_extraction_model_contract.py
 tests/test_caa_health_dampening.py
+tests/test_caa_model_bound_generation.py
 tests/test_caa_readiness_report.py
+tests/test_caa_runtime_closure.py
 tests/test_calibration_gate_preserves_the_answer.py
 tests/test_camera_authority_is_the_only_way_in.py
 tests/test_campaign_depth_ladder.py
@@ -1965,6 +2068,16 @@ tests/test_campaign_launch_bundle.py
 tests/test_campaign_role_signer_service.py
 tests/test_canary_replay_real.py
 tests/test_cancellation_is_not_a_result.py
+tests/test_candidate_cortex_adaptive_target.py
+tests/test_candidate_cortex_admission.py
+tests/test_candidate_cortex_canary_target.py
+tests/test_candidate_cortex_data.py
+tests/test_candidate_cortex_fusion.py
+tests/test_candidate_cortex_kernel.py
+tests/test_candidate_cortex_measurement.py
+tests/test_candidate_cortex_reconciliation.py
+tests/test_candidate_cortex_training.py
+tests/test_candidate_persona_crsm_preflight.py
 tests/test_canvas_manager_hardening.py
 tests/test_capability_catalog_lock_order.py
 tests/test_capability_chain.py
@@ -1984,6 +2097,7 @@ tests/test_capability_maturity.py
 tests/test_capability_needs_the_world.py
 tests/test_capability_question_reaches_the_registry.py
 tests/test_capability_questions_reach_her_instruments.py
+tests/test_capability_ranking_is_deterministic.py
 tests/test_capability_reading_is_not_stapled_to_conversation.py
 tests/test_capability_self_knowledge.py
 tests/test_causal_closed_loop.py
@@ -2028,6 +2142,7 @@ tests/test_code_verifier_hardening.py
 tests/test_coding_session_memory.py
 tests/test_cognition_discipline.py
 tests/test_cognitive_adaptations.py
+tests/test_cognitive_code_is_an_instrument_not_a_reply.py
 tests/test_cognitive_context_admission_is_receipted.py
 tests/test_cognitive_context_manager_contract.py
 tests/test_cognitive_contracts.py
@@ -2136,7 +2251,11 @@ tests/test_core_consolidation_ratchet.py
 tests/test_core_runtime_mlx_device.py
 tests/test_corpus_grounding_selects_the_subject.py
 tests/test_corruption_is_shape_not_vocabulary.py
+tests/test_cortex_generation_upgrade.py
+tests/test_cortex_generation_upgrade_cli.py
 tests/test_cortex_live_response_classifiers.py
+tests/test_cortex_self_evidence.py
+tests/test_cortex_serving_qualification.py
 tests/test_cortex_warmup_backoff.py
 tests/test_cortex_warmup_not_killed.py
 tests/test_cortex_web_acquisition.py
@@ -2168,6 +2287,7 @@ tests/test_curriculum_social_robustness.py
 tests/test_dashboard_routes_runtime_contract.py
 tests/test_decision_provenance_is_queried.py
 tests/test_decode_numerics_are_validated.py
+tests/test_decoder_topology.py
 tests/test_deep_lane_not_built_where_it_cannot_load.py
 tests/test_deep_mind_probe_harness.py
 tests/test_default_faculties.py
@@ -2248,6 +2368,7 @@ tests/test_egress_lane_ratchet.py
 tests/test_egress_privacy.py
 tests/test_element_inventory.py
 tests/test_element_perception_is_wired.py
+tests/test_embedding_batch_invariance.py
 tests/test_embedding_execution_budget.py
 tests/test_embedding_lock_does_not_block_the_loop.py
 tests/test_embedding_logs_stay_quiet.py
@@ -2259,7 +2380,17 @@ tests/test_embodiment_skill.py
 tests/test_emergency_override.py
 tests/test_emergency_protocol_hardening.py
 tests/test_endgame_grand_update.py
+tests/test_endogenous_absorption_and_arbitration.py
+tests/test_endogenous_bias_stays_inside_the_plausible_set.py
+tests/test_endogenous_corpus_records_only_real_turns.py
+tests/test_endogenous_effects_need_a_matched_null.py
+tests/test_endogenous_head_refuses_what_it_cannot_do.py
+tests/test_endogenous_readout_verdicts_are_earned.py
+tests/test_endogenous_state.py
+tests/test_endogenous_state_is_named_and_honest.py
 tests/test_enforcement.py
+tests/test_engineering_export_governance.py
+tests/test_engineering_reaches_the_rest_of_her.py
 tests/test_engram_association.py
 tests/test_engram_plasticity.py
 tests/test_enterprise_hardening_fixes.py
@@ -2387,6 +2518,7 @@ tests/test_gate_config_files_are_parseable.py
 tests/test_gate_skill_closure_audit.py
 tests/test_gateway_enforcement.py
 tests/test_gateway_record_index.py
+tests/test_gathered_sources_survive_a_deadline.py
 tests/test_genai_semconv.py
 tests/test_general_os_control.py
 tests/test_generate_kwarg_collision.py
@@ -2452,11 +2584,16 @@ tests/test_homeostate_runtime_lock.py
 tests/test_homeostatic_modulator.py
 tests/test_homeostatic_modulator_cp126.py
 tests/test_horcrux_hardening.py
+tests/test_host_clock.py
 tests/test_hot_reload_never_orphans_subclasses.py
 tests/test_hot_reload_runtime_safety.py
 tests/test_hot_reload_scope_audit.py
 tests/test_http_request_skill.py
+tests/test_https_requests_actually_work.py
 tests/test_humor_authority.py
+tests/test_hybrid_compute_profile.py
+tests/test_hybrid_plasticity_selection.py
+tests/test_hybrid_recurrence_geometry.py
 tests/test_ice_layer.py
 tests/test_id_rag_black_box.py
 tests/test_idempotency.py
@@ -2507,6 +2644,7 @@ tests/test_inner_state_runtime_contract.py
 tests/test_input_is_aimed_at_a_window.py
 tests/test_inquiry_engine_hardening.py
 tests/test_insight_journal_hardening.py
+tests/test_installation_root_resolution.py
 tests/test_integrated_eval.py
 tests/test_integration_liveness.py
 tests/test_integration_manager_hardening.py
@@ -2668,6 +2806,7 @@ tests/test_local_voice_cortex_hardening.py
 tests/test_lock_coverage_ratchet.py
 tests/test_lockdep_coverage_ratchet.py
 tests/test_logging_integrity.py
+tests/test_logical_parameter_accounting.py
 tests/test_long_run_model.py
 tests/test_long_term_memory_engine_hardening.py
 tests/test_lora_trainer_crsm_provenance.py
@@ -2686,6 +2825,8 @@ tests/test_materialize_resident_recurrent_sft_adapter.py
 tests/test_materialize_unified_intrinsic_shadow_package.py
 tests/test_materialize_verified_recurrent_grpo_launch.py
 tests/test_mcp_reach_is_real.py
+tests/test_meaning_questions_are_learned_not_listed.py
+tests/test_measure_candidate_cortex_checkpoint.py
 tests/test_measured_admission.py
 tests/test_media_playback.py
 tests/test_media_route_ranges.py
@@ -2748,6 +2889,7 @@ tests/test_mlx_runtime_contract.py
 tests/test_mlx_soft_cancel.py
 tests/test_mlx_token_budget_floor.py
 tests/test_mlx_vision_lane.py
+tests/test_model_generation_contract.py
 tests/test_model_lane_contract_audit.py
 tests/test_model_lane_control.py
 tests/test_model_layer_topology.py
@@ -2759,10 +2901,13 @@ tests/test_model_merge.py
 tests/test_model_registry_hardening.py
 tests/test_model_registry_runtime_resolution.py
 tests/test_model_registry_runtime_selection.py
+tests/test_model_runtime_assignment.py
+tests/test_model_tissue_migration_inventory.py
 tests/test_moral_responsibility.py
 tests/test_morphogenesis_runtime.py
 tests/test_motor_cortex_recovery.py
 tests/test_mqtt_connector.py
+tests/test_mtp_capability.py
 tests/test_multimodal_orchestrator_cp126.py
 tests/test_multimodal_orchestrator_hardening.py
 tests/test_multimodal_sync.py
@@ -2775,6 +2920,7 @@ tests/test_mycelium_aegis_scope.py
 tests/test_mycelium_learns_only_from_evidence.py
 tests/test_mycelium_routing_authority.py
 tests/test_mypy_strict_ratchet.py
+tests/test_named_organs_are_actually_driven.py
 tests/test_naming_a_tool_is_not_asking_for_it.py
 tests/test_narrative_memory_cp126.py
 tests/test_native_chat_recovery.py
@@ -2918,7 +3064,9 @@ tests/test_preference_does_not_overturn_stated_urgency.py
 tests/test_preference_semantics.py
 tests/test_preference_trainer.py
 tests/test_preferences_are_consistent_because_they_are_read.py
+tests/test_preflight_27b_recurrence_campaign.py
 tests/test_preflight_gate.py
+tests/test_prepare_27b_recurrence_campaign.py
 tests/test_prepare_recurrent_policy_warm_start.py
 tests/test_prepare_resident_recurrent_sft_bootstrap_campaign.py
 tests/test_preregistration.py
@@ -3026,10 +3174,12 @@ tests/test_reconstruction_sandbox.py
 tests/test_recovery_authority.py
 tests/test_recovery_bridge.py
 tests/test_recovery_engine_runtime.py
+tests/test_recovery_package_identity.py
 tests/test_recurrence_adapter_identity_v2.py
 tests/test_recurrence_adapter_site_coverage.py
 tests/test_recurrence_checkpoint_migration.py
 tests/test_recurrence_curriculum.py
+tests/test_recurrence_depth_status.py
 tests/test_recurrence_native_objective.py
 tests/test_recurrence_native_objective_v2.py
 tests/test_recurrence_native_objective_v3.py
@@ -3111,10 +3261,12 @@ tests/test_reqproof_tracker_migration.py
 tests/test_request_contract.py
 tests/test_requested_line_and_sentence_counts.py
 tests/test_requested_source_count.py
+tests/test_required_search_subject_alignment.py
 tests/test_research_orchestrator_cp126.py
 tests/test_research_source_quality.py
 tests/test_resident_32b_training_contract.py
 tests/test_resident_adapter_loader.py
+tests/test_resident_model_identity.py
 tests/test_resident_recurrent_grpo_post_training.py
 tests/test_resident_recurrent_grpo_preregistration.py
 tests/test_resident_recurrent_sft_adapter_identity.py
@@ -3165,6 +3317,7 @@ tests/test_rlc_context_focus.py
 tests/test_rlc_contract_repair.py
 tests/test_rlc_correlated_support.py
 tests/test_rlc_critic_identity.py
+tests/test_rlc_cross_generation_public_claim.py
 tests/test_rlc_diagnostic_action_selector.py
 tests/test_rlc_disagreement_graph.py
 tests/test_rlc_episodic_neural_readout.py
@@ -3226,6 +3379,8 @@ tests/test_routing_consults_what_actually_ran.py
 tests/test_rsi_challenge.py
 tests/test_rsi_expansion_components.py
 tests/test_run_campaign_role_signer_client.py
+tests/test_run_candidate_cortex_fusion.py
+tests/test_run_candidate_cortex_training.py
 tests/test_run_detached_step.py
 tests/test_run_episodic_delta_transplant_canary.py
 tests/test_run_generated_rollin_objective_canary.py
@@ -3253,6 +3408,7 @@ tests/test_runtime_hygiene_keep_awake.py
 tests/test_runtime_liveness_registry.py
 tests/test_runtime_lock_identity.py
 tests/test_runtime_mode.py
+tests/test_runtime_model_labels.py
 tests/test_runtime_pipeline_blueprint.py
 tests/test_runtime_polish.py
 tests/test_runtime_preflight.py
@@ -3438,6 +3594,7 @@ tests/test_spark_state_causality.py
 tests/test_spatial_receptor_code.py
 tests/test_spawned_children_are_reapable.py
 tests/test_speak_skill_recovery.py
+tests/test_specialist_cortex_admission.py
 tests/test_speculative_decoding_lane.py
 tests/test_spiking_active_inference_runtime.py
 tests/test_spoken_text_passes_one_gate.py
@@ -3466,6 +3623,8 @@ tests/test_steering_hook_is_not_per_token_work.py
 tests/test_steering_hook_never_syncs_the_gpu.py
 tests/test_steering_injection.py
 tests/test_steering_injection_safety.py
+tests/test_steering_migration_state.py
+tests/test_steering_regeneration.py
 tests/test_steering_works_at_the_live_alpha.py
 tests/test_steering_yields_to_arithmetic.py
 tests/test_stem_cell_hardening.py
@@ -3516,6 +3675,7 @@ tests/test_tasks_managed_command.py
 tests/test_technological_autonomy.py
 tests/test_temp_fix_test.py
 tests/test_tenant_boundary.py
+tests/test_tensor_identity.py
 tests/test_terminal_chat_liveness.py
 tests/test_text_mediation.py
 tests/test_the_bandit_sees_the_arms_that_failed.py
@@ -3525,14 +3685,18 @@ tests/test_the_clock_decides_not_the_sentence.py
 tests/test_the_council_measures_before_it_votes.py
 tests/test_the_decode_lane_cannot_be_told_nonsense.py
 tests/test_the_dna_engine_is_general.py
+tests/test_the_health_channel_reads_the_asking_clause.py
 tests/test_the_moment_speaks_what_binds.py
+tests/test_the_primitive_for_a_domain_can_reach_it.py
 tests/test_the_query_is_not_the_whole_sentence.py
 tests/test_the_question_is_supplied_not_invented.py
 tests/test_the_question_they_say_went_unanswered.py
+tests/test_the_reboot_button_actually_reboots.py
 tests/test_the_remediation_ledger_counts_what_it_holds.py
 tests/test_the_semantic_lane_had_never_run.py
 tests/test_the_small_model_does_not_describe_her.py
 tests/test_the_tool_loop_sees_what_was_read.py
+tests/test_the_warm_capability_engine_is_reused.py
 tests/test_thermal_guard.py
 tests/test_thought_interoception.py
 tests/test_thoughts_reach_the_interface.py
@@ -3558,6 +3722,7 @@ tests/test_trace_propagation.py
 tests/test_train_grpo_contract.py
 tests/test_train_recurrent_sft_controls.py
 tests/test_train_resident_recurrent_sft_bootstrap.py
+tests/test_training_model_basis.py
 tests/test_transient_constraints.py
 tests/test_transient_lane_failures_rearm.py
 tests/test_transition_coverage.py
@@ -3579,7 +3744,9 @@ tests/test_turn_ledger_is_live_in_the_response_path.py
 tests/test_turn_outcome_contract.py
 tests/test_turn_sensory_evidence.py
 tests/test_turn_spans_delivery.py
+tests/test_two_lanes_are_actually_two.py
 tests/test_typed_transition_executor.py
+tests/test_typography_does_not_blind_a_guard.py
 tests/test_ui_accessibility_contract.py
 tests/test_ui_bootstrap_contract.py
 tests/test_ui_is_not_invisible_by_default.py
@@ -3771,6 +3938,8 @@ tests/verify_sovereign_logic.py
 tests/verify_strategic_fulfillment.py
 tests/verify_system_health.py
 tests/verify_ui_upload.py
+tools/adjudicate_caa_steering_campaign.py
+tools/adjudicate_candidate_cortex_checkpoint.py
 tools/adjudicate_semantic_neural_wow.py
 tools/adjudicate_unified_intrinsic_resident_replication.py
 tools/adjudicate_unified_intrinsic_resident_transfer.py
@@ -3802,6 +3971,7 @@ tools/behavioral_proof_ledger.py
 tools/bench_speculative_decoding.py
 tools/benchmarks/zenith_v2_state_benchmark.py
 tools/browser_research_demo_proof.py
+tools/build_candidate_cortex_kernel.py
 tools/build_provenance.py
 tools/build_release_manifest.py
 tools/build_resident_v3_pilot_contract.py
@@ -3846,12 +4016,14 @@ tools/closeout/semantic_review_ledger.py
 tools/combined_demo_proof.py
 tools/configure_messages_contact.py
 tools/conversation_endurance_probe.py
+tools/cortex_generation_upgrade.py
 tools/covenant_cli.py
 tools/coverage_ratchet.py
 tools/deep_mind_probe_live.py
 tools/derive_lockfile.py
 tools/diagnostics/final_kernel_diagnostic.py
 tools/drive_live_latent_certificate.py
+tools/endogenous_causal_battery.py
 tools/environmental_agency_proof.py
 tools/environments/validate_novel_environment_bundle.py
 tools/eval_intrinsic_accuracy.py
@@ -3860,6 +4032,7 @@ tools/evaluate_transition_checkpoint.py
 tools/evaluate_unified_intrinsic_checkpoint.py
 tools/evaluate_unified_intrinsic_decoding.py
 tools/existence_guard.py
+tools/export_active_descriptor.py
 tools/external_validation/validate_external_live_bundle.py
 tools/extract_seam.py
 tools/final_claim_validator.py
@@ -3878,6 +4051,8 @@ tools/import_unified_intrinsic_legacy_checkpoint.py
 tools/independent_paired_campaign_scoring.py
 tools/integrated_rlc_eval.py
 tools/integration/run_unified_aura_scenario.py
+tools/inventory_27b_migration.py
+tools/inventory_model_tissue_migration.py
 tools/journal_demo_proof.py
 tools/knowledge_substrate/__init__.py
 tools/latency_probe.py
@@ -3931,6 +4106,7 @@ tools/manage_structured_sft_admission.py
 tools/manage_structured_sft_research_authority.py
 tools/manage_unified_recurrent_qualified_activation.py
 tools/manage_unified_recurrent_shadow_pointer.py
+tools/materialize_27b_recovery_package.py
 tools/materialize_live_recurrent_adapter_activation.py
 tools/materialize_mathematics_memory_tissue.py
 tools/materialize_powered_latent_cortex_handoff.py
@@ -3938,6 +4114,7 @@ tools/materialize_resident_recurrent_sft_adapter.py
 tools/materialize_semantic_neural_serving.py
 tools/materialize_unified_intrinsic_shadow_package.py
 tools/materialize_verified_recurrent_grpo_launch.py
+tools/measure_candidate_cortex_checkpoint.py
 tools/measure_frontier_gap.py
 tools/measure_pass_divergence.py
 tools/memory_sentinel.py
@@ -3945,6 +4122,12 @@ tools/migrate_resident_recurrent_sft_checkpoint.py
 tools/migrate_unified_intrinsic_checkpoint.py
 tools/nethack_live_proof.py
 tools/observe_phase_writes.py
+tools/plan_27b_campaign_execution.py
+tools/plan_27b_steering_regeneration.py
+tools/preflight_27b_recurrence_campaign.py
+tools/preflight_candidate_persona_crsm.py
+tools/prepare_27b_recurrence_campaign.py
+tools/prepare_candidate_cortex_data.py
 tools/prepare_latent_cortex_campaign.py
 tools/prepare_recurrent_policy_warm_start.py
 tools/prepare_resident_recurrent_grpo_campaign.py
@@ -3982,6 +4165,10 @@ tools/render_fmea.py
 tools/render_health_contract.py
 tools/render_spark_literature.py
 tools/replay_verified_recurrent_policy_states.py
+tools/report_27b_critical_path.py
+tools/report_27b_launch_readiness.py
+tools/report_27b_migration_queue.py
+tools/report_mtp_capability.py
 tools/reqproof/author_coverage_map.py
 tools/reqproof/capture.py
 tools/reqproof/coverage.py
@@ -4004,6 +4191,10 @@ tools/ruff_strict_files.py
 tools/run_aletheia_live_proof.py
 tools/run_campaign_role_signer_agent.py
 tools/run_campaign_role_signer_client.py
+tools/run_candidate_cortex_adaptive_target.py
+tools/run_candidate_cortex_canary_target.py
+tools/run_candidate_cortex_fusion.py
+tools/run_candidate_cortex_fusion_target.py
 tools/run_certified_recurrence_behavioral_gate.py
 tools/run_commitment_ablation.py
 tools/run_detached_step.py
@@ -4057,6 +4248,7 @@ tools/subsystem_census.py
 tools/teleology_proof.py
 tools/thread_leak_probe.py
 tools/train_adversarial_verifier.py
+tools/train_endogenous_readout.py
 tools/train_grpo.py
 tools/train_neural_transition_tissue.py
 tools/train_prefix_stability_calibrator.py
@@ -4073,6 +4265,10 @@ tools/unified_intrinsic_resident_identity.py
 tools/unified_intrinsic_tokenization_contract.py
 tools/validate_structured_sft_tokenization.py
 tools/validate_verified_replay_sft_tokenization.py
+tools/verify_27b_grounding_portability.py
+tools/verify_caa_steering_campaign.py
+tools/verify_candidate_cortex_adaptive_resume.py
+tools/verify_candidate_cortex_fusion_resume.py
 tools/verify_certified_recurrence_behavioral_gate.py
 tools/verify_claim_constants.py
 tools/verify_grounded_recall_live.py
@@ -4091,6 +4287,7 @@ tools/verify_resident_v3_recovery_training_admission.py
 tools/verify_resident_v3_training_admission.py
 tools/verify_rlc_action_calibration.py
 tools/verify_rlc_decode_path.py
+tools/verify_rlc_figures.py
 tools/verify_rlc_reconciliation_campaign.py
 tools/verify_semantic_neural_decode_canary.py
 tools/verify_semantic_neural_live_shadow.py

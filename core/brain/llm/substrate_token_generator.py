@@ -7,18 +7,19 @@ substrate's own prediction error is too high for the requested prompt.
 """
 from __future__ import annotations
 
-import logging
-logger = logging.getLogger("core.brain.llm.substrate_token_generator")
 import hashlib
+import logging
 import math
 import os
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+
+logger = logging.getLogger("core.brain.llm.substrate_token_generator")
 
 
 PROTO_TOKENS = (
@@ -41,7 +42,7 @@ class SubstrateGeneration:
     fallback_reason: str = ""
     state_energy: float = 0.0
     generated_at: float = 0.0
-    steering_telemetry: Optional[dict[str, Any]] = None
+    steering_telemetry: dict[str, Any | None] = None
     #: The vocabulary this text is drawn from. PROTO_TOKENS is 32 words and the
     #: readout mapping onto them is an UNTRAINED random projection, so its
     #: output ("Substrate path: world action hold grounded choose loop result
@@ -58,8 +59,10 @@ class SubstrateGeneration:
         threshold is 0.34, and a short prompt whose hashed vector aligns with
         the live state reaches a prediction error of 0.157 — so proto-token
         output was reachable as a live reply. It is a diagnostic of substrate
-        state and reads as word salad; a real readout means a trained head over
-        the model vocabulary, and until there is one this says so.
+        state and reads as word salad. The trained readout lives in
+        :mod:`core.brain.llm.endogenous_vocab_head` and shapes the
+        transformer's own distribution rather than replacing it, so this
+        answers no for the proto vocabulary and always will.
         """
         return self.used_substrate and self.vocabulary != "proto"
 
@@ -84,16 +87,22 @@ class SubstrateTokenGenerator:
     ``is_user_presentable`` says whether its text may be shown to a person.
 
     A real substrate-first readout means a trained head over the model
-    vocabulary. Until that exists, nothing here claims to be one.
+    vocabulary, and that is now a separate pathway rather than a plan: see
+    :mod:`core.brain.llm.endogenous_vocab_head`, which maps the named
+    cognitive channels of :mod:`core.brain.llm.endogenous_state` to a bounded
+    bias over the resident model's own vocabulary inside its plausible set.
+    Nothing here claims to be that. This stays what it is — a fingerprint for
+    telemetry and for tests, and a way to show the substrate is doing
+    something without loading the transformer.
     """
 
     def __init__(
         self,
         substrate: Any,
         *,
-        vocab_size: Optional[int] = None,
+        vocab_size: int | None = None,
         seed: int = 913,
-        threshold: Optional[float] = None,
+        threshold: float | None = None,
     ) -> None:
         self.substrate = substrate
         self.seed = int(seed)
@@ -112,8 +121,8 @@ class SubstrateTokenGenerator:
         except (TypeError, ValueError):
             requested_vocab = len(PROTO_TOKENS)
         self._vocab_size = max(1, min(65536, requested_vocab))
-        self._readout: Optional[np.ndarray] = None
-        self.last_generation: Optional[SubstrateGeneration] = None
+        self._readout: np.ndarray | None = None
+        self.last_generation: SubstrateGeneration | None = None
 
     @staticmethod
     def _finite_unit(value: Any, default: float) -> float:
@@ -134,7 +143,7 @@ class SubstrateTokenGenerator:
         if callable(getter):
             state = np.asarray(getter(), dtype=np.float32).ravel()
         elif hasattr(self.substrate, "x"):
-            state = np.asarray(getattr(self.substrate, "x"), dtype=np.float32).ravel()
+            state = np.asarray(self.substrate.x, dtype=np.float32).ravel()
         else:
             state = np.zeros(64, dtype=np.float32)
         if state.size == 0:
@@ -169,7 +178,7 @@ class SubstrateTokenGenerator:
             vec /= norm
         return vec
 
-    def estimate_prediction_error(self, prompt: str, *, state: Optional[np.ndarray] = None) -> float:
+    def estimate_prediction_error(self, prompt: str, *, state: np.ndarray | None = None) -> float:
         s = self._state_vector() if state is None else np.asarray(state, dtype=np.float32).ravel()
         if s.size == 0:
             return 1.0
@@ -195,7 +204,7 @@ class SubstrateTokenGenerator:
         *,
         max_tokens: int = 24,
         force: bool = False,
-        threshold: Optional[float] = None,
+        threshold: float | None = None,
     ) -> SubstrateGeneration:
         state = self._state_vector()
         error = self.estimate_prediction_error(prompt, state=state)
