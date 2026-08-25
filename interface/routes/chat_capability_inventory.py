@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from core.container import ServiceContainer
+from core.executive.authority_gateway import get_authority_gateway
 from core.intent.declared_capability import request_matches_declaration
 from core.runtime.chat_delivery_progress import (
     report_chat_delivery_progress,
@@ -77,6 +78,22 @@ async def _execute_governed_live_skill(
         context["requested_authority_scope"] = (
             f"foreground_user_requested:{route_slug}:{skill_slug}"
         )
+    if (
+        context.get("foreground_request")
+        and context.get("user_requested_action")
+        and context.get("user_explicitly_authorized")
+        and (
+            context.get("desktop_execution_contract")
+            or context.get("user_visible_desktop_action")
+            or context.get("local_desktop_action")
+        )
+    ):
+        token = get_authority_gateway().issue_desktop_authority_capability(
+            skill=str(skill_name or ""),
+            origin=str(context.get("origin") or "user"),
+        )
+        if token:
+            context["capability_token"] = token
     engine = ServiceContainer.get("capability_engine", default=None)
 
     async def _execute_capability(

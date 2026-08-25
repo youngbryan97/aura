@@ -30,8 +30,12 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from core.runtime.desktop_objective_intent import looks_like_screen_observation
+from interface.routes import chat_capability_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,3 +104,89 @@ def test_the_attestation_still_refuses_an_unbacked_flag():
         "the attestation no longer refuses an unattested flag"
     )
     assert "attested_context_flag(" in runtime
+
+
+@pytest.mark.asyncio
+async def test_the_direct_desktop_bridge_attaches_gateway_authority(monkeypatch):
+    seen: dict = {}
+
+    class _Engine:
+        async def execute(self, skill_name, params, *, context):
+            seen.update(context)
+            return {"ok": True}
+
+    monkeypatch.setattr(
+        chat_capability_inventory.ServiceContainer,
+        "get",
+        lambda name, default=None: _Engine() if name == "capability_engine" else default,
+    )
+    monkeypatch.setattr(
+        chat_capability_inventory,
+        "get_authority_gateway",
+        lambda: SimpleNamespace(
+            issue_desktop_authority_capability=lambda **_kwargs: "gateway-token"
+        ),
+    )
+    monkeypatch.setattr(
+        chat_capability_inventory,
+        "report_chat_delivery_progress",
+        _no_progress,
+    )
+
+    result = await chat_capability_inventory._execute_governed_live_skill(
+        "desktop_task",
+        {"objective": "change my wallpaper"},
+        objective="change my wallpaper",
+        extra_context={
+            "route": "chat.desktop_objective",
+            "desktop_execution_contract": True,
+            "user_visible_desktop_action": True,
+            "local_desktop_action": True,
+        },
+    )
+
+    assert result["ok"] is True
+    assert seen["capability_token"] == "gateway-token"
+
+
+@pytest.mark.asyncio
+async def test_a_non_desktop_live_skill_does_not_mint_desktop_authority(monkeypatch):
+    seen: dict = {}
+
+    class _Engine:
+        async def execute(self, skill_name, params, *, context):
+            seen.update(context)
+            return {"ok": True}
+
+    def _unexpected_issue(**_kwargs):
+        raise AssertionError("non-desktop work must not receive desktop authority")
+
+    monkeypatch.setattr(
+        chat_capability_inventory.ServiceContainer,
+        "get",
+        lambda name, default=None: _Engine() if name == "capability_engine" else default,
+    )
+    monkeypatch.setattr(
+        chat_capability_inventory,
+        "get_authority_gateway",
+        lambda: SimpleNamespace(issue_desktop_authority_capability=_unexpected_issue),
+    )
+    monkeypatch.setattr(
+        chat_capability_inventory,
+        "report_chat_delivery_progress",
+        _no_progress,
+    )
+
+    result = await chat_capability_inventory._execute_governed_live_skill(
+        "web_interlocutor",
+        {"objective": "talk to the page"},
+        objective="talk to the page",
+        extra_context={"route": "chat.web_interlocutor"},
+    )
+
+    assert result["ok"] is True
+    assert "capability_token" not in seen
+
+
+async def _no_progress(**_kwargs):
+    return None
