@@ -131,6 +131,9 @@ def test_verified_failure_episode_projects_the_exact_cause_without_generation() 
             "'DefinitelyNotInstalledAuraProbe'"
         ),
         recorded_at=1.0,
+        authority_kind="governed_action_episode",
+        authority_proven=True,
+        authority_reason="governed_executor_reported_failure",
     )
 
     assert action_episode_reply("Do you know why that broke?", episode) == (
@@ -138,6 +141,33 @@ def test_verified_failure_episode_projects_the_exact_cause_without_generation() 
         "'DefinitelyNotInstalledAuraProbe'."
     )
     assert action_episode_reply("Can you try opening it again?", episode) is None
+
+
+def test_unverified_action_episode_cannot_author_a_state_projection() -> None:
+    episode = ActionEpisode(
+        objective="Open an application.",
+        capability="desktop_task",
+        status="desktop_objective_failed",
+        succeeded=False,
+        failure_detail="application not found",
+    )
+
+    assert action_episode_reply("Why did that fail?", episode) is None
+
+
+def test_unverified_success_episode_cannot_author_a_state_projection() -> None:
+    episode = ActionEpisode(
+        objective="Change the wallpaper.",
+        capability="desktop_task",
+        status="desktop_objective_completed",
+        succeeded=True,
+        summary="Done.",
+        authority_kind="governed_action_episode",
+        authority_proven=False,
+        authority_reason="step_1_effect_unverified",
+    )
+
+    assert action_episode_reply("How did that go?", episode) is None
 
 
 @pytest.mark.asyncio
@@ -166,6 +196,9 @@ async def test_exchange_metadata_reaches_recent_context_and_unified_transcript(
         failure_kind="error",
         failure_detail="browser target unavailable",
         recorded_at=1.0,
+        authority_kind="governed_action_episode",
+        authority_proven=True,
+        authority_reason="governed_executor_reported_failure",
     )
     assert await chat_preflight._attach_logged_exchange_metadata(
         exchange_id,
@@ -205,6 +238,56 @@ async def test_exchange_metadata_reaches_recent_context_and_unified_transcript(
         if entry.role == "aura"
     ]
     assert aura_entries[-1].metadata["action_episode"]["status"] == "desktop_objective_failed"
+
+
+@pytest.mark.asyncio
+async def test_action_episode_projection_survives_empty_live_state_and_new_store(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from core.conversation.persistence import ConversationPersistence
+    from interface.routes import chat, chat_common, chat_memory_state
+
+    db_path = tmp_path / "action-restart.db"
+    writer = ConversationPersistence(db_path)
+    session_id = writer.start_session()
+    episode = ActionEpisode(
+        objective="Open MissingApp.",
+        capability="desktop_task",
+        status="desktop_objective_failed",
+        succeeded=False,
+        failure_kind="error",
+        failure_detail="No installed application matches 'MissingApp'",
+        recorded_at=1.0,
+        authority_kind="governed_action_episode",
+        authority_proven=True,
+        authority_reason="governed_executor_reported_failure",
+    )
+    writer.record_exchange(
+        "Open MissingApp.",
+        "The application was not found.",
+        origin="desktop_ui",
+        cid="action-before-restart",
+        session_id=session_id,
+        exchange_metadata={"action_episode": episode.to_dict()},
+    )
+    chat_common._conversation_log.clear()
+    reader = ConversationPersistence(db_path)
+    monkeypatch.setattr(
+        chat_memory_state.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: reader if name == "persistence" else default
+        ),
+    )
+
+    grounding, reply = await chat._resolve_action_episode_projection(
+        "Do you know why that broke?",
+        session_id=session_id,
+    )
+
+    assert "failure_detail: No installed application matches 'MissingApp'" in grounding
+    assert reply == "It failed because no installed application matches 'MissingApp'."
 
 
 async def _committed(*_args, **_kwargs) -> str:

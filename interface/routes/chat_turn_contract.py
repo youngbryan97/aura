@@ -269,6 +269,7 @@ _RUNTIME_GROUNDING_RESPONSE_PATHS = frozenset(
         "cognitive_engine_bounded_planning",
         "cognitive_engine_context_evidence_repair",
         "cognitive_engine_own_source_grounding",
+        "verified_action_episode",
     }
 )
 
@@ -743,8 +744,14 @@ def _build_live_turn_contract_payload(
     mutation_authorship_effects = [
         str(item.get("authorship_effect") or "replaced_by_runtime") for item in text_mutations
     ]
+    response_authority_kind = str(trace.get("response_authority_kind") or "").strip()
+    response_authority_proven = bool(
+        response_authority_kind and trace.get("response_authority_proven") is True
+    )
     unreceipted_runtime_replacement = bool(
-        response_path in _RUNTIME_GROUNDING_RESPONSE_PATHS and not text_mutations
+        response_path in _RUNTIME_GROUNDING_RESPONSE_PATHS
+        and not text_mutations
+        and not response_authority_proven
     )
     authorship_replacement_applied = bool(
         "replaced_by_runtime" in mutation_authorship_effects or unreceipted_runtime_replacement
@@ -782,10 +789,6 @@ def _build_live_turn_contract_payload(
     final_output_contract_proven = bool(
         final_output_contract_evaluated
         and (not final_output_contract_required or final_output_contract_satisfied)
-    )
-    response_authority_kind = str(trace.get("response_authority_kind") or "").strip()
-    response_authority_proven = bool(
-        response_authority_kind and trace.get("response_authority_proven") is True
     )
     # Model-native is a positive authorship claim. The absence of a repair or
     # state serializer cannot establish that a model generated the bytes.
@@ -983,7 +986,7 @@ def _build_live_turn_contract_payload(
         or qualified_recurrent_path_proven
     )
     state_native_output = bool(
-        qualified_recurrent_path_proven
+        (qualified_recurrent_path_proven or response_authority_proven)
         and not post_generation_repair_applied
         and not unreceipted_runtime_replacement
         and not authorship_replacement_applied

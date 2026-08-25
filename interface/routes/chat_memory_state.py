@@ -1731,7 +1731,7 @@ def _load_durable_conversation_exchanges_sync(
     limit: int,
     session_id: str = "",
     allow_cross_session: bool = True,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     persistence = ServiceContainer.get("persistence", default=None)
     get_recent_sessions = getattr(persistence, "get_recent_sessions", None)
     get_session_history = getattr(persistence, "get_session_history", None)
@@ -1828,7 +1828,7 @@ def _load_durable_conversation_exchanges_sync(
 
     identified: dict[tuple[str, str], dict[str, Any]] = {}
     legacy_pending: dict[str, tuple[int, dict[str, Any]]] = {}
-    candidates: list[tuple[int, dict[str, str]]] = []
+    candidates: list[tuple[int, dict[str, Any]]] = []
 
     for position, row in enumerate(rows):
         role = str(row.get("role") or "").strip().lower()
@@ -1923,6 +1923,12 @@ def _load_durable_conversation_exchanges_sync(
                         aura_row.get("created_at") or user_row.get("created_at") or ""
                     ),
                     "session_id": str(state.get("session_id") or "")[:64],
+                    "action_episode": (
+                        dict(aura_row["metadata"]["action_episode"])
+                        if isinstance(aura_row.get("metadata"), dict)
+                        and isinstance(aura_row["metadata"].get("action_episode"), dict)
+                        else None
+                    ),
                 },
             )
         )
@@ -1938,7 +1944,7 @@ async def _load_durable_conversation_exchanges(
     limit: int,
     session_id: str = "",
     allow_cross_session: bool = True,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(

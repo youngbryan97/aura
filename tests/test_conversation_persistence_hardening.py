@@ -82,6 +82,73 @@ def test_conversation_persistence_records_exchange_atomically(monkeypatch, tmp_p
     assert len(published) == 2
 
 
+def test_completed_exchange_metadata_survives_a_new_persistence_instance(tmp_path):
+    db_path = tmp_path / "conversation-evidence.db"
+    first = ConversationPersistence(db_path)
+    session_id = first.start_session()
+    episode = {
+        "objective": "Open MissingApp.",
+        "capability": "desktop_task",
+        "status": "desktop_objective_failed",
+        "succeeded": False,
+        "failure_detail": "No installed application matches 'MissingApp'",
+        "authority_kind": "governed_action_episode",
+        "authority_proven": True,
+        "authority_reason": "governed_executor_reported_failure",
+    }
+    first.record_exchange(
+        "Open MissingApp.",
+        "The application was not found.",
+        cid="durable-action",
+        session_id=session_id,
+        exchange_metadata={"action_episode": episode},
+    )
+
+    history = ConversationPersistence(db_path).get_session_history(session_id)
+
+    assert history[0]["metadata"] == {}
+    assert history[1]["metadata"]["action_episode"] == episode
+
+
+def test_existing_conversation_schema_gains_bounded_turn_metadata(tmp_path):
+    db_path = tmp_path / "legacy-conversation.db"
+    with sqlite3.connect(db_path) as con:
+        con.executescript(
+            """
+            CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                started_at REAL NOT NULL,
+                last_active REAL NOT NULL,
+                metadata TEXT DEFAULT '{}'
+            );
+            CREATE TABLE turns (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(id),
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                origin TEXT,
+                created_at REAL NOT NULL,
+                cid TEXT
+            );
+            """
+        )
+    store = ConversationPersistence(db_path)
+    session_id = store.start_session()
+    store.record_turn(
+        "aura",
+        "A verified state read.",
+        session_id=session_id,
+        metadata={"authority_proven": True},
+    )
+
+    with sqlite3.connect(db_path) as con:
+        columns = {row[1] for row in con.execute("PRAGMA table_info(turns)")}
+    assert "metadata_json" in columns
+    assert store.get_session_history(session_id)[0]["metadata"] == {
+        "authority_proven": True
+    }
+
+
 def test_completed_exchange_atomically_enqueues_durable_memory_log(tmp_path):
     store = ConversationPersistence(tmp_path / "memory-outbox.db")
     session_id = store.start_session()

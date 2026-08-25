@@ -107,6 +107,9 @@ class ActionEpisode:
     steps_requested: int = 0
     evidence_refs: tuple[str, ...] = ()
     recorded_at: float = 0.0
+    authority_kind: str = ""
+    authority_proven: bool = False
+    authority_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -142,6 +145,9 @@ class ActionEpisode:
             steps_requested=_nonnegative_int(value.get("steps_requested")),
             evidence_refs=evidence_refs,
             recorded_at=recorded_at,
+            authority_kind=_text(value.get("authority_kind"), limit=120),
+            authority_proven=value.get("authority_proven") is True,
+            authority_reason=_text(value.get("authority_reason"), limit=200),
         )
 
 
@@ -150,6 +156,9 @@ def action_episode_from_execution(
     execution: Any,
     *,
     capability: str,
+    authority_kind: str = "",
+    authority_proven: bool = False,
+    authority_reason: str = "",
 ) -> ActionEpisode | None:
     """Build an episode from a governed capability result."""
 
@@ -180,6 +189,9 @@ def action_episode_from_execution(
         steps_requested=_nonnegative_int(result.get("steps_requested")),
         evidence_refs=_receipt_refs(result),
         recorded_at=time.time(),
+        authority_kind=_text(authority_kind, limit=120),
+        authority_proven=authority_proven is True,
+        authority_reason=_text(authority_reason, limit=200),
     )
 
 
@@ -268,6 +280,8 @@ def action_episode_reply(question: str, episode: ActionEpisode) -> str | None:
     tasks. Open-ended questions continue through normal cognition.
     """
 
+    if not episode.authority_proven:
+        return None
     relation = action_outcome_question(question)
     if not relation.asks_about_outcome:
         return None

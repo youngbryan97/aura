@@ -11011,6 +11011,9 @@ async def test_api_chat_projects_verified_action_episode_without_model_generatio
                     "steps_completed": 0,
                     "steps_requested": 1,
                     "recorded_at": 1.0,
+                    "authority_kind": "governed_action_episode",
+                    "authority_proven": True,
+                    "authority_reason": "governed_executor_reported_failure",
                 }
             },
         }
@@ -11039,6 +11042,12 @@ async def test_api_chat_projects_verified_action_episode_without_model_generatio
         "It failed because no installed application matches "
         "'DefinitelyNotInstalledAuraProbe'."
     )
+    contract = payload["live_turn_contract"]
+    assert contract["response_authority_kind"] == "verified_action_episode_serialization"
+    assert contract["response_authority_proven"] is True
+    assert contract["runtime_grounding_response_path"] is True
+    assert contract["state_native_output"] is True
+    assert contract["final_text_authorship"] == "verified_action_episode_serialization"
 
 
 @pytest.mark.asyncio

@@ -19832,10 +19832,27 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         action_episode_from_execution,
                     )
 
+                    episode_authority_proven = not bool(executed.get("ok"))
+                    episode_authority_reason = "governed_executor_reported_failure"
+                    if bool(executed.get("ok")):
+                        episode_result = executed.get("result")
+                        if isinstance(episode_result, dict):
+                            (
+                                episode_authority_proven,
+                                episode_authority_reason,
+                            ) = _chat_desktop_objective._verified_desktop_task_result(
+                                episode_result
+                            )
+                        else:
+                            episode_authority_proven = False
+                            episode_authority_reason = "desktop_result_missing"
                     action_episode = action_episode_from_execution(
                         message,
                         executed,
                         capability="desktop_task",
+                        authority_kind="governed_action_episode",
+                        authority_proven=episode_authority_proven,
+                        authority_reason=episode_authority_reason,
                     )
                     if action_episode is not None:
                         _desktop_exec_state["action_episode"] = action_episode.to_dict()
@@ -20515,6 +20532,20 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "semantic_completion_contract_expected": True,
                         "semantic_completion_receipt_present": authority_proven,
                         "semantic_completion_satisfied": authority_proven,
+                    }
+                )
+            elif proof_status == "verified_action_episode":
+                _live_turn_trace.update(
+                    {
+                        "response_path": "verified_action_episode",
+                        "response_authority_kind": "verified_action_episode_serialization",
+                        "response_authority_proven": True,
+                        "response_authority_reason": "governed_action_episode",
+                        "model_generation_used": False,
+                        "live_mind_generation_required": False,
+                        "semantic_completion_contract_expected": True,
+                        "semantic_completion_receipt_present": True,
+                        "semantic_completion_satisfied": True,
                     }
                 )
 

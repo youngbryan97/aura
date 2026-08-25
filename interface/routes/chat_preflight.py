@@ -663,6 +663,11 @@ async def _complete_logged_exchange(
         session_id=str(target.get("session_id") or ""),
         user_already_persisted=bool(target.get("user_persisted")),
         enqueue_memory_log=learning_owned_by_outbox,
+        exchange_metadata=(
+            dict(target.get("metadata"))
+            if isinstance(target.get("metadata"), dict)
+            else None
+        ),
     )
     if learning_owned_by_outbox and durability_state == "failed":
         # Method presence is not custody. If the atomic transcript/outbox
@@ -1145,6 +1150,7 @@ async def _persist_completed_conversation_exchange(
     session_id: str = "",
     user_already_persisted: bool = False,
     enqueue_memory_log: bool = True,
+    exchange_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Commit the transcript and optionally enqueue its post-turn learning."""
     try:
@@ -1169,6 +1175,7 @@ async def _persist_completed_conversation_exchange(
                     cid=safe_exchange_id,
                     session_id=safe_session_id or None,
                     enqueue_memory_log=enqueue_memory_log,
+                    exchange_metadata=exchange_metadata,
                     **scope_kwargs,
                 )
                 return
@@ -1179,6 +1186,7 @@ async def _persist_completed_conversation_exchange(
                     origin="desktop_ui",
                     cid=f"{safe_exchange_id}:aura",
                     session_id=safe_session_id or None,
+                    metadata=exchange_metadata,
                     **scope_kwargs,
                 )
                 return
@@ -1196,6 +1204,7 @@ async def _persist_completed_conversation_exchange(
                 origin="desktop_ui",
                 cid=f"{safe_exchange_id}:aura",
                 session_id=safe_session_id or None,
+                metadata=exchange_metadata,
                 **scope_kwargs,
             )
 

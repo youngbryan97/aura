@@ -29,6 +29,7 @@ MAX_ROLE_CHARS = 32
 MAX_ORIGIN_CHARS = 64
 MAX_CID_CHARS = 128
 MAX_CONTENT_CHARS = 2_000_000
+MAX_TURN_METADATA_CHARS = 32_768
 MAX_QUERY_LIMIT = 1000
 CONVERSATION_DB_BUSY_TIMEOUT_MS = 1000
 MAX_PRINCIPAL_CHARS = 160
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS turns (
     origin      TEXT,               -- 'voice' | 'text' | 'autonomous' | etc.
     created_at  REAL NOT NULL,
     cid         TEXT,               -- correlation ID
+    metadata_json TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
@@ -192,6 +194,54 @@ def _session_metadata(value: object) -> dict[str, Any]:
     return dict(decoded) if isinstance(decoded, dict) else {}
 
 
+def _turn_metadata_json(value: object) -> str:
+    if value is None:
+        return "{}"
+    if not isinstance(value, dict):
+        raise TypeError("conversation turn metadata must be a mapping")
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    if len(payload) > MAX_TURN_METADATA_CHARS:
+        raise ValueError("conversation turn metadata exceeds its durable bound")
+    return payload
+
+
+def _turn_metadata(value: object) -> dict[str, Any]:
+    try:
+        decoded = json.loads(str(value or "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return dict(decoded) if isinstance(decoded, dict) else {}
+
+
+def _reconcile_existing_turn_metadata(
+    con: sqlite3.Connection,
+    *,
+    turn_id: str,
+    existing_json: object,
+    expected_json: str,
+) -> None:
+    """Fill an empty idempotent turn once; reject conflicting evidence."""
+
+    if expected_json == "{}":
+        return
+    existing = _turn_metadata(existing_json)
+    expected = _turn_metadata(expected_json)
+    if not existing:
+        con.execute(
+            "UPDATE turns SET metadata_json = ? WHERE id = ?",
+            (expected_json, turn_id),
+        )
+        return
+    if existing != expected:
+        raise ValueError(f"conversation turn metadata conflict: {turn_id}")
+
+
 def _metadata_principal_binding(metadata: object) -> tuple[str, str]:
     payload = _session_metadata(metadata)
     return _principal_binding(
@@ -275,6 +325,14 @@ class ConversationPersistence:
                         "INTEGER NOT NULL DEFAULT 0 CHECK ("
                         f"{column} IN (0,1))"
                     )
+            turn_columns = {
+                str(row[1]) for row in con.execute("PRAGMA table_info(turns)")
+            }
+            if "metadata_json" not in turn_columns:
+                con.execute(
+                    "ALTER TABLE turns ADD COLUMN metadata_json "
+                    "TEXT NOT NULL DEFAULT '{}'"
+                )
             con.commit()
 
     def start_session(self, metadata: dict[str, Any] | None = None) -> str:
@@ -367,6 +425,7 @@ class ConversationPersistence:
         session_id: str | None = None,
         principal_id: str = "",
         principal_surface: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         sid = _safe_text(session_id or self._current_session_id, max_chars=64)
         if not sid:
@@ -378,6 +437,7 @@ class ConversationPersistence:
         content = _safe_text(content, max_chars=MAX_CONTENT_CHARS)
         origin = _safe_text(origin, max_chars=MAX_ORIGIN_CHARS)
         cid = _safe_text(cid, max_chars=MAX_CID_CHARS)
+        metadata_json = _turn_metadata_json(metadata)
         inserted = False
         with self._write_lock, connecting(self._connect()) as con:
             con.execute("BEGIN IMMEDIATE")
@@ -390,7 +450,7 @@ class ConversationPersistence:
             )
             if cid:
                 existing = con.execute(
-                    "SELECT id, role, content FROM turns "
+                    "SELECT id, role, content, metadata_json FROM turns "
                     "WHERE session_id = ? AND cid = ? "
                     "ORDER BY created_at ASC, rowid ASC LIMIT 1",
                     (sid, cid),
@@ -402,6 +462,12 @@ class ConversationPersistence:
                         expected_content=content,
                         cid=cid,
                     )
+                    _reconcile_existing_turn_metadata(
+                        con,
+                        turn_id=str(existing_id),
+                        existing_json=existing["metadata_json"],
+                        expected_json=metadata_json,
+                    )
                     con.execute(
                         "UPDATE sessions SET last_active = ? WHERE id = ?",
                         (now, sid),
@@ -409,8 +475,10 @@ class ConversationPersistence:
                     con.commit()
                     return str(existing_id)
             con.execute(
-                "INSERT INTO turns VALUES (?,?,?,?,?,?,?)",
-                (turn_id, sid, role, content, origin, now, cid),
+                "INSERT INTO turns "
+                "(id, session_id, role, content, origin, created_at, cid, metadata_json) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (turn_id, sid, role, content, origin, now, cid, metadata_json),
             )
             con.execute(
                 "UPDATE sessions SET last_active = ? WHERE id = ?", (now, sid)
@@ -440,6 +508,7 @@ class ConversationPersistence:
         principal_id: str = "",
         principal_surface: str = "",
         enqueue_memory_log: bool = False,
+        exchange_metadata: dict[str, Any] | None = None,
     ) -> tuple[str, str]:
         """Atomically persist a completed user/Aura exchange."""
 
@@ -454,6 +523,7 @@ class ConversationPersistence:
         safe_aura_content = _safe_text(aura_content, max_chars=MAX_CONTENT_CHARS)
         safe_origin = _safe_text(origin, max_chars=MAX_ORIGIN_CHARS)
         safe_cid = _safe_text(cid, max_chars=MAX_CID_CHARS)
+        aura_metadata_json = _turn_metadata_json(exchange_metadata)
         user_cid = (
             _safe_text(f"{safe_cid}:user", max_chars=MAX_CID_CHARS)
             if safe_cid
@@ -478,7 +548,7 @@ class ConversationPersistence:
             )
             existing_user = (
                 con.execute(
-                    "SELECT id, role, content FROM turns "
+                    "SELECT id, role, content, metadata_json FROM turns "
                     "WHERE session_id = ? AND cid = ? "
                     "ORDER BY created_at ASC, rowid ASC LIMIT 1",
                     (sid, user_cid),
@@ -497,7 +567,9 @@ class ConversationPersistence:
                 )
             else:
                 con.execute(
-                    "INSERT INTO turns VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO turns "
+                    "(id, session_id, role, content, origin, created_at, cid, metadata_json) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
                     (
                         user_turn_id,
                         sid,
@@ -506,13 +578,14 @@ class ConversationPersistence:
                         safe_origin,
                         now,
                         user_cid,
+                        "{}",
                     ),
                 )
                 publish_user = True
 
             existing_aura = (
                 con.execute(
-                    "SELECT id, role, content FROM turns "
+                    "SELECT id, role, content, metadata_json FROM turns "
                     "WHERE session_id = ? AND cid = ? "
                     "ORDER BY created_at ASC, rowid ASC LIMIT 1",
                     (sid, aura_cid),
@@ -529,9 +602,17 @@ class ConversationPersistence:
                         cid=aura_cid,
                     )
                 )
+                _reconcile_existing_turn_metadata(
+                    con,
+                    turn_id=aura_turn_id,
+                    existing_json=existing_aura["metadata_json"],
+                    expected_json=aura_metadata_json,
+                )
             else:
                 con.execute(
-                    "INSERT INTO turns VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO turns "
+                    "(id, session_id, role, content, origin, created_at, cid, metadata_json) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
                     (
                         aura_turn_id,
                         sid,
@@ -540,6 +621,7 @@ class ConversationPersistence:
                         safe_origin,
                         now + 1e-6,
                         aura_cid,
+                        aura_metadata_json,
                     ),
                 )
                 publish_aura = True
@@ -1158,6 +1240,7 @@ class ConversationPersistence:
         history: list[dict[str, Any]] = []
         for row in rows:
             item = dict(row)
+            item["metadata"] = _turn_metadata(item.pop("metadata_json", "{}"))
             item["revision"] = int(item.get("revision") or 1)
             item["content_sha256"] = str(
                 item.pop("revision_content_sha256", "")
