@@ -113,11 +113,29 @@ uncertainty channels contributed nothing. It is not carried by affect alone —
 report says so, because a gain carried only by affect is indistinguishable
 from a learned style adapter however significant it is.
 
+**Fit on the past, scored on the future.** The control a random split cannot
+give: endogenous state drifts slowly and topics cluster in time, so a held-out
+turn surrounded by training turns can share both its state and its words with
+its neighbours without either causing the other. Holding out the END of the
+corpus removes that route.
+
+It survives. 1,017 turns fitted (989 distinct replies), 419 scored (417
+distinct replies, none of them seen), held-out gain 0.0185 nats overall and
+0.0271 on rare tokens, against refit-on-permuted-state ceilings of 2.5e-05 and
+1.5e-04 — 740 and 180 times below.
+
+The rare-to-frequent ratio narrows from 12:1 under the random split to 2.7:1
+under the temporal one, and that narrowing is the finding, not a footnote:
+part of the random split's rare-token advantage WAS proximity in time. The
+temporal number is the defensible one.
+
 **Still not measured.** Her conversational voice: the 9B is the utility lane,
-not the 27B cortex that answers Bryan. No generation has been biased by the
-substrate, because no head has been admitted to a decode loop. And the
-forward-in-time control — fit on the past, score on the future — is what
-separates this from slow state drift alongside topics that cluster in time.
+not the 27B cortex that answers Bryan. And no generation has been biased by
+the substrate, because no head has been admitted to a decode loop — the
+pathway reports `no_head:no trained head on disk` on all 51 generations it has
+seen. A gain on held-out likelihood is not the same claim as a measured
+difference between two generations under two states, and that experiment
+needs an attached head.
 
 ## What z_Aura actually is, live
 
