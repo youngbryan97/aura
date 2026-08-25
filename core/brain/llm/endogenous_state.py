@@ -317,11 +317,34 @@ class EndogenousState:
             return None
         if not np.all(np.isfinite(values)):
             return None
+        # Interventions survive the crossing. Dropping them would let an
+        # experimental state come back looking observed, and the pair recorder
+        # would fold a constructed condition into the training corpus as if
+        # the runtime had actually held it.
+        applied: list[Intervention] = []
+        for entry in payload.get("interventions") or []:
+            if not isinstance(entry, Mapping):
+                continue
+            name = str(entry.get("feature") or "")
+            if name not in FEATURE_INDEX:
+                continue
+            try:
+                applied.append(
+                    Intervention(
+                        feature=name,
+                        before=float(entry.get("before") or 0.0),
+                        after=float(entry.get("after") or 0.0),
+                        was_present=bool(entry.get("was_present")),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
         return cls(
             values=values,
             present=present,
             sources={},
             captured_at=float(payload.get("captured_at") or 0.0),
+            interventions=tuple(applied),
             digest=_digest_of(values),
         )
 

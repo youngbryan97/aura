@@ -213,6 +213,55 @@ def _bias_change(
     )
 
 
+def measure_contrast(
+    state: EndogenousState,
+    feature: str,
+    low: float,
+    high: float,
+    *,
+    head: EndogenousVocabHead | None = None,
+    intent_head: IntentHead | None = None,
+    null_count: int = 8,
+) -> Effect:
+    """Compare ``do(feature=low)`` against ``do(feature=high)`` directly.
+
+    Measuring one intervention against the state as it happens to be found
+    reports nothing when the state already sat where the intervention put it —
+    which is most of the time, and it looks identical to a dimension that does
+    not matter. A contrast between two pinned values asks the question the
+    experiment is actually about, and its nulls are the same contrast on peer
+    dimensions.
+    """
+    if feature not in FEATURE_INDEX:
+        raise KeyError(f"no such endogenous dimension: {feature}")
+    low_arm = build_arm(
+        f"{feature}={low}", state.do(**{feature: low}), head=head, intent_head=intent_head
+    )
+    high_arm = build_arm(
+        f"{feature}={high}", state.do(**{feature: high}), head=head, intent_head=intent_head
+    )
+    shift, promoted, suppressed = _bias_change(low_arm.delta, high_arm.delta)
+    nulls: list[float] = []
+    for peer in _null_features(feature, count=null_count):
+        peer_low = build_arm(
+            f"{peer}={low}", state.do(**{peer: low}), head=head, intent_head=intent_head
+        )
+        peer_high = build_arm(
+            f"{peer}={high}", state.do(**{peer: high}), head=head, intent_head=intent_head
+        )
+        peer_shift, _, _ = _bias_change(peer_low.delta, peer_high.delta)
+        nulls.append(peer_shift)
+    return Effect(
+        feature=feature,
+        value=float(high),
+        code_lines_moved=tuple(low_arm.code.diff(high_arm.code).keys()),
+        bias_shift=shift,
+        top_promoted=promoted,
+        top_suppressed=suppressed,
+        null_bias_shifts=tuple(nulls),
+    )
+
+
 def measure_ablation(
     state: EndogenousState,
     channel: str,
@@ -330,6 +379,157 @@ __all__ = [
     "build_arm",
     "channel_influence_map",
     "measure_ablation",
+    "measure_contrast",
     "measure_intervention",
     "sweep_dimension",
 ]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# The text arm: does an intervention on z change what she actually says?
+#
+# Everything above is measurable with no model at all, which is the point —
+# the code and the bias move before generation. But the claim that matters is
+# about language, and that needs the model. This runs against a client the
+# runtime already holds. It never loads a second one.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class TextArm:
+    """One condition of a text experiment: the state, and what came out."""
+
+    name: str
+    state: EndogenousState
+    text: str
+    receipt: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "state_digest": self.state.digest,
+            "interventions": [i.as_dict() for i in self.state.interventions],
+            "text": self.text,
+            "endogenous_bias": self.receipt,
+        }
+
+
+def _token_set(text: str) -> set[str]:
+    return {piece for piece in str(text or "").lower().split() if piece}
+
+
+def text_distance(left: str, right: str) -> float:
+    """One minus the Jaccard overlap of the two word sets.
+
+    A blunt measure, deliberately. Anything finer would need a model to
+    score it, and a model scoring its own outputs is a confound rather than a
+    measurement.
+    """
+    a, b = _token_set(left), _token_set(right)
+    if not a and not b:
+        return 0.0
+    return 1.0 - len(a & b) / max(1, len(a | b))
+
+
+async def run_text_arm(
+    client: Any,
+    prompt: str,
+    state: EndogenousState,
+    *,
+    name: str = "",
+    max_tokens: int = 160,
+    temp: float = 0.0,
+) -> TextArm:
+    """Generate one reply under a given z_Aura, with the prompt held fixed.
+
+    The state is put on the job directly rather than assembled from the live
+    organs, which is what makes this an intervention: everything about the
+    turn is identical except the named dimension that was moved.
+    """
+    from core.brain.llm.endogenous_decode import JOB_STATE_KEY
+
+    kwargs: dict[str, Any] = {
+        "max_tokens": int(max_tokens),
+        "temp": float(temp),
+        JOB_STATE_KEY: state.to_payload(),
+    }
+    from core.brain.llm.endogenous_decode import pathway_health
+
+    text = await client.generate(prompt, **kwargs)
+    # The receipt comes from the parent's own view of the pathway rather than
+    # from the client: the bias is decided in the worker, and this is where
+    # its answer lands.
+    receipt = dict(pathway_health().get("last_receipt") or {})
+    return TextArm(
+        name=name or state.digest, state=state, text=str(text or ""), receipt=receipt
+    )
+
+
+async def causal_text_experiment(
+    client: Any,
+    prompt: str,
+    state: EndogenousState,
+    feature: str,
+    low: float,
+    high: float,
+    *,
+    null_features: Sequence[str] | None = None,
+    max_tokens: int = 160,
+) -> dict[str, Any]:
+    """Two arms on one dimension, plus matched nulls on the others.
+
+    The verdict rests on the comparison, not on the two arms: if moving any
+    dimension changes the reply by as much as moving this one, the finding is
+    that generation is sensitive to perturbation, which is a different and far
+    weaker claim.
+    """
+    peers = list(null_features or _null_features(feature, count=4))
+    low_arm = await run_text_arm(
+        client, prompt, state.do(**{feature: low}), name=f"{feature}={low}",
+        max_tokens=max_tokens,
+    )
+    high_arm = await run_text_arm(
+        client, prompt, state.do(**{feature: high}), name=f"{feature}={high}",
+        max_tokens=max_tokens,
+    )
+    treated = text_distance(low_arm.text, high_arm.text)
+
+    nulls = []
+    for peer in peers:
+        peer_low = await run_text_arm(
+            client, prompt, state.do(**{peer: low}), name=f"{peer}={low}",
+            max_tokens=max_tokens,
+        )
+        peer_high = await run_text_arm(
+            client, prompt, state.do(**{peer: high}), name=f"{peer}={high}",
+            max_tokens=max_tokens,
+        )
+        nulls.append(
+            {
+                "feature": peer,
+                "distance": round(text_distance(peer_low.text, peer_high.text), 6),
+                "low": peer_low.text,
+                "high": peer_high.text,
+            }
+        )
+
+    ceiling = max((n["distance"] for n in nulls), default=0.0)
+    return {
+        "prompt": prompt,
+        "feature": feature,
+        "low": low,
+        "high": high,
+        "arms": [low_arm.as_dict(), high_arm.as_dict()],
+        "treated_distance": round(treated, 6),
+        "null_distances": nulls,
+        "null_ceiling": round(ceiling, 6),
+        "exceeds_null": bool(nulls) and treated > ceiling,
+        "verdict": (
+            "no_verdict_no_null"
+            if not nulls
+            else ("causal" if treated > ceiling else "within_null")
+        ),
+    }
+
+
+__all__ += ["TextArm", "causal_text_experiment", "run_text_arm", "text_distance"]

@@ -398,4 +398,10 @@ def pending_depth() -> int:
         return len(_PENDING)
 
 
-__all__ += ["pending_depth", "record_response", "remember_pending"]
+def reset_pending() -> None:
+    """Drop every held request. For tests, and for a worker that was replaced."""
+    with _PENDING_LOCK:
+        _PENDING.clear()
+
+
+__all__ += ["pending_depth", "record_response", "remember_pending", "reset_pending"]

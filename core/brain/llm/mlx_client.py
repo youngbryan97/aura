@@ -4685,6 +4685,32 @@ def _observe_endogenous_receipt(response: Mapping[str, Any]) -> None:
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         logger.debug("endogenous receipt not observed: %s", exc)
 
+def _absorb_endogenous_outcome(response: Mapping[str, Any]) -> None:
+    """Fold what the turn concluded back into the state that asked for it.
+
+    Without this arrow a conclusion evaporates when the response is
+    emitted and the next turn starts from a state that learned nothing.
+    Off by default because it changes live dynamics: set
+    AURA_ENDOGENOUS_ABSORB=1 to close the loop.
+    """
+    try:
+        if not response.get("text"):
+            return
+        if os.environ.get("AURA_ENDOGENOUS_ABSORB", "").strip().lower() not in {
+            "1",
+            "true",
+            "on",
+            "yes",
+        }:
+            return
+        from core.brain.llm.endogenous_absorption import absorb, outcome_from_response
+
+        receipt = absorb(outcome_from_response(response))
+        if not receipt.accepted:
+            logger.debug("endogenous absorption did not land: %s", receipt.reason)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("endogenous absorption unavailable: %s", exc)
+
 def _record_endogenous_pair(response: Mapping[str, Any]) -> None:
     """Store the state that produced this reply, beside the reply.
 
@@ -4702,7 +4728,12 @@ def _record_endogenous_pair(response: Mapping[str, Any]) -> None:
     except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
         logger.debug("endogenous pair not recorded: %s", exc)
 
-def _attach_endogenous_state(req: dict[str, Any], *, model_path: str = "") -> None:
+def _attach_endogenous_state(
+    req: dict[str, Any],
+    *,
+    model_path: str = "",
+    override: Mapping[str, Any] | None = None,
+) -> None:
     """Put z_Aura on an outbound generation job.
 
     Fail-open by construction: a turn that cannot assemble a state is a turn
@@ -4721,10 +4752,16 @@ def _attach_endogenous_state(req: dict[str, Any], *, model_path: str = "") -> No
         alpha = alpha_from_env()
         if alpha <= 0.0:
             return
-        state = assemble_state()
-        if state.coverage < MIN_COVERAGE:
-            return
-        payload = state.to_payload()
+        if override:
+            # An experiment supplies the state directly. Assembling a fresh one
+            # here would silently discard the intervention and turn every arm
+            # of a causal battery into its own control.
+            payload = dict(override)
+        else:
+            state = assemble_state()
+            if state.coverage < MIN_COVERAGE:
+                return
+            payload = state.to_payload()
         req[JOB_STATE_KEY] = payload
         req["endogenous_alpha"] = alpha
 
@@ -11957,6 +11994,7 @@ class MLXLocalClient:
                     _observe_worker_prompt_tokenization(res)
                     _observe_endogenous_receipt(res)
                     _record_endogenous_pair(res)
+                    _absorb_endogenous_outcome(res)
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
@@ -14610,7 +14648,11 @@ class MLXLocalClient:
         # substrate, the goal system, or anything else in this process, so
         # the state travels as declared floats on the job. A worker with no
         # trained head ignores the field; the receipt says which happened.
-        _attach_endogenous_state(req, model_path=self.model_path)
+        _attach_endogenous_state(
+            req,
+            model_path=self.model_path,
+            override=kwargs.get("endogenous_state"),
+        )
 
         # Activation-steering offsets ride along when present; the worker
         # consumes them if its build supports residual-stream injection,

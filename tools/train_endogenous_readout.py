@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Fit the endogenous vocabulary head from recorded turns, and publish the report.
+
+    python tools/train_endogenous_readout.py --tokenizer /path/to/model
+
+The corpus is whatever the runtime recorded: the cognitive state Aura held at
+the start of a generation, paired with the text that generation produced. This
+tokenizes those turns against the tokenizer the head will be bound to, fits the
+head, tests it against shuffles of its own held-out correspondence, and writes
+both the weights and the verdict.
+
+A head is written only when the verdict earns it. ``no_signal`` writes the
+report and no weights, because a head whose state term measured nothing would
+attach at decode time and add noise with a receipt saying it was trained.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.brain.llm.endogenous_pair_recorder import (  # noqa: E402
+    corpus_summary,
+    iter_pairs,
+)
+from core.brain.llm.endogenous_readout_training import (  # noqa: E402
+    MIN_TURNS,
+    fit_vocab_head,
+    tokenize_pairs,
+)
+from core.brain.llm.endogenous_vocab_head import (  # noqa: E402
+    DEFAULT_HEAD_DIR,
+    tokenizer_signature,
+)
+
+
+def load_tokenizer(path: str):
+    """Load the tokenizer for the model the head will be bound to."""
+    try:
+        from mlx_lm.tokenizer_utils import load_tokenizer
+
+        return load_tokenizer(Path(path))
+    except (ImportError, OSError, ValueError):
+        from transformers import AutoTokenizer
+
+        return AutoTokenizer.from_pretrained(path)
+
+
+def vocabulary_size(tokenizer) -> int:
+    for accessor in ("vocab_size", "get_vocab"):
+        value = getattr(tokenizer, accessor, None)
+        try:
+            resolved = value() if callable(value) else value
+        except (TypeError, ValueError):
+            continue
+        if isinstance(resolved, dict):
+            return len(resolved)
+        if isinstance(resolved, int) and resolved > 0:
+            return resolved
+    inner = getattr(tokenizer, "_tokenizer", None)
+    if inner is not None and inner is not tokenizer:
+        return vocabulary_size(inner)
+    raise SystemExit("tokenizer reports no vocabulary size")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tokenizer", required=True, help="model or tokenizer path")
+    parser.add_argument("--corpus", default=None, help="directory of recorded pairs")
+    parser.add_argument("--out", default=str(DEFAULT_HEAD_DIR))
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--permutations", type=int, default=200)
+    parser.add_argument("--null-refits", type=int, default=3)
+    parser.add_argument("--max-tokens-per-turn", type=int, default=256)
+    parser.add_argument(
+        "--write-anyway",
+        action="store_true",
+        help="write weights even when the verdict is no_signal (for inspection only)",
+    )
+    args = parser.parse_args()
+
+    corpus_dir = Path(args.corpus) if args.corpus else None
+    summary = corpus_summary(corpus_dir)
+    print(json.dumps({"corpus": summary}, indent=2))
+    if summary["usable_records"] < MIN_TURNS:
+        print(
+            f"Not enough usable turns: {summary['usable_records']} of {MIN_TURNS} "
+            "needed. Nothing was fitted."
+        )
+        return 2
+
+    tokenizer = load_tokenizer(args.tokenizer)
+    signature = tokenizer_signature(tokenizer)
+    vocab = vocabulary_size(tokenizer)
+    pairs = list(iter_pairs(directory=corpus_dir, limit=args.limit))
+    turns = tokenize_pairs(
+        pairs, tokenizer, max_tokens_per_turn=args.max_tokens_per_turn
+    )
+    print(f"{len(turns)} turns tokenized against a {vocab}-token vocabulary.")
+
+    fit = fit_vocab_head(
+        turns,
+        vocab_size=vocab,
+        tokenizer_signature=signature,
+        permutations=args.permutations,
+        null_refits=args.null_refits,
+    )
+    if fit is None:
+        print("The fit refused. Nothing was written.")
+        return 2
+
+    report = fit.as_report()
+    print(json.dumps(report, indent=2))
+
+    head = fit.to_head()
+    if not fit.usable and not args.write_anyway:
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        target = Path(args.out)
+        get_file_write_gateway().write_text(
+            target / "vocab_head_rejected.json",
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            source="train_endogenous_readout",
+        )
+        print(
+            f"Verdict {fit.verdict}: the report is at "
+            f"{target / 'vocab_head_rejected.json'} and no head was written."
+        )
+        return 1
+
+    written = head.save(args.out)
+    print(f"Head written to {written} (verdict {fit.verdict}).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

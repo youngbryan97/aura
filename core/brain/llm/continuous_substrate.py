@@ -31,20 +31,18 @@ Public API:
 """
 
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import hashlib
 import logging
 import math
 import os
-import time
 from collections import deque
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Substrate")
@@ -90,15 +88,15 @@ class ContinuousSubstrate:
         self.model_path = model_path  # retained for API compatibility; unused
         self.device = device
         self.running = False
-        self._task: Optional[asyncio.Task] = None
-        self._snapshot_buffer: Deque[Dict[str, Any]] = deque(maxlen=SNAPSHOT_BUFFER)
+        self._task: asyncio.Task | None = None
+        self._snapshot_buffer: deque[dict[str, Any]] = deque(maxlen=SNAPSHOT_BUFFER)
         self._state = np.zeros(NEURONS, dtype=np.float32)
         self._W = _make_recurrent_matrix(NEURONS)
         self._input_signal = np.zeros(NEURONS, dtype=np.float32)
         self._step_count = 0
         self._last_phi_estimate = 0.0
-        self._phi_window: Deque[np.ndarray] = deque(maxlen=64)
-        self._last_observation: Dict[str, Any] = {}
+        self._phi_window: deque[np.ndarray] = deque(maxlen=64)
+        self._last_observation: dict[str, Any] = {}
         # Deterministic RNG for reproducible noise
         self._rng = np.random.default_rng(seed=913)
         self._valence_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
@@ -106,7 +104,7 @@ class ContinuousSubstrate:
         self._dominance_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
         self._curiosity_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
         # Ring buffer of known-good states for NaN/Inf rollback
-        self._rollback_ring: Deque[np.ndarray] = deque(maxlen=16)
+        self._rollback_ring: deque[np.ndarray] = deque(maxlen=16)
         self._nan_reset_count = 0
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -130,7 +128,7 @@ class ContinuousSubstrate:
             self._task.cancel()
             try:
                 await asyncio.wait_for(self._task, timeout=2.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass  # no-op: intentional
         logger.info("🧠 [SUBSTRATE] ODE substrate halted (real-mode).")
 
@@ -144,7 +142,36 @@ class ContinuousSubstrate:
         buf[:n] = v[:n]
         self._input_signal = buf
 
-    def inject_observation(self, observation: Dict[str, Any]) -> None:
+    def blend_input(self, vector: np.ndarray, weight: float = 0.5) -> None:
+        """Mix a signal into the input bus instead of replacing what is there.
+
+        ``inject_input`` overwrites the bus, which is last-writer-wins. That is
+        correct for one source and wrong for two: with the sensorimotor bridge
+        publishing frames and anything else injecting between them, each write
+        silently erases the other and neither caller can tell. This is the
+        additive path for a second source. The bus stays bounded because the
+        blend is a convex combination.
+        """
+        v = np.asarray(vector, dtype=np.float32).ravel()
+        buf = np.zeros(NEURONS, dtype=np.float32)
+        n = min(NEURONS, v.size)
+        buf[:n] = v[:n]
+        if not np.all(np.isfinite(buf)):
+            buf = np.nan_to_num(buf, nan=0.0, posinf=0.0, neginf=0.0)
+        w = float(weight)
+        if not math.isfinite(w):
+            w = 0.0
+        w = max(0.0, min(1.0, w))
+        self._input_signal = (1.0 - w) * self._input_signal + w * buf
+
+    def blend_observation(self, observation: dict[str, Any], weight: float = 0.5) -> None:
+        """``inject_observation`` for a source that must not erase the others."""
+        from core.brain.llm.sensorimotor_grounding import observation_to_vector
+
+        self._last_observation = dict(observation or {})
+        self.blend_input(observation_to_vector(observation, dim=NEURONS), weight)
+
+    def inject_observation(self, observation: dict[str, Any]) -> None:
         """Project a grounded sensor observation into the substrate input bus.
 
         This is the physical-world coupling path: camera/screen/audio events are
@@ -157,7 +184,7 @@ class ContinuousSubstrate:
         self._last_observation = dict(observation or {})
         self.inject_input(observation_to_vector(observation, dim=NEURONS))
 
-    def get_state_summary(self) -> Dict[str, Any]:
+    def get_state_summary(self) -> dict[str, Any]:
         """Telemetry-compatible summary derived from live dynamics."""
         if not self.running and self._step_count == 0:
             return {
@@ -188,7 +215,7 @@ class ContinuousSubstrate:
             "last_observation_source": str(self._last_observation.get("source", ""))[:40],
         }
 
-    def adapt_projections(self, observed: Dict[str, float], lr: float = 0.01) -> None:
+    def adapt_projections(self, observed: dict[str, float], lr: float = 0.01) -> None:
         """Ground the readouts in external reality by adapting the projection
         vectors towards observed outcomes. Removes the 'Highly sophisticated
         mood ring' limitation where mapping was arbitrary and static.
@@ -211,7 +238,7 @@ class ContinuousSubstrate:
             err = observed["curiosity"] - pred
             self._curiosity_proj += lr * err * s * (1 - pred**2)
 
-    def inject_perceptual_frame(self, frame_data: Dict[str, Any]) -> None:
+    def inject_perceptual_frame(self, frame_data: dict[str, Any]) -> None:
         """Inject structured perceptual data into specific substrate dimensions.
 
         Unlike inject_observation (which hash-maps text into generic dimensions),
@@ -362,8 +389,8 @@ class ContinuousSubstrate:
             # Report to incident manager
             try:
                 from core.resilience.incident_manager import (
-                    get_incident_manager,
                     IncidentSeverity,
+                    get_incident_manager,
                 )
                 get_incident_manager().report(
                     category="substrate_nan_divergence",
