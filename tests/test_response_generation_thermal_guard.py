@@ -998,6 +998,7 @@ async def test_response_generation_required_search_uses_service_container_fallba
     )
 
     assert capability.calls
+    assert len(router.calls) == 1
     assert "[SKILL RESULT: web_search]" in router.calls[0]["messages"][0]["content"]
     assert "Europa: Jupiter's Ocean World" in new_state.cognition.last_response
 
@@ -1125,6 +1126,60 @@ async def test_response_generation_answers_from_search_evidence_when_cortex_fail
     assert new_state.response_modifiers["live_mind_surface_control_receipt"][
         "deterministic_repair_applied"
     ] is True
+
+
+@pytest.mark.asyncio
+async def test_optional_stage_timeout_cannot_erase_resident_model_incumbent(
+    monkeypatch,
+):
+    state = AuraState()
+    state.cognition.current_objective = (
+        "Explain why a verified search result matters in one complete response."
+    )
+    state.cognition.current_origin = "user"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+
+    router = _Router()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+
+    async def optional_stage_times_out(**_kwargs):
+        raise TimeoutError("optional stage exceeded the enclosing turn")
+
+    monkeypatch.setattr(phase, "_maybe_amplify_response", optional_stage_times_out)
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [{"role": "system", "content": "context"}],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    new_state = await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "cognitive_engine_required": True,
+            "visible_user_message": state.cognition.current_objective,
+            "max_tokens": 512,
+        },
+    )
+
+    expected = (
+        "Thermal-safe response: I am keeping the architectural audit grounded, "
+        "reducing the local load, and preserving the conversation thread."
+    )
+    assert new_state.cognition.last_response == expected
+    assert new_state.response_modifiers["optional_stage_timeout_repaired"] == {
+        "method": "preserve_servable_incumbent",
+        "completed_capabilities": [],
+    }
+    # The mutation ledger records changed bytes only. The incumbent was already
+    # in ``response_text``, so preserving it is an ownership event rather than a
+    # visible-text mutation.
+    assert new_state.response_modifiers["live_mind_surface_control_receipt"][
+        "text_mutations"
+    ] == []
 
 
 @pytest.mark.asyncio
@@ -1949,6 +2004,42 @@ async def test_user_facing_phase_never_opens_full_dialogue_regeneration(monkeypa
             # The ownership invariant does not depend on an optional caller
             # flag surviving every intermediate adapter.
             "clean_user_surface_contract": False,
+        },
+    )
+
+    assert len(router.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_foreground_turn_does_not_redecode_when_alignment_empties_draft(
+    monkeypatch,
+):
+    state = AuraState()
+    visible = "Use the verified source evidence to answer this request."
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "desktop_ui"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+
+    router = _Router()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [
+            {"role": "system", "content": "base live Aura context"},
+            {"role": "user", "content": visible},
+        ],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda _text: ("", True, ["test_alignment"])),
+    )
+
+    await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "cognitive_engine_required": True,
+            "visible_user_message": visible,
         },
     )
 

@@ -1445,6 +1445,7 @@ class ResponseGenerationPhase(BasePhase):
         is_user_facing: bool,
         is_background: bool,
         proof_or_benchmark: bool,
+        turn_completed_capabilities: frozenset[str] = frozenset(),
     ) -> str:
         """Run verifier-backed Amplifier v2 on eligible hard turns in the active phase.
 
@@ -1475,7 +1476,7 @@ class ResponseGenerationPhase(BasePhase):
         # evidence pack and cannot independently verify current external facts,
         # so a competing generation cannot earn promotion authority. Reopening
         # the turn here also repeats work already completed by the tool lane.
-        completed = completed_capabilities(
+        completed = frozenset(turn_completed_capabilities) | completed_capabilities(
             runtime_context.get("completed_capability_evidence")
         )
         if completed:
@@ -1852,6 +1853,13 @@ class ResponseGenerationPhase(BasePhase):
         # Initialize publication ownership before any awaited work so final
         # validation never inherits an undefined or stale owner.
         latent_response_owned = False
+        # These are captured before and immediately after the resident model
+        # boundary. Optional postprocessors may consume the mutable request
+        # context or collide with the enclosing deadline; neither event may
+        # erase authority that this turn already established or text that the
+        # integrity-checked model boundary already returned.
+        turn_completed_capabilities: frozenset[str] = frozenset()
+        servable_incumbent: Any = None
         try:
             # ── SUBSTRATE VOICE: Compile speech profile BEFORE prompt assembly ──
             # The substrate reads all internal systems and decides HOW Aura will speak.
@@ -2144,6 +2152,28 @@ class ResponseGenerationPhase(BasePhase):
             runtime_context = kwargs.get("context")
             if not isinstance(runtime_context, dict):
                 runtime_context = {}
+            turn_completed_capabilities = completed_capabilities(
+                runtime_context.get("completed_capability_evidence")
+            )
+            state_tool_hit = self._successful_required_search_payload(state, contract)
+            if state_tool_hit is not None:
+                turn_completed_capabilities = frozenset(
+                    (*turn_completed_capabilities, state_tool_hit[0])
+                )
+            if turn_completed_capabilities:
+                state.response_modifiers["completed_capability_turn_owner"] = {
+                    "capabilities": sorted(turn_completed_capabilities),
+                    "source": (
+                        "runtime_stamped_turn_receipt_and_state"
+                        if state_tool_hit is not None
+                        and completed_capabilities(
+                            runtime_context.get("completed_capability_evidence")
+                        )
+                        else "state_skill_receipt"
+                        if state_tool_hit is not None
+                        else "runtime_stamped_turn_receipt"
+                    ),
+                }
             desktop_cognitive_engine_required = bool(
                 runtime_context.get("desktop_cognitive_engine_required", False)
                 or runtime_context.get("cognitive_engine_required", False)
@@ -2611,6 +2641,8 @@ class ResponseGenerationPhase(BasePhase):
                         )
 
                 pre_amplifier_text = response_text
+                if str(response_text or "").strip():
+                    servable_incumbent = response_text
                 amplifier_promotion_authority = "none"
                 # Selection reserves the latent lane; it does not prove that
                 # lane authored the response.  When RLC declines before
@@ -2644,6 +2676,7 @@ class ResponseGenerationPhase(BasePhase):
                         is_user_facing=not is_background and not is_test_run,
                         is_background=is_background,
                         proof_or_benchmark=proof_answer_run,
+                        turn_completed_capabilities=turn_completed_capabilities,
                     )
                     amplifier_promotion_authority = str(
                         (
@@ -2807,38 +2840,59 @@ class ResponseGenerationPhase(BasePhase):
                     "🛑 ResponseGeneration Phase TIMEOUT (%.0fs). Logic took too long.",
                     request_timeout + 4.0,
                 )
-                required_tool_hit = self._successful_required_search_payload(state, contract)
-                if required_tool_hit and not is_background:
-                    skill_name, payload = required_tool_hit
-                    pre_tool_timeout_recovery = response_text
-                    response_text = self._render_required_search_answer_from_payload(
-                        payload=payload,
-                    )
+                if servable_incumbent is not None and str(servable_incumbent).strip():
+                    pre_optional_timeout_recovery = response_text
+                    response_text = servable_incumbent
                     append_text_mutation(
                         response_mutation_receipt,
-                        stage="response_generation.required_tool_timeout_recovery",
-                        method="deterministic_grounded_evidence",
-                        reasons=["cortex_timeout_with_successful_tool_evidence"],
-                        before=pre_tool_timeout_recovery,
+                        stage="response_generation.optional_stage_timeout_recovery",
+                        method="preserve_servable_incumbent",
+                        reasons=["optional_stage_exceeded_turn_deadline"],
+                        before=pre_optional_timeout_recovery,
                         after=response_text,
                         deterministic=True,
-                        authorship_effect="replaced_by_runtime",
+                        authorship_effect="preserved",
                     )
-                    state.response_modifiers["required_tool_timeout_repaired"] = {
-                        "skill": skill_name,
-                        "method": "deterministic_grounded_evidence",
+                    state.response_modifiers["optional_stage_timeout_repaired"] = {
+                        "method": "preserve_servable_incumbent",
+                        "completed_capabilities": sorted(turn_completed_capabilities),
                     }
                     logger.warning(
-                        "🛡️ ResponseGeneration answered from successful %s evidence after Cortex timeout.",
-                        skill_name,
+                        "ResponseGeneration preserved the resident model's servable "
+                        "incumbent after an optional stage exceeded the turn deadline."
                     )
                 else:
-                    # [STABILITY v55] Don't inject a robotic timeout message into
-                    # working memory.  Return state unchanged (no response text)
-                    # so the Kernel reports empty and chat.py fires the protected
-                    # foreground lane as a rescue rather than showing
-                    # "My cognitive process timed out" to the user.
-                    return state
+                    required_tool_hit = self._successful_required_search_payload(state, contract)
+                    if required_tool_hit and not is_background:
+                        skill_name, payload = required_tool_hit
+                        pre_tool_timeout_recovery = response_text
+                        response_text = self._render_required_search_answer_from_payload(
+                            payload=payload,
+                        )
+                        append_text_mutation(
+                            response_mutation_receipt,
+                            stage="response_generation.required_tool_timeout_recovery",
+                            method="deterministic_grounded_evidence",
+                            reasons=["cortex_timeout_with_successful_tool_evidence"],
+                            before=pre_tool_timeout_recovery,
+                            after=response_text,
+                            deterministic=True,
+                            authorship_effect="replaced_by_runtime",
+                        )
+                        state.response_modifiers["required_tool_timeout_repaired"] = {
+                            "skill": skill_name,
+                            "method": "deterministic_grounded_evidence",
+                        }
+                        logger.warning(
+                            "ResponseGeneration answered from successful %s evidence "
+                            "after Cortex timeout.",
+                            skill_name,
+                        )
+                    else:
+                        # No model-authored incumbent and no exact tool result exist.
+                        # Return no text so the route can use its governed recovery
+                        # owner instead of publishing an invented timeout answer.
+                        return state
 
             # Handle None response from router.think()
             if response_text is None:
@@ -3278,9 +3332,6 @@ class ResponseGenerationPhase(BasePhase):
                 return retried_text
 
             pre_dialogue_text = cleaned_response
-            foreground_draft_owned = bool(
-                foreground_user_surface_owned and str(cleaned_response or "").strip()
-            )
             if append_only_continuation_pending:
                 dialogue_validation = validate_dialogue_response(
                     cleaned_response,
@@ -3303,13 +3354,15 @@ class ResponseGenerationPhase(BasePhase):
                             and not is_test_run
                             and not latent_response_owned
                             and amplifier_promotion_authority == "none"
-                            and not foreground_draft_owned
                             # Foreground chat has one completion owner: the route's
-                            # typed append-only continuation. A second full decode
-                            # here recomputes a substantial incumbent, doubles
-                            # latency, and can replace it with a thinner answer.
+                            # typed append-only continuation or governed recovery.
+                            # Ownership belongs to the turn, not to whether every
+                            # intermediate alignment stage kept non-empty bytes. A
+                            # stage that empties a valid draft must never reopen a
+                            # second full decode and consume the rest of the turn.
                             # Non-user-facing compositions still own their local
                             # retry because no chat route exists above them.
+                            and not foreground_user_surface_owned
                             and not clean_user_surface_contract
                             and not desktop_cognitive_engine_required
                             and not bool(getattr(contract, "is_user_facing", False))

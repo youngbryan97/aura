@@ -533,6 +533,49 @@ async def test_completed_capability_turn_keeps_its_grounded_draft(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_turn_start_capability_authority_survives_mutable_context_boundary(
+    monkeypatch,
+):
+    async def amplifier_must_not_run(*_args, **_kwargs):
+        raise AssertionError("captured turn authority cannot be invalidated downstream")
+
+    monkeypatch.setattr(
+        "core.brain.reasoning_amplifier_v2.amplify_turn",
+        amplifier_must_not_run,
+    )
+    receipt = make_completed_capability_evidence(
+        ["code_repl"],
+        ok=True,
+        evidence="verified execution",
+    )
+    captured = frozenset({"code_repl"})
+    # Reproduce a downstream owner consuming or rebuilding the mutable receipt
+    # after ResponseGeneration established the exact-turn owner.
+    receipt.clear()
+
+    state = AuraState.default()
+    out = await _phase_stub()._maybe_amplify_response(
+        objective="Compute 21 * 2 and verify the arithmetic result.",
+        draft="The verified arithmetic result is 42.",
+        router=_StubRouter("must not run"),
+        state=state,
+        request_timeout=180.0,
+        origin="desktop_ui",
+        tier="primary",
+        runtime_context={"completed_capability_evidence": receipt},
+        is_user_facing=True,
+        is_background=False,
+        proof_or_benchmark=False,
+        turn_completed_capabilities=captured,
+    )
+
+    assert out == "The verified arithmetic result is 42."
+    assert state.response_modifiers["reasoning_amplifier_v2_active_phase"][
+        "completed_capabilities"
+    ] == ["code_repl"]
+
+
+@pytest.mark.asyncio
 async def test_unstamped_capability_claim_cannot_suppress_amplification(monkeypatch):
     from core.brain.reasoning_amplifier_v2 import AmplifiedAnswer, ReasoningReceipt
 
