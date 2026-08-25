@@ -144,6 +144,21 @@ under the temporal one, and that narrowing is the finding, not a footnote:
 part of the random split's rare-token advantage WAS proximity in time. The
 temporal number is the defensible one.
 
+**Did her state make her own words more likely?** The likelihood gain above is
+a claim about a corpus. This is the per-turn version, and it is the closest
+thing to the decisive experiment that does not need a loaded model: for each
+held-out turn, score the tokens she actually produced under the state that
+actually held, and again under a state that belonged to a different turn.
+Same head, same words, same tokenizer; only the state differs.
+
+On 454 held-out turns, every one recorded after everything the head was
+fitted on, her own state favoured her own words in **57%** of them — sign
+test p = 0.008. A head that had learned nothing about states would win half.
+States drift slowly, so a randomly borrowed state is often similar to the real
+one, which makes this conservative rather than generous.
+
+Real, above chance, and modest. `tools/endogenous_paired_recovery.py` runs it.
+
 **Still not measured.** Her conversational voice: the 9B is the utility lane,
 not the 27B cortex that answers Bryan. And no generation has been biased by
 the substrate, because no head has been admitted to a decode loop — the
