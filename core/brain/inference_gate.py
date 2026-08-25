@@ -11015,9 +11015,24 @@ class InferenceGate:
         # as something a person asked. A screen reading full of numbers then
         # looks like arithmetic, and a correct one-word move is rejected for
         # not containing a total.
+        # Declared if the caller could say so, derived otherwise.
+        #
+        # The declaration travels through several client shapes and does not
+        # survive all of them, so it is not the only evidence. A call that
+        # supplied no user question AND whose origin is not a person talking
+        # cannot be a reply to anybody — there is nothing it could be
+        # answering. That is the same test used below to decide whether to
+        # bind a question at all, and it is made from fields that reach here
+        # on every path.
         internal_inference_call = bool(
             context.get("internal_inference", False)
             or context.get("_non_chat_inference", False)
+            or (
+                not explicit_visible_user_prompt
+                and not self._origin_is_user_facing(
+                    str(context.get("origin", "") or "").lower()
+                )
+            )
         )
         if internal_inference_call:
             context["internal_inference"] = True
