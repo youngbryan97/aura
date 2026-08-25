@@ -511,7 +511,9 @@ async def deliberate(
         situation=situation,
         chosen=chosen,
         spoke=spoke,
-        rationale=_reason_or_nothing(_rationale(reply, chosen), evidence, options),
+        rationale=_reason_or_nothing(
+            _rationale(reply, chosen), [*evidence, _objective(goal, options)], options
+        ),
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
         recalled=tuple(recalled),
@@ -610,6 +612,37 @@ def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
 
 
 
+
+#: Words that mean a sentence is about what happens rather than about what
+#: was asked. A reason either points at the situation or names a consequence.
+_TALKS_ABOUT_CONSEQUENCE = re.compile(
+    r"\b(?:because|since|so\s|keeps?|keeping|merge[sd]?|merging|avoid[s]?|corner|"
+    r"space|room|clear|stuck|full|empty|safe|risk|worked|work[s]?|open|block(?:s|ed)?|"
+    r"slide[sd]?|sliding|stack|column|row|edge|wall|combine[sd]?|before|tried)\b",
+    re.IGNORECASE,
+)
+
+
+def _says_something_about_here(said: str, evidence: Sequence[str]) -> bool:
+    """Whether a rationale is about the situation rather than the question.
+
+    Positive evidence rather than echo-detection: a reason either names
+    something on screen or says what a move would do. A sentence with
+    neither is the task read back.
+    """
+    if _TALKS_ABOUT_CONSEQUENCE.search(said):
+        return True
+    seen = ""
+    for line in evidence:
+        text = str(line or "")
+        if text.startswith("What is visible now:"):
+            seen = text
+            break
+    if not seen:
+        return True
+    return bool(_distinctive(said) & _distinctive(seen))
+
+
 def _is_just_the_options(said: str, options: Sequence[ActionOption]) -> bool:
     """Whether a rationale is the list of choices read back.
 
@@ -629,7 +662,7 @@ def _is_just_the_options(said: str, options: Sequence[ActionOption]) -> bool:
 def _reason_or_nothing(
     rationale: str, evidence: Sequence[str], options: Sequence[ActionOption] = ()
 ) -> str:
-    """The rationale, unless it is the evidence or the options read back.
+    """The rationale, unless it is the question or the options read back.
 
     A reply that repeats what it was given has not reasoned about it, and
     presenting an echo as a reason is worse than saying nothing: it looks
@@ -641,6 +674,11 @@ def _reason_or_nothing(
         return ""
     if _is_just_the_options(said, options):
         return ""
+    if not _says_something_about_here(said, evidence):
+        # A restatement of the question. "Need choose next move among
+        # up/down/left/right" names the task and says nothing about the board
+        # in front of her — asked in different words rather than answered.
+        return ""
     plain = said.lower().strip(" .,:;-")
     for line in evidence:
         given = " ".join(str(line or "").split()).lower()
@@ -651,8 +689,19 @@ def _reason_or_nothing(
     return said
 
 
+#: A conclusion this short carries no reason on its own — "Go up." — so the
+#: sentence before it is kept as well.
+_BARE_CONCLUSION_CHARS = 32
+
+
 def _rationale(reply: str, chosen: ActionOption) -> str:
-    """The sentence in which she settled on this move."""
+    """The sentence in which she settled on this move, and why.
+
+    A conclusion often follows its reason rather than containing it:
+    "Keeping the corner matters most. Go up." Taking only the sentence with
+    the move in it keeps "Go up" and throws away the thinking, which then
+    reads as no reason at all.
+    """
     lowered = (reply or "").lower()
     where = lowered.rfind(chosen.name.lower())
     if where < 0:
@@ -663,7 +712,14 @@ def _rationale(reply: str, chosen: ActionOption) -> str:
         found = reply.find(stop, where)
         if found >= 0:
             end = min(end, found + 1)
-    return reply[start:end].strip()
+    settled = reply[start:end].strip()
+    if len(settled) >= _BARE_CONCLUSION_CHARS or start <= 0:
+        return settled
+    before_start = max(
+        lowered.rfind(".", 0, max(0, start - 1)), lowered.rfind("\n", 0, max(0, start - 1))
+    ) + 1
+    leading = reply[before_start:start].strip()
+    return f"{leading} {settled}".strip() if leading else settled
 
 
 def _open_episode(

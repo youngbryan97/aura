@@ -508,3 +508,50 @@ def test_a_list_of_the_choices_is_not_a_reason():
         _reason_or_nothing("the corner holds if I go up", ["Goal: play"], options)
         == "the corner holds if I go up"
     )
+
+
+def test_a_reason_has_to_be_about_the_situation():
+    """LIVE: "Board: Right — Need choose next move among up/down/left/right."
+
+    That names the task and says nothing about the board in front of her: the
+    question asked back in different words rather than answered. A reason
+    either points at something on screen or says what a move would do.
+    """
+    from core.agency.deliberate_action import _objective, _reason_or_nothing
+
+    options = [_option(name, detail=f"press {name}") for name in ("up", "down", "left", "right")]
+    evidence = [
+        "Goal: play 2048 until 128",
+        "What is visible now: 2 4 8 16 SCORE 8",
+        _objective("play 2048 until 128", options),
+    ]
+    assert _reason_or_nothing("Need choose next move among up/down/left/right", evidence, options) == ""
+    assert _reason_or_nothing("I am going to press right", evidence, options) == ""
+
+    kept = "merging the 4 and 8 on the right"
+    assert _reason_or_nothing(kept, evidence, options) == kept
+    assert _reason_or_nothing("the corner holds if I go up", evidence, options) != ""
+    assert _reason_or_nothing("down has worked here before", evidence, options) != ""
+
+
+def test_the_reason_before_the_conclusion_is_kept():
+    """A conclusion often follows its reason rather than containing it.
+
+    "Keeping the corner matters most. Go up." — taking only the sentence with
+    the move in it keeps "Go up" and throws away the thinking, which then
+    reads as no reason at all.
+    """
+    from core.agency.deliberate_action import _rationale
+
+    up = _option("up")
+    said = _rationale("Keeping the corner matters most. Go up.", up)
+    assert "Keeping the corner" in said
+    assert "Go up" in said
+
+
+def test_a_sentence_that_already_carries_its_reason_is_left_alone():
+    from core.agency.deliberate_action import _rationale
+
+    up = _option("up")
+    one_sentence = "I will go up because the big tile is already in that corner."
+    assert _rationale(f"Some preamble. {one_sentence}", up) == one_sentence
