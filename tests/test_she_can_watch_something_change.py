@@ -419,7 +419,7 @@ def test_a_consent_wall_is_left_for_the_person(monkeypatch):
 
 def test_clearing_a_blocker_happens_before_the_policy_is_asked(monkeypatch):
     """A reading of a dialog is not a reading of the task."""
-    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+    screen_state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
     asked: list[str] = []
 
     async def policy(observation):
@@ -434,6 +434,7 @@ def test_clearing_a_blocker_happens_before_the_policy_is_asked(monkeypatch):
     )
 
     assert all("cookies" not in text for text in asked), asked
+    assert screen_state["clicks"], "nothing dismissed the dialog"
 
 
 def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
@@ -481,7 +482,7 @@ def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
 
 def test_a_blocker_that_clears_does_not_count_against_the_budget(monkeypatch):
     """Attempts reset once the way is clear, so a later dialog gets its own tries."""
-    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+    screen_state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
 
     result = asyncio.run(
         sp.pursue_on_screen(
@@ -492,3 +493,6 @@ def test_a_blocker_that_clears_does_not_count_against_the_budget(monkeypatch):
 
     assert result["completed"] is True
     assert result.get("blocked_by", "") == ""
+    # The screen state was captured and never read, so a run that reached the
+    # goal without ever dismissing anything would have passed this.
+    assert len(screen_state["clicks"]) == 1, screen_state["clicks"]
