@@ -1,5 +1,5 @@
 {
-  "content_sha256": "96a4b0dba791e3ec6af4a28761f8bde5ec87416d6f5bc6cc3af779da97948ce1",
+  "content_sha256": "f6a47d936e8d15a7494182016775a9b3d9b6e259a704af29d3dff143d04bf38d",
   "entries": [
     {
       "acceptance_ids": [
@@ -218,12 +218,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "48a6aa9a8ffe7c0e24fab44c013eb292a9819cde",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json",
       "requirement_id": "CTX2-GATE-001",
-      "sha256": "63ff9b7317241c243262f07004737af5dbd8f8d3ef8358d33258571d8d63c7ff"
+      "sha256": "d1de44ad97981892d98ecb29f80b0b1fadc66a8d5a9cbd0f3d07356a02d9e33d"
     },
     {
       "acceptance_ids": [
@@ -240,12 +240,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "48a6aa9a8ffe7c0e24fab44c013eb292a9819cde",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json",
       "requirement_id": "CTX2-GATE-002",
-      "sha256": "63ff9b7317241c243262f07004737af5dbd8f8d3ef8358d33258571d8d63c7ff"
+      "sha256": "d1de44ad97981892d98ecb29f80b0b1fadc66a8d5a9cbd0f3d07356a02d9e33d"
     },
     {
       "acceptance_ids": [
