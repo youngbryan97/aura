@@ -1,0 +1,205 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_shutdown_lifecycle_hardening.py",
+    "tests/test_graceful_shutdown_coordinator.py",
+    "tests/test_shutdown_signal_matrix.py",
+    "tests/test_shutdown_grace_flag_identity.py",
+    "tests/test_task_ownership_strict_contract.py",
+    "tests/test_root_signal_owner.py",
+    "tests/test_subprocess_gateway_contract.py",
+    "tests/test_state_registry_shutdown.py",
+    "tests/test_proof_background_quiescence.py"
+  ],
+  "cwd": ".",
+  "duration_seconds": 9.92674,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "ADDENDUM-32"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-SHUTDOWN-001"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-SHUTDOWN-002"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-SHUTDOWN-003"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "SHUTDOWN-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:20:11.493088+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "6e1db1f48b56071a20a29947e0d0d646e4f2d834",
+  "output_bytes": 180,
+  "proof_id": "shutdown-contract-tests",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "6e1db1f48b56071a20a29947e0d0d646e4f2d834",
+  "source_manifest": [
+    {
+      "path": "core/container.py",
+      "sha256": "7600d51324e97a481fcaf6624db16891cedf3e2fcf3859657985620d78fd0f89",
+      "size_bytes": 69634
+    },
+    {
+      "path": "core/runtime/operator_control_plane.py",
+      "sha256": "105ac514ad0c05cc3a7b8cb96aee47184e67c4a1f73c79bfaf9060c91ac58cbc",
+      "size_bytes": 12899
+    },
+    {
+      "path": "core/runtime/root_signal_owner.py",
+      "sha256": "c7e5d02fff3b7df2c8db702b62e45a049ed6ea4eed69e7b039f610f94b4b7040",
+      "size_bytes": 6942
+    },
+    {
+      "path": "core/runtime/runtime_hygiene.py",
+      "sha256": "b6ac63648f80a772f40169a3a7c3154948134567fe0589760efaed75a354c01a",
+      "size_bytes": 97085
+    },
+    {
+      "path": "core/runtime/shutdown_coordinator.py",
+      "sha256": "c8960ad7d1915d232bc4e023c7e18f537455b5d9f516c4accb8f2be3ff5a9198",
+      "size_bytes": 54507
+    },
+    {
+      "path": "core/runtime/subprocess_gateway.py",
+      "sha256": "2ca7bd5912aab4da664110867f18a6f6bee83c18b5a0da3854987ba120e1bd03",
+      "size_bytes": 75854
+    },
+    {
+      "path": "core/runtime/task_ownership.py",
+      "sha256": "2a9b66def318c64888e7063d0123959e5061b13b2ee29ca5dc39e44624566009",
+      "size_bytes": 8534
+    },
+    {
+      "path": "tests/test_graceful_shutdown_coordinator.py",
+      "sha256": "33685fbb72530fa261dbb598f58fb523c193d758d4e279dceab6b584b739a2f0",
+      "size_bytes": 1318
+    },
+    {
+      "path": "tests/test_proof_background_quiescence.py",
+      "sha256": "4ad7a362d08d407098da5fc6e4554965587d4aa0b05a370c828ae32e11af948f",
+      "size_bytes": 2472
+    },
+    {
+      "path": "tests/test_root_signal_owner.py",
+      "sha256": "f194c6164bb2a86aeb48334bcbcbea3de3782aaf0463e16592263c3793346dbe",
+      "size_bytes": 6751
+    },
+    {
+      "path": "tests/test_shutdown_grace_flag_identity.py",
+      "sha256": "3ff70e7fc56344882156ef39cc2043e442676ba09be7f5f1066511f2f6689ac8",
+      "size_bytes": 1760
+    },
+    {
+      "path": "tests/test_shutdown_lifecycle_hardening.py",
+      "sha256": "643417c0eda5eb89ac28671ea55ae40f1279f2e13ce059e292887abda3c33ee9",
+      "size_bytes": 42227
+    },
+    {
+      "path": "tests/test_shutdown_signal_matrix.py",
+      "sha256": "34a77bc5bb9a7d4d7cbb1957ecb33cf01faadd315179ea011dd033decd7b8b3d",
+      "size_bytes": 6275
+    },
+    {
+      "path": "tests/test_state_registry_shutdown.py",
+      "sha256": "3633412144b5261d28ec9e74ca40bb0a0de0500562b3b350c8b787b65b0ba764",
+      "size_bytes": 808
+    },
+    {
+      "path": "tests/test_subprocess_gateway_contract.py",
+      "sha256": "a9cbd78252678d0f97afe1814e40334cda80897eaf4ac562ef5c35c9545fff78",
+      "size_bytes": 49292
+    },
+    {
+      "path": "tests/test_task_ownership_strict_contract.py",
+      "sha256": "313ba51405cabc17257869697c99cf521be8e592b5495e3e3dcb85fb9543bf4c",
+      "size_bytes": 6229
+    },
+    {
+      "path": "tools/shutdown_signal_matrix.py",
+      "sha256": "36652ebead3701c8324dcdd2e3d69115678493aec211b8c91513490f390d6715",
+      "size_bytes": 44259
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "core/container.py",
+      "core/runtime/operator_control_plane.py",
+      "core/runtime/root_signal_owner.py",
+      "core/runtime/runtime_hygiene.py",
+      "core/runtime/shutdown_coordinator.py",
+      "core/runtime/subprocess_gateway.py",
+      "core/runtime/task_ownership.py",
+      "tests/test_graceful_shutdown_coordinator.py",
+      "tests/test_proof_background_quiescence.py",
+      "tests/test_root_signal_owner.py",
+      "tests/test_shutdown_grace_flag_identity.py",
+      "tests/test_shutdown_lifecycle_hardening.py",
+      "tests/test_shutdown_signal_matrix.py",
+      "tests/test_state_registry_shutdown.py",
+      "tests/test_subprocess_gateway_contract.py",
+      "tests/test_task_ownership_strict_contract.py",
+      "tools/shutdown_signal_matrix.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:20:01.566539+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "........................................................................ [ 56%]\n........................................................                 [100%]\n128 passed in 9.12s\n",
+  "stdout_sha256": "cf113338324cfec7dd2dd676c7e7841e997a4f897b14c457e0ae3ed96c9a9248",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
