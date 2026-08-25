@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4294 files.
+# 4298 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -344,6 +344,7 @@ core/brain/llm/retired_external_runtime.py
 core/brain/llm/semantic_neural_serving.py
 core/brain/llm/sensorimotor_grounding.py
 core/brain/llm/somatic_throttle.py
+core/brain/llm/substrate_only_channel.py
 core/brain/llm/substrate_token_generator.py
 core/brain/llm/token_budget_evidence.py
 core/brain/llm/token_sentinel.py
@@ -2385,9 +2386,11 @@ tests/test_endogenous_bias_stays_inside_the_plausible_set.py
 tests/test_endogenous_corpus_records_only_real_turns.py
 tests/test_endogenous_effects_need_a_matched_null.py
 tests/test_endogenous_head_refuses_what_it_cannot_do.py
+tests/test_endogenous_pair_recorder.py
 tests/test_endogenous_readout_verdicts_are_earned.py
 tests/test_endogenous_state.py
 tests/test_endogenous_state_is_named_and_honest.py
+tests/test_endogenous_vocab_head.py
 tests/test_enforcement.py
 tests/test_engineering_export_governance.py
 tests/test_engineering_reaches_the_rest_of_her.py
@@ -3647,6 +3650,7 @@ tests/test_substrate_accel.py
 tests/test_substrate_authority_reach.py
 tests/test_substrate_divergence_recovery.py
 tests/test_substrate_measurement.py
+tests/test_substrate_only_channel_needs_a_reader.py
 tests/test_substrate_primary_architecture.py
 tests/test_substrate_readout_is_not_language.py
 tests/test_substrate_survives_a_non_finite_value.py
