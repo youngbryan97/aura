@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -89,6 +91,36 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+#: setuptools stages an sdist into "<distribution>-<version>/".
+_SDIST_STAGING_RE = re.compile(r"[A-Za-z0-9_.]+-\d[\w.]*")
+
+
+def _remove_build_staging(before: set[Path], failures: list[str]) -> None:
+    """Delete what the sdist build staged in the source tree, and say so.
+
+    Only the staging shapes are removed — the versioned source directory, the
+    egg-info, and build/. Anything else new is reported rather than deleted:
+    an audit that tidies away a change it did not make would hide it.
+    """
+    for entry in sorted(set(ROOT.iterdir()) - before):
+        name = entry.name
+        staged = (
+            name.endswith(".egg-info")
+            or name == "build"
+            or (entry.is_dir() and _SDIST_STAGING_RE.fullmatch(name) is not None)
+        )
+        if not staged:
+            failures.append(f"audit_left_an_unexpected_path:{name}")
+            continue
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+        except OSError as exc:
+            failures.append(f"audit_could_not_clean_up:{name}:{exc}")
+
+
 def _catalog_payload() -> dict[str, Any]:
     catalog = build_skill_catalog(
         roots=default_skill_roots(ROOT),
@@ -107,6 +139,12 @@ def audit_skill_portability() -> dict[str, Any]:
 
     failures: list[str] = []
     source_catalog = _catalog_payload()
+    # An audit must leave the tree as it found it. `build --sdist
+    # --no-isolation` stages into `<name>-<version>/` beside pyproject.toml
+    # regardless of --outdir, and 109MB of unpacked source was left in the
+    # repository root — enough to make every later evidence capture refuse
+    # with "proof source tree is dirty".
+    before_root = set(ROOT.iterdir())
     with tempfile.TemporaryDirectory(prefix="aura-skill-portability-") as raw_tmp:
         tmp = Path(raw_tmp)
         sdist_dir = tmp / "sdist"
@@ -174,6 +212,8 @@ def audit_skill_portability() -> dict[str, Any]:
                 "ok": False,
                 "schema": "aura.skill_portability_audit.v1",
             }
+
+        _remove_build_staging(before_root, failures)
 
         with ZipFile(wheel) as archive:
             members = set(archive.namelist())
