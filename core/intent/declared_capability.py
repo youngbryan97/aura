@@ -455,10 +455,21 @@ def distinctive_objects(
             # name is unique and therefore always scores highest, which would
             # make the fallback pick "lab" out of `quantum_lab` and ignore
             # "quantum" and "circuits" — and the name is already matched by
-            # name elsewhere. Prefer a word the skill said about itself.
+            # name elsewhere. Prefer the words a skill said about itself.
+            #
+            # ALL of them, not one. `max` over a set of equal-weight strings
+            # returns whichever comes first in set iteration order, and string
+            # hashing is randomised per process, so the same catalogue picked
+            # a different noun on each restart: 24 runs of the same two-skill
+            # catalogue chose "python" 15 times and "sandboxed" 9 times, and
+            # a request to run some Python reached the REPL or nothing
+            # depending on which. Keeping them all is deterministic and is
+            # what the comment above already argued for: when the cutoff
+            # separates nothing, every remaining noun is equally distinctive
+            # and discarding all but one throws away the match.
             own_name = set(_words(skill))
             described = objects - own_name
-            selective = {max(described or objects, key=weight)}
+            selective = set(described or objects)
         kept[skill] = frozenset(selective)
     return kept
 
