@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4319 files.
+# 4320 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -2802,6 +2802,7 @@ tests/test_live_recurrence_depth_is_earned.py
 tests/test_live_recurrent_adapter_worker_activation.py
 tests/test_live_reply_hygiene.py
 tests/test_live_runtime_sleep_and_startup.py
+tests/test_live_runtime_surface_regressions.py
 tests/test_live_surface_probe_coherence.py
 tests/test_liveness_sentinel.py
 tests/test_llm_chat_path_2026.py

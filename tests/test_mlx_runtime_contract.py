@@ -1269,7 +1269,16 @@ async def test_primary_lane_warmup_exempt_from_foreground_owner_deferral(monkeyp
     from core.brain.llm import mlx_client
     from core.brain.llm.mlx_client import MLXLocalClient
 
-    client = MLXLocalClient("/models/Aura-32B-cortex-test")
+    # The role is declared, not read off the path. CP941 replaced the
+    # path-token heuristic with an assignment the registry issues against
+    # artifact identity, so a synthetic path is auxiliary/best_effort and
+    # the primary-lane exemptions under test never applied.
+    from core.brain.llm.model_runtime_roles_for_tests import assignment_for
+
+    cortex_path = "/models/Aura-32B-cortex-test"
+    client = MLXLocalClient(
+        cortex_path, runtime_assignment=assignment_for(cortex_path, role="cortex")
+    )
     assert client._is_primary_lane() is True
 
     ran: list[str] = []
@@ -1302,7 +1311,16 @@ async def test_primary_lane_recovery_exempt_from_foreground_owner_guards(monkeyp
     from core.brain.llm import mlx_client
     from core.brain.llm.mlx_client import MLXLocalClient
 
-    client = MLXLocalClient("/models/Aura-32B-cortex-test")
+    # The role is declared, not read off the path. CP941 replaced the
+    # path-token heuristic with an assignment the registry issues against
+    # artifact identity, so a synthetic path is auxiliary/best_effort and
+    # the primary-lane exemptions under test never applied.
+    from core.brain.llm.model_runtime_roles_for_tests import assignment_for
+
+    cortex_path = "/models/Aura-32B-cortex-test"
+    client = MLXLocalClient(
+        cortex_path, runtime_assignment=assignment_for(cortex_path, role="cortex")
+    )
     assert client._is_primary_lane() is True
 
     reached: list[str] = []

@@ -9,11 +9,11 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import interface.routes.chat_preflight as _chat_preflight
-from tests.chat_lane_support import patch_chat_lane
+
 import interface.routes.chat_capability_inventory as _chat_capability_inventory
-from tests.chat_lane_support import chat_lane_source
+import interface.routes.chat_preflight as _chat_preflight
 import interface.routes.chat_runtime_proof as _chat_runtime_proof
+from tests.chat_lane_support import chat_lane_source, patch_chat_lane
 
 
 def _clear_proof_run_signals(monkeypatch):
@@ -2015,9 +2015,57 @@ def test_local_deep_solver_is_blocked_by_default_on_64gb_desktop(monkeypatch):
         ),
     )
 
+    # A specialist that is not configured is refused before the memory class
+    # is ever consulted, which is a correct block and not the one this test is
+    # named for. Admit the evidence so the memory class is what decides.
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.get_deep_solver_admission_status",
+        lambda *_a, **_k: SimpleNamespace(
+            admitted=True,
+            reason="",
+            certificate_sha256="0" * 64,
+            admitted_domains=("math",),
+            minimum_total_gb=96.0,
+            minimum_available_gb=64.0,
+        ),
+    )
+
     reason = gate._local_deep_solver_block_reason()
 
-    assert reason == "local_deep_solver_disabled_on_current_memory_class:64.0GB"
+    # The reason names the qualified minimum rather than a hard-coded memory
+    # class. It used to read
+    # "local_deep_solver_disabled_on_current_memory_class:64.0GB", a string
+    # that no longer exists anywhere in the tree.
+    assert reason == "specialist_host_total_below_qualified_minimum"
+
+
+def test_local_deep_solver_is_blocked_when_no_specialist_is_configured(monkeypatch):
+    """The other block, asserted rather than assumed.
+
+    It fires before the memory class is consulted, so a host with no
+    specialist reaches a different refusal than the one above — and the test
+    above measured that one for a while without noticing.
+    """
+    from core.brain.inference_gate import InferenceGate
+
+    gate = InferenceGate.__new__(InferenceGate)
+    gate.get_conversation_status = lambda: {
+        "conversation_ready": False,
+        "warmup_in_flight": False,
+        "state": "cold",
+    }
+    monkeypatch.delenv("AURA_ENABLE_LOCAL_DEEP_SOLVER", raising=False)
+    monkeypatch.setattr(
+        "core.brain.llm.model_registry.get_deep_solver_admission_status",
+        lambda *_a, **_k: SimpleNamespace(
+            admitted=False,
+            reason="specialist_not_configured",
+            certificate_sha256="",
+            admitted_domains=(),
+        ),
+    )
+
+    assert gate._local_deep_solver_block_reason() == "specialist_not_configured"
 
 
 def test_primary_foreground_timeout_is_bounded_for_live_desktop_path():
@@ -2801,7 +2849,6 @@ async def test_intent_router_route_execution_merges_live_context_without_downgra
 
 
 def test_legacy_interface_router_delegates_to_canonical_capability_path():
-    from pathlib import Path
 
     from interface.router import IntentRouter
 
@@ -3027,20 +3074,49 @@ async def test_file_operation_write_creates_nested_live_runtime_directory(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_computer_use_clock_returns_limited_payload_when_permissions_block(monkeypatch):
+async def test_computer_use_clock_returns_limited_payload_when_the_native_read_fails(
+    monkeypatch,
+):
+    """Reading the clock asks no permission, so blocking one proves nothing.
+
+    This patched _require_permissions, which the read_menu_clock branch does
+    not call — it reads the system clock and falls back deterministically. The
+    patch reached nothing and the native read simply succeeded, so the test
+    measured a normal answer against a degraded contract. What is worth
+    holding is the fallback: a failed native read still returns a time.
+    """
     from core.skills.computer_use import ComputerUseSkill
 
     skill = ComputerUseSkill()
 
-    async def blocked(*_args, **_kwargs):
-        return {"ok": False, "status": "denied", "error": "permission blocked"}
+    def unavailable():
+        raise OSError("no window server")
 
-    monkeypatch.setattr(skill, "_require_permissions", blocked)
+    monkeypatch.setattr(skill, "_read_menu_clock_macos", unavailable)
     result = await skill.execute({"action": "read_menu_clock", "target": ""}, context={})
 
     assert result["ok"] is True
     assert result["status"] == "limited"
     assert result["clock_text"]
+    assert result["source"] == "system_clock_fallback"
+
+
+@pytest.mark.asyncio
+async def test_computer_use_clock_needs_no_permission_when_it_works(monkeypatch):
+    from core.skills.computer_use import ComputerUseSkill
+
+    skill = ComputerUseSkill()
+
+    async def refuse(*_args, **_kwargs):  # pragma: no cover - asserted unused
+        raise AssertionError("reading the clock asked for a permission")
+
+    monkeypatch.setattr(skill, "_require_permissions", refuse)
+    monkeypatch.setattr(skill, "_read_menu_clock_macos", lambda: "Mon Aug 25 03:11")
+    result = await skill.execute({"action": "read_menu_clock", "target": ""}, context={})
+
+    assert result["ok"] is True
+    assert result["clock_text"] == "Mon Aug 25 03:11"
+    assert result["source"] == "macos_system_clock"
 
 
 def test_every_chokepoint_door_attaches_desktop_receipts():
@@ -3048,7 +3124,6 @@ def test_every_chokepoint_door_attaches_desktop_receipts():
     every reply exit, and every exit that applies it must also attach the
     step receipts to the wire payload. Visible-demo round 3 failed because
     the kernel/deep door applied the chokepoint but dropped the receipts."""
-    import pathlib
 
     src = chat_lane_source()
     doors = src.count("await _apply_desktop_objective_chokepoint(")
@@ -3066,7 +3141,6 @@ def test_desktop_objective_execution_routes_through_tracked_gate():
     the other tracked call is the universal reply chokepoint. Narrow proof
     and explicit-file lanes do not invoke the generic desktop executor.
     """
-    import pathlib
 
     src = chat_lane_source()
     # Module-qualified since the executor moved to its own lane; the guarantee
@@ -3094,7 +3168,6 @@ def test_self_sufficient_desktop_objectives_execute_before_freeform_generation()
     derive a verified primitive plan. The live user path should execute that
     plan through governance immediately, then report receipts.
     """
-    import pathlib
 
     src = chat_lane_source()
     narrow = src.split(
@@ -3288,7 +3361,6 @@ def test_tension_engine_quarantines_stale_and_prunes_persisted_tensions(tmp_path
 
 
 def test_desktop_access_permission_route_has_ui_bounded_probe_budgets():
-    from pathlib import Path
 
     src = Path("interface/routes/system.py").read_text(encoding="utf-8")
 

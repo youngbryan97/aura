@@ -25,9 +25,22 @@ pytestmark = pytest.mark.unit
 
 
 class FakeClient:
-    def __init__(self, path, *, alive=True):
+    """A worker that actually stops when it is rebooted.
+
+    It used to set ``rebooted`` and stay alive. A shed only counts once
+    ``_worker_is_unloaded`` confirms the worker went away — "the absence of
+    the check is not the check" — so this fake modelled a reboot that
+    reclaimed nothing, and a test asking for the completed-action warning was
+    asking for it after an incomplete action.
+
+    ``unloads`` is here for the case that needs the other behaviour: a reboot
+    that returns without stopping anything.
+    """
+
+    def __init__(self, path, *, alive=True, unloads=True):
         self.model_path = path
         self.alive = alive
+        self.unloads = unloads
         self.rebooted = False
 
     def is_alive(self):
@@ -35,6 +48,8 @@ class FakeClient:
 
     async def reboot_worker(self, reason="", mark_failed=False):
         self.rebooted = True
+        if self.unloads:
+            self.alive = False
 
 
 @pytest.fixture()
@@ -280,3 +295,26 @@ class TestTheLadderYieldsWhenItBlocksTheCortex:
         assert fallback.rebooted
         assert "memory was too short" in caplog.text
         assert "shed 1 live fallback worker" in caplog.text
+
+
+class TestAShedOnlyCountsWhenTheWorkerWentAway:
+    """"The absence of the check is not the check."""
+
+    def test_a_reboot_that_reclaims_nothing_is_not_counted(
+        self, gate, monkeypatch, caplog
+    ):
+        stubborn = FakeClient("/models/Qwen2.5-7B-Instruct-4bit", unloads=False)
+        gate._brainstem_client = stubborn
+        gate._mlx_client = FakeClient("/models/Aura-32B-cortex", alive=False)
+        monkeypatch.setattr(
+            "core.utils.memory_monitor.get_memory_pressure_snapshot",
+            lambda: type("S", (), {"available_gb": 10.0})(),
+            raising=False,
+        )
+
+        with caplog.at_level("WARNING", logger="Aura.InferenceGate"):
+            _run_shed(gate, {stubborn.model_path: stubborn}, "protected_foreground_shed")
+
+        assert stubborn.rebooted
+        assert "did not report unloaded" in caplog.text
+        assert "shed 1 live fallback worker" not in caplog.text
