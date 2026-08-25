@@ -34,6 +34,13 @@ logger = logging.getLogger(__name__)
 RECALL_DEPTH = 5
 #: Confidence assigned when nothing has ever been recorded about an option.
 UNTRIED_CONFIDENCE = 0.5
+#: Verbs that mean the words after them are the decision, in the shapes
+#: people actually write them.
+_DECIDING_VERB = (
+    r"press(?:es|ed|ing)?|hit(?:s|ting)?|go(?:es|ing)?|mov(?:e|es|ed|ing)|"
+    r"slid(?:e|es|ing)|choos(?:e|es|ing)|chose|pick(?:s|ed|ing)?|"
+    r"tak(?:e|es|ing)|took|do(?:es|ing)?|play(?:s|ed|ing)?"
+)
 #: The shape a decision takes when it reaches the workspace, so anything
 #: reading it there knows what it is looking at without guessing.
 DECISION_SCHEMA = "aura.decision.v1"
@@ -255,8 +262,11 @@ def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | 
     for option in options:
         name = re.escape(option.name.lower())
         for found in re.finditer(
-            rf"\b(?:press|hit|go|move|slide|choose|pick|take|do)\s+(?:the\s+)?{name}\b"
-            rf"|\bi(?:'| a)?m going to\s+(?:press\s+)?{name}\b"
+            # Inflected, because people write "pressing right" as often as
+            # "press right" — and a pattern that only matched the bare form
+            # fell through to the old rule and picked a noun instead.
+            rf"\b(?:{_DECIDING_VERB})\s+(?:the\s+)?{name}\b"
+            rf"|\bi(?:'| a)?m\s+(?:going\s+to\s+)?(?:{_DECIDING_VERB})?\s*(?:the\s+)?{name}\b"
             rf"|\b{name}\s+it\s+is\b",
             lowered,
         ):

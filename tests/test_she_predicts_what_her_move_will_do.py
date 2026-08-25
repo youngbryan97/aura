@@ -402,6 +402,21 @@ def test_a_reply_that_settles_at_the_end_still_settles_there():
     ).name == "left"
 
 
+@pytest.mark.parametrize(
+    "reply,expected",
+    [
+        ("I'm pressing right again because the tiles are on the up side", "right"),
+        ("I'm not fully certain, but i am pressing the up key", "up"),
+        ("sliding left to consolidate before the right side fills", "left"),
+        ("going down to keep the top row clear", "down"),
+    ],
+)
+def test_the_verb_is_read_in_the_shapes_people_write_it(reply, expected):
+    """A pattern that only matched the bare form fell through and picked a noun."""
+    options = [_option(name) for name in ("up", "down", "left", "right")]
+    assert choose_named(reply, options).name == expected
+
+
 def test_a_bare_answer_is_still_read():
     options = [_option(name) for name in ("up", "down", "left", "right")]
     assert choose_named("down", options).name == "down"
