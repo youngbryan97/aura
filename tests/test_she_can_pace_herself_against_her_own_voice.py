@@ -318,3 +318,22 @@ async def test_skipping_language_is_not_language_failing(body):
     assert decided.reached
     assert decided.spoke is False
     assert "could not be reached" not in decided.reason
+
+
+def test_a_live_decision_carries_its_own_deadline():
+    """LIVE: one generation timed out at the endpoint's own 103-second budget
+    and the whole run stood still for it.
+
+    That budget is right for a hard answer somebody is waiting on and wrong
+    for a move in a game. Past its own deadline, deciding from evidence is
+    not merely faster — it is the only thing still about the board in front
+    of her.
+    """
+    import inspect
+
+    from core.agency import her_reasoning
+
+    source = inspect.getsource(her_reasoning)
+    assert "timeout=timeout_s" in source, "the model call has no deadline of its own"
+    assert "asyncio.wait_for" in source, "a client that never returns would hang the loop"
+    assert her_reasoning.DECISION_BUDGET_S <= 10.0

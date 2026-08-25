@@ -17,6 +17,7 @@ evidence of anything later.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from typing import Any
@@ -71,6 +72,7 @@ def generator(
     origin: str = "agency_next_move",
     tier: str = "primary",
     max_tokens: int = CHOICE_TOKENS,
+    timeout_s: float = DECISION_BUDGET_S,
 ):
     """A generate function over the resident model, shaped for the amplifier."""
 
@@ -92,6 +94,15 @@ def generator(
             foreground_request=True,
             allow_cloud_fallback=False,
             max_tokens=max_tokens,
+            # A decision on a live loop carries its own deadline.
+            #
+            # The endpoint's own budget is 103 seconds, which is right for a
+            # hard answer somebody is waiting on and wrong for a move in a
+            # game: measured live, one generation timed out at the endpoint
+            # and the whole run stood still for it. Past this, deciding from
+            # evidence is not just faster, it is the only thing that is still
+            # a decision about the board in front of her.
+            timeout=timeout_s,
             # Deciding a move is not answering a person. Without this the
             # user-surface reply contract is applied to the decision and
             # grades it against a question invented from its own prompt:
@@ -124,18 +135,21 @@ def her_reasoning(
     unreachable mind as a reason to stop, and turning that into a quiet
     default would put her back to acting without deciding.
     """
-    produce = generate or generator(origin=origin, max_tokens=max_tokens)
+    produce = generate or generator(origin=origin, max_tokens=max_tokens, timeout_s=time_budget_s)
 
     async def think(objective: str, evidence: Sequence[str]) -> str:
         from core.brain.reasoning_amplifier_v2 import amplify_turn  # noqa: PLC0415
 
-        amplified = await amplify_turn(
-            objective,
-            produce,
-            task_type="planning",
-            evidence=list(evidence),
-            risk_level=risk_level,
-            time_budget_s=time_budget_s,
+        amplified = await asyncio.wait_for(
+            amplify_turn(
+                objective,
+                produce,
+                task_type="planning",
+                evidence=list(evidence),
+                risk_level=risk_level,
+                time_budget_s=time_budget_s,
+            ),
+            timeout=time_budget_s + 4.0,
         )
         answer = str(amplified.answer or "").strip()
         if not answer:
@@ -193,10 +207,15 @@ def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOIC
     So effort follows what rides on the decision — one pass here, agreement
     when something is at stake, a sharpened question when a lot is.
     """
-    produce = generator(origin=origin, max_tokens=max_tokens)
+    produce = generator(origin=origin, max_tokens=max_tokens, timeout_s=DECISION_BUDGET_S)
 
     async def think(objective: str, evidence: Sequence[str]) -> str:
-        said = await produce("\n".join([objective, *evidence]), 0.3)
+        # Bounded here as well as at the endpoint: a client that never
+        # returns is the same to this loop as one that returns nothing, and
+        # only one of those is visible without a deadline of its own.
+        said = await asyncio.wait_for(
+            produce("\n".join([objective, *evidence]), 0.3), timeout=DECISION_BUDGET_S + 2.0
+        )
         answer = str(said or "").strip()
         if not answer:
             raise RuntimeError("her reasoning produced nothing (no text came back)")
