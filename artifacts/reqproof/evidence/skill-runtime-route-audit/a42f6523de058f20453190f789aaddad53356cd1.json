@@ -1,0 +1,801 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/closeout/audit_skill_runtime_route.py"
+  ],
+  "cwd": ".",
+  "duration_seconds": 3.343955,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "CTX2-SKILL-002"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "implementation",
+      "requirement_id": "SKILLS-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:18:26.959380+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "a42f6523de058f20453190f789aaddad53356cd1",
+  "output_bytes": 1592,
+  "proof_id": "skill-runtime-route-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "a42f6523de058f20453190f789aaddad53356cd1",
+  "source_manifest": [
+    {
+      "path": "core/capability_engine.py",
+      "sha256": "501e396a658ca0811d4827871ef660616b49e48793452d081ad6eb2974b953d2",
+      "size_bytes": 358107
+    },
+    {
+      "path": "core/cognitive/router.py",
+      "sha256": "9462975e3ee8e691ca50154c049b59e6ba2e52c047ebd317948c2f0505af3825",
+      "size_bytes": 7376
+    },
+    {
+      "path": "core/skills/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "core/skills/_pyautogui_runtime.py",
+      "sha256": "06a134336d0d831fb49c280ebf8045b18312023cb2d3e978c754de076c33126b",
+      "size_bytes": 1763
+    },
+    {
+      "path": "core/skills/_self_repair_legacy.py",
+      "sha256": "07a6aaa3e9f371f7bf64296de567bcf118d144607370efb20b614bb18087e474",
+      "size_bytes": 866
+    },
+    {
+      "path": "core/skills/action_gateway.py",
+      "sha256": "e4572d069742a0dc2f2f27d49612ac27188b64676d036a43a26dbab6d339ebbe",
+      "size_bytes": 4977
+    },
+    {
+      "path": "core/skills/action_scope.py",
+      "sha256": "a5881d3026e13bc428ea8f152900d76d2b5ecf1ae6520c4104a6b9479616690b",
+      "size_bytes": 10054
+    },
+    {
+      "path": "core/skills/active_coding.py",
+      "sha256": "b48763f071c5535fa7dcf3e5e53d4bbfe39fa8a7753f73d8bffb8ed7aeeeff9f",
+      "size_bytes": 5345
+    },
+    {
+      "path": "core/skills/auto_refactor.py",
+      "sha256": "c66b5e9e6e5240db13eafb3d60c23f4f8243672ac6f328ba5adabaad6e5b11b3",
+      "size_bytes": 14624
+    },
+    {
+      "path": "core/skills/base_skill.py",
+      "sha256": "c0f6d03904749ca466c1ca5821a4d06caadcffec1b3719673ae66124093580de",
+      "size_bytes": 23657
+    },
+    {
+      "path": "core/skills/belief_ops.py",
+      "sha256": "54f549f04974fe2f3968c48d6d65234da3743599c1820f327d4c743935345e59",
+      "size_bytes": 17630
+    },
+    {
+      "path": "core/skills/branching_futures.py",
+      "sha256": "0809eea1d34732e006b132d9a11d762970e28d00ac047008d79a984ef28129c6",
+      "size_bytes": 7461
+    },
+    {
+      "path": "core/skills/build_app.py",
+      "sha256": "5e41d3c30d70dd4e7b60ba2166a2b53ed4d04f4c922dbb996613c1c9bebd95da",
+      "size_bytes": 4639
+    },
+    {
+      "path": "core/skills/build_document.py",
+      "sha256": "bf66820cdf05a9ce67b85cf1f5221b305a761af210cf4ba2f2b4225745da2ce4",
+      "size_bytes": 12562
+    },
+    {
+      "path": "core/skills/capability_map.py",
+      "sha256": "93fc5ea87944ba79c21d31e2cee6431c1118cc2e3306b2f0eba3650aefdce121",
+      "size_bytes": 9830
+    },
+    {
+      "path": "core/skills/catalog_policy.py",
+      "sha256": "927009898ace75d43b5bdbd030a43f8ef1bc2fa0e8c527e8733a37b184700710",
+      "size_bytes": 8654
+    },
+    {
+      "path": "core/skills/catalog_probe_worker.py",
+      "sha256": "b77d18a1d08ef904730653659e10b485165029b04ce97d77d494474a730265fc",
+      "size_bytes": 14851
+    },
+    {
+      "path": "core/skills/clock.py",
+      "sha256": "cad9e5c6b5906fe19fabb179c230bfe703db691856e1934a0c8a59e3019c5642",
+      "size_bytes": 964
+    },
+    {
+      "path": "core/skills/code_repl.py",
+      "sha256": "21085565ee05203e1508b8a9c9c1fce1de3b4a3a152bbf3d4f1cce28f1fa3000",
+      "size_bytes": 24002
+    },
+    {
+      "path": "core/skills/coding_skill.py",
+      "sha256": "3371c788ec411e39fc85d8c80d18406d41bbdae14aa7cf64294be52b413bdf8b",
+      "size_bytes": 3703
+    },
+    {
+      "path": "core/skills/cognitive_trainer.py",
+      "sha256": "b4fb5e6c37f61bcb04b4b5c7ceb333c1707529a97799d18853856db56e2e0561",
+      "size_bytes": 6817
+    },
+    {
+      "path": "core/skills/computer_interface.py",
+      "sha256": "08c8df2d824f1500db9bb8e0be4b968fff65ab23b6fb198e00ba5c1b07850cb3",
+      "size_bytes": 2705
+    },
+    {
+      "path": "core/skills/computer_use.py",
+      "sha256": "9b605e6cae2025cde16984f38d5afbd76c7bcb9bbb09ec4923ec620e9f13d972",
+      "size_bytes": 229308
+    },
+    {
+      "path": "core/skills/context_injection.py",
+      "sha256": "616c61221072843a45bacc4c9b990a749e1ce36a9aff623496fab32b3e56fcb1",
+      "size_bytes": 4741
+    },
+    {
+      "path": "core/skills/curiosity.py",
+      "sha256": "eaf68b290e85db7f031ab29f41309c635e2785ac9f100cb5e52a21a423788a54",
+      "size_bytes": 6703
+    },
+    {
+      "path": "core/skills/deep_research.py",
+      "sha256": "cf3297af74a14b8c5c69b0700a9ec18b3be4d11882c04a5dfd415abddafed049",
+      "size_bytes": 16977
+    },
+    {
+      "path": "core/skills/design_engineering.py",
+      "sha256": "edbd9180db6e65cc2f862c8166a84c5536569d7e1ca77107b3bdb496f47a77ce",
+      "size_bytes": 11254
+    },
+    {
+      "path": "core/skills/desktop_task.py",
+      "sha256": "cab5f9f1a8fb1b5c0c1969a8327f398636c166aa1cce0887294d6239cf3efe87",
+      "size_bytes": 312062
+    },
+    {
+      "path": "core/skills/diagnose_repo.py",
+      "sha256": "e243f5cc3176d02f8aa60046070f51bb68a0f3c63741095a8ad4a73a556c77b0",
+      "size_bytes": 7011
+    },
+    {
+      "path": "core/skills/discovery.py",
+      "sha256": "ad849b835382bb46602f19c1f07febb0d786b6888dac2311734030d5eeaada57",
+      "size_bytes": 36460
+    },
+    {
+      "path": "core/skills/dream_skill.py",
+      "sha256": "0210bd95e4ada3ac5ac3e210bffaf9e2bf8ac26c8c396c558df703237dc9e57d",
+      "size_bytes": 10123
+    },
+    {
+      "path": "core/skills/effect_reach.py",
+      "sha256": "571a303d0ae65ed93852ced1642d706bfb4d8afe6b5c8035213dc0ebb87e7108",
+      "size_bytes": 9273
+    },
+    {
+      "path": "core/skills/email_adapter.py",
+      "sha256": "b9d3cb6c4f3299a55542d1a80e0bbfe922cd31a493b024efb0d9ca33dc1fd9a5",
+      "size_bytes": 32546
+    },
+    {
+      "path": "core/skills/embodiment_skill.py",
+      "sha256": "0efe4bb257d8d33a06d79f3ffdd3152f9c9b412589081a454333f4cfbab129e8",
+      "size_bytes": 39702
+    },
+    {
+      "path": "core/skills/environment_info.py",
+      "sha256": "9a67b486441a069cc0926ffeb4142ac85758def5fbe546c116a455042a58e918",
+      "size_bytes": 4328
+    },
+    {
+      "path": "core/skills/evolution_status.py",
+      "sha256": "9606a416b359454523ffefc4279ab9ea38dcd0e496537e94f45d5fcd37f4d764",
+      "size_bytes": 3219
+    },
+    {
+      "path": "core/skills/file_modification_intent.py",
+      "sha256": "22fed0f03563ac5ee24d442e4521a1473be6c155993ccbbbde380a06fc9e0ad3",
+      "size_bytes": 3653
+    },
+    {
+      "path": "core/skills/file_operation.py",
+      "sha256": "dab659476f26d244c8419ea1a2a14fbdffe9a3d48e0c4254d67cdbddf7469206",
+      "size_bytes": 20820
+    },
+    {
+      "path": "core/skills/fluid_executor.py",
+      "sha256": "433e42696e83d5cdfda0f4febdae84791774a402c75b22f934edea865b873fdb",
+      "size_bytes": 17962
+    },
+    {
+      "path": "core/skills/free_search.py",
+      "sha256": "0eec2e6c66694e8a7892148452ff4af53dd8427ce41727ab3701e06045e4e671",
+      "size_bytes": 488
+    },
+    {
+      "path": "core/skills/ghost_probe.py",
+      "sha256": "98cd0f76fcb3a9e58c092729405562a50f37eb554409bde8adbd2e440c680bad",
+      "size_bytes": 2666
+    },
+    {
+      "path": "core/skills/grounded_search.py",
+      "sha256": "f555b6a2d73333c7ec88b7daa55a8dcef4877e985bee87614e7aa7197f6d4a63",
+      "size_bytes": 5559
+    },
+    {
+      "path": "core/skills/http_request.py",
+      "sha256": "a59b07883a638e758852ca7a765740e2ff50fd6162672f17aa483c05be712502",
+      "size_bytes": 9678
+    },
+    {
+      "path": "core/skills/image_gen.py",
+      "sha256": "9946da7533c6b1043cfd3ffdfc9eedc79f01596a60f0ca7debb8dc14487e83f4",
+      "size_bytes": 26222
+    },
+    {
+      "path": "core/skills/improve_own_code.py",
+      "sha256": "8ddc61a1825f776bc0c7fd2a30a2b52ebc498430d63c2af436b47b092666e862",
+      "size_bytes": 3131
+    },
+    {
+      "path": "core/skills/install_package.py",
+      "sha256": "87e48cae6b075ffd76e8a35e806f21f8124003dab44833e99ca6679219389757",
+      "size_bytes": 2807
+    },
+    {
+      "path": "core/skills/inter_agent_comm.py",
+      "sha256": "2a405ffad1e43b62a2fdde71819286a70c9bb40fe5e502c24d0e20ce6708d8d8",
+      "size_bytes": 5079
+    },
+    {
+      "path": "core/skills/internal_sandbox.py",
+      "sha256": "e3d354c09e4ff0cd82e1788f998e1d24a0838800ac5a79b2f2302a4aee860b39",
+      "size_bytes": 9842
+    },
+    {
+      "path": "core/skills/listen.py",
+      "sha256": "7dc366cd55d4d4b154aba449f05acf7f8546da392c9025806b794a2814e8c0fd",
+      "size_bytes": 8924
+    },
+    {
+      "path": "core/skills/local_reference.py",
+      "sha256": "0d0eea32edcd54144ff1088a839417bb1498ca3fa05d76502597c20d98c1e63c",
+      "size_bytes": 3459
+    },
+    {
+      "path": "core/skills/malware_analysis.py",
+      "sha256": "07b39af99a5edbd7193a860067be552fa837abf48a3b536b854da3701e16733e",
+      "size_bytes": 12646
+    },
+    {
+      "path": "core/skills/manage_abilities.py",
+      "sha256": "f6841a809da276f28907a869948ad9a43da4ce9a1e19ad243d373ee592d65004",
+      "size_bytes": 3148
+    },
+    {
+      "path": "core/skills/manifest_to_device.py",
+      "sha256": "ea7a8fb5aac825e6712cf4dc824b7853b47d8767b5c1c8e204c6afe5c92ca8fa",
+      "size_bytes": 6699
+    },
+    {
+      "path": "core/skills/manim_renderer.py",
+      "sha256": "dc555108ae6b630886f0e5f41fc1e93d244c09bcf53ad7b0220198c3b7de2885",
+      "size_bytes": 6018
+    },
+    {
+      "path": "core/skills/mcp_client.py",
+      "sha256": "3d0e1262ff7fe90d23229de5ce3c9d246dba46414cc3002ab67a41984ef2d0bf",
+      "size_bytes": 12479
+    },
+    {
+      "path": "core/skills/memory_ops.py",
+      "sha256": "1e4bfad7b1e39c921b749b5bbf5c46c6288d1e958b1bcc22a2f9349f6dc22d89",
+      "size_bytes": 15408
+    },
+    {
+      "path": "core/skills/memory_sync.py",
+      "sha256": "038189f442d827671f9c6e47ecae49112247fcded39a732a94d079cf5f5d7414",
+      "size_bytes": 8706
+    },
+    {
+      "path": "core/skills/messages.py",
+      "sha256": "f1aafc938f4f329cf20eaea1ed94314be5c4b3eb09e6650e4f9b23877fe96a0b",
+      "size_bytes": 4135
+    },
+    {
+      "path": "core/skills/native_chat.py",
+      "sha256": "36b3977b0f1c18252b3b0fde4a5c563f810da6ca0bec55e622eda94dc9f43981",
+      "size_bytes": 16616
+    },
+    {
+      "path": "core/skills/nethack.py",
+      "sha256": "6b3ff550ccac12d99b1159d0e4297c081f6184814134d43fb78348232b1d19db",
+      "size_bytes": 11643
+    },
+    {
+      "path": "core/skills/notify_user.py",
+      "sha256": "ec4e82e0d96e5fdcf3e83c660ddc45592e6c87ddb8b5d30dbd510bc61e59bc6d",
+      "size_bytes": 3149
+    },
+    {
+      "path": "core/skills/os_affordances.py",
+      "sha256": "efd69cfc1e60da71f73ff141d44a72bb37c496d70c5b4a852f1748483fb81d87",
+      "size_bytes": 10409
+    },
+    {
+      "path": "core/skills/os_automation.py",
+      "sha256": "2ead01463747285cf9dedf7d5c1e79b39bb76a4d126955412c0d36495da3ae98",
+      "size_bytes": 68748
+    },
+    {
+      "path": "core/skills/os_manipulation.py",
+      "sha256": "7425ed028f76273a2161c7839bea7dcd68d808df538c932eaf8865a5284f7622",
+      "size_bytes": 8879
+    },
+    {
+      "path": "core/skills/personality_skill.py",
+      "sha256": "b4b4849251448cde97e340c96ccc2546b1cd5efd1c7d9434c0a590160f52a97a",
+      "size_bytes": 2934
+    },
+    {
+      "path": "core/skills/plan_mode.py",
+      "sha256": "efeb38ced51ae726f270b03796fd4516d2845dc7449f16ba89a2e5faf42a18d3",
+      "size_bytes": 1363
+    },
+    {
+      "path": "core/skills/plugin_loader.py",
+      "sha256": "d2fe721132f7e7a14a307ff7b54d08c7504863de2a64e918e2c3d3f5567326db",
+      "size_bytes": 4075
+    },
+    {
+      "path": "core/skills/program_dna_equivalence_battery.py",
+      "sha256": "8a42ed88dab76aabdd26bc5ea18d7cca027764f3180ec45cf0518145aa29ac29",
+      "size_bytes": 2793
+    },
+    {
+      "path": "core/skills/program_dna_reconstruct.py",
+      "sha256": "04b44a3c1c7b87143dd0138d5f49ab429f49d92c5273ef92670a417ebee8bb01",
+      "size_bytes": 9722
+    },
+    {
+      "path": "core/skills/propagation.py",
+      "sha256": "48d20b25b5da8236589384e45ff4da168a78dcdafacce4519fd45efcae5bb14d",
+      "size_bytes": 6829
+    },
+    {
+      "path": "core/skills/quantum_lab.py",
+      "sha256": "4e14d2d9429b4fa192c14e5e349104535b9e69b4072549084fda248c60d6ad9e",
+      "size_bytes": 17559
+    },
+    {
+      "path": "core/skills/reach_gateway.py",
+      "sha256": "8089cc6b74db6311990384b757eb64cb88c6fc2eca3361c0c18215f71df74483",
+      "size_bytes": 8442
+    },
+    {
+      "path": "core/skills/reddit_adapter.py",
+      "sha256": "026aab158eb5638268efacf675326ad874e672cb80984e29d251d8fb72271d6a",
+      "size_bytes": 54403
+    },
+    {
+      "path": "core/skills/reminder.py",
+      "sha256": "6adb63756070db9ac89b44b3f8ce75f2c778851ebcceaf165ecc92b1f787284f",
+      "size_bytes": 3149
+    },
+    {
+      "path": "core/skills/render_bridge.py",
+      "sha256": "4d6e223eef288047b206ba18fadad54f4fb581a02e0d8a7b6f0056a06c64c44d",
+      "size_bytes": 12987
+    },
+    {
+      "path": "core/skills/screen_pursuit.py",
+      "sha256": "c21215fc18a90bb20032aec2138c7e7da3f1f22bebee0cafb78cd4ffa7c0430e",
+      "size_bytes": 57087
+    },
+    {
+      "path": "core/skills/sec_ops.py",
+      "sha256": "468fd0863bb812277116b985703b8f065016801c35226d9bb90d8dbc2001b2d7",
+      "size_bytes": 8840
+    },
+    {
+      "path": "core/skills/secure_sandbox.py",
+      "sha256": "fed5960a1c34b03686bf66c097ad8155ed190a7d9135d2a80649e4dabb75215b",
+      "size_bytes": 4160
+    },
+    {
+      "path": "core/skills/self_evolution.py",
+      "sha256": "be1f056740a5a071a7d2c3b3a919fa32ac5357efede3f474d6ab752b986e0f48",
+      "size_bytes": 17248
+    },
+    {
+      "path": "core/skills/self_improvement.py",
+      "sha256": "ef68328392c949b01c5fe7c446fe7a7f4d6e3a8eff4da37d3f6e4b3c8443b8fe",
+      "size_bytes": 12124
+    },
+    {
+      "path": "core/skills/self_repair.py",
+      "sha256": "1b3050a493ac8624c12b3f09368a5fbac245a13d276d3d435c488542746acd85",
+      "size_bytes": 7431
+    },
+    {
+      "path": "core/skills/skill_retrieval.py",
+      "sha256": "b91c4fc29709d04d05691813608aa02c458d5294a02b93eb1b86fb016dca4ee8",
+      "size_bytes": 16144
+    },
+    {
+      "path": "core/skills/sleep.py",
+      "sha256": "d547b42e2c1be28d4b80eb5e63d12ec685080b777b9069ef2e165b91fe6a7457",
+      "size_bytes": 16707
+    },
+    {
+      "path": "core/skills/social_lurker.py",
+      "sha256": "910e622749866d2227e43609fb60cb522018a45b8b80ba21fc9f59b681732c14",
+      "size_bytes": 3387
+    },
+    {
+      "path": "core/skills/sovereign_browser.py",
+      "sha256": "d029d5efcbbf2da975c37f40a3393e0599f1d77a8f277051378113e165fe604b",
+      "size_bytes": 110009
+    },
+    {
+      "path": "core/skills/sovereign_imagination.py",
+      "sha256": "f883f68de7a81d82a61cbea6e12c7bcd4291d2c0df0ae37380260bf2b83afa86",
+      "size_bytes": 1562
+    },
+    {
+      "path": "core/skills/sovereign_network.py",
+      "sha256": "19c8b7d3f638c75ff8a7d979c09e98b629faac8bcf269c8ae77b90db3e0f19a7",
+      "size_bytes": 16585
+    },
+    {
+      "path": "core/skills/sovereign_terminal.py",
+      "sha256": "3db040d3c07c17cfffc334581e57fe5724730dbc7afd8b7b3be14b209275495e",
+      "size_bytes": 14874
+    },
+    {
+      "path": "core/skills/speak.py",
+      "sha256": "b57d9c077a9dafc4ed1ea01defbc1b56d096dfe16d7e299e775819b1da6f9504",
+      "size_bytes": 8129
+    },
+    {
+      "path": "core/skills/stealth_ops.py",
+      "sha256": "4bdedb88b80dde2e19dea85cb6d2dc6659a5f6d2d2fa8c773f95827fc5a82494",
+      "size_bytes": 3272
+    },
+    {
+      "path": "core/skills/system_proprioception.py",
+      "sha256": "82e5f570ba49a21e4ec3a460ea4a31926555db1427f41a2d832dc5b3e876bd0b",
+      "size_bytes": 6170
+    },
+    {
+      "path": "core/skills/test_generator.py",
+      "sha256": "ba37f6fd04dbdd99094308ff5c73ab13dd4f3060b5c75a2c494cdefc32c308ad",
+      "size_bytes": 13982
+    },
+    {
+      "path": "core/skills/toggle_senses.py",
+      "sha256": "cfad754222bf1e06a96d360f716c60e5bb722604bd3e1085c4c1f858e1c6c5e1",
+      "size_bytes": 8153
+    },
+    {
+      "path": "core/skills/train_self.py",
+      "sha256": "76c2c2503706243a0b8147f4c716ea35360aeac738390bc5acc60dcd72519db0",
+      "size_bytes": 9230
+    },
+    {
+      "path": "core/skills/uplink_local.py",
+      "sha256": "6f743169b898268a21f9554be95ecf256816a8c1a59430e0767b86f67bddab26",
+      "size_bytes": 5642
+    },
+    {
+      "path": "core/skills/vision_actor.py",
+      "sha256": "2ff666c7760fabec31b2a7e6799b34640556e30753f5b11293c81544e60e802f",
+      "size_bytes": 7769
+    },
+    {
+      "path": "core/skills/visual_context_skill.py",
+      "sha256": "bee32a9815b70d229f1500106b964a2538d05ea1a70aea03f28f9ff9e91d2c59",
+      "size_bytes": 1807
+    },
+    {
+      "path": "core/skills/voice_control.py",
+      "sha256": "01df165cb01713040828864e306a308bad0c2e89659a6e155143b62c7b598ef4",
+      "size_bytes": 3948
+    },
+    {
+      "path": "core/skills/voice_output.py",
+      "sha256": "4c09b6e449c8a0efd7e8fbedb673171528d9052e855192ddae4aae04e2063e62",
+      "size_bytes": 18113
+    },
+    {
+      "path": "core/skills/web_interlocutor.py",
+      "sha256": "0a0e1cd1303203a02da95b271c681d5eeeba138e8f19d53bc29afd5250c5b115",
+      "size_bytes": 4990
+    },
+    {
+      "path": "core/skills/web_search.py",
+      "sha256": "0a47281c1a41791bfc5f9c2460997f7432733726e612d3e79b261c29839e19da",
+      "size_bytes": 29015
+    },
+    {
+      "path": "core/skills/web_search_skill.py",
+      "sha256": "a553cc4cc338fbcc53b9fb8f0ed8443446ac25ff40a09694affcfb0f45db5102",
+      "size_bytes": 1564
+    },
+    {
+      "path": "core/skills/world_forge.py",
+      "sha256": "e79f90d56ffb3b561faac48242e0ed1ec4af40f8c2c97e27a2725293b132bd83",
+      "size_bytes": 19485
+    },
+    {
+      "path": "core/skills/x_tools.py",
+      "sha256": "7fc2827b101d6e91bff35e4500276fd34fa6267b37424a465d78cc0dc94c8dbc",
+      "size_bytes": 16308
+    },
+    {
+      "path": "interface/routes/subsystems.py",
+      "sha256": "5774e08f1876cb123d63586f2ac63e9046501994c08539d35e263a967b1a68e4",
+      "size_bytes": 60824
+    },
+    {
+      "path": "skills/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "skills/_local_media_generation.py",
+      "sha256": "6ef13b6a017e16720a3c2b8c80f45f253527b2bcfe4661384d714f25099ba8ce",
+      "size_bytes": 5453
+    },
+    {
+      "path": "skills/browser_action.py",
+      "sha256": "2f5e3565797ddb3d7f1cdcdfae421c881885dc9c30374206f7d59223145193d1",
+      "size_bytes": 21151
+    },
+    {
+      "path": "skills/clock.py",
+      "sha256": "547fc2ce14bd54c267534865f239311501cc7a4a8e15394adefb40b358265cac",
+      "size_bytes": 231
+    },
+    {
+      "path": "skills/computer_use.py",
+      "sha256": "405f51ed30466d2a6e55aa10f9f5255c78f5e54ea9b8450df7858263c7449169",
+      "size_bytes": 779
+    },
+    {
+      "path": "skills/curiosity.py",
+      "sha256": "161f75c90dd3fb78958d1284151cfd8fbf6a06900068ce9cec9c684dd3fddc49",
+      "size_bytes": 239
+    },
+    {
+      "path": "skills/environment_info.py",
+      "sha256": "93621142f8e39a72b71d8cb4413258f6551e06c1a165da13b7a9430649e1dd63",
+      "size_bytes": 248
+    },
+    {
+      "path": "skills/file_operation.py",
+      "sha256": "5f1be2d6098402973be825a4695caa288b2df07e2b6d0417a785b7d2eb3bb515",
+      "size_bytes": 249
+    },
+    {
+      "path": "skills/free_search.py",
+      "sha256": "9bc1eeec053d922eafab5e33d22e20b747dbc7e507fe764f7aecf6561f1f712d",
+      "size_bytes": 353
+    },
+    {
+      "path": "skills/hobbies.py",
+      "sha256": "41bc1e6144e7c517de332da40bca1ab9fdfee8bfbf6f5d6315079272e204b653",
+      "size_bytes": 33768
+    },
+    {
+      "path": "skills/inter_agent_comm.py",
+      "sha256": "80d1fca5ebaa1f431d824ba7e7872683a82a29b77b24c9f0f63539589caaba54",
+      "size_bytes": 248
+    },
+    {
+      "path": "skills/internal_sandbox.py",
+      "sha256": "61f5e3315e7208cd6460399922e053561ede73c7612f5f2dcf7f1b5331417374",
+      "size_bytes": 244
+    },
+    {
+      "path": "skills/joy_social_integration.py",
+      "sha256": "7d0f07caaaa6bcab4a5952d4c19add42355a61a6874a38ad55ad5e6fead48248",
+      "size_bytes": 26873
+    },
+    {
+      "path": "skills/knowledge_base.py",
+      "sha256": "141baa98357897510912f239fbd8eb84aa3736ddff4e42a416d1cb7ee5873135",
+      "size_bytes": 15313
+    },
+    {
+      "path": "skills/listen.py",
+      "sha256": "5521d46e6def0dac96cc4466f486dc7fee2eadee98d4571e2848c0149ff5553a",
+      "size_bytes": 233
+    },
+    {
+      "path": "skills/malware_analysis.py",
+      "sha256": "6705b4698ca8590826c29bb94562b7d8a6cb9e7ec3f357b7474e4e71683758cb",
+      "size_bytes": 253
+    },
+    {
+      "path": "skills/memory_ops.py",
+      "sha256": "1bd2b96674e16c743452f375c4fb6ee7c5440d91ff158afe27b14371208f10fe",
+      "size_bytes": 241
+    },
+    {
+      "path": "skills/native_chat.py",
+      "sha256": "28e516026b1c2abd047bb84b94a00c18d833c2ebcf96d390f00f63faea957bc5",
+      "size_bytes": 243
+    },
+    {
+      "path": "skills/network_discovery.py",
+      "sha256": "2467f4d67fe4beecbaf42fe83c084b43679d8f402f55d7dd07bbce35e05b4344",
+      "size_bytes": 4192
+    },
+    {
+      "path": "skills/network_ops.py",
+      "sha256": "b63e817bdb03b548f87b0b4316f61b8b9f98e9563a6c07ab54fd10da03dfbf0b",
+      "size_bytes": 3110
+    },
+    {
+      "path": "skills/network_recon.py",
+      "sha256": "7a853d9620c8098d20e51dc79837d3ac176b225735018c2af2c323c4c0df90c4",
+      "size_bytes": 1451
+    },
+    {
+      "path": "skills/os_automation.py",
+      "sha256": "ccd024d3b3f796852be3eaeb54b70168953b2fc72aa62958cbd6cb9e1567b20d",
+      "size_bytes": 800
+    },
+    {
+      "path": "skills/os_manipulation.py",
+      "sha256": "842bfe3d496346b70beb7bfbacb58d79ed8c43b72ac2c0591f7d499bc10fe8f9",
+      "size_bytes": 798
+    },
+    {
+      "path": "skills/personality_skill.py",
+      "sha256": "8f1e32e31fe0b9547f8845a8a44ebd0b8454d37ed81ac18276859c66109ad81d",
+      "size_bytes": 249
+    },
+    {
+      "path": "skills/propagation.py",
+      "sha256": "22cbe637c00a12854c896d4f0f74ea7641bda03c2f81b03094f8f013113f8d73",
+      "size_bytes": 244
+    },
+    {
+      "path": "skills/sec_ops.py",
+      "sha256": "9e8966440e9bea91daf84283eac3943a28422c003e988e0a785258aee2a209d1",
+      "size_bytes": 235
+    },
+    {
+      "path": "skills/self_evolution.py",
+      "sha256": "f5a2ae0b2af839d4e7d9f337e474d2ff59ef21f98a97948a9150a8d9282c286d",
+      "size_bytes": 249
+    },
+    {
+      "path": "skills/self_improvement.py",
+      "sha256": "fee0d6948babf3e15434952f6bfe4930ea1580e810e7862b0c5d770df8ed7f75",
+      "size_bytes": 253
+    },
+    {
+      "path": "skills/self_repair.py",
+      "sha256": "a3ca888d1e57a34b22aa5ae12a177b343d762265a586f29fa2273af4d71c82d5",
+      "size_bytes": 162
+    },
+    {
+      "path": "skills/shell.py",
+      "sha256": "966c0e2df54865448281ab3d8064794fdf9b383c1b4177ab2a09d920a1eaf08b",
+      "size_bytes": 15994
+    },
+    {
+      "path": "skills/sleep.py",
+      "sha256": "c156ffd02e65bc7cf703c4236c19c3b77647ee1f85c5e800be81686d0fe5a273",
+      "size_bytes": 231
+    },
+    {
+      "path": "skills/social_lurker.py",
+      "sha256": "600e3b851a910ed5ef120645188ff51562ac00b32720d2947b454f8637da5875",
+      "size_bytes": 247
+    },
+    {
+      "path": "skills/social_media.py",
+      "sha256": "dd2fc2805ab4c6b07801c0c06774318d4d8f4e733d5e7787442fa843c36384d0",
+      "size_bytes": 56142
+    },
+    {
+      "path": "skills/speak.py",
+      "sha256": "53913c054de650ee782a3642b3fe0d829f21bcec3c3fa4263a7778d5cf39a08b",
+      "size_bytes": 264
+    },
+    {
+      "path": "skills/stealth_ops.py",
+      "sha256": "fdfb3b43738343d42b93a287d35ea08d8df936281153e62e7eda011de6cb0e36",
+      "size_bytes": 243
+    },
+    {
+      "path": "skills/system_ops.py",
+      "sha256": "e2c74d8fb1c2206dc72a5eb849992013a0619568c3b7096f76cf1fdb769ac1de",
+      "size_bytes": 3656
+    },
+    {
+      "path": "skills/train_self.py",
+      "sha256": "4e079afb9645284354b2b0fb9a86648c9209af81a63d61b166253ea333ba5320",
+      "size_bytes": 633
+    },
+    {
+      "path": "skills/uplink_local.py",
+      "sha256": "8b715cf233624eee04cad04bfb50e5d2db1595e09ca419429bf60e9faf5360f6",
+      "size_bytes": 245
+    },
+    {
+      "path": "skills/web_search.py",
+      "sha256": "10fff034f41f3ae3b79493d79eca7e994e48f9bc5ca9f0951bf164f60ba7639f",
+      "size_bytes": 171
+    },
+    {
+      "path": "tools/closeout/audit_skill_runtime_route.py",
+      "sha256": "bf0e2723517e825e1be9b01f1b19c9c6608092108fddd293dca3047786147937",
+      "size_bytes": 5698
+    }
+  ],
+  "source_selectors": {
+    "globs": [
+      "core/skills/**/*.py",
+      "skills/**/*.py"
+    ],
+    "paths": [
+      "core/capability_engine.py",
+      "core/cognitive/router.py",
+      "interface/routes/subsystems.py",
+      "tools/closeout/audit_skill_runtime_route.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:18:23.615399+00:00",
+  "stderr": "2026-08-25 08:18:23,779 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).\nIntentRouter: No valid LLM generator found in container.\n",
+  "stderr_sha256": "262accbe1082de3e5cb997784487c5689dcce9a760bed7c94c49244fce3f4e53",
+  "stdout": "AURA_SKILL_RUNTIME_ROUTE_AUDIT={\"authority_closure\":{\"closed\":true,\"errors\":[],\"intent_closed\":true,\"mode\":\"authority_gateway\",\"standing_authority_closed\":true,\"success\":true,\"token_revoked\":true},\"catalog\":{\"backend\":\"rust-filesystem+python-parity\",\"digest\":\"76b7864e95a11db70c9ed9ed8930919f86e8cae90138507522d4eaf568697f94\",\"live_count\":82,\"parity_status\":\"matched\",\"ready\":true},\"catalog_preflight\":{\"complete\":true,\"entry_count\":82,\"failed\":[],\"ok\":true,\"skill_bodies_invoked\":0},\"execution\":{\"duration_ms\":0.1,\"http_status\":200,\"instance_class\":\"ClockSkill\",\"ok\":true,\"result_fields\":[\"authority_closure\",\"duration_ms\",\"ok\",\"readable\",\"retries\",\"skill\",\"summary\",\"time\"],\"skill\":\"clock\"},\"failures\":[],\"metadata\":{\"authority_class\":\"observe\",\"catalog_id\":\"ef42349bf19675690983\",\"class_name\":\"ClockSkill\",\"effect_scope\":\"status\",\"module_path\":\"core.skills.clock\",\"validation_state\":\"valid\"},\"ok\":true,\"preflight\":{\"authority_class\":\"observe\",\"catalog_digest\":\"76b7864e95a11db70c9ed9ed8930919f86e8cae90138507522d4eaf568697f94\",\"catalog_id\":\"ef42349bf19675690983\",\"constructor_dependencies\":[],\"constructor_invoked\":false,\"duration_ms\":0.287,\"effect_scope\":\"status\",\"instance_reused\":true,\"name\":\"clock\",\"ok\":true,\"route_class\":\"async\",\"schema_property_count\":0,\"skill_body_invoked\":false,\"source_revalidated\":false,\"stage\":\"ready\"},\"route\":\"api.skill.execute -> intent_router.route_execution -> capability_engine.execute\"}\n",
+  "stdout_sha256": "a6af930ccf2a681a3b2a34673e9d41c628ecdee8eacde192e5f5d48c85ce437f",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
