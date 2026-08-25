@@ -125,8 +125,14 @@ def test_a_welfare_number_is_bounded_or_refused(value, expected):
     assert _welfare_number({"k": value}, "k") == expected
 
 
-def test_a_missing_welfare_model_leaves_the_channels_absent(monkeypatch):
-    """Fail open: a turn that cannot read welfare generates as it always did."""
+def test_a_missing_welfare_model_leaves_the_welfare_dimensions_absent(monkeypatch):
+    """Fail open: a turn that cannot read welfare generates as it always did.
+
+    Asserted per dimension rather than on the whole reading. `_probe_self_state`
+    also peeks the continuous self-model, which is a process singleton another
+    test file may have started — so demanding None here passed alone and failed
+    in a batch, which is an order dependence rather than a contract.
+    """
     monkeypatch.setattr(
         "core.brain.llm.endogenous_state._welfare_reading", lambda: None
     )
@@ -135,7 +141,13 @@ def test_a_missing_welfare_model_leaves_the_channels_absent(monkeypatch):
     )
 
     assert _probe_uncertainty() is None
-    assert _probe_self_state() is None
+
+    self_state = _probe_self_state() or {}
+    assert "self.integrity" not in self_state
+    assert "self.agency" not in self_state
+
+    memory = _probe_memory() or {}
+    assert "memory.contradiction" not in memory
 
 
 def test_none_of_this_changed_the_layout():
