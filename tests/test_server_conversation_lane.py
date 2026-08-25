@@ -15874,6 +15874,17 @@ def test_desktop_required_search_classifier_skips_visible_desktop_objectives():
     assert contract is None
 
 
+def test_web_retrieval_retains_only_when_the_person_asks() -> None:
+    from interface.routes import chat as chat_routes
+
+    assert not chat_routes._user_requested_research_memory_save(
+        "Search the web for Mistral's latest model."
+    )
+    assert chat_routes._user_requested_research_memory_save(
+        "Search for Mistral's latest model and save the sources to memory."
+    )
+
+
 @pytest.mark.asyncio
 async def test_api_chat_desktop_required_search_collects_evidence_before_cognition(monkeypatch):
     from interface import server as server_module

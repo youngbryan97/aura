@@ -117,6 +117,7 @@ from core.runtime.structured_input import (
 )
 from core.runtime.version import version_string
 from core.self.inner_language import say_focus
+from core.utils.completed_capability import make_completed_capability_evidence
 from core.utils.injected_blocks import is_stamped_runtime_payload, stamp_runtime_payload
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
@@ -14411,7 +14412,7 @@ async def _collect_desktop_required_search_evidence(
                     # invoked it again afterward, doubling model work and
                     # turning a retrieval deadline into a generation timeout.
                     "deep": False,
-                    "retain": True,
+                    "retain": _user_requested_research_memory_save(user_message),
                     "force_refresh": True,
                 },
                 objective=user_message,
@@ -14498,17 +14499,14 @@ async def _collect_desktop_required_search_evidence(
             enforce_failure_policy=False,
         )
 
-    return stamp_runtime_payload(
-        {
-            "schema": "aura.completed_capability_evidence.v1",
-            "ok": bool(result.get("ok")),
-            "completed_capabilities": sorted(_SEARCH_SKILL_NAMES),
-            "query": tool_query or query or user_message,
-            "result": result,
-            "evidence": evidence_text,
-            "memory_saved": memory_saved,
-            "contract": contract.to_dict() if hasattr(contract, "to_dict") else None,
-        }
+    return make_completed_capability_evidence(
+        _SEARCH_SKILL_NAMES,
+        ok=bool(result.get("ok")),
+        query=tool_query or query or user_message,
+        result=result,
+        evidence=evidence_text,
+        memory_saved=memory_saved,
+        contract=contract.to_dict() if hasattr(contract, "to_dict") else None,
     )
 
 

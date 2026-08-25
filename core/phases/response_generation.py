@@ -39,6 +39,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.flags import env_present
 from core.runtime.structured_input import answer_surface_token_floor
 from core.synthesis import stabilize_user_facing_response, strip_meta_commentary
+from core.utils.completed_capability import any_capability_completed
 from core.utils.injected_blocks import stamp_grounding
 
 from ..state.aura_state import AuraState, CognitiveMode
@@ -677,8 +678,21 @@ class ResponseGenerationPhase(BasePhase):
         if getattr(contract, "tool_evidence_available", False):
             return False
 
+        completed_evidence = runtime_context.get("completed_capability_evidence")
+        if any_capability_completed(
+            completed_evidence,
+            {"web_search", "search_web", "free_search", "grounded_search"},
+        ):
+            state.response_modifiers["required_search_evidence_reused"] = True
+            return False
+
         cap = self._capability_engine()
-        named_url = _first_named_url(objective)
+        visible_objective = str(
+            runtime_context.get("visible_user_message")
+            or runtime_context.get("user_message")
+            or ""
+        ).strip()
+        named_url = _first_named_url(visible_objective)
         if named_url and cap is not None:
             fetched = await self._fetch_named_url_evidence(
                 state, cap, named_url, origin=origin, runtime_context=runtime_context
@@ -778,7 +792,7 @@ class ResponseGenerationPhase(BasePhase):
                         "query": query,
                         "num_results": 5,
                         "deep": False,
-                        "retain": True,
+                        "retain": False,
                     },
                     context,
                 ),
@@ -1452,6 +1466,9 @@ class ResponseGenerationPhase(BasePhase):
                         runtime_context.get("live_runtime_payload_required", False)
                     ),
                     visible_user_message=visible_user_message,
+                    completed_capability_evidence=runtime_context.get(
+                        "completed_capability_evidence"
+                    ),
                     skip_runtime_payload=True,
                     disable_prompt_cache=True,
                     clear_prompt_cache=True,
@@ -2338,6 +2355,9 @@ class ResponseGenerationPhase(BasePhase):
                             runtime_context.get("live_runtime_payload_required", False)
                         ),
                         visible_user_message=user_surface_validation_prompt,
+                        completed_capability_evidence=runtime_context.get(
+                            "completed_capability_evidence"
+                        ),
                         recent_conversation_context=str(
                             runtime_context.get("recent_conversation_context") or ""
                         ),
@@ -2567,6 +2587,10 @@ class ResponseGenerationPhase(BasePhase):
                         kw.setdefault(
                             "user_surface_validation_prompt",
                             user_surface_validation_prompt,
+                        )
+                        kw.setdefault(
+                            "completed_capability_evidence",
+                            runtime_context.get("completed_capability_evidence"),
                         )
                         return await router.think(p, **kw)
 
@@ -2998,6 +3022,9 @@ class ResponseGenerationPhase(BasePhase):
                         runtime_context.get("live_runtime_payload_required", False)
                     ),
                     visible_user_message=user_surface_validation_prompt,
+                    completed_capability_evidence=runtime_context.get(
+                        "completed_capability_evidence"
+                    ),
                     recent_conversation_context=str(
                         runtime_context.get("recent_conversation_context") or ""
                     ),

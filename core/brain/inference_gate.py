@@ -87,6 +87,7 @@ from core.runtime.structured_input import (
     analyze_prompt_shape,
     answer_surface_token_floor,
 )
+from core.utils.completed_capability import remaining_capabilities
 from core.utils.deadlines import Deadline, get_deadline
 from core.utils.task_tracker import get_task_tracker
 
@@ -1913,15 +1914,19 @@ def _refresh_volatile_grounding(
         # at 3,013. The grounding is not optional — it is what stops her
         # narrating a present she was never given — so it is fitted rather
         # than dropped, keeping whole blocks in priority order.
-        grounding_message = {
-            "role": "system",
-            "content": self._fit_grounding_blocks(
-                contract_blocks=contract_grounding_blocks,
-                task_blocks=task_grounding_blocks,
-                ambient_blocks=ambient_grounding_blocks,
-                limit=self._grounding_char_budget(context, messages),
-            ),
-        }
+        from core.utils.injected_blocks import stamp_grounding
+
+        grounding_message = stamp_grounding(
+            {
+                "role": "system",
+                "content": self._fit_grounding_blocks(
+                    contract_blocks=contract_grounding_blocks,
+                    task_blocks=task_grounding_blocks,
+                    ambient_blocks=ambient_grounding_blocks,
+                    limit=self._grounding_char_budget(context, messages),
+                ),
+            }
+        )
         final_user_index = next(
             (
                 index
@@ -7761,34 +7766,15 @@ class InferenceGate:
             required = derive_capability_set(text)
             if not required:
                 return None
-            satisfied: set[str] = set()
-            try:
-                from core.utils.injected_blocks import is_stamped_runtime_payload
-
-                if (
-                    is_stamped_runtime_payload(completed_capability_evidence)
-                    and str(completed_capability_evidence.get("schema") or "")
-                    == "aura.completed_capability_evidence.v1"
-                    and bool(completed_capability_evidence.get("ok"))
-                ):
-                    satisfied = {
-                        str(name).strip()
-                        for name in completed_capability_evidence.get(
-                            "completed_capabilities", ()
-                        )
-                        if str(name).strip()
-                    }
-            except (ImportError, AttributeError, TypeError, ValueError):
-                satisfied = set()
-            if satisfied:
-                required = [name for name in required if name not in satisfied]
-                if not required:
-                    logger.info(
-                        "🔧 Tool handoff skipped: every required capability already "
-                        "has runtime-stamped evidence (%s).",
-                        ",".join(sorted(satisfied)),
-                    )
-                    return None
+            pending = remaining_capabilities(required, completed_capability_evidence)
+            if required and not pending:
+                logger.info(
+                    "🔧 Tool handoff skipped: every required capability already "
+                    "has runtime-stamped evidence (%s).",
+                    ",".join(sorted(required)),
+                )
+                return None
+            required = pending
             tools = build_agentic_tool_map(
                 required, objective=text, max_tools=len(required)
             )

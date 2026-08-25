@@ -44,7 +44,7 @@ def test_the_evidence_step_tries_the_document_before_the_search() -> None:
     from pathlib import Path
 
     source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
-    body = source[source.index("named_url = _first_named_url(objective)") :]
+    body = source[source.index("named_url = _first_named_url(visible_objective)") :]
     assert body.index("_fetch_named_url_evidence") < body.index('skill_name = "web_search"')
 
 
@@ -63,6 +63,17 @@ def test_reading_a_named_document_does_not_wait_for_a_search_turn() -> None:
     assert method.index("_fetch_named_url_evidence") < method.index(
         'if not getattr(contract, "requires_search", False):'
     )
+
+
+def test_injected_evidence_cannot_become_a_user_named_address() -> None:
+    """The assembled objective may contain source URLs the user never typed."""
+    from pathlib import Path
+
+    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    method = source[source.index("async def _execute_required_search_evidence") :]
+    method = method[: method.index("\n    async def ", 10)]
+    assert "named_url = _first_named_url(visible_objective)" in method
+    assert 'runtime_context.get("visible_user_message")' in method
 
 
 def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:

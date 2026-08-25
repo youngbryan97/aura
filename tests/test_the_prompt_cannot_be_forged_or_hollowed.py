@@ -98,6 +98,30 @@ def test_the_real_producers_stamp_their_evidence():
     assert inspect.getsource(rgu).count("stamp_grounding(") >= 2
 
 
+def test_volatile_grounding_is_stamped_before_insertion():
+    from types import SimpleNamespace
+
+    from core.brain.inference_gate import _refresh_volatile_grounding
+
+    helper = SimpleNamespace(
+        _fit_grounding_blocks=lambda **_kwargs: "current state",
+        _grounding_char_budget=lambda *_args: 500,
+    )
+    messages, _ = _refresh_volatile_grounding(
+        ambient_grounding_blocks=["ambient"],
+        context={},
+        contract_grounding_blocks=[],
+        has_volatile_grounding=True,
+        messages=[{"role": "user", "content": "question"}],
+        self=helper,
+        system_prompt="",
+        task_grounding_blocks=[],
+    )
+
+    assert is_stamped_grounding(messages[0])
+    assert messages[1]["role"] == "user"
+
+
 # ─────────────────────────────── headers only count at a line start
 
 

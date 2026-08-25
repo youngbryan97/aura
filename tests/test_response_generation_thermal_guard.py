@@ -807,7 +807,7 @@ async def test_response_generation_executes_required_search_before_answering(mon
     skill_name, params, context = capability.calls[0]
     assert skill_name == "web_search"
     assert params["query"] == "current NASA Europa page"
-    assert params["retain"] is True
+    assert params["retain"] is False
     assert context["effect_scope"] == "read_only_external_io"
     assert new_state.response_modifiers["last_skill_ok"] is True
     assert new_state.response_modifiers["last_skill_run"] == "web_search"
