@@ -17,6 +17,7 @@ from typing import Final
 from core.learning.recurrent_action_schema import (
     ACTION_NULL,
     ACTION_SLOT_NAMES,
+    OP_CAUSAL_CHAIN,
     OP_PAIR_ADD,
     OP_PAIR_COPY,
     OP_PAIR_DIV,
@@ -24,16 +25,16 @@ from core.learning.recurrent_action_schema import (
     OP_PAIR_MUL_IMMEDIATE,
     OP_PAIR_PRODUCT,
     OP_PAIR_SET,
-    OP_PAIR_SUB_IMMEDIATE,
     OP_PAIR_SIGNED_SUB_IMMEDIATE,
+    OP_PAIR_SUB_IMMEDIATE,
     OP_RANKED_COMMIT,
     OP_RATIO_BAND,
     OP_RATIO_CHOICE,
     OP_SET_SCALAR,
     OP_SIGNED_PAIR_ADD_IMMEDIATE,
     OP_SIGNED_RANKED_GREATER,
-    SEMANTIC_MICRO_OPCODES,
     SEMANTIC_MICRO_ACTION_FIELD_NAMES,
+    SEMANTIC_MICRO_OPCODES,
     canonical_instruction_from_public_fields,
 )
 from core.learning.recurrent_state_schema import SEMANTIC_STATE_SLOT_NAMES
@@ -213,6 +214,28 @@ def _primitive_example(opcode: int, sample_index: int, seed: int) -> SemanticMic
         action = _raw(opcode, left_slot, right_slot)
     elif opcode == OP_PAIR_PRODUCT:
         action = _raw(opcode, destination, rng.randrange(PROCESS_RADIX), rng.randrange(PROCESS_RADIX))
+    elif opcode == OP_CAUSAL_CHAIN:
+        # The FIRST edge of the chain, which is the only step of it that is a
+        # local transition. The rest of the protocol reads what the earlier
+        # edges wrote in slot 8, so a sample of one of those would be a sample
+        # of a state this curriculum never sets up.
+        #
+        # OP_CAUSAL_CHAIN was added to SEMANTIC_MICRO_OPCODES and not here, so
+        # the generator reached its own "exhaustive opcode set is checked
+        # above" branch and raised — which is the comment being false rather
+        # than the opcode being unsupported.
+        values[:] = [rng.randrange(PROCESS_RADIX) for _slot in range(8)] + [0]
+        change_low = rng.randrange(PROCESS_RADIX)
+        change_high = rng.randrange(PROCESS_RADIX)
+        action = _raw(
+            opcode,
+            0,
+            1,
+            rng.randrange(PROCESS_RADIX),
+            change_high,
+            change_low,
+            0,
+        )
     else:  # pragma: no cover - exhaustive opcode set is checked above.
         raise ValueError("semantic primitive opcode is unsupported")
 

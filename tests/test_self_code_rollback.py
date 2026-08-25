@@ -272,6 +272,11 @@ def test_enactment_receipt_failure_triggers_symmetric_compensation(
             ],
             max_iters=1,
             enact=True,
+            # The constitution admits a path it does not know as
+            # tier2_propose_only, so without approval `enact` was turned
+            # off and these tests measured a drafted improvement instead
+            # of the enactment path they are named for.
+            owner_approved=True,
         )
     )
 
@@ -326,6 +331,11 @@ def test_concurrent_source_change_is_refused_after_ledger_write(
             ],
             max_iters=1,
             enact=True,
+            # The constitution admits a path it does not know as
+            # tier2_propose_only, so without approval `enact` was turned
+            # off and these tests measured a drafted improvement instead
+            # of the enactment path they are named for.
+            owner_approved=True,
         )
     )
 
