@@ -12,11 +12,20 @@ client calls four names; everything they do is here.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Mapping
 from typing import Any
 
+from core.runtime.flags import FlagKind, declare
+
 logger = logging.getLogger("Aura.EndogenousClientHooks")
+
+_ABSORB_FLAG = declare(
+    "AURA_ENDOGENOUS_ABSORB",
+    kind=FlagKind.BOOL,
+    default=False,
+    description="Fold what a turn concluded back into the continuous state",
+    owner="core.brain.llm.endogenous_client_hooks",
+)
 
 
 def observe_endogenous_receipt(response: Mapping[str, Any]) -> None:
@@ -46,12 +55,7 @@ def absorb_endogenous_outcome(response: Mapping[str, Any]) -> None:
     try:
         if not response.get("text"):
             return
-        if os.environ.get("AURA_ENDOGENOUS_ABSORB", "").strip().lower() not in {
-            "1",
-            "true",
-            "on",
-            "yes",
-        }:
+        if not _ABSORB_FLAG.value():
             return
         from core.brain.llm.endogenous_absorption import absorb, outcome_from_response
 

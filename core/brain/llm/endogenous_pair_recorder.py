@@ -40,6 +40,7 @@ from core.brain.llm.endogenous_state import (
     EndogenousState,
     layout_digest,
 )
+from core.runtime.flags import FlagKind, declare
 
 logger = logging.getLogger("Aura.EndogenousPairs")
 
@@ -53,6 +54,21 @@ MAX_TEXT_CHARS = 4000
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_ROLLED_FILES = 8
 
+_PAIR_DIR_FLAG = declare(
+    "AURA_ENDOGENOUS_PAIR_DIR",
+    kind=FlagKind.STRING,
+    default="",
+    description="Directory the recorded (state, reply) corpus is written to",
+    owner="core.brain.llm.endogenous_pair_recorder",
+)
+_RECORD_FLAG = declare(
+    "AURA_ENDOGENOUS_RECORD",
+    kind=FlagKind.BOOL,
+    default=True,
+    description="Whether live turns are recorded as training pairs for the endogenous head",
+    owner="core.brain.llm.endogenous_pair_recorder",
+)
+
 #: Rotation and append are one storage transaction inside this process. Without
 #: this lock, two completed turns can both rotate the same active file and one
 #: can replace the other's generation before either appends.
@@ -60,7 +76,7 @@ _STORE_LOCK = threading.Lock()
 
 
 def store_directory() -> Path:
-    raw = os.getenv("AURA_ENDOGENOUS_PAIR_DIR", "").strip()
+    raw = str(_PAIR_DIR_FLAG.value() or "").strip()
     if raw:
         return Path(raw)
     return Path("data/endogenous_language")
@@ -68,12 +84,7 @@ def store_directory() -> Path:
 
 def recording_enabled() -> bool:
     """Off means off. A corpus nobody asked for is a corpus nobody audited."""
-    return os.getenv("AURA_ENDOGENOUS_RECORD", "1").strip().lower() not in {
-        "0",
-        "false",
-        "off",
-        "no",
-    }
+    return bool(_RECORD_FLAG.value())
 
 
 @dataclass(frozen=True)

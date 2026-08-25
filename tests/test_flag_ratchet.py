@@ -21,8 +21,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # ONLY goes down. 585 at introduction (July 9, 2026); 576 after migrating
 # reality_connectors, opcua_connector, gemini_adapter, state_ownership and
-# response_generation to declared flags via core.runtime.flags.env_str.
-RAW_ENV_READ_BUDGET = 576
+# response_generation to declared flags via core.runtime.flags.env_str; 574
+# after core/architect/config.py declared its ten AURA_ASA_* knobs, which also
+# retired the last caller of its own _env_bool.
+RAW_ENV_READ_BUDGET = 574
 
 # The flag layer, settings store, and state-root bootstrap are sanctioned readers.
 # model_lane_control's AURA_MODEL_LANE_* vars are parent->child process

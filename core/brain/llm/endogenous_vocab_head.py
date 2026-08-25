@@ -37,7 +37,6 @@ import io
 import json
 import logging
 import math
-import os
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -51,6 +50,7 @@ from core.brain.llm.endogenous_state import (
     EndogenousState,
     layout_digest,
 )
+from core.runtime.flags import FlagKind, declare
 
 logger = logging.getLogger("Aura.EndogenousVocabHead")
 
@@ -66,6 +66,21 @@ MIN_COVERAGE = 0.10
 
 #: Where a trained head lives unless told otherwise.
 DEFAULT_HEAD_DIR = Path("artifacts/endogenous_language")
+
+_HEAD_DIR_FLAG = declare(
+    "AURA_ENDOGENOUS_HEAD_DIR",
+    kind=FlagKind.STRING,
+    default=str(DEFAULT_HEAD_DIR),
+    description="Directory holding the trained endogenous vocabulary head",
+    owner="core.brain.llm.endogenous_vocab_head",
+)
+_ALPHA_FLAG = declare(
+    "AURA_ENDOGENOUS_ALPHA",
+    kind=FlagKind.FLOAT,
+    default=0.6,
+    description="Strength of the endogenous term in L_LLM + alpha*L_Aura; zero disables the pathway",
+    owner="core.brain.llm.endogenous_vocab_head",
+)
 
 #: The manifest is the commit record for exactly one serialized weight payload.
 #: A loader must not infer compatibility for pre-binding artifacts.
@@ -376,16 +391,19 @@ def untrained_head(vocab_size: int, tokenizer: str) -> EndogenousVocabHead:
 
 
 def head_directory() -> Path:
-    return Path(os.getenv("AURA_ENDOGENOUS_HEAD_DIR", str(DEFAULT_HEAD_DIR)))
+    return Path(str(_HEAD_DIR_FLAG.value() or DEFAULT_HEAD_DIR))
 
 
 def alpha_from_env(default: float = 0.6) -> float:
-    """Strength of the endogenous term. Zero disables the pathway entirely."""
-    raw = os.getenv("AURA_ENDOGENOUS_ALPHA", "")
-    if not raw.strip():
-        return float(default)
+    """Strength of the endogenous term. Zero disables the pathway entirely.
+
+    Bounded here rather than trusted from the flag: the declared coercion
+    turns a malformed value into the default, and this turns a hostile but
+    well-formed one — a negative, an infinity, a thousand — into something a
+    decode loop can survive.
+    """
     try:
-        value = float(raw)
+        value = float(_ALPHA_FLAG.value())
     except (TypeError, ValueError):
         return float(default)
     if not math.isfinite(value) or value < 0.0:

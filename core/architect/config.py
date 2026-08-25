@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from core.architect.models import MutationTier
-
+from core.runtime.flags import FlagKind, declare
 
 DEFAULT_PROTECTED_PATHS: tuple[str, ...] = (
     "aura_main.py",
@@ -92,6 +92,82 @@ def default_safe_boot_command() -> tuple[str, ...]:
     return (sys.executable or "python3", "-B", "-m", "core.architect.safe_boot_harness")
 
 
+#: The architect's operator knobs, declared rather than parsed at each call
+#: site. A declared flag has a type, a default, a description and an owner,
+#: and shows up in flag_report(); a raw os.environ.get has none of those and
+#: is discoverable only by grep.
+_REPO_ROOT_FLAG = declare(
+    "AURA_ASA_REPO_ROOT",
+    kind=FlagKind.STRING,
+    default="",
+    description="Repository the self-architect operates on; empty means the working directory",
+    owner="core.architect.config",
+)
+_ENABLED_FLAG = declare(
+    "AURA_ASA_ENABLED",
+    kind=FlagKind.BOOL,
+    default=True,
+    description="Whether the autonomous self-architect runs at all",
+    owner="core.architect.config",
+)
+_AUTOPROMOTE_FLAG = declare(
+    "AURA_ASA_AUTOPROMOTE",
+    kind=FlagKind.BOOL,
+    default=False,
+    description="Whether a shadow mutation may promote itself without a human",
+    owner="core.architect.config",
+)
+_MAX_TIER_FLAG = declare(
+    "AURA_ASA_MAX_TIER",
+    kind=FlagKind.STRING,
+    default="T1",
+    description="Highest mutation tier the architect may attempt",
+    owner="core.architect.config",
+)
+_SHADOW_TIMEOUT_FLAG = declare(
+    "AURA_ASA_SHADOW_TIMEOUT",
+    kind=FlagKind.FLOAT,
+    default=30.0,
+    description="Seconds a shadow run may take before it is abandoned",
+    owner="core.architect.config",
+)
+_OBSERVATION_WINDOW_FLAG = declare(
+    "AURA_ASA_OBSERVATION_WINDOW",
+    kind=FlagKind.FLOAT,
+    default=10.0,
+    description="Seconds a promoted mutation is watched before it is accepted",
+    owner="core.architect.config",
+)
+_PROTECTED_PATHS_FLAG = declare(
+    "AURA_ASA_PROTECTED_PATHS",
+    kind=FlagKind.STRING,
+    default="",
+    description="Extra path patterns the architect may never modify, os.pathsep separated",
+    owner="core.architect.config",
+)
+_SAFE_BOOT_COMMAND_FLAG = declare(
+    "AURA_ASA_SAFE_BOOT_COMMAND",
+    kind=FlagKind.STRING,
+    default="",
+    description="Command proving the runtime still boots after a mutation",
+    owner="core.architect.config",
+)
+_RECEIPT_LIMIT_FLAG = declare(
+    "AURA_ASA_RECEIPT_LIMIT",
+    kind=FlagKind.INT,
+    default=2000,
+    description="Runtime receipts retained per architect session",
+    owner="core.architect.config",
+)
+_COVERAGE_HIT_LIMIT_FLAG = declare(
+    "AURA_ASA_COVERAGE_HIT_LIMIT",
+    kind=FlagKind.INT,
+    default=20000,
+    description="Coverage hits retained per architect session",
+    owner="core.architect.config",
+)
+
+
 @dataclass(frozen=True)
 class ASAConfig:
     repo_root: Path
@@ -120,21 +196,25 @@ class ASAConfig:
         return self.artifact_root or (self.repo_root / ".aura_architect")
 
     @classmethod
-    def from_env(cls, repo_root: str | Path | None = None) -> "ASAConfig":
+    def from_env(cls, repo_root: str | Path | None = None) -> ASAConfig:
         root = Path(
             repo_root
-            or os.environ.get("AURA_ASA_REPO_ROOT")
+            or str(_REPO_ROOT_FLAG.value() or "")
             or os.getcwd()
         ).resolve()
-        enabled = _env_bool("AURA_ASA_ENABLED", True)
-        autopromote = _env_bool("AURA_ASA_AUTOPROMOTE", False)
-        max_tier = MutationTier.parse(os.environ.get("AURA_ASA_MAX_TIER", "T1"))
-        timeout = float(os.environ.get("AURA_ASA_SHADOW_TIMEOUT", "30"))
-        observation = float(os.environ.get("AURA_ASA_OBSERVATION_WINDOW", "10"))
-        protected = _merge_patterns(DEFAULT_PROTECTED_PATHS, os.environ.get("AURA_ASA_PROTECTED_PATHS", ""))
-        safe_boot = _safe_boot_command_from_env(os.environ.get("AURA_ASA_SAFE_BOOT_COMMAND", ""))
-        runtime_receipt_limit = int(os.environ.get("AURA_ASA_RECEIPT_LIMIT", "2000"))
-        coverage_hit_limit = int(os.environ.get("AURA_ASA_COVERAGE_HIT_LIMIT", "20000"))
+        enabled = bool(_ENABLED_FLAG.value())
+        autopromote = bool(_AUTOPROMOTE_FLAG.value())
+        max_tier = MutationTier.parse(str(_MAX_TIER_FLAG.value()))
+        timeout = float(_SHADOW_TIMEOUT_FLAG.value())
+        observation = float(_OBSERVATION_WINDOW_FLAG.value())
+        protected = _merge_patterns(
+            DEFAULT_PROTECTED_PATHS, str(_PROTECTED_PATHS_FLAG.value() or "")
+        )
+        safe_boot = _safe_boot_command_from_env(
+            str(_SAFE_BOOT_COMMAND_FLAG.value() or "")
+        )
+        runtime_receipt_limit = int(_RECEIPT_LIMIT_FLAG.value())
+        coverage_hit_limit = int(_COVERAGE_HIT_LIMIT_FLAG.value())
         return cls(
             repo_root=root,
             enabled=enabled,
@@ -171,13 +251,6 @@ class ASAConfig:
     def is_sealed(self, path: str | Path) -> bool:
         rel = _clean_rel(str(path).replace("\\", "/"))
         return any(fnmatch(rel, pattern) for pattern in self.sealed_paths)
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _merge_patterns(base: tuple[str, ...], extra: str) -> tuple[str, ...]:
