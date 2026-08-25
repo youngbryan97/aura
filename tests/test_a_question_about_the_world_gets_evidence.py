@@ -195,3 +195,36 @@ def test_live_as_an_adjective_on_her_own_machinery_is_not_a_web_question(message
 )
 def test_the_recency_sense_still_reaches_evidence(message):
     assert wants_outside_evidence(message), message
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "It would help if you compared the latest runtime incidents and "
+        "saved the verified findings.",
+        "show me today's crash logs",
+        "what were the recent test failures",
+        "pull up the current stall traces",
+    ],
+)
+def test_a_recency_word_on_her_own_records_is_not_a_web_question(message):
+    """A recency adjective says when, not where.
+
+    It sat in the explicit-lookup pattern and settled the turn before anything
+    else was read, so "compare the latest runtime incidents" was routed to a
+    web search for her own crash records — the same defect `live` had, one
+    word over. What the adjective modifies is what decides it.
+    """
+    assert not wants_outside_evidence(message), message
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "what are the latest results",
+        "what's the latest on the Anthropic funding round",
+        "Who is the current CEO of Stripe?",
+    ],
+)
+def test_a_recency_word_on_anything_else_still_reaches_evidence(message):
+    assert wants_outside_evidence(message), message

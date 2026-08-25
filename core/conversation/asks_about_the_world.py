@@ -71,8 +71,32 @@ _NAME_SHAPE = re.compile(
 #: "find live ..." branch above it.
 _EXPLICIT_EXTERNAL_LOOKUP = re.compile(
     r"\b(?:search(?: the)? (?:web|internet|online)|browse(?: the)? (?:web|internet)|"
-    r"look (?:it |this |that )?up|find (?:recent|current|latest|live) |"
-    r"(?:current|latest|recent|today'?s|this week'?s)\b)",
+    r"look (?:it |this |that )?up|find (?:recent|current|latest|live) )",
+    re.IGNORECASE,
+)
+
+#: A recency adjective. Weaker than the instructions above: "search the web"
+#: says where to go, "the latest X" only says when.
+#:
+#: It sat in the explicit-lookup pattern and settled the turn before anything
+#: else was read. "It would help if you compared the latest runtime incidents"
+#: was therefore routed to a web search for her own crash records, exactly as
+#: `live` had been before it — same pattern, one word over.
+_RECENCY_ADJECTIVE = re.compile(
+    r"\b(?:current|latest|recent|today'?s|this week'?s)\b",
+    re.IGNORECASE,
+)
+
+#: What this runtime keeps its own records of. A recency adjective on one of
+#: these asks about her own history, which the web cannot answer and her own
+#: logs can. Deliberately the runtime's own vocabulary — the directories under
+#: data/error_logs and the subsystems degradations are recorded against —
+#: rather than an attempt to enumerate topics the world might contain.
+_HER_OWN_RECORDS = re.compile(
+    r"\b(?:runtime|uptime|incidents?|crash(?:es)?|stalls?|degradations?|"
+    r"logs?|traces?|tracebacks?|errors?|failures?|regressions?|"
+    r"tests?|suites?|builds?|deploys?|commits?|branch(?:es)?|"
+    r"sessions?|turns?|episodes?|checkpoints?|benchmarks?)\b",
     re.IGNORECASE,
 )
 
@@ -200,6 +224,12 @@ def wants_outside_evidence(message: object) -> bool:
     if _ABOUT_HER.search(text):
         _teach(text, False)
         return False
+    # A recency adjective says when, not where. It reaches outside unless what
+    # it modifies is something this runtime keeps its own record of.
+    if _RECENCY_ADJECTIVE.search(text):
+        outside = not _HER_OWN_RECORDS.search(text)
+        _teach(text, outside)
+        return outside
     # The prewarmed local evidence router distinguishes a question about a
     # named/current external fact from a timeless explanation about a concept.
     # It runs before the structural floor because capitalization and acronyms
