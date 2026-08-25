@@ -373,9 +373,23 @@ def test_a_size_far_from_the_lane_name_is_not_attributed_to_it(scan):
 def test_the_registry_is_where_lane_sizes_come_from():
     """Read from the code, so the gate moves when the lane does."""
     lanes = gate.lane_sizes()
-    assert lanes.get("Cortex") == "32B"
     assert lanes.get("Reflex") == "1.5B"
     assert lanes.get("Brainstem"), "the Brainstem default is no longer readable"
+
+
+def test_a_lane_with_no_declared_size_is_named_rather_than_dropped():
+    """The Cortex lane names an artifact, not a size, and the gate says so.
+
+    ``ACTIVE_MODEL`` resolves to ``CORTEX_LOGICAL_NAME``, which is
+    "Aura-Cortex" — there is no parameter count in it. The gate used to return
+    a dict without a Cortex entry, so every stale Cortex size in every
+    document was invisible and the scan came back clean. A lane it cannot read
+    is now reported as one it cannot read.
+    """
+    sizes, unreadable = gate.lane_sizes_report()
+    assert "Cortex" not in sizes
+    assert "Cortex" in unreadable
+    assert set(sizes) | set(unreadable) == {"Cortex", "Brainstem", "Reflex"}
 
 
 # ---- the tree itself -----------------------------------------------------

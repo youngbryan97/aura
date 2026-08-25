@@ -2,12 +2,16 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+import interface.routes.chat_conversation_repair as _chat_conversation_repair
+import interface.routes.chat_memory_state as _chat_memory_state
+import interface.routes.chat_protected_prompt as _chat_protected_prompt
 from core.runtime.governance_policy import (
     allow_direct_user_shortcut,
     allow_intent_hint_bypass,
@@ -15,10 +19,7 @@ from core.runtime.governance_policy import (
 )
 from core.skills.train_self import TrainSelfSkill as CoreTrainSelfSkill
 from skills.train_self import TrainSelfSkill as LegacyTrainSelfSkill
-import interface.routes.chat_memory_state as _chat_memory_state
 from tests.chat_lane_support import patch_chat_lane
-import interface.routes.chat_conversation_repair as _chat_conversation_repair
-import interface.routes.chat_protected_prompt as _chat_protected_prompt
 
 
 @pytest.mark.parametrize("skill_name", ["omni_log_error", "omni_log_critical"])
@@ -56,9 +57,28 @@ def test_error_intelligence_targets_deepest_aura_traceback_frame(tmp_path):
     except RuntimeError as exc:
         event = asyncio.run(logger.log_error(exc, {}, skill_name="deep_frame_test"))
 
-    assert event.file_path == __file__
-    assert event.line_number == expected_line
     assert entered == [True]
+    assert event.file_path == os.path.realpath(__file__)
+    assert event.line_number == expected_line
+
+
+def test_error_intelligence_refuses_another_checkout_as_her_own_source():
+    """The rule itself, independent of where this file happens to live."""
+    from core.self_modification.error_intelligence import (
+        _SOURCE_ROOT_REALPATH,
+        _is_her_own_source,
+    )
+
+    own = os.path.join(_SOURCE_ROOT_REALPATH, "core", "somewhere.py")
+    assert _is_her_own_source(own)
+
+    for nested in (
+        os.path.join(_SOURCE_ROOT_REALPATH, ".claude", "worktrees", "x", "core", "a.py"),
+        os.path.join(_SOURCE_ROOT_REALPATH, ".venv", "lib", "b.py"),
+        os.path.join(_SOURCE_ROOT_REALPATH, "dist", "c.py"),
+        os.path.join(os.sep, "elsewhere", "core", "d.py"),
+    ):
+        assert not _is_her_own_source(nested), nested
 
 
 def test_error_intelligence_logs_structured_runtime_reason(caplog, tmp_path):

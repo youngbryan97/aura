@@ -48,16 +48,27 @@ _NESTED_CHECKOUT_MARKERS = (
 
 
 def _is_her_own_source(resolved_path: str) -> bool:
-    """Inside this checkout AND not inside a checkout nested within it."""
+    """Inside this checkout AND not inside a checkout nested within it.
+
+    The nesting test runs on the path RELATIVE to the source root, not on the
+    absolute one. Absolute matching asked the wrong question: when the runtime
+    itself is started from a worktree — which is where CONTRIBUTING tells an
+    agent to work — the source root's own path contains
+    ``/.claude/worktrees/``, so every file in it failed the marker test and
+    error intelligence could not locate a single frame as her own source. A
+    checkout nested inside her root is below it; one she is running from is
+    not.
+    """
     try:
         if (
             os.path.commonpath((_SOURCE_ROOT_REALPATH, resolved_path))
             != _SOURCE_ROOT_REALPATH
         ):
             return False
+        relative = os.sep + os.path.relpath(resolved_path, _SOURCE_ROOT_REALPATH)
     except (OSError, RuntimeError, ValueError):
         return False
-    return not any(marker in resolved_path for marker in _NESTED_CHECKOUT_MARKERS)
+    return not any(marker in relative for marker in _NESTED_CHECKOUT_MARKERS)
 
 
 def _deepest_aura_traceback_frame(error: BaseException) -> tuple[str | None, int | None]:

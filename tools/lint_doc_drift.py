@@ -34,7 +34,6 @@ import argparse
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -246,27 +245,62 @@ SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
                 "Makefile", "*.plist", "*.command", "*.js", "*.ts")
 
 
-def lane_sizes() -> dict[str, str]:
-    """Lane name → parameter size, read from the model registry defaults."""
+def _registry_default(src: str, lane: str) -> str:
+    """The model name a lane defaults to, following one constant indirection.
+
+    ``ACTIVE_MODEL`` used to end in a quoted literal; it now reads
+    ``or CORTEX_LOGICAL_NAME``. A regex that only understood the literal form
+    returned nothing for Cortex and this function returned a dict without it,
+    so every stale Cortex size in every document became invisible to the gate.
+    Following the name is one lookup and keeps the gate working across that
+    kind of edit.
+    """
+    patterns = {
+        "Cortex": r"ACTIVE_MODEL = .*?or\s+([A-Za-z_][A-Za-z0-9_]*|\"[^\"]+\")",
+        "Brainstem": r'_FLAG_BRAINSTEM_MODEL[^)]*?default="([^"]+)"',
+        "Reflex": r'_FLAG_FALLBACK_MODEL[^)]*?default="([^"]+)"',
+    }
+    hit = re.search(patterns[lane], src, re.S)
+    if not hit:
+        return ""
+    token = hit.group(1).strip()
+    if token.startswith('"'):
+        return token.strip('"')
+    if not token.isidentifier():
+        # Already a model name: the Brainstem and Reflex patterns capture the
+        # literal from inside its quotes, so there is nothing to look up.
+        return token
+    named = re.search(rf'^{re.escape(token)} = "([^"]+)"', src, re.M)
+    return named.group(1) if named else ""
+
+
+def lane_sizes_report() -> tuple[dict[str, str], list[str]]:
+    """Lane sizes the registry declares, and the lanes that declare none.
+
+    Returned separately because they mean different things. A size the gate
+    can read is a size it can catch documents contradicting; a lane with no
+    readable size is a lane the gate is blind to, and a caller that cannot
+    tell those apart reports a clean scan either way.
+    """
     registry = ROOT / "core" / "brain" / "llm" / "model_registry.py"
     if not registry.exists():
-        return {}
+        return {}, ["Cortex", "Brainstem", "Reflex"]
     src = registry.read_text(errors="replace")
-    named = {
-        "Cortex": re.search(r'ACTIVE_MODEL = .*?or "([^"]+)"', src),
-        "Brainstem": re.search(
-            r'_FLAG_BRAINSTEM_MODEL[^)]*?default="([^"]+)"', src, re.S),
-        "Reflex": re.search(
-            r'_FLAG_FALLBACK_MODEL[^)]*?default="([^"]+)"', src, re.S),
-    }
     sizes: dict[str, str] = {}
-    for lane, hit in named.items():
-        if not hit:
-            continue
-        size = re.search(r"(\d+(?:\.\d+)?)B", hit.group(1))
+    unreadable: list[str] = []
+    for lane in ("Cortex", "Brainstem", "Reflex"):
+        default = _registry_default(src, lane)
+        size = re.search(r"(\d+(?:\.\d+)?)B", default) if default else None
         if size:
             sizes[lane] = size.group(1) + "B"
-    return sizes
+        else:
+            unreadable.append(lane)
+    return sizes, unreadable
+
+
+def lane_sizes() -> dict[str, str]:
+    """Lane name → parameter size, read from the model registry defaults."""
+    return lane_sizes_report()[0]
 
 
 def ui_labels() -> set[str]:
