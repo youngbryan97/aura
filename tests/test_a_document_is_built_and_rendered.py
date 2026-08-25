@@ -154,7 +154,11 @@ def test_a_built_document_becomes_the_turns_answer(tmp_path):
             {
                 "title": "Panel",
                 "request": "six slides for the panel",
-                "out_dir": "",
+                # Written under tmp_path. An empty out_dir means the repo's own
+                # artifacts/live_documents, and this test overwrote a tracked
+                # file there every run — enough to make every later evidence
+                # capture refuse with "proof command mutated the source tree".
+                "out_dir": str(tmp_path),
                 "sections": [
                     {"title": f"Part {index}", "lines": [f"point {index}"]}
                     for index in range(1, 7)
