@@ -283,3 +283,38 @@ def test_an_unprompted_thought_still_waits_to_be_dismissed(monkeypatch):
     presence._utterance_at = time.time() - 60.0
     presence._promote_next_narration()
     assert presence._pending_utterance == "I noticed something about your screen"
+
+
+def test_language_is_asked_where_it_changes_the_answer():
+    """A board changes a little each move, so re-reasoning every one buys
+    little and costs the whole cycle — measured live, a language pass took
+    about eight seconds and a decision from evidence takes none, on a loop
+    that needs hundreds of moves.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    where = source.index("asking = (")
+    condition = source[where : where + 400]
+    # The first move, a run that has stopped getting anywhere, one weighing
+    # whether to start over, a fresh board, and periodically in between.
+    assert "unusual" in condition
+    assert "not moves" in condition
+    assert "restarts[" in condition
+    assert "LANGUAGE_EVERY" in condition
+
+
+@pytest.mark.asyncio
+async def test_skipping_language_is_not_language_failing(body):
+    """A caller that deliberately did not ask is not a mind out of reach."""
+    from core.agency.deliberate_action import ActionOption, deliberate
+
+    options = [ActionOption(name="up", detail="press up")]
+    decided = await deliberate(
+        "reach 128", "a board", options, think=None, lived=False, spine=_Store(), graph=_Store()
+    )
+    assert decided.reached
+    assert decided.spoke is False
+    assert "could not be reached" not in decided.reason

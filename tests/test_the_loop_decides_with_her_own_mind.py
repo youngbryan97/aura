@@ -150,12 +150,15 @@ async def test_a_move_that_changes_nothing_is_recorded_as_not_having_worked(scre
 @pytest.mark.asyncio
 async def test_what_broke_is_carried_into_the_next_decision(screen):
     screen["works"] = set()
-    think = _thinks("down", "down", "down", "down")
+    think = _thinks("down", "down", "down", "down", "down", "down", "down")
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
         think=think,
-        max_cycles=3,
+        # Enough cycles that a run which has stopped getting anywhere reaches
+        # the point of asking again: language is consulted where it counts,
+        # and being stuck is exactly there.
+        max_cycles=6,
         max_seconds=10.0,
         narrate=False,
         lived=False,
@@ -255,7 +258,7 @@ async def test_a_mind_that_comes_back_is_used_again(screen):
         goal="raise the number",
         success_when="never happens",
         think=slow_to_wake,
-        max_cycles=2,
+        max_cycles=6,
         max_seconds=10.0,
         narrate=False,
         lived=False,

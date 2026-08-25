@@ -73,6 +73,16 @@ DEFAULT_MOVES: tuple[str, ...] = ("up", "down", "left", "right")
 #: How many graded attempts travel into the next decision. Enough to notice a
 #: move that stopped working, short enough that old evidence stops steering.
 RECENT_ATTEMPTS = 4
+#: How often language is consulted on a run of routine moves.
+#:
+#: A board changes a little each move, so re-reasoning every single one buys
+#: little and costs the whole cycle: measured live, a language pass took
+#: about eight seconds and a decision from evidence takes none, on a loop
+#: that needs hundreds of moves. Language is asked when the answer is most
+#: likely to differ — the first move, after a restart, when what she is doing
+#: has stopped working — and periodically in between so the commentary stays
+#: hers rather than a run of bandit statistics.
+LANGUAGE_EVERY = 5
 #: How many times one run will go back and look up how the task is done.
 #: Beyond this the problem is not that she is missing a strategy.
 MAX_RELEARNS = 2
@@ -765,6 +775,8 @@ async def pursue_on_screen(
     restarts: dict[str, Any] = {"count": 0, "because": ""}
     #: How she has decided to handle acting faster than she can speak.
     pacing: dict[str, Any] = {"choice": "", "because": "", "brief": False, "waits": 0}
+    #: When language was last consulted, so it is asked where it counts.
+    asked: dict[str, int] = {"at": -LANGUAGE_EVERY, "after_restarts": 0}
     #: What she knows about doing this, learned once at the start and again
     #: whenever what she is doing stops working.
     knowledge: dict[str, Any] = {"held": None, "relearned": 0, "meant": []}
@@ -1104,12 +1116,29 @@ async def pursue_on_screen(
             # Effort follows what rides on this one. A routine move is a
             # routine move; a run that has stopped getting anywhere, or one
             # weighing whether to start over, is worth more than one pass.
-            weight = stakes if (stuck(history) or len(available) > len(move_keys)) else min(stakes, 0.3)
+            unusual = stuck(history) or len(available) > len(move_keys)
+            weight = stakes if unusual else min(stakes, 0.3)
+            # And a routine move in a fast loop does not always need words.
+            #
+            # Asking costs the cycle; deciding from evidence costs nothing,
+            # and on a board that changes a little at a time the two usually
+            # agree. So language is consulted where it is most likely to
+            # change the answer, and often enough in between that what she
+            # says stays her own reasoning.
+            asking = (
+                unusual
+                or not moves
+                or restarts["count"] > asked["after_restarts"]
+                or len(moves) - asked["at"] >= LANGUAGE_EVERY
+            )
+            if asking:
+                asked["at"] = len(moves)
+                asked["after_restarts"] = restarts["count"]
             chosen = await deliberate(
                 goal,
                 seen,
                 available,
-                think=think or _her_reasoning(weight),
+                think=(think or _her_reasoning(weight)) if asking else None,
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,

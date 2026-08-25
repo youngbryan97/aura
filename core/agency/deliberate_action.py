@@ -52,6 +52,15 @@ DECISION_SCHEMA = "aura.decision.v1"
 ThinkFn = Callable[[str, Sequence[str]], Awaitable[str]]
 
 
+class _NotAskedError(Exception):  # noqa: N818 - a control signal, not a failure
+    """Raised when a caller deliberately skipped language for this decision.
+
+    Not an error in any sense the name suggests, and named for the rule
+    rather than against it: a caller that chose not to spend words on a
+    routine move has not failed at anything.
+    """
+
+
 @dataclass(frozen=True)
 class Expectation:
     """What should be observably different once a move lands.
@@ -434,7 +443,7 @@ async def deliberate(
     situation: str,
     options: Sequence[ActionOption],
     *,
-    think: ThinkFn,
+    think: ThinkFn | None,
     knowledge: Sequence[str] = (),
     history: Sequence[Attempt] = (),
     stakes: float = 0.5,
@@ -460,10 +469,16 @@ async def deliberate(
         recalled.extend(recall_consequences(option.name, graph=graph))
 
     evidence = _situation_evidence(goal, situation, options, history, recalled, knowledge)
-    spoke = True
+    spoke = think is not None
     reply = ""
     try:
+        if think is None:
+            # No language this time by the caller's choice, not by failure.
+            # A fast loop spends words where they change the answer.
+            raise _NotAskedError
         reply = await think(_objective(goal, options), evidence)
+    except _NotAskedError:
+        spoke = False
     except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
         # Language being out of reach is not the same as having no judgement.
         #
