@@ -1942,7 +1942,7 @@ def _note_lane_worker_death(client: Any, reason: str) -> None:
     try:
         from core.runtime.control_plane import WorkClass, get_runtime_control_plane
 
-        lane, _qos = _client_lane_policy(client)
+        lane = _lane_for_dead_client(client)
         reaped = get_runtime_control_plane().admission.reap_dead_holder_leases_sync(
             lane=lane,
             work_class=WorkClass.MODEL_LOAD,
@@ -1956,7 +1956,35 @@ def _note_lane_worker_death(client: Any, reason: str) -> None:
                 reason,
             )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Dead-holder lease reap skipped: %s", exc)
+        # Not a debug line. A lease that is not reaped walls every recovery
+        # load behind its TTL while each retry burns to resource_timeout —
+        # the 2026-07-15 soak P0, where the cortex never loaded all night
+        # with RAM at 40%.
+        _record_mlx_degradation(
+            exc,
+            action="left a dead worker's model-load admission lease unreaped",
+            severity="warning",
+        )
+
+
+def _lane_for_dead_client(client: Any) -> str:
+    """The lane whose lease a dead worker was holding.
+
+    The immutable assignment is the authority, and for a live client it always
+    answers. A client being torn down may not: the assignment is the first
+    thing a half-constructed or already-retired client is missing, and the
+    reap must not be the casualty of that. Falling back to the lane the
+    registry would classify this artifact into keeps the lease from
+    outliving the process that held it.
+    """
+    try:
+        lane, _qos = _client_lane_policy(client)
+        return lane
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        from core.brain.lane_admission import classify_lane
+
+        lane, _qos = classify_lane(str(getattr(client, "model_path", "") or ""))
+        return lane
 
 
 def _lane_is_last_warm(client: Any) -> bool:

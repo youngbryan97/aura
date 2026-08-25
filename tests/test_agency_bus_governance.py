@@ -46,12 +46,21 @@ def test_agency_bus_auto_acquires_and_verifies_will_receipt(monkeypatch):
     assert len(will.decisions) == 1
     assert will.verifications == ["receipt-ok"]
     assert will.decisions[0]["source"] == "test"
-    assert will.decisions[0]["context"] == {
+    context = will.decisions[0]["context"]
+    # The bus's own claims, exactly. Asserted as a subset because provenance
+    # keys are added by whatever handles the decision downstream, and an
+    # equality check turned every added field into a failure here. What must
+    # not change is what the bus itself said.
+    assert {
         "source": "test",
         "autonomous": True,
         "agency_bus": True,
         "priority_class": "duty",
-    }
+    }.items() <= context.items()
+    # Anything else has to be namespaced provenance rather than a redefinition
+    # of one of those four.
+    extra = set(context) - {"source", "autonomous", "agency_bus", "priority_class"}
+    assert all(key.startswith("action_executor_") for key in extra), extra
 
 
 def test_agency_bus_fails_closed_when_will_unavailable(monkeypatch):
