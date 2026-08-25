@@ -390,10 +390,15 @@ async def test_desktop_quick_path_consumes_neurodynamic_advisory():
     assert captured["kwargs"]["protected_foreground_lane"] is True
     assert captured["kwargs"]["allow_cloud_fallback"] is False
     # The advisory IS consumed (asserted above via metadata + prompt injection),
-    # but a plain conversational quick reply floors at 512 tokens so replies do
-    # not truncate mid-sentence even after the 0.50 advisory reduction
-    # (512 * 0.50 = 256 -> floored to 512; fix 23d341e97).
-    assert captured["kwargs"]["max_tokens"] == 512
+    # and the floor is what stops it truncating a reply mid-sentence: 512 * 0.50
+    # is 256, and no floor lets that through (fix 23d341e97).
+    #
+    # The exact floor follows the request's shape — "Open a document and write a
+    # short summary" carries two obligations and earns more room than a plain
+    # conversational turn — so this asserts the guarantee rather than one
+    # shape's number, which was 512 when the request read as conversational.
+    assert captured["kwargs"]["max_tokens"] >= 512
+    assert captured["kwargs"]["max_tokens"] > int(512 * 0.50)
 
 
 def test_latent_bridge_sampling_consumes_spiking_active_inference():

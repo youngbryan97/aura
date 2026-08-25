@@ -166,7 +166,14 @@ async def test_desktop_quick_path_consumes_cognitive_situation_frame():
 
     assert thought is not None
     assert thought.metadata["cognitive_situation_frame"]["frame_id"] == frame["frame_id"]
-    assert "COGNITIVE SITUATION FRAME" in captured["messages"][0]["content"]
+    # Across every system message: the frame is delivered in the turn's
+    # grounding block rather than inside the system prompt.
+    prompt = "\n".join(
+        str(message.get("content") or "")
+        for message in captured["messages"]
+        if message.get("role") == "system"
+    )
+    assert "COGNITIVE SITUATION FRAME" in prompt
     assert captured["kwargs"]["cognitive_situation_sampling_bias"] == frame["sampling_bias"]
     assert captured["kwargs"]["protected_foreground_lane"] is True
 

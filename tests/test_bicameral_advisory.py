@@ -215,8 +215,17 @@ async def test_desktop_quick_path_consumes_bicameral_advisory():
     assert thought is not None
     assert thought.metadata["bicameral_advisory"]["frame_id"] == frame["frame_id"]
     assert thought.metadata["bicameral_advisory_feedback"]["outcome"] == "desktop_quick_reply"
-    assert "Bicameral advisory" in captured["messages"][0]["content"]
-    assert "phenomenal experience" in captured["messages"][0]["content"]
+    # Across every system message, not message[0]. The advisory moved out
+    # of the system prompt into the turn's grounding block — still a
+    # system message, still on the same path — and an index froze the
+    # arrangement rather than the delivery.
+    prompt = "\n".join(
+        str(message.get("content") or "")
+        for message in captured["messages"]
+        if message.get("role") == "system"
+    )
+    assert "Bicameral advisory" in prompt
+    assert "phenomenal experience" in prompt
     assert captured["kwargs"]["protected_foreground_lane"] is True
     assert captured["kwargs"]["allow_cloud_fallback"] is False
     assert captured["kwargs"]["bicameral_sampling_bias"] == frame["sampling_bias"]
