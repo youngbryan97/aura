@@ -5,7 +5,7 @@
 # which adds every file that is clean and never removes one. A file
 # here that stops being clean fails `make lint`; fix it rather than
 # deleting the line. `make lint` reads this list.
-# 4320 files.
+# 4326 files.
 aura_main.py
 core/actuation/desktop_actuator.py
 core/actuation/robotics_actuator.py
@@ -504,6 +504,7 @@ core/context/context_manager.py
 core/continuity.py
 core/continuous_cognition.py
 core/control/dynamic_router.py
+core/conversation/action_episode.py
 core/conversation/apply_response_patches.py
 core/conversation/asks_about_the_world.py
 core/conversation/capability_denial.py
@@ -540,6 +541,7 @@ core/conversation/request_coverage.py
 core/conversation/request_mood.py
 core/conversation/requested_artifact.py
 core/conversation/requested_reply_shape.py
+core/conversation/response_reliability.py
 core/conversation/screen_reading_claim.py
 core/conversation/self_claim_verifier.py
 core/conversation/self_metric_claim.py
@@ -744,11 +746,13 @@ core/knowledge/metta.py
 core/knowledge/retrieval.py
 core/knowledge/rule_extractor.py
 core/knowledge/source_registry.py
+core/language/action_outcome.py
 core/language/action_semantics.py
 core/language/answer_surface.py
 core/language/asking_clauses.py
 core/language/concepts.py
 core/language/desktop_actuation.py
+core/language/discourse_commitments.py
 core/language/label_mining.py
 core/language/learned_matcher.py
 core/language/model_features.py
@@ -1876,6 +1880,7 @@ tests/test_abstraction_engine_cp126.py
 tests/test_acoustic_acceptance.py
 tests/test_acoustic_acceptance_service.py
 tests/test_action_depth_honesty.py
+tests/test_action_episode_continuity.py
 tests/test_action_executor_deliberation_loss.py
 tests/test_action_grounding.py
 tests/test_action_intent_preamble.py
@@ -2348,6 +2353,7 @@ tests/test_diagnostics_bundle.py
 tests/test_dialectical_crucible_hardening.py
 tests/test_dialogue_cognition.py
 tests/test_disconnect_fixes.py
+tests/test_discourse_commitments.py
 tests/test_disposition_invariants.py
 tests/test_distillation_pipe_recovery.py
 tests/test_distinct_keys_are_not_distinct_actors.py

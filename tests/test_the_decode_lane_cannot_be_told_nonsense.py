@@ -67,7 +67,16 @@ class _Model:
 
 def _engine(*, vocab: int = 32, window: int = 0, layers: int = 4):
     engine = LatentCortexEngine.__new__(LatentCortexEngine)
-    engine.model = _Model(vocab, window)
+    model = _Model(vocab, window)
+    engine.model = model
+    # The engine reads the vocabulary off the DECODER — the inner module that
+    # owns embed_tokens — which __init__ resolves through the layer view. This
+    # fixture predated that and set only `model`, so every case in this file
+    # died on AttributeError before reaching what it was testing.
+    engine.decoder = model.model
+    # And the position window off the LANGUAGE MODEL, which is the module
+    # carrying `args`. Same refactor, same fixture gap.
+    engine.language_model = model
     engine.tokenizer = None
     engine.n_layers = layers
     engine._vocab_size = 0
