@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from core.dialogue.referents import resolve_second_person
 from core.language.concepts import (
+    extract_object_description,
     mentions_object_class,
     object_class_pattern,
 )
@@ -934,6 +935,11 @@ class DesktopTaskSkill(BaseSkill):
     @staticmethod
     def _extract_image_query(objective: str) -> str:
         text = str(objective or "").strip()
+        described_object = extract_object_description(
+            text,
+            "image",
+            action_phrases=("find", "search", "look up", "get", "download", "fetch"),
+        )
         patterns = (
             rf"\b{_VISUAL_ASSET_RE}\s+of\s+([^.;\n]+)",
             rf"\b(?:find|search|look\s+up)\s+(?:an?\s+)?{_VISUAL_ASSET_RE}\s+(?:of\s+)?([^.;\n]+)",
@@ -941,10 +947,15 @@ class DesktopTaskSkill(BaseSkill):
             rf"(?:an?\s+|some\s+)?([^.;\n]{{2,120}}?)\s+{_VISUAL_ASSET_RE}\b",
             rf"\b([^.;\n]{{2,120}}?)\s+{_VISUAL_ASSET_RE}\b",
         )
-        for pattern in patterns:
-            match = re.search(pattern, text, flags=re.IGNORECASE)
-            if match:
-                query = re.sub(r"\b(?:and|then|also)\b.*$", "", match.group(1), flags=re.IGNORECASE)
+        candidates = [described_object]
+        candidates.extend(
+            match.group(1)
+            for pattern in patterns
+            if (match := re.search(pattern, text, flags=re.IGNORECASE)) is not None
+        )
+        for candidate in candidates:
+            if candidate:
+                query = re.sub(r"\b(?:and|then|also)\b.*$", "", candidate, flags=re.IGNORECASE)
                 query = re.sub(
                     r"\bfrom\s+(?:online|the\s+(?:internet|web))\b.*$",
                     "",

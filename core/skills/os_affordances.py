@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.language.concepts import object_class_pattern
+from core.language.concepts import extract_object_description, object_class_pattern
 from core.runtime.os_automation_effects import extract_target_paths
 
 _VISUAL_ASSET_RE = object_class_pattern("image")
@@ -99,23 +99,17 @@ def _extract_wallpaper(text: str) -> str | None:
             return None
         return query
 
-    # "find an ORCA IMAGE online" — the adjective form, which is how people
-    # actually ask. The pattern above only covers "image OF an orca".
-    attributive_match = re.search(
-        r"\b(?:find|search|look\s+up|get)\b[^.;\n]{0,60}?\b(?:a|an|some)?\s*"
-        rf"([A-Za-z][\w'-]{{2,40}})\s+{_VISUAL_ASSET_RE}\b"
-        r"[^.;\n]{0,120}?\b(?:make|set|use)\b[^.;\n]{0,50}?"
-        r"\b(?:my\s+)?(?:wallpaper|desktop\s+background|background)\b",
-        text,
-        flags=re.IGNORECASE,
-    )
-
     if image_topic_match:
         topic = _clean(image_topic_match.group(1))
         if topic:
             return topic
-    if attributive_match:
-        topic = _clean(attributive_match.group(1))
+    described_object = extract_object_description(
+        text,
+        "image",
+        action_phrases=("find", "search", "look up", "get", "download", "fetch"),
+    )
+    if described_object:
+        topic = _clean(described_object)
         if topic:
             return topic
     if not direct_match:

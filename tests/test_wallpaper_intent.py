@@ -22,7 +22,11 @@ from pathlib import Path
 import pytest
 
 from core.intent.declared_capability import object_class_of as declared_object_class_of
-from core.language.concepts import object_class_of, object_class_pattern
+from core.language.concepts import (
+    extract_object_description,
+    object_class_of,
+    object_class_pattern,
+)
 from core.runtime.skill_contract import (
     SkillExecutionResult,
     SkillStatus,
@@ -41,6 +45,14 @@ from core.skills.os_affordances import detect_os_settings
             "orca",
         ),
         ("find an orca image online and set it as my wallpaper", "orca"),
+        (
+            "Find a blue whale image online and set it as my desktop wallpaper.",
+            "blue whale",
+        ),
+        (
+            "Download a red panda photograph and use it as my background.",
+            "red panda",
+        ),
         ("Change my wallpaper to an orca and show me where you found it.", "orca"),
         ("change my background to an orca", "orca"),
         ("set my desktop background to an orca", "orca"),
@@ -88,6 +100,21 @@ def test_visual_object_class_is_shared_by_routing_and_desktop_planning():
     assert object_class_of("photograph") == object_class_of("image")
     assert declared_object_class_of("portrait") == object_class_of("image")
     assert object_class_pattern("") == r"(?!)"
+
+
+def test_object_description_preserves_multiword_constituents_in_both_orders():
+    actions = ("find", "search", "look up", "get", "download", "fetch")
+
+    assert extract_object_description(
+        "Please find a blue whale image online.",
+        "image",
+        action_phrases=actions,
+    ) == "blue whale"
+    assert extract_object_description(
+        "Please find an image of a blue whale online.",
+        "image",
+        action_phrases=actions,
+    ).startswith("a blue whale")
 
 
 def test_photograph_wallpaper_request_compiles_the_complete_effect_chain():

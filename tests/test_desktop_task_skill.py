@@ -2513,6 +2513,7 @@ def test_typed_image_acquisition_does_not_depend_on_a_search_tab():
     actions = [step.action for step in steps]
 
     assert actions == ["fetch_topic_image", "system_control"]
+    assert steps[0].target["topic"] == "blue whale"
 
 
 def test_explicit_source_visibility_uses_the_verified_fetch_source_after_effect():

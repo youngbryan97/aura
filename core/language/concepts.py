@@ -13,6 +13,7 @@ from functools import lru_cache
 
 __all__ = [
     "OBJECT_CLASSES",
+    "extract_object_description",
     "fold_noun",
     "mentions_object_class",
     "object_class_of",
@@ -69,6 +70,20 @@ OBJECT_CLASSES: tuple[frozenset[str], ...] = (
 )
 
 _WORD_RE = re.compile(r"[a-z0-9_+#]+(?:\.[a-z0-9_+#]+)*")
+_WORD_SPAN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_+#'\-]*")
+_PHRASE_LEADERS = frozenset(
+    {
+        "a",
+        "an",
+        "any",
+        "for",
+        "me",
+        "please",
+        "some",
+        "the",
+        "us",
+    }
+)
 
 
 @lru_cache(maxsize=4096)
@@ -117,3 +132,83 @@ def mentions_object_class(text: str, representative: str) -> bool:
         fold_noun(word) in members
         for word in _WORD_RE.findall(str(text or "").casefold())
     )
+
+
+def extract_object_description(
+    text: str,
+    representative: str,
+    *,
+    action_phrases: tuple[str, ...] = (),
+    max_words: int = 10,
+) -> str:
+    """Return the noun phrase that describes a typed object mention.
+
+    The object class supplies the head noun (``image``, ``photo``, ...).
+    This function preserves the complete adjacent description in either
+    common construction: ``image of a blue whale`` or ``a blue whale image``.
+    Callers may provide the action phrases that introduce the object so words
+    belonging to the request frame are not mistaken for modifiers.
+
+    It is a bounded constituent reader, not a topic-specific vocabulary: the
+    same code carries ``blue whale``, ``red panda``, and an unseen multiword
+    subject without knowing any of those entities.
+    """
+
+    source = str(text or "")
+    members = {fold_noun(member) for member in object_class_of(representative)}
+    words = list(_WORD_SPAN_RE.finditer(source))
+    if not source or not members or not words:
+        return ""
+
+    action_tokens = tuple(
+        tuple(fold_noun(token) for token in _WORD_SPAN_RE.findall(phrase))
+        for phrase in action_phrases
+        if phrase
+    )
+    folded = [fold_noun(match.group(0)) for match in words]
+
+    def _clause_left(index: int) -> int:
+        left = 0
+        for candidate in range(index - 1, -1, -1):
+            gap = source[words[candidate].end() : words[candidate + 1].start()]
+            if re.search(r"[.;!?\n]", gap):
+                left = candidate + 1
+                break
+        return left
+
+    def _clause_right(index: int) -> int:
+        right = len(words)
+        for candidate in range(index, len(words) - 1):
+            gap = source[words[candidate].end() : words[candidate + 1].start()]
+            if re.search(r"[.;!?\n]", gap):
+                right = candidate + 1
+                break
+        return right
+
+    for head_index, head in enumerate(folded):
+        if head not in members:
+            continue
+
+        right = _clause_right(head_index)
+        if head_index + 1 < right and folded[head_index + 1] == "of":
+            start = head_index + 2
+            if start >= right:
+                continue
+            end = min(right, start + max(1, max_words))
+            return source[words[start].start() : words[end - 1].end()].strip()
+
+        left = _clause_left(head_index)
+        start = max(left, head_index - max(1, max_words))
+        for action in action_tokens:
+            width = len(action)
+            if not width:
+                continue
+            for candidate in range(left, head_index - width + 1):
+                if tuple(folded[candidate : candidate + width]) == action:
+                    start = max(start, candidate + width)
+
+        while start < head_index and folded[start] in _PHRASE_LEADERS:
+            start += 1
+        if start < head_index:
+            return source[words[start].start() : words[head_index - 1].end()].strip()
+    return ""
