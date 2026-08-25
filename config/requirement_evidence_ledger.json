@@ -1,5 +1,5 @@
 {
-  "content_sha256": "6c727a82206dc952649f72d3390cb1434bc39e0ca6b4ee6dbbf5dfe0047803db",
+  "content_sha256": "f1fc6036233c2ef5390689a456683beef871a850279f09124cb9658a9087c061",
   "entries": [
     {
       "acceptance_ids": [
@@ -62,12 +62,12 @@
         "A5",
         "A6"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json",
       "requirement_id": "ADDENDUM-22",
-      "sha256": "7999c7b47feb3e266b1df0df79a25ce5146a5236443e8f6bc90d19050593a209"
+      "sha256": "53e0b126dca536acf214060f2d899dae26d287613bd70c79356b895ebb5bd2d3"
     },
     {
       "acceptance_ids": [
@@ -493,12 +493,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json",
       "requirement_id": "CTX2-TEST-001",
-      "sha256": "7999c7b47feb3e266b1df0df79a25ce5146a5236443e8f6bc90d19050593a209"
+      "sha256": "53e0b126dca536acf214060f2d899dae26d287613bd70c79356b895ebb5bd2d3"
     },
     {
       "acceptance_ids": [
@@ -515,12 +515,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json",
       "requirement_id": "CTX2-TEST-002",
-      "sha256": "7999c7b47feb3e266b1df0df79a25ce5146a5236443e8f6bc90d19050593a209"
+      "sha256": "53e0b126dca536acf214060f2d899dae26d287613bd70c79356b895ebb5bd2d3"
     },
     {
       "acceptance_ids": [
@@ -537,12 +537,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json",
       "requirement_id": "CTX2-TEST-003",
-      "sha256": "7999c7b47feb3e266b1df0df79a25ce5146a5236443e8f6bc90d19050593a209"
+      "sha256": "53e0b126dca536acf214060f2d899dae26d287613bd70c79356b895ebb5bd2d3"
     },
     {
       "acceptance_ids": [
@@ -651,12 +651,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d",
+      "commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
       "evidence_class": "test",
-      "recorded_at": "2026-08-13",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/ec3b552342b3fc1a0d2e40e76a04c68b7c0cf14d.json",
+      "recorded_at": "2026-08-25",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json",
       "requirement_id": "RESOURCE-001",
-      "sha256": "7999c7b47feb3e266b1df0df79a25ce5146a5236443e8f6bc90d19050593a209"
+      "sha256": "53e0b126dca536acf214060f2d899dae26d287613bd70c79356b895ebb5bd2d3"
     },
     {
       "acceptance_ids": [

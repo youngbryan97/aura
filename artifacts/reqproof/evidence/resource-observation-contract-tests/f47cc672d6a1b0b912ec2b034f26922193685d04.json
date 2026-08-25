@@ -1,0 +1,201 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_resource_observation_hermeticity.py",
+    "tests/test_resource_observation_ownership_audit.py",
+    "tests/test_resource_pressure_correction.py"
+  ],
+  "cwd": ".",
+  "duration_seconds": 3.024096,
+  "environment_policy": {
+    "inherited_names_sha256": "9a6aa6986492981afab6a0a64f5908c16aed0d312545b0b803973860c76ed268",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A1",
+        "A2",
+        "A3",
+        "A5",
+        "A6"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "ADDENDUM-22"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-TEST-001"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-TEST-002"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "CTX2-TEST-003"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "test",
+      "requirement_id": "RESOURCE-001"
+    }
+  ],
+  "finished_at": "2026-08-25T15:16:09.519277+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
+  "output_bytes": 99,
+  "proof_id": "resource-observation-contract-tests",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "f47cc672d6a1b0b912ec2b034f26922193685d04",
+  "source_manifest": [
+    {
+      "path": "core/brain/lane_admission.py",
+      "sha256": "438aaa83a06e380e4f5d039e69858fb7ab4112d58f86d17f28a1e11006b21d35",
+      "size_bytes": 25940
+    },
+    {
+      "path": "core/resilience/memory_governor.py",
+      "sha256": "9f9bba6c0278e3aadbb62fc57f8f902f240a73a49309bcc6fe331d1be0778fb6",
+      "size_bytes": 39106
+    },
+    {
+      "path": "core/resilience/memory_watchdog.py",
+      "sha256": "1f05cbc1e0e142da040e2d467392dd43afade39d6a596df392e2e81198a41612",
+      "size_bytes": 46827
+    },
+    {
+      "path": "core/resource/resource_governor.py",
+      "sha256": "cfb75870baa8fb39f711f61430222af9b8ce54d40969fd134331ca87dbdf7e28",
+      "size_bytes": 19340
+    },
+    {
+      "path": "core/runtime/model_lane_control.py",
+      "sha256": "89fff301ba9fcf115a12c330417a30bf1ea6330d1a66f0fa686d80a347ce7361",
+      "size_bytes": 190586
+    },
+    {
+      "path": "core/runtime/process_footprint.py",
+      "sha256": "e7a2dda69259de5398a1651d4c6e3f47d5de05782eb199091a8725e29b5e1250",
+      "size_bytes": 4592
+    },
+    {
+      "path": "core/runtime/receipts.py",
+      "sha256": "e56161b5c229ac1bfe3428ec0521440a4eaf11e4397dc86379ac8a93c7025fb0",
+      "size_bytes": 39171
+    },
+    {
+      "path": "core/runtime/resource_observation.py",
+      "sha256": "982c5c4ac25f6a48062edfde7750d1ca4b5a288c3913fe9064a4398f110eb190",
+      "size_bytes": 63094
+    },
+    {
+      "path": "core/runtime/resource_psutil.py",
+      "sha256": "a0637a9a14ac03dc104d4f68a668fb5f4b2317d072948065c2b00965ccb139c3",
+      "size_bytes": 15706
+    },
+    {
+      "path": "core/runtime/runtime_pressure.py",
+      "sha256": "4fbf82812e5aed8b52a7e4b0d25c9435942028c31a66cff9bfefe2133b8c8013",
+      "size_bytes": 13346
+    },
+    {
+      "path": "core/runtime/thermal.py",
+      "sha256": "57bc9b985b8bade5c624cc3ed5fd4b79f3323eac54e54a494a4d1bcd48183317",
+      "size_bytes": 4627
+    },
+    {
+      "path": "core/utils/memory_monitor.py",
+      "sha256": "e6a6568d65a230f96f8f8143f89f945dcd48119b4f3bac3f4d2035a539e0a6e5",
+      "size_bytes": 18052
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "b34cfcf51506191071333f5c2dbfb5ebeb388845b08a414d7c19439a687321fc",
+      "size_bytes": 86460
+    },
+    {
+      "path": "tests/test_resource_observation_hermeticity.py",
+      "sha256": "ea2987627ae274af47e7e526a20d352ba40e51593f7cf937d2389bdd1cb441f8",
+      "size_bytes": 20799
+    },
+    {
+      "path": "tests/test_resource_observation_ownership_audit.py",
+      "sha256": "6a2a94227f5675aa5be2649818c54fa053e0a1d06589a4c8e3683542d9536959",
+      "size_bytes": 4247
+    },
+    {
+      "path": "tests/test_resource_pressure_correction.py",
+      "sha256": "c242711f1c5c593a0b9e1adffbc24f6d8e863fba3823e71d760d0c32a0a26436",
+      "size_bytes": 4863
+    },
+    {
+      "path": "tools/closeout/audit_resource_observation_ownership.py",
+      "sha256": "df4d9eb722397c783b8c56e8168ec951a42d6d42bc4ff7f5f0868fa2791a6098",
+      "size_bytes": 24915
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "core/brain/lane_admission.py",
+      "core/resilience/memory_governor.py",
+      "core/resilience/memory_watchdog.py",
+      "core/resource/resource_governor.py",
+      "core/runtime/model_lane_control.py",
+      "core/runtime/process_footprint.py",
+      "core/runtime/receipts.py",
+      "core/runtime/resource_observation.py",
+      "core/runtime/resource_psutil.py",
+      "core/runtime/runtime_pressure.py",
+      "core/runtime/thermal.py",
+      "core/utils/memory_monitor.py",
+      "tests/conftest.py",
+      "tests/test_resource_observation_hermeticity.py",
+      "tests/test_resource_observation_ownership_audit.py",
+      "tests/test_resource_pressure_correction.py",
+      "tools/closeout/audit_resource_observation_ownership.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-08-25T15:16:06.495134+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": ".........................                                                [100%]\n25 passed in 1.98s\n",
+  "stdout_sha256": "c7e5363bc7ea9742311ef74f1037038cb27418e770a985e503bf0723c3f48884",
+  "timeout_seconds": 300,
+  "verdict": "pass"
+}
