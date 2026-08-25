@@ -69,7 +69,15 @@ def reminders_path() -> Path:
 
         return Path(config.paths.data_dir) / "reminders.json"
     except _RECOVERABLE:
-        return Path.home() / ".aura" / "data" / "reminders.json"
+        from core.runtime.state_ownership import state_root
+
+        # The one place that decides where her state lives. Spelling
+        # out Path.home() / ".aura" here answers a different question
+        # whenever the runtime is not rooted at the home directory —
+        # a test profile, an explicit AURA_STATE_ROOT, a second
+        # instance — and writes beside the live files instead of into
+        # its own.
+        return state_root() / "data" / "reminders.json"
 
 
 def _load() -> list[Reminder]:
