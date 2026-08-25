@@ -5258,3 +5258,37 @@ async def test_a_named_but_unreadable_reflex_model_is_not_available(monkeypatch,
     statuses = await gate.ensure_all_tiers_healthy()
 
     assert statuses["reflex"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_typed_action_episode_suppresses_generic_recent_action_replay(monkeypatch):
+    from core.brain.inference_gate import _attach_the_present_moment
+
+    monkeypatch.setattr(
+        "core.brain.present_moment.present_moment_block",
+        lambda: "## PRESENT MOMENT\nnow",
+    )
+    monkeypatch.setattr(
+        "core.brain.recent_actions.recent_actions_block",
+        lambda: "## WHAT YOU ACTUALLY JUST DID\nduplicate receipt",
+    )
+
+    async def _no_observables(_prompt):
+        return []
+
+    monkeypatch.setattr(
+        "core.brain.observable_grounding.observable_blocks",
+        _no_observables,
+    )
+    ambient = []
+    task = []
+    await _attach_the_present_moment(
+        ambient_grounding_blocks=ambient,
+        isolated_generation_contract=False,
+        recent_actions_already_grounded=True,
+        task_grounding_blocks=task,
+        visible_user_prompt="Why did that action fail?",
+    )
+
+    assert ambient == ["## PRESENT MOMENT\nnow"]
+    assert task == []

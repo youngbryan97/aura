@@ -10789,6 +10789,154 @@ async def test_desktop_required_chat_gets_default_recent_context_window(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_typed_action_episode_owns_followup_context_without_history_replay(monkeypatch):
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    calls = []
+
+    class _FakeCognitiveEngine:
+        async def think(self, objective, context=None, **kwargs):
+            calls.append({"objective": objective, "context": dict(context or {})})
+            return SimpleNamespace(
+                content=(
+                    "It failed because no installed application matched that name; "
+                    "the typed action receipt established the failure directly."
+                )
+            )
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+        async def execute_with_retry(self, _name, operation, **_kwargs):
+            return await operation()
+
+    async with chat_routes._get_convo_lock():
+        chat_routes._conversation_log.clear()
+        chat_routes._conversation_log.append(
+            {
+                "user": "Open DefinitelyNotInstalledAuraProbe.",
+                "aura": "The application was not found.",
+                "status": "complete",
+            }
+        )
+
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: _FakeCognitiveEngine()
+            if name == "cognitive_engine"
+            else default
+        ),
+    )
+
+    episode = (
+        "[PRIOR ACTION EPISODE]\n"
+        "objective: Open DefinitelyNotInstalledAuraProbe.\n"
+        "capability: desktop_task\n"
+        "status: desktop_objective_failed\n"
+        "succeeded: false\n"
+        "failure_detail: application not found\n"
+        "[END PRIOR ACTION EPISODE]"
+    )
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        "Do you know why that broke?",
+        visible_user_message="Do you know why that broke?",
+        action_episode_evidence=episode,
+        origin="user",
+        timeout_s=60.0,
+        lane={"conversation_ready": True, "state": "ready"},
+        source="desktop_ui",
+        require_engine=True,
+    )
+
+    assert reply
+    assert calls[0]["objective"] == "Do you know why that broke?"
+    assert calls[0]["context"]["action_episode_evidence"] == episode
+    assert calls[0]["context"]["recent_completed_exchanges"] == []
+    assert calls[0]["context"]["recent_conversation_context"] == ""
+
+
+@pytest.mark.asyncio
+async def test_cognitive_engine_carries_action_episode_as_task_evidence(monkeypatch):
+    from core.brain import cognitive_engine as ce_module
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    calls = []
+
+    class _Router:
+        async def think(self, **kwargs):
+            calls.append(kwargs)
+            return "It failed because the named application is not installed."
+
+        def get_last_generation_metadata(self):
+            return {}
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            return _Router() if name == "llm_router" else default
+
+    monkeypatch.setattr(ce_module, "get_container", lambda: _Container)
+    episode = (
+        "[PRIOR ACTION EPISODE]\n"
+        "objective: Open DefinitelyNotInstalledAuraProbe.\n"
+        "capability: desktop_task\n"
+        "status: desktop_objective_failed\n"
+        "succeeded: false\n"
+        "failure_detail: application not found\n"
+        "[END PRIOR ACTION EPISODE]"
+    )
+    context = {
+        "desktop_quick_reply_contract": True,
+        "desktop_cognitive_engine_required": True,
+        "cognitive_engine_required": True,
+        "visible_user_message": "Do you know why that broke?",
+        "action_episode_evidence": episode,
+        "live_mind_context_required": True,
+        "live_mind_context": stamp_runtime_payload(
+            {
+                "required_for_live_desktop": True,
+                "must_answer_from_full_mind_path": True,
+                "required_subsystems_ok": True,
+                "mind_snapshot_quality": {"present": True, "ready": True},
+            }
+        ),
+        "live_mind_generation_controls": {
+            "temperature": 0.58,
+            "top_p": 0.88,
+            "clean_user_surface_recurrent_loops": 1,
+            "clean_user_surface_steering_alpha": 0.0,
+        },
+    }
+
+    thought = await CognitiveEngine()._direct_desktop_quick_reply(
+        "Do you know why that broke?",
+        ThinkingMode.FAST,
+        "user",
+        context,
+        timeout_s=60.0,
+    )
+
+    assert thought is not None
+    assert calls
+    call = calls[0]
+    assert call["messages"][-1] == {
+        "role": "user",
+        "content": "Do you know why that broke?",
+    }
+    grounding = call["messages"][-2]["content"]
+    assert grounding.count("[PRIOR ACTION EPISODE]") == 1
+    assert "failure_detail: application not found" in grounding
+    assert call["recent_actions_already_grounded"] is True
+
+
+@pytest.mark.asyncio
 async def test_deep_desktop_followup_keeps_hard_live_token_envelope(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes

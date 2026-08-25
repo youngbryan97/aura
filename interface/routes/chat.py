@@ -5493,6 +5493,7 @@ async def _run_cognitive_engine_chat_turn(
     principal_id: str = "",
     turn_trace: dict[str, Any] | None = None,
     referential_anchor: str = "",
+    action_episode_evidence: str = "",
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
     continuation_evidence: dict[str, Any] | None = None,
@@ -5521,6 +5522,7 @@ async def _run_cognitive_engine_chat_turn(
     )
     visible = str(visible_user_message or effective_user_message or "")
     raw_visible = str(raw_user_message or visible)
+    action_episode_evidence = str(action_episode_evidence or "").strip()
     interlocutor_evidence = (
         dict(declared_interlocutor)
         if isinstance(declared_interlocutor, dict) and declared_interlocutor
@@ -6145,7 +6147,14 @@ async def _run_cognitive_engine_chat_turn(
             or private_cognitive_model_contract
         )
     )
-    if self_condition_contract and not self_contained_compound:
+    if action_episode_evidence:
+        # The typed episode is the authoritative reduction of the action's
+        # receipts. Replaying the exchange that produced it gives the model a
+        # second, prose-shaped account of the same event and makes a short
+        # explanation turn pay for both. Other continuity remains available on
+        # ordinary turns; this one has already resolved its referent exactly.
+        recent_context_limit = 0
+    elif self_condition_contract and not self_contained_compound:
         # One prior exchange is enough to preserve a natural "though?" follow-up
         # without letting an older task replace the current condition question.
         recent_context_limit = 1 if recent_context_needed else 0
@@ -6230,6 +6239,7 @@ async def _run_cognitive_engine_chat_turn(
         "recent_completed_exchanges": recent_exchanges,
         "recent_conversation_context": recent_conversation_context,
         "recent_context_needed": recent_context_needed,
+        "action_episode_evidence": action_episode_evidence[:1800],
         "live_mind_context": live_mind_context,
         "live_mind_context_required": bool(require_engine and not state_native_output_owner),
         "require_full_foreground_mind_reply": bool(
@@ -21432,7 +21442,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 session_id=_chat_session_id,
             )
-            if allow_chat_fastpaths and not _qualified_state_serialization_owner
+            if (
+                allow_chat_fastpaths
+                and not _qualified_state_serialization_owner
+                and not action_episode_evidence
+            )
             else None
         )
         if referential_anchor:
@@ -21446,9 +21460,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             from core.conversation.turn_evidence_custody import record_turn_grounding
 
             record_turn_grounding(action_episode_evidence)
-            effective_user_message = (
-                f"{effective_user_message}\n\n{action_episode_evidence}"
-            )
         conversation_recall_evidence = (
             None
             if _qualified_state_serialization_owner
@@ -21716,6 +21727,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     principal_id=_profile_user_id,
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
+                    action_episode_evidence=action_episode_evidence,
                     completed_capability_evidence=desktop_required_search_evidence,
                     evidence_profile=_preflight.evidence_profile,
                 )

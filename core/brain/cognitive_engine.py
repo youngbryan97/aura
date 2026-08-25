@@ -4963,6 +4963,11 @@ class CognitiveEngine:
                 "that is not supported by this evidence. Answer in one or two complete sentences under "
                 "70 words and end with normal punctuation."
             )
+        action_episode_evidence = str(
+            context.get("action_episode_evidence") or ""
+        ).strip()
+        if action_episode_evidence:
+            task_grounding_blocks.append(action_episode_evidence)
         recall_evidence = str(context.get("conversation_recall_evidence") or "").strip()
         if recall_evidence:
             task_grounding_blocks.append(
@@ -5259,6 +5264,7 @@ class CognitiveEngine:
                     and live_mind_context
                     and _context_attested
                 ),
+                "recent_actions_already_grounded": bool(action_episode_evidence),
                 # No disable_prompt_cache here. This is the lane the desktop UI
                 # actually talks through (origin=desktop_quick_*), and it was
                 # the FOURTH place independently switching the cache off for the

@@ -1785,6 +1785,7 @@ async def _attach_the_present_moment(
     *,
     ambient_grounding_blocks: Any,
     isolated_generation_contract: Any,
+    recent_actions_already_grounded: Any,
     task_grounding_blocks: Any,
     visible_user_prompt: Any,
 ) -> None:
@@ -1806,11 +1807,12 @@ async def _attach_the_present_moment(
             # Suppressing the web search is only half the fix; without the
             # readings she still has to invent them, which is how "I
             # processed a 45-page PDF on neuromorphic computing" happened.
-            from core.brain.recent_actions import recent_actions_block
+            if not recent_actions_already_grounded:
+                from core.brain.recent_actions import recent_actions_block
 
-            _actions = recent_actions_block()
-            if _actions:
-                ambient_grounding_blocks.append(_actions)
+                _actions = recent_actions_block()
+                if _actions:
+                    ambient_grounding_blocks.append(_actions)
 
             # The WIDER predicate here on purpose. This path only ADDS her
             # instrument reading, so a false positive costs a few lines of
@@ -12742,6 +12744,9 @@ class InferenceGate:
         await _attach_the_present_moment(
             ambient_grounding_blocks=ambient_grounding_blocks,
             isolated_generation_contract=isolated_generation_contract,
+            recent_actions_already_grounded=bool(
+                context.get("recent_actions_already_grounded", False)
+            ),
             task_grounding_blocks=task_grounding_blocks,
             visible_user_prompt=visible_user_prompt,
         )
