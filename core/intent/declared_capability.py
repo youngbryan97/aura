@@ -43,12 +43,23 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from functools import lru_cache
 
+from core.language.concepts import (
+    OBJECT_CLASSES as _OBJECT_CLASSES,
+)
+from core.language.concepts import (
+    fold_noun as _fold,
+)
+from core.language.concepts import (
+    object_class_of,
+)
+
 __all__ = [
     "declared_vocabulary",
     "distinctive_objects",
     "foundational_capabilities",
     "looks_like_a_request",
     "names_a_concrete_resource",
+    "object_class_of",
     "rank_declaration_matches",
     "requested_foundational_domains",
     "request_matches_declaration",
@@ -172,40 +183,6 @@ _VERB_CLASSES: tuple[frozenset[str], ...] = (
             "measure", "measures", "measuring", "diagnose", "diagnoses",
         }
     ),
-)
-
-#: Domains, spelled the several ways English spells them. Same shape and same
-#: justification as the verb classes: indexed by the domain rather than by the
-#: skill, so it does not grow as the catalogue does. Nouns are an open class in
-#: general, but the domains a machine can act IN are few and stable, and
-#: without this a declaration saying "code" cannot hear a request saying
-#: "script" — which was half the live misses.
-_OBJECT_CLASSES: tuple[frozenset[str], ...] = (
-    frozenset({"code", "script", "snippet", "program", "programme", "python",
-               "repl", "interpreter", "sandbox", "expression", "function",
-               "test", "tests", "testcase", "testcases"}),
-    frozenset({"web", "online", "internet", "google", "browser", "site",
-               "website", "url", "page"}),
-    frozenset({"image", "images", "picture", "photo", "illustration",
-               "artwork", "drawing", "painting", "diagram"}),
-    frozenset({"screen", "display", "desktop", "window", "monitor"}),
-    frozenset({"file", "files", "document", "folder", "directory", "path",
-               "repo", "repository", "workspace", "filesystem"}),
-    frozenset({"memory", "memories", "recollection", "note", "notes"}),
-    frozenset({"time", "clock", "date", "hour", "day"}),
-    frozenset({"email", "mail", "message", "messages", "text", "dm"}),
-    frozenset({"voice", "speech", "audio", "sound", "microphone"}),
-    frozenset({"package", "library", "dependency", "module"}),
-    # Engineering artefacts. Kept apart from the image class on purpose: a
-    # schematic is computed from a model, and ranking it alongside pictures
-    # sent requests for one to the diffusion model, which draws a plausible
-    # machine that does not work. "diagram" and "drawing" stay with images,
-    # since those words are used for both.
-    frozenset({"schematic", "schematics", "blueprint", "blueprints",
-               "assembly", "subassembly", "exploded", "cutaway",
-               "cad", "bom", "bracket", "enclosure", "chassis", "linkage",
-               "mechanism", "gearbox", "circuit", "wiring", "harness",
-               "pcb", "manifold", "housing", "fixture", "jig"}),
 )
 
 _FOUNDATIONAL_DOMAIN_OBJECT = {
@@ -352,18 +329,6 @@ def verb_class_of(word: str) -> frozenset[str]:
 
 
 @lru_cache(maxsize=4096)
-def object_class_of(word: str) -> frozenset[str]:
-    """Every word for the domain this one names, or empty if it names none."""
-    lowered = str(word or "").strip().lower()
-    if not lowered:
-        return frozenset()
-    for members in _OBJECT_CLASSES:
-        if lowered in members:
-            return members
-    return frozenset()
-
-
-@lru_cache(maxsize=4096)
 def _act_named_by(word: str) -> frozenset[str]:
     """The act a word names, reading an agentive noun back to its verb.
 
@@ -387,25 +352,6 @@ def _act_named_by(word: str) -> frozenset[str]:
 
 def _words(text: object) -> list[str]:
     return _WORD_RE.findall(str(text or "").lower().replace("_", " "))
-
-
-@lru_cache(maxsize=8192)
-def _fold(word: str) -> str:
-    """One spelling for a noun's singular and plural.
-
-    A declaration saying "circuits" could not hear a request saying "circuit",
-    and the same gap sat between images/image, files/file and memories/memory.
-    Deliberately light: an aggressive stemmer merges words that mean different
-    things, and every merge here is a chance to dispatch the wrong skill.
-    """
-    lowered = str(word or "").strip().lower()
-    if len(lowered) > 4 and lowered.endswith("ies"):
-        return lowered[:-3] + "y"
-    if len(lowered) > 3 and lowered.endswith("es") and lowered[-3] in "sxzh":
-        return lowered[:-2]
-    if len(lowered) > 3 and lowered.endswith("s") and not lowered.endswith("ss"):
-        return lowered[:-1]
-    return lowered
 
 
 def _asks_rather_than_mentions(clause_words: list[str], verb_positions: set[int]) -> bool:

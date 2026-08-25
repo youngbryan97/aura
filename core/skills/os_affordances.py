@@ -28,6 +28,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.language.concepts import object_class_pattern
+
+_VISUAL_ASSET_RE = object_class_pattern("image")
+
 
 @dataclass(frozen=True)
 class OSAffordance:
@@ -55,8 +59,8 @@ def _extract_wallpaper(text: str) -> str | None:
     topic. The executor still goes through the generic ``system_control`` path.
     """
     image_topic_match = re.search(
-        r"\b(?:find|search|look\s+up)\b[^.;\n]{0,80}?\b(?:image|picture|photo)\s+of\s+([^.;,\n]+)"
-        r"[^.;\n]{0,100}?\b(?:make|set|use)\b[^.;\n]{0,50}?\b(?:my\s+)?(?:wallpaper|desktop\s+background|background)\b",
+        rf"\b(?:find|search|look\s+up)\b[^.;\n]{{0,80}}?\b{_VISUAL_ASSET_RE}\s+of\s+([^.;,\n]+)"
+        rf"[^.;\n]{{0,100}}?\b(?:make|set|use)\b[^.;\n]{{0,50}}?\b(?:my\s+)?(?:wallpaper|desktop\s+background|background)\b",
         text,
         flags=re.IGNORECASE,
     )
@@ -70,7 +74,7 @@ def _extract_wallpaper(text: str) -> str | None:
     def _clean(candidate: str) -> str | None:
         query = re.sub(r"\bfrom\s+(?:online|the\s+(?:internet|web))\b.*$", "", candidate, flags=re.IGNORECASE)
         query = re.sub(r"\b(?:and|then|also|please|online)\b.*$", "", query, flags=re.IGNORECASE)
-        query = re.sub(r"\b(?:image|picture|photo)\b.*$", "", query, flags=re.IGNORECASE)
+        query = re.sub(rf"\b{_VISUAL_ASSET_RE}\b.*$", "", query, flags=re.IGNORECASE)
         query = re.sub(r"^(?:a|an|the|cool)\s+", "", query.strip(" ,?.!"), flags=re.IGNORECASE)
         query = query.strip(" ,?.!")[:120]
         if not query or query.lower() in {"it", "this", "that", "one"}:
@@ -81,7 +85,7 @@ def _extract_wallpaper(text: str) -> str | None:
     # actually ask. The pattern above only covers "image OF an orca".
     attributive_match = re.search(
         r"\b(?:find|search|look\s+up|get)\b[^.;\n]{0,60}?\b(?:a|an|some)?\s*"
-        r"([A-Za-z][\w'-]{2,40})\s+(?:image|picture|photo)\b"
+        rf"([A-Za-z][\w'-]{{2,40}})\s+{_VISUAL_ASSET_RE}\b"
         r"[^.;\n]{0,120}?\b(?:make|set|use)\b[^.;\n]{0,50}?"
         r"\b(?:my\s+)?(?:wallpaper|desktop\s+background|background)\b",
         text,
@@ -110,11 +114,11 @@ def _extract_wallpaper(text: str) -> str | None:
     # what happened live: the chain reported success and the desktop picture
     # never changed.
     referent = re.search(
-        r"\b(?:image|picture|photo)\s+of\s+(?:a|an|the)?\s*([^.;,\n]+)",
+        rf"\b{_VISUAL_ASSET_RE}\s+of\s+(?:a|an|the)?\s*([^.;,\n]+)",
         text,
         flags=re.IGNORECASE,
     ) or re.search(
-        r"\b(?:a|an|some)\s+([A-Za-z][\w'-]{2,40})\s+(?:image|picture|photo)\b",
+        rf"\b(?:a|an|some)\s+([A-Za-z][\w'-]{{2,40}})\s+{_VISUAL_ASSET_RE}\b",
         text,
         flags=re.IGNORECASE,
     )

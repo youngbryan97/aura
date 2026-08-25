@@ -19,6 +19,14 @@ from __future__ import annotations
 
 import pytest
 
+from core.intent.declared_capability import object_class_of as declared_object_class_of
+from core.language.concepts import object_class_of, object_class_pattern
+from core.runtime.skill_contract import (
+    SkillExecutionResult,
+    SkillStatus,
+    evaluate_action_expectation,
+)
+from core.skills.desktop_task import DesktopTaskSkill
 from core.skills.os_affordances import detect_os_settings
 
 
@@ -39,6 +47,16 @@ from core.skills.os_affordances import detect_os_settings
             "find a picture of a humpback whale and make it my background",
             "humpback whale",
         ),
+        (
+            "Could you find a high-quality photograph of Saturn online and use "
+            "it as my desktop wallpaper?",
+            "Saturn",
+        ),
+        (
+            "Find a portrait of Neptune online and set it as my desktop background.",
+            "Neptune",
+        ),
+        ("Look up a Jupiter snapshot and make it my wallpaper.", "Jupiter"),
     ],
 )
 def test_wallpaper_requests_are_recognised(objective, topic):
@@ -62,3 +80,95 @@ def test_non_requests_do_not_change_anything(objective):
 def test_a_bare_pronoun_with_no_referent_is_not_invented():
     """Resolving a pronoun must not become guessing at one."""
     assert detect_os_settings("set it as my wallpaper") == []
+
+
+def test_visual_object_class_is_shared_by_routing_and_desktop_planning():
+    assert object_class_of("photograph") == object_class_of("image")
+    assert declared_object_class_of("portrait") == object_class_of("image")
+    assert object_class_pattern("") == r"(?!)"
+
+
+def test_photograph_wallpaper_request_compiles_the_complete_effect_chain():
+    objective = (
+        "Could you find a high-quality photograph of Saturn online and use it "
+        "as my desktop wallpaper?"
+    )
+
+    skill = DesktopTaskSkill()
+    steps = skill._derive_steps_from_objective(objective, {})
+    actions = [step.action for step in steps]
+
+    assert skill._extract_image_query(objective) == "Saturn"
+    assert actions.index("fetch_topic_image") < actions.index("system_control")
+    fetch = next(step for step in steps if step.action == "fetch_topic_image")
+    control = next(step for step in steps if step.action == "system_control")
+    assert fetch.target["topic"] == "Saturn"
+    assert control.target["domain"] == "wallpaper"
+
+
+def test_wallpaper_completion_rejects_a_verified_search_without_setting_readback():
+    objective = (
+        "Could you find a high-quality photograph of Saturn online and use it "
+        "as my desktop wallpaper?"
+    )
+    evidence = DesktopTaskSkill._semantic_completion_evidence(
+        objective=objective,
+        task_context={},
+        receipts=[
+            {
+                "action": "open_url",
+                "ok": True,
+                "effect_verified": True,
+                "result": {"effect_verified": True},
+            }
+        ],
+        all_effects_verified=True,
+    )
+
+    verdict = evaluate_action_expectation(
+        SkillExecutionResult(
+            skill="desktop_task",
+            status=SkillStatus.SUCCESS_VERIFIED,
+            output={"semantic_evidence": evidence},
+            expectation=DesktopTaskSkill._semantic_completion_contract(objective),
+        )
+    )
+
+    assert verdict is not None and verdict.passed is False
+    assert verdict.status == SkillStatus.PARTIAL_SUCCESS
+    assert verdict.unsatisfied_predicates == ["requested_wallpaper_verified"]
+    assert evidence["os_settings"]["wallpaper"]["verified"] is False
+
+
+def test_wallpaper_completion_accepts_verified_setting_readback():
+    objective = "Find a portrait of Neptune and set it as my desktop background."
+    evidence = DesktopTaskSkill._semantic_completion_evidence(
+        objective=objective,
+        task_context={},
+        receipts=[
+            {
+                "action": "system_control",
+                "ok": True,
+                "effect_verified": True,
+                "result": {
+                    "domain": "wallpaper",
+                    "value": "/tmp/neptune.jpg",
+                    "applied": "/tmp/neptune.jpg",
+                    "effect_verified": True,
+                },
+            }
+        ],
+        all_effects_verified=True,
+    )
+
+    verdict = evaluate_action_expectation(
+        SkillExecutionResult(
+            skill="desktop_task",
+            status=SkillStatus.SUCCESS_VERIFIED,
+            output={"semantic_evidence": evidence},
+            expectation=DesktopTaskSkill._semantic_completion_contract(objective),
+        )
+    )
+
+    assert verdict is not None and verdict.passed is True
+    assert evidence["os_settings"]["wallpaper"]["verified"] is True

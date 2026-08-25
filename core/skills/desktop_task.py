@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field, field_validator
 
 from core.dialogue.referents import resolve_second_person
+from core.language.concepts import (
+    mentions_object_class,
+    object_class_pattern,
+)
 from core.runtime.content_integrity import (
     contains_paragraph_hashes,
     paragraph_sha256s,
@@ -26,13 +30,13 @@ from core.runtime.desktop_objective_intent import (
     looks_like_desktop_objective,
     looks_like_screen_observation,
 )
-from core.runtime.watched_goal import read_watched_goal
 from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_ALLOWED_ACTIONS,
     DESKTOP_TASK_RETRY_SAFE_ACTIONS,
 )
 from core.runtime.errors import record_degradation
 from core.runtime.os_automation_effects import canonical_app_target, extract_target_paths
+from core.runtime.watched_goal import read_watched_goal
 from core.skills.base_skill import BaseSkill
 from core.skills.file_modification_intent import requested_file_modification
 from core.skills.os_affordances import detect_os_settings, get_affordance
@@ -72,6 +76,7 @@ FETCHED_IMAGE_SOURCE_SENTINEL = "aura://fetched-image-source"
 # was never going to exist.
 FETCHED_IMAGE_PATH_SENTINEL = "aura://fetched-image-path"
 MAX_DESKTOP_TASK_STEPS = 32
+_VISUAL_ASSET_RE = object_class_pattern("image")
 
 def _computer_use_skill_singleton():
     """The computer_use skill instance used for focus management."""
@@ -811,10 +816,9 @@ class DesktopTaskSkill(BaseSkill):
                 "reports",
             )
         )
-        visual_reference_only = any(
-            marker in lowered
-            for marker in ("image", "picture", "photo", "illustration")
-        ) and not has_source_markers
+        visual_reference_only = (
+            mentions_object_class(lowered, "image") and not has_source_markers
+        )
         if visual_reference_only:
             return False
         wants_research = any(
@@ -916,7 +920,7 @@ class DesktopTaskSkill(BaseSkill):
         ):
             return "Google Chrome"
         if (
-            re.search(r"\b(?:image|picture|photo|illustration)\b", lowered)
+            re.search(rf"\b{_VISUAL_ASSET_RE}\b", lowered)
             and re.search(r"\b(?:online|internet|web|source|found|show)\b", lowered)
         ):
             return "Google Chrome"
@@ -931,9 +935,11 @@ class DesktopTaskSkill(BaseSkill):
     def _extract_image_query(objective: str) -> str:
         text = str(objective or "").strip()
         patterns = (
-            r"\b(?:image|picture|photo|illustration)\s+of\s+([^.;\n]+)",
-            r"\b(?:find|search|look\s+up)\s+(?:an?\s+)?(?:image|picture|photo|illustration)\s+(?:of\s+)?([^.;\n]+)",
-            r"\b([^.;\n]{2,120}?)\s+(?:image|picture|photo|illustration)\b",
+            rf"\b{_VISUAL_ASSET_RE}\s+of\s+([^.;\n]+)",
+            rf"\b(?:find|search|look\s+up)\s+(?:an?\s+)?{_VISUAL_ASSET_RE}\s+(?:of\s+)?([^.;\n]+)",
+            rf"\b(?:find|search(?:\s+for)?|look\s+up|get)\b\s+"
+            rf"(?:an?\s+|some\s+)?([^.;\n]{{2,120}}?)\s+{_VISUAL_ASSET_RE}\b",
+            rf"\b([^.;\n]{{2,120}}?)\s+{_VISUAL_ASSET_RE}\b",
         )
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -4367,8 +4373,18 @@ class DesktopTaskSkill(BaseSkill):
             for token in ("write", "summary", "summarize", "note", "document", "pdf", "save", "journal")
         ) or any(token in lowered for token in ("draft", "essay", "compose", "type"))
         wants_pdf = self._explicit_pdf_requested(text)
-        image_query = self._extract_image_query(text)
-        wants_image = bool(image_query) or any(token in lowered for token in ("image", "picture", "photo", "illustration"))
+        os_setting_requests = detect_os_settings(text)
+        image_setting_topic = next(
+            (
+                value
+                for domain, value in os_setting_requests
+                if (affordance := get_affordance(domain)) is not None
+                and affordance.needs_image
+            ),
+            "",
+        )
+        image_query = image_setting_topic or self._extract_image_query(text)
+        wants_image = bool(image_query) or mentions_object_class(text, "image")
         web_document_url = self._web_document_url(text)
         image_reference_only = bool(image_query) and not any(
             token in lowered
@@ -4641,7 +4657,7 @@ class DesktopTaskSkill(BaseSkill):
         # loop never names a specific setting, so a new one (volume, dark
         # mode, …) is recognized for free. Image-valued settings (wallpaper)
         # fetch their image first, through the same governed image gateway.
-        for domain, value in detect_os_settings(text):
+        for domain, value in os_setting_requests:
             affordance = get_affordance(domain)
             if affordance is None:
                 continue
@@ -5028,7 +5044,11 @@ class DesktopTaskSkill(BaseSkill):
             return False
         if wants_pdf and "render_text_pdf" not in actions:
             return False
-        if "image" in lowered and "fetch_topic_image" not in actions and "open_url" not in actions:
+        if (
+            mentions_object_class(objective, "image")
+            and "fetch_topic_image" not in actions
+            and "open_url" not in actions
+        ):
             return False
         # A note IS a durable artifact: it persists in Notes and can be read
         # back, which is the property this list is testing for.
@@ -5394,6 +5414,20 @@ class DesktopTaskSkill(BaseSkill):
                         repair_hint="move_or_render_pdf_into_requested_folder_and_read_back",
                     )
                 )
+        for domain, _value in detect_os_settings(objective):
+            predicates.append(
+                SemanticPredicate(
+                    predicate_id=f"requested_{domain}_verified",
+                    evidence_path=(
+                        f"semantic_evidence.os_settings.{domain}.verified"
+                    ),
+                    operator=PredicateOperator.TRUTHY,
+                    description=(
+                        f"Read-back confirms the requested {domain} goal-state."
+                    ),
+                    repair_hint=f"apply_and_read_back_requested_{domain}",
+                )
+            )
         return ActionExpectation(
             objective=objective,
             semantic_predicates=predicates,
@@ -5453,18 +5487,34 @@ class DesktopTaskSkill(BaseSkill):
             and cls._research_synthesis_satisfies_objective(objective, synthesis)
         )
 
-        verified = [
-            receipt
-            for receipt in receipts
-            if receipt.get("ok") is True and receipt.get("effect_verified") is True
-        ]
         pdf_paths: list[str] = []
         pdf_contains_authored_synthesis = False
         folder_paths: list[str] = []
+        os_settings = {
+            domain: {"verified": False}
+            for domain, _value in detect_os_settings(objective)
+        }
         synthesis_paragraphs = paragraph_sha256s(synthesis)
-        for receipt in verified:
+        for receipt in receipts:
             result = receipt.get("result")
             result = result if isinstance(result, Mapping) else {}
+            receipt_verified = bool(
+                receipt.get("ok") is True
+                and receipt.get("effect_verified") is True
+            )
+            if receipt.get("action") == "system_control":
+                domain = str(result.get("domain") or "").strip().casefold()
+                if domain in os_settings:
+                    os_settings[domain] = {
+                        "verified": bool(
+                            receipt_verified
+                            and result.get("effect_verified") is True
+                        ),
+                        "applied": result.get("applied"),
+                        "value": result.get("value"),
+                    }
+            if not receipt_verified:
+                continue
             path = str(result.get("path") or "").strip()
             if receipt.get("action") == "render_text_pdf" and path.lower().endswith(".pdf"):
                 pdf_paths.append(path)
@@ -5515,6 +5565,7 @@ class DesktopTaskSkill(BaseSkill):
 
         return {
             "mechanical": {"all_effects_verified": all_effects_verified},
+            "os_settings": os_settings,
             "research": {
                 "distinct_source_count": len(
                     {
