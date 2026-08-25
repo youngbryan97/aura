@@ -186,8 +186,12 @@ async def test_local_first_result_passes_the_real_source_expectation(monkeypatch
     from core.skills.web_search import EnhancedWebSearchSkill
 
     skill = EnhancedWebSearchSkill()
+    # Patched on the CLASS. The probe runs off-loop through a classmethod that
+    # calls `cls._local_corpus_first`, so an instance attribute is never
+    # consulted — the patch reached nothing and the real probe ran, missed,
+    # and fell through to the network the test forbids.
     monkeypatch.setattr(
-        skill,
+        EnhancedWebSearchSkill,
         "_local_corpus_first",
         lambda q, n: {
             "ok": True,
@@ -234,8 +238,18 @@ async def test_raised_web_pipeline_fallback_keeps_sources_for_verification(monke
         raise OSError("network unavailable")
 
     monkeypatch.setattr(skill.pipeline, "search", _raise)
+    # The local-corpus PREFERENCE answers before the network is tried, and on
+    # a host that has the corpus installed it answered this query — so the
+    # raising lane under test was never reached and the test passed or failed
+    # on whether the machine happened to have 6.5M offline documents. Declined
+    # here so the path this test is about is the path it runs.
     monkeypatch.setattr(
-        skill,
+        EnhancedWebSearchSkill, "_local_corpus_first", lambda q, n: None
+    )
+    # On the class, for the same reason as above: the off-loop wrapper reads
+    # `cls._local_corpus_fallback`.
+    monkeypatch.setattr(
+        EnhancedWebSearchSkill,
         "_local_corpus_fallback",
         lambda q, n: {
             "ok": True,
