@@ -786,14 +786,55 @@ def _mapping_from(organ: Any, accessors: Sequence[str]) -> Mapping[str, Any] | N
 def _probe_uncertainty() -> dict[str, float] | None:
     """How sure she is, from whatever organ is registered to say so.
 
-    This channel has NO confirmed in-memory source today, and it is left
-    duck-typed rather than bound to a number that means something else. The
-    calibration tracker computes its report from a database, which a probe on
-    the request path may not do; the self-model's prediction error is about
-    the self-model, not about an answer. Until an organ publishes a cheap
-    confidence reading, this reads absent — which is the honest state, and is
-    what the arbitration checks skip on.
+    Two of the four dimensions have a source and two do not, and that split is
+    deliberate rather than incomplete.
+
+    The world model is registered and its `get_summary` is memory-only, so
+    `evidence_support` and `abstention_pressure` are read from how well
+    supported her held beliefs are and how many of them have collided. Both
+    are honest names for what that graph measures.
+
+    `confidence` and `calibration_error` want something else: a reading about
+    the answer FORMING, and a measured gap between stated confidence and
+    outcome. The calibration tracker computes its report from a database,
+    which a probe on the request path may not do, and the self-model's
+    prediction error is about the self-model. Until an organ publishes those
+    cheaply they read absent, which is the honest state and is what the
+    arbitration checks skip on.
+
+    Measured 2026-08-25: the four service names this probe tried before are
+    registered nowhere in the tree, so the whole channel read absent on all
+    1,729 recorded turns.
     """
+    out: dict[str, float] = {}
+
+    # The world model is the one epistemic organ this runtime actually
+    # registers, and `get_summary` is memory-only — it walks the belief graph
+    # already in this process rather than querying anything.
+    #
+    # What it yields is NOT confidence in the answer forming. It is how well
+    # supported her held beliefs are, and how many of them have collided. Bound
+    # to the two dimensions that mean that, and to neither of the two that do
+    # not: `uncertainty.confidence` and `uncertainty.calibration_error` want a
+    # per-answer reading and a measured confidence-to-outcome gap, and binding
+    # a belief-graph average to either would be the exact substitution this
+    # probe's own docstring warns against.
+    world = _service("epistemic_state") or _service("world_model")
+    summary = _mapping_from(world, ("get_summary", "summary"))
+    if isinstance(summary, Mapping):
+        support = _first_number(summary, ("avg_confidence",))
+        if support is not None:
+            out["uncertainty.evidence_support"] = max(0.0, min(1.0, support))
+        contradictions = _first_number(summary, ("contradiction_count",))
+        held = _first_number(summary, ("total_beliefs",))
+        if contradictions is not None and held:
+            # A pull toward saying nothing, read as the share of held beliefs
+            # that have collided. Not a rate anyone tuned: it is the graph's
+            # own contradiction count over its own size.
+            out["uncertainty.abstention_pressure"] = max(
+                0.0, min(1.0, contradictions / max(1.0, held))
+            )
+
     for key in ("calibration_tracker", "confidence_calibrator", "epistemics", "uncertainty_engine"):
         organ = _service(key)
         if organ is None:
@@ -811,7 +852,6 @@ def _probe_uncertainty() -> dict[str, float] | None:
             report = None
         if not isinstance(report, Mapping):
             continue
-        out: dict[str, float] = {}
         for name, keys in (
             ("uncertainty.confidence", ("confidence", "mean_confidence")),
             ("uncertainty.calibration_error", ("calibration_error", "ece", "brier")),
@@ -823,7 +863,7 @@ def _probe_uncertainty() -> dict[str, float] | None:
                 out[name] = min(1.0, abs(value))
         if out:
             return out
-    return None
+    return out or None
 
 
 def _probe_self_state() -> dict[str, float] | None:

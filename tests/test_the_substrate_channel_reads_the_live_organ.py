@@ -116,3 +116,84 @@ def test_no_substrate_still_reads_absent(monkeypatch):
         "core.brain.llm.endogenous_state._service", lambda name: None
     )
     assert _probe_substrate() is None
+
+
+class _WorldModelShaped:
+    """The keys core/consciousness/world_model.py actually publishes."""
+
+    def __init__(self, *, avg: float, contradictions: int, held: int) -> None:
+        self._avg = avg
+        self._contradictions = contradictions
+        self._held = held
+
+    def get_summary(self) -> dict:
+        return {
+            "total_beliefs": self._held,
+            "total_nodes": self._held + 3,
+            "contradiction_count": self._contradictions,
+            "avg_confidence": self._avg,
+            "strongest_beliefs": [],
+        }
+
+
+def test_uncertainty_reads_the_organ_that_is_registered(monkeypatch):
+    """Measured 2026-08-25: this channel read absent on all 1,729 turns.
+
+    It resolved calibration_tracker, confidence_calibrator, epistemics and
+    uncertainty_engine. None of the four is registered anywhere in the tree,
+    so the channel could not fire and its four dimensions were 0 of 4 present.
+    """
+    from core.brain.llm.endogenous_state import _probe_uncertainty
+
+    world = _WorldModelShaped(avg=0.6, contradictions=2, held=10)
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service",
+        lambda name: world if name == "epistemic_state" else None,
+    )
+
+    read = _probe_uncertainty()
+
+    assert read is not None
+    assert read["uncertainty.evidence_support"] == pytest.approx(0.6)
+    assert read["uncertainty.abstention_pressure"] == pytest.approx(0.2)
+
+
+def test_the_two_dimensions_with_no_honest_source_stay_absent(monkeypatch):
+    """A belief-graph average is not confidence in the answer forming.
+
+    Binding it to `uncertainty.confidence` would be the substitution this
+    probe's own docstring warns against, so those two read absent instead.
+    """
+    from core.brain.llm.endogenous_state import _probe_uncertainty
+
+    world = _WorldModelShaped(avg=0.9, contradictions=0, held=5)
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service",
+        lambda name: world if name == "epistemic_state" else None,
+    )
+
+    read = _probe_uncertainty()
+
+    assert "uncertainty.confidence" not in read
+    assert "uncertainty.calibration_error" not in read
+
+
+def test_no_world_model_still_reads_absent(monkeypatch):
+    from core.brain.llm.endogenous_state import _probe_uncertainty
+
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service", lambda name: None
+    )
+    assert _probe_uncertainty() is None
+
+
+def test_the_layout_digest_is_unchanged_by_any_of_this():
+    """A probe fix must not invalidate the recorded corpus.
+
+    The digest covers the FEATURE list, not the sources behind it, so wiring a
+    channel to a different organ leaves 1,729 recorded turns fittable. Adding
+    or renaming a dimension would not, and that is the deliberate difference.
+    """
+    from core.brain.llm.endogenous_state import layout_digest
+
+    assert layout_digest() == "d3a59c56a36248d52b67d8282bf2f702"
