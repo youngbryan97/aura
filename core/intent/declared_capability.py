@@ -48,6 +48,7 @@ __all__ = [
     "distinctive_objects",
     "foundational_capabilities",
     "looks_like_a_request",
+    "names_a_concrete_resource",
     "rank_declaration_matches",
     "requested_foundational_domains",
     "request_matches_declaration",
@@ -213,6 +214,27 @@ _FOUNDATIONAL_DOMAIN_OBJECT = {
     "web": "web",
 }
 
+#: The act each domain is reached BY, spelled once per domain and expanded
+#: through the verb classes above.
+#:
+#: A domain noun in a declaration says the skill knows about that domain. It
+#: does not say the skill can get at it. ``diagnose_repo`` says "file",
+#: "directory" and "repo" while describing what it prints about a failing
+#: test, and that made a test runner the primitive for reading a file: "read
+#: /etc/hosts and tell me the first line" was offered a way to run a
+#: project's tests and no way to read anything.
+#:
+#: The code domain has carried this requirement since it was written — an
+#: exact problem needs a primitive that both owns code-like state and
+#: declares that it executes it. File and web were reading the noun alone.
+#: A domain absent from this table has no primitive rather than an ungated
+#: one, so adding a domain and forgetting its act offers nothing instead of
+#: offering anything.
+_FOUNDATIONAL_DOMAIN_ACT = {
+    "file": "read",
+    "web": "search",
+}
+
 # Concrete addresses carry their domain even when their noun is outside the
 # catalogue. ``README.md`` is a file without saying "file"; URLs do the same
 # for the web. These are syntax classes, not filenames maintained by hand.
@@ -221,6 +243,18 @@ _FILE_ADDRESS_RE = re.compile(
     r"(?:^|\s)(?:~?/|\.{1,2}/|[A-Za-z]:[\\/])\S+"
     r"|\b[A-Za-z0-9_-]+\.[A-Za-z][A-Za-z0-9]{0,11}\b"
 )
+
+
+def names_a_concrete_resource(message: object) -> bool:
+    """Whether the turn names an address: a path on a disk, or a URL.
+
+    One definition, because two readers need the same answer for the same
+    reason. Naming a place is evidence about the turn that its grammar does
+    not carry: the bytes are AT that place, so the sentence is about
+    something outside the conversation whatever mood it is written in.
+    """
+    body = str(message or "")
+    return bool(_WEB_ADDRESS_RE.search(body) or _FILE_ADDRESS_RE.search(body))
 
 #: Asking for a thing, rather than mentioning it.
 #:
@@ -485,10 +519,20 @@ def request_matches_declaration(
     Both halves are required. A verb alone matches "my code doesn't run" and
     an object alone matches "pythons are constrictors"; together, inside one
     clause, they are a request.
+
+    Mood decides the rest — except when the turn names an address. "why is
+    the test failing in <path>" is a question, so the mood reader is right to
+    call it one, and the skill that runs a project's tests and reports which
+    assertion failed matched every other way: the acts, the nouns, the whole
+    shape of the request. It was reached anyway, because its description says
+    "file" and "directory" often enough to hold the slot meant for the file
+    READER, and the read request underneath went to a test runner. The domain
+    reader below already stopped gating on mood for exactly this case.
     """
     body = str(message or "").strip().lower()
     if not body:
         return False
+    addressed = names_a_concrete_resource(body)
     wanted_verbs: set[str] = set()
     for verb in verbs:
         wanted_verbs |= verb_class_of(verb) or {str(verb).strip().lower()}
@@ -525,7 +569,7 @@ def request_matches_declaration(
         )
         if not names_the_instrument and not ({_fold(w) for w in present} & wanted_objects):
             continue
-        if _asks_rather_than_mentions(present, verb_positions):
+        if addressed or _asks_rather_than_mentions(present, verb_positions):
             return True
     return False
 
@@ -707,8 +751,7 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
     # to look at the directory it was asked about. The docstring above already
     # names concrete resource syntax as domain evidence; the mood gate ran
     # first and never reached it.
-    names_a_resource = bool(_WEB_ADDRESS_RE.search(body) or _FILE_ADDRESS_RE.search(body))
-    if not looks_like_a_request(body) and not names_a_resource:
+    if not looks_like_a_request(body) and not names_a_concrete_resource(body):
         return ()
 
     present = {_fold(word) for word in _words(body)}
@@ -763,20 +806,49 @@ def foundational_capabilities(
             if code_candidates:
                 ordered.append(code_candidates[0])
             continue
+        act = _FOUNDATIONAL_DOMAIN_ACT.get(domain)
+        if not act:
+            continue
         wanted: set[str] = set()
         for members in _OBJECT_CLASSES:
             if domain in members:
                 wanted |= members
         folded = {_fold(word) for word in wanted}
-        scored: list[tuple[int, str]] = []
-        for name, (_verbs, objects) in catalogue.items():
-            overlap = len({_fold(word) for word in objects} & folded)
-            if overlap:
-                named_overlap = len({_fold(word) for word in _words(name)} & folded)
-                scored.append((-(10 * named_overlap + overlap), name))
+        acts = {_fold(word) for word in verb_class_of(act)}
+        scored: list[tuple[float, float, str]] = []
+        for name, (verbs, objects) in catalogue.items():
+            declared_objects = {_fold(word) for word in objects}
+            declared_acts = {_fold(word) for word in verbs}
+            about = declared_objects & folded
+            reaching = declared_acts & acts
+            # Both halves, for the reason the whole module works this way. The
+            # noun says the skill knows the domain; the verb says it can get
+            # at the domain. A test runner that mentions files four times is
+            # still no way to read one.
+            if not about or not reaching:
+                continue
+            # Shares, not counts. Counting measures how much a description
+            # says: `diagnose_repo` names a file, a line, a directory and a
+            # repo while describing what it prints about a failing test, and
+            # outnumbered "Read, write, append, or list files in the allowed
+            # workspace" on its own subject.
+            #
+            # How much of what a skill declares doing IS this act comes
+            # first, because it is the half that decides reachability. A
+            # document builder writes to a file and prints it, so it declares
+            # the domain and one reading word; a file reader declares reading
+            # and little else. Objects break the tie, and a skill's name is
+            # already among them.
+            scored.append(
+                (
+                    -len(reaching) / len(declared_acts),
+                    -len(about) / len(declared_objects),
+                    name,
+                )
+            )
         scored.sort()
         if scored:
-            ordered.append(scored[0][1])
+            ordered.append(scored[0][2])
     return ordered
 
 
