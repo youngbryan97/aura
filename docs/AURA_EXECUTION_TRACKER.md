@@ -52313,3 +52313,33 @@ smoke passes `121/121` with one environment-dependent skip. Compilation and
 layering pass. The action-evidence continuity item is closed. Long soaks and the
 separate repository-wide semantic ledger remain deferred until the shorter live
 runtime gates are green.
+
+## Checkpoint 2026-08-25-1059: Keep Task Failure Out of Runtime Incidents
+
+The turn ledger previously classified a correctly delivered task failure as a
+broken chat subsystem. A missing application was accurately reported to the
+person, then `TurnOutcome._report` emitted a second `degraded` event for chat,
+opened an incident, injured resilience state, and registered a runtime fault.
+That made honest failure reporting look like infrastructure damage.
+
+The HTTP delivery boundary now records the already-computed response-authority
+and delivery proofs in the turn's causal receipts. A failed requested effect is
+classified as a handled task failure only when both proofs are true and a reply
+was actually served. Its immutable turn status remains `TERMINAL_FAILURE`; the
+underlying capability still owns any real component fault. An apology, an
+unproven response, a missing effect declaration, or missing delivery continues
+to escalate normally.
+
+**Live proof.** Source-matched Aura ran commit `2b724eac1`. Session
+`cp1059-live-1787681200` requested `Please launch
+AnotherDefinitelyMissingAuraProbe.` The governed desktop path returned the
+exact application-not-found outcome in `3.6` seconds with zero foreground model
+generations, `response_authority_proven=true`,
+`answer_delivery_proven=true`, and `semantic_completion_satisfied=true`. The
+same bounded log window retained the failed tool receipts and contained no
+`requested_effect_observed_failed` degradation, no new incident, no resilience
+injury, and no `RUNTIME-CHAT` fault.
+
+Focused turn, effect, empty-cycle, and delivery tests pass `50/50`; canonical
+smoke passes `121/121` with one environment-dependent skip. Compilation and
+layering pass. This telemetry-classification item is closed.
