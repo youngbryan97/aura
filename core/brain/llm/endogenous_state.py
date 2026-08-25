@@ -705,6 +705,16 @@ def _mapping_from(organ: Any, accessors: Sequence[str]) -> Mapping[str, Any] | N
 
 
 def _probe_uncertainty() -> dict[str, float] | None:
+    """How sure she is, from whatever organ is registered to say so.
+
+    This channel has NO confirmed in-memory source today, and it is left
+    duck-typed rather than bound to a number that means something else. The
+    calibration tracker computes its report from a database, which a probe on
+    the request path may not do; the self-model's prediction error is about
+    the self-model, not about an answer. Until an organ publishes a cheap
+    confidence reading, this reads absent — which is the honest state, and is
+    what the arbitration checks skip on.
+    """
     for key in ("calibration_tracker", "confidence_calibrator", "epistemics", "uncertainty_engine"):
         organ = _service(key)
         if organ is None:
@@ -738,17 +748,36 @@ def _probe_uncertainty() -> dict[str, float] | None:
 
 
 def _probe_self_state() -> dict[str, float] | None:
+    """Her sense of being the same system she was a moment ago.
+
+    From the continuous recurrent self-model, PEEKED rather than fetched: a
+    model this probe started would report a continuity score of one for a self
+    that has never ticked, which reads as perfect continuity rather than as an
+    absence.
+    """
     out: dict[str, float] = {}
+    try:
+        from core.consciousness.crsm import peek_crsm
+
+        model = peek_crsm()
+        snapshot = getattr(model, "current_snapshot", None) if model else None
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("self model unavailable: %s", exc)
+        snapshot = None
+    if snapshot is not None:
+        continuity = _first_number(snapshot, ("continuity_score",))
+        if continuity is not None:
+            out["self.continuity"] = max(0.0, min(1.0, continuity))
+        error = _first_number(snapshot, ("prediction_error",))
+        if error is not None:
+            # Distance from the self-model's own expectation IS the drift.
+            out["self.drift"] = max(0.0, min(1.0, abs(error)))
+
     ghost = _service("ghost") or _service("soul")
     if ghost is not None:
-        for name, keys in (
-            ("self.continuity", ("continuity", "continuity_score")),
-            ("self.drift", ("drift", "identity_drift")),
-            ("self.agency", ("agency", "agency_score")),
-        ):
-            value = _first_number(ghost, keys)
-            if value is not None:
-                out[name] = min(1.0, abs(value))
+        agency = _first_number(ghost, ("agency", "agency_score"))
+        if agency is not None:
+            out["self.agency"] = min(1.0, abs(agency))
     health = _service("health_monitor") or _service("watchdog")
     integrity = _first_number(health, ("integrity", "health_score")) if health else None
     if integrity is not None:

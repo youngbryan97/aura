@@ -35,6 +35,7 @@ BINDINGS = (
     ("goal", "core.goals.goal_engine", "GoalEngine", "get_active_goals"),
     ("memory", "core.memory.recall_observations", "RecallObservationRing", "samples"),
     ("attention", "core.knowledge.atomspace", "AtomSpace", "attentional_focus"),
+    ("self_state", "core.consciousness.crsm", "ContinuousRecurrentSelfModel", "current_snapshot"),
 )
 
 #: Module-level functions a probe calls directly.
@@ -42,6 +43,7 @@ FUNCTION_BINDINGS = (
     ("memory", "core.memory.recall_observations", "peek_recall_observations"),
     ("recurrence", "core.brain.llm.user_surface_recurrence", "admit_user_surface_recurrent_loops"),
     ("recurrence", "core.brain.llm.user_surface_recurrence", "user_surface_recurrent_ceiling"),
+    ("self_state", "core.consciousness.crsm", "peek_crsm"),
 )
 
 
@@ -98,3 +100,32 @@ def test_a_channel_that_errored_is_not_reported_as_absent():
     state = assemble_state(probes={"goal": explode})
     assert state.sources["goal"] == "error"
     assert empty_state().sources["goal"] == "absent"
+
+
+def test_the_self_state_probe_never_starts_the_self_model(monkeypatch):
+    """A model this probe started would report perfect continuity.
+
+    Its first snapshot describes a self that has never ticked, which reads as
+    a continuity score of one rather than as an absence.
+    """
+    from core.consciousness import crsm
+
+    def explode():  # pragma: no cover - the assertion is that this never runs
+        raise AssertionError("a state probe started the self model")
+
+    monkeypatch.setattr(crsm, "get_crsm", explode)
+    reset_state_cache()
+    assemble_state(max_age_s=0.0)
+
+
+def test_a_ticked_self_model_fills_the_channel():
+    from core.consciousness.crsm import get_crsm
+
+    model = get_crsm()
+    # One update is enough to produce a snapshot the probe can read.
+    model.update(valence=0.2, arousal=0.4, curiosity=0.6)
+    assert model.current_snapshot is not None
+    reset_state_cache()
+    state = assemble_state(max_age_s=0.0)
+    assert state.is_present("self.continuity")
+    assert state.sources["self_state"] == "live"

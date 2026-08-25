@@ -24,20 +24,16 @@ Architecture:
 No torch dependency: pure numpy GRU cell for stability.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
-import math
-import os
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.CRSM")
@@ -71,7 +67,7 @@ class _NumpyGRU:
         self.Wo = rng.normal(0, scale, (input_dim, hidden_dim))
         self.bo = np.zeros(input_dim)
 
-    def step(self, x: np.ndarray, h: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def step(self, x: np.ndarray, h: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         xh = np.concatenate([x, h])
         z  = self._sigmoid(self.Wz @ xh + self.bz)
         r  = self._sigmoid(self.Wr @ xh + self.br)
@@ -112,7 +108,6 @@ class SelfStateSnapshot:
     timestamp: float = field(default_factory=time.time)
 
     def to_context_block(self) -> str:
-        labels = ["valence", "arousal", "curiosity", "energy", "surprise", "dominance"]
         active = self.dominant_dim
         cts = round(self.continuity_score, 2)
         err = round(self.prediction_error, 3)
@@ -139,13 +134,13 @@ class ContinuousRecurrentSelfModel:
         self._gru = _NumpyGRU(INPUT_DIM, HIDDEN_DIM, rng)
         self._h: np.ndarray = np.zeros(HIDDEN_DIM)
         self.home_vector: np.ndarray = np.zeros(HIDDEN_DIM)  # resting state, updated by consolidator
-        self._last_input: Optional[np.ndarray] = None
+        self._last_input: np.ndarray | None = None
         self._prediction_error: float = 0.0
         self._continuity_score: float = 1.0
         self._error_ema: float = 0.0
-        self._snapshot: Optional[SelfStateSnapshot] = None
+        self._snapshot: SelfStateSnapshot | None = None
         self._tick_count: int = 0
-        self._history: List[dict] = []          # rolling history for consolidator
+        self._history: list[dict] = []          # rolling history for consolidator
         self._max_history: int = 200
         self._load()
         logger.info("CRSM online — bidirectional self-model initialized.")
@@ -234,7 +229,7 @@ class ContinuousRecurrentSelfModel:
         self._h = np.tanh(self._h + 0.05 * nudge)
 
     @property
-    def current_snapshot(self) -> Optional[SelfStateSnapshot]:
+    def current_snapshot(self) -> SelfStateSnapshot | None:
         return self._snapshot
 
     @property
@@ -315,11 +310,22 @@ class ContinuousRecurrentSelfModel:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_crsm: Optional[ContinuousRecurrentSelfModel] = None
+_crsm: ContinuousRecurrentSelfModel | None = None
 
 
 def get_crsm() -> ContinuousRecurrentSelfModel:
     global _crsm
     if _crsm is None:
         _crsm = ContinuousRecurrentSelfModel()
+    return _crsm
+
+
+def peek_crsm() -> ContinuousRecurrentSelfModel | None:
+    """The self-model if one is running, and never a reason to start one.
+
+    A read-only consumer — a health block, a state probe — must not be the
+    thing that brings the model into existence. Its first snapshot would then
+    describe a self that has never ticked, which reads as a continuity score
+    of one rather than as an absence.
+    """
     return _crsm
