@@ -117,6 +117,37 @@ def test_weather_detail_is_removed() -> None:
     assert "it feels quiet" in result.text, "the rest of the reply must survive"
 
 
+@pytest.mark.parametrize(
+    "reply",
+    (
+        "I can see the break clearly from my action receipts.",
+        "I can see the distinction now: the cache survived but the process did not.",
+        "I can see it as a consistency problem rather than a model failure.",
+    ),
+)
+def test_conceptual_sight_is_not_misclassified_as_weather(reply: str) -> None:
+    """Ordinary cognition is not a claim to a camera or a weather reading."""
+
+    result = verify_grounded_claims(reply, now=MORNING)
+
+    assert result.text == reply
+    assert result.corrections == ()
+
+
+@pytest.mark.parametrize(
+    "reply",
+    (
+        "I can see the sky is cloudy outside.",
+        "I can see clouds gathering over the hills.",
+    ),
+)
+def test_visual_lead_does_not_exempt_an_explicit_weather_claim(reply: str) -> None:
+    result = verify_grounded_claims(reply, now=MORNING)
+
+    assert result.text == ""
+    assert result.corrections == ("described weather it has no reading for",)
+
+
 def test_the_whole_live_sentence_is_reconciled() -> None:
     result = verify_grounded_claims(
         "It's early morning — the light outside has that soft, grayish hue. I know "
@@ -147,6 +178,6 @@ def test_it_runs_on_the_text_about_to_be_spoken() -> None:
 
     src = chat_lane_source()
     guard_at = src.index("from core.conversation.grounded_claim_guard import")
-    contract_at = src.index("_final_reply = _enforce_final_requested_output_contract(")
+    contract_at = src.index("_final_reply = _enforce_or_bind_terminal_output_contract(")
     assert contract_at < guard_at, "the reading must settle the final text, not an earlier draft"
     assert "measured_reading_overrides_stated_claim" in src

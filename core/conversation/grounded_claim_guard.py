@@ -119,8 +119,7 @@ _PHANTOM_PERCEPTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(
             r"(?:^|(?<=[.!?;,—-]\s))[^.!?]*\b(?:the light outside|"
             r"it(?:'s| is)\s+(?:sunny|raining|snowing|overcast|cloudy)|"
-            r"clouds? (?:are )?gathering|the sky (?:is|looks)|"
-            r"i can see (?:the|it|outside))\b[^.!?]*[.!?]?",
+            r"clouds? (?:are )?gathering|the sky (?:is|looks))\b[^.!?]*[.!?]?",
             re.IGNORECASE,
         ),
         "described weather it has no reading for",
