@@ -221,6 +221,9 @@ class VocabFit:
     top_k: int
     layout: str
     tokenizer: str
+    #: What actually moved in the corpus this was fitted on. A verdict can
+    #: only be a claim about the part of the state that varied.
+    state_variance: dict[str, Any] = field(default_factory=dict)
     #: How many DIFFERENT replies the holdout scored on, and how many the whole
     #: corpus held. A repeated reply is one observation of the state-to-words
     #: relationship however many rows it fills.
@@ -298,6 +301,22 @@ class VocabFit:
         return self.overall_signal or self.rare_signal
 
     @property
+    def only_affect_varied(self) -> bool:
+        """Whether affect was the ONLY channel that moved in this corpus.
+
+        The distinction the whole verdict scheme exists for. A state whose
+        only variance is affect can produce a real, significant gain over
+        rare tokens and still be nothing more than a learned style adapter —
+        cheerful state, cheerful vocabulary — because there is no other
+        channel the effect could have come from. The gain is not downgraded
+        here, because it is real and downgrading it would hide a measurement;
+        it is NAMED, so a reader cannot take content_bearing to mean the goal
+        system or the memory system contributed when neither one moved.
+        """
+        channels = set(self.state_variance.get("by_channel") or {})
+        return channels == {"affect"}
+
+    @property
     def corpus_is_too_repetitive(self) -> bool:
         """Whether the held-out side has enough DIFFERENT replies to score on.
 
@@ -334,6 +353,8 @@ class VocabFit:
         return {
             "layout": self.layout,
             "tokenizer": self.tokenizer,
+            "state_variance": self.state_variance,
+            "only_affect_varied": self.only_affect_varied,
             "state_dim": int(STATE_DIM),
             "vocab_size": int(self.vocab_size),
             "active_tokens": int(self.active_tokens.size),
@@ -375,7 +396,16 @@ class VocabFit:
             "verdict": self.verdict,
             "usable": self.usable,
             "trained_at": self.trained_at,
-            "what_this_means": VERDICT_MEANING[self.verdict],
+            "what_this_means": (
+                VERDICT_MEANING[self.verdict]
+                + (
+                    " — but affect was the only channel that varied in this "
+                    "corpus, so nothing here distinguishes the effect from a "
+                    "learned style adapter"
+                    if self.only_affect_varied
+                    else ""
+                )
+            ),
         }
 
     def to_head(self) -> EndogenousVocabHead:
@@ -465,6 +495,46 @@ def tokenize_pairs(
             )
         )
     return out
+
+
+def varying_dimensions(turns: Sequence[TurnTokens]) -> dict[str, Any]:
+    """Which named dimensions actually MOVED in the corpus that was fitted.
+
+    A verdict is a claim about the state, and it can only be a claim about the
+    part of the state that varied. A dimension pinned at one value across
+    every turn is worse than an absent one: it reads as live, it pads the
+    coverage figure, and it cannot carry information however strong the
+    verdict above it.
+
+    Measured on the live corpus, 2026-08-25: 5 of the 6 goal dimensions were
+    constant across 1,629 turns, along with attention.load and
+    recurrence.budget_used, both pinned at their ceiling. Reporting this
+    beside the verdict is what stops a gain carried entirely by affect being
+    read as evidence about goals, memory or recurrence.
+    """
+    if not turns:
+        return {"varying": [], "constant": [], "by_channel": {}}
+
+    from core.brain.llm.endogenous_state import FEATURES
+
+    states = np.stack([turn.state for turn in turns])
+    spread = states.std(axis=0)
+    varying: list[str] = []
+    constant: list[str] = []
+    by_channel: dict[str, int] = {}
+    for index, feature in enumerate(FEATURES):
+        if index >= spread.size:
+            break
+        if float(spread[index]) > 0.0:
+            varying.append(feature.name)
+            by_channel[feature.channel] = by_channel.get(feature.channel, 0) + 1
+        else:
+            constant.append(feature.name)
+    return {
+        "varying": varying,
+        "constant": constant,
+        "by_channel": dict(sorted(by_channel.items())),
+    }
 
 
 def _distinct_replies(turns: Sequence[TurnTokens]) -> int:
@@ -1006,6 +1076,7 @@ def fit_vocab_head(
         n_turns_train=len(train_turns),
         n_turns_validation=len(validation_turns),
         n_turns_holdout=len(holdout_turns),
+        state_variance=varying_dimensions(turns),
         n_replies_holdout=_distinct_replies(holdout_turns),
         n_replies_train=_distinct_replies(train_turns),
         n_replies_total=_distinct_replies(turns),
@@ -1058,6 +1129,7 @@ __all__ = [
     "MIN_TURNS",
     "MIN_HOLDOUT_REPLIES",
     "MIN_TRAIN_REPLIES",
+    "varying_dimensions",
     "DECAY_GRID",
     "MIN_REFITS_TO_GATE",
     "NULL_REFITS",
