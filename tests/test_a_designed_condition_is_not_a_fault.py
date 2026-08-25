@@ -95,10 +95,12 @@ def test_deciding_without_language_is_not_recorded_as_a_degradation():
     from core.agency import deliberate_action
 
     source = inspect.getsource(deliberate_action.deliberate)
-    where = source.index("spoke = False")
-    guard = source[max(0, where - 700) : where]
-    assert "record_degradation(" not in guard, "a working fallback is being counted as a fault"
-    assert "logger.info(" in guard, "and it should still be visible"
+    # The branch where language was reached and failed — not the one where a
+    # caller deliberately did not ask.
+    where = source.index("TimeoutError) as exc:")
+    branch = source[where : source.index("chosen = choose_named", where)]
+    assert "record_degradation(" not in branch, "a working fallback is being counted as a fault"
+    assert "logger.info(" in branch, "and it should still be visible"
 
 
 def test_a_rollback_receipt_does_not_abort_the_turn_it_describes():
