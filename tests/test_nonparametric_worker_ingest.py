@@ -71,8 +71,15 @@ def test_worker_ingest_reuses_resident_model_with_one_forward(tmp_path, monkeypa
         lambda dim: memory if dim == 8 else None,
     )
 
+    language = SimpleNamespace(
+        args=SimpleNamespace(hidden_size=8),
+        model=lambda value: value,
+    )
     result = mlx_worker._run_nonparametric_ingest_job(
-        SimpleNamespace(args=SimpleNamespace(hidden_size=8)),
+        SimpleNamespace(
+            args=SimpleNamespace(model_type="qwen3_5"),
+            language_model=language,
+        ),
         object(),
         {"seq": 7, "max_pairs": 1, "deadline_s": 5.0},
     )

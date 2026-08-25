@@ -13,6 +13,53 @@ import pytest
 from core.runtime.shutdown_coordinator import clear_shutdown_request, request_shutdown
 
 
+def test_cpu_worker_never_enters_metal_wired_memory_accounting():
+    from core.brain.llm.mlx_worker import (
+        _bind_mlx_lm_wired_limit_to_worker_device,
+    )
+
+    entered = []
+
+    @contextlib.contextmanager
+    def upstream_wired_limit(_model, _streams=None):
+        entered.append(True)
+        raise KeyError("max_recommended_working_set_size")
+        yield  # pragma: no cover
+
+    generation = SimpleNamespace(wired_limit=upstream_wired_limit)
+
+    assert (
+        _bind_mlx_lm_wired_limit_to_worker_device(
+            generation,
+            requested_device="cpu",
+        )
+        is True
+    )
+    cpu_guard = generation.wired_limit
+    with generation.wired_limit(object(), []):
+        pass
+    assert entered == []
+
+    # Binding is idempotent, and rebinding a process to Metal restores the
+    # exact upstream implementation rather than leaving the CPU shim active.
+    assert (
+        _bind_mlx_lm_wired_limit_to_worker_device(
+            generation,
+            requested_device="cpu",
+        )
+        is True
+    )
+    assert generation.wired_limit is cpu_guard
+    assert (
+        _bind_mlx_lm_wired_limit_to_worker_device(
+            generation,
+            requested_device="metal",
+        )
+        is False
+    )
+    assert generation.wired_limit is upstream_wired_limit
+
+
 def test_neutral_steering_request_does_not_report_liveness_failure(
     monkeypatch,
     caplog,
@@ -1015,12 +1062,20 @@ def _install_worker_fakes(monkeypatch, mlx_worker, *, load_impl, steering_engine
     mlx_pkg.core = mlx_core
     mlx_lm = types.ModuleType("mlx_lm")
     mlx_lm.load = load_impl
+    mlx_lm_generate = types.ModuleType("mlx_lm.generate")
+
+    @contextlib.contextmanager
+    def wired_limit(_model, _streams=None):
+        yield
+
+    mlx_lm_generate.wired_limit = wired_limit
     sample_utils = types.ModuleType("mlx_lm.sample_utils")
     sample_utils.make_sampler = lambda **_kwargs: object()
 
     monkeypatch.setitem(sys.modules, "mlx", mlx_pkg)
     monkeypatch.setitem(sys.modules, "mlx.core", mlx_core)
     monkeypatch.setitem(sys.modules, "mlx_lm", mlx_lm)
+    monkeypatch.setitem(sys.modules, "mlx_lm.generate", mlx_lm_generate)
     monkeypatch.setitem(sys.modules, "mlx_lm.sample_utils", sample_utils)
     monkeypatch.setattr(mlx_worker, "_setup_worker_env", lambda: None)
     monkeypatch.setattr(mlx_worker, "resolve_personality_adapter", lambda *_args, **_kwargs: None)
@@ -1064,6 +1119,33 @@ def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
     assert recent
     assert recent[0].severity == "critical"
     assert recent[0].action == "reported initialization error and exited worker loop before accepting jobs"
+
+
+def test_cpu_worker_boot_installs_the_process_local_generation_contract(monkeypatch):
+    from core.brain.llm import mlx_worker
+
+    def load_failure(*_args, **_kwargs):
+        raise RuntimeError("stop after device contract")
+
+    queue_factory = _install_worker_fakes(
+        monkeypatch,
+        mlx_worker,
+        load_impl=load_failure,
+    )
+    requests = queue_factory([{"action": "generate", "prompt": "must not be read"}])
+    responses = queue_factory()
+
+    mlx_worker._mlx_worker_loop(
+        "fake-model",
+        requests,
+        responses,
+        device="cpu",
+    )
+
+    generation = sys.modules["mlx_lm.generate"]
+    assert getattr(generation.wired_limit, "_aura_cpu_worker_noop", False) is True
+    assert requests.items == [{"action": "generate", "prompt": "must not be read"}]
+    assert responses.writes[-1]["action"] == "init"
 
 
 def test_worker_shutdown_releases_every_owned_resource(monkeypatch):

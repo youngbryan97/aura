@@ -16,6 +16,9 @@ from core.brain.llm.decoder_topology import (
     FULL_ATTENTION,
     LINEAR_ATTENTION,
     DecoderTopologyError,
+    decoder_backbone,
+    decoder_backbone_owner,
+    decoder_hidden_size,
     decoder_layer_masks,
     decoder_layers,
     resolve_language_model,
@@ -78,6 +81,33 @@ def test_a_multimodal_wrapper_is_walked_to_its_language_model():
 def test_a_plain_model_is_already_the_language_model():
     resolved = resolve_language_model(_dense_model())
     assert resolved.args.model_type == "qwen2"
+
+
+def test_hidden_state_contract_is_resolved_below_a_multimodal_wrapper():
+    class Backbone:
+        def __call__(self, value):
+            return value
+
+    backbone = Backbone()
+    language = SimpleNamespace(args=_args(), model=backbone)
+    wrapper = SimpleNamespace(
+        args=SimpleNamespace(model_type="qwen3_5"),
+        language_model=language,
+    )
+
+    assert decoder_hidden_size(wrapper) == 5120
+    assert decoder_backbone_owner(wrapper) is language
+    assert decoder_backbone(wrapper) is backbone
+
+
+def test_hidden_state_contract_refuses_an_invalid_resolved_backbone():
+    model = SimpleNamespace(args=_args(hidden_size=0), model=lambda value: value)
+    with pytest.raises(DecoderTopologyError, match="positive hidden_size"):
+        decoder_hidden_size(model)
+
+    model = SimpleNamespace(args=_args(), model=object())
+    with pytest.raises(DecoderTopologyError, match="callable hidden-state backbone"):
+        decoder_backbone(model)
 
 
 def test_an_object_that_is_not_a_decoder_is_refused():

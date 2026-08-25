@@ -29,6 +29,49 @@ def test_cosine_from_l2_identical_is_one():
     assert abs(cosine_from_l2(0.0) - 1.0) < 1e-9
 
 
+def test_encoder_uses_the_resolved_hybrid_text_backbone():
+    import mlx.core as mx
+
+    from core.brain.nonparametric_generation import MLXEncoder
+
+    class Backbone:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, ids):
+            self.calls += 1
+            width = int(ids.shape[1])
+            return mx.array(np.tile([1.0, 2.0, 3.0, 4.0], (1, width, 1)))
+
+    class Tokenizer:
+        all_special_ids = []
+
+        def encode(self, _text):
+            return [1, 2]
+
+    backbone = Backbone()
+    language = type(
+        "LanguageModel",
+        (),
+        {"args": type("Args", (), {"hidden_size": 4})(), "model": backbone},
+    )()
+    wrapper = type(
+        "HybridWrapper",
+        (),
+        {
+            "args": type("WrapperArgs", (), {"model_type": "qwen3_5"})(),
+            "language_model": language,
+        },
+    )()
+
+    encoder = MLXEncoder(wrapper, Tokenizer())
+    hidden = encoder.encode_hidden("anything")
+
+    assert encoder.dim == 4
+    assert backbone.calls == 1
+    assert np.isclose(np.linalg.norm(hidden), 1.0)
+
+
 def test_cosine_from_l2_orthogonal_is_zero():
     # two orthogonal unit vectors are sqrt(2) apart → cosine 0
     assert abs(cosine_from_l2(np.sqrt(2.0))) < 1e-6

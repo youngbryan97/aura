@@ -30,6 +30,12 @@ from typing import Any
 
 import numpy as np
 
+from core.brain.llm.decoder_topology import (
+    DecoderTopologyError,
+    decoder_backbone,
+    decoder_backbone_owner,
+    decoder_hidden_size,
+)
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.NonParametricGeneration")
@@ -57,7 +63,8 @@ class MLXEncoder:
     def __init__(self, model: Any, tokenizer: Any) -> None:
         self.model = model
         self.tok = tokenizer
-        self.dim = int(model.args.hidden_size)
+        self.dim = decoder_hidden_size(model)
+        self._hidden_model = decoder_backbone(model)
         self._specials = set(getattr(tokenizer, "all_special_ids", []) or [])
 
     def encode_hidden(self, text: str) -> np.ndarray:
@@ -69,7 +76,7 @@ class MLXEncoder:
     def _hidden_from_ids(self, ids: list[int]) -> np.ndarray:
         import mlx.core as mx
 
-        h = self.model.model(mx.array([ids]))
+        h = self._hidden_model(mx.array([ids]))
         return np.array(h[0, -1], dtype=np.float32)
 
     def encode_tokens(self, text: str) -> list[int]:
@@ -87,10 +94,11 @@ class MLXEncoder:
 
 def _lm_head(model: Any, hidden: Any) -> Any:
     """Project hidden states to logits (handles tied-embedding models)."""
-    head = getattr(model, "lm_head", None)
+    language = decoder_backbone_owner(model)
+    head = getattr(language, "lm_head", None)
     if callable(head):
         return head(hidden)
-    return model.model.embed_tokens.as_linear(hidden)
+    return decoder_backbone(model).embed_tokens.as_linear(hidden)
 
 
 def _full_probs(logits: np.ndarray) -> np.ndarray:
@@ -265,7 +273,8 @@ def generate_with_memory(
     last_index = -1
     try:
         cache = make_prompt_cache(model)
-        h = model.model(mx.array([ids]), cache=cache)
+        hidden_model = decoder_backbone(model)
+        h = hidden_model(mx.array([ids]), cache=cache)
     except _GEN_ERRORS as exc:
         record_degradation("nonparametric_generation_prefill", exc)
         return ""
@@ -289,7 +298,7 @@ def generate_with_memory(
         if eos is not None and next_id == eos:
             break
         try:
-            h = model.model(mx.array([[next_id]]), cache=cache)  # incremental: no prefix recompute
+            h = hidden_model(mx.array([[next_id]]), cache=cache)  # incremental: no prefix recompute
         except _GEN_ERRORS as exc:
             record_degradation("nonparametric_generation_step", exc)
             break
@@ -317,6 +326,11 @@ def make_nonparametric_logits_processor(
     """
     import mlx.core as mx
 
+    try:
+        hidden_model = decoder_backbone(model)
+    except DecoderTopologyError:
+        hidden_model = None
+
     # Anti-stutter state is PER SEQUENCE. It used to be one closure variable
     # shared by every use of the processor, so reusing it across batches,
     # concurrent generations, or successive requests excluded an entry because
@@ -339,7 +353,9 @@ def make_nonparametric_logits_processor(
                 )
                 exclude_index = state["last_index"] if continues else -1
 
-            h = model.model(seq)
+            if hidden_model is None:
+                return logits
+            h = hidden_model(seq)
             key = normalize(np.array(h[0, -1], dtype=np.float32))
             lg = np.array(logits, dtype=np.float32).reshape(-1)
             mixture, fired = _blended_distribution(

@@ -106,6 +106,41 @@ def test_tap_records_last_hidden_and_restores_model():
     assert model.model is real_inner  # restored on exit
 
 
+def test_tap_installs_on_and_restores_a_hybrid_text_backbone():
+    import mlx.core as mx
+
+    kvec = normalize(np.array([0.0, 1.0, 0.0, 0.0]))
+
+    class Inner:
+        def __call__(self, seq, cache=None):
+            width = int(seq.shape[1])
+            return mx.array(np.tile(kvec.astype(np.float32), (1, width, 1)))
+
+    class Language:
+        def __init__(self):
+            self.args = type("Args", (), {"hidden_size": 4})()
+            self.model = Inner()
+
+    language = Language()
+    wrapper = type(
+        "HybridWrapper",
+        (),
+        {
+            "args": type("WrapperArgs", (), {"model_type": "qwen3_5"})(),
+            "language_model": language,
+        },
+    )()
+    real_inner = language.model
+
+    with HiddenStateTap(wrapper) as tap:
+        assert tap.active
+        assert language.model is not real_inner
+        language.model(mx.array([[1, 2]]))
+        assert np.allclose(tap.last_key, kvec, atol=1e-6)
+
+    assert language.model is real_inner
+
+
 def test_tapped_processor_uses_tap_without_recompute():
     import mlx.core as mx
 

@@ -9,9 +9,10 @@ This module closes that gap. The model's *normal* generation forward (the one
 ``stream_generate`` already runs with a KV cache, O(1) per token) computes the hidden state
 we need. We capture it as a side effect of that forward instead of recomputing:
 
-  * ``HiddenStateTap`` wraps ``model.model`` (the inner transformer that returns hidden
-    states) with a transparent proxy that records the last-token hidden each call. Calling
-    the model during generation therefore fills ``tap.last_key`` for free.
+  * ``HiddenStateTap`` resolves the loaded checkpoint's text backbone (plain
+    ``model.model`` or a wrapped ``model.language_model.model``) and records the
+    last-token hidden from each call. Calling the model during generation
+    therefore fills ``tap.last_key`` for free.
   * ``make_tapped_nonparametric_processor`` is a standard ``(tokens, logits) -> logits``
     mlx_lm logits-processor that reads ``tap.last_key`` — no extra forward — and interpolates
     the non-parametric recall into the logits. If the tap has nothing (structure mismatch,
@@ -34,6 +35,11 @@ from typing import Any
 
 import numpy as np
 
+from core.brain.llm.decoder_topology import (
+    decoder_backbone,
+    decoder_backbone_owner,
+    decoder_hidden_size,
+)
 from core.brain.nonparametric_binding import MemoryBinding, binding_for_job
 from core.brain.nonparametric_generation import normalize
 from core.brain.nonparametric_memory import get_nonparametric_memory
@@ -300,10 +306,7 @@ def maybe_build_foreground(
         _set_recall_outcome("not_admitted", "this job did not admit foreground recall")
         return None
     try:
-        dim = int(getattr(getattr(model, "args", None), "hidden_size", 0) or 0)
-        if dim <= 0:
-            _set_recall_outcome("unavailable", "model exposes no hidden_size")
-            return None
+        dim = decoder_hidden_size(model)
         memory = get_nonparametric_memory(dim)
         if memory is None:
             _set_recall_outcome("unavailable", "no datastore")
@@ -362,17 +365,18 @@ def maybe_build_foreground(
 
 def _logits_from_hidden(model: Any, hidden: Any) -> Any:
     """Project hidden states to vocab logits using the model's own (possibly tied) head."""
-    args = getattr(model, "args", None)
+    language = decoder_backbone_owner(model)
+    args = getattr(language, "args", None)
     if getattr(args, "tie_word_embeddings", False):
-        inner = getattr(model, "model", None)
+        inner = decoder_backbone(model)
         embed = getattr(inner, "embed_tokens", None)
         if embed is not None and hasattr(embed, "as_linear"):
             return embed.as_linear(hidden)
-    lm_head = getattr(model, "lm_head", None)
+    lm_head = getattr(language, "lm_head", None)
     if lm_head is not None:
         return lm_head(hidden)
     # Last resort: a tied embedding without the flag set.
-    inner = getattr(model, "model", None)
+    inner = decoder_backbone(model)
     embed = getattr(inner, "embed_tokens", None)
     if embed is not None and hasattr(embed, "as_linear"):
         return embed.as_linear(hidden)
@@ -382,7 +386,7 @@ def _logits_from_hidden(model: Any, hidden: Any) -> Any:
 # ── the tap: capture the hidden the generation forward already computes ──────
 
 class _TappedInner:
-    """Transparent proxy around model.model that records the last-token hidden per call."""
+    """Transparent proxy around the decoder backbone that records last-token hidden."""
 
     def __init__(self, inner: Any, tap: HiddenStateTap) -> None:
         object.__setattr__(self, "_inner", inner)
@@ -403,7 +407,7 @@ class _TappedInner:
 
 
 class HiddenStateTap:
-    """Installs a recording proxy around ``model.model`` for the span of a generation.
+    """Installs a recording proxy around the resolved decoder for one generation.
 
     Use as a context manager. If the swap can't be done (unexpected structure, mlx setattr
     quirk), ``active`` stays False and the tap simply records nothing — the caller's
@@ -412,17 +416,17 @@ class HiddenStateTap:
 
     def __init__(self, model: Any) -> None:
         self._model = model
+        self._owner: Any = None
         self._real_inner: Any = None
         self.active = False
         self.last_key: np.ndarray | None = None
 
     def __enter__(self) -> HiddenStateTap:
         try:
-            inner = getattr(self._model, "model", None)
-            if inner is None or not callable(inner):
-                return self
+            self._owner = decoder_backbone_owner(self._model)
+            inner = decoder_backbone(self._model)
             self._real_inner = inner
-            self._model.model = _TappedInner(inner, self)
+            self._owner.model = _TappedInner(inner, self)
             self.active = True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("nonparametric_worker_tap", exc, severity="debug",
@@ -433,11 +437,12 @@ class HiddenStateTap:
     def __exit__(self, *exc: Any) -> None:
         if self._real_inner is not None:
             try:
-                self._model.model = self._real_inner
+                self._owner.model = self._real_inner
             except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                 record_degradation("nonparametric_worker_tap", e, severity="warning",
                                    action="failed to restore model.model after tap")
         self._real_inner = None
+        self._owner = None
         self.active = False
 
 
@@ -566,9 +571,14 @@ def cached_generate_with_memory(
 
     # Prefill the cache with the full prompt, then decode one token at a time.
     cursor = mx.array([ids])
+    try:
+        hidden_model = decoder_backbone(model)
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("nonparametric_cached_generate", exc)
+        return ""
     for _step in range(max(1, int(max_tokens))):
         try:
-            hidden = model.model(cursor, cache=cache)           # cached forward (incremental)
+            hidden = hidden_model(cursor, cache=cache)          # cached forward (incremental)
             logits = _logits_from_hidden(model, hidden)
             key = normalize(np.array(hidden[0, -1], dtype=np.float32))
             lg = np.array(logits[0, -1], dtype=np.float32)

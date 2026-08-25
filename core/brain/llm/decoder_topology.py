@@ -141,6 +141,73 @@ def resolve_language_model(model: Any) -> Any:
     raise DecoderTopologyError("model does not expose a decoder compute profile")
 
 
+def decoder_hidden_size(model: Any) -> int:
+    """Return the residual-stream width from the resolved language model.
+
+    Multimodal and hybrid MLX checkpoints keep their text-model arguments
+    below an outer wrapper. Reading ``model.args.hidden_size`` therefore
+    works for dense Qwen decoders and fails for the resident Qwen3.5/3.8
+    package even though the loaded decoder is healthy. This accessor makes
+    width a property of the resolved decoder rather than its packaging.
+    """
+
+    language = resolve_language_model(model)
+    raw = getattr(getattr(language, "args", None), "hidden_size", None)
+    try:
+        hidden_size = int(raw)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise DecoderTopologyError(
+            "resolved language model declares no positive hidden_size"
+        ) from exc
+    if hidden_size <= 0:
+        raise DecoderTopologyError(
+            "resolved language model declares no positive hidden_size"
+        )
+    return hidden_size
+
+
+def decoder_backbone_owner(model: Any) -> Any:
+    """Return the object whose mutable ``model`` field emits hidden states.
+
+    ``mlx_lm`` generation calls the packaged model for logits, while hidden
+    state consumers and taps need the inner decoder. On a plain checkpoint
+    the owner is the object passed in; on Qwen3.5/3.8 it is
+    ``model.language_model``. Returning the owner as well as the callable lets
+    instrumentation install and restore a tap at the actual ownership seam.
+    """
+
+    seen: list[int] = []
+    current = model
+    for _ in range(4):
+        if current is None or id(current) in seen:
+            break
+        seen.append(id(current))
+
+        # A multimodal wrapper may itself own other callable components. Its
+        # explicit language_model is authoritative for text hidden states.
+        language = getattr(current, "language_model", None)
+        if language is not None and language is not current:
+            current = language
+            continue
+
+        backbone = getattr(current, "model", None)
+        if callable(backbone):
+            return current
+        if backbone is not None and backbone is not current:
+            current = backbone
+            continue
+        break
+    raise DecoderTopologyError(
+        "resolved language model exposes no callable hidden-state backbone"
+    )
+
+
+def decoder_backbone(model: Any) -> Any:
+    """Return the callable decoder backbone that emits hidden states."""
+
+    return decoder_backbone_owner(model).model
+
+
 def decoder_layers(model: Any) -> list[Any]:
     """The transformer blocks, wherever the wrapper keeps them."""
     language = resolve_language_model(model)
@@ -272,7 +339,7 @@ def topology_from_model(model: Any) -> DecoderTopology:
     return DecoderTopology(
         model_type=str(getattr(args, "model_type", type(model).__name__)),
         num_hidden_layers=len(inventory),
-        hidden_size=int(getattr(args, "hidden_size", 0)),
+        hidden_size=decoder_hidden_size(model),
         layers=inventory,
     )
 

@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import gc
 import json
@@ -6199,6 +6200,10 @@ def _run_nonparametric_ingest_job(
     wall-clock budgets so foreground service remains the dominant workload.
     """
 
+    from core.brain.llm.decoder_topology import (
+        DecoderTopologyError,
+        decoder_hidden_size,
+    )
     from core.brain.nonparametric_generation import MLXEncoder
     from core.brain.nonparametric_identity import TrustLevel
     from core.brain.nonparametric_ingest import (
@@ -6233,8 +6238,9 @@ def _run_nonparametric_ingest_job(
             return False
         return True
 
-    dim = int(getattr(getattr(model, "args", None), "hidden_size", 0) or 0)
-    if dim <= 0:
+    try:
+        dim = decoder_hidden_size(model)
+    except DecoderTopologyError:
         return {
             "state": "model_hidden_size_unavailable",
             "pairs_scanned": 0,
@@ -6815,6 +6821,53 @@ def _shutdown_worker_runtime(
         )
 
 
+def _bind_mlx_lm_wired_limit_to_worker_device(
+    generation_module: Any,
+    *,
+    requested_device: str,
+) -> bool:
+    """Bind mlx-lm's Metal memory guard to the worker's actual device.
+
+    ``mlx_lm.generate.wired_limit`` currently checks whether Metal exists on
+    the host, not whether this process is using it. A deliberately CPU-owned
+    Reflex worker therefore enters the Metal branch and indexes
+    ``max_recommended_working_set_size`` from CPU device metadata, where that
+    field does not exist. The resulting KeyError kills every generation.
+
+    Model workers are process-isolated and own one device for their lifetime.
+    A CPU worker has no Metal wired-memory limit to manage, so its local
+    generation module receives a no-op context manager. Metal workers retain
+    the upstream implementation. The original is kept so an explicit device
+    rebinding in a test or future lifecycle can restore it exactly.
+    """
+
+    original_name = "_aura_original_wired_limit"
+    current = getattr(generation_module, "wired_limit", None)
+    if not callable(current):
+        raise RuntimeError("mlx_lm.generate exposes no callable wired_limit")
+
+    original = getattr(generation_module, original_name, None)
+    if original is None:
+        original = current
+        setattr(generation_module, original_name, original)
+
+    if str(requested_device).strip().lower() != "cpu":
+        if getattr(current, "_aura_cpu_worker_noop", False):
+            generation_module.wired_limit = original
+        return False
+
+    if getattr(current, "_aura_cpu_worker_noop", False):
+        return True
+
+    @contextlib.contextmanager
+    def _cpu_worker_wired_limit(_model: Any, _streams: Any = None):
+        yield
+
+    _cpu_worker_wired_limit._aura_cpu_worker_noop = True  # type: ignore[attr-defined]
+    generation_module.wired_limit = _cpu_worker_wired_limit
+    return True
+
+
 def _mlx_worker_loop(
     model_path: str,
     request_queue: mp.Queue,
@@ -6935,6 +6988,18 @@ def _mlx_worker_loop(
             "MLX worker default device verified as %s.",
             device_contract["device"],
         )
+        if requested_device == "cpu":
+            import importlib
+
+            mlx_generation = importlib.import_module("mlx_lm.generate")
+            _bind_mlx_lm_wired_limit_to_worker_device(
+                mlx_generation,
+                requested_device=requested_device,
+            )
+            logger.info(
+                "MLX worker disabled Metal wired-memory accounting for its "
+                "verified CPU device."
+            )
         # Import the model stack only after the process-local device contract
         # is established. Import-time tensors must never inherit the desktop
         # parent's CPU ownership.
