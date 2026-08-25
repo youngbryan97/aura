@@ -234,7 +234,11 @@ class Narrator:
             return
         from core.perception.ambient_presence import get_ambient_presence  # noqa: PLC0415
 
-        get_ambient_presence().offer_utterance(line)
+        # Asked for, so it queues rather than overwriting what came before.
+        # A running commentary the person requested is a stream by
+        # definition; the rule that protects them from one is about
+        # unprompted thoughts.
+        get_ambient_presence().offer_utterance(line, requested=True)
 
 
 _narrator: Narrator | None = None

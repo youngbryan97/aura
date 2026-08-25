@@ -49,6 +49,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -58,6 +59,10 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
 from core.security.screen_capture_policy import is_private_screen_context
 
+#: How many asked-for lines wait their turn. Deep enough that a run
+#: narrating steadily is never truncated mid-thought, shallow enough
+#: that nobody is read a backlog from several minutes ago.
+_NARRATION_DEPTH = 12
 AMBIENT_SCHEMA = "aura.perception.ambient_presence.v1"
 
 #: How long a context stays "the same thing" before a re-read is worth paying
@@ -224,6 +229,10 @@ class AmbientPresence:
         self._last_context: ScreenContext | None = None
         self._last_observed_at = 0.0
         self._pending_utterance: str = ""
+        #: Lines the person asked for, waiting their turn. Bounded, because a
+        #: loop that narrates faster than anyone reads must not grow forever;
+        #: what falls off is the oldest, which is the part already overtaken.
+        self._narration: deque[str] = deque(maxlen=_NARRATION_DEPTH)
         self._utterance_at = 0.0
         # A companion turn the person cannot see. The companion page keeps
         # running when its window is ordered out, so a message sent and then
@@ -292,12 +301,19 @@ class AmbientPresence:
 
     # ── the bubble ───────────────────────────────────────────────────────
 
-    def offer_utterance(self, text: str) -> bool:
+    def offer_utterance(self, text: str, *, requested: bool = False) -> bool:
         """Queue something for the bubble, if she is allowed to speak.
 
         Returns whether it was accepted. The gate is the same one that
         governs unprompted speech everywhere else — companion mode does not
         get its own, quieter authority.
+
+        ``requested`` marks speech the person asked for: "tell me what you
+        are doing as you go" is a request for a stream, and the rule that
+        protects them from one does not apply to it. Those lines queue and
+        are shown in order, so a run narrating twenty moves says twenty
+        things rather than overwriting nineteen of them before anyone reads
+        them. Unprompted thoughts keep the old behaviour exactly.
         """
         body = str(text or "").strip()
         if not body:
@@ -307,14 +323,38 @@ class AmbientPresence:
         if _proactivity_suppressed():
             return False
         with self._lock:
+            if requested:
+                if self._pending_utterance:
+                    self._narration.append(body[:600])
+                else:
+                    self._pending_utterance = body[:600]
+                    self._utterance_at = time.time()
+                return True
             self._pending_utterance = body[:600]
             self._utterance_at = time.time()
         return True
 
+    def _promote_next_narration(self) -> None:
+        """Bring the next asked-for line forward once the last one is read.
+
+        Called while rendering state, which is the moment the surface is
+        actually looking. Nothing is dropped silently: the queue is bounded,
+        and what falls off the end is old rather than new.
+        """
+        if self._pending_utterance or not self._narration:
+            return
+        self._pending_utterance = self._narration.popleft()
+        self._utterance_at = time.time()
+
     def clear_utterance(self) -> None:
-        """The person dismissed it. It does not come back."""
+        """The person dismissed it. It does not come back.
+
+        Whatever they asked to hear next still does: dismissing one line of a
+        commentary they requested is not a request for silence.
+        """
         with self._lock:
             self._pending_utterance = ""
+            self._promote_next_narration()
 
     def note_companion_turn(self, *, working: bool) -> None:
         """A companion turn started or finished.
@@ -1016,6 +1056,7 @@ class AmbientPresence:
         highlight = self.take_highlight() if native_bubble else None
         bubble_move = self.take_bubble_move() if native_bubble else None
         with self._lock:
+            self._promote_next_narration()
             return {
                 "highlight": highlight,
                 "bubble_move": bubble_move,

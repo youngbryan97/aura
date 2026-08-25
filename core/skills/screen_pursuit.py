@@ -1036,6 +1036,8 @@ async def pursue_on_screen(
                 lived=lived,
                 spine=spine,
                 graph=graph,
+                # Reported once, when the body acts, with the reasoning on it.
+                announce=False,
             )
             if not chosen.reached:
                 # Stop rather than press something for no reason. A loop that
@@ -1081,8 +1083,20 @@ async def pursue_on_screen(
         # speed and describe it, play silently, or narrate something else
         # entirely, and the loop should read the same in all three cases.
 
+        made = pending["deliberation"]
+
         async def act() -> bool:
-            return await press(key, expect_app=target_app)
+            # Said after the body did it, never before.
+            #
+            # The line has to correspond to what actually happened. Announcing
+            # a decision announces an intention: a keystroke refused for focus,
+            # or sent to the wrong window, would have been described as a move
+            # she made. What she says she did is now what her body did, in the
+            # order it did it.
+            landed = await press(key, expect_app=target_app)
+            if landed:
+                _say_move(key, made)
+            return landed
 
         return Step(name=f"press {key}", action=act)
 
@@ -1251,9 +1265,74 @@ async def pursue_on_screen(
     return result
 
 
+
+def _say_move(key: str, chosen: Any = None) -> None:
+    """Report a move her body has just made, and why she made it.
+
+    Both halves, in one record, at one moment. The key is the one actually
+    pressed, so the commentary cannot drift from the keystrokes; the reason
+    and the expectation come from the deliberation that produced it, so what
+    reaches the surface is her thinking about the choice rather than a report
+    of a reflex. Narrating from the body alone would describe a twitch;
+    narrating from the decision alone would describe an intention she might
+    not have carried out.
+
+    Offered to the workspace rather than spoken here, so whether it is said
+    out loud stays the narrator's business and a silent run is unchanged.
+    """
+    try:
+        from core.consciousness.global_workspace import ContentType
+        from core.container import ServiceContainer
+
+        workspace = ServiceContainer.get("global_workspace", default=None)
+        publish = getattr(workspace, "publish", None) if workspace else None
+        if publish is None:
+            return
+        said = f"Board: {str(key).strip().capitalize()}"
+        because = ""
+        expected = ""
+        spoke = True
+        if chosen is not None:
+            because = str(getattr(chosen, "rationale", "") or "")
+            spoke = bool(getattr(chosen, "spoke", True))
+            option = getattr(chosen, "chosen", None)
+            expectation = getattr(option, "expectation", None)
+            expected = str(getattr(expectation, "describes", "") or "")
+        coroutine = publish(
+            # What she is doing right now, while somebody watches her do it.
+            priority=0.9,
+            source="screen_pursuit.moved",
+            payload={
+                "schema": "aura.decision.v1",
+                "decision": {
+                    "chose": said,
+                    "because": because,
+                    "expected": expected,
+                    "spoke": spoke,
+                },
+            },
+            reason=said,
+            content_type=ContentType.SOMATIC,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            coroutine.close()
+            return
+        task = loop.create_task(coroutine)
+        task.add_done_callback(lambda done: done.exception())
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("screen_pursuit", exc, severity="info", action="moved without saying so")
+
+
 async def _say_line(line: str) -> None:
     """Hand one line to whatever surface is listening. Never raises."""
-    await _narrate(line)
+    try:
+        from core.perception.ambient_presence import get_ambient_presence
+
+        get_ambient_presence().offer_utterance(line, requested=True)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        await _narrate(line)
 
 
 async def _narrate(line: str, because: str = "") -> None:

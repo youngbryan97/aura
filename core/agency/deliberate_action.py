@@ -365,6 +365,7 @@ async def deliberate(
     graph: Any = None,
     spine: Any = None,
     lived: bool = True,
+    announce: bool = True,
 ) -> Deliberation:
     """Pick the next move toward ``goal`` from what is available right now.
 
@@ -430,7 +431,11 @@ async def deliberate(
     deliberation.episode_id = _open_episode(
         deliberation, options, stakes=stakes, control_point=control_point, spine=spine, lived=lived
     )
-    _announce(deliberation, control_point)
+    if announce:
+        # A caller that reports the decision itself — at the moment the body
+        # acts on it, with the reasoning attached — says so, and this stays
+        # quiet rather than describing the same choice twice.
+        _announce(deliberation, control_point)
     return deliberation
 
 
