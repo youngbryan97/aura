@@ -30,6 +30,7 @@ measured nothing.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import logging
 import math
@@ -438,12 +439,24 @@ def _probe_affect() -> dict[str, float] | None:
 
 
 def _substrate_summary(substrate: Any) -> Mapping[str, Any] | None:
-    if substrate is None or not hasattr(substrate, "get_state_summary"):
+    if substrate is None:
+        return None
+    getter = getattr(substrate, "get_state_summary_nowait", None)
+    if not callable(getter):
+        getter = getattr(substrate, "get_state_summary", None)
+    if not callable(getter) or inspect.iscoroutinefunction(getter):
         return None
     try:
-        summary = substrate.get_state_summary()
+        summary = getter()
     except Exception as exc:  # noqa: BLE001
         logger.debug("substrate summary unavailable: %s", exc)
+        return None
+    if inspect.isawaitable(summary):
+        # A duck-typed source can return an awaitable without declaring an
+        # async function. This probe runs on the synchronous model-request
+        # path, so it must neither await nor leak that object.
+        if inspect.iscoroutine(summary):
+            summary.close()
         return None
     return summary if isinstance(summary, Mapping) else None
 

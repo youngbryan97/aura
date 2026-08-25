@@ -56,6 +56,7 @@ from collections.abc import Callable, Coroutine
 from contextlib import asynccontextmanager
 from itertools import islice
 from pathlib import Path
+from queue import Empty, SimpleQueue
 from typing import Any, ClassVar, Optional, TypeVar
 
 from pydantic import BaseModel, Field
@@ -801,6 +802,21 @@ _PULSE_LOCK_TIMEOUT_S = 0.05
 _DEFERRED_PULSE_LOCK = checked_lock("mycelium")
 
 
+def _drain_deferred_pulse_handoff_locked(network: "MycelialNetwork") -> None:
+    """Move wait-free pulse handoffs into the owned aggregate."""
+    pending = network._deferred_pulses
+    while True:
+        try:
+            key, successes, failures = network._deferred_pulse_handoff.get_nowait()
+        except Empty:
+            return
+        prior_successes, prior_failures = pending.get(key, (0, 0))
+        pending[key] = (
+            prior_successes + successes,
+            prior_failures + failures,
+        )
+
+
 def _defer_pulse(
     network: "MycelialNetwork",
     source: str,
@@ -810,7 +826,13 @@ def _defer_pulse(
 ) -> None:
     """Retain a contended pulse without making its caller wait on topology."""
     key = f"{source}->{target or '*'}"
-    with _DEFERRED_PULSE_LOCK:
+    if not _DEFERRED_PULSE_LOCK.acquire(blocking=False):
+        network._deferred_pulse_handoff.put(
+            (key, 1 if success else 0, 0 if success else 1)
+        )
+        return
+    try:
+        _drain_deferred_pulse_handoff_locked(network)
         pending = network._deferred_pulses
         successes, failures = pending.get(key, (0, 0))
         if success:
@@ -819,6 +841,8 @@ def _defer_pulse(
             failures += 1
         pending[key] = (successes, failures)
         count = successes + failures
+    finally:
+        _DEFERRED_PULSE_LOCK.release()
     if count == 1:
         logger.info(
             "Mycelial pulse deferred under topology contention (%s); it will "
@@ -833,8 +857,13 @@ def _take_deferred_pulses(
     target: str | None,
 ) -> tuple[int, int]:
     key = f"{source}->{target or '*'}"
-    with _DEFERRED_PULSE_LOCK:
+    if not _DEFERRED_PULSE_LOCK.acquire(blocking=False):
+        return (0, 0)
+    try:
+        _drain_deferred_pulse_handoff_locked(network)
         return network._deferred_pulses.pop(key, (0, 0))
+    finally:
+        _DEFERRED_PULSE_LOCK.release()
 
 
 #: Absorbed-failure handles awaiting acknowledgement, and the ones that aged out
@@ -888,12 +917,18 @@ def _merge_deferred_pulses(
     if counts == (0, 0):
         return
     key = f"{source}->{target or '*'}"
-    with _DEFERRED_PULSE_LOCK:
+    if not _DEFERRED_PULSE_LOCK.acquire(blocking=False):
+        network._deferred_pulse_handoff.put((key, counts[0], counts[1]))
+        return
+    try:
+        _drain_deferred_pulse_handoff_locked(network)
         successes, failures = network._deferred_pulses.get(key, (0, 0))
         network._deferred_pulses[key] = (
             successes + counts[0],
             failures + counts[1],
         )
+    finally:
+        _DEFERRED_PULSE_LOCK.release()
 
 
 class MycelialNetwork:
@@ -936,6 +971,9 @@ class MycelialNetwork:
             self._route_signal_log_state: dict[str, tuple[str, float, int]] = {}
             self._hypha_alert_times: dict[str, float] = {}
             self._deferred_pulses: dict[str, tuple[int, int]] = {}
+            self._deferred_pulse_handoff: SimpleQueue[
+                tuple[str, int, int]
+            ] = SimpleQueue()
             self._absorbed_flows: list[RootedFlowHandle] = []
             self._absorbed_flow_overflow: int = 0
             self._unclaimed_absorptions: int = 0

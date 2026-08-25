@@ -1413,7 +1413,44 @@ async def test_response_generation_keeps_receipt_attached_to_exact_text(monkeypa
     state.cognition.current_mode = CognitiveMode.REACTIVE
 
     router = _AttributedReceiptRouter()
-    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    phase = ResponseGenerationPhase(
+        _Container(
+            {
+                "llm_router": router,
+                "composer_node": SimpleNamespace(
+                    refine=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                        AssertionError("composer touched resumable draft")
+                    )
+                ),
+            }
+        )
+    )
+
+    async def _unexpected_amplifier(**_kwargs):
+        raise AssertionError("amplifier touched resumable draft")
+
+    async def _unexpected_dialogue_rewrite(*_args, **_kwargs):
+        raise AssertionError("dialogue rewrite touched resumable draft")
+
+    monkeypatch.setattr(phase, "_maybe_amplify_response", _unexpected_amplifier)
+    monkeypatch.setattr(
+        phase,
+        "_clean_response",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("cleanup touched resumable draft")
+        ),
+    )
+    monkeypatch.setattr(
+        phase,
+        "_repair_false_required_tool_inability",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("tool repair touched resumable draft")
+        ),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.enforce_dialogue_contract",
+        _unexpected_dialogue_rewrite,
+    )
     monkeypatch.setattr(
         "core.phases.response_generation.ContextAssembler.build_messages",
         lambda *_args, **_kwargs: [
@@ -1423,7 +1460,11 @@ async def test_response_generation_keeps_receipt_attached_to_exact_text(monkeypa
     )
     monkeypatch.setattr(
         "core.phases.response_generation.get_executive_guard",
-        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+        lambda: SimpleNamespace(
+            align=lambda _text: (_ for _ in ()).throw(
+                AssertionError("executive guard touched resumable draft")
+            )
+        ),
     )
 
     result = await phase.execute(
@@ -1450,6 +1491,11 @@ async def test_response_generation_keeps_receipt_attached_to_exact_text(monkeypa
     assert receipt["continuation_resume_handle"] == "a" * 32
     assert receipt["generation_stop_reason"] == "deadline_exceeded"
     assert receipt["semantic_completion_incomplete"] is True
+    assert router.calls and len(router.calls) == 1
+    assert result.cognition.last_response == (
+        "The retained draft is complete enough to continue from its exact state."
+    )
+    assert receipt["text_mutations"] == []
 
 
 @pytest.mark.asyncio

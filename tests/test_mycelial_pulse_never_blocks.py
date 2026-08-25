@@ -15,6 +15,7 @@ from __future__ import annotations
 import threading
 import time
 
+import core.mycelium as mycelium_module
 from core.mycelium import MycelialNetwork
 
 
@@ -89,3 +90,47 @@ def test_contended_pulse_is_merged_into_next_owned_update():
     assert hypha.pulse_count == 2
     assert hypha.strength == 2.0
     assert "retained_source->retained_target" not in mycelium._deferred_pulses
+
+
+def test_deferred_handoff_never_waits_for_its_own_aggregate_lock():
+    mycelium = MycelialNetwork()
+    source = "handoff_source"
+    target = "handoff_target"
+    mycelium.establish_connection(source, target)
+    topology_holding = threading.Event()
+    topology_release = threading.Event()
+    aggregate_holding = threading.Event()
+    aggregate_release = threading.Event()
+
+    def _hold_topology():
+        with MycelialNetwork._lock:
+            topology_holding.set()
+            topology_release.wait(timeout=5.0)
+
+    def _hold_aggregate():
+        with mycelium_module._DEFERRED_PULSE_LOCK:
+            aggregate_holding.set()
+            aggregate_release.wait(timeout=5.0)
+
+    topology_holder = threading.Thread(target=_hold_topology, daemon=True)
+    aggregate_holder = threading.Thread(target=_hold_aggregate, daemon=True)
+    topology_holder.start()
+    aggregate_holder.start()
+    assert topology_holding.wait(timeout=5.0)
+    assert aggregate_holding.wait(timeout=5.0)
+
+    try:
+        started = time.monotonic()
+        assert mycelium.pulse_hypha(source, target, success=True) is False
+        elapsed = time.monotonic() - started
+    finally:
+        aggregate_release.set()
+        topology_release.set()
+        aggregate_holder.join(timeout=5.0)
+        topology_holder.join(timeout=5.0)
+
+    assert elapsed < 0.2
+    assert mycelium.pulse_hypha(source, target, success=True) is True
+    hypha = mycelium.get_hypha(source, target)
+    assert hypha is not None
+    assert hypha.pulse_count == 2

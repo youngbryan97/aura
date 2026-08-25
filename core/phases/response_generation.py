@@ -26,7 +26,10 @@ from core.conversation.response_reliability import (
     requested_output_contract,
 )
 from core.intent.opaque_spans import first_named_url as _first_named_url
-from core.phases.dialogue_policy import enforce_dialogue_contract
+from core.phases.dialogue_policy import (
+    enforce_dialogue_contract,
+    validate_dialogue_response,
+)
 from core.phases.executive_guard import get_executive_guard
 from core.phases.response_contract import build_response_contract
 from core.runtime import background_policy, response_policy
@@ -51,6 +54,43 @@ _SEAM_FELL_THROUGH = object()
 
 #: Enough of a rejected draft to judge the rejection by.
 _REJECTED_DRAFT_LOG_CHARS = 400
+
+
+def _append_only_continuation_pending(
+    generation_metadata: Any,
+    *,
+    clean_user_surface_contract: bool,
+) -> bool:
+    """Whether the exact draft must remain untouched for route continuation.
+
+    A worker receipt that marks a clean user-surface answer incomplete assigns
+    the next model call to the route's append-only continuation owner. Any
+    response rewrite before that owner runs invalidates the relationship
+    between the visible prefix and the saved KV state.
+    """
+
+    if not clean_user_surface_contract or not isinstance(
+        generation_metadata, dict
+    ):
+        return False
+    receipt = generation_metadata.get("surface_control_receipt")
+    if not isinstance(receipt, dict):
+        return False
+    if receipt.get("semantic_completion_incomplete") is not True:
+        return False
+    reasons = {
+        str(reason or "").strip().lower()
+        for reason in receipt.get("surface_quality_gate_reasons") or ()
+        if str(reason or "").strip()
+    }
+    try:
+        from core.conversation.surface_disposition import draft_is_servable
+
+        return draft_is_servable(reasons)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # Receipt custody is stronger than an unavailable advisory classifier.
+        # The route still performs the complete post-continuation assessment.
+        return True
 
 
 def _dialogue_mutation_provenance(
@@ -2209,6 +2249,8 @@ class ResponseGenerationPhase(BasePhase):
                 "latent_cortex_progress": {},
             }
             amplifier_promotion_authority = "none"
+            append_only_continuation_pending = False
+            continuation_draft = ""
             try:
                 request_timeout = self._surface_request_timeout(
                     is_background=is_background,
@@ -2448,8 +2490,29 @@ class ResponseGenerationPhase(BasePhase):
                         **latent_trace,
                     }
 
+                append_only_continuation_pending = (
+                    _append_only_continuation_pending(
+                        generation_metadata,
+                        clean_user_surface_contract=clean_user_surface_contract,
+                    )
+                )
+                continuation_draft = (
+                    str(response_text or "")
+                    if append_only_continuation_pending
+                    else ""
+                )
+                if append_only_continuation_pending:
+                    logger.info(
+                        "ResponseGeneration preserved a resumable foreground draft "
+                        "for the route's append-only continuation owner."
+                    )
+
                 shape_repaired = False
-                if not is_background and not is_test_run:
+                if (
+                    not is_background
+                    and not is_test_run
+                    and not append_only_continuation_pending
+                ):
                     pre_shape_text = response_text
                     response_text, shape_repaired, shape_repair_reasons = (
                         self._repair_substantive_instruction_shape_miss(
@@ -2490,7 +2553,10 @@ class ResponseGenerationPhase(BasePhase):
                 # multi-candidate amplifier here: the ordinary fallback is the
                 # one remaining generator and the verifier/composer/retry stages
                 # below may still inspect or repair what it produced.
-                if latent_trace.get("latent_cortex_selected") is not True:
+                if (
+                    latent_trace.get("latent_cortex_selected") is not True
+                    and not append_only_continuation_pending
+                ):
                     response_text = await self._maybe_amplify_response(
                         objective=objective,
                         draft=response_text,
@@ -2597,6 +2663,7 @@ class ResponseGenerationPhase(BasePhase):
                     strategies = ReasoningStrategies(_raw_generate)
                     if (
                         not desktop_cognitive_engine_required
+                        and not append_only_continuation_pending
                         and not shape_repaired
                         and amplifier_promotion_authority == "none"
                         and strategies._is_logical_check(objective)
@@ -2629,6 +2696,7 @@ class ResponseGenerationPhase(BasePhase):
                     if (
                         latent_response_owned
                         or amplifier_promotion_authority != "none"
+                        or append_only_continuation_pending
                     )
                     else self.container.get("composer_node", default=None)
                 )
@@ -2755,7 +2823,7 @@ class ResponseGenerationPhase(BasePhase):
                 else:
                     logger.debug("💭 ResponseGeneration: LLM returned blank text. Skipping this tick.")
                     return state
-            if not is_background:
+            if not is_background and not append_only_continuation_pending:
                 if (
                     origin != "test"
                     and not env_present("AURA_AGI_MAX_TASKS", description="AGI battery task cap; presence marks a battery run", owner="core.runtime")
@@ -2849,7 +2917,11 @@ class ResponseGenerationPhase(BasePhase):
             # If the response contains a JSON-like structure with "content", extract it
             # regardless of the current mode. This prevents raw "philosophical_insight"
             # JSON from leaking into the UI if the LLM slips into JSON mode accidentally.
-            if "{" in response_text and '"content":' in response_text:
+            if (
+                not append_only_continuation_pending
+                and "{" in response_text
+                and '"content":' in response_text
+            ):
                 try:
                     import re
 
@@ -2887,7 +2959,11 @@ class ResponseGenerationPhase(BasePhase):
                     logger.debug("Proactive JSON extraction failed (normal for non-JSON): %s", e)
 
             # Mode-specific validation for DELIBERATE reasoning
-            if state.cognition.current_mode == CognitiveMode.DELIBERATE and not action:
+            if (
+                not append_only_continuation_pending
+                and state.cognition.current_mode == CognitiveMode.DELIBERATE
+                and not action
+            ):
                 from core.llm.llm_guard import validate_json_response
 
                 success, obj, err = validate_json_response(response_text, expected_keys=["content"])
@@ -2933,7 +3009,12 @@ class ResponseGenerationPhase(BasePhase):
             # and automatically wrap it in a clean "<answer>...</answer>" block at the end of the text.
             lower_objective = objective.lower() if objective else ""
             lower_response = content.lower() if content else ""
-            if ("<answer>" in lower_objective or "answer_format" in kwargs) and content and "<answer>" not in lower_response:
+            if (
+                not append_only_continuation_pending
+                and ("<answer>" in lower_objective or "answer_format" in kwargs)
+                and content
+                and "<answer>" not in lower_response
+            ):
                 import re
                 extracted_ans = None
                 
@@ -2978,7 +3059,10 @@ class ResponseGenerationPhase(BasePhase):
 
             # 5. Executive Guard — real-time identity alignment
             guard = get_executive_guard()
-            cleaned_response, was_corrected, violations = guard.align(content)
+            if append_only_continuation_pending:
+                cleaned_response, was_corrected, violations = content, False, []
+            else:
+                cleaned_response, was_corrected, violations = guard.align(content)
             append_text_mutation(
                 response_mutation_receipt,
                 stage="response_generation.executive_guard",
@@ -3121,33 +3205,41 @@ class ResponseGenerationPhase(BasePhase):
                 return retried_text
 
             pre_dialogue_text = cleaned_response
-            (
-                cleaned_response,
-                dialogue_validation,
-                dialogue_retried,
-            ) = await enforce_dialogue_contract(
-                cleaned_response,
-                contract,
-                retry_generate=(
-                    _retry_dialogue
-                    if (
-                        not is_background
-                        and not is_test_run
-                        and not latent_response_owned
-                        and amplifier_promotion_authority == "none"
-                        # Foreground chat has one completion owner: the route's
-                        # typed append-only continuation. A second full decode
-                        # here recomputes a substantial incumbent, doubles
-                        # latency, and can replace it with a thinner answer.
-                        # Non-user-facing compositions still own their local
-                        # retry because no chat route exists above them.
-                        and not bool(getattr(contract, "is_user_facing", False))
-                    )
-                    else None
-                ),
-                state=state,
-                user_message=user_surface_validation_prompt,
-            )
+            if append_only_continuation_pending:
+                dialogue_validation = validate_dialogue_response(
+                    cleaned_response,
+                    contract,
+                    state,
+                )
+                dialogue_retried = False
+            else:
+                (
+                    cleaned_response,
+                    dialogue_validation,
+                    dialogue_retried,
+                ) = await enforce_dialogue_contract(
+                    cleaned_response,
+                    contract,
+                    retry_generate=(
+                        _retry_dialogue
+                        if (
+                            not is_background
+                            and not is_test_run
+                            and not latent_response_owned
+                            and amplifier_promotion_authority == "none"
+                            # Foreground chat has one completion owner: the route's
+                            # typed append-only continuation. A second full decode
+                            # here recomputes a substantial incumbent, doubles
+                            # latency, and can replace it with a thinner answer.
+                            # Non-user-facing compositions still own their local
+                            # retry because no chat route exists above them.
+                            and not bool(getattr(contract, "is_user_facing", False))
+                        )
+                        else None
+                    ),
+                    state=state,
+                    user_message=user_surface_validation_prompt,
+                )
             state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
             dialogue_provenance = _dialogue_mutation_provenance(
                 pre_dialogue_text,
@@ -3173,11 +3265,12 @@ class ResponseGenerationPhase(BasePhase):
                 logger.info("🗣️ ResponseGeneration: retried draft to satisfy dialogue contract.")
 
             pre_tool_repair = cleaned_response
-            cleaned_response = self._repair_false_required_tool_inability(
-                state=state,
-                contract=contract,
-                response_text=cleaned_response,
-            )
+            if not append_only_continuation_pending:
+                cleaned_response = self._repair_false_required_tool_inability(
+                    state=state,
+                    contract=contract,
+                    response_text=cleaned_response,
+                )
             append_text_mutation(
                 response_mutation_receipt,
                 stage="response_generation.tool_inability_grounding",
@@ -3191,11 +3284,12 @@ class ResponseGenerationPhase(BasePhase):
 
             # 6. Clean response
             pre_clean_response = cleaned_response
-            cleaned_response = self._clean_response(
-                cleaned_response,
-                state,
-                allow_mumbling=is_background,
-            )
+            if not append_only_continuation_pending:
+                cleaned_response = self._clean_response(
+                    cleaned_response,
+                    state,
+                    allow_mumbling=is_background,
+                )
             append_text_mutation(
                 response_mutation_receipt,
                 stage="response_generation.clean_response",
@@ -3216,6 +3310,7 @@ class ResponseGenerationPhase(BasePhase):
                 and cleaned_response
                 and not is_test_run
                 and not latent_response_owned
+                and not append_only_continuation_pending
             ):
                 try:
                     pre_voice_shape = cleaned_response
@@ -3268,6 +3363,7 @@ class ResponseGenerationPhase(BasePhase):
                 and cleaned_response
                 and not is_test_run
                 and not latent_response_owned
+                and not append_only_continuation_pending
             ):
                 repaired_response, repaired_shape, repair_reasons = (
                     self._repair_substantive_instruction_shape_miss(
@@ -3297,11 +3393,12 @@ class ResponseGenerationPhase(BasePhase):
                     )
 
             pre_final_tool_repair = cleaned_response
-            cleaned_response = self._repair_false_required_tool_inability(
-                state=state,
-                contract=contract,
-                response_text=cleaned_response,
-            )
+            if not append_only_continuation_pending:
+                cleaned_response = self._repair_false_required_tool_inability(
+                    state=state,
+                    contract=contract,
+                    response_text=cleaned_response,
+                )
             append_text_mutation(
                 response_mutation_receipt,
                 stage="response_generation.final_tool_inability_grounding",
@@ -3317,17 +3414,24 @@ class ResponseGenerationPhase(BasePhase):
             if is_background and not cleaned_response:
                 return state
 
+            if append_only_continuation_pending:
+                # Every byte belongs to the cache-bound assistant prefix. The
+                # route validates the completed text after it appends the next
+                # segment; this phase must not judge or rewrite half a turn.
+                cleaned_response = continuation_draft
+
             final_latent_quality: dict[str, Any] = {}
-            _seam_early_response, final_latent_quality = _judge_the_latent_quality(
-                cleaned_response=cleaned_response,
-                final_latent_quality=final_latent_quality,
-                latent_trace=latent_trace,
-                objective=objective,
-                runtime_context=runtime_context,
-                state=state,
-            )
-            if _seam_early_response is not _SEAM_FELL_THROUGH:
-                return _seam_early_response
+            if not append_only_continuation_pending:
+                _seam_early_response, final_latent_quality = _judge_the_latent_quality(
+                    cleaned_response=cleaned_response,
+                    final_latent_quality=final_latent_quality,
+                    latent_trace=latent_trace,
+                    objective=objective,
+                    runtime_context=runtime_context,
+                    state=state,
+                )
+                if _seam_early_response is not _SEAM_FELL_THROUGH:
+                    return _seam_early_response
 
             surface_control_receipt: dict[str, Any] = {}
             candidate = generation_metadata.get("surface_control_receipt")

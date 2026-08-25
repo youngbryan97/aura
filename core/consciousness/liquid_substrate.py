@@ -1635,8 +1635,8 @@ class LiquidSubstrate:
                 action="skipped malformed perceptual observation injection",
             )
 
-    async def get_state_summary(self) -> dict[str, Any]:
-        """Return high-level emotional/cognitive state"""
+    def get_state_summary_nowait(self) -> dict[str, Any]:
+        """Return the latest coherent state snapshot without yielding."""
         snapshot = self._state_snapshot_nowait()
         x = snapshot["x"]
         v = snapshot["v"]
@@ -1660,6 +1660,10 @@ class LiquidSubstrate:
                 "phi": float(snapshot["phi"]),
             },
         }
+
+    async def get_state_summary(self) -> dict[str, Any]:
+        """Return high-level emotional/cognitive state."""
+        return self.get_state_summary_nowait()
 
     def compute_cognitive_velocity(self) -> float:
         """Return normalized instantaneous substrate change for phenomenology."""
