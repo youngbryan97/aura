@@ -29,7 +29,15 @@ def test_makefile_gates_whole_surface_lint_and_source_hygiene():
     strict_files = open("config/mypy_strict_files.txt", encoding="utf-8").read()
 
     assert "source-hygiene:" in makefile
-    assert "quality: source-hygiene enterprise-gate enterprise-collect" in makefile
+    # Prerequisites of `quality`, parsed rather than matched as a fixed
+    # substring. The substring pinned those three to the FRONT of the list, so
+    # adding a gate before them failed a test about gates being present.
+    quality = next(
+        line for line in makefile.splitlines() if line.startswith("quality:")
+    )
+    prerequisites = set(quality.split(":", 1)[1].split())
+    for gate in ("source-hygiene", "enterprise-gate", "enterprise-collect"):
+        assert gate in prerequisites, gate
     assert "RUFF_SURFACE_TARGETS" in makefile
     assert "RUFF_CRITICAL_TARGETS" in makefile
     assert "F821,F822,F823,F601" in makefile
