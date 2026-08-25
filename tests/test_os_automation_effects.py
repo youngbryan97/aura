@@ -6,6 +6,7 @@ from core.runtime.os_automation_effects import (
     build_effect_contract,
     canonical_app_target,
     evaluate_effect_contract,
+    extract_direct_application_targets,
     extract_target_apps,
 )
 
@@ -106,6 +107,27 @@ def test_app_target_language_separates_apps_from_browser_surfaces() -> None:
     )
     assert extract_target_apps("Open a tab for Google Docs.") == ()
     assert extract_target_apps("Open Google Docs and start typing.") == ()
+
+
+def test_direct_application_targets_are_typed_without_an_installed_name_list() -> None:
+    assert extract_direct_application_targets(
+        "Open DefinitelyNotInstalledAuraProbe."
+    ) == ("DefinitelyNotInstalledAuraProbe",)
+    assert extract_direct_application_targets(
+        "Can you open DefinitelyNotInstalledAuraProbe?"
+    ) == ("DefinitelyNotInstalledAuraProbe",)
+    assert extract_direct_application_targets("Launch the app named Remote Studio.") == (
+        "Remote Studio",
+    )
+
+
+def test_direct_application_targets_reject_ordinary_objects() -> None:
+    for request_text in (
+        "Open your mind to the possibility.",
+        "Open the question for discussion.",
+        "Close the gap in our reasoning.",
+    ):
+        assert extract_direct_application_targets(request_text) == ()
 
 
 def test_search_contract_verifies_active_browser_destination() -> None:

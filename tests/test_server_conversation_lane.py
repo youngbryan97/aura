@@ -16281,6 +16281,26 @@ def test_desktop_objective_detector_handles_general_document_surfaces():
     assert not _looks_like_desktop_objective("Can you explain Docker Compose documentation?")
 
 
+def test_desktop_objective_detector_types_unseen_application_referents():
+    from interface.routes.chat import _looks_like_desktop_objective
+
+    for request_text in (
+        "Open DefinitelyNotInstalledAuraProbe.",
+        "Can you open DefinitelyNotInstalledAuraProbe?",
+        "Please launch DefinitelyNotInstalledAuraProbe.",
+    ):
+        assert _looks_like_desktop_objective(request_text) is True
+
+    for request_text in (
+        "Open your mind to the possibility.",
+        "Open the question for discussion.",
+        "Close the gap in our reasoning.",
+        "Why would you open Remote Studio?",
+        "Do not open Remote Studio.",
+    ):
+        assert _looks_like_desktop_objective(request_text) is False
+
+
 def test_desktop_required_search_classifier_skips_visible_desktop_objectives():
     from interface.routes import chat as chat_routes
 
@@ -16295,6 +16315,14 @@ def test_desktop_required_search_classifier_skips_visible_desktop_objectives():
 
     should_collect, query, contract = chat_routes._should_collect_desktop_required_search_evidence(
         "Open Chrome and search for three articles about tardigrades."
+    )
+
+    assert should_collect is False
+    assert query == ""
+    assert contract is None
+
+    should_collect, query, contract = chat_routes._should_collect_desktop_required_search_evidence(
+        "Open DefinitelyNotInstalledAuraProbe."
     )
 
     assert should_collect is False

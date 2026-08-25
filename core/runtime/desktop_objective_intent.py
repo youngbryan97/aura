@@ -4,8 +4,7 @@ import logging
 import re
 from typing import Any
 
-logger = logging.getLogger("Aura.DesktopIntent")
-
+from core.runtime.os_automation_effects import extract_direct_application_targets
 from core.runtime.skill_task_bridge import (
     looks_like_capability_inventory_dialogue_request,
     strip_negated_action_spans,
@@ -14,6 +13,8 @@ from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.occluded_view_intent import asks_about_occluded_view
 from core.utils.own_source_intent import asks_for_own_source
 from core.utils.screen_judgement_intent import asks_for_screen_judgement
+
+logger = logging.getLogger("Aura.DesktopIntent")
 
 _WEB_SEARCH_REQUEST_SPAN_RE = re.compile(
     r"\b(?:search|google|look\s*up|research)\b[^.?!]{0,48}?"
@@ -562,6 +563,23 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         return True
     if _EXPLANATORY_DESKTOP_QUESTION_RE.search(text):
         return False
+    # An application does not stop being a desktop surface because it is new,
+    # uncommon, or absent from this machine. The executor already parses
+    # lifecycle verbs and their direct objects; use that same typed target here
+    # after the shared mood and temporal exclusions above. This covers "Open
+    # ProductName" and "Could you launch ProductName?" without teaching the
+    # router every product name, and without admitting metaphors such as "open
+    # your mind" whose object is not app-shaped.
+    try:
+        from core.conversation.request_mood import assess_request_mood
+
+        if (
+            assess_request_mood(user_message).asks_for_action
+            and extract_direct_application_targets(user_message)
+        ):
+            return True
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
     # The vocabulary check is where a phrasing nobody enumerated dies.
     #
     # A request with no term from either list returns False here, before

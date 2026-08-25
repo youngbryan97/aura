@@ -1033,21 +1033,87 @@ def extract_target_apps(goal: str) -> tuple[str, ...]:
     return tuple(apps[:5])
 
 
+def extract_direct_application_targets(goal: str) -> tuple[str, ...]:
+    """Return application referents that a lifecycle directive acts on.
+
+    The broad effect-contract extractor above is intentionally permissive once
+    a request has entered desktop execution. Routing needs a stronger claim:
+    the direct object must identify an application, including one that is not
+    installed yet. Explicit app nouns, known application aliases, and proper
+    product names provide that evidence. Ordinary objects such as ``your
+    mind`` or ``the gap`` do not.
+
+    This keeps the route and executor on one target grammar while preserving
+    the useful failure for an unknown product name: execution can report that
+    no installed application matches it instead of turning the command into a
+    web search.
+    """
+
+    candidates: list[str] = []
+    for _action, target, explicitly_typed in _extract_action_target_records(
+        goal,
+        ("open", "launch", "switch to", "focus", "close", "quit"),
+    ):
+        lowered = target.casefold()
+        known_application = lowered in _APP_ALIASES or target in _APP_ALIASES.values()
+        if not (explicitly_typed or known_application or _looks_like_product_name(target)):
+            continue
+        if target not in candidates:
+            candidates.append(target)
+    return tuple(candidates[:5])
+
+
+def _looks_like_product_name(value: str) -> bool:
+    """Whether a direct object has the orthography of a named product."""
+
+    candidate = str(value or "").strip()
+    words = re.findall(r"[A-Za-z][A-Za-z0-9._-]*", candidate)
+    if not words:
+        return False
+    if any(word.isupper() and len(word) > 1 for word in words):
+        return True
+    if any(any(char.isupper() for char in word[1:]) for word in words):
+        return True
+    return all(word[0].isupper() for word in words)
+
+
 def _extract_action_targets(goal: str, actions: Sequence[str]) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            target
+            for _action, target, _explicitly_typed in _extract_action_target_records(
+                goal, actions
+            )
+        )
+    )
+
+
+def _extract_action_target_records(
+    goal: str,
+    actions: Sequence[str],
+) -> tuple[tuple[str, str, bool], ...]:
     action_pattern = "|".join(re.escape(action) for action in actions)
     pattern = (
-        rf"\b(?:{action_pattern})\s+(?:up\s+)?(?:a\s+|an\s+|my\s+|the\s+)?"
-        r"(?:(?:app|application)\s+(?:(?:called|named)\s+)?)?"
-        r"([A-Za-z][A-Za-z0-9 &._-]{1,60}?)"
-        r"(?:\s+(?:app|application))?"
-        r"(?=\s*(?:,|\.|;|\b(?:and|then|before|after|for|to)\b|$))"
+        rf"\b(?P<action>{action_pattern})\s+(?:up\s+)?"
+        r"(?:a\s+|an\s+|my\s+|the\s+)?"
+        r"(?P<type_prefix>(?:app|application)\s+(?:(?:called|named)\s+)?)?"
+        r"(?P<target>[A-Za-z][A-Za-z0-9 &._-]{1,60}?)"
+        r"(?:\s+(?P<type_suffix>app|application))?"
+        r"(?=\s*(?:,|\.|;|!|\?|\b(?:and|then|before|after|for|to)\b|$))"
     )
-    targets: list[str] = []
+    records: list[tuple[str, str, bool]] = []
     for match in re.finditer(pattern, goal, flags=re.IGNORECASE):
-        candidate = _normalize_app_target(match.group(1))
-        if candidate and candidate not in targets:
-            targets.append(candidate)
-    return tuple(targets)
+        candidate = _normalize_app_target(match.group("target"))
+        if not candidate:
+            continue
+        record = (
+            " ".join(match.group("action").casefold().split()),
+            candidate,
+            bool(match.group("type_prefix") or match.group("type_suffix")),
+        )
+        if record not in records:
+            records.append(record)
+    return tuple(records)
 
 
 def canonical_app_target(value: str) -> str:
