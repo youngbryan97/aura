@@ -1334,6 +1334,7 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
+        asks_about_the_world = False
     # URL presence usually forces fetch/search, except for structured bundles
     # that already need deterministic decomposition upstream. A link INSIDE
     # pasted material is part of what was handed over, not a fetch request —

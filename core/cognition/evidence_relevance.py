@@ -33,8 +33,10 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
@@ -49,6 +51,9 @@ __all__ = [
     "OWN_SOURCE",
     "SOURCE_PROVENANCE",
     "OTHER_SOURCE",
+    "EXTERNAL_WORLD",
+    "EvidenceAlignment",
+    "assess_evidence_alignment",
     "relevance",
     "prewarm_evidence_relevance",
     "wants_evidence",
@@ -90,6 +95,12 @@ SOURCE_PROVENANCE = "source_provenance"
 #: is was never a question of degree — it is a rival reading, and this
 #: module already knows how to let one reading beat another.
 OTHER_SOURCE = "third_party_source"
+
+#: Facts whose source of truth is outside Aura and the local machine: named
+#: organizations and people, current events, releases, prices, schedules, and
+#: other claims that memory alone cannot establish.  This is distinct from a
+#: timeless explanation *about* an external-world concept.
+EXTERNAL_WORLD = "external_world"
 
 _ANCHORS: dict[str, tuple[str, ...]] = {
     PHYSICAL_PERCEPTION: (
@@ -144,6 +155,14 @@ _ANCHORS: dict[str, tuple[str, ...]] = {
         "what is the path to the thing you just showed me",
         "did you read that somewhere or write it just now",
     ),
+    EXTERNAL_WORLD: (
+        "find current facts about a specifically named company and cite reliable sources",
+        "who founded this named organization and when did it happen",
+        "what did this company announce or release recently",
+        "check the present price schedule weather score or office holder",
+        "look up a named person product institution or event outside this machine",
+        "verify a factual claim about a specific external entity against public evidence",
+    ),
 }
 
 #: Sentences that are emphatically NOT about the above, used as a contrast
@@ -183,6 +202,14 @@ _CONTRAST_ANCHORS: dict[str, tuple[str, ...]] = {
         "describe what kinds of sensors a robot could use in general",
         "explain a visual metaphor rather than inspect the surroundings",
     ),
+    EXTERNAL_WORLD: (
+        "explain a timeless engineering concept from established knowledge",
+        "describe a general tradeoff in an AI system architecture",
+        "reason about a hypothetical design without looking up current facts",
+        "answer a mathematics logic or programming question",
+        "discuss a broad scientific idea rather than a named current entity",
+        "explain how a CPU architecture works in general",
+    ),
 }
 
 #: How much closer to the concept than to ordinary talk a request must be.
@@ -195,11 +222,25 @@ _MARGIN = 0.12
 # contain little semantic material ("where can it be found?") and need a lower
 # absolute margin than a privacy-sensitive decision to activate a camera.
 _KIND_MARGINS: dict[str, float] = {
-    PHYSICAL_PERCEPTION: 0.12,
-    SCREEN_PERCEPTION: 0.04,
+    # Leave-one-out centroid calibration on the current local encoder puts the
+    # balanced physical-perception boundary at 0.0368 (balanced accuracy
+    # 0.929).  The former 0.12 belonged to the retired embedding geometry and
+    # rejected ordinary requests for a current reading.
+    PHYSICAL_PERCEPTION: 0.0368,
+    # The weakest retained multi-intent screen reading is +0.0398 after the
+    # embedding batch-invariance repair; the strongest unrelated prose case
+    # is -0.053.  Keep a measured gap on both sides instead of rounding the
+    # positive case out of its own class.
+    SCREEN_PERCEPTION: 0.035,
     OWN_SOURCE: 0.02,
     SOURCE_PROVENANCE: 0.04,
     OTHER_SOURCE: 0.04,
+    # Re-measured after MPS batch invariance was restored. Entity/current-fact
+    # positives are +0.0416..+0.0882; the architecture contrasts are
+    # -0.2073..-0.2521. Explicit current/search language remains an independent
+    # structural floor for short local-event questions below this semantic
+    # boundary.
+    EXTERNAL_WORLD: 0.04,
 }
 
 #: How far behind the best-matching concept a kind may fall and still be
@@ -209,32 +250,138 @@ _DOMINANCE = 0.20
 _LOCK = checked_lock("evidence_relevance.cache")
 _ANCHOR_CACHE: dict[str, Any] = {}
 _REQUEST_CACHE: dict[str, Any] = {}
+_ALIGNMENT_QUERY_CACHE: dict[str, Any] = {}
+_SHARED_ENGINE_LEASE: Any | None = None
+_CACHE_ENGINE_TOKEN: tuple[str, str, int, int] | None = None
 #: Bounded: this is a per-turn lookup, not a store.
 _REQUEST_CACHE_MAX = 256
+
+_ALIGNMENT_POSITIVES: tuple[tuple[str, str], ...] = (
+    (
+        "Who founded Hugging Face?",
+        "Hugging Face was founded by Clement Delangue, Julien Chaumond, and Thomas Wolf.",
+    ),
+    (
+        "What is the latest Mistral model release?",
+        "Mistral announced a new model release this week.",
+    ),
+    (
+        "What events are happening in San Jose this weekend?",
+        "San Jose hosts a downtown arts festival this Saturday.",
+    ),
+    (
+        "What is one tradeoff in hybrid recurrent transformer architectures?",
+        "Hybrid recurrent designs reduce growing KV-cache memory but make state recovery harder.",
+    ),
+)
+_ALIGNMENT_NEGATIVES: tuple[tuple[str, str], ...] = (
+    (
+        "Who founded Hugging Face?",
+        "A tomato sauce improves when onions are browned before the liquid is added.",
+    ),
+    (
+        "What is the latest Mistral model release?",
+        "Ocean Network Express provides international container shipping services.",
+    ),
+    (
+        "What events are happening in San Jose this weekend?",
+        "The Antarctic ice sheet contains most of Earth's fresh water.",
+    ),
+    (
+        "What is one tradeoff in hybrid recurrent transformer architectures?",
+        "Ocean Network Express provides cargo tracking and shipping schedules.",
+    ),
+)
+
+# Measured on the local evidence encoder shipped with Aura, 2026-08-24:
+# matched query-document pairs scored 0.6892..0.8783 and mismatched pairs
+# 0.1291..0.3173.  The midpoint leaves at least 0.18 cosine margin on either
+# side.  The calibration cohort stays beside the value so a model migration
+# can remeasure it rather than inheriting it silently.
+_EVIDENCE_ALIGNMENT_BOUNDARY = 0.50
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceAlignment:
+    """Whether retrieved material addresses the request that authorized it."""
+
+    relevant: bool
+    measured: bool
+    score: float | None
+    boundary: float | None
+    lexical_overlap: tuple[str, ...]
+    reason: str
+
+
+def _engine_token(engine: Any) -> tuple[str, str, int, int]:
+    """Identity of one vector space and the object currently producing it."""
+
+    kind = f"{type(engine).__module__}.{type(engine).__qualname__}"
+    model = str(
+        getattr(engine, "PREFERRED_MODEL", "")
+        or getattr(engine, "model_name", "")
+        or getattr(engine, "identity", "")
+    )
+    try:
+        width = int(getattr(engine, "VECTOR_DIM", 0) or 0)
+    except (TypeError, ValueError):
+        width = 0
+    return kind, model, width, id(engine)
+
+
+def _bind_cache_to_engine(engine: Any) -> None:
+    """Prevent cosines between vectors produced by different engines.
+
+    The container may install or remove its vector-memory engine after this
+    module has warmed.  Anchor and request caches are process globals, so an
+    engine switch previously left old anchors beside new request vectors.
+    Their widths still matched and the resulting cosine looked valid.  Bind
+    both caches to the producing object and invalidate them as one operation.
+    """
+
+    global _CACHE_ENGINE_TOKEN
+    token = _engine_token(engine)
+    with _LOCK:
+        if _CACHE_ENGINE_TOKEN == token:
+            return
+        _ANCHOR_CACHE.clear()
+        _REQUEST_CACHE.clear()
+        _ALIGNMENT_QUERY_CACHE.clear()
+        _CACHE_ENGINE_TOKEN = token
 
 
 def _embedder() -> Any | None:
     """The live embedding engine, or None when there is not one."""
+
+    global _SHARED_ENGINE_LEASE
+    engine: Any | None = None
     try:
         from core.container import get_container
 
         memory = get_container().get("vector_memory_engine", default=None)
-        embedder = getattr(memory, "embedder", None)
-        if embedder is not None:
-            return embedder
+        engine = getattr(memory, "embedder", None)
     except (ImportError, AttributeError, RuntimeError, LookupError):
         pass
-    try:
-        from core.memory.embedding_runtime import acquire_shared_embedding_engine
-
+    if engine is None:
         with _LOCK:
-            engine = _ANCHOR_CACHE.get("__engine__")
-            if engine is None:
-                engine = acquire_shared_embedding_engine("evidence-relevance")
-                _ANCHOR_CACHE["__engine__"] = engine
-            return engine
-    except (ImportError, AttributeError, RuntimeError):
+            engine = _SHARED_ENGINE_LEASE
+        if engine is None:
+            try:
+                from core.memory.embedding_runtime import acquire_shared_embedding_engine
+
+                candidate = acquire_shared_embedding_engine("evidence-relevance")
+            except (ImportError, AttributeError, RuntimeError):
+                return None
+            with _LOCK:
+                if _SHARED_ENGINE_LEASE is None:
+                    _SHARED_ENGINE_LEASE = candidate
+                else:
+                    candidate.close()
+                engine = _SHARED_ENGINE_LEASE
+    if engine is None:
         return None
+    _bind_cache_to_engine(engine)
+    return engine
 
 
 #: Set once a warm has been asked for, so a turn asks at most once.
@@ -375,6 +522,103 @@ def _cosine(left: Any, right: Any) -> float:
     return dot / (left_norm * right_norm)
 
 
+def _centroid(vectors: Sequence[Any]) -> tuple[float, ...]:
+    """Mean direction for one declared semantic class."""
+
+    if not vectors:
+        return ()
+    rows = [tuple(float(value) for value in vector) for vector in vectors]
+    width = min((len(row) for row in rows), default=0)
+    if width <= 0:
+        return ()
+    scale = 1.0 / float(len(rows))
+    return tuple(sum(row[index] for row in rows) * scale for index in range(width))
+
+
+_ALIGNMENT_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'’-]*", re.IGNORECASE)
+_ALIGNMENT_STOPWORDS = frozenset(
+    """
+    a about an and are as at be by can did do does for from had has have how i
+    in into is it its me more of on one or our should that the their them there
+    they this to was were what when where which who why will with would you your
+    """.split()
+)
+
+
+def _alignment_terms(text: str) -> set[str]:
+    return {
+        token
+        for token in (
+            match.group(0).casefold()
+            for match in _ALIGNMENT_TOKEN_RE.finditer(str(text or ""))
+        )
+        if len(token) >= 3 and token not in _ALIGNMENT_STOPWORDS
+    }
+
+
+def assess_evidence_alignment(request: Any, evidence: Any) -> EvidenceAlignment:
+    """Measure whether one retrieved passage can answer ``request``.
+
+    The boundary is derived from declared matched and mismatched query-document
+    pairs encoded by the same local evidence model used at runtime.  If that
+    model is unavailable, one shared content term is the conservative floor:
+    absence cannot prove relevance, so unmatched material is withheld.
+    """
+
+    query = " ".join(str(request or "").split())
+    passage = " ".join(str(evidence or "").split())
+    query_terms = _alignment_terms(query)
+    passage_terms = _alignment_terms(passage)
+    overlap = tuple(sorted(query_terms & passage_terms))
+    if not query or not passage:
+        return EvidenceAlignment(False, False, None, None, overlap, "empty")
+
+    if semantic_routing_ready():
+        boundary = _EVIDENCE_ALIGNMENT_BOUNDARY
+        # A search result set has one query and several documents. The old
+        # loop paid one identical query forward per result. Keep the query in
+        # its asymmetric retrieval geometry, but cache it independently from
+        # the symmetric intent vectors.
+        with _LOCK:
+            query_vector = _ALIGNMENT_QUERY_CACHE.get(query)
+            engine_before = _CACHE_ENGINE_TOKEN
+        if query_vector is None:
+            query_vector = _embed(query, as_query=True)
+            if query_vector is not None:
+                with _LOCK:
+                    if engine_before == _CACHE_ENGINE_TOKEN:
+                        if len(_ALIGNMENT_QUERY_CACHE) >= _REQUEST_CACHE_MAX:
+                            _ALIGNMENT_QUERY_CACHE.clear()
+                        _ALIGNMENT_QUERY_CACHE[query] = query_vector
+        document_vector = _embed_documents([passage])[0]
+        with _LOCK:
+            same_engine = engine_before == _CACHE_ENGINE_TOKEN
+        if (
+            boundary is not None
+            and same_engine
+            and query_vector is not None
+            and document_vector is not None
+        ):
+            score = _cosine(query_vector, document_vector)
+            return EvidenceAlignment(
+                score >= boundary,
+                True,
+                score,
+                boundary,
+                overlap,
+                "semantic_match" if score >= boundary else "semantic_mismatch",
+            )
+
+    return EvidenceAlignment(
+        bool(overlap),
+        False,
+        None,
+        None,
+        overlap,
+        "lexical_overlap" if overlap else "no_measured_alignment",
+    )
+
+
 def _anchor_vectors(key: str, sentences: Sequence[str]) -> list[Any]:
     with _LOCK:
         cached = _ANCHOR_CACHE.get(key)
@@ -418,12 +662,22 @@ def _prewarm_anchor_vectors() -> int:
 
 
 def _request_vector(request: str) -> Any | None:
+    """Embed an utterance in the same geometry as the intent catalogue.
+
+    Evidence retrieval is asymmetric: a query asks which document answers it.
+    Intent classification is symmetric: an utterance and an intent description
+    are two sentences whose meanings are compared.  Sending the utterance
+    through the retrieval query adapter while the catalogue used document
+    vectors made the adapter's task instruction part of the classification.
+    On the current encoder, that turned a request to *write about* desktop
+    tools into a request to inspect the screen.
+    """
+
     with _LOCK:
         cached = _REQUEST_CACHE.get(request)
     if cached is not None:
         return cached
-    # The request is the query side; anchors above are documents.
-    vector = _embed(request, as_query=True)
+    vector = _embed(request)
     if vector is None:
         return None
     with _LOCK:
@@ -431,6 +685,34 @@ def _request_vector(request: str) -> Any | None:
             _REQUEST_CACHE.clear()
         _REQUEST_CACHE[request] = vector
     return vector
+
+
+def _relevance_once(text: str, kind: str) -> tuple[float, bool]:
+    """One score and whether every vector came from one engine generation."""
+
+    _embedder()
+    with _LOCK:
+        engine_before = _CACHE_ENGINE_TOKEN
+    vector = _request_vector(text)
+    if vector is None:
+        return 0.0, True
+    concept = _anchor_vectors(kind, _ANCHORS[kind])
+    baseline_sentences = _BASELINE_ANCHORS + _CONTRAST_ANCHORS.get(kind, ())
+    baseline = _anchor_vectors(f"__baseline__:{kind}", baseline_sentences)
+    with _LOCK:
+        same_engine = engine_before == _CACHE_ENGINE_TOKEN
+    if not same_engine:
+        return 0.0, False
+    if not concept or not baseline:
+        return 0.0, True
+    concept_center = _centroid(concept)
+    baseline_center = _centroid(baseline)
+    if not concept_center or not baseline_center:
+        return 0.0, True
+    return (
+        _cosine(vector, concept_center) - _cosine(vector, baseline_center),
+        True,
+    )
 
 
 def relevance(request: Any, kind: str) -> float:
@@ -443,17 +725,18 @@ def relevance(request: Any, kind: str) -> float:
     text = " ".join(str(request or "").split())
     if not text or kind not in _ANCHORS:
         return 0.0
-    vector = _request_vector(text)
-    if vector is None:
-        return 0.0
-    concept = _anchor_vectors(kind, _ANCHORS[kind])
-    baseline_sentences = _BASELINE_ANCHORS + _CONTRAST_ANCHORS.get(kind, ())
-    baseline = _anchor_vectors(f"__baseline__:{kind}", baseline_sentences)
-    if not concept or not baseline:
-        return 0.0
-    best_concept = max(_cosine(vector, anchor) for anchor in concept)
-    best_baseline = max(_cosine(vector, anchor) for anchor in baseline)
-    return best_concept - best_baseline
+    # A class is the shared direction across its examples, not whichever one
+    # sentence happens to share a noun with the request.  Nearest-example
+    # scoring made "CPU architecture" look like Aura's own source because one
+    # implementation anchor dominated the rest of that concept.
+    score, stable = _relevance_once(text, kind)
+    if stable:
+        return score
+    # The container can install its vector-memory engine while boot warming is
+    # still using the retained shared lease. Retry once after the cache was
+    # rebound; never compare local vectors across that transition.
+    score, stable = _relevance_once(text, kind)
+    return score if stable else 0.0
 
 
 def prewarm_evidence_relevance() -> dict[str, Any]:
@@ -481,8 +764,9 @@ def prewarm_evidence_relevance() -> dict[str, Any]:
             "baseline_vectors": len(baseline),
         }
 
-    # Query and document adapters may initialize separately. Exercise the same
-    # query-side encoder the live request path uses before declaring readiness.
+    # Exercise the same symmetric sentence encoder the live intent path uses
+    # before declaring readiness. Query-side warmup belongs to evidence
+    # retrieval and is performed when query-document alignment is measured.
     probe = _request_vector("How are you feeling today?")
     if probe is None:
         raise RuntimeError("semantic evidence query encoder is unavailable")
@@ -491,6 +775,7 @@ def prewarm_evidence_relevance() -> dict[str, Any]:
         "families": dimensions,
         "query_dimensions": len(probe),
         "encoded_documents": encoded_documents,
+        "evidence_alignment_boundary": _EVIDENCE_ALIGNMENT_BOUNDARY,
     }
 
 

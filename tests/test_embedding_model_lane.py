@@ -52,8 +52,32 @@ def _install_fake_embedding_dependencies(
     encode_entered: threading.Event,
     encode_release: threading.Event,
 ) -> type:
+    class _Tokenizer:
+        @staticmethod
+        def num_special_tokens_to_add(*, pair: bool = False) -> int:
+            del pair
+            return 0
+
+        @staticmethod
+        def __call__(text, **kwargs):
+            del kwargs
+            words = str(text).split() or [""]
+            offsets = []
+            cursor = 0
+            for word in words:
+                start = str(text).find(word, cursor) if word else 0
+                start = max(0, start)
+                stop = start + len(word)
+                offsets.append((start, stop))
+                cursor = stop
+            return {
+                "input_ids": list(range(1, len(words) + 1)),
+                "offset_mapping": offsets,
+            }
+
     class _Encoder:
         block = False
+        tokenizer = _Tokenizer()
 
         #: The real encoder is constructed with truncate_dim so the
         #: Matryoshka output stays at VECTOR_DIM. A double that does not
@@ -119,6 +143,51 @@ def test_embedding_constructor_rejects_an_unowned_load(
         embedding_model.load_encoder(model_lane_lease=object())
 
     assert constructor_calls == [], "ownership must be checked before model construction"
+
+
+def test_mps_causal_encoder_never_batches_independent_sentences() -> None:
+    """Padding on the live Qwen3 MPS path must not move semantic vectors."""
+
+    calls: list[tuple[str, ...]] = []
+
+    class _MPSModel:
+        device = "mps:0"
+
+        @staticmethod
+        def encode(texts, **_kwargs):
+            group = tuple(texts)
+            calls.append(group)
+            return np.ones((len(group), embedding_model.VECTOR_DIM), dtype=np.float32)
+
+    encoded = EmbeddingEngine._encode_model_payload(
+        _MPSModel(),
+        ["first sentence", "a much longer second sentence"],
+        query_task=None,
+    )
+
+    assert encoded.shape == (2, embedding_model.VECTOR_DIM)
+    assert calls == [("first sentence",), ("a much longer second sentence",)]
+
+
+def test_cpu_encoder_retains_true_batching() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    class _CPUModel:
+        device = "cpu"
+
+        @staticmethod
+        def encode(texts, **_kwargs):
+            group = tuple(texts)
+            calls.append(group)
+            return np.ones((len(group), embedding_model.VECTOR_DIM), dtype=np.float32)
+
+    EmbeddingEngine._encode_model_payload(
+        _CPUModel(),
+        ["first sentence", "a much longer second sentence"],
+        query_task=None,
+    )
+
+    assert calls == [("first sentence", "a much longer second sentence")]
 
 
 @pytest.fixture(autouse=True)

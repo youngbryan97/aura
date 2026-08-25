@@ -13980,6 +13980,89 @@ def _best_search_result_entry(result: dict[str, Any]) -> dict[str, str]:
     return sorted(entries, key=_search_entry_quality, reverse=True)[0]
 
 
+def _filter_required_search_result_by_subject(
+    user_message: str,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep only search material that addresses the authorizing request."""
+
+    if not bool(result.get("ok")):
+        return result
+    from core.cognition.evidence_relevance import assess_evidence_alignment
+
+    entries = _search_result_entries(result)
+    kept: list[dict[str, str]] = []
+    measurements: list[dict[str, Any]] = []
+    for entry in entries:
+        passage = " ".join(
+            part
+            for part in (
+                str(entry.get("title") or "").strip(),
+                str(entry.get("snippet") or "").strip(),
+            )
+            if part
+        )
+        verdict = assess_evidence_alignment(user_message, passage)
+        measurements.append(
+            {
+                "title": str(entry.get("title") or "")[:120],
+                "relevant": verdict.relevant,
+                "measured": verdict.measured,
+                "score": round(verdict.score, 4) if verdict.score is not None else None,
+                "reason": verdict.reason,
+            }
+        )
+        if verdict.relevant:
+            kept.append(entry)
+
+    summary = " ".join(
+        str(
+            result.get("summary")
+            or result.get("answer")
+            or result.get("synthesis")
+            or ""
+        ).split()
+    )
+    summary_verdict = assess_evidence_alignment(user_message, summary) if summary else None
+    if kept or (summary_verdict is not None and summary_verdict.relevant):
+        filtered = dict(result)
+        if entries:
+            for key in ("results", "sources", "items"):
+                filtered.pop(key, None)
+            filtered["results"] = kept
+        filtered["evidence_relevance"] = measurements
+        filtered["irrelevant_results_removed"] = max(0, len(entries) - len(kept))
+        return filtered
+
+    logger.warning(
+        "Required search returned no subject-aligned evidence: request=%r candidates=%d",
+        str(user_message or "")[:160],
+        len(entries),
+    )
+    filtered = dict(result)
+    for key in (
+        "results",
+        "sources",
+        "items",
+        "summary",
+        "answer",
+        "synthesis",
+        "content",
+        "result",
+    ):
+        filtered.pop(key, None)
+    filtered.update(
+        {
+            "ok": False,
+            "status": "required_search_subject_mismatch",
+            "error": "search returned no evidence relevant to the request",
+            "evidence_relevance": measurements,
+            "irrelevant_results_removed": len(entries),
+        }
+    )
+    return filtered
+
+
 def _clean_search_fact_text(raw: Any) -> str:
     # Entities that survived the fetch.
     #
@@ -14321,7 +14404,11 @@ async def _collect_desktop_required_search_evidence(
                 {
                     "query": tool_query or query or user_message,
                     "num_results": 5,
-                    "deep": True,
+                    # The resident cortex is the one synthesis authority for
+                    # this turn.  Deep search invoked it once here and chat
+                    # invoked it again afterward, doubling model work and
+                    # turning a retrieval deadline into a generation timeout.
+                    "deep": False,
                     "retain": True,
                     "force_refresh": True,
                 },
@@ -14355,6 +14442,13 @@ async def _collect_desktop_required_search_evidence(
         result = {"ok": bool(result), "result": result}
     result.setdefault("skill", "web_search")
     result.setdefault("query", tool_query or query or user_message)
+    # Qwen3 evidence scoring is local model inference. Keep it off the event
+    # loop so five source checks do not freeze heartbeats or text streaming.
+    result = await asyncio.to_thread(
+        _filter_required_search_result_by_subject,
+        user_message,
+        result,
+    )
     evidence_text = _render_desktop_required_search_evidence(
         query=tool_query or query or user_message,
         result=result,

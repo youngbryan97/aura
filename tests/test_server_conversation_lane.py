@@ -16009,7 +16009,7 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
     assert skill_calls and skill_calls[0]["skill_name"] == "web_search"
     assert skill_calls[0]["extra_context"]["route"] == "chat.required_search_evidence"
     assert skill_calls[0]["params"]["query"] == "tardigrades fact"
-    assert skill_calls[0]["params"]["deep"] is True
+    assert skill_calls[0]["params"]["deep"] is False
     assert skill_calls[0]["params"]["retain"] is True
     assert cognitive_calls
     assert memory.calls

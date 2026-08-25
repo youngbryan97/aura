@@ -59,6 +59,21 @@ _NAME_SHAPE = re.compile(
     r"|[A-Z][a-z0-9&.'-]+)"
 )
 
+_EXPLICIT_EXTERNAL_LOOKUP = re.compile(
+    r"\b(?:search(?: the)? (?:web|internet|online)|browse(?: the)? (?:web|internet)|"
+    r"look (?:it |this |that )?up|find (?:recent|current|latest|live) |"
+    r"(?:current|latest|recent|live|today'?s|this week'?s)\b)",
+    re.IGNORECASE,
+)
+
+_ENTITY_RELATION = re.compile(
+    r"\b(?:company|organization|institution|person|found(?:ed|er|ers)?|"
+    r"headquarters|revenue|employees|valuation|ceo|owner|acquired|"
+    r"background|rundown|overview|"
+    r"announce[ds]?|launch(?:ed)?|release[ds]?)\b",
+    re.IGNORECASE,
+)
+
 #: Capitalised because of where they sit, not because they name anything.
 _CAPITALISED_BUT_ORDINARY = {
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
@@ -103,6 +118,16 @@ def _names(message: str) -> list[str]:
             # capitalisation, not a name.
             if match.start() == 0 and text == first.rstrip(",;:") and " " not in text:
                 continue
+            # An acronym before a common noun is usually a category modifier,
+            # not a referential name: "AI system", "CPU architecture", "RLC
+            # design".  The old shape reader treated every such phrase as an
+            # external entity and forced a web search for timeless questions.
+            # This is a grammatical relation, so it applies to unseen acronyms.
+            if text.isupper() and " " not in text:
+                remainder = stripped[match.end() :]
+                next_word = re.match(r"^[\s,:-]+([a-z][a-z0-9'-]*)", remainder)
+                if next_word:
+                    continue
             found.append(text)
     return found
 
@@ -157,7 +182,7 @@ def wants_outside_evidence(message: object) -> bool:
     if asks_for_sources(text):
         _teach(text, True)
         return True
-    if asks_about_a_named_thing(text):
+    if _EXPLICIT_EXTERNAL_LOOKUP.search(text):
         _teach(text, True)
         return True
     # A turn plainly about her, or about this machine, is settled the other
@@ -165,6 +190,31 @@ def wants_outside_evidence(message: object) -> bool:
     if _ABOUT_HER.search(text):
         _teach(text, False)
         return False
+    # The prewarmed local evidence router distinguishes a question about a
+    # named/current external fact from a timeless explanation about a concept.
+    # It runs before the structural floor because capitalization and acronyms
+    # are candidate evidence, not authority over meaning.
+    try:
+        from core.cognition.evidence_relevance import (
+            EXTERNAL_WORLD,
+            semantic_routing_ready,
+            wants_evidence,
+        )
+
+        if semantic_routing_ready():
+            routed = wants_evidence(text, EXTERNAL_WORLD)
+            if routed:
+                _teach(text, True)
+                return True
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass
+
+    # No semantic measurement is available.  Keep a conservative structural
+    # floor for entity-specific relations, but do not make capitalization or
+    # an acronym sufficient by itself.
+    if asks_about_a_named_thing(text) and _ENTITY_RELATION.search(text):
+        _teach(text, True)
+        return True
     try:
         learned = _NEEDS_OUTSIDE.decide_without_waiting(text)
     except (RuntimeError, TypeError, ValueError):

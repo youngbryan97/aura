@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import pytest
 
+from core.cognition import evidence_relevance as evidence_module
 from core.cognition.evidence_relevance import (
+    EXTERNAL_WORLD,
     OWN_SOURCE,
     PHYSICAL_PERCEPTION,
     SCREEN_PERCEPTION,
+    assess_evidence_alignment,
     relevance,
     semantic_routing_available,
     wants_evidence,
@@ -85,6 +88,40 @@ def test_unrelated_turns_pull_no_evidence(question: str) -> None:
     assert not wants_evidence(question, PHYSICAL_PERCEPTION), question
 
 
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("Who founded Hugging Face?", True),
+        ("What did Mistral announce this week?", True),
+        ("What is one subtle tradeoff in CPU architecture?", False),
+        (
+            "What is one subtle engineering tradeoff when migrating a long-lived AI system?",
+            False,
+        ),
+    ],
+)
+def test_external_world_evidence_distinguishes_entities_from_concepts(
+    question: str, expected: bool
+) -> None:
+    assert wants_evidence(question, EXTERNAL_WORLD) is expected
+
+
+def test_query_to_evidence_alignment_separates_the_live_failure():
+    aligned = assess_evidence_alignment(
+        "What is one tradeoff in hybrid recurrent transformer architectures?",
+        "Hybrid recurrent designs reduce KV-cache growth but make state recovery harder.",
+    )
+    shipping = assess_evidence_alignment(
+        "What is one tradeoff in hybrid recurrent transformer architectures?",
+        "Ocean Network Express provides cargo tracking and shipping schedules.",
+    )
+
+    assert aligned.measured and aligned.relevant
+    assert shipping.measured and not shipping.relevant
+    assert aligned.score is not None and shipping.score is not None
+    assert aligned.score > shipping.score
+
+
 def test_writing_new_code_is_not_a_question_about_her_own():
     """"Write me a python module" shares vocabulary and shares no intent."""
     assert relevance("write me a python module for sorting", OWN_SOURCE) < 0.0
@@ -107,6 +144,40 @@ def test_the_lexical_floor_can_add_but_never_veto():
 def test_an_empty_request_asks_for_nothing():
     assert not wants_evidence("", OWN_SOURCE)
     assert relevance("", SCREEN_PERCEPTION) == 0.0
+
+
+def test_semantic_caches_are_bound_to_one_embedding_space(monkeypatch):
+    """Equal-width vectors from a replacement encoder are not comparable."""
+
+    first = object()
+    second = object()
+    monkeypatch.setattr(evidence_module, "_CACHE_ENGINE_TOKEN", None)
+    evidence_module._ANCHOR_CACHE.clear()
+    evidence_module._REQUEST_CACHE.clear()
+    evidence_module._ALIGNMENT_QUERY_CACHE.clear()
+
+    evidence_module._bind_cache_to_engine(first)
+    evidence_module._ANCHOR_CACHE["concept"] = [1.0]
+    evidence_module._REQUEST_CACHE["request"] = [1.0]
+    evidence_module._ALIGNMENT_QUERY_CACHE["query"] = [1.0]
+    evidence_module._bind_cache_to_engine(first)
+    assert evidence_module._ANCHOR_CACHE == {"concept": [1.0]}
+    assert evidence_module._REQUEST_CACHE == {"request": [1.0]}
+    assert evidence_module._ALIGNMENT_QUERY_CACHE == {"query": [1.0]}
+
+    evidence_module._bind_cache_to_engine(second)
+    assert evidence_module._ANCHOR_CACHE == {}
+    assert evidence_module._REQUEST_CACHE == {}
+    assert evidence_module._ALIGNMENT_QUERY_CACHE == {}
+
+
+def test_alignment_boundary_separates_its_declared_calibration_cohort():
+    for query, passage in evidence_module._ALIGNMENT_POSITIVES:
+        verdict = assess_evidence_alignment(query, passage)
+        assert verdict.measured and verdict.relevant, (query, verdict)
+    for query, passage in evidence_module._ALIGNMENT_NEGATIVES:
+        verdict = assess_evidence_alignment(query, passage)
+        assert verdict.measured and not verdict.relevant, (query, verdict)
 
 
 def test_a_screen_question_does_not_drag_in_her_source():

@@ -382,6 +382,53 @@ class EmbeddingEngine:
             where=norms > 1e-8,
         )
 
+    @staticmethod
+    def _encode_model_payload(
+        model: Any,
+        payload: list[str],
+        *,
+        query_task: str | None,
+    ) -> Any:
+        """Encode without letting MPS padding change sentence meaning.
+
+        Measured on Qwen3-Embedding-0.6B under MPS, 2026-08-24: encoding the
+        same five sentences together and one at a time produced cosine
+        agreement as low as 0.089.  On CPU the minimum was 0.9998.  The
+        affected rows were the shorter members of a padded causal-model
+        batch, so every consumer saw a plausible 384-wide vector in the
+        wrong place in semantic space.
+
+        Keep MPS for the resident encoder, but make each causal-model forward
+        padding-free.  ``SentenceTransformer.encode`` still owns tokenization,
+        pooling, normalization and Matryoshka truncation; this changes only
+        how many independent sentences share one MPS forward.  CPU and future
+        non-MPS backends retain true batching.
+        """
+
+        device = str(getattr(model, "device", "")).casefold()
+        singleton_mps = device.startswith("mps") and len(payload) > 1
+        groups = ([text] for text in payload) if singleton_mps else (payload,)
+        encoded_rows: list[Any] = []
+        for group in groups:
+            if query_task is None:
+                encoded = model.encode(
+                    group,
+                    normalize_embeddings=True,
+                    batch_size=len(group),
+                    show_progress_bar=False,
+                )
+            else:
+                encoded = embedding_model.encode_query(
+                    model,
+                    group,
+                    task=query_task,
+                )
+            rows = np.asarray(encoded)
+            if rows.ndim == 1:
+                rows = rows.reshape(1, -1)
+            encoded_rows.extend(rows)
+        return np.asarray(encoded_rows)
+
     def _encode_views_with_model(
         self,
         model: Any,
@@ -419,19 +466,11 @@ class EmbeddingEngine:
                 if background and self._background_should_defer():
                     raise EmbeddingWorkDeferredError("foreground_inference_active")
                 payload = [view.text for view in batch]
-                if query_task is None:
-                    encoded = model.encode(
-                        payload,
-                        normalize_embeddings=True,
-                        batch_size=len(payload),
-                        show_progress_bar=False,
-                    )
-                else:
-                    encoded = embedding_model.encode_query(
-                        model,
-                        payload,
-                        task=query_task,
-                    )
+                encoded = self._encode_model_payload(
+                    model,
+                    payload,
+                    query_task=query_task,
+                )
                 rows = self._normalize_rows(encoded)
                 if len(rows) != len(batch):
                     raise RuntimeError(

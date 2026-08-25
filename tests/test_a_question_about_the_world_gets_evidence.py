@@ -49,6 +49,9 @@ def test_a_factual_question_about_something_named_wants_evidence(message: str):
         "what do you think about consciousness?",
         "Tomorrow I want to try something new",
         "what have you been working on lately?",
+        "what was that repo you saw?",
+        "What is one subtle engineering tradeoff when migrating a long-lived AI system from a dense transformer to a hybrid recurrent architecture?",
+        "What is one subtle tradeoff in CPU architecture?",
     ],
 )
 def test_a_turn_about_her_or_this_machine_does_not(message: str):
@@ -76,8 +79,8 @@ def test_a_name_is_recognised_by_shape_not_by_a_list():
 
 
 def test_the_contract_now_requires_a_search_for_those_turns():
-    from core.state.aura_state import AuraState
     from core.phases.response_contract import build_response_contract
+    from core.state.aura_state import AuraState
 
     state = AuraState.default()
     for message in (
@@ -88,15 +91,33 @@ def test_the_contract_now_requires_a_search_for_those_turns():
         assert contract.requires_search is True, message
         assert contract.required_skill == "web_search", message
 
-    for message in ("how are you feeling today?", "tell me about yourself"):
+    for message in (
+        "how are you feeling today?",
+        "tell me about yourself",
+        "What is one subtle tradeoff in CPU architecture?",
+        "What is one subtle engineering tradeoff when migrating an AI system?",
+    ):
         contract = build_response_contract(state, message, is_user_facing=True)
         assert contract.requires_search is False, message
 
 
+def test_current_named_world_questions_still_require_search():
+    from core.phases.response_contract import build_response_contract
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    for message in (
+        "What is the latest Mistral release?",
+        "Search the web for recent papers about AI systems.",
+        "Who is the current CEO of Stripe?",
+    ):
+        assert build_response_contract(state, message, is_user_facing=True).requires_search
+
+
 def test_the_older_reasons_still_name_themselves():
     """The new signal explains only what the old ones do not."""
-    from core.state.aura_state import AuraState
     from core.phases.response_contract import build_response_contract
+    from core.state.aura_state import AuraState
 
     state = AuraState.default()
     contract = build_response_contract(
