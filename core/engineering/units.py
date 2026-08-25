@@ -581,6 +581,10 @@ class Quantity:
             magnitude = self.to(self.display_unit)
             if _READABLE_LOW <= abs(magnitude) < _READABLE_HIGH or magnitude == 0:
                 return f"{_round_text(magnitude, digits)} {self.display_unit}".strip()
+            if self.display_unit == "kg":
+                # kg already carries its prefix, so it has no stem to walk.
+                # engineering_text knows to drop to grams and rise to tonnes.
+                return engineering_text(self.value, "kg", digits=digits)
             stem = _prefixable_stem(self.display_unit)
             if stem is not None:
                 return engineering_text(self.value, stem, digits=digits)

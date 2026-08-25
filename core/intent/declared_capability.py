@@ -106,6 +106,12 @@ _VERB_CLASSES: tuple[frozenset[str], ...] = (
             "produce", "produces", "producing", "build", "builds", "building",
             "draft", "drafts", "drafting", "compose", "composes", "render",
             "renders", "rendering", "draw", "draws", "drawing", "paint",
+            # Designing something is producing it. Without these, a request
+            # to design or engineer a thing ranked no producing capability
+            # at all, so it reached whatever happened to match a noun.
+            "design", "designs", "designing", "engineer", "engineers",
+            "engineering", "sketch", "sketches", "sketching", "model",
+            "models", "modelling", "modeling", "spec", "specs",
         }
     ),
     frozenset(
@@ -189,6 +195,16 @@ _OBJECT_CLASSES: tuple[frozenset[str], ...] = (
     frozenset({"email", "mail", "message", "messages", "text", "dm"}),
     frozenset({"voice", "speech", "audio", "sound", "microphone"}),
     frozenset({"package", "library", "dependency", "module"}),
+    # Engineering artefacts. Kept apart from the image class on purpose: a
+    # schematic is computed from a model, and ranking it alongside pictures
+    # sent requests for one to the diffusion model, which draws a plausible
+    # machine that does not work. "diagram" and "drawing" stay with images,
+    # since those words are used for both.
+    frozenset({"schematic", "schematics", "blueprint", "blueprints",
+               "assembly", "subassembly", "exploded", "cutaway",
+               "cad", "bom", "bracket", "enclosure", "chassis", "linkage",
+               "mechanism", "gearbox", "circuit", "wiring", "harness",
+               "pcb", "manifold", "housing", "fixture", "jig"}),
 )
 
 _FOUNDATIONAL_DOMAIN_OBJECT = {
@@ -587,6 +603,12 @@ def producing_capabilities(
             for word in (
                 "file", "files", "disk", "document", "deck", "slides", "page",
                 "report", "app", "artifact", "image", "chart",
+                # A drawing is as much a thing that leaves the turn as a deck
+                # is. Without these, a capability that writes schematics and
+                # mesh files declared nothing this set recognised, so it was
+                # not counted as producing anything at all.
+                "drawing", "drawings", "schematic", "schematics", "blueprint",
+                "model", "mesh", "diagram", "diagrams",
             )
         }
         overlap = len({_fold(word) for word in objects} & produced)

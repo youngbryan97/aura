@@ -74,6 +74,11 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "curiosity": "state_mutation",
     "delegate_shard": "external_io",
     "deploy_ghost_probe": "external_io",
+    # Computes a design from geometry and material data and writes drawings
+    # and mesh files. It reads no external service and touches nothing but
+    # its own output directory, so it carries the same authority as any
+    # other builder.
+    "design_engineering": "read_write_artifacts",
     "desktop_task": "foreground_desktop_control",
     "dream_sleep": "state_mutation",
     "email_adapter": "external_io",

@@ -34,12 +34,39 @@ _ARTIFACT_NOUNS = (
     r"program|widget|dashboard|prototype|demo|utility|"
     r"deck|slides?|presentation|pitch|"
     r"report|memo|one[\s-]?pager|onepager|summary|write[\s-]?up|document|doc|"
-    r"file|spreadsheet|csv|chart|diagram|plan|checklist|template|draft"
+    r"file|spreadsheet|csv|chart|diagram|plan|checklist|template|draft|"
+    # Engineering deliverables. A schematic is as much a thing that exists
+    # afterwards as a deck is, and the same ceiling was filtering out every
+    # capability that could produce one.
+    r"schematic|blueprint|wiring\s+diagram|exploded\s+view|general\s+arrangement|"
+    r"technical\s+drawing|engineering\s+drawing|bill\s+of\s+materials|bom|"
+    r"cad\s+model|parts?\s+list|cutaway|assembly\s+drawing|"
+    # Pictures. A request to paint an illustration reached no capability at
+    # all, because the ceiling did not count one as a thing that exists.
+    r"picture|illustration|artwork|image|drawing|sketch|render"
+)
+
+#: Verbs that name a produced thing on their own. "Design me a drone" asks
+#: for a design to exist whatever the drone turns out to be, so waiting for
+#: the object to appear in a noun list is waiting forever.
+_ASKS_TO_DESIGN = re.compile(
+    r"(?:^|[.?!]\s+|\b(?:can|could|would|will)\s+you\s+|\bplease\s+|"
+    r"\bi\s+(?:need|want)\s+you\s+to\s+|\bi'?d\s+like\s+you\s+to\s+|"
+    r"\blet'?s\s+|\bhelp\s+me\s+)"
+    r"(?:just\s+|quickly\s+|actually\s+)?"
+    r"(?:design|draw|sketch|diagram|schematic|engineer|lay\s+out|"
+    r"spec\s+out|dimension)\b"
+    r"(?:\s+(?:me|us|out|up))?\s+"
+    # A determiner, or the "how the X ..." form. "Sketch out how the gearbox
+    # would be laid out" asks for a sketch; it was reaching nothing because
+    # the word after the verb was "how".
+    r"(?:a|an|the|some|my|one|two|three|four|how\s+(?:a|an|the|this|that))\b",
+    re.IGNORECASE,
 )
 
 #: Asking to be given one.
 _ASKS_FOR = re.compile(
-    r"\b(?:build|make|create|write|draft|put\s+together|knock\s+up|generate|"
+    r"\b(?:build|make|create|write|draft|put\s+together|knock\s+up|generate|paint|"
     r"produce|prepare|assemble|give\s+me|send\s+me|i\s+need|i\s+want|"
     r"can\s+you\s+(?:build|make|write|draft|put\s+together|prepare))\b"
     rf"[^.?!]{{0,60}}?\b(?:{_ARTIFACT_NOUNS})\b",
@@ -67,7 +94,11 @@ def names_an_artifact(message: object) -> bool:
     text = str(message or "")
     if not text.strip():
         return False
-    return bool(_ASKS_FOR.search(text) or _COUNTED_ARTIFACT.search(text))
+    return bool(
+        _ASKS_FOR.search(text)
+        or _COUNTED_ARTIFACT.search(text)
+        or _ASKS_TO_DESIGN.search(text)
+    )
 
 
 #: Whether the person wants a thing or an answer.
@@ -85,10 +116,16 @@ _WANTS_A_THING = _LearnedMatcher(
         "can you knock up something I can show them on Thursday",
         "I need something I can send to the team by five",
         "give me a checklist for the move",
+        "design me a small underwater drone that can hold station at 50 m",
+        "draw me a schematic of the cooling loop",
+        "can you engineer a bracket that holds 200 kg",
+        "sketch out how the gearbox would be laid out",
     ),
     negatives=(
         "what is a deck?",
         "explain how slides work",
+        "who designed the Eiffel Tower?",
+        "what do you think of the design of that building?",
         "how are you feeling today?",
         "who founded Hugging Face?",
         "tell me about Anthropic the company",

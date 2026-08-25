@@ -121,9 +121,11 @@ class ImageGenInput(BaseModel):
 class ImageGenSkill(BaseSkill):
     name = "image_gen"
     description = (
-        "Generate or edit images locally using AI diffusion models. "
-        "Supports text-to-image, image-to-image editing, style transfer, "
-        "and inpainting. Outputs high-quality images saved to disk."
+        "Draw or paint a picture, an illustration or a piece of artwork, and edit an "
+        "existing image, using local diffusion models. Supports text-to-image, "
+        "image-to-image editing, style transfer and inpainting. Outputs images saved "
+        "to disk. Use for anything pictorial; not for a schematic or a technical "
+        "drawing, which are computed from a model rather than generated."
     )
     input_model = ImageGenInput
     timeout_seconds = 300.0  # Image generation can be slow

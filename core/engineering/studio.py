@@ -107,8 +107,11 @@ def design_from(
     out_dir: str | None = None,
     write: bool = True,
     check_validation: bool = True,
+    learn: bool = True,
 ) -> DesignStudioResult:
     """Take a design brief all the way to checked drawings and files."""
+    import time
+
     from core.engineering.analysis import run_analyses
     from core.engineering.build import build_plan
     from core.engineering.draw.schematic import schematic_drawer
@@ -119,6 +122,7 @@ def design_from(
     from core.engineering.model import design_from_brief
     from core.engineering.verify import verify_design
 
+    started = time.perf_counter()
     design = arrange(design_from_brief(brief))
     findings = run_analyses(design)
     verdict = verify_design(design, findings, check_validation=check_validation)
@@ -142,7 +146,7 @@ def design_from(
     if write:
         bundle = write_bundle(bundle, out_dir)
 
-    return DesignStudioResult(
+    result = DesignStudioResult(
         design=design,
         findings=shown,
         verdict=verdict,
@@ -152,6 +156,24 @@ def design_from(
         bundle=bundle,
         kinds_drawn=drawn,
     )
+
+    # Two things happen after a design finishes, and neither may fail it.
+    # Metacognition gets a record it can measure her own engineering from,
+    # and what the design taught that generalises is written into memory.
+    from core.engineering.faculty import record_design
+    from core.engineering.knowledge import record_design_knowledge
+    from core.runtime.errors import record_degradation
+
+    try:
+        record_design(result, seconds=time.perf_counter() - started)
+    except (AttributeError, TypeError, ValueError) as exc:
+        record_degradation("engineering.studio", exc, action="recording a design for metacognition")
+    if learn:
+        try:
+            record_design_knowledge(design, shown, verdict)
+        except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+            record_degradation("engineering.studio", exc, action="recording what a design taught")
+    return result
 
 
 async def design_from_async(
