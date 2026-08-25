@@ -407,3 +407,54 @@ def test_mlx_submodule_load_fails_closed(tmp_path: Path) -> None:
             "detail": "load references at lines [2]",
         }
     ]
+
+
+def test_a_tokenizer_is_not_a_model_load() -> None:
+    """This audit says who may put a MODEL in memory.
+
+    A tokenizer is a vocabulary file: no weights, no lane, nothing to contend
+    over. Counting AutoTokenizer.from_pretrained made two offline tools that
+    read only a tokenizer look like unowned model loads, and the remedy would
+    have been to hold the standalone model lane while reading a text file.
+    """
+    import ast
+
+    from tools.closeout.audit_model_load_ownership import _references_in_tree
+
+    weightless = ast.parse(
+        "from transformers import AutoTokenizer\n"
+        "t = AutoTokenizer.from_pretrained('x')\n"
+    )
+    assert _references_in_tree(weightless) == set()
+
+    weighted = ast.parse(
+        "from transformers import AutoModelForCausalLM\n"
+        "m = AutoModelForCausalLM.from_pretrained('x')\n"
+    )
+    assert weighted and _references_in_tree(weighted)
+
+
+def test_a_download_is_not_a_model_load() -> None:
+    """snapshot_download writes files to disk and loads nothing."""
+    import ast
+
+    from tools.closeout.audit_model_load_ownership import _references_in_tree
+
+    downloading = ast.parse(
+        "snapshot_download = import_attribute_serialized("
+        "'huggingface_hub', 'snapshot_download')\n"
+    )
+    assert _references_in_tree(downloading) == set()
+
+
+def test_a_load_through_the_serialized_helper_is_a_load() -> None:
+    """core/memory/embedding_model.py resolves SentenceTransformer this way."""
+    import ast
+
+    from tools.closeout.audit_model_load_ownership import _references_in_tree
+
+    loading = ast.parse(
+        "cls = import_attribute_serialized("
+        "'sentence_transformers', 'SentenceTransformer')\n"
+    )
+    assert _references_in_tree(loading)

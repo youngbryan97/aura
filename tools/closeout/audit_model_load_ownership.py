@@ -64,6 +64,43 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
+#: Libraries that put WEIGHTS IN A PROCESS when imported through the
+#: serialized-import helper. huggingface_hub is deliberately absent:
+#: snapshot_download writes files to disk and loads nothing, and counting it
+#: reported two download helpers as unowned model loads.
+_SERIALIZED_MODEL_LOADERS = frozenset(
+    {
+        "sentence_transformers",
+        "transformers",
+        "mlx_lm",
+        "mlx_vlm",
+        "faster_whisper",
+        "coqui_tts",
+        "piper",
+        "TTS",
+    }
+)
+
+
+#: Receivers whose ``from_pretrained`` reads a vocabulary or a config and puts
+#: no weights anywhere. This audit exists to say who may put a MODEL in
+#: memory; a tokenizer is a text file, takes no lane and contends with
+#: nothing. Counting it required two offline tools that read only a tokenizer
+#: to hold the standalone model lane, which would serialise them behind the
+#: live lane for no reason.
+_WEIGHTLESS_LOADER_HINTS = ("tokenizer", "processor", "featureextractor", "config")
+
+
+def _loads_no_weights(receiver: ast.expr) -> bool:
+    name = ""
+    if isinstance(receiver, ast.Name):
+        name = receiver.id
+    elif isinstance(receiver, ast.Attribute):
+        name = receiver.attr
+    lowered = name.lower()
+    return any(hint in lowered for hint in _WEIGHTLESS_LOADER_HINTS)
+
+
 def _references_in_tree(tree: ast.Module) -> set[tuple[int, str]]:
     direct_aliases: dict[str, str] = {}
     constructor_aliases: dict[str, str] = {}
@@ -102,8 +139,24 @@ def _references_in_tree(tree: ast.Module) -> set[tuple[int, str]]:
             and function.value.id in module_aliases
         ):
             references.add((node.lineno, module_aliases[function.value.id]))
-        elif isinstance(function, ast.Attribute) and function.attr == "from_pretrained":
+        elif (
+            isinstance(function, ast.Attribute)
+            and function.attr == "from_pretrained"
+            and not _loads_no_weights(function.value)
+        ):
             references.add((node.lineno, "from_pretrained"))
+        elif (
+            isinstance(function, ast.Name)
+            and function.id == "import_attribute_serialized"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value in _SERIALIZED_MODEL_LOADERS
+        ):
+            # A load reached through the serialized-import helper is still a
+            # load. core/memory/embedding_model.py resolves SentenceTransformer
+            # this way, so its inventory entry read as stale — and dropping the
+            # entry would have retired the guard requirement with it.
+            references.add((node.lineno, node.args[0].value))
         elif isinstance(function, ast.Name) and function.id == "whisper_model_cls":
             references.add((node.lineno, "faster_whisper"))
         elif isinstance(function, ast.Name) and function.id == "TTS":

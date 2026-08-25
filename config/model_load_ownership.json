@@ -116,7 +116,7 @@
       "path": "core/memory/embedding_model.py"
     },
     {
-      "expected_load_references": 4,
+      "expected_load_references": 5,
       "guard_symbol": "_acquire_voice_model_lane",
       "min_guard_sites": 4,
       "modules": [
@@ -138,7 +138,7 @@
       "path": "core/skills/image_gen.py"
     },
     {
-      "expected_load_references": 1,
+      "expected_load_references": 2,
       "guard_symbol": "acquire_synchronous_in_process_model_lane",
       "min_guard_sites": 1,
       "modules": [
@@ -169,7 +169,7 @@
       "path": "scripts/generate_steering_vectors.py"
     },
     {
-      "expected_load_references": 2,
+      "expected_load_references": 1,
       "guard_symbol": "standalone_model_lane",
       "min_guard_sites": 1,
       "modules": [
