@@ -212,3 +212,91 @@ def test_the_layout_digest_is_unchanged_by_any_of_this():
     from core.brain.llm.endogenous_state import layout_digest
 
     assert layout_digest() == "d3a59c56a36248d52b67d8282bf2f702"
+
+
+def test_a_property_accessor_is_read_as_well_as_a_method(monkeypatch):
+    """`current` is a PROPERTY on the live substrate.
+
+    A method-only read called `callable()` on it, got False, and skipped it —
+    so substrate.energy stayed absent while the organ was sitting there
+    holding the number. Which shape an organ uses is not this probe's
+    business.
+    """
+    from core.brain.llm.endogenous_state import _probe_substrate
+
+    class _Vector:
+        energy = 0.42
+
+    class _PropertyShaped(_LiveShapedSubstrate):
+        @property
+        def current(self):
+            return _Vector()
+
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service",
+        lambda name: _PropertyShaped() if name == "conscious_substrate" else None,
+    )
+
+    read = _probe_substrate()
+
+    assert read["substrate.energy"] == pytest.approx(0.42)
+
+
+def test_the_whole_substrate_channel_fills_against_the_real_organ():
+    """1 of 34 dimensions was the measured state on 1,729 live turns."""
+    from core.consciousness.liquid_substrate import LiquidSubstrate
+
+    import core.brain.llm.endogenous_state as endogenous_state
+
+    substrate = LiquidSubstrate()
+    original = endogenous_state._service
+    endogenous_state._service = (
+        lambda name: substrate if name == "conscious_substrate" else None
+    )
+    try:
+        read = endogenous_state._probe_substrate()
+    finally:
+        endogenous_state._service = original
+
+    assert read is not None
+    bands = [value for key, value in read.items() if ".band_" in key]
+    assert len(bands) == 32
+    assert len(set(bands)) > 1, "32 bands carrying one value is not 32 bands"
+    assert "substrate.energy" in read
+    assert "substrate.phi" in read
+
+
+def test_recurrence_prefers_what_the_turn_did_over_what_policy_admits(monkeypatch):
+    """Read from configuration alone, both dimensions were constants.
+
+    0.125 and 1.0 on every one of 1,629 recorded turns, which describes the
+    settings file rather than any turn.
+    """
+    from core.brain.llm.endogenous_state import _probe_recurrence
+
+    class _Cortex:
+        def recurrence_depth_status(self):
+            return {"measured": True, "steps_taken": 3, "requested_loops": 4}
+
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service",
+        lambda name: _Cortex() if "latent_cortex" in name else None,
+    )
+
+    read = _probe_recurrence()
+
+    assert read["recurrence.depth"] == pytest.approx(3 / 8)
+    assert read["recurrence.budget_used"] == pytest.approx(0.75)
+
+
+def test_recurrence_falls_back_to_policy_when_no_turn_was_measured(monkeypatch):
+    from core.brain.llm.endogenous_state import _probe_recurrence
+
+    monkeypatch.setattr(
+        "core.brain.llm.endogenous_state._service", lambda name: None
+    )
+
+    read = _probe_recurrence()
+
+    assert read is not None
+    assert "recurrence.depth" in read

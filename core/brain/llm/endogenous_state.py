@@ -502,16 +502,28 @@ def _probe_affect() -> dict[str, float] | None:
     # while the number sat one call away. CuriosityEngine.get_curiosity_level
     # reads exactly this and nothing else.
     if "affect.curiosity" not in out and substrate is not None:
-        reading = getattr(substrate, "current", None)
-        if callable(reading):
-            try:
-                curiosity = getattr(reading(), "curiosity", None)
-            except _LOOKUP_ERRORS as exc:
-                logger.debug("substrate current() declined: %s", exc)
-            else:
-                if isinstance(curiosity, (int, float)):
-                    out["affect.curiosity"] = max(0.0, min(1.0, float(curiosity)))
+        curiosity = getattr(_substrate_axes(substrate), "curiosity", None)
+        if isinstance(curiosity, (int, float)) and not isinstance(curiosity, bool):
+            out["affect.curiosity"] = max(0.0, min(1.0, float(curiosity)))
     return out or None
+
+
+def _substrate_axes(substrate: Any) -> Any | None:
+    """The substrate's four named axes, whichever shape the organ uses.
+
+    `current` is a PROPERTY on the live LiquidSubstrate, so `getattr` returns
+    the vector rather than a callable and a `callable()` guard skipped it —
+    leaving affect.curiosity and substrate.energy absent while the organ held
+    both numbers. Which shape an organ chose is not this probe's business.
+    """
+    if substrate is None:
+        return None
+    try:
+        reading = getattr(substrate, "current", None)
+        return reading() if callable(reading) else reading
+    except _LOOKUP_ERRORS as exc:
+        logger.debug("substrate current declined: %s", exc)
+        return None
 
 
 def _substrate_summary(substrate: Any) -> Mapping[str, Any] | None:
@@ -645,9 +657,7 @@ def _probe_substrate() -> dict[str, float] | None:
     # False and a method-only read skipped it silently. Both shapes are
     # handled because which one an organ uses is not this probe's business.
     try:
-        reading = getattr(substrate, "current", None)
-        if callable(reading):
-            reading = reading()
+        reading = _substrate_axes(substrate)
     except _LOOKUP_ERRORS as exc:
         logger.debug("substrate current declined: %s", exc)
         reading = None
