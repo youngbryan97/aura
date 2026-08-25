@@ -4735,13 +4735,23 @@ class MLXLocalClient:
             from core.brain.llm.model_registry import get_model_runtime_assignment
 
             assignment = get_model_runtime_assignment(model_path)
+            # Bound against what the registry RESOLVED, not against what was
+            # asked for. The registry expands a bare model name into its
+            # artifact path, so a caller that names a model rather than a path
+            # was rejected by the very assignment it had just been handed —
+            # "model_runtime_assignment_model_path_mismatch" out of the
+            # constructor, with nothing wrong. When the caller supplies the
+            # assignment (below) the check is doing real work and stays.
+            bound_to = assignment.model_path
         elif isinstance(runtime_assignment, ModelRuntimeAssignment):
             assignment = runtime_assignment
+            bound_to = model_path
         elif isinstance(runtime_assignment, Mapping):
             assignment = ModelRuntimeAssignment.from_dict(runtime_assignment)
+            bound_to = model_path
         else:
             raise TypeError("mlx_client_runtime_assignment_invalid")
-        assignment.assert_bound_to(model_path=model_path, purpose="serve")
+        assignment.assert_bound_to(model_path=bound_to, purpose="serve")
         self.runtime_assignment = assignment
         self.model_path = assignment.model_path
         self.device = device

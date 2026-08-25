@@ -903,9 +903,16 @@ def test_lane_budgets_never_exceed_the_models_entry_budget():
 
 def test_optional_deep_solver_memory_refusal_stays_noncritical(monkeypatch):
     from core.brain.llm import mlx_client
+    from core.brain.llm.model_runtime_roles_for_tests import assignment_for
 
     events = []
-    client = mlx_client.MLXLocalClient("/models/Qwen2.5-72B-Instruct-4bit")
+    # The refusal is only "optional" on the SOLVER lane, and since CP941 a
+    # synthetic path is assigned auxiliary/best_effort. Saying the role out
+    # loud is what CP941 asked callers to do.
+    deep_path = "/models/Qwen2.5-72B-Instruct-4bit"
+    client = mlx_client.MLXLocalClient(
+        deep_path, runtime_assignment=assignment_for(deep_path, role="solver")
+    )
     monkeypatch.setattr(
         client,
         "_record_degraded_event",

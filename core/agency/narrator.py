@@ -39,6 +39,11 @@ logger = logging.getLogger("Aura.Narrator")
 BACKLOG = 8
 #: How long a moment may sit unspoken before it stops being news.
 STALE_AFTER_S = 12.0
+
+#: Longest the narrator waits on an empty queue before looping. Short enough
+#: that a wedged consumer is visible within a heartbeat, long enough that an
+#: idle narrator is not a busy loop.
+IDLE_WAIT_S = 5.0
 #: The workspace metadata key a decision arrives under.
 DECISION_SCHEMA = "aura.decision.v1"
 
@@ -171,9 +176,21 @@ class Narrator:
             self.dropped += 1
 
     async def _run(self) -> None:
+        """Speak what arrives, and stay observable when nothing does.
+
+        The wait is bounded. An unbounded ``queue.get()`` is the shape that
+        wedges: if the task stops being scheduled, or the queue is never fed
+        again, the coroutine sits in a state nothing can distinguish from
+        working. A timeout here is not a fault — an idle narrator is the
+        normal case — so it costs one loop and no record.
+        """
         while True:
             try:
-                winner = await self._queue.get()
+                winner = await asyncio.wait_for(
+                    self._queue.get(), timeout=IDLE_WAIT_S
+                )
+            except TimeoutError:
+                continue
             except asyncio.CancelledError:
                 return
             await self._speak(winner)
