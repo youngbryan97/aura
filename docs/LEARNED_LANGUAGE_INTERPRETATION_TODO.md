@@ -10,6 +10,10 @@ word lists.
 This document is the work item. `docs/ONLINE_LEARNING_ROADMAP.md` §6 holds the
 claim boundary and the measurements.
 
+This is the incoming direction — what a message means. The outgoing
+direction, where Aura's own cognitive state shapes the words she produces,
+is `docs/ENDOGENOUS_LANGUAGE_PATHWAY.md`.
+
 ---
 
 ## 1. What the model can now do that it could not

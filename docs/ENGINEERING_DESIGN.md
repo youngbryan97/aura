@@ -66,7 +66,7 @@ Connections carry the two variables Modelica settled on: an *across*
 variable equal at every node, and a *through* variable that sums to zero
 there. Kirchhoff's current law, a mass balance around a tee and a heat
 balance are then the same statement, so
-[`analysis/conservation.py`](../core/engineering/analysis/conservation.py)
+[`core/engineering/analysis/conservation.py`](../core/engineering/analysis/conservation.py)
 is one function covering all of them. Adding a domain to
 [`domains.py`](../core/engineering/domains.py) extends it without a line
 being written there.
