@@ -28,7 +28,10 @@ from core.learning.recovery_package_identity import (
     package_id,
 )
 
-INSTALL = Path("/Users/bryan/.aura/live-source")
+#: The checkout this test is running from. Derived rather than written
+#: down: a literal install path reads another checkout's artifacts when
+#: the suite runs in a worktree, and names one machine's account.
+INSTALL = Path(__file__).resolve().parents[1]
 
 
 def _descriptor(**overrides) -> DescriptorIdentity:

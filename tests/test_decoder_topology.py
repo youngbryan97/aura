@@ -331,7 +331,10 @@ def test_the_receipt_carries_the_inventory():
 def test_the_live_checkpoint_config_reads_as_the_expected_hybrid():
     from pathlib import Path
 
-    manifest = Path("/Users/bryan/.aura/live-source/training/fused-model/active.json")
+    manifest = (
+        Path(__file__).resolve().parents[1]
+        / "training/fused-model/active.json"
+    )
     if not manifest.exists():
         pytest.skip("no active model manifest")
     model_dir = Path(json.loads(manifest.read_text())["active_model_path"])

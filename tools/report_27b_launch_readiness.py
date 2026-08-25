@@ -84,8 +84,13 @@ REMEDIES: Final = {
 
 
 def _launch_command(config_path: Path) -> str:
+    """The command an operator would run, spelled with this checkout's venv.
+
+    Derived rather than written down: a literal interpreter path names one
+    machine's account, and hands a worktree the primary checkout's venv.
+    """
     arguments = (
-        "/Users/bryan/.aura/live-source/.venv/bin/python",
+        str(REPO_ROOT / ".venv/bin/python"),
         "tools/run_unified_intrinsic_resident_campaign.py",
         "install",
         "--config",

@@ -15,7 +15,10 @@ from tools import preflight_27b_recurrence_campaign as preflight
 from tools import prepare_27b_recurrence_campaign as prepare
 from tools import verify_27b_grounding_portability as grounding
 
-INSTALL = Path("/Users/bryan/.aura/live-source")
+#: The checkout this test is running from. Derived rather than written
+#: down: a literal install path reads another checkout's artifacts when
+#: the suite runs in a worktree, and names one machine's account.
+INSTALL = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")

@@ -88,7 +88,8 @@ def tokenizer_signature(tokenizer: Any) -> str:
         candidate = getattr(tokenizer, accessor, None)
         try:
             vocab = candidate() if callable(candidate) else candidate
-        except Exception:  # noqa: BLE001
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("tokenizer vocabulary accessor declined: %s", exc)
             vocab = None
         if isinstance(vocab, Mapping) and vocab:
             break

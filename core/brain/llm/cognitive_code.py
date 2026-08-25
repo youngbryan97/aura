@@ -279,20 +279,22 @@ def _temporal_line(state: EndogenousState) -> CodeLine:
 
 
 def _service(name: str) -> Any:
-    try:
-        from core.runtime.service_registry import get_runtime_service
+    """The same organ lookup the state assembler uses, and for the same reason."""
+    from core.brain.llm.endogenous_state import _service as resolve
 
-        found = get_runtime_service(name, default=None)
-        if found is not None:
-            return found
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        from core.container import ServiceContainer
+    return resolve(name)
 
-        return ServiceContainer.get(name, default=None)
-    except Exception:  # noqa: BLE001
-        return None
+
+#: What reading a label off an organ may raise. An organ mid-update or with a
+#: property that computes is expected; anything else belongs in a log.
+_ACCESSOR_ERRORS = (
+    AttributeError,
+    KeyError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 def _labels_from(organ: Any, accessors: Sequence[str], limit: int) -> tuple[str, ...]:
@@ -300,7 +302,8 @@ def _labels_from(organ: Any, accessors: Sequence[str], limit: int) -> tuple[str,
         candidate = getattr(organ, accessor, None)
         try:
             value = candidate() if callable(candidate) else candidate
-        except Exception:  # noqa: BLE001
+        except _ACCESSOR_ERRORS as exc:
+            logger.debug("organ accessor %s declined: %s", accessor, exc)
             continue
         if isinstance(value, Mapping):
             value = list(value.keys())

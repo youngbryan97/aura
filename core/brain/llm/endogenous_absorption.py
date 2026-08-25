@@ -133,20 +133,11 @@ class AbsorptionReceipt:
 
 
 def _substrate() -> tuple[Any, str]:
+    """Find the organ that carries the continuous state, or report neither."""
+    from core.brain.llm.endogenous_state import _service
+
     for name in ("continuous_substrate", "liquid_state", "liquid_substrate"):
-        try:
-            from core.runtime.service_registry import get_runtime_service
-
-            organ = get_runtime_service(name, default=None)
-        except Exception:  # noqa: BLE001
-            organ = None
-        if organ is None:
-            try:
-                from core.container import ServiceContainer
-
-                organ = ServiceContainer.get(name, default=None)
-            except Exception:  # noqa: BLE001
-                organ = None
+        organ = _service(name)
         if organ is not None:
             return organ, name
     return None, ""

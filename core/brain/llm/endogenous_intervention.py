@@ -40,7 +40,10 @@ from core.brain.llm.endogenous_state import (
     FEATURES,
     EndogenousState,
 )
-from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
+from core.brain.llm.endogenous_vocab_head import (
+    EndogenousVocabHead,
+    HeadUnusableError,
+)
 
 logger = logging.getLogger("Aura.EndogenousIntervention")
 
@@ -120,7 +123,7 @@ def _delta_or_none(
         return None
     try:
         return head.delta_logits(state)
-    except Exception as exc:  # noqa: BLE001 - an unusable head is not an effect
+    except (HeadUnusableError, TypeError, ValueError) as exc:
         logger.debug("head produced no bias for an arm: %s", exc)
         return None
 

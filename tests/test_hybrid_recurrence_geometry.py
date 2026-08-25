@@ -143,7 +143,7 @@ def test_the_live_checkpoints_are_the_two_this_module_was_written_for():
     import json
     from pathlib import Path
 
-    install = Path("/Users/bryan/.aura/live-source")
+    install = Path(__file__).resolve().parents[1]
     legacy = (
         install
         / "training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118"

@@ -41,6 +41,8 @@ from typing import Any
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
+
 logger = logging.getLogger("Aura.EndogenousState")
 
 #: Bump when the feature list changes. A head trained against one layout is
@@ -360,27 +362,52 @@ def _digest_of(values: np.ndarray) -> str:
 # ──────────────────────────────────────────────────────────────────────────
 
 
+#: What a registry lookup is allowed to raise. Narrow on purpose: an organ
+#: that is missing, half-registered, or mid-shutdown produces one of these,
+#: and anything else is a fault this module should not be hiding.
+_LOOKUP_ERRORS = (
+    AttributeError,
+    ImportError,
+    KeyError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
+
 def _service(name: str) -> Any:
     """Resolve a runtime organ without importing it.
 
     Two registries exist and neither is a superset of the other, so both are
-    asked. Anything that raises is a missing organ, which is a missing
-    channel, not an error.
+    asked. A lookup that fails is a missing organ, which is a missing channel,
+    not an error — but the failure is recorded, because a registry that raises
+    on every call would otherwise look exactly like a runtime with no organs.
     """
-    try:
-        from core.runtime.service_registry import get_runtime_service
-
-        found = get_runtime_service(name, default=None)
+    for source, resolve in (
+        ("service_registry", _resolve_from_registry),
+        ("container", _resolve_from_container),
+    ):
+        try:
+            found = resolve(name)
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("endogenous lookup of %s via %s failed: %s", name, source, exc)
+            continue
         if found is not None:
             return found
-    except Exception:  # noqa: BLE001 - a registry fault must not stop assembly
-        pass
-    try:
-        from core.container import ServiceContainer
+    return None
 
-        return ServiceContainer.get(name, default=None)
-    except Exception:  # noqa: BLE001
-        return None
+
+def _resolve_from_registry(name: str) -> Any:
+    from core.runtime.service_registry import get_runtime_service
+
+    return get_runtime_service(name, default=None)
+
+
+def _resolve_from_container(name: str) -> Any:
+    from core.container import ServiceContainer
+
+    return ServiceContainer.get(name, default=None)
 
 
 def _first_number(source: Any, keys: Sequence[str]) -> float | None:
@@ -424,7 +451,7 @@ def _probe_affect() -> dict[str, float] | None:
     if engine is not None and hasattr(engine, "get_snapshot"):
         try:
             snapshot = engine.get_snapshot()
-        except Exception as exc:  # noqa: BLE001
+        except _LOOKUP_ERRORS as exc:
             logger.debug("affect snapshot unavailable: %s", exc)
     if isinstance(snapshot, Mapping):
         for name, keys in (
@@ -471,7 +498,7 @@ def _substrate_summary(substrate: Any) -> Mapping[str, Any] | None:
         return None
     try:
         summary = getter()
-    except Exception as exc:  # noqa: BLE001
+    except _LOOKUP_ERRORS as exc:
         logger.debug("substrate summary unavailable: %s", exc)
         return None
     if inspect.isawaitable(summary):
@@ -516,7 +543,7 @@ def _probe_substrate() -> dict[str, float] | None:
     if callable(getter):
         try:
             pooled = pool_substrate(getter())
-        except Exception as exc:  # noqa: BLE001
+        except _LOOKUP_ERRORS as exc:
             logger.debug("substrate vector unavailable: %s", exc)
         else:
             for i, value in enumerate(pooled):
@@ -542,7 +569,8 @@ def _probe_goal() -> dict[str, float] | None:
             candidate = getattr(organ, accessor, None)
             try:
                 goal = candidate() if callable(candidate) else candidate
-            except Exception:  # noqa: BLE001
+            except _LOOKUP_ERRORS as exc:
+                logger.debug("goal accessor %s declined: %s", accessor, exc)
                 goal = None
             if goal:
                 break
@@ -577,7 +605,8 @@ def _probe_memory() -> dict[str, float] | None:
         candidate = getattr(facade, accessor, None)
         try:
             stats = candidate() if callable(candidate) else candidate
-        except Exception:  # noqa: BLE001
+        except _LOOKUP_ERRORS as exc:
+            logger.debug("memory accessor %s declined: %s", accessor, exc)
             stats = None
         if isinstance(stats, Mapping) and stats:
             break
@@ -611,7 +640,8 @@ def _probe_uncertainty() -> dict[str, float] | None:
             candidate = getattr(organ, accessor, None)
             try:
                 report = candidate() if callable(candidate) else candidate
-            except Exception:  # noqa: BLE001
+            except _LOOKUP_ERRORS as exc:
+                logger.debug("organ accessor %s declined: %s", accessor, exc)
                 report = None
             if isinstance(report, Mapping) and report:
                 break
@@ -662,7 +692,8 @@ def _probe_attention() -> dict[str, float] | None:
             candidate = getattr(organ, accessor, None)
             try:
                 report = candidate() if callable(candidate) else candidate
-            except Exception:  # noqa: BLE001
+            except _LOOKUP_ERRORS as exc:
+                logger.debug("organ accessor %s declined: %s", accessor, exc)
                 report = None
             if isinstance(report, Mapping) and report:
                 break
@@ -694,7 +725,8 @@ def _probe_recurrence() -> dict[str, float] | None:
             candidate = getattr(organ, accessor, None)
             try:
                 report = candidate() if callable(candidate) else candidate
-            except Exception:  # noqa: BLE001
+            except _LOOKUP_ERRORS as exc:
+                logger.debug("organ accessor %s declined: %s", accessor, exc)
                 report = None
             if isinstance(report, Mapping) and report:
                 break
@@ -774,9 +806,18 @@ def assemble_state(
     for channel, probe in active_probes.items():
         try:
             reading = probe()
-        except Exception as exc:  # noqa: BLE001 - one dead organ is one dead channel
+        except Exception as exc:  # noqa: BLE001 — one dead organ is one dead channel
+            # Deliberately broad: a probe calls arbitrary organ code, and an
+            # exception type nobody anticipated must cost that channel rather
+            # than the whole state. Recorded, not swallowed — a channel that
+            # fails on every assembly is a fault someone has to see.
             sources[channel] = "error"
-            logger.debug("endogenous channel %s failed: %s", channel, exc)
+            record_degradation(
+                "endogenous_state",
+                exc,
+                severity="warning",
+                action=f"assembled z_Aura without the {channel} channel",
+            )
             continue
         if not reading:
             sources[channel] = "absent"

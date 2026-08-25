@@ -19,7 +19,10 @@ from core.brain.llm.model_artifact_profile import (
     parameter_cross_check,
 )
 
-INSTALL = Path("/Users/bryan/.aura/live-source")
+#: The checkout this test is running from. Derived rather than written
+#: down: a literal install path reads another checkout's artifacts when
+#: the suite runs in a worktree, and names one machine's account.
+INSTALL = Path(__file__).resolve().parents[1]
 RESIDENT = INSTALL / "training/fused-model/active.json"
 LEGACY = (
     INSTALL

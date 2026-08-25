@@ -3,10 +3,9 @@ from __future__ import annotations
 import hashlib as _hashlib
 import json
 import logging
-import os
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 logger = logging.getLogger("Aura.ChatFormat")
 
@@ -31,7 +30,7 @@ _IDENTITY_GUARD = (
 )
 
 
-def _normalize_role(role: Optional[str]) -> str:
+def _normalize_role(role: str | None) -> str:
     normalized = str(role or "user").strip().lower()
     return _ROLE_ALIASES.get(normalized, "user")
 
@@ -57,7 +56,7 @@ def _normalize_role(role: Optional[str]) -> str:
 
 #: Per-template memo. The probe below is deterministic for a given template,
 #: so it runs once per distinct template, not once per render.
-_THINKING_SUPPORT: Dict[str, bool] = {}
+_THINKING_SUPPORT: dict[str, bool] = {}
 _THINKING_PROBE = [{"role": "user", "content": "probe"}]
 
 # Chat templates disagree about the wire type of function arguments. Qwen2.5
@@ -65,7 +64,7 @@ _THINKING_PROBE = [{"role": "user", "content": "probe"}]
 # with Jinja's ``items`` filter and therefore requires a mapping. Geometry and
 # model-family names cannot establish that contract, so probe the active
 # tokenizer once and adapt only at its serialization boundary.
-_TOOL_ARGUMENT_MODE: Dict[str, str] = {}
+_TOOL_ARGUMENT_MODE: dict[str, str] = {}
 _TOOL_ARGUMENT_PROBE_TOOLS = [
     {
         "type": "function",
@@ -126,7 +125,15 @@ def _tool_argument_mode(tokenizer: object) -> str:
                 add_generation_prompt=True,
                 tokenize=False,
             )
-        except Exception:  # the tokenizer owns this compatibility contract
+        except Exception as exc:  # noqa: BLE001 — reviewed: see below
+            # Deliberately broad, and this is the whole point of the probe. A
+            # chat template is Jinja written by whoever packaged the model, so
+            # a template that cannot render tool calls raises whatever its
+            # author's code raises. Narrowing this would turn "this tokenizer
+            # does not support the shape" into a crash on the model-load path.
+            # Logged rather than silent, because a tokenizer failing every
+            # probe reads identically to one that supports nothing.
+            logger.debug("tool-argument probe did not render: %s", exc)
             return False
         return True
 
@@ -237,7 +244,7 @@ def template_supports_thinking(tokenizer: object) -> bool:
     if cached is not None:
         return cached
 
-    def _render(flag: bool) -> Optional[str]:
+    def _render(flag: bool) -> str | None:
         try:
             return str(
                 apply(
@@ -407,7 +414,7 @@ def render_chat_template(
     *,
     tools: object = None,
     add_generation_prompt: bool = True,
-    enable_thinking: Optional[bool] = None,
+    enable_thinking: bool | None = None,
 ) -> str:
     """Render a chat template, applying reasoning control when supported.
 
@@ -415,7 +422,7 @@ def render_chat_template(
     whatever the tokenizer raises — callers already distinguish a tool-schema
     failure (which must not degrade to prose) from a plain one.
     """
-    apply = getattr(tokenizer, "apply_chat_template")
+    apply = tokenizer.apply_chat_template
     kwargs = {
         "tools": tools,
         "add_generation_prompt": add_generation_prompt,
@@ -436,7 +443,7 @@ def render_chat_continuation_template(
     messages: object,
     *,
     tools: object = None,
-    enable_thinking: Optional[bool] = None,
+    enable_thinking: bool | None = None,
 ) -> str:
     """Render a transcript whose final assistant message is an open prefix.
 
@@ -457,7 +464,7 @@ def render_chat_continuation_template(
     if not partial:
         raise ValueError("continuation assistant prefix must be non-empty")
 
-    apply = getattr(tokenizer, "apply_chat_template")
+    apply = tokenizer.apply_chat_template
     kwargs = {
         "tools": tools,
         "add_generation_prompt": False,
@@ -473,7 +480,7 @@ def render_chat_continuation_template(
                 **kwargs,
             )
         )
-    except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
+    except (TypeError, ValueError, KeyError, RuntimeError, AttributeError) as exc:
         fallback_kwargs = {
             "tools": tools,
             "add_generation_prompt": False,
@@ -489,7 +496,12 @@ def render_chat_continuation_template(
         )
         prefix_end = rendered.rfind(partial)
         if prefix_end < 0:
-            raise ValueError("chat template did not preserve the continuation prefix")
+            # Chained to the render that sent us down the fallback: without it
+            # the caller sees "prefix not preserved" and never learns which
+            # template argument the tokenizer refused in the first place.
+            raise ValueError(
+                "chat template did not preserve the continuation prefix"
+            ) from exc
         rendered = rendered[: prefix_end + len(partial)]
 
     if not rendered.endswith(partial):
@@ -529,7 +541,7 @@ def normalize_chat_continuation_messages(
     return normalized
 
 
-def thinking_enabled_for_model(model_name: Optional[str]) -> Optional[bool]:
+def thinking_enabled_for_model(model_name: str | None) -> bool | None:
     """Reasoning-mode policy per lane. None means 'use the model's default'.
 
     Only the fast lanes are pinned. The Brainstem (background/reflex) and the
@@ -565,10 +577,10 @@ _THINKING_COGNITIVE_MODES = frozenset(
 
 
 def thinking_enabled_for_request(
-    model_name: Optional[str],
+    model_name: str | None,
     *,
     cognitive_mode: object = None,
-) -> Optional[bool]:
+) -> bool | None:
     """Select native reasoning from Aura's typed cognitive lane.
 
     CognitiveRouting and CognitiveEngine already select the computation. This
@@ -591,11 +603,11 @@ def thinking_enabled_for_request(
 
 
 def thinking_enabled_for_generation(
-    model_name: Optional[str],
+    model_name: str | None,
     *,
     cognitive_mode: object = None,
     final_user_surface: bool = False,
-) -> Optional[bool]:
+) -> bool | None:
     """Resolve native thinking for the generation role, not only its depth.
 
     A clean user-surface job is the render stage of Aura's cognitive turn.
@@ -651,16 +663,16 @@ def split_native_thinking_generation(
     return NativeThinkingChannels(reasoning, surface, True)
 
 
-def _uses_grok_chat_template(model_name: Optional[str]) -> bool:
+def _uses_grok_chat_template(model_name: str | None) -> bool:
     return "grok" in str(model_name or "").strip().lower()
 
 
 def _format_grok_messages(
-    messages: Iterable[Dict[str, str]],
+    messages: Iterable[dict[str, str]],
     *,
     require_json: bool = False,
 ) -> str:
-    prompt_parts: List[str] = []
+    prompt_parts: list[str] = []
 
     for message in messages:
         content = str(message.get("content", "") or "").strip()
@@ -682,16 +694,16 @@ def _format_grok_messages(
 
 
 def format_chatml_messages(
-    messages: Iterable[Dict[str, str]],
+    messages: Iterable[dict[str, str]],
     *,
     require_json: bool = False,
-    model_name: Optional[str] = None,
+    model_name: str | None = None,
 ) -> str:
     """Serialize messages using the ChatML/Qwen instruct format."""
     if _uses_grok_chat_template(model_name):
         return _format_grok_messages(messages, require_json=require_json)
 
-    prompt_parts: List[str] = []
+    prompt_parts: list[str] = []
     _identity_injected = False
 
     for message in messages:
@@ -720,11 +732,11 @@ def format_chatml_messages(
 
 def format_chatml_prompt(
     prompt: str,
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
     *,
-    model_name: Optional[str] = None,
+    model_name: str | None = None,
 ) -> str:
-    messages: List[Dict[str, str]] = []
+    messages: list[dict[str, str]] = []
     if system_prompt and str(system_prompt).strip():
         messages.append({"role": "system", "content": str(system_prompt).strip()})
     messages.append({"role": "user", "content": str(prompt or "")})
