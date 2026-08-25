@@ -480,6 +480,38 @@ def _distinct_replies(turns: Sequence[TurnTokens]) -> int:
     )
 
 
+def _forward_in_time_split(
+    turns: Sequence[TurnTokens],
+) -> tuple[list[TurnTokens], list[TurnTokens], list[TurnTokens]]:
+    """Fit on the past, score on the future.
+
+    The control a random split cannot give. State drifts slowly and topics
+    cluster in time, so a held-out turn surrounded by training turns can share
+    both its state and its words with its neighbours for reasons that have
+    nothing to do with one causing the other. Scoring only on turns recorded
+    AFTER everything the head saw removes that route.
+
+    A group that straddles the boundary goes to the past side, so a reply is
+    still never scored on after being fitted on.
+    """
+    total = len(turns)
+    cut = total - max(1, int(total * HOLDOUT_FRACTION))
+    seen_before_cut = {turn.group for turn in turns[:cut] if turn.group}
+    past = list(turns[:cut])
+    future = []
+    for turn in turns[cut:]:
+        if turn.group and turn.group in seen_before_cut:
+            past.append(turn)
+        else:
+            future.append(turn)
+    validation_size = max(1, int(len(past) * VALIDATION_FRACTION))
+    # The validation slice is the END of the past, so early stopping is also
+    # judged on turns later than the ones it fitted.
+    validation = past[-validation_size:]
+    train = past[:-validation_size]
+    return train, validation, future
+
+
 def _three_way_split(
     turns: Sequence[TurnTokens], *, seed: int
 ) -> tuple[list[TurnTokens], list[TurnTokens], list[TurnTokens]]:
@@ -838,8 +870,18 @@ def fit_vocab_head(
     seed: int = 913,
     permutations: int = PERMUTATIONS,
     null_refits: int = NULL_REFITS,
+    temporal: bool = False,
 ) -> VocabFit | None:
-    """Fit the head, test it against its own shuffles, and return the verdict."""
+    """Fit the head, test it against its own shuffles, and return the verdict.
+
+    ``temporal=True`` holds out the END of the corpus instead of a random
+    sample of it. A random split lets a held-out reply sit between training
+    replies IN TIME, and endogenous state drifts slowly while topics cluster —
+    so a neighbouring turn can carry both a similar state and similar words
+    without either causing the other. Grouping by reply stops the same string
+    being memorised; only ordering stops the same afternoon being memorised.
+    Turns must already be in recording order.
+    """
     if len(turns) < MIN_TURNS:
         logger.warning(
             "Refusing to fit an endogenous head on %d turns (minimum %d).",
@@ -848,7 +890,10 @@ def fit_vocab_head(
         )
         return None
 
-    train_turns, validation_turns, holdout_turns = _three_way_split(turns, seed=seed)
+    if temporal:
+        train_turns, validation_turns, holdout_turns = _forward_in_time_split(turns)
+    else:
+        train_turns, validation_turns, holdout_turns = _three_way_split(turns, seed=seed)
     if not holdout_turns or not validation_turns or not train_turns:
         return None
 

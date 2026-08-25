@@ -1423,9 +1423,25 @@ def _runtime_integrity_block() -> dict[str, Any]:
     try:
         phi_core = get_runtime_service("phi_core", default=None)
         if phi_core is not None and hasattr(phi_core, "grassmann_history_depth"):
-            block["phi_residual_history"] = {
-                "grassmann_states": int(phi_core.grassmann_history_depth()),
-            }
+            history = {"grassmann_states": int(phi_core.grassmann_history_depth())}
+            # A depth of zero has four possible causes and they are not the
+            # same problem: no hook was ever called, the encoder is still
+            # filling its window, the encoder is refusing every sample, or
+            # nothing drains the ring. Reported as one number they were
+            # indistinguishable, and the channel sat at zero for its whole
+            # existence with nothing able to say why. The publisher's own
+            # counters are read here so the zero explains itself.
+            engine = get_runtime_service("affective_steering_engine", default=None)
+            hooks = list(getattr(engine, "_hooks", None) or []) if engine else []
+            if hooks:
+                history["publishers"] = [
+                    dict(hook.get_diagnostics().get("phi_residual", {}))
+                    for hook in hooks
+                    if hasattr(hook, "get_diagnostics")
+                ]
+            elif engine is not None:
+                history["publishers"] = "steering engine present with no hooks"
+            block["phi_residual_history"] = history
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["phi_residual_history_error"] = repr(exc)
 

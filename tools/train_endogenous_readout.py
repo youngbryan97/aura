@@ -84,6 +84,14 @@ def main() -> int:
     parser.add_argument("--out", default=str(DEFAULT_HEAD_DIR))
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--permutations", type=int, default=200)
+    parser.add_argument(
+        "--temporal-split",
+        action="store_true",
+        help=(
+            "hold out the END of the corpus rather than a random sample: fit "
+            "on the past, score on the future"
+        ),
+    )
     parser.add_argument("--null-refits", type=int, default=3)
     parser.add_argument("--max-tokens-per-turn", type=int, default=256)
     parser.add_argument(
@@ -106,7 +114,10 @@ def main() -> int:
     tokenizer = load_tokenizer(args.tokenizer)
     signature = tokenizer_signature(tokenizer)
     vocab = vocabulary_size(tokenizer)
-    pairs = list(iter_pairs(directory=corpus_dir, limit=args.limit))
+    pairs = sorted(
+        iter_pairs(directory=corpus_dir, limit=args.limit),
+        key=lambda pair: pair.recorded_at,
+    )
 
     # One model per fit. The head is bound to a tokenizer, and two models do
     # not share a token distribution: fitted together, the state term can pick
@@ -148,6 +159,7 @@ def main() -> int:
         tokenizer_signature=signature,
         permutations=args.permutations,
         null_refits=args.null_refits,
+        temporal=args.temporal_split,
     )
     if fit is None:
         print("The fit refused. Nothing was written.")

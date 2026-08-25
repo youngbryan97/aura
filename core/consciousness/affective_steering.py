@@ -1140,6 +1140,16 @@ class AffectiveSteeringHook:
         #: Grassmann states go across this ring instead of to a PhiCore that
         #: does not exist on this side of the fork.
         self._phi_residual_channel = None
+        # Why this channel is silent, when it is silent. `grassmann_states: 0`
+        # in the health report could mean the hook was never called, the
+        # encoder is still filling its window, the encoder is failing on every
+        # call, or nothing is draining — and the four were indistinguishable,
+        # because the encoder swallowed its own exceptions and said nothing.
+        self._phi_sampled = 0
+        self._phi_encoded_none = 0
+        self._phi_published = 0
+        self._phi_encode_errors = 0
+        self._phi_last_error = ""
         self._grassmann_encoder = None
         try:
             self._phi_sample_every = max(1, int(os.getenv("AURA_PHI_RESIDUAL_SAMPLE_EVERY", "32")))
@@ -1514,12 +1524,16 @@ class AffectiveSteeringHook:
             # the 8-bit state across the boundary.
             channel = getattr(self, "_phi_residual_channel", None)
             if channel is not None:
+                self._phi_sampled += 1
                 state = self._encode_grassmann_state(sample)
                 if state is not None:
                     from core.consciousness.phi_residual_channel import publish_state
 
                     publish_state(channel, state)
+                    self._phi_published += 1
                     return
+                self._phi_encoded_none += 1
+                return
 
             from core.container import ServiceContainer
 
@@ -1567,8 +1581,28 @@ class AffectiveSteeringHook:
             from core.consciousness.phi_core import _fold_modes_to_byte
 
             return _fold_modes_to_byte(int(state))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            # A telemetry sample is never worth a generation.
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # A telemetry sample is never worth a generation, so this still
+            # fails open. What it must not do is fail SILENTLY: an encoder
+            # raising on every call looks exactly like an encoder that is never
+            # reached, and both report zero states. Recorded once — this runs
+            # inside the forward pass, and a per-token degradation record would
+            # cost more than the sample it describes.
+            self._phi_encode_errors += 1
+            self._phi_last_error = f"{type(exc).__name__}: {exc}"[:200]
+            if self._phi_encode_errors == 1:
+                from core.runtime.errors import record_degradation
+
+                record_degradation(
+                    "affective_steering.phi_residual",
+                    exc,
+                    severity="warning",
+                    action=(
+                        "the Grassmann encoder refused a residual sample; the "
+                        "activation-grounded complex will not fill while this "
+                        "persists"
+                    ),
+                )
             return None
 
     def install(self):
@@ -1741,6 +1775,15 @@ class AffectiveSteeringHook:
             "substrate_valence": round(float(moods.get("valence", 0.0)), 3) if moods else None,
             "substrate_arousal": round(float(moods.get("arousal", 0.0)), 3) if moods else None,
             "vector_sources": {key: vector.source for key, vector in self._vectors.items()},
+            "phi_residual": {
+                "channel_attached": self._phi_residual_channel is not None,
+                "sampled": self._phi_sampled,
+                "published": self._phi_published,
+                "encoder_withheld": self._phi_encoded_none,
+                "encoder_errors": self._phi_encode_errors,
+                "last_error": self._phi_last_error,
+                "sample_every": self._phi_sample_every,
+            },
         }
 
 
