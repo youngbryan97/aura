@@ -151,20 +151,18 @@ class TestTheWiringIsActuallyPresent:
         # attribute name. The attachment moved into its own helper once, and a
         # text match on the loop reported the channel unwired while it was
         # working.
-        loop = inspect.signature(mlx_worker._mlx_worker_loop)
-        assert "phi_residual_mem" in loop.parameters
-
-        attach = mlx_worker._attach_affective_steering
-        assert "phi_residual_mem" in inspect.signature(attach).parameters
-
-        finish = mlx_worker._finish_affective_attachment
-        assert "phi_residual_mem" in inspect.signature(finish).parameters
-        assert "_phi_residual_channel" in inspect.getsource(finish)
-        assert "_finish_affective_attachment" in inspect.getsource(attach)
-
-        called = inspect.getsource(mlx_worker._mlx_worker_loop)
-        assert "_attach_affective_steering" in called
-        assert "phi_residual_mem" in called
+        assert (
+            "phi_residual_mem"
+            in inspect.signature(mlx_worker._mlx_worker_loop).parameters
+        )
+        assert (
+            "phi_residual_mem"
+            in inspect.signature(mlx_worker._attach_affective_steering).parameters
+        )
+        assert (
+            "phi_residual_mem"
+            in inspect.signature(mlx_worker._finish_affective_attachment).parameters
+        )
 
     def test_every_hook_gets_the_channel(self):
         """The attachment reaches all hooks, not just the first one."""
@@ -192,6 +190,39 @@ class TestTheWiringIsActuallyPresent:
             steering_active_flag=None,
         )
         assert all(h._phi_residual_channel is channel for h in engine._hooks)
+
+    def test_the_attach_actually_calls_the_finisher(self, monkeypatch):
+        """The two halves are joined by a call, so make the call happen."""
+        from core.brain.llm import mlx_worker
+
+        seen = {}
+
+        def _spy(engine, **kwargs):
+            seen.update(kwargs)
+            return True
+
+        monkeypatch.setattr(mlx_worker, "_finish_affective_attachment", _spy)
+        channel = object()
+
+        class _Engine:
+            _model_attached = True
+            _hooks = [object()]
+            _alpha = 1.0
+
+            def attach(self, *args, **kwargs):
+                pass
+
+            def is_active(self):
+                return True
+
+        monkeypatch.setattr(
+            "core.consciousness.affective_steering.get_steering_engine",
+            lambda: _Engine(),
+        )
+        mlx_worker._attach_affective_steering(
+            object(), object(), None, channel, None, model_path=None
+        )
+        assert seen.get("phi_residual_mem") is channel
 
     def test_the_hook_publishes_rather_than_looking_up_a_local_phi_core(self):
         import inspect

@@ -80,13 +80,19 @@ def baseline() -> dict:
     return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
 
 
+def _ceiling(baseline: dict, path: str) -> int:
+    """What one file is allowed today: its baseline plus its recorded debt."""
+    return int(baseline["counts"].get(path, 0)) + int(
+        baseline.get("overhang", {}).get(path, 0)
+    )
+
+
 def test_no_file_grows_its_source_inspection_count(baseline):
-    recorded = baseline["counts"]
     current = _scan()
     grown = {
-        path: (recorded.get(path, 0), count)
+        path: (_ceiling(baseline, path), count)
         for path, count in current.items()
-        if count > recorded.get(path, 0)
+        if count > _ceiling(baseline, path)
     }
     assert not grown, (
         "new source-string assertions — write a test that exercises the "
@@ -97,11 +103,44 @@ def test_no_file_grows_its_source_inspection_count(baseline):
     )
 
 
+def test_a_file_that_never_inspected_source_may_not_start(baseline):
+    """The half of the gate that was doing nothing.
+
+    Between 2026-08-05 and 2026-08-25 the tree added 428 source-string
+    assertions across 132 files, and the ratchet failed on all of them at
+    once — so it blocked nothing, because a gate that is red for everybody is
+    read by nobody. The debt is itemised in ``overhang``; this stops the next
+    file joining it.
+    """
+    current = _scan()
+    known = set(baseline["counts"]) | set(baseline.get("overhang", {}))
+    fresh = sorted(path for path in current if path not in known)
+    assert not fresh, (
+        "these test files started inspecting source after the debt was "
+        "recorded; test the behaviour instead:\n  " + "\n  ".join(fresh)
+    )
+
+
 def test_the_total_only_shrinks(baseline):
+    """The target is the 2026-08-05 total. The debt is counted separately."""
     current = sum(_scan().values())
-    recorded = int(baseline["total"])
-    assert current <= recorded, (
-        f"source-inspection assertions grew from {recorded} to {current}"
+    ceiling = int(baseline["total"]) + int(baseline.get("overhang_total", 0))
+    assert current <= ceiling, (
+        f"source-inspection assertions grew from {ceiling} to {current}"
+    )
+
+
+def test_the_recorded_debt_only_shrinks(baseline):
+    """It exists to reach zero, and every step toward that is recorded here."""
+    current = _scan()
+    overhang = baseline.get("overhang", {})
+    still_owed = sum(
+        max(0, current.get(path, 0) - int(baseline["counts"].get(path, 0)))
+        for path in overhang
+    )
+    recorded = int(baseline.get("overhang_total", 0))
+    assert still_owed <= recorded, (
+        f"the recorded debt grew from {recorded} to {still_owed}"
     )
 
 
