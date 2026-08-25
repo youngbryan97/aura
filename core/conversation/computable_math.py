@@ -271,6 +271,17 @@ class _ArithmeticPattern:
         # followed by punctuation or by nothing at all.
         if re.match(r"\s*[A-Za-z]", body[found.end() :]):
             return None
+        # The mirror of the fragment check above. An expression FOLLOWED by an
+        # operator is the head of a longer one, and its value is not the answer
+        # either.
+        #
+        # "What is 144 / 6 + seven?" captured "144 / 6" — the operand after the
+        # plus is a word, so the expression regex stopped short — and answered
+        # 24. The real answer is 31. A confidently wrong arithmetic check is
+        # worse than none: it would have rejected a correct reply and accepted
+        # a wrong one.
+        if re.match(r"\s*[-+*/%^]", body[found.end() :]):
+            return None
         return found
 
 

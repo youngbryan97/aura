@@ -165,3 +165,37 @@ class TestComputableWordForms:
     def test_a_wrong_percentage_answer_is_caught(self):
         assert _arithmetic_answer_missing("What is 15% of 240?", "It's 40.")
         assert not _arithmetic_answer_missing("What is 15% of 240?", "36")
+
+
+class TestAFragmentIsNotTheAnswer:
+    """A head of an expression is as wrong as a tail of one.
+
+    "What is 144 / 6 + seven?" captured "144 / 6" — the operand after the plus
+    is a word, so the expression reader stopped short — and answered 24. The
+    real answer is 31. A confidently wrong arithmetic check is worse than no
+    check: it rejects a correct reply and accepts a wrong one.
+    """
+
+    def test_an_expression_followed_by_an_operator_is_refused(self):
+        from core.conversation.response_reliability import requested_arithmetic_result
+
+        for question in (
+            "What is 144 / 6 + seven?",
+            "What is 12 * 3 - four?",
+            "how much is 10 / 4 + a bit?",
+        ):
+            assert requested_arithmetic_result(question) is None, question
+
+    def test_the_whole_expression_is_still_computed(self):
+        from core.conversation.response_reliability import requested_arithmetic_result
+
+        assert requested_arithmetic_result("What is 144 / 6?") == 24
+        assert requested_arithmetic_result("what is 17 * 4839") == 82_263
+        assert requested_arithmetic_result("how much is 12,500 + 3,750") == 16_250
+        assert requested_arithmetic_result("what is 2 + 2 = ?") == 4
+
+    def test_neither_half_can_reject_a_correct_reply(self):
+        from core.conversation.response_reliability import _arithmetic_answer_missing
+
+        assert not _arithmetic_answer_missing("What is 144 / 6 + seven?", "31")
+        assert not _arithmetic_answer_missing("What is 144 / 6 + seven?", "24")

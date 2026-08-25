@@ -379,11 +379,6 @@
     [
       "core/learning/live_learner.py",
       "_run_training_cycle",
-      "_publish_active_model_manifest"
-    ],
-    [
-      "core/learning/live_learner.py",
-      "_run_training_cycle",
       "_write_training_dataset"
     ],
     [

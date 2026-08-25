@@ -620,8 +620,8 @@ def _should_pass_user_facing_draft_downstream(
         and short_draft_answers_closed_question(stripped, user_prompt)
     ):
         return True
-    # The floors below exist to stop a STUB entering repair. They cannot apply
-    # to a reply whose shortness the person asked for.
+    # The floors below exist to stop a placeholder reply entering repair. They
+    # cannot apply to a reply whose shortness the person asked for.
     #
     # Measured live 2026-08-18. Told "don't acknowledge that rule beyond a yes.
     # just hold it", the Cortex answered "Yes." — len=4, precisely what was
