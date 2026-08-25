@@ -150,6 +150,9 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "user_surface_validation_prompt": Field_(Kind.STRING),
     "user_surface_prompt_binding": Field_(Kind.OPAQUE),
     "user_surface_grounding_evidence": Field_(Kind.SEQUENCE),
+    # The boundary transports this same-turn receipt. Consumers still verify
+    # its process-local stamp and schema before suppressing any execution.
+    "completed_capability_evidence": Field_(Kind.OPAQUE),
     "turn_sensory_evidence": Field_(Kind.OPAQUE),
     # ── sampling ────────────────────────────────────────────────────────
     "max_tokens": Field_(Kind.POSITIVE_INT, minimum=1, maximum=1_000_000),

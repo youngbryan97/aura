@@ -129,6 +129,15 @@ def test_messages_must_be_a_sequence():
     assert validate_request_context({"messages": [{"role": "user"}]}).clean
 
 
+def test_completed_capability_evidence_crosses_as_opaque_evidence():
+    evidence = {"schema": "aura.completed_capability_evidence.v1", "ok": True}
+
+    result = validate_request_context({"completed_capability_evidence": evidence})
+
+    assert result.clean
+    assert result.context["completed_capability_evidence"] is evidence
+
+
 def test_continuation_resume_handle_is_a_typed_bearer_capability():
     handle = "A9" * 16
 

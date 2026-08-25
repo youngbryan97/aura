@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.brain.inference_gate import InferenceGate
 from core.phases.response_generation import ResponseGenerationPhase
 from core.utils.completed_capability import (
     any_capability_completed,
@@ -75,11 +76,23 @@ async def test_response_phase_reuses_completed_search_without_running_a_skill() 
     assert state.response_modifiers["required_search_evidence_reused"] is True
 
 
-def test_every_response_generation_path_carries_completion_evidence() -> None:
-    import inspect
+@pytest.mark.asyncio
+async def test_inference_boundary_preserves_completed_capability_evidence() -> None:
+    receipt = make_completed_capability_evidence(["web_search"], ok=True)
+    observed: dict[str, object] = {}
+    gate = InferenceGate.__new__(InferenceGate)
 
-    source = inspect.getsource(ResponseGenerationPhase)
-    assert source.count(
-        'completed_capability_evidence=runtime_context.get('
-    ) >= 3
-    assert 'kw.setdefault(\n                            "completed_capability_evidence"' in source
+    async def _capture_generate(prompt, context=None, timeout=None):
+        observed["prompt"] = prompt
+        observed["context"] = context
+        observed["timeout"] = timeout
+        return None
+
+    gate.generate = _capture_generate
+
+    await gate._think_with_generation_metadata_sink(
+        "answer from collected evidence",
+        completed_capability_evidence=receipt,
+    )
+
+    assert observed["context"]["completed_capability_evidence"] == receipt

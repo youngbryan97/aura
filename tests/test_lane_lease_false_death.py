@@ -49,12 +49,18 @@ def _client(*, worker_alive: bool = False) -> MLXLocalClient:
 async def test_a_starved_loop_does_not_kill_a_live_lease(monkeypatch):
     """The exact live case: one timeout, then the truth."""
     monkeypatch.setattr("core.brain.llm.mlx_client._LEASE_RENEWAL_TIMEOUT_S", 0.01)
+    recorded = []
+    monkeypatch.setattr(
+        "core.brain.llm.mlx_client.record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
     controller = _Controller(timeouts=1, alive_after=True)
 
     alive = await _client()._renew_durable_lane_lease(controller, "owner-1", 7)
 
     assert alive is True
     assert controller.calls == 2, "the renewal must be re-asked, not assumed dead"
+    assert recorded == [], "a recovered scheduling delay is not a model fault"
 
 
 @pytest.mark.asyncio

@@ -10651,13 +10651,9 @@ class MLXLocalClient:
                 return True
             raise
         if alive:
-            _record_mlx_degradation(
-                TimeoutError("lane_lease_renewal_timeout_recovered"),
-                action=(
-                    "lease renewal timed out under event-loop starvation; the "
-                    "re-ask found the lease intact, so the worker was kept"
-                ),
-                severity="warning",
+            logger.info(
+                "⏱️ [MLX] Lane lease renewal recovered after one timeout; "
+                "the re-ask found the lease intact and the worker stayed live."
             )
         return alive
 
