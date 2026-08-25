@@ -420,3 +420,24 @@ def test_the_verb_is_read_in_the_shapes_people_write_it(reply, expected):
 def test_a_bare_answer_is_still_read():
     options = [_option(name) for name in ("up", "down", "left", "right")]
     assert choose_named("down", options).name == "down"
+
+
+def test_an_echo_of_the_evidence_is_not_a_reason():
+    """LIVE: a move was narrated as "Board: Up — Available moves
+    up/down/left/right", which is the line she was handed.
+
+    A reply that repeats what it was given has not reasoned about it, and
+    presenting an echo as a reason is worse than saying nothing — it looks
+    like thinking.
+    """
+    from core.agency.deliberate_action import _reason_or_nothing
+
+    evidence = [
+        "Goal: play 2048",
+        "Available move — up: press up",
+        "What is visible now: 2 4 8",
+    ]
+    assert _reason_or_nothing("Available move — up: press up", evidence) == ""
+    assert _reason_or_nothing("press up", evidence) == ""
+    assert _reason_or_nothing("the corner holds if I go up", evidence) == "the corner holds if I go up"
+    assert _reason_or_nothing("", evidence) == ""

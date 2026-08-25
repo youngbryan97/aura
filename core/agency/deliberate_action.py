@@ -466,7 +466,7 @@ async def deliberate(
         situation=situation,
         chosen=chosen,
         spoke=spoke,
-        rationale=_rationale(reply, chosen),
+        rationale=_reason_or_nothing(_rationale(reply, chosen), evidence),
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
         recalled=tuple(recalled),
@@ -562,6 +562,28 @@ def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
     task = get_task_tracker().track(coroutine, name="deliberate_action.notice")
     # Deciding must not wait on being noticed.
     task.add_done_callback(lambda done: done.exception())
+
+
+
+def _reason_or_nothing(rationale: str, evidence: Sequence[str]) -> str:
+    """The rationale, unless it is the evidence read back.
+
+    A reply that repeats what it was given has not reasoned about it, and
+    presenting an echo as a reason is worse than saying nothing: it looks
+    like thinking. Measured live, a move was narrated as "Board: Up —
+    Available moves up/down/left/right", which is the line she was handed.
+    """
+    said = " ".join(str(rationale or "").split())
+    if not said:
+        return ""
+    plain = said.lower().strip(" .,:;-")
+    for line in evidence:
+        given = " ".join(str(line or "").split()).lower()
+        if not given:
+            continue
+        if plain and (plain in given or given.endswith(plain)):
+            return ""
+    return said
 
 
 def _rationale(reply: str, chosen: ActionOption) -> str:
