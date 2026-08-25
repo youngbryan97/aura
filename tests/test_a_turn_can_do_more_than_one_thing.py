@@ -200,8 +200,15 @@ def test_the_named_set_survives_the_registrys_own_ranking(monkeypatch):
                 for name in ("code_repl", "file_operation", "web_search")
             ]
 
-        def select_tool_definitions(self, *, objective, required_skill, max_tools):
-            # Ranks by its own idea of relevance and never returns the reader.
+        def select_tool_definitions(
+            self, *, objective, required_skill, max_tools, requested=None
+        ):
+            # Ranks by its own idea of relevance and never returns the reader,
+            # ignoring `requested` on purpose: the point of the test is that
+            # the named set survives a registry that does exactly this. The
+            # keyword still has to be ACCEPTED, or the double raises a
+            # TypeError, the real call is recorded as a degradation, and the
+            # test passes for the wrong reason on a signature that drifted.
             return [{"function": {"name": "web_search"}}]
 
     from core import container as container_module
