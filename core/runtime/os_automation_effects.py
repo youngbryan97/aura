@@ -413,7 +413,11 @@ class EffectVerdict:
         }
 
 
-def extract_target_paths(goal: str) -> tuple[str, ...]:
+def extract_target_paths(
+    goal: str,
+    *,
+    require_file_intent: bool = True,
+) -> tuple[str, ...]:
     """Paths a desktop objective names, as a user would name them.
 
     "on my Desktop called aura_hello.txt" and "~/Desktop/2048.py" both resolve
@@ -423,7 +427,7 @@ def extract_target_paths(goal: str) -> tuple[str, ...]:
     "create a file on my Desktop called aura_hello.txt".
     """
     text = " ".join(str(goal or "").split())
-    if not text or not _FILE_INTENT_RE.search(text):
+    if not text or (require_file_intent and not _FILE_INTENT_RE.search(text)):
         return ()
 
     paths: list[str] = []

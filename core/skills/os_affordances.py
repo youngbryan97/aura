@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from core.language.concepts import object_class_pattern
+from core.runtime.os_automation_effects import extract_target_paths
 
 _VISUAL_ASSET_RE = object_class_pattern("image")
 
@@ -58,6 +59,23 @@ def _extract_wallpaper(text: str) -> str | None:
     phrasing ("make this eagle my background") while returning only the visual
     topic. The executor still goes through the generic ``system_control`` path.
     """
+    setting_change = re.search(
+        r"\b(?:change|set|update|make|use|apply)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    setting_surface = re.search(
+        r"\b(?:my\s+)?(?:desktop\s+)?(?:wallpaper|background)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    local_paths = extract_target_paths(text, require_file_intent=False)
+    if setting_change and setting_surface and local_paths:
+        # A dot is ordinary path syntax, not a sentence boundary. The previous
+        # combined span stopped at `.jpg`, which made every extension-bearing
+        # local image invisible despite the path parser already recognizing it.
+        return local_paths[0]
+
     image_topic_match = re.search(
         rf"\b(?:find|search|look\s+up)\b[^.;\n]{{0,80}}?\b{_VISUAL_ASSET_RE}\s+of\s+([^.;,\n]+)"
         rf"[^.;\n]{{0,100}}?\b(?:make|set|use)\b[^.;\n]{{0,50}}?\b(?:my\s+)?(?:wallpaper|desktop\s+background|background)\b",

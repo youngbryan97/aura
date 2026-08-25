@@ -17,6 +17,8 @@ Two gaps, both of them ordinary English:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.intent.declared_capability import object_class_of as declared_object_class_of
@@ -104,6 +106,32 @@ def test_photograph_wallpaper_request_compiles_the_complete_effect_chain():
     control = next(step for step in steps if step.action == "system_control")
     assert fetch.target["topic"] == "Saturn"
     assert control.target["domain"] == "wallpaper"
+
+
+@pytest.mark.parametrize(
+    "objective,path",
+    [
+        (
+            "Use /Users/bryan/Documents/blue_whale_wallpaper.jpg as my desktop wallpaper.",
+            "/Users/bryan/Documents/blue_whale_wallpaper.jpg",
+        ),
+        (
+            "Please apply ~/Pictures/saturn.png as the desktop background",
+            "~/Pictures/saturn.png",
+        ),
+    ],
+)
+def test_local_image_setting_uses_the_named_artifact_without_a_web_fetch(objective, path):
+    skill = DesktopTaskSkill()
+
+    assert detect_os_settings(objective) == [("wallpaper", path)]
+    steps = skill._derive_steps_from_objective(objective, {})
+
+    assert [step.action for step in steps] == ["system_control"]
+    assert steps[0].target == {
+        "domain": "wallpaper",
+        "value": str(Path(path).expanduser()),
+    }
 
 
 def test_wallpaper_completion_rejects_a_verified_search_without_setting_readback():

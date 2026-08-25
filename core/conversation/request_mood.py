@@ -84,6 +84,12 @@ _ACTION_VERBS = (
     "translate|compile|deploy|test|call|ping|talk|chat|converse|discuss|"
     "proceed|continue|resume|finish|complete|apply|actuate|connect|configure|"
     "restart|reboot|shutdown|sleep|wake|"
+    # Goal-state verbs are ordinary imperatives too. They used to be absent,
+    # so "use /path as my wallpaper" and "set volume to 30%" were classified
+    # as ambiguous even though the same grammar recognized "open Notes". The
+    # object decides which capability owns the act; the clause-head verb only
+    # establishes that the person is asking for the act now.
+    "use|set|change|adjust|increase|decrease|enable|disable|mute|unmute|"
     # Memory instructions are instructions. "Remember for future sessions that
     # my codename is glass orchard" asks her to STORE something; reading it as
     # a remark about remembering loses the fact.
@@ -148,6 +154,17 @@ _COORDINATED_ACTION_RE = re.compile(
 _QUOTED_UTTERANCE_RE = re.compile(
     r"^\s*([\"']).+\1\s*[.!?]?\s*$",
     re.DOTALL,
+)
+
+# A leading modal question scopes every coordinated verb that follows it.
+# Splitting "Why would someone find X and use it?" at "and use" otherwise
+# turns the second predicate into a bare imperative even though nobody asked
+# for either act. This is sentence grammar, so it belongs before capability
+# names and before clause splitting.
+_MODAL_ACTION_DISCUSSION_RE = re.compile(
+    r"^\s*(?:why|when|how|what)\s+(?:would|could|should|can)\s+"
+    r"(?:you|someone|anyone|a\s+person|one)\b",
+    re.IGNORECASE,
 )
 
 #: Frames that talk ABOUT a thing. Each one is a construction, not a topic.
@@ -314,6 +331,14 @@ def assess_request_mood(
             RequestMood.MENTION,
             ("quoted_utterance",),
             "quoted",
+            non_action_clauses=(text,),
+        )
+
+    if _MODAL_ACTION_DISCUSSION_RE.search(text):
+        return MoodVerdict(
+            RequestMood.MENTION,
+            ("modal_action_discussion",),
+            "hypothetical",
             non_action_clauses=(text,),
         )
 

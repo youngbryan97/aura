@@ -5480,6 +5480,7 @@ async def _run_cognitive_engine_chat_turn(
     - Strict fail-closed support for CognitiveEngine-required callers
     """
     preparation_started_at = time.perf_counter()
+    turn_budget_started_at = time.monotonic()
     state_native_output_owner = bool(
         evidence_profile == _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
     )
@@ -6751,6 +6752,11 @@ async def _run_cognitive_engine_chat_turn(
         logger.info("Foreground final-binding stages: %s", final_binding_stages)
 
     timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
+    turn_deadline = turn_budget_started_at + timeout_s
+
+    def _remaining_turn_budget() -> float:
+        return max(0.0, turn_deadline - time.monotonic())
+
     continuation_attempt_budget = _user_surface_continuation_budget(shape)
     engine_cycle_timeout_s = _cognitive_cycle_timeout_for_request(
         timeout_s,
@@ -7108,7 +7114,21 @@ async def _run_cognitive_engine_chat_turn(
                     timeout_s=repair_cycle_timeout_s,
                 )
 
-        repair_timeout = max(5.0, min(timeout_s, _DESKTOP_COGNITIVE_REPAIR_TIMEOUT_S))
+        remaining_turn_budget = _remaining_turn_budget()
+        if remaining_turn_budget <= 0.25:
+            if turn_trace is not None:
+                turn_trace["repair_retry_budget_exhausted"] = True
+            logger.warning(
+                "Skipping CognitiveEngine desktop repair retry; the turn's %.1fs "
+                "transaction budget is exhausted.",
+                timeout_s,
+            )
+            return _retain_completion_incumbent("turn_transaction_budget_exhausted")
+        repair_timeout = min(
+            remaining_turn_budget,
+            timeout_s,
+            _DESKTOP_COGNITIVE_REPAIR_TIMEOUT_S,
+        )
         try:
             repair_thought = await _execute_cognitive_operation(
                 "CognitiveEngine.desktop_chat_turn.repair",
@@ -7515,6 +7535,9 @@ async def _run_cognitive_engine_chat_turn(
         if turn_trace is not None:
             turn_trace["engine_think_invoked"] = True
         with relational_principal_scope(exact_principal):
+            remaining_turn_budget = _remaining_turn_budget()
+            if remaining_turn_budget <= 0:
+                raise TimeoutError()
             return await engine.think(
                 engine_user_message,
                 context=context,
@@ -7523,14 +7546,14 @@ async def _run_cognitive_engine_chat_turn(
                 foreground_request=True,
                 is_background=False,
                 priority=True,
-                timeout_s=engine_cycle_timeout_s,
+                timeout_s=min(engine_cycle_timeout_s, remaining_turn_budget),
             )
 
     try:
         thought = await _execute_cognitive_operation(
             "CognitiveEngine.desktop_chat_turn",
             engine_think_operation,
-            operation_timeout=timeout_s,
+            operation_timeout=max(0.1, _remaining_turn_budget()),
         )
 
         if thought is None:

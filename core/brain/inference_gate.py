@@ -7552,6 +7552,26 @@ class InferenceGate:
             return (2.0,)
         return ()
 
+    def _publish_exhausted_primary_owner(
+        self,
+        *,
+        primary_attempt_elapsed: float,
+        same_lane_retry_count: int,
+    ) -> None:
+        """Publish that a no-text primary call still consumed the turn owner."""
+
+        failure_class = (
+            "primary_no_text_after_bounded_retry"
+            if same_lane_retry_count
+            else "primary_no_text_after_long_attempt"
+        )
+        self._annotate_last_generation_metadata(
+            model_retry_suppressed=True,
+            generation_failure_class=failure_class,
+            primary_attempt_elapsed_s=round(float(primary_attempt_elapsed), 6),
+            same_lane_retry_count=max(0, int(same_lane_retry_count)),
+        )
+
     @asynccontextmanager
     async def _resource_context(
         self,
@@ -13447,6 +13467,18 @@ class InferenceGate:
                             primary_timeout,
                         )
                         if not retry_schedule:
+                            # The primary worker DID own and spend this turn.
+                            # Publishing only "no text" made the caller believe
+                            # no model owner had run, so it opened a fresh repair
+                            # generation after this gate correctly declined one.
+                            # Carry the causal fact with the generation receipt;
+                            # every downstream surface can then enforce the same
+                            # single-owner invariant without reconstructing time
+                            # from logs.
+                            self._publish_exhausted_primary_owner(
+                                primary_attempt_elapsed=primary_attempt_elapsed,
+                                same_lane_retry_count=0,
+                            )
                             logger.warning(
                                 "🧠 %s consumed %.1fs without usable text; skipping repeated "
                                 "same-lane retries.",
@@ -13582,6 +13614,10 @@ class InferenceGate:
                                 )
 
                         if retry_schedule:
+                            self._publish_exhausted_primary_owner(
+                                primary_attempt_elapsed=primary_attempt_elapsed,
+                                same_lane_retry_count=len(retry_schedule),
+                            )
                             logger.warning("🧠 %s bounded retry failed.", local_label)
                         if (
                             proof_evaluation_contract

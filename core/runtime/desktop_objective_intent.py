@@ -446,6 +446,24 @@ def looks_like_desktop_objective(user_message: str) -> bool:
             return True
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
+    # OS settings are declared in one affordance registry that already owns
+    # their language-to-goal-state translation. The registry establishes WHAT
+    # goal-state the clause names; the shared request-mood substrate establishes
+    # WHETHER the person asked Aura to reach it. Keeping both predicates is what
+    # separates "use /path as wallpaper" from "why would someone use X as
+    # wallpaper?" without teaching each setting its own permission grammar.
+    try:
+        from core.conversation.request_mood import assess_request_mood
+        from core.skills.os_affordances import detect_os_settings
+
+        if detect_os_settings(user_message):
+            setting_mood = assess_request_mood(user_message)
+            if setting_mood.asks_for_action:
+                return True
+            if setting_mood.is_about_rather_than_asking:
+                return False
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
     sanitized_text = strip_negated_action_spans(text).lower()
     # An action verb inside REPORTED history is not an instruction.
     #

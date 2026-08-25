@@ -50,6 +50,8 @@ DIRECTIVES = [
     "Maybe you could inspect the current device state first.",
     "The next useful step is to connect to the lab sensor.",
     "Tomorrow, create a reminder after the training run finishes.",
+    "Use /Users/bryan/Pictures/whale.jpg as my desktop wallpaper.",
+    "Set the system volume to 30%.",
 ]
 
 MENTIONS = [
@@ -76,6 +78,8 @@ MENTIONS = [
     "Why did you download the image yesterday?",
     "I don't want you to restart Aura; just explain the restart contract.",
     '"Open Notes and type hello."',
+    "Why would someone use that image as a desktop wallpaper?",
+    "Why would someone find an image and use it as a desktop wallpaper?",
 ]
 
 

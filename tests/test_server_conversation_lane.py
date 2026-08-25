@@ -10053,6 +10053,80 @@ async def test_desktop_cognitive_engine_retries_failed_reply_on_same_lane(monkey
 
 
 @pytest.mark.asyncio
+async def test_desktop_repair_cannot_open_a_fresh_transaction_deadline(monkeypatch):
+    """A slow first owner leaves no independent timeout for a second owner."""
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    class _ClockProxy:
+        elapsed = 0.0
+
+        def monotonic(self):
+            return self.elapsed
+
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+    clock = _ClockProxy()
+
+    class _FakeCognitiveEngine:
+        def __init__(self):
+            self.calls = 0
+
+        async def think(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls > 1:
+                raise AssertionError("repair must not manufacture a new turn budget")
+            clock.elapsed = 1.9
+            return SimpleNamespace(
+                content="The voices. The small ones. They're whispering in my ear.",
+                metadata=_bound_live_mind_controls_metadata(),
+            )
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+    engine = _FakeCognitiveEngine()
+    trace = {}
+    monkeypatch.setattr(chat_routes, "time", clock)
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(chat_routes, "_DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S", 0.0)
+    monkeypatch.setattr(
+        chat_routes,
+        "_desktop_secondary_model_repair_allowed",
+        lambda **_kwargs: (True, "test_ready"),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: engine if name == "cognitive_engine" else default
+        ),
+    )
+
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        "What are you talking about?",
+        visible_user_message="What are you talking about?",
+        origin="user",
+        timeout_s=2.0,
+        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert reply is None
+    assert engine.calls == 1
+    assert trace["repair_retry_budget_exhausted"] is True
+
+
+@pytest.mark.asyncio
 async def test_desktop_cognitive_engine_retries_failed_reply_by_default_when_memory_is_safe(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes

@@ -4367,24 +4367,46 @@ class DesktopTaskSkill(BaseSkill):
         folder_name = self._extract_folder_name(text)
         root_hint = self._extract_root_hint(text)
         folder_path = f"{root_hint}/{folder_name}" if root_hint else folder_name
-        wants_folder = any(token in lowered for token in ("folder", "directory"))
-        wants_document = any(
-            token in lowered
-            for token in ("write", "summary", "summarize", "note", "document", "pdf", "save", "journal")
-        ) or any(token in lowered for token in ("draft", "essay", "compose", "type"))
+        wants_folder = bool(re.search(r"\b(?:folder|directory)\b", lowered))
+        wants_document = bool(
+            re.search(
+                r"\b(?:write|summary|summarize|note|document|pdf|save|journal|"
+                r"draft|essay|compose|type)\b",
+                lowered,
+            )
+        )
         wants_pdf = self._explicit_pdf_requested(text)
         os_setting_requests = detect_os_settings(text)
+        local_image_setting_values = {
+            value
+            for domain, value in os_setting_requests
+            if (affordance := get_affordance(domain)) is not None
+            and affordance.needs_image
+            and Path(str(value or "")).expanduser().is_absolute()
+        }
         image_setting_topic = next(
             (
                 value
                 for domain, value in os_setting_requests
                 if (affordance := get_affordance(domain)) is not None
                 and affordance.needs_image
+                and not Path(str(value or "")).expanduser().is_absolute()
             ),
             "",
         )
         image_query = image_setting_topic or self._extract_image_query(text)
-        wants_image = bool(image_query) or mentions_object_class(text, "image")
+        explicit_image_retrieval = bool(
+            re.search(r"\b(?:find|search|look\s+up|get|download|fetch)\b", lowered)
+        )
+        if local_image_setting_values and not explicit_image_retrieval:
+            # The image is already a named local artifact. Extensions such as
+            # `.png` are evidence about that value, not a request to open an
+            # image-search tab or fetch another file.
+            image_query = ""
+        wants_image = bool(image_query) or bool(
+            mentions_object_class(text, "image")
+            and (not local_image_setting_values or explicit_image_retrieval)
+        )
         web_document_url = self._web_document_url(text)
         image_reference_only = bool(image_query) and not any(
             token in lowered
@@ -4661,7 +4683,12 @@ class DesktopTaskSkill(BaseSkill):
             affordance = get_affordance(domain)
             if affordance is None:
                 continue
+            local_image_path = ""
             if affordance.needs_image:
+                candidate = Path(str(value or "")).expanduser()
+                if candidate.is_absolute():
+                    local_image_path = str(candidate)
+            if affordance.needs_image and not local_image_path:
                 # Save where the person said, not where the code prefers.
                 #
                 # "download it to my Desktop, and set it as my wallpaper" put
@@ -4685,6 +4712,8 @@ class DesktopTaskSkill(BaseSkill):
                 # Not image_path: the extension is a guess until the fetch
                 # reports what it was served.
                 control_value = FETCHED_IMAGE_PATH_SENTINEL
+            elif local_image_path:
+                control_value = local_image_path
             else:
                 control_value = value
             steps.append(

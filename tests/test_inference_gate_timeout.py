@@ -53,6 +53,24 @@ def test_foreground_retry_schedule_only_retries_fast_failures() -> None:
     ) == ()
 
 
+def test_exhausted_primary_owner_suppresses_downstream_model_retry() -> None:
+    gate = InferenceGate.__new__(InferenceGate)
+    fields: dict[str, object] = {}
+    gate._annotate_last_generation_metadata = fields.update  # type: ignore[method-assign]
+
+    gate._publish_exhausted_primary_owner(
+        primary_attempt_elapsed=91.125,
+        same_lane_retry_count=0,
+    )
+
+    assert fields == {
+        "model_retry_suppressed": True,
+        "generation_failure_class": "primary_no_text_after_long_attempt",
+        "primary_attempt_elapsed_s": 91.125,
+        "same_lane_retry_count": 0,
+    }
+
+
 def test_think_preserves_desktop_cognitive_engine_contract() -> None:
     async def run() -> None:
         gate = InferenceGate()
