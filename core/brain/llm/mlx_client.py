@@ -4685,7 +4685,24 @@ def _observe_endogenous_receipt(response: Mapping[str, Any]) -> None:
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         logger.debug("endogenous receipt not observed: %s", exc)
 
-def _attach_endogenous_state(req: dict[str, Any]) -> None:
+def _record_endogenous_pair(response: Mapping[str, Any]) -> None:
+    """Store the state that produced this reply, beside the reply.
+
+    Only terminal frames carry text, and only a request this parent still
+    holds a state for can be paired, so an unmatched frame writes nothing
+    rather than pairing a reply with the wrong state.
+    """
+    try:
+        text = response.get("text")
+        if not text:
+            return
+        from core.brain.llm.endogenous_pair_recorder import record_response
+
+        record_response(str(response.get("id") or ""), str(text))
+    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("endogenous pair not recorded: %s", exc)
+
+def _attach_endogenous_state(req: dict[str, Any], *, model_path: str = "") -> None:
     """Put z_Aura on an outbound generation job.
 
     Fail-open by construction: a turn that cannot assemble a state is a turn
@@ -4707,8 +4724,21 @@ def _attach_endogenous_state(req: dict[str, Any]) -> None:
         state = assemble_state()
         if state.coverage < MIN_COVERAGE:
             return
-        req[JOB_STATE_KEY] = state.to_payload()
+        payload = state.to_payload()
+        req[JOB_STATE_KEY] = payload
         req["endogenous_alpha"] = alpha
+
+        # Hold the state until the reply lands, so the corpus the head is
+        # fitted on is her own state paired with her own words rather than
+        # two records that have to be joined by timestamp later.
+        from core.brain.llm.endogenous_pair_recorder import remember_pending
+
+        remember_pending(
+            str(req.get("id") or ""),
+            payload,
+            lane=str(req.get("serving_lane") or ""),
+            model=str(model_path or ""),
+        )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous state not attached to job: %s", exc)
 
@@ -11926,6 +11956,7 @@ class MLXLocalClient:
                 ):
                     _observe_worker_prompt_tokenization(res)
                     _observe_endogenous_receipt(res)
+                    _record_endogenous_pair(res)
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
@@ -14579,7 +14610,7 @@ class MLXLocalClient:
         # substrate, the goal system, or anything else in this process, so
         # the state travels as declared floats on the job. A worker with no
         # trained head ignores the field; the receipt says which happened.
-        _attach_endogenous_state(req)
+        _attach_endogenous_state(req, model_path=self.model_path)
 
         # Activation-steering offsets ride along when present; the worker
         # consumes them if its build supports residual-stream injection,
