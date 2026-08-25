@@ -31,6 +31,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import wraps
 from typing import Any
 
 from core.brain.generation_provenance import attributed_text, generation_metadata_of
@@ -40,6 +41,17 @@ from core.runtime.errors import record_degradation
 logger = logging.getLogger("Aura.ReasoningAmplifierV2")
 
 GenerateFn = Callable[[str, float], Awaitable[Any]]
+
+
+def _enforce_request_wall_clock_budget(method: Callable[..., Awaitable[Any]]):
+    """Make ``time_budget_s`` an outer deadline, including cleanup and policy."""
+
+    @wraps(method)
+    async def _bounded(self: Any, request: Any) -> Any:
+        timeout = max(2.0, float(request.time_budget_s))
+        return await asyncio.wait_for(method(self, request), timeout=timeout)
+
+    return _bounded
 
 
 class ReasoningMode(StrEnum):
@@ -721,6 +733,7 @@ class ReasoningAmplifierV2:
         time_multiplier = round(max(0.6, min(2.5, 1.0 + 1.2 * push)), 3)
         return mode, sample_budget, time_multiplier
 
+    @_enforce_request_wall_clock_budget
     async def amplify(self, request: AmplificationRequest) -> AmplifiedAnswer:
         start = time.monotonic()
         deadline = start + max(2.0, float(request.time_budget_s))
@@ -828,8 +841,10 @@ class ReasoningAmplifierV2:
                 if request.sample_budget is None:
                     sample_budget = resolved_samples
                 if time_mult != 1.0:
-                    deadline = start + max(2.0, float(request.time_budget_s) * time_mult)
-                    fallbacks.append(f"phi_time_x{time_mult}")
+                    # The caller owns the wall-clock deadline. Affective state
+                    # may spend the admitted samples differently, but it may not
+                    # extend a foreground turn beyond its enclosing contract.
+                    fallbacks.append(f"phi_time_requested_x{time_mult}_caller_capped")
             elif self._should_deepen(affect):
                 mode = self._deepen(mode)
                 sample_budget = _admit_sample_budget(request.sample_budget, mode)

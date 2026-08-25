@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -366,6 +367,40 @@ async def test_deep_mode_prose_uses_courtroom(tmp_path):
     out = await amp.amplify(req)
     assert out.receipt.mode == "deep"
     assert out.receipt.strategy_used in {"courtroom", "self_consistency", "direct"}
+
+
+@pytest.mark.asyncio
+async def test_request_wall_clock_budget_cancels_the_whole_pipeline(tmp_path):
+    cancelled = False
+
+    async def stalled_generation(_prompt: str, _temperature: float) -> str:
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(30.0)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+
+    amp = _amp(stalled_generation, tmp_path)
+    started = time.monotonic()
+
+    with pytest.raises(TimeoutError):
+        await amp.amplify(
+            AmplificationRequest(
+                objective="compute 21 * 2",
+                task_type="math",
+                mode=ReasoningMode.NORMAL,
+                time_budget_s=2.0,
+                context={
+                    "sealed_evaluation": True,
+                    "skip_cache": True,
+                    "skip_evidence": True,
+                },
+            )
+        )
+
+    assert cancelled is True
+    assert time.monotonic() - started < 3.0
 
 
 class _CheckedPassingVerifier:

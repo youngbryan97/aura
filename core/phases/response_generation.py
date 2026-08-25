@@ -43,7 +43,10 @@ from core.runtime.errors import record_degradation
 from core.runtime.flags import env_present
 from core.runtime.structured_input import answer_surface_token_floor
 from core.synthesis import stabilize_user_facing_response, strip_meta_commentary
-from core.utils.completed_capability import any_capability_completed
+from core.utils.completed_capability import (
+    any_capability_completed,
+    completed_capabilities,
+)
 from core.utils.injected_blocks import stamp_grounding
 
 from ..state.aura_state import AuraState, CognitiveMode
@@ -1466,6 +1469,32 @@ class ResponseGenerationPhase(BasePhase):
         task_type = is_amplifiable(objective)
         if task_type is None:
             return draft
+
+        # A successful capability receipt assigns this turn to the evidence
+        # narration owner. The amplifier does not receive the capability's
+        # evidence pack and cannot independently verify current external facts,
+        # so a competing generation cannot earn promotion authority. Reopening
+        # the turn here also repeats work already completed by the tool lane.
+        completed = completed_capabilities(
+            runtime_context.get("completed_capability_evidence")
+        )
+        if completed:
+            state.response_modifiers["reasoning_amplifier_v2_active_phase"] = {
+                "task_type": task_type,
+                "verified": False,
+                "confidence": 0.0,
+                "promotion_authority": "none",
+                "adopted": False,
+                "admitted": False,
+                "admission_reason": "completed_capability_evidence_owned_turn",
+                "completed_capabilities": sorted(completed),
+            }
+            logger.info(
+                "Reasoning amplifier kept the capability-grounded draft; "
+                "completed turn owner=%s.",
+                ",".join(sorted(completed)),
+            )
+            return draft
         from core.brain.executable_reasoning import should_use_executable_reasoning
 
         executable_reasoning = should_use_executable_reasoning(
@@ -1477,7 +1506,14 @@ class ResponseGenerationPhase(BasePhase):
         # Structured program generation on the resident 32B needs about 45-55s;
         # do not start it when the remaining phase contract cannot fund one
         # complete candidate. Evidence-only amplification keeps its smaller cap.
-        available_budget = max(1.0, float(request_timeout or 20.0) * 0.60)
+        remaining_turn_budget = self._bounded_request_timeout(
+            runtime_context,
+            float(request_timeout or 20.0),
+            reserve_s=4.0,
+        )
+        available_budget = max(0.0, remaining_turn_budget * 0.60)
+        if available_budget < 2.0:
+            return draft
         requires_full_program_budget = bool(
             executable_reasoning and task_type != "math"
         )
@@ -1598,24 +1634,27 @@ class ResponseGenerationPhase(BasePhase):
             )
 
         try:
-            result = await amplify_turn(
-                objective,
-                _gen,
-                task_type=task_type,
-                time_budget_s=budget,
-                sample_budget=3 if executable_reasoning else None,
-                extra_context={
-                    "live_response_phase": True,
-                    "require_generation_metadata": True,
-                    "disable_batched_candidates": True,
-                    "generation_max_tokens": amplifier_token_cap,
-                    "seed_candidates": [draft],
-                    "enable_executable_reasoning": executable_reasoning,
-                    "allow_textual_fallback_after_executable": True,
-                    "cognitive_situation_frame": state.response_modifiers.get(
-                        "cognitive_situation_frame"
-                    ),
-                },
+            result = await asyncio.wait_for(
+                amplify_turn(
+                    objective,
+                    _gen,
+                    task_type=task_type,
+                    time_budget_s=budget,
+                    sample_budget=3 if executable_reasoning else None,
+                    extra_context={
+                        "live_response_phase": True,
+                        "require_generation_metadata": True,
+                        "disable_batched_candidates": True,
+                        "generation_max_tokens": amplifier_token_cap,
+                        "seed_candidates": [draft],
+                        "enable_executable_reasoning": executable_reasoning,
+                        "allow_textual_fallback_after_executable": True,
+                        "cognitive_situation_frame": state.response_modifiers.get(
+                            "cognitive_situation_frame"
+                        ),
+                    },
+                ),
+                timeout=budget,
             )
         except (
             OSError,

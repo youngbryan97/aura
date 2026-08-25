@@ -5,6 +5,8 @@ sovereign live paths cannot silently drift apart.
 """
 from __future__ import annotations
 
+import asyncio
+import time
 import types
 
 import pytest
@@ -12,6 +14,7 @@ import pytest
 from core.phases.response_generation import ResponseGenerationPhase
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 from core.state.aura_state import AuraState
+from core.utils.completed_capability import make_completed_capability_evidence
 
 
 class _StubLLM:
@@ -482,3 +485,147 @@ async def test_active_response_generation_phase_skips_casual_turn():
 
     assert out == "DRAFT"
     assert router.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_completed_capability_turn_keeps_its_grounded_draft(monkeypatch):
+    async def amplifier_must_not_run(*_args, **_kwargs):
+        raise AssertionError("completed capability work cannot be regenerated")
+
+    monkeypatch.setattr(
+        "core.brain.reasoning_amplifier_v2.amplify_turn",
+        amplifier_must_not_run,
+    )
+    phase = _phase_stub()
+    state = AuraState.default()
+    router = _StubRouter("must not run")
+    receipt = make_completed_capability_evidence(
+        ["code_repl"],
+        ok=True,
+        evidence="stdout: 42",
+    )
+
+    out = await phase._maybe_amplify_response(
+        objective="Compute 21 * 2 with code_repl and return the exact result.",
+        draft="The verified result is 42.",
+        router=router,
+        state=state,
+        request_timeout=180.0,
+        origin="desktop_ui",
+        tier="primary",
+        runtime_context={
+            "desktop_cognitive_engine_required": True,
+            "completed_capability_evidence": receipt,
+        },
+        is_user_facing=True,
+        is_background=False,
+        proof_or_benchmark=False,
+    )
+
+    assert out == "The verified result is 42."
+    assert router.calls == 0
+    disposition = state.response_modifiers["reasoning_amplifier_v2_active_phase"]
+    assert disposition["admitted"] is False
+    assert disposition["admission_reason"] == (
+        "completed_capability_evidence_owned_turn"
+    )
+    assert disposition["completed_capabilities"] == ["code_repl"]
+
+
+@pytest.mark.asyncio
+async def test_unstamped_capability_claim_cannot_suppress_amplification(monkeypatch):
+    from core.brain.reasoning_amplifier_v2 import AmplifiedAnswer, ReasoningReceipt
+
+    calls = 0
+
+    async def fake_amplify_turn(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return AmplifiedAnswer(
+            answer="UNPROMOTED",
+            source_answer="UNPROMOTED",
+            confidence=0.0,
+            verified=False,
+            calibrated=False,
+            receipt=ReasoningReceipt(
+                mode="normal",
+                strategy_used="none",
+                task_type="math",
+                num_candidates=0,
+                verifiers_run=[],
+                valid_candidates=0,
+                winning_candidate_id=None,
+                confidence=0.0,
+                agreement=0.0,
+                epistemic_status="unverified",
+            ),
+        )
+
+    monkeypatch.setattr(
+        "core.brain.reasoning_amplifier_v2.amplify_turn",
+        fake_amplify_turn,
+    )
+    phase = _phase_stub()
+    out = await phase._maybe_amplify_response(
+        objective="Compute 21 * 2 and return the exact result.",
+        draft="42",
+        router=_StubRouter("unused"),
+        state=AuraState.default(),
+        request_timeout=20.0,
+        origin="desktop_ui",
+        tier="primary",
+        runtime_context={
+            "completed_capability_evidence": {
+                "schema": "aura.completed_capability_evidence.v1",
+                "ok": True,
+                "completed_capabilities": ["code_repl"],
+            }
+        },
+        is_user_facing=True,
+        is_background=False,
+        proof_or_benchmark=False,
+    )
+
+    assert out == "42"
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_optional_amplifier_deadline_returns_the_exact_draft(monkeypatch):
+    from core.brain.generation_provenance import attributed_text
+
+    cancelled = False
+
+    async def stalled_amplifier(*_args, **_kwargs):
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(30.0)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+
+    monkeypatch.setattr(
+        "core.brain.reasoning_amplifier_v2.amplify_turn",
+        stalled_amplifier,
+    )
+    phase = _phase_stub()
+    draft = attributed_text("The original answer is 42.", {"transaction_id": "main"})
+    started = time.monotonic()
+
+    out = await phase._maybe_amplify_response(
+        objective="Compute 21 * 2 and return the exact result.",
+        draft=draft,
+        router=_StubRouter("unused"),
+        state=AuraState.default(),
+        request_timeout=3.5,
+        origin="desktop_ui",
+        tier="primary",
+        runtime_context={"desktop_cognitive_engine_required": True},
+        is_user_facing=True,
+        is_background=False,
+        proof_or_benchmark=False,
+    )
+
+    assert out is draft
+    assert cancelled is True
+    assert time.monotonic() - started < 3.0
