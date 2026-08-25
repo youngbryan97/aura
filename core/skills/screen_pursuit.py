@@ -1426,11 +1426,11 @@ def _say_move(key: str, chosen: Any = None) -> None:
 
 
 async def _say_line(line: str) -> None:
-    """Hand one line to whatever surface is listening. Never raises."""
+    """Hand one line to every surface a person might be watching. Never raises."""
     try:
-        from core.perception.ambient_presence import get_ambient_presence
+        from core.agency.narrator import Narrator
 
-        get_ambient_presence().offer_utterance(line, requested=True)
+        Narrator.say_everywhere(line)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         await _narrate(line)
 

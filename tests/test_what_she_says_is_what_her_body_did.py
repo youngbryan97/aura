@@ -263,3 +263,53 @@ def test_the_decision_is_not_also_announced_separately():
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     assert "announce=False" in source
+
+
+def test_a_line_reaches_both_the_bubble_and_the_conversation():
+    """Two views of the same her. A commentary that only reaches one is
+    invisible to whoever is looking at the other."""
+    from core.agency.narrator import Narrator
+
+    said_to_bubble = []
+    published = []
+
+    class _Presence:
+        def offer_utterance(self, line, requested=False):
+            said_to_bubble.append((line, requested))
+            return True
+
+    class _Orchestrator:
+        def _publish_telemetry(self, payload):
+            published.append(payload)
+
+    import core.container as container
+    import core.perception.ambient_presence as ap
+
+    original_get = container.ServiceContainer.get
+    original_presence = ap.get_ambient_presence
+    container.ServiceContainer.get = staticmethod(
+        lambda name, default=None: _Orchestrator() if name == "orchestrator" else default
+    )
+    ap.get_ambient_presence = lambda: _Presence()
+    try:
+        Narrator.say_everywhere("Board: Up — the corner holds")
+    finally:
+        container.ServiceContainer.get = original_get
+        ap.get_ambient_presence = original_presence
+
+    assert said_to_bubble == [("Board: Up — the corner holds", True)]
+    assert published and published[0]["type"] == "aura_message"
+    assert published[0]["message"] == "Board: Up — the corner holds"
+    assert published[0]["metadata"]["narration"] is True
+
+
+def test_the_conversation_does_not_collapse_repeated_moves():
+    """Pressing the same key twice is two things that happened."""
+    from pathlib import Path
+
+    source = Path("interface/static/aura.js").read_text()
+    # From the handler, not from the helper's own definition.
+    handler = source.index("type === 'aura_message'")
+    where = source.index("rememberMessageFingerprint(fingerprint)", handler)
+    guard = source[handler:where]
+    assert "meta.narration" in guard, "a stream of events is being de-duplicated as a reply"

@@ -232,13 +232,49 @@ class Narrator:
             if asyncio.iscoroutine(result):
                 await result
             return
-        from core.perception.ambient_presence import get_ambient_presence  # noqa: PLC0415
+        self.say_everywhere(line)
 
-        # Asked for, so it queues rather than overwriting what came before.
-        # A running commentary the person requested is a stream by
-        # definition; the rule that protects them from one is about
-        # unprompted thoughts.
-        get_ambient_presence().offer_utterance(line, requested=True)
+    @staticmethod
+    def say_everywhere(line: str) -> None:
+        """Put one line on every surface a person might be watching.
+
+        The bubble and the conversation are two views of the same her, and a
+        commentary that only reaches one of them is invisible to whoever is
+        looking at the other. Both are best-effort: a surface that is not
+        there must never hold up the thing being narrated.
+        """
+        try:
+            from core.perception.ambient_presence import get_ambient_presence  # noqa: PLC0415
+
+            # Asked for, so it queues rather than overwriting what came
+            # before. A running commentary the person requested is a stream
+            # by definition; the rule that protects them from one is about
+            # unprompted thoughts.
+            get_ambient_presence().offer_utterance(line, requested=True)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("narrator", exc, severity="info", action="spoke without the bubble")
+
+        try:
+            from core.container import ServiceContainer  # noqa: PLC0415
+
+            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            publish = getattr(orchestrator, "_publish_telemetry", None) if orchestrator else None
+            if publish is None:
+                return
+            publish(
+                {
+                    "type": "aura_message",
+                    "message": line,
+                    # Marked as an event rather than a reply. The chat
+                    # de-duplicates responses by content, because one answer
+                    # can arrive over two channels — but a commentary is a
+                    # stream of events, and pressing the same key twice is
+                    # two things that happened, not one thing said twice.
+                    "metadata": {"autonomic": True, "narration": True},
+                }
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("narrator", exc, severity="info", action="spoke without the conversation")
 
 
 _narrator: Narrator | None = None

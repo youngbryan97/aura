@@ -2875,10 +2875,18 @@ function handleWsEvent(data) {
             // ZENITH: Content-based deduplication.
             // Use content-only fingerprint — the same response can arrive
             // via HTTP and via WebSocket with different IDs.
-            const fingerprint = msg.trim().substring(0, 200);
-            if (rememberMessageFingerprint(fingerprint)) {
-                // duplicate message skipped (same content via different channel)
-                return;
+            // Narration is a stream of events, not a reply.
+            //
+            // The fingerprint exists because one ANSWER can arrive over both
+            // HTTP and the socket. A running commentary is different in kind:
+            // pressing the same key twice is two things that happened, and
+            // collapsing them shows a move that never went away.
+            if (!meta.narration) {
+                const fingerprint = msg.trim().substring(0, 200);
+                if (rememberMessageFingerprint(fingerprint)) {
+                    // duplicate message skipped (same content via different channel)
+                    return;
+                }
             }
 
             const role = meta && meta.system ? 'system' : 'aura';
