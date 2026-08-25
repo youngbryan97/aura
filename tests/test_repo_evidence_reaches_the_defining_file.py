@@ -17,6 +17,7 @@ took the listing from 1,907ms to 91ms over the same 6,299 files.
 from __future__ import annotations
 
 import asyncio
+import pathlib
 
 import pytest
 
@@ -98,8 +99,22 @@ def test_self_modification_snapshots_are_not_citable() -> None:
 
 
 def test_skipped_directories_are_never_listed(provider) -> None:
-    order = _order(provider, "explain how SubprocessGateway routes effects")
+    """Judged RELATIVE to the root being walked.
 
-    offenders = [p for p in order if set(p.parts) & _SKIP_DIRS]
+    The provider prunes directory NAMES while walking, so the question is
+    whether the walk descended into one. Testing the absolute path asks a
+    different question, and it answers wrong whenever the checkout itself
+    lives under one of those names — a worktree under .claude/worktrees, which
+    is where CONTRIBUTING tells an agent to work. Every one of 6,762 results
+    then looked like an offender.
+    """
+    order = _order(provider, "explain how SubprocessGateway routes effects")
+    root = pathlib.Path(provider._root).resolve()
+
+    offenders = [
+        p
+        for p in order
+        if set(pathlib.Path(p).resolve().relative_to(root).parts) & _SKIP_DIRS
+    ]
 
     assert not offenders, f"listed {len(offenders)} paths under skipped dirs"

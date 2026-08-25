@@ -105,6 +105,14 @@ def test_the_guard_sits_on_the_path_every_reply_takes() -> None:
 
 # ── "This conversation" means this conversation ────────────────────────────
 
+#: What a chat entry actually carries. An entry with neither an origin nor
+#: this marker is unknown provenance, and grounded recall refuses it — the
+#: rule that stops the runtime quoting its own writes back as the person's
+#: words. The fixture predated that rule and modelled entries no live writer
+#: produces, so every positional recall in this file resolved to None.
+_FROM_THE_PERSON = {"metadata": {"source": "chat_api"}}
+
+
 def _history() -> list[dict]:
     now = time.time()
     return [
@@ -112,6 +120,7 @@ def _history() -> list[dict]:
             "role": "user",
             "content": "If I had a whole Saturday with no obligations, what would I do?",
             "timestamp": now - 8 * 3600,
+            **_FROM_THE_PERSON,
         },
         {"role": "assistant", "content": "...", "timestamp": now - 8 * 3600 + 10},
         {
@@ -120,12 +129,18 @@ def _history() -> list[dict]:
             "timestamp": now - 7 * 3600,
             "origin": "curiosity",
         },
-        {"role": "user", "content": "Hey Aura. What is 17 times 23?", "timestamp": now - 300},
+        {
+            "role": "user",
+            "content": "Hey Aura. What is 17 times 23?",
+            "timestamp": now - 300,
+            **_FROM_THE_PERSON,
+        },
         {"role": "assistant", "content": "391.", "timestamp": now - 295},
         {
             "role": "user",
             "content": "Morning. What's it actually like in there right now?",
             "timestamp": now - 200,
+            **_FROM_THE_PERSON,
         },
     ]
 
@@ -164,13 +179,44 @@ def test_the_most_recent_turn_still_resolves() -> None:
 
 
 def test_an_unstamped_history_still_grounds() -> None:
-    """Older buffers carry no timestamps; losing recall entirely is worse."""
+    """Older buffers carry no timestamps; losing recall entirely is worse.
+
+    A missing TIMESTAMP and a missing PROVENANCE are different absences. The
+    first costs the conversation boundary and recall proceeds; the second means
+    nobody can say a person wrote it, and recall refuses. This fixture used to
+    omit both and so tested the wrong one.
+    """
     history = [
-        {"role": "user", "content": "first question"},
+        {"role": "user", "content": "first question", **_FROM_THE_PERSON},
         {"role": "assistant", "content": "answer"},
-        {"role": "user", "content": "second question"},
+        {"role": "user", "content": "second question", **_FROM_THE_PERSON},
     ]
     assert (
         resolve_positional_turn("What did I ask first?", "first", history=history)
         == "first question"
+    )
+
+
+def test_an_entry_with_no_provenance_is_refused() -> None:
+    """Absence of both origin and marker is unknown authorship, not evidence.
+
+    This is the rule that stops the runtime quoting its own writes back to a
+    person as their own words, and it is worth a test of its own rather than
+    living only in the shape of a fixture.
+    """
+    anonymous = [
+        {"role": "user", "content": "who wrote this"},
+        {"role": "assistant", "content": "unclear"},
+    ]
+    assert resolve_positional_turn("What did I ask first?", "first", history=anonymous) is None
+
+
+def test_a_missing_timestamp_does_not_cost_provenance() -> None:
+    stamped_out = [
+        {"role": "user", "content": "first question", **_FROM_THE_PERSON},
+        {"role": "user", "content": "second question", **_FROM_THE_PERSON},
+    ]
+    assert (
+        resolve_positional_turn("What did I just say?", "last", history=stamped_out)
+        == "second question"
     )
