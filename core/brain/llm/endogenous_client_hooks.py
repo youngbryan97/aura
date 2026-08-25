@@ -65,7 +65,7 @@ def absorb_endogenous_outcome(response: Mapping[str, Any]) -> None:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous absorption unavailable: %s", exc)
 
-def record_endogenous_pair(response: Mapping[str, Any]) -> None:
+async def record_endogenous_pair(response: Mapping[str, Any]) -> None:
     """Store the state that produced this reply, beside the reply.
 
     Only terminal frames carry text, and only a request this parent still
@@ -76,10 +76,17 @@ def record_endogenous_pair(response: Mapping[str, Any]) -> None:
         text = response.get("text")
         if not text:
             return
-        from core.brain.llm.endogenous_pair_recorder import record_response
+        from core.brain.llm.endogenous_pair_recorder import record_response_async
 
-        record_response(str(response.get("id") or ""), str(text))
-    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        await record_response_async(str(response.get("id") or ""), str(text))
+    except (
+        ImportError,
+        AttributeError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
         logger.debug("endogenous pair not recorded: %s", exc)
 
 def attach_endogenous_state(

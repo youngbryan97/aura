@@ -152,6 +152,14 @@ SANCTIONED_BLOCKING_LOCKS: dict[str, str] = {
         "through its own SemanticRagWarm thread, and the lane "
         "evict/compensate callbacks through asyncio.to_thread."
     ),
+    "endogenous_pair_recorder.store": (
+        "Rotation and append form one bounded corpus commit: releasing the lock "
+        "between them lets concurrent turns rotate the same generation or append "
+        "to the file another turn just retired. The live response hook awaits "
+        "record_response_async, which moves the complete durable transaction to "
+        "a worker thread; synchronous entry points mechanically refuse a running "
+        "event loop."
+    ),
 }
 
 

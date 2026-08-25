@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from core.brain.llm import endogenous_pair_recorder as recorder
 from core.brain.llm.endogenous_state import STATE_DIM, EndogenousState
@@ -36,6 +37,31 @@ def test_async_recording_uses_the_same_bounded_rotation_transaction(
     assert "third" in active.read_text(encoding="utf-8")
     assert any("first" in path.read_text(encoding="utf-8") for path in rolled)
     assert any("second" in path.read_text(encoding="utf-8") for path in rolled)
+
+
+def test_sync_recording_refuses_an_event_loop_before_touching_storage(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+
+    async def exercise() -> None:
+        with pytest.raises(RuntimeError, match="use record_pair_async"):
+            recorder.record_pair(_state(), "must not block the loop")
+
+    asyncio.run(exercise())
+    assert not (tmp_path / "pairs.jsonl").exists()
+
+
+def test_async_response_claims_pending_state_and_writes_off_loop(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+    recorder.reset_pending()
+    recorder.remember_pending("request-1", _state().to_payload(), lane="chat")
+
+    assert asyncio.run(recorder.record_response_async("request-1", "the response"))
+
+    assert recorder.pending_depth() == 0
+    assert [pair.text for pair in recorder.iter_pairs()] == ["the response"]
 
 
 def test_rotation_accounts_for_the_record_about_to_be_appended(tmp_path, monkeypatch):

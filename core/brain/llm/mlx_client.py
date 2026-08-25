@@ -11968,7 +11968,7 @@ class MLXLocalClient:
                 ):
                     _observe_worker_prompt_tokenization(res)
                     observe_endogenous_receipt(res)
-                    record_endogenous_pair(res)
+                    await record_endogenous_pair(res)
                     absorb_endogenous_outcome(res)
 
                 # 1. Update SubsystemAudit Heartbeat

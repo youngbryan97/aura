@@ -72,9 +72,7 @@ _RECORD_FLAG = declare(
 #: Rotation and append are one storage transaction inside this process. Without
 #: this lock, two completed turns can both rotate the same active file and one
 #: can replace the other's generation before either appends.
-_STORE_LOCK = checked_lock(
-    "endogenous_pair_recorder.store", rank=LockRank.RESOURCE
-)
+_STORE_LOCK = checked_lock("endogenous_pair_recorder.store", rank=LockRank.RESOURCE)
 
 
 def store_directory() -> Path:
@@ -157,6 +155,14 @@ def _should_record(state: EndogenousState, text: str) -> bool:
     return bool(str(text or "").strip())
 
 
+def _require_off_event_loop() -> None:
+    """Refuse synchronous durability from an asyncio event-loop thread."""
+    if asyncio.events._get_running_loop() is not None:  # noqa: SLF001
+        raise RuntimeError(
+            "endogenous_pair_sync_write_on_event_loop: use record_pair_async"
+        )
+
+
 def record_pair(
     state: EndogenousState,
     text: str,
@@ -166,6 +172,7 @@ def record_pair(
     prompt: str = "",
 ) -> bool:
     """Append one pair. Returns whether anything was written."""
+    _require_off_event_loop()
     if not _should_record(state, text):
         return False
     payload = _record_payload(state, text, lane=lane, model=model, prompt=prompt)
@@ -399,18 +406,37 @@ def remember_pending(
 
 def record_response(request_id: str, text: str) -> bool:
     """Pair a returned reply with the state that produced it, and store both."""
+    _require_off_event_loop()
+    held = _take_pending(request_id)
+    if held is None:
+        return False
+    state, lane, model = held
+    return record_pair(state, text, lane=lane, model=model)
+
+
+def _take_pending(request_id: str) -> tuple[EndogenousState, str, str] | None:
+    """Atomically claim one pending state without performing storage I/O."""
     key = str(request_id or "").strip()
     if not key:
-        return False
+        return None
     with _PENDING_LOCK:
         held = _PENDING.pop(key, None)
     if held is None:
-        return False
+        return None
     payload, lane, model, _at = held
     state = EndogenousState.from_payload(payload)
     if state is None:
+        return None
+    return state, lane, model
+
+
+async def record_response_async(request_id: str, text: str) -> bool:
+    """Claim a returned reply inline, then persist its pair off the event loop."""
+    held = _take_pending(request_id)
+    if held is None:
         return False
-    return record_pair(state, text, lane=lane, model=model)
+    state, lane, model = held
+    return await record_pair_async(state, text, lane=lane, model=model)
 
 
 def pending_depth() -> int:
@@ -424,4 +450,10 @@ def reset_pending() -> None:
         _PENDING.clear()
 
 
-__all__ += ["pending_depth", "record_response", "remember_pending", "reset_pending"]
+__all__ += [
+    "pending_depth",
+    "record_response",
+    "record_response_async",
+    "remember_pending",
+    "reset_pending",
+]
