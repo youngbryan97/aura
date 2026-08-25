@@ -1355,7 +1355,7 @@ def _classify_generation_stop_reason(
 
 def _continuation_resume_unavailable_reason(
     *,
-    semantic_completion_incomplete: bool,
+    resume_required: bool,
     cache_lru_available: bool,
     cache_disabled: bool,
     final_cache_available: bool,
@@ -1364,7 +1364,7 @@ def _continuation_resume_unavailable_reason(
 ) -> str:
     """Name a failed required resume, or return empty when none was required."""
 
-    if not semantic_completion_incomplete:
+    if not resume_required:
         return ""
     if not cache_lru_available:
         return "cache_lru_unavailable"
@@ -1377,6 +1377,30 @@ def _continuation_resume_unavailable_reason(
     if not response_present:
         return "empty_partial"
     return "cache_retention_refused"
+
+
+def _continuation_resume_should_bind(
+    *,
+    generation_stop_reason: str,
+    semantic_completion_incomplete: bool,
+) -> bool:
+    """Whether downstream completion still needs ownership of exact decode state.
+
+    Deadline and token-cap stops need a resume only when the worker can already
+    prove the visible answer incomplete. A semantic stop is different: later
+    language projections inspect the assembled user surface and can discover an
+    obligation that was not present in the worker's raw segment. Retaining its
+    cache is therefore part of the successful transaction, not evidence that the
+    worker itself judged the answer incomplete.
+    """
+
+    stop_reason = str(generation_stop_reason or "").strip().lower()
+    if stop_reason == "semantic_contract_satisfied":
+        return True
+    return bool(
+        semantic_completion_incomplete
+        and stop_reason in {"deadline_exceeded", "max_tokens", "soft_cancelled"}
+    )
 
 
 def _capability_inventory_minimum_grounding(
@@ -9726,19 +9750,17 @@ def _mlx_worker_loop(
                     surface_control_state["generation_configured_stop_sequence"] = (
                         configured_stop_sequence
                     )
-                    resumable_stop = generation_stop_reason in {
-                        "deadline_exceeded",
-                        "max_tokens",
-                        "soft_cancelled",
-                    }
-                    continuation_resume_handle = ""
-                    if (
-                        resumable_stop
-                        and bool(
+                    resume_required = _continuation_resume_should_bind(
+                        generation_stop_reason=generation_stop_reason,
+                        semantic_completion_incomplete=bool(
                             semantic_completion_state[
                                 "semantic_completion_incomplete"
                             ]
-                        )
+                        ),
+                    )
+                    continuation_resume_handle = ""
+                    if (
+                        resume_required
                         and bool(response_text.strip())
                         and prompt_cache_lru is not None
                         and not disable_prompt_cache
@@ -9751,14 +9773,10 @@ def _mlx_worker_loop(
                             prompt_cache=final_prompt_cache,
                             one_token_rollback=continuation_cache_rollback,
                         )
-                    if resumable_stop and not continuation_resume_handle:
+                    if resume_required and not continuation_resume_handle:
                         resume_unavailable_reason = (
                             _continuation_resume_unavailable_reason(
-                                semantic_completion_incomplete=bool(
-                                    semantic_completion_state[
-                                        "semantic_completion_incomplete"
-                                    ]
-                                ),
+                                resume_required=resume_required,
                                 cache_lru_available=prompt_cache_lru is not None,
                                 cache_disabled=bool(disable_prompt_cache),
                                 final_cache_available=final_prompt_cache is not None,

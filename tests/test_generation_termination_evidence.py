@@ -4,6 +4,7 @@ import pytest
 
 from core.brain.llm.mlx_worker import (
     _classify_generation_stop_reason,
+    _continuation_resume_should_bind,
     _continuation_resume_unavailable_reason,
     _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
@@ -50,7 +51,7 @@ def test_worker_reports_the_exact_decode_termination(overrides, expected):
 def test_complete_deadline_answer_does_not_claim_resume_failure() -> None:
     assert (
         _continuation_resume_unavailable_reason(
-            semantic_completion_incomplete=False,
+            resume_required=False,
             cache_lru_available=False,
             cache_disabled=True,
             final_cache_available=False,
@@ -64,7 +65,7 @@ def test_complete_deadline_answer_does_not_claim_resume_failure() -> None:
 def test_incomplete_deadline_answer_names_missing_resume_cache() -> None:
     assert (
         _continuation_resume_unavailable_reason(
-            semantic_completion_incomplete=True,
+            resume_required=True,
             cache_lru_available=False,
             cache_disabled=False,
             final_cache_available=False,
@@ -72,6 +73,34 @@ def test_incomplete_deadline_answer_names_missing_resume_cache() -> None:
             response_present=True,
         )
         == "cache_lru_unavailable"
+    )
+
+
+@pytest.mark.parametrize(
+    ("stop_reason", "semantic_incomplete", "expected"),
+    [
+        ("semantic_contract_satisfied", False, True),
+        ("semantic_contract_satisfied", True, True),
+        ("deadline_exceeded", True, True),
+        ("max_tokens", True, True),
+        ("soft_cancelled", True, True),
+        ("deadline_exceeded", False, False),
+        ("eos", True, False),
+        ("configured_stop", True, False),
+        ("sentinel_abort", True, False),
+    ],
+)
+def test_worker_retains_exact_state_at_only_resumable_boundaries(
+    stop_reason: str,
+    semantic_incomplete: bool,
+    expected: bool,
+) -> None:
+    assert (
+        _continuation_resume_should_bind(
+            generation_stop_reason=stop_reason,
+            semantic_completion_incomplete=semantic_incomplete,
+        )
+        is expected
     )
 
 
