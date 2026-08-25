@@ -228,3 +228,58 @@ def test_a_routine_move_is_treated_as_routine():
     assert "stuck(history)" in source[max(0, where - 300) : where], (
         "being stuck has to still be worth more than one pass"
     )
+
+
+def _bare_presence():
+    import threading
+    from collections import deque
+
+    import core.perception.ambient_presence as ap
+
+    presence = ap.AmbientPresence.__new__(ap.AmbientPresence)
+    presence._lock = threading.Lock()
+    presence._pending_utterance = ""
+    presence._utterance_at = 0.0
+    presence._narration = deque(maxlen=12)
+    presence._mode = ap.PresenceMode.BUBBLE
+    return presence
+
+
+def test_a_narrated_line_moves_on_by_itself(monkeypatch):
+    """LIVE: she played for a minute and the bubble showed one move the whole
+    time.
+
+    An unprompted thought waits to be dismissed, because it is an offer
+    nobody asked for. A commentary is a stream, and waiting for a dismissal
+    that is never coming leaves the first line on screen while everything
+    after it queues up behind.
+    """
+    import time
+
+    import core.perception.ambient_presence as ap
+
+    monkeypatch.setattr(ap, "_proactivity_suppressed", lambda: False)
+    presence = _bare_presence()
+    for line in ("Board: Up", "Board: Left", "Board: Right"):
+        presence.offer_utterance(line, requested=True)
+
+    assert presence._pending_utterance == "Board: Up"
+    presence._promote_next_narration()
+    assert presence._pending_utterance == "Board: Up", "it moved on before it could be read"
+
+    presence._utterance_at = time.time() - (ap._NARRATION_DWELL_S + 1.0)
+    presence._promote_next_narration()
+    assert presence._pending_utterance == "Board: Left"
+
+
+def test_an_unprompted_thought_still_waits_to_be_dismissed(monkeypatch):
+    import time
+
+    import core.perception.ambient_presence as ap
+
+    monkeypatch.setattr(ap, "_proactivity_suppressed", lambda: False)
+    presence = _bare_presence()
+    presence.offer_utterance("I noticed something about your screen")
+    presence._utterance_at = time.time() - 60.0
+    presence._promote_next_narration()
+    assert presence._pending_utterance == "I noticed something about your screen"

@@ -63,6 +63,13 @@ from core.security.screen_capture_policy import is_private_screen_context
 #: narrating steadily is never truncated mid-thought, shallow enough
 #: that nobody is read a backlog from several minutes ago.
 _NARRATION_DEPTH = 12
+#: How long one asked-for line stays up before the next takes its place.
+#:
+#: Long enough to read a short sentence, short enough that a run acting
+#: several times a second is not describing something from a minute ago. It
+#: only applies to lines somebody asked for; an offer she volunteered still
+#: waits to be dismissed.
+_NARRATION_DWELL_S = 2.0
 AMBIENT_SCHEMA = "aura.perception.ambient_presence.v1"
 
 #: How long a context stays "the same thing" before a re-read is worth paying
@@ -335,14 +342,25 @@ class AmbientPresence:
         return True
 
     def _promote_next_narration(self) -> None:
-        """Bring the next asked-for line forward once the last one is read.
+        """Bring the next asked-for line forward when the last has had its turn.
 
         Called while rendering state, which is the moment the surface is
         actually looking. Nothing is dropped silently: the queue is bounded,
         and what falls off the end is old rather than new.
+
+        A line moves on by itself once it has been up long enough to read.
+        An unprompted thought waits to be dismissed, because it is an offer
+        and nobody asked for it; a commentary is a stream, and waiting for a
+        dismissal that is never coming leaves the first line of it on screen
+        while everything after it queues up behind. Measured live: she played
+        for a minute and the bubble showed one move the whole time.
         """
-        if self._pending_utterance or not self._narration:
+        if not self._narration:
             return
+        if self._pending_utterance:
+            showing_for = time.time() - self._utterance_at
+            if showing_for < _NARRATION_DWELL_S:
+                return
         self._pending_utterance = self._narration.popleft()
         self._utterance_at = time.time()
 
