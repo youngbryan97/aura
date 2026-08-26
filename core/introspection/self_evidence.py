@@ -44,6 +44,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
+from collections.abc import Mapping
 from typing import Any
 
 __all__ = [
@@ -1015,7 +1016,15 @@ def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
             "action": str(evidence.get("action") or ""),
             "evidence": detail,
             "cause": str(getattr(row, "cause", "") or "")[:160],
-            "at": getattr(row, "timestamp", None),
+            # The field the receipt actually has.
+            #
+            # `timestamp` is not one of them, so every entry sorted as zero
+            # and "newest first" ordered nothing at all — the sort below was
+            # already written to fix exactly this and was reading a field
+            # that does not exist. LIVE 2026-08-26: asked "what did you just
+            # do?" minutes after playing a game, she answered with a wallpaper
+            # she had set in an earlier session.
+            "at": getattr(row, "created_at", None) or getattr(row, "timestamp", None),
         })
     # Newest first. query_by_kind returns the store's own order, which put a
     # task from days earlier at the front — recall that answers with the oldest
@@ -1082,6 +1091,61 @@ def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
     )
 
 
+#: Machine spellings for the same thing, and the words a person uses for it.
+_PLAIN_OUTCOME = (
+    ("goal_reached", "got there"),
+    ("pursuit_reached_goal", "kept at it until it worked"),
+    ("out_of_time", "ran out of time"),
+    ("out_of_cycles", "ran out of tries"),
+    ("blocked_by_overlay", "was blocked by something on screen"),
+    ("needs_person", "stopped and left it to you"),
+    ("already_true", "found it was already done"),
+    ("cannot_decide", "could not decide what to do"),
+)
+
+
+def _said_plainly(entry: Mapping[str, Any]) -> str:
+    """One recorded action, in the words a person would use for it.
+
+    Nothing is added and nothing is softened — the numbers and the outcome
+    come from the receipt. Only the spelling changes.
+    """
+    evidence = str(entry.get("evidence") or "").strip()
+    cause = " ".join(str(entry.get("cause") or "").split())
+    parts = [piece for piece in re.split(r"[;,]\s*", evidence) if piece]
+    said = ""
+    detail: list[str] = []
+    for piece in parts:
+        name, _, value = piece.partition("=")
+        key = name.strip().lower()
+        if not value:
+            for token, plain in _PLAIN_OUTCOME:
+                if token in key:
+                    said = plain
+                    break
+            else:
+                detail.append(piece.strip())
+            continue
+        if key in {"outcome", "status"}:
+            for token, plain in _PLAIN_OUTCOME:
+                if token == value.strip().lower():
+                    said = plain
+                    break
+            else:
+                said = said or value.strip()
+        elif key in {"moves", "steps", "count"}:
+            number = value.strip()
+            detail.append(f"{number} {key[:-1] if number == '1' else key}")
+        elif value.strip():
+            detail.append(f"{key.replace('_', ' ')} {value.strip()}")
+    if not said:
+        said = str(entry.get("action") or "did something").replace("_", " ")
+    line = said if not detail else f"{said} — {', '.join(detail)}"
+    if cause:
+        line = f"{line}. You had asked: {cause[:120]}"
+    return line
+
+
 def render_past_actions(bundle: EvidenceBundle) -> str:
     """Her own verified effects, as a record rather than a recollection."""
 
@@ -1093,11 +1157,16 @@ def render_past_actions(bundle: EvidenceBundle) -> str:
                 "I have no verified record of my own actions to read right now "
                 f"({reading.detail or reading.state})."
             )
-        lines = ["What my receipts actually record:"]
+        # Read out the way a person answers, not the way it is filed.
+        #
+        # Every word of it is still from the receipts and nothing is added.
+        # What changes is that "pursue_on_screen:
+        # pursuit_reached_goal;moves=25;outcome=goal_reached — for: Find 2048
+        # online, play it, and get to a 256 tile…" is a log line, and the
+        # person asked what she did.
+        lines = ["Here is what I actually did, most recent first:"]
         for entry in reading.value or ():
-            cause = str(entry.get("cause") or "").strip()
-            suffix = f" — for: {cause}" if cause else ""
-            lines.append(f"  • {entry.get('action')}: {entry.get('evidence')}{suffix}")
+            lines.append(f"  • {_said_plainly(entry)}")
         return "\n".join(lines)
     return ""
 
