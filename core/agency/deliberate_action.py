@@ -634,6 +634,7 @@ async def deliberate(
     spine: Any = None,
     lived: bool = True,
     announce: bool = True,
+    approach: str = "",
 ) -> Deliberation:
     """Pick the next move toward ``goal`` from what is available right now.
 
@@ -697,8 +698,18 @@ async def deliberate(
         )
     ranking: list[ActionOption] = []
     if chosen is None:
+        # The line she is taking counts here too.
+        #
+        # A standing approach that only reaches the decisions she puts into
+        # words is not an approach, it is a remark. Most moves in a fast loop
+        # are decided from evidence, and if her plan cannot reach those, her
+        # plan cannot reach most of what she does.
         structural, why = choose_without_language(
-            options, history, recalled, wanted=goal, ranked=ranking
+            options,
+            history,
+            recalled,
+            wanted=f"{goal}. {approach}".strip(". "),
+            ranked=ranking,
         )
         if structural is None:
             return Deliberation(

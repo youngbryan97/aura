@@ -288,3 +288,47 @@ def test_recall_without_a_situation_behaves_as_it_always_did():
         {"action": "up", "context": "two", "outcome": "second", "success": True},
     ])
     assert recall_consequences("up", graph=graph, depth=1) == ["up worked before: first"]
+
+
+class _Blank:
+    def query_consequences(self, action, params=None):
+        return []
+
+    def record_outcome(self, *args, **kwargs):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_the_line_she_is_taking_reaches_the_moves_she_does_not_say():
+    """An approach that only reaches the decisions she puts into words is not
+    an approach, it is a remark. Most moves in a fast loop are decided from
+    evidence, and a plan that cannot reach those cannot reach most of what
+    she does.
+    """
+    from core.agency.deliberate_action import deliberate
+
+    options = [ActionOption(name=name, detail=f"press {name}") for name in ("up", "down", "left", "right")]
+    without = await deliberate(
+        "reach 4096", "a board", options, think=None, lived=False, graph=_Blank()
+    )
+    with_plan = await deliberate(
+        "reach 4096",
+        "a board",
+        options,
+        think=None,
+        lived=False,
+        graph=_Blank(),
+        approach="keep the largest tile in the bottom-left corner, pressing left and down",
+    )
+    assert with_plan.chosen.name in {"left", "down"}
+    assert with_plan.chosen.name != without.chosen.name
+    assert "describes what I am trying to do" in with_plan.rationale
+
+
+def test_the_loop_hands_her_approach_to_every_decision():
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    assert 'approach=plan["held"].approach if plan["held"] is not None else ""' in source

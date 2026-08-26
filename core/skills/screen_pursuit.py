@@ -1272,6 +1272,9 @@ async def pursue_on_screen(
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,
                 control_point="screen_pursuit.next_move",
+                # Her plan reaches the moves she does not put into words,
+                # which is most of them.
+                approach=plan["held"].approach if plan["held"] is not None else "",
                 lived=lived,
                 spine=spine,
                 graph=graph,
