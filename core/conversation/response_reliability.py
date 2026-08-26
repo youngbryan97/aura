@@ -7302,7 +7302,7 @@ def _has_function_word_starvation(reply_text: Any) -> bool:
 # around a truncated reply. Both arrive through the autonomous channel, which
 # has no question to be judged against — so the check has to be on the text.
 _INTERNAL_TASK_PROMPT_RE = re.compile(
-    r"</?(?:answer|thinking|reasoning|scratchpad|thought)>"
+    r"</?(?:answer|think|thinking|reasoning|scratchpad|thought)>"
     r"|\[SWARM PROTOCOL"
     r"|\[SILENT AUTO-FIX\]"
     r"|\bGodMode/TASK\b"

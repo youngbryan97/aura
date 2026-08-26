@@ -293,6 +293,22 @@ def test_template_opened_reasoning_is_not_surface_before_typed_boundary():
     assert direct.boundary_closed is True
 
 
+def test_template_closing_marker_owns_the_channel_even_when_suppression_was_requested():
+    """A tokenizer that ignores suppression cannot publish private bytes."""
+
+    leaked = split_native_thinking_generation(
+        "The user is asking for provenance.\n\n"
+        "I should answer directly.\n</think>\n\n"
+        "I used an earlier search receipt.",
+        native_thinking=False,
+    )
+
+    assert leaked.reasoning.startswith("The user is asking")
+    assert "I should answer directly" in leaked.reasoning
+    assert leaked.surface == "I used an earlier search receipt."
+    assert leaked.boundary_closed is True
+
+
 def test_request_cognitive_mode_does_not_turn_a_fast_role_into_a_slow_lane():
     assert (
         thinking_enabled_for_request(

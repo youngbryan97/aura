@@ -38,6 +38,18 @@ def test_private_plan_is_an_internal_surface_leak_before_separation() -> None:
     assert "internal_task_prompt_leak" in assessment.reasons
 
 
+def test_orphan_native_thinking_close_is_never_public_speech() -> None:
+    generated = (
+        "The user is asking how I knew.\n\n"
+        "I should answer from the available evidence.\n</think>\n\n"
+        "I used an earlier search receipt."
+    )
+
+    assessment = assess_user_facing_reply("How did you know?", generated)
+
+    assert "internal_task_prompt_leak" in assessment.reasons
+
+
 def test_one_public_metalinguistic_statement_is_not_cut() -> None:
     public = (
         "We need to answer that question carefully because the available "
