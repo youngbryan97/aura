@@ -371,3 +371,35 @@ def test_the_ways_out_of_a_stuck_run_are_the_ones_held_behind_words():
     offered = ways_out(seen)
     assert offered, "a stuck run was offered no way out at all"
     assert all(option.needs_words for option in offered)
+
+
+@pytest.mark.parametrize(
+    ("said", "holds_to"),
+    [
+        ("I'll keep the 32 in the bottom-left and merge downward.", "32"),
+        ("I'm going to stack toward the left edge and keep the 64 anchored there.", "64"),
+        ("Keeping everything anchored on the 128 in the corner, merging down then left.", "128"),
+        ("Plan: build around the 512, because that is where the room is.", "512"),
+    ],
+)
+def test_an_approach_counts_however_she_words_it(said, holds_to):
+    """Requiring both the plan and its ending in one templated sentence made
+    having an approach depend on phrasing one. Measured live: she played a
+    whole game and never once held an approach.
+
+    She was asked how she is going about this, so the answer is the approach.
+    What makes it one is that it names something to hold to.
+    """
+    held = read_strategy(said)
+    assert held is not None, "she stated an approach and it was not counted"
+    assert holds_to in held.holds_while.contains
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["Plan: play well and keep the score going up.", "left", "", "I'll do my best."],
+)
+def test_naming_nothing_to_hold_to_is_still_not_an_approach(said):
+    """A plan with nothing that could end it is a preference, and knowing in
+    advance what would change her mind is the whole value."""
+    assert read_strategy(said) is None

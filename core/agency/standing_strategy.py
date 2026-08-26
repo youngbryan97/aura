@@ -138,6 +138,16 @@ def read_strategy(reply: str, options: Sequence[ActionOption] = ()) -> Strategy 
             approach = found.group("said").strip(" ,;")
             break
     if not approach:
+        # No lead-in, so the answer itself is the approach.
+        #
+        # She was asked how she is going about this. Requiring her to open
+        # with "Plan:" or "I will" before it counts made an approach depend
+        # on a turn of phrase, and the phrasings people use do not end:
+        # "I'm going to stack toward the left edge" says exactly what "I will
+        # stack toward the left edge" says. What makes it an approach is that
+        # it names something to hold to, which is checked below either way.
+        approach = text[:200].strip(" ,;")
+    if not approach:
         return None
 
     condition = ""
@@ -151,9 +161,24 @@ def read_strategy(reply: str, options: Sequence[ActionOption] = ()) -> Strategy 
             condition = found.group("said").strip(" ,;")
             break
     if not condition:
-        return None
+        # She said what she is doing without saying what would end it.
+        #
+        # Requiring both in one sentence made having an approach depend on
+        # phrasing one — and a plan that only exists when the words come out
+        # in a particular shape is a plan she mostly does not have. Measured
+        # live: playing a whole game, she never once held an approach.
+        #
+        # What she named is what the approach depends on. An approach built
+        # around a 64 in the corner stops being the right approach when the
+        # 64 is gone, and that is checkable without her having said the word
+        # "while". Only where she named something concrete — otherwise there
+        # is genuinely nothing to watch, and a plan with nothing that could
+        # end it is a preference.
+        condition = approach
 
     keep, avoid = _watchable(condition)
+    if not keep and not avoid:
+        return None
     because = ""
     reason = re.search(r"\bbecause\s+(?P<said>[^.]{4,140})", text, re.IGNORECASE)
     if reason:
