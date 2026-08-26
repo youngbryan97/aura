@@ -1829,7 +1829,17 @@ class DesktopTaskSkill(BaseSkill):
                     temperature=0.65,
                     max_tokens=700,
                     prefer_tier="local",
-                    origin="desktop_task",
+                    # Her own authoring, not the surface the person typed at.
+                    #
+                    # "desktop_task" begins with an allowlisted user-facing
+                    # label, so anything starting "desktop_" inherits the
+                    # protected reply lane — and with it the apology written
+                    # for a person: "I can't work through that technical
+                    # request right now, my language backend is temporarily
+                    # unavailable", handed back as the body of a document.
+                    # The tool dispatch IS user-facing and keeps that origin;
+                    # this sub-call never was.
+                    origin="internal_desktop_authoring",
                     purpose="authored_artifact_body",
                     # Foreground work, and not the reply lane.
                     #
@@ -1968,7 +1978,17 @@ class DesktopTaskSkill(BaseSkill):
                         temperature=0.65 if attempt == 0 else 0.45,
                         max_tokens=max_tokens,
                         prefer_tier="local",
-                        origin="desktop_task",
+                        # Her own authoring, not the surface the person typed at.
+                    #
+                    # "desktop_task" begins with an allowlisted user-facing
+                    # label, so anything starting "desktop_" inherits the
+                    # protected reply lane — and with it the apology written
+                    # for a person: "I can't work through that technical
+                    # request right now, my language backend is temporarily
+                    # unavailable", handed back as the body of a document.
+                    # The tool dispatch IS user-facing and keeps that origin;
+                    # this sub-call never was.
+                    origin="internal_desktop_authoring",
                         purpose="authored_self_document",
                         # Foreground work, and not the reply lane. Same seam and
                         # same reason as the artifact writer above.
@@ -3525,7 +3545,17 @@ class DesktopTaskSkill(BaseSkill):
                     # quota, so the document never degrades to a thin heuristic
                     # fallback because a cloud tier returned 429 RESOURCE_EXHAUSTED.
                     prefer_tier="local",
-                    origin="desktop_task",
+                    # Her own authoring, not the surface the person typed at.
+                    #
+                    # "desktop_task" begins with an allowlisted user-facing
+                    # label, so anything starting "desktop_" inherits the
+                    # protected reply lane — and with it the apology written
+                    # for a person: "I can't work through that technical
+                    # request right now, my language backend is temporarily
+                    # unavailable", handed back as the body of a document.
+                    # The tool dispatch IS user-facing and keeps that origin;
+                    # this sub-call never was.
+                    origin="internal_desktop_authoring",
                     purpose="research_document_synthesis",
                         # Foreground work, and not the reply lane. Same seam and
                         # same reason as the artifact writer above.

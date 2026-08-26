@@ -206,3 +206,30 @@ def test_every_authoring_call_is_internal_where_the_gate_reads_it_too():
         window = source[where : where + 1800]
         assert "_non_chat_inference=True" in window, purpose
         assert "internal_inference=True" in window, purpose
+
+
+def test_her_authoring_origin_is_not_the_surface_the_person_typed_at():
+    """"desktop_task" begins with an allowlisted user-facing label, so
+    anything starting "desktop_" inherits the protected reply lane — and with
+    it the apology written for a person.
+
+    LIVE 2026-08-26: "I can't work through that technical request right now,
+    my language backend is temporarily unavailable" came back as the body of
+    a document, because the gate that refuses to hand that text to an
+    internal caller could not see that this was one.
+
+    The tool dispatch IS user-facing and keeps its origin. The sub-call that
+    writes the words never was.
+    """
+    from pathlib import Path
+
+    from core.brain.inference_gate import InferenceGate
+
+    assert not InferenceGate._origin_is_user_facing("internal_desktop_authoring")
+    assert InferenceGate._origin_is_user_facing("desktop_task"), "the dispatch is unchanged"
+    assert InferenceGate._origin_is_user_facing("desktop_ui")
+
+    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
+    for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
+        where = source.index(f'purpose="{purpose}"')
+        assert 'origin="internal_desktop_authoring"' in source[max(0, where - 1400) : where], purpose
