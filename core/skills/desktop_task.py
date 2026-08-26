@@ -227,6 +227,24 @@ def _without_filenames(text: str) -> str:
     return re.sub(r"\b[\w-]+\.[A-Za-z0-9]{1,6}\b", " ", str(text or ""))
 
 
+def _note_unauthored(objective: str, why: str) -> None:
+    """Record that she could not author what she was asked to write.
+
+    Three separate returns of "" and only the exception among them left a
+    trace, so a task that produced a template instead of a document reported
+    success and nobody could tell which guard had fired. LIVE 2026-08-26: a
+    note asked for one sentence about the evening held "Notes on the
+    requested subject: The requested subject is the focus of this note."
+    """
+    record_degradation(
+        "desktop_task",
+        RuntimeError(f"could not author the requested writing: {why}"),
+        action="left the document body to the caller rather than inventing one",
+        severity="warning",
+    )
+    logger.warning("desktop_task could not author %r: %s", str(objective or "")[:80], why)
+
+
 class DesktopTaskSkill(BaseSkill):
     name = "desktop_task"
     description = (
@@ -1664,8 +1682,11 @@ class DesktopTaskSkill(BaseSkill):
             router = ServiceContainer.get("llm_router", default=None)
             generate = getattr(router, "generate", None) if router is not None else None
             if not callable(generate):
+                cls_name = type(router).__name__ if router is not None else "nothing"
+                _note_unauthored(objective, f"no way to generate text ({cls_name})")
                 return ""
-        except _DESKTOP_TASK_RECOVERABLE_ERRORS:
+        except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
+            _note_unauthored(objective, f"{type(exc).__name__} reaching the writer")
             return ""
 
         prompt = (
@@ -1704,12 +1725,14 @@ class DesktopTaskSkill(BaseSkill):
 
         body = self._strip_authored_label_prefix(str(text or "").strip())
         if not body:
+            _note_unauthored(objective, "the writer returned nothing")
             return ""
         # The same guards the freeform path already applies: never let the
         # conversation, dispatch narration, or a truncated clause become the
         # artifact.
         usable = self._usable_freeform_document_body(objective, body)
         if not usable:
+            _note_unauthored(objective, f"what came back was not usable as a document: {body[:120]!r}")
             return ""
         try:
             from core.conversation.response_reliability import complete_truncated_tail
