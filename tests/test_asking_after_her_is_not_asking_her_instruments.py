@@ -71,3 +71,30 @@ def test_asking_what_she_reads_still_reaches_the_instruments(asked):
 def test_a_question_about_something_else_is_neither(asked):
     assert not _asks_after_her_rather_than_her_instruments(asked)
     assert not asks_about_own_operational_state(asked)
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "what are you doing right now, and how are you going about it?",
+        "what are you working on?",
+        "what are you up to?",
+        "what are you busy with?",
+        "how are you going about that?",
+    ],
+)
+def test_what_she_is_doing_is_about_her_activity_not_her_machine(asked):
+    """She holds what she is working on and how she is going about it, and
+    that is the answer to this.
+
+    LIVE 2026-08-26, mid-task: "what are you doing right now, and how are you
+    going about it?" was answered "The machine is at 0.0% processor and 69.3%
+    memory right now."
+    """
+    assert _asks_after_her_rather_than_her_instruments(asked)
+    assert not asks_about_own_operational_state(asked)
+
+
+def test_naming_an_instrument_still_reaches_the_instruments():
+    """"What are you doing with all that memory" is a question about memory."""
+    assert asks_about_own_operational_state("what are you doing with all that memory?")

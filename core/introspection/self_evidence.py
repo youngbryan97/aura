@@ -163,6 +163,20 @@ _AN_INSTRUMENT = re.compile(
     re.IGNORECASE,
 )
 
+#: Asking what she is doing, which is about her activity and not her machine.
+#:
+#: She holds what she is working on and how she is going about it, and that
+#: is the answer to this. LIVE 2026-08-26, mid-task: "what are you doing right
+#: now, and how are you going about it?" was answered "The machine is at 0.0%
+#: processor and 69.3% memory right now."
+_ASKING_WHAT_SHE_IS_DOING = re.compile(
+    r"\b(?:what\s+are\s+you\s+(?:doing|working\s+on|up\s+to)|"
+    r"what\s+(?:are\s+you|is\s+it)\s+you(?:'|’)?re\s+(?:doing|working\s+on)|"
+    r"how(?:'|’)?s?\s+it\s+going\s+with|"
+    r"what\s+are\s+you\s+busy\s+with|how\s+are\s+you\s+going\s+about)\b",
+    re.IGNORECASE,
+)
+
 #: The shape of asking after somebody. Phatic inquiry: short, about them, and
 #: naming nothing in particular.
 _ASKING_AFTER_SOMEBODY = re.compile(
@@ -179,6 +193,10 @@ def _asks_after_her_rather_than_her_instruments(text: str) -> bool:
     said = " ".join(str(text or "").split())
     if not said or _AN_INSTRUMENT.search(said):
         return False
+    if _ASKING_WHAT_SHE_IS_DOING.search(said):
+        # What she is doing is a fact about her activity, which she holds,
+        # and telemetry is not an answer to it.
+        return True
     return bool(_ASKING_AFTER_SOMEBODY.match(said))
 
 
