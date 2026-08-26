@@ -285,6 +285,48 @@ def _says_she_could_not(body: str) -> bool:
     return bool(_EXPLAINING_A_REFUSAL.search(said[:400]))
 
 
+def _what_she_actually_did(objective: str) -> str:
+    """Her own record, when the thing she is writing about is her own doing.
+
+    A document about her evening has a source, and it is not her self-model.
+    Empty for every other subject, so a note about whales is unaffected.
+    """
+    try:
+        from core.introspection.self_evidence import (  # noqa: PLC0415
+            asks_about_past_actions,
+            render_past_actions,
+            resolve_past_actions,
+        )
+
+        asked = str(objective or "")
+        if not asks_about_past_actions(asked) and not _ABOUT_HER_DOING.search(asked):
+            return ""
+        # Read straight from the record rather than through the question-shape
+        # gate. That gate answers "what did you just do?"; this is a request to
+        # WRITE about it, which is not that shape and never will be.
+        bundle = resolve_past_actions(limit=8, query=asked)
+        if not bundle.grounded:
+            return ""
+        return str(render_past_actions(bundle) or "").strip()[:1200]
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "desktop_task",
+            exc,
+            severity="info",
+            action="wrote about her own doing without consulting her record",
+        )
+        return ""
+
+
+#: A subject that is her own recent activity, however the request phrases it.
+_ABOUT_HER_DOING = re.compile(
+    r"\b(?:what\s+you\s+(?:did|have\s+done|worked\s+on|got\s+up\s+to)|"
+    r"your\s+(?:evening|night|day|work|session)|"
+    r"(?:tonight|today|this\s+evening|this\s+morning|so\s+far|just\s+now|earlier))\b",
+    re.IGNORECASE,
+)
+
+
 def _note_unauthored(objective: str, why: str) -> None:
     """Record that she could not author what she was asked to write.
 
@@ -1758,10 +1800,19 @@ class DesktopTaskSkill(BaseSkill):
             _note_unauthored(objective, f"{type(exc).__name__} reaching the writer")
             return ""
 
+        # When the subject is her own recent doing, her record is the subject.
+        #
+        # Asked for "one sentence about what you did tonight" she wrote "I
+        # spent tonight thinking through the architecture of my own
+        # continuity" — authored, in her voice, and not what she had done.
+        # She had receipts for the evening and the prompt never showed them
+        # to her, so the only source left was her self-model.
+        recalled = _what_she_actually_did(objective)
         prompt = (
             f"Write the CONTENT of a document about: {topic}\n\n"
             f"The full request was: {str(objective or '').strip()[:400]}\n\n"
-            "Write the finished text itself — the words that belong inside the "
+            + (f"What you actually did, from your own records:\n{recalled}\n\n" if recalled else "")
+            + "Write the finished text itself — the words that belong inside the "
             "document. Honour any length or shape the request asked for (a "
             "number of sentences, a paragraph, a summary). Be concrete and "
             "specific: real facts, names, numbers where they matter. Write in "
