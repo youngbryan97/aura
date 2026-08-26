@@ -630,6 +630,53 @@ def how_far_to_commit(history: Sequence[Attempt], ceiling: int = PLAN_AHEAD) -> 
     return 1
 
 
+def _mentions(
+    text: str, by_name: dict, *, nominated: bool = False
+) -> list[tuple[int, ActionOption]]:
+    """Where each option is named, either anywhere or only where it is chosen."""
+    found: list[tuple[int, ActionOption]] = []
+    for name, option in by_name.items():
+        escaped = re.escape(name)
+        pattern = (
+            rf"(?:(?:{_DECIDING_VERB})\s+(?:the\s+)?|\bthen\s+|(?:^|[.;:\n]|\d\s*[.)])\s*"
+            rf"(?:\*\*)?)({escaped})\b"
+            if nominated
+            else rf"\b({escaped})\b"
+        )
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            found.append((match.start(1), option))
+    return found
+
+
+#: What may sit between two moves and leave them one list.
+_STILL_THE_LIST = re.compile(r"^[\s,;]*(?:then|and|,)?[\s,;]*$", re.IGNORECASE)
+
+
+def _a_list_continues(
+    text: str, nominated: list[tuple[int, ActionOption]], by_name: dict
+) -> list[tuple[int, ActionOption]]:
+    """A move that simply follows a nominated one is part of the same list.
+
+    "up left up" nominates its first move by opening the sentence and its
+    other two by following it. Without this the list is read as a plan of
+    one, which is not what she said.
+    """
+    if not nominated:
+        return nominated
+    every = sorted(_mentions(text, by_name), key=lambda row: row[0])
+    kept = {where for where, _ in nominated}
+    for index, (where, _option) in enumerate(every):
+        if where in kept or index == 0:
+            continue
+        before_where, before_option = every[index - 1]
+        if before_where not in kept:
+            continue
+        gap = text[before_where + len(before_option.name) : where]
+        if _STILL_THE_LIST.match(gap):
+            kept.add(where)
+    return [row for row in every if row[0] in kept]
+
+
 def choose_sequence(
     reply: str, options: Sequence[ActionOption], limit: int = PLAN_AHEAD
 ) -> tuple[ActionOption, ...]:
@@ -647,10 +694,19 @@ def choose_sequence(
     if not text.strip() or not options:
         return ()
     by_name = {option.name.lower(): option for option in options}
-    found: list[tuple[int, ActionOption]] = []
-    for name, option in by_name.items():
-        for match in re.finditer(rf"\b{re.escape(name)}\b", text, re.IGNORECASE):
-            found.append((match.start(), option))
+    # A move she named as a move, not a direction word in prose.
+    #
+    # Every mention used to count, so a plan read out of "1. down (merge
+    # 4+4=8) 2. right (shift tiles to the right edge to keep the left open)"
+    # came out as down, right, LEFT, down — and she pressed a key her plan
+    # never called for. LIVE 2026-08-26.
+    #
+    # Nominated means what it means anywhere else here: after a deciding
+    # verb, after "then", or heading an item in a list. When she nominates
+    # nothing — "up left up" — every mention counts, which is what a terse
+    # answer means.
+    found = _a_list_continues(text, _mentions(text, by_name, nominated=True), by_name)
+    found = found or _mentions(text, by_name)
     if not found:
         return ()
     found.sort(key=lambda row: row[0])
