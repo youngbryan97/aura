@@ -13,6 +13,13 @@ destructive merge would impoverish:
                             outcome prediction (reward/harm/surprise) from past episodes.
     LearnedMCTSPlanner      (core/cognition/mcts_world_model)        multi-step lookahead that
                             plans *over* the learned dynamics model.
+    HowItMoves              (core/perception/how_it_moves)           rules worked out by
+                            WATCHING HERSELF ACT: hypotheses about how a laid-out thing answers
+                            to being pushed, scored against her own (before, action, after)
+                            triples. Where the learned facet works on observation vectors and
+                            answers "how surprised am I", this works on typed states and answers
+                            "what would this look like if I did that" — the question a loop
+                            acting on a screen actually has.
 
 So the honest consolidation is a single coherent entry point that *routes each kind of question
 to the facet that answers it best* — "what happens next / how surprised am I" → dynamics, "if I
@@ -37,11 +44,14 @@ logger = logging.getLogger("WorldModel.Unified")
 class UnifiedWorldModel:
     """A composite facade: one interface, four specialist world-model facets behind it."""
 
-    def __init__(self, *, learned: Any = None, causal: Any = None, outcome: Any = None) -> None:
+    def __init__(
+        self, *, learned: Any = None, causal: Any = None, outcome: Any = None, rules: Any = None
+    ) -> None:
         # Pre-injected facets (used by tests) are treated as already-resolved.
         self._learned = learned
         self._causal = causal
         self._outcome = outcome
+        self._rules = rules
         self._failed: Dict[str, bool] = {}
 
     # ── lazy, fault-isolated facet resolution ─────────────────────────────
@@ -58,6 +68,23 @@ class UnifiedWorldModel:
                                    action="learned (forward-dynamics) facet unavailable")
                 self._failed["learned"] = True
         return self._learned
+
+    @property
+    def rules(self) -> Any:
+        """Rules worked out by watching herself act: typed state in, typed state out.
+
+        Kept here rather than beside the loop that uses it because a question
+        about what a world would do is a world-model question, and there is
+        one surface for those. A caller that watches its own acts feeds this;
+        a caller that does not gets nothing from it, honestly.
+
+        Handed in rather than reached for. The rules are worked out from a
+        typed reading of a screen, which lives above this layer, and a world
+        model that imported one would be a world model that knew what kind of
+        world it was in. It also has to be per-run: a rule that held on one
+        thing is a guess about the next one.
+        """
+        return self._rules
 
     @property
     def causal(self) -> Any:
@@ -110,8 +137,30 @@ class UnifiedWorldModel:
             record_degradation("unified_world_model", exc, severity="debug")
             return None
 
+    def watched(self, before: Any, action: Any, after: Any) -> bool:
+        """One of her own acts, and what it did — the only thing that teaches a rule."""
+        m = self.rules
+        if m is None:
+            return False
+        try:
+            m.watched(before, str(action), after)
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("unified_world_model", exc, severity="debug",
+                               action="watched an act without learning from it")
+            return False
+
     def imagine(self, observation: Any, action_sequence: Sequence[Any]) -> Optional[List[Dict[str, Any]]]:
-        """Roll a sequence of actions forward through the dynamics model (no real observations)."""
+        """Roll a sequence of actions forward, through whichever facet can answer.
+
+        A typed state — something laid out in rows and columns, that can be
+        asked where things are — goes to the rules she worked out by watching.
+        An observation vector goes to the learned dynamics. Neither is a
+        fallback for the other: they answer different questions about
+        different kinds of observation, and asking the wrong one gets nothing.
+        """
+        if hasattr(observation, "cells") and hasattr(observation, "as_text"):
+            return self._imagine_typed(observation, action_sequence)
         m = self.learned
         if m is None:
             return None
@@ -121,6 +170,22 @@ class UnifiedWorldModel:
         except (AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
             record_degradation("unified_world_model", exc, severity="debug", action="imagine failed")
             return None
+
+    def _imagine_typed(
+        self, state: Any, action_sequence: Sequence[Any]
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Roll a sequence forward over a typed state, one act at a time."""
+        m = self.rules
+        if m is None:
+            return None
+        trajectory: List[Dict[str, Any]] = []
+        here = state
+        for action in action_sequence:
+            here = m.expect(here, str(action))
+            if here is None:
+                break
+            trajectory.append({"action": str(action), "state": here, "prediction": here.as_text()})
+        return trajectory or None
 
     # ── outcome prediction (MultiDomainWorldModel) ────────────────────────
 
@@ -255,6 +320,7 @@ class UnifiedWorldModel:
             "observe": ("learned", self.observe),
             "surprise": ("learned", lambda **k: self.surprise()),
             "imagine": ("learned", self.imagine),
+            "watched": ("rules", self.watched),
             "predict_outcome": ("outcome", self.predict_outcome),
             "observe_episode": ("outcome", self.observe_episode),
             "observe_causal": ("causal", self.observe_causal),

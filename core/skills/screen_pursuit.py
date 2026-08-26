@@ -828,6 +828,18 @@ def _within_the_run(think: Any, ends_at: float) -> Any:
     return bounded
 
 
+def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
+    """Say it the once, when she first works out how a thing moves."""
+    rules = getattr(knows, "rules", None)
+    if rules is None or said_already.get("said"):
+        return
+    if getattr(rules, "rule", lambda: None)() is None:
+        return
+    said_already["said"] = True
+    logger.info("she can see ahead now: %s", rules.says())
+    _tell(f"I can see what my moves do here now — {rules.says()}.")
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -880,8 +892,8 @@ async def pursue_on_screen(
     """
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt, confirm, deliberate
-    from core.agency.how_good_is_this import how_good, worth_comparing
-    from core.agency.how_good_is_this import why as why_this
+    from core.agency.how_good_is_this import worth_comparing
+    from core.agency.looking_ahead import look_ahead
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.perception.how_it_moves import HowItMoves
@@ -893,6 +905,7 @@ async def pursue_on_screen(
         within,
     )
     from core.skills.fluid_executor import FluidExecutor, Step
+    from core.world_model.unified_world_model import UnifiedWorldModel
 
     # The clock starts when she takes this on, not when the first key lands.
     #
@@ -913,10 +926,10 @@ async def pursue_on_screen(
         "arranged": None,
         "watched": {},
     }
-    # What she works out about how this thing answers to her, from her own
-    # moves. Empty at the start of every run: a rule that held on one thing is
-    # a guess about the next one, and she should find out rather than assume.
-    knows = HowItMoves()
+    # One surface for questions about what a world would do. The rules facet
+    # is per-run on purpose: a rule that held on one thing is a guess about
+    # the next one, and she should find out rather than assume.
+    knows = UnifiedWorldModel(rules=HowItMoves())
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1245,6 +1258,7 @@ async def pursue_on_screen(
             # move without making it.
             if pending["arranged"] is not None and previous.chosen is not None:
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
+                _say_what_she_worked_out(knows, foreseen)
             # Learned from the same measurement. A move that changed nothing
             # is the control: whatever still changed across it was changing
             # on its own, and a page whose advertising animates as often as
@@ -1485,16 +1499,16 @@ async def pursue_on_screen(
             # moves and there is anything to prefer one future over another by.
             ahead: dict[str, tuple[float, str]] = {}
             if worth_comparing(success_when, held_line):
-                for name, future in knows.expect_all(
-                    laid_out, [option.name for option in available]
-                ).items():
-                    ahead[name] = (
-                        how_good(future, toward=success_when, approach=held_line),
-                        why_this(future, toward=success_when, approach=held_line),
-                    )
-            if ahead and not foreseen["said"]:
-                foreseen["said"] = True
-                logger.info("she can see ahead now: %s", knows.says())
+                # As far ahead as there is time to look, which is decided from
+                # what a level of looking has been measured costing.
+                ahead = look_ahead(
+                    knows.rules,
+                    laid_out,
+                    [option.name for option in available],
+                    toward=success_when,
+                    approach=held_line,
+                    budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
+                )
             chosen = await deliberate(
                 goal,
                 seen,
