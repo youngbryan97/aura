@@ -47,7 +47,16 @@ def _what_she_got_through(completed: int, requested: int) -> str:
     try:
         from core.agency.what_she_is_doing import just_finished, right_now  # noqa: PLC0415
 
-        held = right_now() or just_finished()
+        # Whichever record did the work, not whichever is newest.
+        #
+        # Something else takes on something of its own the moment a task
+        # ends, which pushes the record of the work aside. Live: forty-one
+        # narrated moves reported as none, from a record created after them.
+        held = max(
+            (record for record in (right_now(), just_finished()) if record is not None),
+            key=lambda record: record.steps,
+            default=None,
+        )
     except (ImportError, AttributeError, RuntimeError):
         held = None
     if held is None or not held.steps:

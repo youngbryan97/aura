@@ -2008,6 +2008,13 @@ end tell
             move_keys=tuple(str(key) for key in keys),
             max_cycles=int(payload.get("max_cycles") or 200),
             max_seconds=float(payload.get("max_seconds") or 600.0),
+            # The clock a caller started before this action was reached.
+            #
+            # Dropped here, the pursuit began counting when it began running,
+            # and the time spent getting to it belonged to nobody: live, a
+            # run that had built a 64 into the corner was cancelled from
+            # outside at exactly the outer budget, 660s to the millisecond.
+            deadline_at=float(payload.get("deadline_at") or 0.0),
             narrate=bool(payload.get("narrate", True)),
             region_top=float(payload.get("region_top") or 0.0),
             region_bottom=float(payload.get("region_bottom") or 1.0),
