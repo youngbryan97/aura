@@ -186,3 +186,23 @@ def test_a_document_that_says_something_is_kept(body):
     from core.skills.desktop_task import _says_she_could_not
 
     assert not _says_she_could_not(body)
+
+
+def test_every_authoring_call_is_internal_where_the_gate_reads_it_too():
+    """The router pops `_non_chat_inference` and re-adds it under another
+    name; the inference gate's own check looks at the context it was handed.
+
+    LIVE 2026-08-26: that gap is how an apology written for a person — "I
+    can't work through that technical request right now, my language backend
+    is temporarily unavailable" — arrived as the body of a document. The gate
+    already returns nothing to an internal caller for exactly this reason. It
+    could not tell this was one.
+    """
+    from pathlib import Path
+
+    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
+    for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
+        where = source.index(f'purpose="{purpose}"')
+        window = source[where : where + 1400]
+        assert "_non_chat_inference=True" in window, purpose
+        assert "internal_inference=True" in window, purpose

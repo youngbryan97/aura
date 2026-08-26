@@ -1843,6 +1843,15 @@ class DesktopTaskSkill(BaseSkill):
                     # contract_tool_handoff)". Nothing here needs a tool; the
                     # tool is the step that writes what this returns.
                     _non_chat_inference=True,
+                    # Said again where the gate reads it. The router pops
+                    # the flag above and re-adds it under another name, and
+                    # the gate's own check looks at the context it was
+                    # handed — which is how an apology written for a person
+                    # ("my language backend is temporarily unavailable")
+                    # arrived as the body of a document. The gate already
+                    # returns nothing to an internal caller for exactly
+                    # this reason; it could not tell this was one.
+                    internal_inference=True,
                 ),
                 timeout=50.0,
             )
@@ -1964,6 +1973,15 @@ class DesktopTaskSkill(BaseSkill):
                         # Foreground work, and not the reply lane. Same seam and
                         # same reason as the artifact writer above.
                         _non_chat_inference=True,
+                    # Said again where the gate reads it. The router pops
+                    # the flag above and re-adds it under another name, and
+                    # the gate's own check looks at the context it was
+                    # handed — which is how an apology written for a person
+                    # ("my language backend is temporarily unavailable")
+                    # arrived as the body of a document. The gate already
+                    # returns nothing to an internal caller for exactly
+                    # this reason; it could not tell this was one.
+                    internal_inference=True,
                     ),
                     timeout=timeout_s + 5.0,
                 )
@@ -3512,6 +3530,15 @@ class DesktopTaskSkill(BaseSkill):
                         # Foreground work, and not the reply lane. Same seam and
                         # same reason as the artifact writer above.
                         _non_chat_inference=True,
+                    # Said again where the gate reads it. The router pops
+                    # the flag above and re-adds it under another name, and
+                    # the gate's own check looks at the context it was
+                    # handed — which is how an apology written for a person
+                    # ("my language backend is temporarily unavailable")
+                    # arrived as the body of a document. The gate already
+                    # returns nothing to an internal caller for exactly
+                    # this reason; it could not tell this was one.
+                    internal_inference=True,
                 ),
                 timeout=120.0,
             )
