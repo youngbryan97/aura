@@ -1133,6 +1133,13 @@ def confirm(
         verdict=verdict,
         progressed=moved_on,
     )
+    logger.info(
+        "%s: predicted %r, held=%s, closer=%s",
+        attempt.option,
+        attempt.expected[:60],
+        verdict.held,
+        moved_on,
+    )
     _resolve_episode(deliberation, verdict, spine=spine)
     _record_consequence(deliberation, verdict, after, graph=graph, progressed=moved_on)
     _announce_outcome(deliberation, attempt, verdict)
