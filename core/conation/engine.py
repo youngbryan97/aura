@@ -57,7 +57,7 @@ from typing import Any, Iterator, Sequence
 
 from core.conation.access import AccessLedger, Blocker
 from core.conation.aesthetic import AestheticValuation
-from core.conation.calibration import CalibrationRegistry
+from core.conation.calibration import CalibrationRegistry, declared_salience
 from core.conation.dynamics import ConativeDynamics
 from core.conation.enactive import EnactiveValuation, PlayFrame, TargetForecast
 from core.conation.epistemic import EpistemicValuation
@@ -129,7 +129,7 @@ class ConationEngine:
     """Aura's motivational faculty: what is wanted, why, and what may be done."""
 
     def __init__(self, calibration: SalienceCalibration | None = None) -> None:
-        self.salience = IncentiveSalience(calibration)
+        self.salience = IncentiveSalience(calibration or declared_salience())
         self.homeostatic = HomeostaticValuation()
         self.epistemic = EpistemicValuation()
         self.aesthetic = AestheticValuation()
@@ -203,6 +203,8 @@ class ConationEngine:
         competence_goal: str | None = None,
         prior_variance: Sequence[float] | None = None,
         posterior_variance: Sequence[float] | None = None,
+        prior_belief: Sequence[float] | None = None,
+        posterior_belief: Sequence[float] | None = None,
         controllability: float | None = None,
         instrumental: bool = False,
         aesthetic_payload: str | bytes | None = None,
@@ -261,6 +263,8 @@ class ConationEngine:
                 competence_goal=competence_goal,
                 prior_variance=prior_variance,
                 posterior_variance=posterior_variance,
+                prior_belief=prior_belief,
+                posterior_belief=posterior_belief,
                 controllability=controllability,
                 arousal_potential=potential,
                 instrumental=instrumental,

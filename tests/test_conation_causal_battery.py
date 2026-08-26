@@ -938,3 +938,48 @@ def test_erosion_needs_a_first_payoff_to_compare_against(engine):
 
     record = ContaminationRecord(key="x", origin="epistemic")
     assert record.erosion() is None
+
+
+def test_conation_comes_up_in_the_boot_activator_table():
+    """Refutes: the organ registers its checks on first use.
+
+    An organ that registers lazily is unchecked exactly during the boot it is
+    most likely to be wrong in, and its telemetry channels do not exist when
+    the first sample is written.
+    """
+    from core.runtime.foundations import _ACTIVATORS
+
+    assert "conation" in {name for name, _ in _ACTIVATORS}
+
+
+def test_information_gain_accepts_a_discrete_belief(engine):
+    """Refutes: only a Gaussian model may supply expected information gain."""
+    from core.conation.epistemic import categorical_kl
+
+    assert categorical_kl((0.9, 0.1), (0.5, 0.5)) > 0.0
+    assert categorical_kl((0.5, 0.5), (0.5, 0.5)) == pytest.approx(0.0, abs=1e-9)
+
+    for error in (0.9, 0.6, 0.35, 0.15):
+        engine.epistemic.observe_error("discrete", error)
+    reading = engine.epistemic.value(
+        "discrete", epistemic_affordance=0.9,
+        prior_belief=(0.25, 0.25, 0.25, 0.25),
+        posterior_belief=(0.85, 0.05, 0.05, 0.05),
+    )
+    assert reading.available
+    assert "nats" in reading.evidence
+
+
+def test_a_mismatched_belief_support_omits_the_term_rather_than_guessing(engine):
+    """Refutes: a prior and posterior of different support are two beliefs
+    about one question."""
+    from core.conation.epistemic import categorical_kl
+
+    with pytest.raises(ValueError):
+        categorical_kl((0.5, 0.5), (0.3, 0.3, 0.4))
+
+
+def test_the_default_calibration_declares_itself_unmeasured(engine):
+    """Refutes: an engine built with no arguments looks calibrated."""
+    assert engine.salience.calibration.learned is False
+    assert engine.salience.calibration.source == "declared_default"

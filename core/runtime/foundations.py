@@ -1309,6 +1309,29 @@ async def _activate_ontogeny(*, foreground_only: bool) -> ActivationResult:
     )
 
 
+async def _activate_conation(*, foreground_only: bool) -> ActivationResult:
+    """Bring up the motivational organ.
+
+    It comes up at boot rather than lazily, for the same reason the ontogenetic
+    organ does: the parts that matter run when nobody is asking. The telemetry
+    channels have to exist before the first sample, and the invariants have to
+    be registered before the first state they would have caught. An organ that
+    registers its checks on first use is unchecked exactly during the boot it
+    is most likely to be wrong in.
+    """
+    from core.conation.wiring import boot
+
+    result = boot()
+    channels = result.get("telemetry") or []
+    return ActivationResult(
+        name="conation", ok=True,
+        detail={
+            "channels": len(channels),
+            "invariants": bool(result.get("invariants")),
+        },
+    )
+
+
 _ACTIVATORS: list[tuple[str, Callable[..., Any]]] = [
     ("kernel_discipline", _activate_kernel_discipline),
     ("verification", _activate_verification),
@@ -1318,6 +1341,7 @@ _ACTIVATORS: list[tuple[str, Callable[..., Any]]] = [
     ("flight_software", _activate_flight_software),
     ("cognition", _activate_cognition),
     ("ontogeny", _activate_ontogeny),
+    ("conation", _activate_conation),
 ]
 
 

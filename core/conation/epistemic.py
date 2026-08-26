@@ -289,6 +289,8 @@ class EpistemicValuation:
         competence_goal: str | None = None,
         prior_variance: Sequence[float] | None = None,
         posterior_variance: Sequence[float] | None = None,
+        prior_belief: Sequence[float] | None = None,
+        posterior_belief: Sequence[float] | None = None,
         controllability: float | None = None,
         arousal_potential: float | None = None,
         instrumental: bool = False,
@@ -329,16 +331,31 @@ class EpistemicValuation:
             terms["novelty"] = novelty
             sources.append(f"novelty {novelty:.3f} ({novelty_evidence})")
 
+        # Expected information gain, from whichever belief shape the caller
+        # holds. A Gaussian model carries a covariance; a discrete one carries
+        # a distribution. Both answer the same question — how much would doing
+        # this change what I know — and supporting only one would make the
+        # term unavailable to half the callers that could supply it.
+        gain_nats: float | None = None
         if prior_variance is not None and posterior_variance is not None:
             try:
-                nats = gaussian_entropy_reduction(prior_variance, posterior_variance)
-                terms["information_gain"] = saturate(nats)
-                sources.append(f"expected gain {nats:.3f} nats")
+                gain_nats = gaussian_entropy_reduction(prior_variance, posterior_variance)
             except ValueError as exc:
                 record_degradation(
                     "conation_epistemic", exc, severity="debug",
                     action="belief variances mismatched; gain term omitted",
                 )
+        elif prior_belief is not None and posterior_belief is not None:
+            try:
+                gain_nats = categorical_kl(posterior_belief, prior_belief)
+            except ValueError as exc:
+                record_degradation(
+                    "conation_epistemic", exc, severity="debug",
+                    action="belief supports mismatched; gain term omitted",
+                )
+        if gain_nats is not None:
+            terms["information_gain"] = saturate(gain_nats)
+            sources.append(f"expected gain {gain_nats:.3f} nats")
 
         trace = self._traces.get(key)
         progress = trace.learning_progress() if trace is not None else None
