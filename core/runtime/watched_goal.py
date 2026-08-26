@@ -18,11 +18,14 @@ the request means a person never has to phrase it as one.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from core.conversation.word_markers import names_any
+from core.runtime.errors import record_degradation
 
 #: Cues that something is to be kept up rather than done once.
 #:
@@ -89,18 +92,64 @@ PURSUIT_CYCLES = 200
 _A_CYCLE: dict[str, float] = {"seconds": 0.0}
 
 
+#: Where what a cycle costs is kept between runs.
+#:
+#: Held in a process only, this is forgotten at every restart, so the first
+#: watched goal after one always asks for the budget written down rather than
+#: the one measured — and the first is usually the one somebody is watching.
+_MEASURED_AT = Path.home() / ".aura" / "state" / "pursuit_cycle_seconds.json"
+
+
 def a_cycle_took(seconds: float) -> None:
     """Record what one cycle of a pursuit actually cost."""
     spent = float(seconds or 0.0)
     if spent <= 0.0:
         return
-    before = _A_CYCLE["seconds"]
+    before = _remembered()
     _A_CYCLE["seconds"] = spent if before <= 0.0 else before * 0.7 + spent * 0.3
+    _write_down(_A_CYCLE["seconds"])
+
+
+def _remembered() -> float:
+    """What a cycle cost, from this process or from the last one."""
+    if _A_CYCLE["seconds"] > 0.0:
+        return _A_CYCLE["seconds"]
+    try:
+        held = json.loads(_MEASURED_AT.read_text())
+        kept = float(held.get("seconds") or 0.0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0.0
+    if kept > 0.0:
+        _A_CYCLE["seconds"] = kept
+    return _A_CYCLE["seconds"]
+
+
+def _write_down(seconds: float) -> None:
+    """Keep it where the next run can read it."""
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "watched_goal.cycle_cost",
+            domain="state_mutation",
+            constraints={"path": str(_MEASURED_AT)},
+        ):
+            _MEASURED_AT.parent.mkdir(parents=True, exist_ok=True)
+            get_file_write_gateway().write_text(
+                _MEASURED_AT,
+                json.dumps({"seconds": round(float(seconds), 3)}),
+                source="watched_goal.cycle_cost",
+            )
+    except Exception as exc:  # noqa: BLE001 - measuring is not the task
+        record_degradation(
+            "watched_goal", exc, severity="info", action="kept a cycle cost in memory only"
+        )
 
 
 def seconds_a_cycle() -> float:
     """How long one cycle takes, as measured, or nothing if never measured."""
-    return _A_CYCLE["seconds"]
+    return _remembered()
 
 
 def time_for(cycles: int = PURSUIT_CYCLES) -> float:

@@ -23,7 +23,9 @@ from core.runtime.watched_goal import (
 
 
 @pytest.fixture(autouse=True)
-def unmeasured():
+def unmeasured(tmp_path, monkeypatch):
+    """A machine that has never run one, in memory and on disk."""
+    monkeypatch.setattr(watched_goal, "_MEASURED_AT", tmp_path / "cycle.json")
     before = watched_goal._A_CYCLE["seconds"]
     watched_goal._A_CYCLE["seconds"] = 0.0
     yield
@@ -70,3 +72,27 @@ def test_the_task_still_allows_more_than_the_pursuit_it_wraps():
     watched = read_watched_goal("play 2048 until you get a 256 tile")
     asked = DesktopTaskSkill.timeout_for({"objective": "play 2048 until you get a 256 tile"})
     assert asked > watched.max_seconds
+
+
+def test_what_a_cycle_costs_survives_a_restart(tmp_path, monkeypatch):
+    """The first watched goal after a restart is usually the one somebody is watching."""
+    monkeypatch.setattr(watched_goal, "_MEASURED_AT", tmp_path / "cycle.json")
+    watched_goal.a_cycle_took(14.0)
+    # A fresh process: nothing in memory, everything on disk.
+    watched_goal._A_CYCLE["seconds"] = 0.0
+    assert seconds_a_cycle() == pytest.approx(14.0)
+
+
+def test_a_machine_with_nothing_written_down_is_simply_unmeasured(tmp_path, monkeypatch):
+    monkeypatch.setattr(watched_goal, "_MEASURED_AT", tmp_path / "missing.json")
+    watched_goal._A_CYCLE["seconds"] = 0.0
+    assert seconds_a_cycle() == 0.0
+    assert time_for() == PURSUIT_SECONDS
+
+
+def test_nonsense_written_down_is_ignored(tmp_path, monkeypatch):
+    kept = tmp_path / "cycle.json"
+    kept.write_text("not json at all")
+    monkeypatch.setattr(watched_goal, "_MEASURED_AT", kept)
+    watched_goal._A_CYCLE["seconds"] = 0.0
+    assert seconds_a_cycle() == 0.0
