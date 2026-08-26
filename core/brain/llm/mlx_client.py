@@ -13541,6 +13541,37 @@ class MLXLocalClient:
                 # abandonment branch below tests the two apart before it
                 # decides whether to throw away a warm 20GB model.
                 elapsed_without_token = time.time() - request_started_at
+                # Reading the prompt is not silence.
+                #
+                # A first-token deadline asks "has anything come out yet",
+                # and before the first token can exist the whole prompt has
+                # to be read. On this host that is measured at about 720
+                # tokens a second, so a two-thousand-token prompt spends
+                # nearly three seconds in prefill by design — and a caller
+                # whose budget is four seconds cancels the request at the
+                # moment prefill finishes, every time, for reasons that have
+                # nothing to do with the worker.
+                #
+                # LIVE 2026-08-26: every decision she made while playing was
+                # cancelled this way. "her reasoning produced nothing (no
+                # text came back)" over and over, so she chose her moves from
+                # the consequence record alone and never held a plan — which
+                # from outside looks exactly like a mind that is not
+                # thinking.
+                #
+                # Prefill progress is progress, and stronger evidence than
+                # the heartbeat already consulted here: a worker advancing
+                # through the prompt is doing the work that produces the
+                # first token. The livelock ceiling still applies, so a
+                # genuinely wedged prefill is still caught.
+                prefilling = (
+                    self._current_prefill_tokens_total > 0
+                    and self._current_prefill_tokens_processed
+                    < self._current_prefill_tokens_total
+                    and (time.time() - self._last_progress_at) < 5.0
+                )
+                if prefilling and elapsed_without_token <= livelock_ceiling:
+                    hard_first_token_ceiling = livelock_ceiling
                 if (
                     req_id == self._current_request_id
                     and request_started_at > 0.0
