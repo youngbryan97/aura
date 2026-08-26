@@ -60,6 +60,23 @@ def _logging_streams_available() -> bool:
     return True
 
 
+def _resident_cortex_label() -> str:
+    """Name the active cortex from its signed artifact descriptor."""
+
+    try:
+        from core.brain.llm.model_registry import resident_model_label
+
+        return resident_model_label(default="Cortex")
+    except _NEURAL_RECOVERABLE_ERRORS as exc:
+        _record_neural_degradation(
+            exc,
+            action="used the generic Cortex label after model identity was unavailable",
+            stage="resident_model_label",
+            severity="info",
+        )
+        return "Cortex"
+
+
 NUM_CHANNELS = 8
 SAMPLING_RATE = 250
 WINDOW_SEC = 2.0
@@ -175,7 +192,10 @@ class NeuralBridge:
 
         await asyncio.to_thread(self._calibrate)
         self.is_trained = True
-        logger.info("✅ [NEURAL] BCI Calibration complete. 32B-Neural-Net ONLINE.")
+        logger.info(
+            "✅ [NEURAL] BCI Calibration complete. %s cortex ONLINE.",
+            _resident_cortex_label(),
+        )
         self.start()
 
     def _calibrate(self):

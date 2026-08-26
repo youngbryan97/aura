@@ -90,6 +90,26 @@ def test_the_inference_gate_log_line_carries_the_signed_label():
     assert "_primary_lane_label" in text
 
 
+def test_live_model_status_logs_do_not_name_a_retired_parameter_count():
+    for relative in (
+        "core/brain/inference_gate.py",
+        "core/senses/neural_bridge.py",
+    ):
+        tree = ast.parse((HERE / relative).read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            owner = node.func.value
+            if not isinstance(owner, ast.Name) or owner.id != "logger":
+                continue
+            literals = [
+                item.value
+                for item in ast.walk(node)
+                if isinstance(item, ast.Constant) and isinstance(item.value, str)
+            ]
+            assert all("32B" not in literal for literal in literals), (relative, literals)
+
+
 def test_the_gate_label_helper_degrades_rather_than_raising(monkeypatch):
     from core.brain import inference_gate
 

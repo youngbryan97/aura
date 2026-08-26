@@ -3958,7 +3958,7 @@ class InferenceGate:
 
     @staticmethod
     def _boot_should_eager_warmup() -> bool:
-        """Keep the 32B lane warm on high-memory desktops unless explicitly disabled."""
+        """Keep the resident Cortex warm on high-memory desktops unless disabled."""
         if str(_FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()).strip().lower() in {
             "1",
             "true",
@@ -3967,7 +3967,10 @@ class InferenceGate:
         }:
             return True
         if InferenceGate._desktop_resource_guard_enabled():
-            logger.info("🛡️ Desktop resource guard active — skipping eager 32B warmup during launch.")
+            logger.info(
+                "🛡️ Desktop resource guard active — skipping eager %s warmup during launch.",
+                _primary_lane_label(),
+            )
             return False
         setting = str(_FLAG_EAGER_CORTEX_WARMUP.value()).strip().lower()
         if setting in {"1", "true", "yes", "on"}:
@@ -3989,7 +3992,9 @@ class InferenceGate:
             min_total_gb = float(_FLAG_BOOT_WARMUP_MIN_TOTAL_GB.value())
             if (vm.total / float(1024**3)) < min_total_gb or not snapshot["can_admit"]:
                 logger.warning(
-                    "⏸️ Deferring eager 32B warmup at boot (total=%.1fGB pressure=%.1f%% available=%.1fGB).",
+                    "⏸️ Deferring eager %s warmup at boot "
+                    "(total=%.1fGB pressure=%.1f%% available=%.1fGB).",
+                    _primary_lane_label(),
                     snapshot["total_gb"],
                     snapshot["pressure_pct"],
                     snapshot["available_gb"],
@@ -4041,7 +4046,9 @@ class InferenceGate:
         if InferenceGate._desktop_safe_boot_enabled():
             if explicit_setting is None:
                 logger.info(
-                    "🛡️ Recovery safe boot active — skipping implicit deferred 32B prewarm during launch."
+                    "🛡️ Recovery safe boot active — skipping implicit deferred %s "
+                    "prewarm during launch.",
+                    _primary_lane_label(),
                 )
                 return False
             snapshot = InferenceGate._cortex_warmup_admission_snapshot("background")
@@ -6080,12 +6087,16 @@ class InferenceGate:
                 attempt_counted = True
                 if cold_start_recovery:
                     logger.info(
-                        "♻️ [STARTUP] Primary 32B cortex is cold. Starting warmup (Attempt %d/5)...",
+                        "♻️ [STARTUP] Primary %s cortex is cold. Starting warmup "
+                        "(Attempt %d/5)...",
+                        _primary_lane_label(),
                         self._cortex_recovery_attempts,
                     )
                 else:
                     logger.warning(
-                        "♻️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5)...",
+                        "♻️ [RECOVERY] Primary %s cortex is dead. Triggering background "
+                        "respawn (Attempt %d/5)...",
+                        _primary_lane_label(),
                         self._cortex_recovery_attempts,
                     )
                 self._prewarm_task = get_task_tracker().create_task(
@@ -6106,20 +6117,28 @@ class InferenceGate:
                 if not ready:
                     if is_shutdown_requested():
                         logger.info(
-                            "🛑 [RECOVERY] Primary 32B cortex warmup stopped during runtime shutdown."
+                            "🛑 [RECOVERY] Primary %s cortex warmup stopped during runtime shutdown.",
+                            _primary_lane_label(),
                         )
                     else:
                         logger.warning(
-                            "⚠️ [RECOVERY] Primary 32B cortex warmup did not establish readiness "
+                            "⚠️ [RECOVERY] Primary %s cortex warmup did not establish readiness "
                             "(state=%s, reason=%s).",
+                            _primary_lane_label(),
                             recovered_lane.get("state", "unknown"),
                             incomplete_reason,
                         )
                     return
                 if cold_start_recovery:
-                    logger.info("✅ [STARTUP] Primary 32B cortex warmup complete.")
+                    logger.info(
+                        "✅ [STARTUP] Primary %s cortex warmup complete.",
+                        _primary_lane_label(),
+                    )
                 else:
-                    logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
+                    logger.info(
+                        "✅ [RECOVERY] Primary %s cortex restored after disruption.",
+                        _primary_lane_label(),
+                    )
                 self._cortex_recovery_attempts = 0
                 self._cortex_recovery_exhausted_at = 0.0
             except _INFERENCE_RECOVERABLE_ERRORS as exc:
@@ -6129,13 +6148,16 @@ class InferenceGate:
                 )
                 if cold_start_recovery:
                     logger.error(
-                        "⚠️ [STARTUP] Primary 32B cortex warmup failed (Attempt %d/5): %s",
+                        "⚠️ [STARTUP] Primary %s cortex warmup failed (Attempt %d/5): %s",
+                        _primary_lane_label(),
                         self._cortex_recovery_attempts,
                         exc,
                     )
                 else:
                     logger.error(
-                        "⚠️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5): %s",
+                        "⚠️ [RECOVERY] Primary %s cortex is dead. Triggering background "
+                        "respawn (Attempt %d/5): %s",
+                        _primary_lane_label(),
                         self._cortex_recovery_attempts,
                         exc,
                     )
@@ -8442,13 +8464,15 @@ class InferenceGate:
                 receipt["mode"] = "deferred_prewarm"
                 receipt["reason"] = "warmup_deferred_until_post_boot"
                 logger.info(
-                    "⏸️ InferenceGate ONLINE (32B warmup deferred until post-boot memory settles)."
+                    "⏸️ InferenceGate ONLINE (%s warmup deferred until post-boot memory settles).",
+                    _primary_lane_label(),
                 )
             else:
                 receipt["mode"] = "ram_admitted"
                 receipt["reason"] = "warmup_requires_ram_admission"
                 logger.info(
-                    "🛡️ InferenceGate ONLINE (desktop resource guard: 32B warmup is RAM-admitted)."
+                    "🛡️ InferenceGate ONLINE (desktop resource guard: %s warmup is RAM-admitted).",
+                    _primary_lane_label(),
                 )
 
             if self._maintenance_task is None or self._maintenance_task.done():
@@ -11699,8 +11723,10 @@ class InferenceGate:
                 _cortex_state = str(_cortex_lane.get("state", "") or "").lower()
                 if _cortex_state in {"warming", "handshaking", "recovering"}:
                     logger.info(
-                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid 32B/72B memory thrash. Staying on primary.",
+                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid "
+                        "%s/Solver memory thrash. Staying on primary.",
                         _cortex_state,
+                        _primary_lane_label(),
                     )
                     requested_tier = "primary"
                     deep_handoff = False
