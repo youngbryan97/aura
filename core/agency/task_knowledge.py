@@ -88,12 +88,78 @@ def kind_of_question(question: str) -> str:
 #: Words that mark a sentence as saying HOW to do something, rather than
 #: describing what the thing is. A search returns both, and only one of them
 #: helps somebody who is mid-task.
-ACTIONABLE = re.compile(
+#: Modal words that make a sentence advice whatever its shape.
+DIRECTIVE = re.compile(
     r"\b(?:keep|hold|always|never|avoid|prefer|try to|make sure|start by|"
-    r"the key is|best to|should|instead of|rather than|corner|order|priority|"
+    r"the key is|best to|should|must|instead of|rather than|priority|"
     r"strategy|technique|rule of thumb)\b",
     re.IGNORECASE,
 )
+
+#: Words that can begin an English sentence WITHOUT it being an instruction.
+#:
+#: The closed classes — determiners, pronouns, prepositions, conjunctions,
+#: subordinators. Anything else at the front of a sentence is almost always a
+#: verb, and a sentence that opens with a bare verb is an imperative: someone
+#: telling you how to do something. That is a property of the grammar rather
+#: than of any subject, which is the point — a list of strategy words knows
+#: about games and knows nothing about baking, tax forms or a deployment
+#: runbook.
+NOT_A_VERB_OPENER = frozenset(
+    """a an the this that these those it he she they we i you them us him her
+    my your his its our their there here what which who whom whose how why
+    where when while if unless until although though because since after
+    before during as so but and or yet nor for with from in on at by about
+    into onto over under between among against through despite per each every
+    most many some all both few several other another such no not only just
+    also then thus hence therefore however moreover furthermore meanwhile
+    one two three four five six seven eight nine ten first second third last
+    next previous new old good best worst more less much little own same
+    something anything nothing everything someone anyone everyone""".split()
+)
+
+#: Words that only appear after a subject. Their presence in second place
+#: means the sentence has one, which an imperative does not.
+_AGREES_WITH_A_SUBJECT = frozenset(
+    """is are was were be been being has have had can could will would shall
+    should may might must does do did seems seemed appears appeared""".split()
+)
+
+#: Openers that introduce a rule about what follows from what.
+_RULE_OPENER = re.compile(r"^(?:when|if|once|after|whenever|as soon as)\b", re.IGNORECASE)
+
+
+def says_how(sentence: str) -> bool:
+    """Whether this sentence tells you how something is done.
+
+    Three shapes, all grammatical rather than topical. An imperative — a
+    sentence that opens with a bare verb — is somebody telling you what to
+    do. A directive modality says the same thing inside a longer sentence. A
+    conditional with a consequence states a rule of the thing.
+
+    LIVE 2026-08-26: "Use arrow keys to move the tiles" and "When two tiles
+    having the same number touch, they join into one" are the whole answer to
+    how a game is played, and a list of strategy words matched neither. She
+    opened the right page, read four hundred characters of instructions, and
+    came away with nothing.
+    """
+    said = " ".join(str(sentence or "").split())
+    if not said:
+        return False
+    if DIRECTIVE.search(said):
+        return True
+    if _RULE_OPENER.match(said) and "," in said:
+        return True
+    words = re.findall(r"[A-Za-z][A-Za-z'\-]*", said)
+    if not words:
+        return False
+    if words[0].lower() in NOT_A_VERB_OPENER:
+        return False
+    # An imperative has no subject, so nothing agrees with anything. A copula
+    # or auxiliary in second place means the first word was the subject:
+    # "Sourdough is a bread made by fermentation" describes, and "Feed the
+    # starter twice a day" instructs, and they are the same shape until here.
+    return len(words) < 2 or words[1].lower() not in _AGREES_WITH_A_SUBJECT
 
 
 @dataclass(frozen=True)
@@ -146,6 +212,27 @@ class TaskKnowledge:
 _remembered: dict[str, TaskKnowledge] = {}
 
 
+def _is_a_heading(line: str) -> bool:
+    """Whether this is a title or a navigation label rather than a sentence.
+
+    Typography rather than vocabulary, so it holds on any site: headings are
+    title-cased and do not end in a full stop, and sentences are neither.
+    LIVE 2026-08-26: "2048 - Play the Free Online Game Privacy Policy" was
+    read as an instruction, because it opens with a verb and every rule about
+    grammar agreed that it did.
+    """
+    said = " ".join(str(line or "").split())
+    if not said:
+        return True
+    if said[-1] in ".!?:":
+        return False
+    words = [word for word in re.findall(r"[A-Za-z][A-Za-z'\-]*", said) if len(word) > 2]
+    if len(words) < 2:
+        return True
+    capitalised = sum(1 for word in words if word[0].isupper())
+    return capitalised >= max(2, len(words) // 2)
+
+
 def usable_sentences(text: str) -> list[str]:
     """The sentences in a body of text that say how to do something."""
     found: list[str] = []
@@ -153,7 +240,9 @@ def usable_sentences(text: str) -> list[str]:
         sentence = " ".join(raw.split()).strip(" -•*")
         if not sentence or len(sentence) > MAX_FINDING_CHARS or len(sentence) < 20:
             continue
-        if ACTIONABLE.search(sentence):
+        if _is_a_heading(sentence):
+            continue
+        if says_how(sentence):
             found.append(sentence)
     return found
 
@@ -223,8 +312,68 @@ def _capability_engine() -> Any:
 
 
 
+#: Words that carry no weight in a query. Every question contains them, so
+#: they identify nothing and an engine that ranks on them ranks on noise.
+_COMMON = {
+    "a", "an", "and", "the", "to", "of", "in", "on", "at", "for", "with", "how",
+    "what", "when", "why", "well", "do", "does", "is", "it", "this", "that",
+    "my", "your", "get", "go", "play", "make", "keep", "you", "me", "i", "be",
+    "can", "will", "should", "best", "good", "way", "ways", "tips", "guide",
+}
+
+
+def _identifying_words(text: str) -> tuple[str, ...]:
+    """The words in a question that identify what it is about.
+
+    Not a corpus and not a model — the words everybody's question contains
+    cannot be the words that identify anybody's. What is left is the name of
+    the thing.
+    """
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9.\-]{1,}", str(text or "").lower())
+    return tuple(dict.fromkeys(word for word in words if word not in _COMMON))
+
+
+def _answers_about(result: Mapping[str, Any], marks: Sequence[str]) -> int:
+    """How many of the identifying words this result actually mentions."""
+    if not marks:
+        return 0
+    body = f"{result.get('title', '')} {result.get('url', '')} {result.get('snippet', '')}".lower()
+    return sum(1 for mark in marks if mark in body)
+
+
+def _asked_more_than_one_way(question: str) -> list[str]:
+    """The same question, phrased the ways a person would retype it.
+
+    One phrasing is a bet on how an engine weights words, and the bet is not
+    reliably winnable. LIVE 2026-08-26: "how to play 2048" returned four
+    general games portals, because "play" is the commonest word in it and
+    "2048" is one token among five. "2048 game strategy" returned the game.
+    But a descriptive subject goes the other way — "how to make sourdough
+    starter" returns recipes and "sourdough starter how to make well" returns
+    an encyclopedia article — so neither order is the right order.
+
+    So she asks both ways and keeps whichever actually came back about the
+    thing, which is what a person does when the first search misses.
+    """
+    plain = " ".join(str(question or "").split())
+    if not plain:
+        return []
+    marks = _identifying_words(plain)
+    asked = [plain]
+    if marks:
+        lead = " ".join(marks)
+        if lead.lower() != plain.lower():
+            asked.append(lead)
+        asked.append(f"{marks[0]} {' '.join(marks[1:])} guide".strip())
+    return list(dict.fromkeys(asked))[:3]
+
+
 async def _search_results_for(question: str, *, engine: Any = None, browser: Any = None) -> list[dict[str, str]]:
-    """Candidates for a question, fetched without navigating anywhere."""
+    """Candidates for a question, fetched without navigating anywhere.
+
+    Asked more than one way, and kept by whether the answers mention the
+    thing being asked about rather than by which phrasing produced them.
+    """
     if browser is None:
         try:
             from core.capabilities.browser_controller import get_browser_controller  # noqa: PLC0415
@@ -232,6 +381,34 @@ async def _search_results_for(question: str, *, engine: Any = None, browser: Any
             browser = get_browser_controller()
         except (ImportError, AttributeError, RuntimeError):
             return []
+    marks = _identifying_words(question)
+    seen: dict[str, dict[str, str]] = {}
+    best_score = 0
+    for phrasing in _asked_more_than_one_way(question):
+        try:
+            found = await browser.search_results(phrasing, count=FINDINGS_KEPT)
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("task_knowledge", exc, severity="info", action="look for an answer")
+            continue
+        for result in found or []:
+            if not isinstance(result, Mapping):
+                continue
+            url = str(result.get("url", "") or "")
+            if not url or url in seen:
+                continue
+            score = _answers_about(result, marks)
+            if score:
+                seen[url] = dict(result)
+                best_score = max(best_score, score)
+        if best_score >= len(marks) and len(seen) >= FINDINGS_KEPT:
+            # This phrasing answered about everything asked. Stop retyping it.
+            break
+    if seen:
+        return sorted(seen.values(), key=lambda row: _answers_about(row, marks), reverse=True)[
+            : FINDINGS_KEPT
+        ]
+    # Nothing came back about the thing. Better to hand back what the plain
+    # question returned than to invent relevance that is not there.
     try:
         return await browser.search_results(question, count=FINDINGS_KEPT)
     except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
@@ -239,26 +416,28 @@ async def _search_results_for(question: str, *, engine: Any = None, browser: Any
         return []
 
 
+#: How many pages she will open before giving up on a question. One page is
+#: a bet that the top result is the answer; a person opens the next one.
+PAGES_READ = 3
+
+
 async def _read_the_best_answer(
     results: Sequence[Mapping[str, Any]], question: str, *, browser: Any = None
 ) -> list[Finding]:
-    """Open the most relevant result and read what it actually says.
+    """Open the most promising results in turn and read what they say.
 
-    A snippet is an advertisement for an answer. Being stuck needs the answer,
-    which means opening the page whose description best matches the question
-    and reading the sentences in it that address that question — not the ones
-    that happen to sound instructive.
+    A snippet is an advertisement for an answer. Getting the answer means
+    opening the page and reading the sentences in it that tell you how the
+    thing is done — and, when that page turns out to be a landing page or a
+    privacy notice, opening the next one.
+
+    LIVE 2026-08-26: asked how a game is played, the top result was the game
+    itself, and the only sentence she came away with was the title of its
+    privacy policy. She stopped there because one page was all she read.
     """
     if not results:
         return []
     wanted = _distinctive(question)
-    best = max(
-        results,
-        key=lambda row: len(wanted & _distinctive(f"{row.get('title', '')} {row.get('snippet', '')}")),
-    )
-    url = str(best.get("url") or "").strip()
-    if not url:
-        return []
     if browser is None:
         try:
             from core.capabilities.browser_controller import get_browser_controller  # noqa: PLC0415
@@ -266,24 +445,57 @@ async def _read_the_best_answer(
             browser = get_browser_controller()
         except (ImportError, AttributeError, RuntimeError):
             return []
-    try:
-        extract = await browser.extract_article_text(url)
-    except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation("task_knowledge", exc, severity="info", action="read a page for an answer")
-        return []
-    body = str(getattr(extract, "text", "") or "")
-    if not body:
-        return []
-    # The sentences that answer THIS question, ranked by how much of it they
-    # actually address. Untrusted text: it is carried as something she read,
-    # attributed, and never as an instruction.
-    scored = sorted(
-        ((len(wanted & _distinctive(line)), line) for line in usable_sentences(body)),
-        key=lambda row: row[0],
+    ranked = sorted(
+        results,
+        key=lambda row: len(wanted & _distinctive(f"{row.get('title', '')} {row.get('snippet', '')}")),
         reverse=True,
     )
-    where = str(getattr(extract, "source_domain", "") or url)
-    return [Finding(says=line, source=f"read on {where}") for score, line in scored[:FINDINGS_KEPT] if score]
+    nothing_readable: list[str] = []
+    for candidate in ranked[:PAGES_READ]:
+        url = str(candidate.get("url") or "").strip()
+        if not url:
+            continue
+        try:
+            extract = await browser.extract_article_text(url)
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "task_knowledge", exc, severity="info", action="read a page for an answer"
+            )
+            continue
+        # The field the extractor actually fills. It writes `body`; reading
+        # `text` — which is not a field of the type — meant every page she
+        # opened came back empty and she carried on knowing nothing, with no
+        # error anywhere because nothing had failed.
+        body = str(getattr(extract, "body", "") or "")
+        if not body or body.startswith("[Extraction failed"):
+            nothing_readable.append(url)
+            continue
+        # The sentences that tell you how this is done, ranked by how much of
+        # the question they address — but not required to address it in the
+        # question's own words, because a sentence that answers a question
+        # rarely repeats it.
+        scored = sorted(
+            ((len(wanted & _distinctive(line)), line) for line in usable_sentences(body)),
+            key=lambda row: row[0],
+            reverse=True,
+        )
+        where = str(getattr(extract, "source_domain", "") or url)
+        found = [
+            Finding(says=line, source=f"read on {where}")
+            for _score, line in scored[:FINDINGS_KEPT]
+            if line.strip()
+        ]
+        if found:
+            return found
+        nothing_readable.append(url)
+    if nothing_readable:
+        record_degradation(
+            "task_knowledge",
+            RuntimeError(f"nothing that says how, on {', '.join(nothing_readable[:3])}"),
+            severity="info",
+            action="looked for an answer on pages that gave none",
+        )
+    return []
 
 
 def _distinctive(text: str) -> set[str]:
@@ -333,15 +545,83 @@ async def _from_search(question: str, *, engine: Any = None) -> tuple[list[Findi
     return findings[:FINDINGS_KEPT], question
 
 
+#: Parts of an instruction that are about the telling rather than the doing.
+#:
+#: A request carries more than the task: when to stop, what to say while
+#: working, who to tell afterwards. None of it is what she needs to look up,
+#: and all of it poisons the question she asks.
+RIDERS = (
+    r"\b(?:and\s+)?(?:then\s+)?tell\s+me\b[^.]*",
+    r"\b(?:and\s+)?(?:then\s+)?let\s+me\s+know\b[^.]*",
+    r"\b(?:and\s+)?say\s+what\s+you\b[^.]*",
+    r"\b(?:and\s+)?narrat\w*\b[^.]*",
+    r"\b(?:while|as)\s+you\s+go\b[^.]*",
+    r"\bbefore\s+(?:each|every)\s+\w+[^.]*",
+    r"\bout\s+loud\b[^.]*",
+    r"\bstep\s+by\s+step\b[^.]*",
+)
+_RIDER_RE = tuple(re.compile(pattern, re.IGNORECASE) for pattern in RIDERS)
+
+#: Where the finishing condition starts. Everything from here on says when to
+#: stop, which is hers to check and no use to anyone she asks.
+_STOPPING_RE = re.compile(
+    r"\b(?:until|till|til|as\s+soon\s+as|once\s+(?:you|it)|when\s+(?:you|it)|"
+    r"and\s+get\s+to|and\s+reach|and\s+get\s+me\s+to|up\s+to)\b",
+    re.IGNORECASE,
+)
+
+
+def what_it_is_about(goal: str) -> str:
+    """The subject of a request, with the instructions to her taken off.
+
+    A request is written to her, and most of it is addressed to her: when to
+    stop, what to say while she works, who to tell at the end. Asked as
+    written it is not a question anybody can answer.
+
+    LIVE 2026-08-26: researching "play 2048 until you get a 256 tile" asked
+    "how to do this well: play 2048 until you get a 256 tile" and came back
+    with four dictionary definitions of the word "do". The search had matched
+    the only common word in it. She played the whole game knowing nothing.
+
+    General to any task: what is left after the instructions to her is the
+    thing itself, and the thing itself is what anyone would look up.
+    """
+    text = " ".join(str(goal or "").split())
+    if not text:
+        return ""
+    # Her own goal reader has already worked out what this is and where it
+    # happens, so use that rather than parsing the sentence a second time.
+    # "Find 2048 online, play it, and get to a 256 tile" is a request to play
+    # 2048; the finding and the telling are instructions to her.
+    try:
+        from core.runtime.watched_goal import read_watched_goal  # noqa: PLC0415
+
+        watched = read_watched_goal(text)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        watched = None
+    if watched is not None and watched.where:
+        doing = str((watched.detail or {}).get("continuation") or "").strip()
+        return " ".join(part for part in (doing, watched.where) if part)[:120]
+    cut = _STOPPING_RE.search(text)
+    if cut:
+        text = text[: cut.start()]
+    for pattern in _RIDER_RE:
+        text = pattern.sub(" ", text)
+    text = re.sub(r"\b(?:go|please|now|then|and|just)\b", " ", text, flags=re.IGNORECASE)
+    text = " ".join(text.split()).strip(" ,.;:—-")
+    return text[:120]
+
+
 def how_is_this_done(goal: str) -> str:
     """The question to go and ask about a goal.
 
-    Built from the goal itself rather than from a template per task type: the
-    thing she wants to know is always the same shape, and the goal is the only
-    part that varies.
+    Built from the subject of the goal rather than the instruction, and
+    phrased the way a person searching would phrase it. Asking "how to do
+    this well: <the whole request>" put every word of the instruction into
+    the query, and the engine answered the commonest one.
     """
-    stripped = " ".join(str(goal or "").split())[:120]
-    return f"how to do this well: {stripped}" if stripped else ""
+    subject = what_it_is_about(goal)
+    return f"how to {subject}" if subject else ""
 
 
 def why_is_this_stuck(goal: str, situation: str = "", history: Sequence[Any] = ()) -> str:
@@ -357,7 +637,7 @@ def why_is_this_stuck(goal: str, situation: str = "", history: Sequence[Any] = (
     Every part is measured: the moves come from the graded history, the
     situation from the last reading. Nothing is characterised or embellished.
     """
-    stripped = " ".join(str(goal or "").split())[:100]
+    stripped = what_it_is_about(goal)[:100]
     if not stripped:
         return ""
     parts = [f"{stripped} stuck"]
