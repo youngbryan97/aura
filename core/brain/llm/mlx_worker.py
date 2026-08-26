@@ -5879,6 +5879,34 @@ class _PromptCacheLRU:
         self._lru.clear()
         self._resume_bindings.clear()
 
+    def clear_model_key(self, model_key: Any) -> None:
+        """Discard one model/scope without erasing unrelated prompt state.
+
+        Generation retries need a clean cache for the request that failed. They
+        do not establish that every other lane is corrupt. In particular, a
+        default-lane repair must not erase the user-surface prefix that keeps a
+        live conversation warm. Weight changes and memory-pressure shedding
+        still use ``clear()`` because those events invalidate every entry.
+        """
+
+        lane = self._lane_of(model_key)
+        queue_for_lane = self._lru.get(lane)
+        if queue_for_lane is not None:
+            retained: deque = deque()
+            for cache_key in list(queue_for_lane):
+                cached_model_key, cached_tokens = cache_key
+                if cached_model_key == model_key:
+                    self._delete(cached_model_key, list(cached_tokens))
+                else:
+                    retained.append(cache_key)
+            if retained:
+                self._lru[lane] = retained
+            else:
+                self._lru.pop(lane, None)
+        for handle, binding in list(self._resume_bindings.items()):
+            if binding.model_key == model_key:
+                self._resume_bindings.pop(handle, None)
+
     def _prune_resume_bindings(self, *, now: float | None = None) -> None:
         observed_at = time.monotonic() if now is None else float(now)
         expired = [
@@ -7641,7 +7669,9 @@ def _mlx_worker_loop(
                 # or write; only an explicit request clears.
                 clear_prompt_cache = bool(job.get("clear_prompt_cache", False))
                 if clear_prompt_cache and prompt_cache_lru is not None:
-                    prompt_cache_lru.clear()
+                    prompt_cache_lru.clear_model_key(
+                        (id(model), _prompt_cache_scope_for_job(job))
+                    )
 
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""
@@ -9050,7 +9080,7 @@ def _mlx_worker_loop(
                                                 role_continuation_hit,
                                             )
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             prompt = _build_proof_evaluation_retry_prompt(
@@ -9097,7 +9127,7 @@ def _mlx_worker_loop(
                                                 role_continuation_hit,
                                             )
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             prompt, operator_response_prefix = _build_operator_evidence_retry_prompt(
@@ -9129,7 +9159,7 @@ def _mlx_worker_loop(
                                         elif internal_attempt < max_internal_retries:
                                             logger.warning("⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt %s)...", internal_attempt + 1)
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             if proof_evaluation_contract:
@@ -9166,7 +9196,7 @@ def _mlx_worker_loop(
                                             ontology_retry_count += 1
                                             logger.warning("⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt %s)...", internal_attempt + 1)
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             # Add a slight temperature penalty or just start fresh
@@ -9203,7 +9233,7 @@ def _mlx_worker_loop(
                                                 schema_fail,
                                             )
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             _prepare_clean_retry_kwargs(kwargs, structured=True)
@@ -9830,7 +9860,7 @@ def _mlx_worker_loop(
                                                     )
                                                 strict_envelope_prefixed = bool(strict_answer_contract)
                                             if prompt_cache_lru is not None:
-                                                prompt_cache_lru.clear()
+                                                prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             _prepare_clean_retry_kwargs(kwargs, structured=True)
@@ -9918,7 +9948,7 @@ def _mlx_worker_loop(
                         if token_count == 0:
                             try:
                                 if prompt_cache_lru is not None:
-                                    prompt_cache_lru.clear()
+                                    prompt_cache_lru.clear_model_key(model_key)
                             except (AttributeError, RuntimeError) as exc:
                                 logger.debug("Prompt cache clear failed after zero-token generation: %s", exc)
                             if mx and device != "cpu":

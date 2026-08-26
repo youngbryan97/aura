@@ -944,6 +944,37 @@ def test_internal_lane_churn_cannot_evict_the_user_conversation():
     assert remaining == list(range(5000, 5030))
 
 
+def test_clean_retry_only_clears_the_failing_prompt_cache_scope():
+    """An internal retry cannot make the next live conversation turn cold."""
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=12, max_total_tokens=100_000, kv_bytes_per_token=1)
+    surface_key = (7, "user_surface")
+    default_key = (7, "default")
+    surface_tokens = list(range(200))
+    lru.insert_cache(surface_key, surface_tokens, ["kv-conversation"])
+    lru.insert_cache(default_key, [800, 801, 802], ["kv-internal"])
+
+    lru.clear_model_key(default_key)
+
+    internal_hit, _ = lru.fetch_nearest_cache(
+        default_key,
+        [800, 801, 802, 803],
+        can_trim_prompt_cache=lambda _pc: True,
+        trim_prompt_cache=lambda _pc, _n: None,
+    )
+    surface_hit, remaining = lru.fetch_nearest_cache(
+        surface_key,
+        surface_tokens + [999],
+        can_trim_prompt_cache=lambda _pc: True,
+        trim_prompt_cache=lambda _pc, _n: None,
+    )
+
+    assert internal_hit is None
+    assert surface_hit == ["kv-conversation"]
+    assert remaining == [999]
+
+
 def test_lane_budgets_never_exceed_the_models_entry_budget():
     """Reserving a slot for the conversation must not raise total KV RAM:
     per-entry cost is fixed, so the lane budgets have to sum to max_size."""
