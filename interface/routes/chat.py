@@ -3087,6 +3087,34 @@ async def _resolve_action_episode_projection(
     )
 
 
+async def _resolve_answer_provenance_projection(
+    user_message: str,
+    *,
+    session_id: str = "",
+) -> str:
+    """Answer a source follow-up from the evidence bound to that answer."""
+
+    from core.conversation.answer_provenance import (
+        answer_provenance_reply,
+        provenance_grounding_json,
+        select_prior_answer_provenance,
+    )
+
+    recent_exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
+        current_user_message=user_message,
+        session_id=session_id,
+        limit=6,
+        allow_cross_session=False,
+    )
+    provenance = select_prior_answer_provenance(user_message, recent_exchanges)
+    if provenance is None:
+        return ""
+    from core.conversation.turn_evidence_custody import record_turn_grounding
+
+    record_turn_grounding(provenance_grounding_json(provenance))
+    return answer_provenance_reply(provenance)
+
+
 def _classify_self_condition_contract(
     user_message: str,
     *,
@@ -19911,9 +19939,34 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         action_episode_evidence = ""
         action_episode_projection = ""
 
-        def _current_exchange_metadata() -> dict[str, Any] | None:
+        def _current_exchange_metadata(
+            answer_text: str,
+            *,
+            response_path: str = "",
+        ) -> dict[str, Any] | None:
+            metadata: dict[str, Any] = {}
             episode = _desktop_exec_state.get("action_episode")
-            return {"action_episode": dict(episode)} if isinstance(episode, dict) else None
+            if isinstance(episode, dict):
+                metadata["action_episode"] = dict(episode)
+            try:
+                from core.conversation.answer_provenance import answer_provenance_from_turn
+
+                if answer_text:
+                    metadata["answer_provenance"] = answer_provenance_from_turn(
+                        answer_text,
+                        response_path=(
+                            str(response_path or "")
+                            or str(_live_turn_trace.get("response_path") or "")
+                        ),
+                        model_native_inference=bool(
+                            _live_turn_trace.get("foreground_model_generation_count")
+                            or _live_turn_trace.get("foreground_model_generation_consumed")
+                            or str(response_path or "") == "protected_foreground"
+                        ),
+                    ).to_dict()
+            except _CHAT_RECOVERABLE_ERRORS as provenance_exc:
+                record_degradation("chat.answer_provenance", provenance_exc)
+            return metadata or None
 
         async def _run_desktop_objective_tracked(
             message: str, *, cognitive_reply: str
@@ -20910,7 +20963,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     pending_exchange_id,
                     _semantic_user_message,
                     final_text,
-                    exchange_metadata=_current_exchange_metadata(),
+                    exchange_metadata=_current_exchange_metadata(
+                        final_text,
+                        response_path=status,
+                    ),
                 )
                 pending_exchange_id = None
             else:
@@ -20918,7 +20974,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     _original_user_message,
                     final_text,
                     session_id=_chat_session_id,
-                    exchange_metadata=_current_exchange_metadata(),
+                    exchange_metadata=_current_exchange_metadata(
+                        final_text,
+                        response_path=status,
+                    ),
                 )
             await _emit_chat_output_receipt(
                 final_text,
@@ -21175,6 +21234,24 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         status=str(executed.get("status") or "desktop_objective"),
                     )
             return None
+
+        if not _qualified_state_serialization_owner:
+            try:
+                answer_provenance_projection = await _resolve_answer_provenance_projection(
+                    _semantic_user_message,
+                    session_id=_chat_session_id,
+                )
+            except _CHAT_RECOVERABLE_ERRORS as provenance_context_exc:
+                record_degradation("chat.answer_provenance_context", provenance_context_exc)
+                answer_provenance_projection = ""
+        else:
+            answer_provenance_projection = ""
+
+        if answer_provenance_projection:
+            return await _finalize_fastpath(
+                answer_provenance_projection,
+                status="verified_answer_provenance",
+            )
 
         if not _qualified_state_serialization_owner:
             try:
@@ -23566,7 +23643,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 pending_exchange_id,
                 _semantic_user_message,
                 _final_reply or "…",
-                exchange_metadata=_current_exchange_metadata(),
+                exchange_metadata=_current_exchange_metadata(
+                    _final_reply or "…",
+                    response_path=_final_status,
+                ),
             )
             pending_exchange_id = None
         else:
@@ -23574,7 +23654,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _original_user_message,
                 _final_reply or "…",
                 session_id=_chat_session_id,
-                exchange_metadata=_current_exchange_metadata(),
+                exchange_metadata=_current_exchange_metadata(
+                    _final_reply or "…",
+                    response_path=_final_status,
+                ),
             )
         _delivery_timing["persistence_ms"] = (
             time.monotonic() - _persistence_started_at

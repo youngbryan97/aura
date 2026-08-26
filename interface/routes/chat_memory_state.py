@@ -1637,9 +1637,12 @@ async def _recent_completed_conversation_exchanges(
         if not user_text and not aura_text:
             continue
         action_episode = None
+        answer_provenance = None
         metadata = entry.get("metadata")
         if isinstance(metadata, dict) and isinstance(metadata.get("action_episode"), dict):
             action_episode = dict(metadata["action_episode"])
+        if isinstance(metadata, dict) and isinstance(metadata.get("answer_provenance"), dict):
+            answer_provenance = dict(metadata["answer_provenance"])
         exchanges.append(
             # Stamped per entry: the cognitive engine promotes these straight
             # into chat roles, so a forged entry mixed into a real list would
@@ -1658,6 +1661,7 @@ async def _recent_completed_conversation_exchanges(
                     "timestamp": str(entry.get("completed_at") or entry.get("timestamp") or ""),
                     "session_id": str(entry.get("session_id") or "")[:64],
                     "action_episode": action_episode,
+                    "answer_provenance": answer_provenance,
                 }
             )
         )
@@ -1927,6 +1931,12 @@ def _load_durable_conversation_exchanges_sync(
                         dict(aura_row["metadata"]["action_episode"])
                         if isinstance(aura_row.get("metadata"), dict)
                         and isinstance(aura_row["metadata"].get("action_episode"), dict)
+                        else None
+                    ),
+                    "answer_provenance": (
+                        dict(aura_row["metadata"]["answer_provenance"])
+                        if isinstance(aura_row.get("metadata"), dict)
+                        and isinstance(aura_row["metadata"].get("answer_provenance"), dict)
                         else None
                     ),
                 },

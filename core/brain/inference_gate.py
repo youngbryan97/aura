@@ -1808,11 +1808,18 @@ async def _attach_the_present_moment(
             # readings she still has to invent them, which is how "I
             # processed a 45-page PDF on neuromorphic computing" happened.
             if not recent_actions_already_grounded:
-                from core.brain.recent_actions import recent_actions_block
+                from core.brain.recent_actions import (
+                    asks_what_she_recently_did,
+                    recent_actions_block,
+                )
 
-                _actions = recent_actions_block()
-                if _actions:
-                    ambient_grounding_blocks.append(_actions)
+                # Historical action receipts answer questions about historical
+                # actions.  Injecting them into every factual turn let an old
+                # autonomous search masquerade as the source of a new answer.
+                if asks_what_she_recently_did(visible_user_prompt):
+                    _actions = recent_actions_block()
+                    if _actions:
+                        ambient_grounding_blocks.append(_actions)
 
             # The WIDER predicate here on purpose. This path only ADDS her
             # instrument reading, so a false positive costs a few lines of

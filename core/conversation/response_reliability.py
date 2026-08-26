@@ -6088,6 +6088,15 @@ _TOOL_EXECUTION_CLAIM_RE = re.compile(
     # First-person past execution.
     r"\bi\s+(?:just\s+)?(?:ran|executed|invoked|called)\b"
     r"|\bi(?:'ve|\s+have)\s+(?:just\s+)?(?:run|executed|invoked|called)\b"
+    # Retrieval is execution too.  "I looked it up" used to pass because the
+    # detector recognized only the mechanics (ran/invoked/called), letting an
+    # unrelated older search receipt become a plausible story about this turn.
+    r"|\bi\s+(?:actually\s+)?(?:just\s+)?(?:"
+    r"looked\s+(?:it|that|this|the\s+answer)\s+up"
+    r"|searched(?:\s+(?:the\s+)?(?:web|internet)|\s+online)?"
+    r"|checked\s+(?:the\s+)?(?:web|internet|online)"
+    r"|used\s+(?:a\s+)?(?:web\s+search|search\s+tool)"
+    r")\b"
     # Reporting the act in progress, at the start of a clause.
     r"|(?:^|[.!?:\n]\s*)(?:so\s+|ok(?:ay)?,?\s+)?(?:running|executing|invoking)\s+"
     r"(?:the|this|that|your|a|an|it)\b"

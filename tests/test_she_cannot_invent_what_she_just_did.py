@@ -135,13 +135,13 @@ def test_the_block_stays_small_enough_to_carry_every_turn() -> None:
     assert len(_block(records)) < 1800
 
 
-# ── Both builders, because last time only one of them was fixed ────────────
+# ── One delivery owner, because duplicated grounding drifted independently ─
 
-def test_both_prompt_builders_carry_the_receipts() -> None:
-    for source in (ENGINE, GATE):
-        assert "from core.brain.recent_actions import recent_actions_block" in (
-            source.read_text(encoding="utf-8")
-        ), f"{source} does not carry action receipts"
+def test_inference_gate_owns_the_relevance_scoped_receipt_projection() -> None:
+    gate = GATE.read_text(encoding="utf-8")
+    assert "recent_actions_block" in gate
+    assert "asks_what_she_recently_did" in gate
+    assert "ambient_grounding_blocks.append(_actions)" in gate
 
 
 def test_the_receipts_survive_prompt_compaction() -> None:
