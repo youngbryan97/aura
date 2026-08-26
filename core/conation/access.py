@@ -251,6 +251,20 @@ class GrantResponse:
     #: Social exposure the asking incurred, now discharged. Asking to be
     #: taught admits not-knowing to someone whose regard matters.
     exposure_resolved: float = 0.0
+    #: Whether this particular agent was wanted as the source, or whether
+    #: anyone qualified would have done. The hinge of the whole event: swap
+    #: the person for an equivalent stranger and the path opens exactly as
+    #: wide while the warmth goes out of it.
+    specificity: float = 0.0
+    #: Whether the grant answered this want, or would have happened anyway.
+    #: A scheduled class that happens to cover the topic is not responsive; a
+    #: yes to the asking is.
+    responsiveness: float = 0.0
+    #: Value to the receiver times cost to the granter times improbability
+    #: times responsiveness, gated on specificity. Held apart from the access
+    #: magnitude because they come apart: a bureaucratic grant opens the path
+    #: and generates none of this.
+    gratitude: float = 0.0
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -269,6 +283,9 @@ class GrantResponse:
             "attainability_gain": round(self.attainability_gain, 6),
             "commitment": round(self.commitment, 6),
             "exposure_resolved": round(self.exposure_resolved, 6),
+            "specificity": round(self.specificity, 6),
+            "responsiveness": round(self.responsiveness, 6),
+            "gratitude": round(self.gratitude, 6),
             "evidence": self.evidence,
             "timestamp": self.timestamp,
         }
@@ -401,6 +418,8 @@ class AccessLedger:
         solo_success: float | None = None,
         guided_success: float | None = None,
         exposure: float = 0.0,
+        specificity: float = 0.0,
+        responsiveness: float = 0.0,
     ) -> GrantResponse | None:
         """Open a blocked want, and price what that opening is worth.
 
@@ -417,6 +436,15 @@ class AccessLedger:
         ``exposure`` is the social risk the asking incurred. Asking to be
         taught admits not-knowing to a specific person, and a yes discharges
         that as well as opening the path.
+
+        ``specificity`` is whether this agent was wanted as the source or
+        whether any qualified one would have served, and ``responsiveness`` is
+        whether the grant answered the asking or would have happened anyway.
+        Both feed gratitude, which is computed separately from the access
+        magnitude because the two genuinely come apart. A timetable that
+        happens to cover the topic opens the same path and produces no warmth
+        at all, and a model without these terms cannot tell that case from
+        this one.
 
         Returns ``None`` when there was no want to open — an offer of
         something nobody wanted produces no response, which is correct and is
@@ -467,6 +495,24 @@ class AccessLedger:
         )
         magnitude = max(0.0, min(1.0, magnitude))
 
+        # Gratitude, on Algoe's conditions: the benefit is valuable to the
+        # receiver, costly to the giver, better than expected, and responsive
+        # to what the receiver actually wanted. Every one of the four is
+        # necessary, so they multiply — a costly benefit nobody wanted, or a
+        # wanted benefit that cost nothing, generates none of this.
+        wanted_from_them = max(0.0, min(1.0, float(specificity)))
+        answered = max(0.0, min(1.0, float(responsiveness)))
+        improbability = 1.0 - (
+            self.willingness(agent).expectation() if agent else 1.0
+        )
+        gratitude = (
+            trace.trace
+            * max(0.0, min(1.0, float(cost_to_granter)))
+            * max(0.0, improbability)
+            * answered
+            * wanted_from_them
+        )
+
         if clarity > 0.0:
             self.set_blocker(key, Blocker.NONE)
         response = GrantResponse(
@@ -481,11 +527,16 @@ class AccessLedger:
             attainability_gain=gain,
             commitment=clarity,
             exposure_resolved=discharged,
+            specificity=wanted_from_them,
+            responsiveness=answered,
+            gratitude=max(0.0, min(1.0, gratitude)),
             evidence=(
                 f"held {trace.evaluations} evaluations over {trace.duration_s():.0f}s; "
                 f"{blocker} barrier opened at commitment {clarity:.2f}"
                 + (f" by {agent} ({surprise:.2f} bits)" if agent else "")
                 + (f"; attainability +{gain:.2f} ({divergence:.3f} nats)" if gain else "")
+                + (f"; gratitude {gratitude:.2f} at specificity {wanted_from_them:.2f}"
+                   if gratitude > 0.0 else "")
             ),
         )
         self._grants.append(response)

@@ -104,6 +104,36 @@ def gaussian_entropy_reduction(
     return max(0.0, total)
 
 
+#: Where the Wundt curve peaks, in normalised arousal potential. The midpoint
+#: is the maximum-entropy choice: nothing measured on this system says the
+#: sweet spot sits high or low, and putting it anywhere else asserts a taste.
+WUNDT_OPTIMUM = 0.5
+
+#: Width of the curve. One quarter of the range puts the half-maximum points
+#: at the quartiles, so the middle half of the complexity range scores above
+#: half and both extremes fall to about 0.14. That geometry is the claim
+#: Wundt's curve makes — interesting things are neither trivial nor
+#: impenetrable — and the width follows from it rather than from tuning.
+WUNDT_WIDTH = 0.25
+
+
+def wundt_curve(arousal_potential: float) -> float:
+    """Berlyne's inverted U over how much is going on in a stimulus.
+
+    Curiosity does not rise with complexity. It peaks in the middle and falls
+    off both sides, and the two tails fail for different reasons: a blank wall
+    offers nothing to resolve, and a wall of static offers nothing resolvable.
+    A monotonic curiosity function gets the low tail wrong even when an
+    irreducible-uncertainty penalty rescues the high one, which is why the
+    penalty is not a substitute for this.
+
+    A snail sits near the peak. That is the whole reason a hand goes out.
+    """
+    potential = max(0.0, min(1.0, float(arousal_potential)))
+    z = (potential - WUNDT_OPTIMUM) / WUNDT_WIDTH
+    return math.exp(-0.5 * z * z)
+
+
 def saturate(nats: float) -> float:
     """Map an unbounded information gain into [0, 1).
 
@@ -259,6 +289,8 @@ class EpistemicValuation:
         prior_variance: Sequence[float] | None = None,
         posterior_variance: Sequence[float] | None = None,
         controllability: float | None = None,
+        arousal_potential: float | None = None,
+        instrumental: bool = False,
         effort: float = 0.0,
     ) -> OriginReading:
         """Curiosity about one target.
@@ -267,6 +299,18 @@ class EpistemicValuation:
         actually inspectable. Zero means there is nothing to find out, and the
         origin reports unavailable — an action is not curious-making merely by
         existing near something novel.
+
+        ``arousal_potential`` is how much is going on in the target, and it
+        enters through Wundt's curve rather than linearly. Supplying it is
+        what distinguishes the snail from both a blank wall and a wall of
+        static.
+
+        ``instrumental`` marks a look taken in order to get something else.
+        Such a look is still worth taking and is still priced here, but it is
+        reported as instrumental so it cannot be counted as the autotelic
+        case. The distinction is the difference between reading a manual and
+        picking up a snail, and only one of those two is what curiosity means
+        in the sense this package is about.
         """
         origin = ValueOrigin.EPISTEMIC
         affordance = max(0.0, min(1.0, float(epistemic_affordance)))
@@ -311,6 +355,12 @@ class EpistemicValuation:
             terms["controllability"] = max(0.0, min(1.0, float(controllability)))
             sources.append(f"controllability {terms['controllability']:.3f}")
 
+        if arousal_potential is not None:
+            terms["wundt"] = wundt_curve(arousal_potential)
+            sources.append(
+                f"Wundt {terms['wundt']:.3f} at potential {float(arousal_potential):.2f}"
+            )
+
         if not terms:
             return OriginReading.unavailable(
                 origin, "no epistemic term could be measured"
@@ -339,6 +389,7 @@ class EpistemicValuation:
                 "affordance": affordance,
                 "positive": positive,
                 "penalty": penalty,
+                "instrumental": 1.0 if instrumental else 0.0,
                 **terms,
                 **({"irreducible": irreducible} if irreducible is not None else {}),
             },

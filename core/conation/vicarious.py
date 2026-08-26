@@ -84,6 +84,15 @@ class ValuationObservation:
     target: str
     strength: float
     evidence: str
+    #: How comparable this agent is to the observer. Festinger's point about
+    #: social comparison is that it runs against similar others; a truck in a
+    #: peer's hands transfers more than the same truck held by an adult, and
+    #: far more than the same truck on an empty rug.
+    similarity: float = 1.0
+    #: Whether the agent currently possesses the target rather than merely
+    #: attending to it. Possession is a stronger value signal than attention,
+    #: and it is also what makes the object unavailable.
+    possesses: bool = False
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,6 +100,8 @@ class ValuationObservation:
             "agent": self.agent,
             "target": self.target,
             "strength": round(self.strength, 4),
+            "similarity": round(self.similarity, 4),
+            "possesses": self.possesses,
             "evidence": self.evidence[:160],
             "timestamp": self.timestamp,
         }
@@ -134,7 +145,14 @@ class VicariousValuation:
     # ── observation ──────────────────────────────────────────────────────
 
     def observe_valuation(
-        self, *, agent: str, target: str, strength: float, evidence: str
+        self,
+        *,
+        agent: str,
+        target: str,
+        strength: float,
+        evidence: str,
+        similarity: float = 1.0,
+        possesses: bool = False,
     ) -> ValuationObservation | None:
         """Record that an identified agent valued a target.
 
@@ -154,6 +172,8 @@ class VicariousValuation:
             target=target_id,
             strength=max(0.0, min(1.0, float(strength))),
             evidence=str(evidence or "")[:200],
+            similarity=max(0.0, min(1.0, float(similarity))),
+            possesses=bool(possesses),
         )
         self._observations[f"{agent_id}::{target_id}"] = observation
         return observation
@@ -266,7 +286,7 @@ class VicariousValuation:
             )
 
         base = 0.0 if own_value is None else max(0.0, min(1.0, own_value))
-        borrowed = alpha * strongest.strength * credibility
+        borrowed = alpha * strongest.strength * credibility * strongest.similarity
         transfer = Transfer(
             target=target,
             agent=strongest.agent,
@@ -290,10 +310,62 @@ class VicariousValuation:
                     "alpha": alpha,
                     "observation_strength": strongest.strength,
                     "credibility": credibility,
+                    "similarity": strongest.similarity,
                     "own_contacts": float(own_contacts),
                 },
             ),
             transfer,
+        )
+
+    def sting(
+        self,
+        target: str,
+        *,
+        own_possession: bool,
+        obtainability: float,
+        theory_of_mind: float,
+    ) -> tuple[float, str]:
+        """The comparison pain, which is a different quantity from the wanting.
+
+        Runciman's account of relative deprivation names four conditions, and
+        they are graded rather than binary: you lack the thing, a comparable
+        other has it, it is attractive, and it looks like you could have had
+        it. All four have to hold for the lack to sting; missing any one and
+        the same lack is merely a lack.
+
+        The last multiplier is the one that matters developmentally. The sting
+        needs a self-other comparison, which needs a model of the other as
+        someone who could have been you, which is theory of mind. A toddler
+        has almost none and simply reaches. The same situation at thirty
+        produces very little reaching and a great deal of simmering, and the
+        difference is not in how much either of them wants the object.
+
+        Returned separately from the value so it can never be mistaken for
+        one. Wanting moves behaviour toward a thing; the sting is what the
+        lack costs, and a system that adds them together will pursue harder
+        the more it hurts.
+        """
+        observations = self.observations_for(target)
+        if not observations:
+            return 0.0, "no comparable other holds this"
+        if own_possession:
+            return 0.0, "already held; no deprivation"
+        holder = max(
+            observations,
+            key=lambda o: (o.possesses, o.similarity * o.strength),
+        )
+        if not holder.possesses:
+            return 0.0, f"{holder.agent} attends to this but does not hold it"
+
+        tom = max(0.0, min(1.0, float(theory_of_mind)))
+        reachable = max(0.0, min(1.0, float(obtainability)))
+        magnitude = holder.similarity * holder.strength * reachable * tom
+        return (
+            max(0.0, min(1.0, magnitude)),
+            (
+                f"{holder.agent} holds this at similarity {holder.similarity:.2f}; "
+                f"obtainable {reachable:.2f}; theory of mind {tom:.2f}"
+            ),
         )
 
     @staticmethod
