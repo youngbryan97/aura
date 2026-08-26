@@ -63,3 +63,64 @@ def test_a_plan_is_governed_by_the_widest_thing_in_it():
     inheriting it wrong for the narrower ones."""
     plan = {"steps": [{"action": "open_app"}, {"action": "write_text_file"}]}
     assert resolve_execution_effect_scope("desktop_task", plan) == "desktop_file_io"
+
+
+from core.executive.execution_policy import scope_is_within  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("presented", "granted"),
+    [
+        ("foreground_desktop_control", "desktop_file_io"),
+        ("read_only", "desktop_file_io"),
+        ("read_only", "foreground_desktop_control"),
+        ("desktop_file_io", "desktop_file_io"),
+    ],
+)
+def test_a_lease_covers_what_is_narrower_than_it(presented, granted):
+    """A plan is governed by the widest thing in it, so a lease issued for a
+    plan is a lease for that width, and every step is at most that wide.
+
+    LIVE 2026-08-26: a desktop task approved at 'desktop_file_io' could not
+    run its own file-writing step, which presented
+    'foreground_desktop_control' against that lease.
+    """
+    assert scope_is_within(presented, granted)
+
+
+@pytest.mark.parametrize(
+    ("presented", "granted"),
+    [
+        ("desktop_file_io", "foreground_desktop_control"),
+        ("desktop_file_io", "read_only"),
+        ("foreground_desktop_control", "read_only"),
+    ],
+)
+def test_a_lease_does_not_cover_what_is_wider_than_it(presented, granted):
+    assert not scope_is_within(presented, granted)
+
+
+@pytest.mark.parametrize(
+    ("presented", "granted"),
+    [
+        ("subprocess", "desktop_file_io"),
+        ("desktop_file_io", "subprocess"),
+        ("sandboxed_compute", "foreground_desktop_control"),
+        ("", "desktop_file_io"),
+        ("desktop_file_io", ""),
+    ],
+)
+def test_scopes_that_are_not_comparable_are_refused(presented, granted):
+    """'subprocess' and 'desktop_file_io' are not more or less than each
+    other, and pretending they are would turn authority for one into
+    authority for the other."""
+    assert not scope_is_within(presented, granted)
+
+
+def test_the_authority_check_uses_it():
+    import inspect
+
+    from core.executive import standing_authority
+
+    source = inspect.getsource(standing_authority)
+    assert "scope_is_within(scope, record.effect_scope)" in source

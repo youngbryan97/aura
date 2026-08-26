@@ -376,6 +376,33 @@ _DESKTOP_SCOPE_RANK: tuple[str, ...] = (
 )
 
 
+def scope_is_within(presented: Any, granted: Any) -> bool:
+    """Whether a scope is at most what was granted, on a known ordering.
+
+    A plan is governed by the widest thing in it, so a lease issued for a
+    plan is a lease for that width — and every step of the plan is at most
+    that wide. Refusing a step because it is NARROWER than what was approved
+    refuses something strictly safer than the thing already allowed.
+
+    LIVE 2026-08-26: a desktop task approved at 'desktop_file_io' could not
+    run its own file-writing step, which presented 'foreground_desktop_control'
+    against that lease. She could not write a file at all.
+
+    Only within one ordering. 'subprocess' and 'desktop_file_io' are not more
+    or less than each other, and pretending they are would turn authority for
+    one into authority for the other, so anything incomparable is refused.
+    """
+    here = str(presented or "").strip().lower()
+    there = str(granted or "").strip().lower()
+    if not here or not there:
+        return False
+    if here == there:
+        return True
+    if here not in _DESKTOP_SCOPE_RANK or there not in _DESKTOP_SCOPE_RANK:
+        return False
+    return _DESKTOP_SCOPE_RANK.index(here) <= _DESKTOP_SCOPE_RANK.index(there)
+
+
 def _desktop_task_scope(params: dict[str, Any]) -> str | None:
     """The widest scope among a desktop plan's declared steps, or None."""
     raw_steps = (params or {}).get("steps")

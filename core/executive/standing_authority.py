@@ -28,6 +28,7 @@ from core.executive.bounded_sandbox_policy import (
     validate_idle_sandbox_probe_arguments,
 )
 from core.executive.execution_policy import (
+    scope_is_within,
     classify_execution_risk,
     normalize_risk,
     normalize_tool_name,
@@ -1323,7 +1324,7 @@ class StandingAuthorityManager:
             scope = str(
                 resolve_execution_effect_scope(name, dict(arguments or {}))
             ).strip().lower()
-        if scope != record.effect_scope:
+        if scope != record.effect_scope and not scope_is_within(scope, record.effect_scope):
             # Say WHICH scopes disagreed.
             #
             # A refusal that names only the rule cannot be diagnosed from
