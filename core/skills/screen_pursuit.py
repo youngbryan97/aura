@@ -1406,13 +1406,23 @@ async def pursue_on_screen(
                         _tell("Nothing I do is changing anything here — this attempt is over.")
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
-            if behind.get("waiting") and not pacing["choice"]:
+            offered_pacing = bool(behind.get("waiting")) and not pacing["choice"]
+            if offered_pacing:
                 available = available + pacing_options(behind)
 
             # Effort follows what rides on this one. A routine move is a
             # routine move; a run that has stopped getting anywhere, or one
             # weighing whether to start over, is worth more than one pass.
-            unusual = stuck(history) or len(available) > len(move_keys)
+            # What is unusual is the situation, not the number of buttons.
+            #
+            # This counted the options: a way out is appended whenever the
+            # screen has one, and a game page has a New Game button on it
+            # permanently — so every ordinary move was treated as a moment
+            # worth weighing, and paid a language pass for it. Measured live
+            # 2026-08-26: seventeen passes for fourteen moves, twenty seconds
+            # a move, and a run that spent its budget deliberating over a
+            # button she was never going to press.
+            unusual = stuck(history) or ended or offered_pacing
             weight = stakes if unusual else min(stakes, 0.3)
             # And a routine move in a fast loop does not always need words.
             #
