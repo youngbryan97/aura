@@ -393,6 +393,11 @@ async def settle_on_an_approach(
             )
         return None
     _said_it_could_not_plan["value"] = False
+    logger.info(
+        "she answered how to go about it (%d chars): %r",
+        len(str(reply or "")),
+        " ".join(str(reply or "").split())[:160],
+    )
     settled = read_strategy(reply or "", options, situation=situation)
     if settled is None:
         # She answered, and what she said was not an approach.
