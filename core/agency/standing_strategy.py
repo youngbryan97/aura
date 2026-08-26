@@ -287,6 +287,23 @@ def _earliest(text: str, patterns: Sequence[str]) -> str:
     return best[1] if best else ""
 
 
+#: Words that open a reason for something rather than the something.
+_OPENS_A_REASON = re.compile(
+    r"^(?:because|since|so|as|therefore|thus|which|that)\b", re.IGNORECASE
+)
+
+
+def _is_a_reason_not_a_line(said: str) -> bool:
+    """Whether this clause is the reason for a plan rather than the plan.
+
+    LIVE 2026-08-26: "Plan: because the board is sparse, so maximizing the
+    size of the main stack before new tiles spawn is safer than chasing small
+    merges." A subordinate clause caught on its own reads as an approach and
+    is the answer to a different question.
+    """
+    return bool(_OPENS_A_REASON.match(str(said or "").strip(" ,;-—")))
+
+
 def _first_worth_having(
     text: str, groups: Sequence[Sequence[str]], options: Sequence[ActionOption] = ()
 ) -> str:
@@ -307,6 +324,8 @@ def _first_worth_having(
         for pattern in patterns:
             for found in re.finditer(pattern, text, re.IGNORECASE):
                 said = _whole_words(found.group("said"))
+                if _is_a_reason_not_a_line(said):
+                    continue
                 if not _says_enough_to_be_an_approach(said, options):
                     continue
                 if best is None or found.start() < best[0]:

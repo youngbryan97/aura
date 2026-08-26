@@ -90,3 +90,12 @@ def test_a_clause_too_short_to_be_an_approach_is_passed_over():
 
 def test_a_move_on_its_own_is_still_not_an_approach():
     assert read_strategy("I choose to press left.", MOVES) is None
+
+
+def test_a_reason_caught_on_its_own_is_not_the_line_she_is_taking():
+    said = (
+        "I'll press up because the board is sparse, so maximizing the size of the "
+        "main stack before new tiles spawn is safer than chasing small merges."
+    )
+    held = read_strategy(said, MOVES, situation="2 4 64")
+    assert held is None or not held.approach.lower().startswith("because")
