@@ -115,7 +115,44 @@ def _watchable(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return tuple(dict.fromkeys(keep)), tuple(dict.fromkeys(avoid))
 
 
-def read_strategy(reply: str, options: Sequence[ActionOption] = ()) -> Strategy | None:
+def _biggest_thing_in(situation: str) -> str:
+    """The value a situation is most obviously about.
+
+    An approach often refers to something without naming it: "keep the
+    largest tile in the corner", "protect the big one", "build on what I
+    have". None of that is checkable on its own, and refusing it means she
+    holds no approach at all — measured live, she played whole games without
+    one because her plans were phrased the way people phrase plans.
+
+    What she is referring to is in front of her. Binding the approach to the
+    largest value in the situation makes it checkable without putting words
+    in her mouth: an approach built around the big tile stops being the right
+    approach when the big tile is gone.
+    """
+    values = [
+        int(found.replace(",", ""))
+        for found in re.findall(r"\b(\d[\d,]{0,9})\b", str(situation or ""))
+    ]
+    return str(max(values)) if values else ""
+
+
+#: The fewest words that can describe a way of going about something. Below
+#: this it is a move, an answer, or encouragement.
+ENOUGH_WORDS = 4
+
+
+def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = ()) -> bool:
+    """Whether this describes a way of going about it at all."""
+    words = re.findall(r"[\w'-]+", str(said or ""))
+    if len(words) < ENOUGH_WORDS:
+        return False
+    names = {str(option.name or "").strip().lower() for option in options if option.name}
+    return " ".join(words).lower() not in names
+
+
+def read_strategy(
+    reply: str, options: Sequence[ActionOption] = (), *, situation: str = ""
+) -> Strategy | None:
     """An approach read out of a reply, when it names one.
 
     Deliberately forgiving about shape and strict about substance: an
@@ -178,7 +215,18 @@ def read_strategy(reply: str, options: Sequence[ActionOption] = ()) -> Strategy 
 
     keep, avoid = _watchable(condition)
     if not keep and not avoid:
-        return None
+        # She named no value, so bind it to what she is looking at — but only
+        # if she actually described an approach. A bare option name is a
+        # move, and two words of encouragement is a preference; neither is a
+        # line to take, and anchoring them to the board would dress them up
+        # as one.
+        if not _says_enough_to_be_an_approach(approach, options):
+            return None
+        anchor = _biggest_thing_in(situation)
+        if not anchor:
+            return None
+        keep, avoid = (anchor,), ()
+        condition = f"{condition} (while the {anchor} is still there)"
     because = ""
     reason = re.search(r"\bbecause\s+(?P<said>[^.]{4,140})", text, re.IGNORECASE)
     if reason:
@@ -239,7 +287,7 @@ async def settle_on_an_approach(
             "standing_strategy", exc, severity="info", action="carried on without a stated approach"
         )
         return None
-    settled = read_strategy(reply or "", options)
+    settled = read_strategy(reply or "", options, situation=situation)
     if settled is None:
         return None
     return Strategy(

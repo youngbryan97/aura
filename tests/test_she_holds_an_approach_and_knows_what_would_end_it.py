@@ -433,3 +433,39 @@ def test_naming_nothing_to_hold_to_is_still_not_an_approach(said):
     """A plan with nothing that could end it is a preference, and knowing in
     advance what would change her mind is the whole value."""
     assert read_strategy(said) is None
+
+
+BOARD = "2 4 2 4 16 16 2 32 64 2 8 8 16 8 2"
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "Keep the largest tile in the bottom-left corner and merge downward.",
+        "I will build up along the left edge.",
+        "Going left because that keeps the row clear",
+    ],
+)
+def test_an_approach_that_names_no_value_is_bound_to_what_she_is_looking_at(said):
+    """An approach often refers to something without naming it: "keep the
+    largest tile in the corner", "protect the big one". None of that is
+    checkable on its own, and refusing it meant she held no approach at all —
+    measured live, she played whole games without one, because her plans were
+    phrased the way people phrase plans.
+
+    What she is referring to is in front of her.
+    """
+    held = read_strategy(said, MOVES, situation=BOARD)
+    assert held is not None
+    assert held.holds_while.contains == ("64",), "not bound to the biggest thing on the board"
+    holds, _why = still_holds(held, BOARD)
+    assert holds
+    holds, why = still_holds(held, "2 4 8 16 32")
+    assert not holds and "64" in why
+
+
+@pytest.mark.parametrize("said", ["left", "play well", "Plan: play well.", "up"])
+def test_a_move_or_a_preference_is_not_an_approach(said):
+    """A bare option name is a move and two words of encouragement is a
+    preference. Anchoring either to the board would dress it up as a plan."""
+    assert read_strategy(said, MOVES, situation=BOARD) is None
