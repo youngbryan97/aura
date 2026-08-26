@@ -1324,7 +1324,26 @@ class StandingAuthorityManager:
                 resolve_execution_effect_scope(name, dict(arguments or {}))
             ).strip().lower()
         if scope != record.effect_scope:
-            return False, "standing_authority_effect_scope_mismatch", record
+            # Say WHICH scopes disagreed.
+            #
+            # A refusal that names only the rule cannot be diagnosed from
+            # outside: measured live, "write a file on my Desktop" was
+            # refused with standing_authority_effect_scope_mismatch and
+            # nothing anywhere recorded that the lease held one value and the
+            # check derived another. The whole reason this comparison exists
+            # is that the two can differ, so the two belong in the reason.
+            logger.warning(
+                "Standing authority scope mismatch for %s: lease held %r, this call derived %r",
+                name,
+                record.effect_scope,
+                scope,
+            )
+            return (
+                False,
+                f"standing_authority_effect_scope_mismatch (lease={record.effect_scope!r},"
+                f" call={scope!r})",
+                record,
+            )
         # Same asymmetry, one field along: the lease classifies the risk from
         # the tool when none is given. The RAW value decides whether anything
         # was supplied — normalize_risk("") returns a default rather than an
