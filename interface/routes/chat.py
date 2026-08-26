@@ -15846,6 +15846,57 @@ def _serve_recent_activity(user_message: object, reply: object) -> object:
         return reply
 
 
+def _serve_host_load(user_message: object, reply: object) -> object:
+    """Answer "how hard is the machine working" with the reading.
+
+    LIVE, 2026-08-25: "How hard is the machine you run on working right now?
+    Give me a number you can stand behind." came back as "I have 19 stored
+    turns of recent conversation I can read back. So I can't give you a
+    defensible number" — while the telemetry said 24% processor and 57%
+    memory.
+
+    Fixing the reading and the gate got the number as far as the giving-up
+    path, where it arrived as a five-line status page in place of her reply:
+    the right fact, none of it in her voice, and three lines nobody asked for.
+    A reading belongs in the answer, and this one covers load and nothing
+    else — whether a job is failing is a different question.
+    """
+    try:
+        from core.introspection.self_evidence import (
+            asks_about_own_operational_state,
+            resolve_self_health,
+        )
+
+        asked = str(user_message or "")
+        if not asks_about_own_operational_state(asked):
+            return reply
+        readings = {
+            reading.channel: reading for reading in resolve_self_health().readings
+        }
+        load = readings.get("host_load")
+        if load is None or not load.present:
+            return reply
+        values = dict(load.value or {})
+        said = (
+            f"The machine is at {values.get('processor_percent', 0.0):.1f}% processor "
+            f"and {values.get('memory_percent', 0.0):.1f}% memory right now."
+        )
+        thermal = readings.get("host_thermal")
+        if thermal is not None and thermal.present and float(thermal.value) > 0.0:
+            said += f" Thermal pressure {float(thermal.value):.2f} of 1."
+        logger.info("🌡️ Served the host load from the telemetry.")
+        return _compose(user_message, reply, said, asks_about_own_operational_state)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.host_load",
+            exc,
+            severity="debug",
+            action="left the load answer to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_queued_work(user_message: object, reply: object) -> object:
     """Answer "what are you going to do next" from the coordinator's list.
 
@@ -17634,6 +17685,7 @@ async def _recorded_answer_corrections(
     corrected = str(_serve_measured_filesystem_count(user_message, body) or body)
     corrected = str(_serve_measured_belief_history(corrected) or corrected)
     corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
+    corrected = str(_serve_host_load(user_message, corrected) or corrected)
     corrected = str(_serve_queued_work(user_message, corrected) or corrected)
     corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
     corrected = str(await _save_requested_artifact(user_message, corrected) or corrected)

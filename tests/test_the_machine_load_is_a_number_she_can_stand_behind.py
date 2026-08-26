@@ -128,3 +128,45 @@ def test_somebody_elses_machine_is_not_hers(asked: str) -> None:
     from core.introspection.self_evidence import asks_about_own_operational_state
 
     assert asks_about_own_operational_state(asked) is False
+
+
+def test_a_clause_about_the_shape_of_the_answer_is_not_a_second_question() -> None:
+    """"Give me a number you can stand behind" constrains; it does not ask.
+
+    LIVE, 2026-08-25: counted as a request the reading did not cover, so the
+    measured line was joined to "I'd rather not guess at that" — a number and
+    a refusal to give one, in that order.
+    """
+    from core.conversation.composed_answer import coverage_of, shapes_the_answer
+
+    assert shapes_the_answer("Give me a number you can stand behind.")
+    assert shapes_the_answer("keep it short")
+    assert shapes_the_answer("in one sentence")
+    assert shapes_the_answer("no fluff")
+    assert not shapes_the_answer("what have you got going on today?")
+    assert not shapes_the_answer("how much memory are you using?")
+
+    from core.introspection.self_evidence import asks_about_own_operational_state
+
+    covered, uncovered = coverage_of(
+        "How hard is the machine you run on working right now? "
+        "Give me a number you can stand behind.",
+        asks_about_own_operational_state,
+    )
+    assert covered, "the load question was not recognised as covered"
+    assert not uncovered, f"nothing should be left over, got {uncovered}"
+
+
+def test_the_reading_lands_in_the_reply_not_in_place_of_it() -> None:
+    """A two-part question keeps the half the reading does not answer."""
+    from core.conversation.composed_answer import compose_measured
+    from core.introspection.self_evidence import asks_about_own_operational_state
+
+    composed = compose_measured(
+        "How hard is the machine working, and what are you doing later?",
+        "Later I am consolidating memory.",
+        "The machine is at 12.0% processor and 60.0% memory right now.",
+        asks_about_own_operational_state,
+    )
+    assert composed.startswith("The machine is at 12.0%")
+    assert "consolidating memory" in composed

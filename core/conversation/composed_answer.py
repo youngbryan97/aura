@@ -19,13 +19,45 @@ them, the reading is joined to what was already written for the rest.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 
 from core.language.asking_clauses import asking_clauses
 
 _LOG = logging.getLogger("Aura.ComposedAnswer")
 
-__all__ = ["compose_measured", "coverage_of"]
+__all__ = ["compose_measured", "coverage_of",
+    "shapes_the_answer"]
+
+
+#: A clause saying what the answer should look like rather than asking
+#: anything: "give me a number", "keep it short", "in one sentence", "no
+#: fluff", "plain language". It constrains the answer to the clause before it.
+_SHAPES_THE_ANSWER = re.compile(
+    r"^\s*(?:and\s+|but\s+)?(?:please\s+)?(?:"
+    r"give\s+me\s+(?:a|an|the)\s+(?:number|figure|percentage|straight\s+answer|"
+    r"one[\s-]?word\s+answer)|"
+    r"keep\s+it\s+(?:short|brief|tight|simple)|"
+    r"in\s+(?:one|a\s+single|two|three)\s+(?:sentence|line|word|paragraph)s?|"
+    r"no\s+(?:fluff|preamble|hedging|waffle|marketing)|"
+    r"plain\s+(?:language|english)|"
+    r"be\s+(?:brief|concise|specific|honest)|"
+    r"just\s+the\s+(?:number|answer|facts?)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def shapes_the_answer(clause: object) -> bool:
+    """Whether this clause says how to answer rather than asking something.
+
+    LIVE, 2026-08-25: "How hard is the machine you run on working right now?
+    Give me a number you can stand behind." The second sentence counted as a
+    request the reading did not cover, so the measured line was joined to "I'd
+    rather not guess at that" — a number and a refusal to give one, in that
+    order. It is a constraint on the first sentence, not a second question.
+    """
+    return bool(_SHAPES_THE_ANSWER.match(str(clause or "").strip()))
 
 
 def coverage_of(
@@ -36,6 +68,9 @@ def coverage_of(
     covered: list[str] = []
     uncovered: list[str] = []
     for clause in clauses:
+        # A clause about the shape of the answer is not a question left over.
+        if shapes_the_answer(clause):
+            continue
         try:
             hit = bool(matches(clause))
         except (RuntimeError, TypeError, ValueError):
