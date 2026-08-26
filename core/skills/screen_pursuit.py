@@ -1124,7 +1124,7 @@ async def pursue_on_screen(
         # answered it, this is the whole reading, because a guess about where
         # the task is would be worse.
         band = responds["state"].band()
-        seen = within(observation, band)
+        seen = within(observation, band, responds["state"])
 
         # Grade the last prediction before making another one.
         #

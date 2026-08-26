@@ -182,8 +182,25 @@ def noticed(
     if not was and not now:
         return state
     state.acts += 1
-    changed = any(was.get(where) != now.get(where) for where in set(was) | set(now))
-    state.unanswered = 0 if changed else state.unanswered + 1
+    # Something answered only if what changed is not the sort of thing that
+    # changes anyway.
+    #
+    # A reading of a screen holds a clock, a tab strip, a rotating banner. On
+    # a board that had finished, one of those ticked over between every pair
+    # of readings, so "the screen changed" was true after every act and she
+    # went on playing a game that was over. A place that has changed on every
+    # comparison so far is not evidence that this act did anything.
+    answered_now = False
+    for where in set(was) | set(now):
+        if was.get(where) == now.get(where):
+            continue
+        # Counted against the comparisons BEFORE this one, because this
+        # act's own change has already been recorded by the time it is read.
+        seen_before = state.answered.get(where, 0) + state.regardless.get(where, 0)
+        if seen_before < state.acts - 1:
+            answered_now = True
+            break
+    state.unanswered = 0 if answered_now else state.unanswered + 1
     if worked:
         state.effective += 1
     else:
@@ -195,15 +212,56 @@ def noticed(
     return state
 
 
-def within(observation: dict[str, Any], band: tuple[float, float, float, float] | None) -> str:
+def _changes_anyway(state: "Responsive | None") -> set[tuple[int, int]]:
+    """Positions that have changed on every comparison so far.
+
+    A clock, a tab strip, a rotating banner. They are not evidence that
+    anything she did had an effect, and leaving them in what she reads makes
+    every move look like it worked — which is worse than useless, because it
+    is the measurement everything else learns from.
+    """
+    if state is None or state.acts < 2:
+        return set()
+    seen = set(state.answered) | set(state.regardless)
+    return {
+        where
+        for where in seen
+        if state.answered.get(where, 0) + state.regardless.get(where, 0) >= state.acts - 1
+    }
+
+
+def within(
+    observation: dict[str, Any],
+    band: tuple[float, float, float, float] | None,
+    state: "Responsive | None" = None,
+) -> str:
     """The reading, kept to the part that answers to her.
 
-    Returns the whole reading when there is no answer yet, because a guess
-    about where the task is would be worse than reading everything.
+    Before the answering part is known, everything is kept except what has
+    been changing regardless of her — because a guess about where the task is
+    would be worse than reading everything, and reading a clock as if it were
+    the task is worse than either.
     """
     text = str(observation.get("text") or "")
     if band is None:
-        return text
+        background = _changes_anyway(state)
+        if not background:
+            return text
+        kept: list[str] = []
+        for region in observation.get("layout") or []:
+            said = str(region.get("text") or "").strip()
+            if not said:
+                continue
+            try:
+                where = (
+                    round(float(region.get("center_x", region.get("x", 0.0))) * 100),
+                    round(float(region.get("center_y", region.get("y", 0.0))) * 100),
+                )
+            except (TypeError, ValueError):
+                continue
+            if where not in background:
+                kept.append(said)
+        return " ".join(kept) if kept else text
     left, top, right, bottom = band
     inside: list[str] = []
     for region in observation.get("layout") or []:

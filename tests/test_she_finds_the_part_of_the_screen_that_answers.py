@@ -118,7 +118,7 @@ def test_the_loop_reasons_from_the_part_that_answers():
     from core.skills import screen_pursuit
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
-    assert "seen = within(observation, band)" in source
+    assert "seen = within(observation, band, responds[" in source
     # Learned from the same measurement that grades the move, so the control
     # is the move that had no effect.
     assert "worked=attempt.verdict.held," in source
@@ -166,3 +166,35 @@ def test_the_loop_offers_a_way_out_when_the_thing_has_ended():
     block = source[where : where + 300]
     assert "nothing_answers()" in block
     assert "stuck(history) or ended" in block
+
+
+def test_what_changes_anyway_is_kept_out_of_what_she_reads():
+    """A reading holds a clock, a tab strip, a rotating banner. Left in, they
+    make every move look like it worked — which is worse than useless,
+    because that measurement is what everything else learns from.
+
+    LIVE 2026-08-26: on a board that had finished, one of them ticked over
+    between every pair of readings, so "the screen changed" was true after
+    every act and she went on playing a game that was over.
+    """
+    state = Responsive()
+    board = [2, 4, 8]
+    for i in range(5):
+        state = noticed(
+            state,
+            _screen(board, f"3:{30 + i} AM"),
+            _screen(board, f"3:{31 + i} AM"),
+            worked=False,
+        )
+    read = within(_screen(board, "3:40 AM"), None, state)
+    assert "2 4 8" in read
+    assert "AM" not in read, "a ticking clock was read as part of the task"
+    assert state.nothing_answers(), "a frozen board with a ticking clock read as alive"
+
+
+def test_a_live_board_never_reads_as_finished():
+    state = Responsive()
+    boards = [[2, 4, 8], [4, 8, 16], [8, 16, 32], [2, 16, 32], [4, 32, 64], [8, 32, 64], [2, 64, 64]]
+    for i in range(6):
+        state = noticed(state, _screen(boards[i], f"3:{30 + i} AM"), _screen(boards[i + 1], f"3:{31 + i} AM"))
+        assert not state.nothing_answers()
