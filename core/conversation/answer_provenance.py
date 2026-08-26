@@ -32,29 +32,61 @@ _SCHEMA = "aura.answer_provenance.v1"
 _MAX_RECEIPTS = 12
 _MAX_GROUNDING = 12
 _MAX_SENSES = 3
-_EPISTEMIC_TERMS = frozenset(
+_EPISTEMIC_OBJECTS = frozenset(
     {
-        "answer",
-        "believe",
-        "conclude",
-        "conclusion",
+        "basis",
+        "evidence",
+        "ground",
+        "grounds",
+        "origin",
+        "source",
+    }
+)
+_EPISTEMIC_ACQUISITION = frozenset(
+    {
+        "arrive",
+        "arrived",
         "came",
         "come",
-        "evidence",
+        "conclude",
+        "concluded",
+        "derive",
+        "derived",
+        "determine",
+        "determined",
         "find",
         "found",
         "get",
+        "got",
+        "infer",
+        "inferred",
         "knew",
         "know",
         "learn",
         "learned",
-        "source",
-        "say",
-        "tell",
-        "think",
+        "reach",
+        "reached",
     }
 )
-_REFERENTIAL_TERMS = frozenset({"answer", "it", "that", "this"})
+_EPISTEMIC_STANCE = frozenset(
+    {
+        "believe",
+        "believed",
+        "conclude",
+        "concluded",
+        "infer",
+        "inferred",
+        "say",
+        "said",
+        "tell",
+        "think",
+        "thought",
+    }
+)
+_CAUSAL_LINKS = frozenset({"based", "led", "made", "prompted"})
+_REFERENTIAL_TERMS = frozenset(
+    {"answer", "conclusion", "it", "response", "that", "this"}
+)
 
 
 def _text(value: Any, *, limit: int) -> str:
@@ -230,17 +262,41 @@ def asks_for_prior_answer_provenance(value: Any) -> bool:
         "location",
     }:
         return False
-    terms = set(focus.terms)
-    if not (terms & _EPISTEMIC_TERMS):
-        return False
     normalized = " ".join(str(value or "").casefold().split())
     surface_terms = set(re.findall(r"[a-z0-9]+", normalized))
-    implicit_short_epistemic = bool(
-        focus.kind == "mechanism_or_manner"
-        and terms <= {"know", "knew"}
-    )
-    return bool(surface_terms & _REFERENTIAL_TERMS) or implicit_short_epistemic or normalized.startswith("what is your source") or (
-        normalized.startswith("what's your source")
+    terms = set(focus.terms)
+    refers_to_prior_answer = bool(surface_terms & _REFERENTIAL_TERMS)
+    semantic_terms = terms - {"'s", "for", "of"}
+
+    # Evidence nouns name provenance directly.  The prior-answer referent may
+    # be implicit in a possessive source question ("what is your source?").
+    if terms & _EPISTEMIC_OBJECTS:
+        return (
+            refers_to_prior_answer
+            or "your" in surface_terms
+            or bool(semantic_terms and semantic_terms <= _EPISTEMIC_OBJECTS)
+        )
+
+    # How/where + acquisition asks for the path by which the answer was
+    # obtained.  A short "how did you know?" carries its referent by discourse.
+    if focus.kind in {"mechanism_or_manner", "location"} and (
+        terms & _EPISTEMIC_ACQUISITION
+    ):
+        return refers_to_prior_answer or terms <= _EPISTEMIC_ACQUISITION
+
+    # Why + an epistemic stance asks for its grounds.  By contrast, "what did
+    # your answer say?" and "what do you think about that answer?" ask for
+    # content, not provenance, despite containing the same vocabulary.
+    if focus.kind == "cause" and terms & _EPISTEMIC_STANCE:
+        return refers_to_prior_answer
+
+    # Entity questions can express the same causal relation with an overt
+    # linker: "what made you say that?" or "what led you to that conclusion?".
+    return bool(
+        focus.kind == "entity_or_description"
+        and terms & _CAUSAL_LINKS
+        and "you" in surface_terms
+        and refers_to_prior_answer
     )
 
 

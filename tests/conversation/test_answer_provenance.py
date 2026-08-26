@@ -78,7 +78,11 @@ def test_generic_epistemic_followups_resolve_the_prior_answer() -> None:
         "Well then how did you know it?",
         "Where did that answer come from?",
         "What's your source for that?",
+        "What is the source?",
+        "What evidence did you use for that answer?",
+        "How did you reach that conclusion?",
         "What made you say that?",
+        "What led you to that conclusion?",
         "Why did you believe that?",
     ):
         assert asks_for_prior_answer_provenance(followup), followup
@@ -88,6 +92,22 @@ def test_generic_epistemic_followups_resolve_the_prior_answer() -> None:
 def test_unrelated_how_question_does_not_claim_prior_answer_provenance() -> None:
     assert not asks_for_prior_answer_provenance("How does Dijkstra's algorithm work?")
     assert not asks_for_prior_answer_provenance("Where is San Jose?")
+
+
+@pytest.mark.parametrize(
+    "followup",
+    (
+        "What was the key distinction in your previous answer, and why does it matter here?",
+        "What did your previous answer say about model parameters?",
+        "Summarize that answer.",
+        "Why was that answer important?",
+        "Which part of your answer should I use?",
+        "What do you think about that answer?",
+        "Where in your answer did you mention the model?",
+    ),
+)
+def test_prior_answer_content_questions_do_not_claim_provenance(followup: str) -> None:
+    assert not asks_for_prior_answer_provenance(followup)
 
 
 def test_model_native_provenance_cannot_invent_a_lookup() -> None:
@@ -234,6 +254,39 @@ async def test_live_projection_reads_bound_prior_answer_without_model_narration(
     assert "no tool lookup" in reply
     assert len(grounding) == 1
     assert "aura.answer_provenance.v1" in grounding[0]
+
+
+@pytest.mark.asyncio
+async def test_live_projection_leaves_prior_answer_content_for_the_cortex(
+    monkeypatch,
+) -> None:
+    from interface.routes import chat, chat_memory_state
+
+    answer = "The distinction was between learned parameters and a tool lookup."
+    provenance = AnswerProvenance(
+        answer_sha256=_digest(answer),
+        session_id="prior-session",
+        turn_id="prior-turn",
+        captured_at=10.0,
+    )
+
+    async def _recent(**_kwargs):
+        return [
+            {
+                "user": "How did you know that?",
+                "aura": answer,
+                "answer_provenance": provenance.to_dict(),
+            }
+        ]
+
+    monkeypatch.setattr(chat_memory_state, "_recent_completed_conversation_exchanges", _recent)
+
+    reply = await chat._resolve_answer_provenance_projection(
+        "What was the key distinction in your previous answer?",
+        session_id="current-session",
+    )
+
+    assert reply == ""
 
 
 def test_provenance_projection_has_verified_serialization_authority() -> None:
