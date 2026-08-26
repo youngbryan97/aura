@@ -72,6 +72,68 @@ class Strategy:
         return said
 
 
+#: Ways of naming a place in something laid out in rows.
+_PLACES: tuple[tuple[str, str], ...] = (
+    (r"\b(?:bottom[\s-]*left|lower[\s-]*left)\b", "bottom-left"),
+    (r"\b(?:bottom[\s-]*right|lower[\s-]*right)\b", "bottom-right"),
+    (r"\b(?:top[\s-]*left|upper[\s-]*left)\b", "top-left"),
+    (r"\b(?:top[\s-]*right|upper[\s-]*right)\b", "top-right"),
+    (r"\bcorner\b", "corner"),
+    (r"\b(?:bottom|lower)\s+(?:row|edge)\b", "bottom"),
+    (r"\b(?:top|upper)\s+(?:row|edge)\b", "top"),
+    (r"\bleft\s+(?:column|edge|side)\b", "left"),
+    (r"\bright\s+(?:column|edge|side)\b", "right"),
+)
+
+
+def place_named_in(text: str) -> str:
+    """The place a condition names, if it names one."""
+    said = " ".join(str(text or "").split()).lower()
+    for pattern, place in _PLACES:
+        if re.search(pattern, said):
+            return place
+    return ""
+
+
+def where_it_sits(value: str, reading: str) -> set[str]:
+    """Every place a value occupies in a reading laid out in rows.
+
+    A reading that keeps its arrangement can be asked WHERE something is, and
+    that is what makes a plan about a corner a plan that can be checked. A
+    flattened reading cannot be asked at all.
+    """
+    wanted = str(value or "").strip()
+    rows = [row.split() for row in str(reading or "").splitlines() if row.split()]
+    if not wanted or not rows:
+        return set()
+    places: set[str] = set()
+    last_row = len(rows) - 1
+    for index, row in enumerate(rows):
+        for column, cell in enumerate(row):
+            if cell != wanted:
+                continue
+            last_column = len(row) - 1
+            top, bottom = index == 0, index == last_row
+            left, right = column == 0, column == last_column
+            if top:
+                places.add("top")
+            if bottom:
+                places.add("bottom")
+            if left:
+                places.add("left")
+            if right:
+                places.add("right")
+            for vertical, horizontal in (("top", "left"), ("top", "right"),
+                                         ("bottom", "left"), ("bottom", "right")):
+                if {vertical, horizontal} <= places or (
+                    (vertical == "top" and top or vertical == "bottom" and bottom)
+                    and (horizontal == "left" and left or horizontal == "right" and right)
+                ):
+                    places.add(f"{vertical}-{horizontal}")
+                    places.add("corner")
+    return places
+
+
 def still_holds(strategy: Strategy | None, reading: str, moves_made: int = 0) -> tuple[bool, str]:
     """Whether the approach is still the right one, and why not if it is not.
 
@@ -87,6 +149,29 @@ def still_holds(strategy: Strategy | None, reading: str, moves_made: int = 0) ->
     verdict = strategy.holds_while.check(reading, reading)
     if verdict.missing:
         return False, f"what it depends on is gone: {', '.join(verdict.missing)}"
+    # A plan about a place is checked against the place.
+    #
+    # "Keep the largest tile in the bottom-left corner" was held as "the 64 is
+    # still somewhere on the board", which stays true while the 64 wanders
+    # into the middle and the plan quietly stops being the plan. Checkable
+    # only because the reading keeps its arrangement.
+    place = place_named_in(strategy.holds_while.describes or strategy.approach)
+    # Only where the reading actually has an arrangement to check against.
+    #
+    # A place is a fact about a layout. A reading that arrived as one line of
+    # prose has no rows, no columns and no corners, and asking where
+    # something sits in it produces an answer about nothing.
+    laid_out = len([row for row in str(reading or "").splitlines() if row.split()]) > 1
+    if place and laid_out:
+        for value in strategy.holds_while.contains:
+            if value not in str(reading or "").split():
+                continue
+            # Present, and at no edge, is the middle — which is not the
+            # corner the plan is about. An empty set of places used to skip
+            # the check, so a plan about a corner stayed "true" while the
+            # thing it was about sat in the middle of the board.
+            if place not in where_it_sits(value, reading):
+                return False, f"the {value} is no longer in the {place}"
     if verdict.lingering:
         return False, f"what it was avoiding has happened: {', '.join(verdict.lingering)}"
     return True, ""

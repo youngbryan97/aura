@@ -263,7 +263,7 @@ def within(
                 kept.append(said)
         return " ".join(kept) if kept else text
     left, top, right, bottom = band
-    inside: list[str] = []
+    inside: list[tuple[float, float, str]] = []
     for region in observation.get("layout") or []:
         said = str(region.get("text") or "").strip()
         if not said:
@@ -274,8 +274,43 @@ def within(
         except (TypeError, ValueError):
             continue
         if left <= x <= right and top <= y <= bottom:
-            inside.append(said)
-    return " ".join(inside) if inside else text
+            inside.append((y, x, said))
+    return _laid_out(inside) or text
+
+
+def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:
+    """The part that answers to her, arranged the way it is arranged.
+
+    Position is not decoration. A board where the largest tile sits in a
+    corner and a board where it sits in the middle are different positions
+    with the same contents, and flattened to "2 4 8 64" they are the same
+    string — so nothing downstream can hold a corner, an edge, a column or a
+    row, and no approach about any of them can survive contact with what she
+    reads.
+
+    Rows are found from the spacing that is actually there rather than from a
+    fixed tolerance: whatever the thing is, its own rows are closer together
+    than they are to the next one.
+    """
+    if not cells:
+        return ""
+    ordered = sorted(cells)
+    ys = [y for y, _x, _said in ordered]
+    gaps = sorted(b - a for a, b in zip(ys, ys[1:]) if b - a > 0.0)
+    # The typical gap between neighbours, so an outlier row does not set the
+    # scale. Half of it separates "same row" from "next row".
+    typical = gaps[len(gaps) // 2] if gaps else 0.0
+    tolerance = max(0.008, typical * 0.5)
+    rows: list[list[tuple[float, str]]] = []
+    row_at = None
+    for y, x, said in ordered:
+        if row_at is None or (y - row_at) > tolerance:
+            rows.append([])
+            row_at = y
+        rows[-1].append((x, said))
+    return "\n".join(
+        " ".join(said for _x, said in sorted(row)) for row in rows if row
+    )
 
 
 def describe(band: tuple[float, float, float, float] | None) -> str:

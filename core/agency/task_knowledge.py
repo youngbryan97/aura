@@ -451,6 +451,7 @@ async def _read_the_best_answer(
         reverse=True,
     )
     nothing_readable: list[str] = []
+    best: list[Finding] = []
     for candidate in ranked[:PAGES_READ]:
         url = str(candidate.get("url") or "").strip()
         if not url:
@@ -486,8 +487,20 @@ async def _read_the_best_answer(
             if line.strip()
         ]
         if found:
-            return found
+            # Kept, but keep looking: the first page that yields anything is
+            # not the best page. Asked for strategy, the top result is the
+            # thing itself, and a landing page yields two lines of rules
+            # while an article about how to play it well yields many. More of
+            # what was asked about is a better answer, and that is structural
+            # rather than a judgement about wording.
+            if len(found) > len(best):
+                best = found
+            if len(best) >= FINDINGS_KEPT:
+                break
+            continue
         nothing_readable.append(url)
+    if best:
+        return best
     if nothing_readable:
         record_degradation(
             "task_knowledge",
@@ -621,7 +634,31 @@ def how_is_this_done(goal: str) -> str:
     the query, and the engine answered the commonest one.
     """
     subject = what_it_is_about(goal)
-    return f"how to {subject}" if subject else ""
+    if not subject:
+        return ""
+    # A goal with a target state is asking how to GET there.
+    #
+    # "How to play 2048" returns the rules — which keys move the tiles — and
+    # a person who wants a 256 tile already knows those. What they look up is
+    # how to win. Bryan, watching her play: "she never employs the best and
+    # super common strategy of keep your highest block in the corner." The
+    # question she was asking could not have returned it.
+    #
+    # General: where the request names a state to reach, the question is
+    # about reaching it. Where it names only an activity, it is about doing
+    # the activity.
+    try:
+        from core.runtime.watched_goal import read_watched_goal  # noqa: PLC0415
+
+        watched = read_watched_goal(str(goal or ""))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        watched = None
+    if watched is not None and watched.success_when and watched.where:
+        # The thing itself, and what she wants from it. "2048 strategy" is
+        # what a person types; "how to win at play 2048" carries the verb
+        # from the instruction and the vocabulary of one kind of task.
+        return f"{watched.where} strategy"
+    return f"how to {subject}"
 
 
 def why_is_this_stuck(goal: str, situation: str = "", history: Sequence[Any] = ()) -> str:
