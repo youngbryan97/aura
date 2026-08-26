@@ -103,6 +103,43 @@ def _uptime_line() -> str:
     return f"- Uptime: {_humanize(elapsed)} (this runtime started at {started})."
 
 
+def _effort_lines() -> list[str]:
+    """How hard this process is actually working.
+
+    LIVE 2026-08-25. Asked what was happening in her body she answered "my
+    CPU is at 67%, which feels like a steady hum" and then withdrew it
+    herself: "I have no channel that reads my CPU, so 67% was not a
+    measurement." She was right, and she should not have had to be — the
+    observation her memory lines already read carries cpu_percent, and
+    nothing was passing it on.
+
+    A number about effort is worth having because the alternative is a
+    feeling with nothing under it. This one is about the machine she is
+    running on, which is what it says.
+    """
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        observer = get_resource_observer()
+        compute = observer.compute()
+        cores = max(1, int(getattr(compute, "cpu_count", 1) or 1))
+        # Load average rather than an instantaneous percent.
+        #
+        # A process CPU percent reads 0.0 until it has been sampled twice, so
+        # the first thing she would ever say about her own effort is a
+        # measurement that is not one. The load average is a real number the
+        # moment it is read, and it says how busy the machine she runs on
+        # actually is.
+        load = float(getattr(compute, "load_1m", 0.0) or 0.0)
+        return [
+            f"- The machine's load average is {load:.2f} across {cores} cores "
+            f"({load / cores * 100:.0f}% of capacity over the last minute)."
+        ]
+    except _RECOVERABLE as exc:
+        record_degradation("self_state_report", exc, severity="info", action="omitted the effort line")
+        return []
+
+
 def _memory_lines() -> list[str]:
     """RSS understates her badly on Apple Silicon; say both numbers."""
     lines: list[str] = []
@@ -545,6 +582,7 @@ def runtime_self_report() -> str:
     """
     lines = [line for line in (_uptime_line(), _model_line()) if line]
     lines.extend(_memory_lines())
+    lines.extend(_effort_lines())
     cognition = _cognition_line()
     if cognition:
         lines.append(cognition)
