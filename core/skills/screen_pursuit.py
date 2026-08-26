@@ -1529,6 +1529,13 @@ async def pursue_on_screen(
 
         made = pending["deliberation"]
         follow_on = [option.name for option in getattr(made, "then", ()) or ()] if made else []
+        logger.info(
+            "about to press %r then %s (brief=%s, made=%s)",
+            key,
+            follow_on,
+            pacing["brief"],
+            made is not None,
+        )
 
         async def act() -> bool:
             # Said after the body did it, never before.
