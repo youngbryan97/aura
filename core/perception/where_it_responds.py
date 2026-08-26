@@ -77,6 +77,49 @@ class Responsive:
     #: Acts since anything last answered her.
     unanswered: int = 0
 
+    def as_memory(self) -> dict[str, Any]:
+        """Where she found things happen, in a form that survives the process."""
+        return {
+            "acts": self.acts,
+            "effective": self.effective,
+            "idle": self.idle,
+            "answered": {f"{x},{y}": n for (x, y), n in self.answered.items()},
+            "regardless": {f"{x},{y}": n for (x, y), n in self.regardless.items()},
+        }
+
+    @classmethod
+    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> "Responsive":
+        """Where she found things happen last time, discounted.
+
+        A page can be rebuilt between visits, so what she knew about where it
+        answers is a starting point rather than a finding. Discounted, a few
+        acts that disagree move the band.
+        """
+        if not isinstance(held, dict):
+            return cls()
+        share = max(0.0, min(1.0, float(trust)))
+
+        def places(counts: Any) -> dict[tuple[int, int], int]:
+            found: dict[tuple[int, int], int] = {}
+            if not isinstance(counts, dict):
+                return found
+            for where, value in counts.items():
+                try:
+                    x, y = (int(part) for part in str(where).split(","))
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(value, (int, float)):
+                    found[(x, y)] = int(round(float(value) * share))
+            return found
+
+        return cls(
+            acts=int(round(float(held.get("acts") or 0) * share)),
+            answered=places(held.get("answered")),
+            regardless=places(held.get("regardless")),
+            effective=int(round(float(held.get("effective") or 0) * share)),
+            idle=int(round(float(held.get("idle") or 0) * share)),
+        )
+
     def began_again(self) -> None:
         """A new world, in the same place as the one that ended.
 

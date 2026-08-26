@@ -242,6 +242,10 @@ class Deliberation:
     #: What she claimed this move would do, when she said something specific.
     #: An option offers a default claim; a decision can carry a sharper one.
     expected: Expectation | None = None
+    #: What KIND of situation this was, rather than which one. What the record
+    #: is keyed on, so a position she has seen the like of before is
+    #: recognised as one.
+    shape: str = ""
     decided_at: float = field(default_factory=time.time)
 
     @property
@@ -816,6 +820,7 @@ async def deliberate(
     announce: bool = True,
     approach: str = "",
     foresight: dict[str, tuple[float, str]] | None = None,
+    seeing: Any = None,
 ) -> Deliberation:
     """Pick the next move toward ``goal`` from what is available right now.
 
@@ -828,9 +833,25 @@ async def deliberate(
     if not options:
         return Deliberation(goal=goal, situation=situation, chosen=None, reason="nothing is available to do")
 
+    # The kind of situation, where the reading kept its arrangement.
+    #
+    # Two positions that would be approached the same way have to look the
+    # same to the record or nothing ever matches and nothing carries over.
+    # Keyed on the reading itself — a truncated string of everything on the
+    # screen — no two situations were ever alike, which is why forty runs of
+    # experience amounted to nothing on the forty-first.
+    shape = ""
+    as_shape = getattr(seeing, "as_shape", None)
+    if callable(as_shape):
+        try:
+            shape = str(as_shape() or "")
+        except (AttributeError, TypeError, ValueError):
+            shape = ""
+    like = shape or situation
+
     recalled: list[str] = []
     for option in options:
-        recalled.extend(recall_consequences(option.name, graph=graph, like=situation))
+        recalled.extend(recall_consequences(option.name, graph=graph, like=like))
         # Where the same move has gone more than one way, say so, so she is
         # deciding over what could happen and not over one expected future.
         spread = what_could_happen(option.name, graph=graph)
@@ -982,6 +1003,7 @@ async def deliberate(
         spoke=spoke,
         rationale=reason_text,
         expected=claimed if claimed.says_something() else None,
+        shape=shape,
         then=planned[1:],
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
@@ -1411,7 +1433,7 @@ def _record_consequence(
             said = f"changed things but got no closer: {said}"
         graph.record_outcome(
             deliberation.chosen.name,
-            deliberation.situation[:400],
+            deliberation.shape or deliberation.situation[:400],
             said,
             worked,
         )

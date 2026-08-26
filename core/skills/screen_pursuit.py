@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
+from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.ScreenPursuit")
@@ -929,7 +930,20 @@ async def pursue_on_screen(
     # One surface for questions about what a world would do. The rules facet
     # is per-run on purpose: a rule that held on one thing is a guess about
     # the next one, and she should find out rather than assume.
-    knows = UnifiedWorldModel(rules=HowItMoves())
+    # What she worked out about this thing last time she was in it.
+    #
+    # Everything she learns about a world — which part answers to her, how it
+    # moves when she pushes it — has been dying with the process, so the
+    # fortieth run started as ignorant as the first. Brought back discounted:
+    # something she worked out yesterday is evidence about today and not a
+    # fact about it, and a few acts that disagree should overturn it.
+    this_world = named(target_app, expect_page or open_page)
+    knew = recall(this_world)
+    if knew:
+        logger.info("she has been in %r before: %s", this_world, sorted(knew))
+    knows = UnifiedWorldModel(
+        rules=HowItMoves.from_memory(knew.get("moves") or {}, TRUST_CARRIED_OVER)
+    )
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1190,7 +1204,9 @@ async def pursue_on_screen(
     #: did not name one.
     anchor: dict[str, str] = {"page": expect_page.strip()}
     #: Where her actions have been having their effects.
-    responds: dict[str, Any] = {"state": Responsive()}
+    responds: dict[str, Any] = {
+        "state": Responsive.from_memory(knew.get("responds") or {}, TRUST_CARRIED_OVER)
+    }
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
 
@@ -1514,6 +1530,7 @@ async def pursue_on_screen(
                 seen,
                 available,
                 foresight=ahead or None,
+                seeing=laid_out,
                 think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
@@ -1846,6 +1863,15 @@ async def pursue_on_screen(
         result["changed_approach"] = plan["changes"]
     if plan["held"] is not None:
         result["approach"] = plan["held"].approach
+    # What she worked out about this thing, for the next time she is in it.
+    remember(
+        this_world,
+        {
+            "responds": responds["state"].as_memory(),
+            "moves": knows.rules.as_memory() if knows.rules is not None else {},
+            "approach": plan["held"].approach if plan["held"] is not None else "",
+        },
+    )
     # What a cycle of this actually cost, so the next watched goal asks for
     # enough time to make the moves it is allowed to make.
     spent = max(0.0, time.monotonic() - began)

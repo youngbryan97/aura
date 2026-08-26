@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 from core.perception.what_is_there import Arrangement, Cell
 
@@ -239,6 +239,41 @@ class HowItMoves:
             if imagined is not None:
                 futures[action] = imagined
         return futures
+
+    # ── keeping it ───────────────────────────────────────────────────────
+
+    def as_memory(self) -> dict[str, Any]:
+        """What she worked out, in a form that survives the process."""
+        return {"right": dict(self.right), "tried": dict(self.tried), "seen": self.seen}
+
+    @classmethod
+    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> "HowItMoves":
+        """What she worked out last time, discounted.
+
+        Under full trust on purpose. Something she worked out yesterday is
+        evidence about today, not a fact about it, and a handful of moves that
+        disagree should be able to overturn it — which they can only do if
+        what came back is not overwhelming.
+        """
+        if not isinstance(held, dict):
+            return cls()
+        share = max(0.0, min(1.0, float(trust)))
+
+        def carried(counts: Any) -> dict[str, int]:
+            if not isinstance(counts, dict):
+                return {}
+            return {
+                str(name): int(round(float(value) * share))
+                for name, value in counts.items()
+                if isinstance(value, (int, float))
+            }
+
+        tried = carried(held.get("tried"))
+        return cls(
+            right=carried(held.get("right")),
+            tried=tried,
+            seen=int(round(float(held.get("seen") or 0) * share)),
+        )
 
     def says(self) -> str:
         """What she has worked out, in a line, for whoever has to answer for it."""
