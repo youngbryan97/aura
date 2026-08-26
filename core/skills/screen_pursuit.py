@@ -1246,7 +1246,11 @@ async def pursue_on_screen(
                     goal,
                     seen,
                     screen_options(move_keys),
-                    think=think or _her_reasoning(max(stakes, 0.5)),
+                    # Deciding the line she will hold across a hundred moves
+                    # is not the same question as deciding one of them, and
+                    # asking it with the thinking that suits a move got the
+                    # model's own warm-up handed back as a plan.
+                    think=think or _her_reasoning(max(stakes, 0.7)),
                     knowledge=learned,
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],

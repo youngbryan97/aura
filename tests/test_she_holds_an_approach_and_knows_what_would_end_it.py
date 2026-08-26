@@ -532,3 +532,26 @@ async def test_a_real_cancellation_keeps_travelling():
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+ASKED = (
+    "Decide how to play toward this goal, not just the next move. "
+    "Goal: get to a 256 tile. What is visible now: 2 4 8 64."
+)
+
+
+def test_the_question_handed_back_is_not_an_approach():
+    """A warm-up that restates the instruction has the shape of a plan and no content."""
+    scaffolding = (
+        "We need answer user's request. Need decide how to play toward goal, "
+        "not just next move: get to a 256 tile. I will keep going while it works."
+    )
+    assert read_strategy(scaffolding, MOVES, asked=ASKED) is None
+
+
+def test_an_approach_that_says_something_new_survives_the_same_check():
+    assert read_strategy(SPOKEN, MOVES, asked=ASKED) is not None
+
+
+def test_with_nothing_asked_the_check_stands_aside():
+    assert read_strategy(SPOKEN, MOVES, asked="") is not None

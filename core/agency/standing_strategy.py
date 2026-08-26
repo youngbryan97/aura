@@ -228,6 +228,28 @@ def _biggest_thing_in(situation: str) -> str:
 ENOUGH_WORDS = 4
 
 
+def _content_words(said: str) -> set[str]:
+    """The words in a line that carry what it is about."""
+    return {word for word in re.findall(r"[a-z0-9]+", str(said or "").lower()) if len(word) > 2}
+
+
+def adds_nothing_to(answer: str, asked: str) -> bool:
+    """True when the answer is the question handed back.
+
+    A model that is warming up hands back the instruction it was given —
+    "We need answer user's request. Need decide how to play toward goal, not
+    just next move" — and every test of shape passes it, because it has the
+    length of an approach and the words of one. What it does not have is
+    anything that was not already in the question.
+
+    Measured live 2026-08-26: held as an approach for a whole game.
+    """
+    if not str(asked or "").strip():
+        return False
+    fresh = _content_words(answer) - _content_words(asked)
+    return len(fresh) < ENOUGH_WORDS
+
+
 def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = ()) -> bool:
     """Whether this describes a way of going about it at all."""
     words = re.findall(r"[\w'-]+", str(said or ""))
@@ -238,7 +260,11 @@ def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = 
 
 
 def read_strategy(
-    reply: str, options: Sequence[ActionOption] = (), *, situation: str = ""
+    reply: str,
+    options: Sequence[ActionOption] = (),
+    *,
+    situation: str = "",
+    asked: str = "",
 ) -> Strategy | None:
     """An approach read out of a reply, when it names one.
 
@@ -249,6 +275,9 @@ def read_strategy(
     """
     text = " ".join(str(reply or "").split())
     if not text:
+        return None
+    if adds_nothing_to(text, asked):
+        logger.info("her answer was the question handed back: %r", text[:120])
         return None
     approach = ""
     for pattern in (
@@ -419,7 +448,12 @@ async def settle_on_an_approach(
         len(str(reply or "")),
         " ".join(str(reply or "").split())[:160],
     )
-    settled = read_strategy(reply or "", options, situation=situation)
+    settled = read_strategy(
+        reply or "",
+        options,
+        situation=situation,
+        asked=_asking_for_an_approach(goal, situation, options),
+    )
     if settled is None:
         # She answered, and what she said was not an approach.
         #
