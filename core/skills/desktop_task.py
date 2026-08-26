@@ -1736,6 +1736,18 @@ class DesktopTaskSkill(BaseSkill):
                     prefer_tier="local",
                     origin="desktop_task",
                     purpose="authored_artifact_body",
+                    # Foreground work, and not the reply lane.
+                    #
+                    # Without this the prompt is treated as a turn somebody
+                    # asked, so the contract that decides a turn needs a tool
+                    # before it may answer looked at "Write the CONTENT of a
+                    # document about ... The full request was: make a file on
+                    # my Desktop called aura_note.txt", saw a file, and
+                    # refused to generate: "ROUTER_ERROR:
+                    # grounding_required_no_tool_result (at
+                    # contract_tool_handoff)". Nothing here needs a tool; the
+                    # tool is the step that writes what this returns.
+                    _non_chat_inference=True,
                 ),
                 timeout=50.0,
             )
@@ -1854,6 +1866,9 @@ class DesktopTaskSkill(BaseSkill):
                         prefer_tier="local",
                         origin="desktop_task",
                         purpose="authored_self_document",
+                        # Foreground work, and not the reply lane. Same seam and
+                        # same reason as the artifact writer above.
+                        _non_chat_inference=True,
                     ),
                     timeout=timeout_s + 5.0,
                 )
@@ -3399,6 +3414,9 @@ class DesktopTaskSkill(BaseSkill):
                     prefer_tier="local",
                     origin="desktop_task",
                     purpose="research_document_synthesis",
+                        # Foreground work, and not the reply lane. Same seam and
+                        # same reason as the artifact writer above.
+                        _non_chat_inference=True,
                 ),
                 timeout=120.0,
             )

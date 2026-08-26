@@ -95,3 +95,32 @@ def test_the_writer_waits_once_for_a_warming_lane():
     assert "_WARMING_RETRY_SECONDS" in source
     # One wait, not a loop.
     assert source.count("await _ask()") == 2
+
+
+def test_every_authoring_call_declares_itself_internal():
+    """Her writing is foreground work and it is not the reply lane.
+
+    LIVE 2026-08-26: without the declaration, the contract that decides
+    whether a turn needs a tool before it may answer looked at "Write the
+    CONTENT of a document about ... The full request was: make a file on my
+    Desktop called aura_note.txt", saw a file, and refused to generate at all:
+    "ROUTER_ERROR: grounding_required_no_tool_result (at
+    contract_tool_handoff)".
+
+    Nothing in an authoring prompt needs a tool. The tool is the step that
+    writes down what it returns.
+    """
+    from pathlib import Path
+
+    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
+    purposes = [
+        "authored_artifact_body",
+        "authored_self_document",
+        "research_document_synthesis",
+    ]
+    for purpose in purposes:
+        where = source.index(f'purpose="{purpose}"')
+        assert "_non_chat_inference=True" in source[where : where + 900], (
+            f"{purpose} still presents as a chat turn"
+        )
+    assert source.count("_non_chat_inference=True") == len(purposes)
