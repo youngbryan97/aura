@@ -2144,6 +2144,55 @@ async def _refuse_a_cold_protected_lane(
     return _seam_early_response
 
 
+def _tools_within_reach(
+    tools: dict, allowed_scopes: object
+) -> tuple[dict, tuple[str, ...]]:
+    """The offered tools this turn is actually allowed to run, and the rest.
+
+    Offering a capability the dispatch then refuses is worse than not offering
+    it: the turn spends its budget reaching for something it was never allowed
+    to use. That was already written down here as the reason for computing an
+    effect ceiling — the ceiling was just never applied to the tool map.
+
+    Two things put a tool out of reach: an effect scope above this turn's
+    ceiling, and a risk rating that needs a confirmation the turn has no way to
+    ask for. `code_repl` passes the ceiling and fails the second — running code
+    the model just wrote is correctly high risk — so offering it spends a tool
+    call on a refusal either way.
+
+    A skill with no declared scope is offered. Withholding what has not been
+    rated would quietly hide new skills, which is a worse failure than one
+    refusal.
+    """
+    from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+
+    permitted = {str(scope) for scope in (allowed_scopes or ())}
+    if not permitted:
+        return tools, ()
+    kept, withheld = {}, []
+    for name, definition in dict(tools).items():
+        scope = SKILL_EFFECT_SCOPES.get(str(name))
+        if scope is not None and str(scope) not in permitted:
+            withheld.append(str(name))
+            continue
+        if scope is not None and _needs_a_confirmation_nobody_can_give(str(name), str(scope)):
+            withheld.append(str(name))
+            continue
+        kept[name] = definition
+    return kept, tuple(withheld)
+
+
+def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
+    """Whether dispatch would stop this tool to ask, on a turn that cannot ask."""
+    try:
+        from core.executive.execution_policy import classify_execution_risk
+
+        risk = str(classify_execution_risk(name, {}, effect_scope=scope) or "").lower()
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return False
+    return risk in {"high", "critical"}
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -7813,7 +7862,7 @@ class InferenceGate:
             # spends itself reaching for something it was never allowed to
             # use, which is how "build me a web app" ended in an executive
             # veto on code_repl.
-            _ceiling, _ = requested_effect_ceiling(text)
+            ceiling, allowed_scopes = requested_effect_ceiling(text)
 
             required = derive_capability_set(text)
             if not required:
@@ -7834,6 +7883,31 @@ class InferenceGate:
                 logger.info(
                     "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)",
                     ",".join(required),
+                )
+                return None
+            # The ceiling above was computed and then discarded, so the rule
+            # the comment states was never enforced.
+            #
+            # LIVE, 2026-08-25: asked to diagnose a project, the turn was
+            # offered diagnose_repo, code_repl and file_operation. It reached
+            # for file_operation, which is state_mutation and above this
+            # turn's sandboxed_compute ceiling, and the executive vetoed it;
+            # then for code_repl, which the permission model refused for want
+            # of a confirmation nobody could give. Two of the turn's two tool
+            # calls were spent on tools that could never have run, and the
+            # one that would have answered was never called.
+            tools, withheld = _tools_within_reach(tools, allowed_scopes)
+            if withheld:
+                logger.info(
+                    "🔧 Tool handoff: withheld %s — above the %s ceiling for this turn.",
+                    ",".join(sorted(withheld)),
+                    ceiling,
+                )
+            if not tools:
+                logger.info(
+                    "🔧 Tool handoff: skill=%s offered=NONE (all above the %s ceiling)",
+                    ",".join(required),
+                    ceiling,
                 )
                 return None
             logger.info(
@@ -7869,7 +7943,7 @@ class InferenceGate:
                         # action ranked above it, so a skill can be offered
                         # for its safe actions without offering its
                         # dangerous ones.
-                        "authorised_effect_scope": _ceiling,
+                        "authorised_effect_scope": ceiling,
                         # Consent the request itself carries.
                         #
                         # The permission model already asks whether the person
@@ -7887,7 +7961,7 @@ class InferenceGate:
                         # those still require their own consent, because
                         # nobody asked for them.
                         "user_explicitly_authorized": (
-                            _ceiling == "read_write_artifacts"
+                            ceiling == "read_write_artifacts"
                         ),
                     },
                     # What the turn has already read. Without it the loop
