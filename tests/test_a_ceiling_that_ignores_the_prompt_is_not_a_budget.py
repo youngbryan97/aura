@@ -56,11 +56,15 @@ def test_a_measured_worker_uses_its_own_rate():
     assert worker._prefill_floor_seconds(3431) < slow
 
 
-def test_the_rate_is_measured_from_prefill_progress():
+def test_the_rate_is_measured_between_observations_not_since_the_request_began():
+    """Measuring from the request start folds in queueing and admission: it
+    reported 4 tok/s on a worker doing 720, and asked for a ten-minute
+    ceiling on a prompt that takes a second and a half to read."""
     import inspect
 
     source = inspect.getsource(mlx_client.MLXLocalClient._mark_prefill_progress)
-    assert "_prefill_tokens_per_s" in source
+    assert "_prefill_observed_at" in source
+    assert "(done - last_done) / spent" in source
     # Averaged, so one slow chunk under contention does not become the rule.
     assert "previous * 0.7 + observed * 0.3" in source
 
@@ -69,6 +73,8 @@ def test_the_floor_only_ever_raises_a_ceiling():
     import inspect
 
     source = inspect.getsource(mlx_client.MLXLocalClient)
-    where = source.index("needed = self._prefill_floor_seconds")
-    block = source[where : where + 400]
+    where = source.index("needed = min(")
+    block = source[where : where + 700]
     assert "0.0 < self._current_first_token_hard_ceiling_s < needed" in block
+    # And never past the ceiling that catches a wedged worker.
+    assert "_first_token_hard_ceiling(foreground_request=True)" in block

@@ -6060,7 +6060,13 @@ class MLXLocalClient:
         # rate it has been measured at, with room for the queueing a shared
         # lane always has. It only ever raises a ceiling, never past the
         # livelock ceiling that catches a wedged worker.
-        needed = self._prefill_floor_seconds(self._current_prompt_chars)
+        needed = min(
+            self._prefill_floor_seconds(self._current_prompt_chars),
+            # Never past the ceiling that catches a wedged worker. Said in
+            # the comment before and not enforced in the code, which let one
+            # bad rate reading ask for a ten-minute deadline.
+            self._first_token_hard_ceiling(foreground_request=True),
+        )
         if 0.0 < self._current_first_token_hard_ceiling_s < needed:
             logger.info(
                 "⏱️ [MLX] first-token ceiling raised %.1fs → %.1fs: a %d-char prompt "
@@ -6114,15 +6120,25 @@ class MLXLocalClient:
         # built on what the machine does. Averaged, so one slow chunk under
         # contention does not become the rule.
         now = time.time()
-        started = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
-        if done > self._current_prefill_tokens_processed and started > 0.0:
-            spent = now - started
-            if spent > 0.05:
-                observed = done / spent
+        # Between two observations of prefill, not since the request began.
+        #
+        # Measuring from the request start folds in queueing, admission and
+        # whatever else happened before a single token was read: it reported
+        # 4 tok/s on a worker doing 720, and asked for a ten-minute ceiling
+        # on a prompt that takes a second and a half to read.
+        last_at = float(getattr(self, "_prefill_observed_at", 0.0) or 0.0)
+        last_done = int(getattr(self, "_prefill_observed_tokens", 0) or 0)
+        if done > last_done and last_at > 0.0:
+            spent = now - last_at
+            if spent > 0.02:
+                observed = (done - last_done) / spent
                 previous = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
                 self._prefill_tokens_per_s = (
                     observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                 )
+        if done != last_done:
+            self._prefill_observed_at = now
+            self._prefill_observed_tokens = done
         self._current_prefill_tokens_processed = done
         self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
