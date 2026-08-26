@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from core.brain.llm.endogenous_state import (
-    semantics_digest,
     STATE_DIM,
     empty_state,
     layout_digest,
+    semantics_digest,
 )
 from core.brain.llm.endogenous_vocab_head import (
     MAX_ABS_BIAS,

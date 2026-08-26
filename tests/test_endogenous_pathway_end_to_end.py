@@ -27,7 +27,7 @@ from core.brain.llm.endogenous_intervention import (
     measure_contrast,
 )
 from core.brain.llm.endogenous_readout_training import TurnTokens, fit_vocab_head
-from core.brain.llm.endogenous_state import semantics_digest, STATE_DIM, assemble_state
+from core.brain.llm.endogenous_state import STATE_DIM, assemble_state
 from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
 
 VOCAB = 120

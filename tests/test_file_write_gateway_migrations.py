@@ -390,8 +390,6 @@ def test_directory_relative_batch_rolls_back_second_replace_failure(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
 
     gateway = gateway_module.FileWriteGateway()
     (tmp_path / "a.bin").write_bytes(b"old-a")
@@ -441,7 +439,6 @@ def test_directory_relative_batch_cleans_staging_failure_and_retries(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
     import core.runtime.file_write_primitives as primitives_module
 
     gateway = gateway_module.FileWriteGateway()
@@ -509,7 +506,6 @@ def test_directory_relative_batch_recovers_process_death_before_retry(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
     import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
@@ -618,7 +614,6 @@ def test_directory_relative_batch_commit_cleanup_survives_process_death(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
     import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
@@ -700,8 +695,6 @@ def test_directory_relative_batch_recovery_cleanup_survives_process_death(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
@@ -805,9 +798,8 @@ def test_directory_relative_batch_refuses_unrecoverable_journal_size(
     monkeypatch,
     tmp_path,
 ) -> None:
-    import core.runtime.file_write_gateway as gateway_module
     import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
+    import core.runtime.file_write_gateway as gateway_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
     monkeypatch.setattr(
@@ -838,8 +830,6 @@ def test_directory_relative_batch_reports_durable_committed_state(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
     real_write_journal = gateway_module._write_directory_batch_journal
@@ -874,7 +864,6 @@ def test_directory_relative_batch_classifies_persistent_committed_cleanup_failur
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
     import core.runtime.file_write_primitives as primitives_module
 
     (tmp_path / "data.bin").write_bytes(b"old-data")
@@ -929,8 +918,6 @@ def test_directory_relative_batch_rejects_hardlinked_lock_without_chmod(
     import fcntl
 
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
 
     backing = tmp_path.parent / f"{tmp_path.name}-lock-backing"
     backing.write_bytes(b"lock")
@@ -965,8 +952,6 @@ def test_directory_relative_batch_never_writes_to_swapped_path(
     tmp_path,
 ) -> None:
     import core.runtime.file_write_gateway as gateway_module
-    import core.runtime.file_write_batch_journal as journal_module
-    import core.runtime.file_write_primitives as primitives_module
 
     directory = tmp_path / "bound"
     moved = tmp_path / "moved"

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from core.brain.llm.endogenous_state import semantics_digest, STATE_DIM, layout_digest
+from core.brain.llm.endogenous_state import STATE_DIM, layout_digest, semantics_digest
 from core.brain.llm.endogenous_vocab_head import (
     HEAD_ARTIFACT_SCHEMA,
     EndogenousVocabHead,

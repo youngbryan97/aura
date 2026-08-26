@@ -20,12 +20,12 @@ from core.brain.llm.endogenous_intervention import (
     text_distance,
 )
 from core.brain.llm.endogenous_state import (
-    semantics_digest,
     CHANNELS,
     FEATURE_INDEX,
     STATE_DIM,
     empty_state,
     layout_digest,
+    semantics_digest,
 )
 from core.brain.llm.endogenous_vocab_head import EndogenousVocabHead
 

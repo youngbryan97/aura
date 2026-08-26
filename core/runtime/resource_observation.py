@@ -31,6 +31,55 @@ from typing import Any, Protocol, runtime_checkable
 
 import psutil
 
+#: psutil reports processor use as the difference between two samples of the
+#: kernel's counters, so the FIRST non-blocking call in a process has nothing to
+#: subtract and returns exactly 0.0. Every caller in this tree reads through
+#: here, which made that zero look like a measurement.
+#:
+#: LIVE, 2026-08-25: "How hard is the machine you run on working right now?
+#: Give me a number you can stand behind." The freshly taken sample said 0.0%
+#: on a host sitting at 24%.
+#:
+#: The baseline is seeded at import, which costs nothing and means the window
+#: any later read diffs over is however long the process has been alive. A
+#: short blocking sample is not an alternative: this host's counters are too
+#: coarse to move in 0.12s and return a clean 0.0 anyway, which is the same
+#: fabricated number by a slower route.
+_CPU_SAMPLED_AT = 0.0
+
+#: Under this many seconds of separation the counters may not have moved, and
+#: a zero would mean "too soon to tell" rather than "idle".
+_CPU_MINIMUM_WINDOW_S = 0.5
+
+
+def _seed_cpu_counter() -> None:
+    """Give the counter a baseline, without blocking anything."""
+    global _CPU_SAMPLED_AT
+    try:
+        psutil.cpu_percent(interval=None)
+    except (psutil.Error, OSError, RuntimeError, ValueError):
+        return
+    _CPU_SAMPLED_AT = time.monotonic()
+
+
+def _measured_cpu_percent() -> float:
+    """Processor use over a window long enough for the counters to have moved."""
+    global _CPU_SAMPLED_AT
+    now = time.monotonic()
+    if _CPU_SAMPLED_AT and (now - _CPU_SAMPLED_AT) >= _CPU_MINIMUM_WINDOW_S:
+        value = float(psutil.cpu_percent(interval=None) or 0.0)
+        _CPU_SAMPLED_AT = now
+        return value
+    # Asked sooner than the counters can answer. Blocking for the rest of the
+    # window is the only way to return a number rather than a zero that means
+    # "I did not look".
+    value = float(psutil.cpu_percent(interval=_CPU_MINIMUM_WINDOW_S) or 0.0)
+    _CPU_SAMPLED_AT = time.monotonic()
+    return value
+
+
+_seed_cpu_counter()
+
 
 class ObservationSource(StrEnum):
     """Where a resource fact came from."""
@@ -1153,7 +1202,7 @@ class HostResourceObserver:
             cpu_times = psutil.cpu_times()
             return ComputeObservation(
                 provenance=provenance,
-                cpu_percent=float(psutil.cpu_percent(interval=None) or 0.0),
+                cpu_percent=_measured_cpu_percent(),
                 cpu_count=max(1, int(psutil.cpu_count() or os.cpu_count() or 1)),
                 load_1m=max(0.0, load_1m),
                 load_5m=max(0.0, load_5m),

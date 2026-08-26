@@ -89,9 +89,67 @@ _TROUBLE_RE = re.compile(
 #: Asking about her state at all, even without a trouble word — "how are your
 #: subsystems doing", "status of your internals".
 _STATE_ENQUIRY_RE = re.compile(
-    r"\b(?:status|health|healthy|state|doing|holding\s+up|nominal|ok(?:ay)?)\b",
+    r"\b(?:status|health|healthy|state|doing|holding\s+up|nominal|ok(?:ay)?|"
+    r"how\s+hard|working|load|loaded|busy|utili[sz]ation|usage)\b",
     re.IGNORECASE,
 )
+
+#: The machine under her is hers. "How hard is the machine you run on working"
+#: names her host without using the word "your", which is why it matched no
+#: subject and reached no channel.
+#: What ties a machine to HER: she runs on it, it is the one under her.
+_RUNS_ON_RE = re.compile(
+    r"\b(?:you\s+run\s+on|you'?re\s+running\s+on|running\s+you|hosts?\s+you|"
+    r"under\s+you|your|you\s+are\s+on|you\s+sit\s+on|are\s+you|you'?re)\b",
+    re.IGNORECASE,
+)
+
+_HOST_SUBJECT_RE = re.compile(
+    r"\b(?:machine|host|hardware|box|processor|cpu|memory|ram|disk|thermals?|"
+    r"temperature|battery)\b",
+    re.IGNORECASE,
+)
+
+#: Whether the turn is asking about her own condition.
+#:
+#: The patterns above are the floor. This is the mechanism, because which
+#: phrasings ask after her is a judgement about meaning, and every miss so far
+#: has been a phrasing nobody put on a list.
+_ASKS_AFTER_HER: Any = None
+
+
+def _condition_surface() -> Any:
+    global _ASKS_AFTER_HER
+    if _ASKS_AFTER_HER is not None:
+        return _ASKS_AFTER_HER
+    try:
+        from core.language.learned_matcher import LearnedMatcher, embed_sentences
+
+        _ASKS_AFTER_HER = LearnedMatcher(
+            name="own_operational_state",
+            positives=(
+                "How hard is the machine you run on working right now?",
+                "are any of your subsystems degraded?",
+                "how much memory are you using?",
+                "is anything failing on your side?",
+                "what kind of load is the host under?",
+                "how are you holding up?",
+                "give me your current resource usage",
+            ),
+            negatives=(
+                "my deploy is failing",
+                "how hard is this problem?",
+                "what is the capital of Peru",
+                "one thing you do that off-the-shelf assistants can't",
+                "the build machine has been red since Tuesday",
+                "how much memory does a transformer need?",
+                "write me a one-pager about the migration",
+            ),
+            features=embed_sentences,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        _ASKS_AFTER_HER = None
+    return _ASKS_AFTER_HER
 
 
 def asks_about_own_operational_state(text: Any) -> bool:
@@ -126,9 +184,30 @@ def asks_about_own_operational_state(text: Any) -> bool:
         asked = asking_part(raw)
     except (ImportError, AttributeError, TypeError, ValueError):
         asked = raw
-    if not _SELF_SUBJECT_RE.search(asked):
+    # The host she runs on is her subject too. LIVE, 2026-08-25: "How hard is
+    # the machine you run on working right now? Give me a number you can stand
+    # behind." named no subject this recognised, so it reached no measured
+    # channel and an unrelated turn count answered it instead.
+    # Naming a resource of the machine under her, and tying it to her, IS the
+    # question — "how much memory are you using" needs no word for enquiry.
+    about_her_host = bool(_HOST_SUBJECT_RE.search(asked)) and bool(_RUNS_ON_RE.search(asked))
+    about_her = bool(_SELF_SUBJECT_RE.search(asked)) or about_her_host
+    settled = about_her_host or (
+        about_her and bool(_TROUBLE_RE.search(asked) or _STATE_ENQUIRY_RE.search(asked))
+    )
+    surface = _condition_surface()
+    if surface is None:
+        return settled
+    if settled:
+        try:
+            surface.observe(raw, holds=True)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+        return True
+    try:
+        return bool(surface.decide_without_waiting(raw))
+    except (RuntimeError, TypeError, ValueError):
         return False
-    return bool(_TROUBLE_RE.search(asked) or _STATE_ENQUIRY_RE.search(asked))
 
 
 def self_health_answer(message: Any) -> str:
@@ -322,12 +401,78 @@ def _failing_jobs(report: dict[str, Any]) -> list[dict[str, Any]]:
     return failing
 
 
+def _load_readings() -> list[Reading]:
+    """How hard the host is working, as measured rather than as felt.
+
+    LIVE, 2026-08-25, typed into the window: "How hard is the machine you run
+    on working right now? Give me a number you can stand behind." She answered
+    "I have 19 stored turns of recent conversation I can read back. So I can't
+    give you a defensible number" — an unrelated count, then a refusal, while
+    /api/health was reporting 24% processor and 57% memory in the same second.
+
+    The health channel reported status, failing jobs and degradations, and
+    never load, so a question about load reached no measured channel and
+    something else filled the gap. WorldState has been sampling this the whole
+    time, and its `_telemetry_measured` flag is what makes it honest: a
+    zero-because-nothing-was-read is a different answer from a real zero.
+    """
+    try:
+        from core.world_state import get_world_state
+
+        world = get_world_state()
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        return [Reading(
+            channel="host_load",
+            state=ReadingState.ABSENT_UNAVAILABLE,
+            provenance="core.world_state.get_world_state",
+            detail=f"{type(exc).__name__}: {exc}",
+        )]
+    if not getattr(world, "_telemetry_measured", False):
+        # No sample yet is not an answer. `update()` is a synchronous psutil
+        # read with no model in it, so the honest move when the number is
+        # missing is to go and take it.
+        try:
+            world.update()
+        except (RuntimeError, AttributeError, OSError, ValueError) as exc:
+            return [Reading(
+                channel="host_load",
+                state=ReadingState.ABSENT_UNAVAILABLE,
+                provenance="WorldState.update()",
+                detail=f"{type(exc).__name__}: {exc}",
+            )]
+    if not getattr(world, "_telemetry_measured", False):
+        return [Reading(
+            channel="host_load",
+            state=ReadingState.ABSENT_UNAVAILABLE,
+            provenance="WorldState telemetry",
+            detail="the processor and memory sensors did not answer",
+        )]
+    readings = [Reading(
+        channel="host_load",
+        state=ReadingState.READ,
+        value={
+            "processor_percent": round(float(world.cpu_percent), 1),
+            "memory_percent": round(float(world.memory_percent), 1),
+        },
+        provenance="WorldState telemetry (psutil)",
+    )]
+    if getattr(world, "_thermal_measured", False):
+        readings.append(Reading(
+            channel="host_thermal",
+            state=ReadingState.READ,
+            value=round(float(world.thermal_pressure), 3),
+            provenance="WorldState thermal sensors",
+        ))
+    return readings
+
+
 def resolve_self_health() -> EvidenceBundle:
     """Consult every channel that answers "what is wrong with you right now"."""
 
     readings: list[Reading] = []
     readings.extend(_health_readings())
     readings.extend(_degradation_readings())
+    readings.extend(_load_readings())
     return EvidenceBundle(demand="self_health", readings=tuple(readings))
 
 
@@ -342,6 +487,21 @@ def render_self_health_answer(bundle: EvidenceBundle) -> str:
 
     by_channel = {r.channel: r for r in bundle.readings}
     lines: list[str] = []
+
+    # Load first: asked how hard the machine is working, a number is the
+    # answer and everything else is context for it.
+    load = by_channel.get("host_load")
+    if load is not None and load.present:
+        values = dict(load.value or {})
+        lines.append(
+            f"Processor {values.get('processor_percent', 0.0):.1f}%, "
+            f"memory {values.get('memory_percent', 0.0):.1f}%."
+        )
+        thermal = by_channel.get("host_thermal")
+        if thermal is not None and thermal.present:
+            lines.append(f"Thermal pressure {float(thermal.value):.2f} of 1.")
+    elif load is not None:
+        lines.append(f"I could not read processor or memory: {load.detail}.")
 
     status = by_channel.get("runtime_health")
     if status is not None and status.present:

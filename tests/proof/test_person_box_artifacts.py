@@ -150,6 +150,27 @@ def test_person_box_gauntlet_smoke_artifacts(tmp_path):
     assert (out / "SCREENSHOT_TRACE").is_dir()
     assert (out / "FILE_DIFFS").is_dir()
 
+    # The browser probe has to have DRIVEN a browser.
+    #
+    # This checked that BROWSER_TRACE.jsonl exists and never what it said, so
+    # it passed identically whether chromium ran or the run classified an
+    # honest block — a green that meant nothing. The block path is still there
+    # and still correct, but a proof run that cannot open a browser is not a
+    # proof run, and the way to find that out is here rather than in a reading
+    # of the artifacts weeks later.
+    browser = [
+        entry for entry in _jsonl(out / "BROWSER_TRACE.jsonl")
+        if entry.get("task_id") == "browser_ui_probe"
+    ]
+    assert browser, "the browser probe left no trace at all"
+    assert browser[0]["status"] == "ok", (
+        f"the browser probe did not run: {browser[0].get('reason', 'no reason given')}. "
+        "Install it with: .venv/bin/python -m playwright install chromium"
+    )
+    shot = Path(browser[0]["screenshot"])
+    assert shot.exists() and shot.suffix == ".png", "no screenshot was captured"
+    assert shot.stat().st_size > 1024, "the screenshot is too small to be a rendered page"
+
     proof = json.loads((out / "PERSON_IN_BOX_PROOF.json").read_text(encoding="utf-8"))
     verdict = json.loads((out / "FINAL_VERDICT.txt").read_text(encoding="utf-8"))
     scorecard = proof["scorecard"]
