@@ -30,6 +30,13 @@ include_rules = [
     "+core.affect",
     "+core.memory",
 
+    # The learning organ, read one way. Conation asks whether a head has
+    # earned authority over its arbitration weights and takes them if so; it
+    # never writes there. This is the only edge that can change what conation
+    # believes about itself, which is why it is a read and why the calibration
+    # readout always says which of the two states it is in.
+    "+core.ontogeny",
+
     # Everything else. In particular no brain, no llm, no interface: a
     # motivational state must never be produced by generated text, and the
     # cheapest way to guarantee that is to make the import impossible.

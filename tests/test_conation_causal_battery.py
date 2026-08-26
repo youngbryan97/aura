@@ -29,6 +29,7 @@ from core.conation import (
     PlayFrame,
     Refusal,
     TargetForecast,
+    VECTOR_FIELDS,
     ValueOrigin,
     wundt_curve,
 )
@@ -743,3 +744,84 @@ def test_utility_is_an_output_and_never_an_input(engine):
     snail = _snail(engine)
     assert len(snail.motivational_vector()) == len(VECTOR_FIELDS)
     assert set(snail.to_dict()["vector"]) == set(VECTOR_FIELDS)
+
+
+# ── the calibration is honest about being unmeasured ─────────────────────
+
+
+def test_declared_weights_report_themselves_as_unlearned(engine: ConationEngine):
+    """Refutes: a chosen weight may be presented as a measured one.
+
+    A system that cannot tell the two apart will eventually report a chosen
+    weight as though it had been measured, and every number above it becomes
+    unfalsifiable.
+    """
+    status = engine.calibration.status()
+    assert status["learned"] is False
+    assert status["source"] == "declared_default"
+    assert status["note"]
+
+
+def test_outcomes_are_recorded_against_the_weights_in_force(engine: ConationEngine):
+    """Refutes: a learner would arrive with no history to learn from."""
+    engine.salience.record_outcome("thing", experienced_liking=0.5)
+    engine.salience.record_outcome("thing", experienced_liking=0.5)
+    engine.salience.record_outcome("thing", experienced_liking=0.5)
+    engine.appraise(Incentive(key="thing", cached_value=0.6))
+    engine.learn("thing", experienced_liking=-0.4)
+    evidence = engine.calibration.status()["evidence"]
+    assert evidence and evidence[0]["choices"] >= 1
+
+
+def test_mean_error_needs_support_before_it_means_anything(engine: ConationEngine):
+    """Refutes: two outcomes are enough to grade a weight vector."""
+    engine.calibration.observe_outcome(-0.3)
+    engine.calibration.observe_outcome(-0.3)
+    assert engine.calibration.status()["evidence"][0]["mean_error"] is None
+
+
+# ── the promised flags exist ─────────────────────────────────────────────
+
+
+def test_liking_known_separates_never_tasted_from_tasted_and_flat(engine):
+    """Refutes: an unknown hedonic value and a measured zero may share a field.
+
+    Without the flag an arbitration layer reads a first encounter as a proven
+    disappointment.
+    """
+    fresh = engine.appraise(Incentive(key="new_thing"))
+    assert fresh.liking_known is False
+    assert fresh.motivational_vector()[1] == 0.0
+
+    for _ in range(4):
+        engine.salience.record_outcome("new_thing", experienced_liking=0.0)
+    tasted = engine.appraise(Incentive(key="new_thing"))
+    assert tasted.liking_known is True
+
+
+def test_the_sting_reaches_the_state_and_stays_out_of_the_wanting(engine):
+    """Refutes: comparison pain may be folded into pull."""
+    engine.vicarious.observe_valuation(
+        agent="peer", target="toy", strength=0.9,
+        evidence="holding it", similarity=0.95, possesses=True,
+    )
+    adult = engine.appraise(Incentive(key="toy", cue_salience=0.3),
+                            theory_of_mind=0.95)
+    assert adult.sting > 0.0
+    assert adult.sting_evidence
+    assert "sting" not in dict(zip(VECTOR_FIELDS, adult.motivational_vector()))
+
+
+def test_person_model_accuracy_is_graded_against_what_they_did(engine):
+    """Refutes: the confirmation reward may be self-reported.
+
+    An actor who is confidently wrong about somebody would keep earning the
+    reward for being right.
+    """
+    engine.appraise(
+        Incentive(key="tease"), forecast=_forecast(), frame=_frame(),
+        norm_violation=0.5, governed=True,
+    )
+    engine.learn("tease", experienced_liking=0.4, person="friend",
+                 observed_amusement=0.1)
+    assert engine.enactive.accuracy_for("friend").predictions == 1

@@ -188,8 +188,29 @@ class ConativeState:
     #: instance. A refusal is a decision and is reported as one.
     refusals: tuple[str, ...] = ()
 
+    #: Relative-deprivation pain: a comparable other holds this and you do
+    #: not. Separate from wanting on purpose, because adding them produces an
+    #: agent that pursues a thing harder the more its absence hurts.
+    sting: float = 0.0
+    sting_evidence: str = ""
+
     timestamp: float = field(default_factory=time.time)
 
+    @property
+    def liking_known(self) -> bool:
+        """Whether anything has ever been experienced for this incentive.
+
+        An unknown hedonic prediction enters the motivational vector as zero so
+        it pushes a choice in neither direction, and this flag is what carries
+        the difference forward. Without it, "never tasted" and "tasted, felt
+        nothing" are the same number, and an arbitration layer would treat a
+        first encounter as a proven disappointment.
+        """
+        return self.predicted_liking is not None
+
+    #: Sting is the comparison pain, and it is not the wanting. Held as its
+    #: own field because a system that adds them pursues a thing harder the
+    #: more the lack of it hurts, which is backwards.
     def available_origins(self) -> tuple[ValueOrigin, ...]:
         """Origins that had real evidence behind them."""
         return tuple(
@@ -262,6 +283,9 @@ class ConativeState:
             "phase": str(self.phase),
             "instrumentality": str(self.instrumentality),
             "borrowed_fraction": round(self.borrowed_fraction, 6),
+            "liking_known": self.liking_known,
+            "sting": round(self.sting, 6),
+            "sting_evidence": self.sting_evidence,
             "permitted": self.permitted,
             "refusals": list(self.refusals),
             "readings": {

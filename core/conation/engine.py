@@ -56,6 +56,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterator, Sequence
 
 from core.conation.access import AccessLedger, Blocker
+from core.conation.calibration import CalibrationRegistry
 from core.conation.aesthetic import AestheticValuation
 from core.conation.dynamics import ConativeDynamics
 from core.conation.enactive import EnactiveValuation, PlayFrame, TargetForecast
@@ -134,9 +135,11 @@ class ConationEngine:
         self.access = AccessLedger()
         self.dynamics = ConativeDynamics()
 
-        #: Arbitration weights by vector field. Uniform until earned.
-        self._weights: dict[str, float] = {name: 1.0 for name in VECTOR_FIELDS}
-        self._weights_source = "uniform_default"
+        #: Arbitration weights by vector field. Resolved through the
+        #: calibration registry, which reports whether a head earned them or
+        #: whether the declared defaults are standing in.
+        self.calibration = CalibrationRegistry()
+        self._weights, self._weights_source = self.calibration.resolve_weights()
 
         self._interventions: dict[str, Any] = {}
         self._appraisals = 0
@@ -204,8 +207,15 @@ class ConationEngine:
         frame: PlayFrame | None = None,
         norm_violation: float = 0.0,
         governed: bool = False,
+        theory_of_mind: float = 1.0,
     ) -> ConativeState:
-        """Build the typed motivational stance toward one incentive."""
+        """Build the typed motivational stance toward one incentive.
+
+        ``theory_of_mind`` scales the comparison sting, which needs a model of
+        the other as somebody who could have been you. A system without one
+        reaches; a system with one simmers. It defaults to full, because Aura
+        has a person model and a toddler does not.
+        """
         self._appraisals += 1
         readings: dict[ValueOrigin, OriginReading] = {}
         refusals: list[str] = []
@@ -342,6 +352,18 @@ class ConationEngine:
         elif borrowed_fraction > 0.0 and readings.get(ValueOrigin.ENACTIVE, None) is not None:
             topology = MindTopology.MUTUAL
 
+        # The comparison pain, which is not the wanting. Only meaningful when
+        # a comparable other actually holds the thing; the method returns zero
+        # and says why otherwise.
+        sting, sting_evidence = 0.0, ""
+        if self.vicarious.observations_for(incentive.key):
+            sting, sting_evidence = self.vicarious.sting(
+                incentive.key,
+                own_possession=False,
+                obtainability=1.0 - incentive.effort,
+                theory_of_mind=theory_of_mind,
+            )
+
         blocker, _agent = self.access.blocker_for(incentive.key)
         permitted = bool(self._forced("permitted", incentive.permitted))
         phase = self._phase(incentive.key, wanting, blocker)
@@ -365,6 +387,8 @@ class ConationEngine:
             effort=incentive.effort,
             risk=incentive.risk,
             refusals=tuple(refusals),
+            sting=sting,
+            sting_evidence=sting_evidence,
         )
         self._last_state = state
         return state
@@ -468,6 +492,7 @@ class ConationEngine:
             raise ValueError(f"weights must cover every field; missing {sorted(missing)}")
         self._weights = {name: float(weights[name]) for name in VECTOR_FIELDS}
         self._weights_source = source
+        self.calibration._source = source
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -479,6 +504,8 @@ class ConationEngine:
         succeeded: bool = True,
         completeness: float = 0.0,
         prediction_error: float | None = None,
+        person: str | None = None,
+        observed_amusement: float | None = None,
     ) -> OutcomeReport:
         """Fold one real outcome back into every predictor it touches.
 
@@ -502,13 +529,33 @@ class ConationEngine:
                 predicted_wanting, prediction_error=prediction_error
             )
 
-        return OutcomeReport(
+        # An act aimed at a person is graded against what that person did.
+        # Without this the confirmation reward is self-reported, and an actor
+        # who is confidently wrong about somebody keeps earning it for being
+        # right.
+        if person and observed_amusement is not None:
+            last = self._last_state
+            predicted = 0.0
+            if last is not None:
+                reading = last.readings.get(ValueOrigin.ENACTIVE)
+                if reading is not None and reading.detail:
+                    predicted = reading.detail.get("efficacy", 0.0)
+            self.enactive.observe_reaction(
+                person,
+                predicted_amusement=predicted,
+                observed_amusement=observed_amusement,
+            )
+
+        report = OutcomeReport(
             incentive_key=key,
             experienced_liking=experienced_liking,
             predicted_liking=predicted_liking,
             predicted_wanting=predicted_wanting,
             realised_pull=result["epsilon_wanting"] + predicted_wanting,
         )
+        # Grade the weights that were in force when this was chosen.
+        self.calibration.observe_outcome(report.epsilon_liking)
+        return report
 
     # ── readout ──────────────────────────────────────────────────────────
 
@@ -519,6 +566,7 @@ class ConationEngine:
             "appraisals": self._appraisals,
             "uptime_s": round(time.time() - self._started, 1),
             "weights_source": self._weights_source,
+            "calibration": self.calibration.status(),
             "salience": self.salience.status(),
             "homeostatic": self.homeostatic.status(),
             "epistemic": self.epistemic.status(),

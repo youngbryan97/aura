@@ -88,10 +88,10 @@ class SalienceCalibration:
     outruns the other by construction and any divergence between wanting and
     liking is a fact about the incentive rather than about the rates.
 
-    These are routed to Aura's ontogenetic organ for learning
-    (``core/ontogeny/``), which starts a learned head at observe-only
-    authority and promotes it against a counterfactual slice. Until such a
-    head earns authority, the defaults stand and say so.
+    ``core/conation/calibration.py`` holds the hook a learned head would use
+    to replace them and records the hedonic prediction errors that would grade
+    it. No head holds authority today, so the defaults stand and the readout
+    says so rather than presenting them as measurements.
     """
 
     gamma: float = 1.0

@@ -40,9 +40,10 @@ The bracketed terms carry equal weight. That is a deliberate refusal to invent
 a psychology: nothing has measured, on this system, that information gain
 matters more than novelty or less than learning progress, and any other
 weighting would assert an ordering no observation here supports. Equal weights
-are the maximum-entropy choice given no data, and they are routed to
-``core/ontogeny`` so a learned head can earn different ones against a
-counterfactual slice rather than being handed them.
+are the maximum-entropy choice given no data. ``core/conation/calibration.py``
+holds the hook a learned head would use to earn different ones and reports
+``learned=False`` until one does, so a caller can always tell an assumption
+from a measurement.
 
 ## What is reused
 
