@@ -983,3 +983,17 @@ def test_the_default_calibration_declares_itself_unmeasured(engine):
     """Refutes: an engine built with no arguments looks calibrated."""
     assert engine.salience.calibration.learned is False
     assert engine.salience.calibration.source == "declared_default"
+
+
+def test_an_outcome_matches_the_state_that_produced_it(engine):
+    """Refutes: the most recent appraisal is the one an outcome is about.
+
+    In a live loop appraisals and outcomes interleave, so a guard keyed on the
+    last appraisal fires almost never. This is the arrangement that actually
+    happens: appraise the snail, appraise something else, then report the
+    snail's outcome.
+    """
+    _snail(engine)
+    engine.appraise(Incentive(key="something_else", cached_value=0.3))
+    engine.learn("snail", experienced_liking=0.5, extrinsic_payoff=0.9)
+    assert engine.overjustification.status()["protected_payoffs"] == 1

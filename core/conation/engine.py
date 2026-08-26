@@ -128,6 +128,11 @@ class Choice:
 class ConationEngine:
     """Aura's motivational faculty: what is wanted, why, and what may be done."""
 
+    #: Per-incentive states retained for outcome matching. Bounded, and the
+    #: oldest insertion goes first: a state nothing has reported an outcome
+    #: for by now is not going to get one.
+    MAX_TRACKED_STATES = 256
+
     def __init__(self, calibration: SalienceCalibration | None = None) -> None:
         self.salience = IncentiveSalience(calibration or declared_salience())
         self.homeostatic = HomeostaticValuation()
@@ -148,6 +153,12 @@ class ConationEngine:
         self._interventions: dict[str, Any] = {}
         self._appraisals = 0
         self._last_state: ConativeState | None = None
+        #: Most recent state per incentive. ``_last_state`` alone is the state
+        #: of whatever was appraised most recently, which in a live loop is
+        #: rarely the thing an outcome is about — appraisals and outcomes
+        #: interleave. Anything that has to match an outcome to the state that
+        #: produced it reads this instead.
+        self._states: dict[str, ConativeState] = {}
         self._started = time.time()
 
     # ── intervention ─────────────────────────────────────────────────────
@@ -418,6 +429,9 @@ class ConationEngine:
             sting_evidence=sting_evidence,
         )
         self._last_state = state
+        if len(self._states) >= self.MAX_TRACKED_STATES:
+            self._states.pop(next(iter(self._states)), None)
+        self._states[incentive.key] = state
         return state
 
     @staticmethod
@@ -566,10 +580,9 @@ class ConationEngine:
         # rather than folded into the cached value. Letting it teach would
         # re-attribute a reason of her own to a task's reward, and the pull
         # would go when the reward did.
-        last = self._last_state
+        last = self._states.get(key)
         at_risk = (
             last is not None
-            and last.incentive_key == key
             and self.overjustification.is_at_risk(
                 last.instrumentality, last.dominant_origin
             )
@@ -599,7 +612,6 @@ class ConationEngine:
         # who is confidently wrong about somebody keeps earning it for being
         # right.
         if person and observed_amusement is not None:
-            last = self._last_state
             predicted = 0.0
             if last is not None:
                 reading = last.readings.get(ValueOrigin.ENACTIVE)
