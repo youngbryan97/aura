@@ -70,6 +70,10 @@ def _suppress_internal_leak(ws_msg: dict[str, Any]) -> bool:
             conversation_id=conversation_id,
             turn_id=turn_id,
             unprompted=str(ws_msg.get("type", "")) != "chat_response",
+            # A commentary the person asked for is not competing to answer
+            # their question. It is what is happening while the answer is
+            # being worked out, and the turn is open for the whole of it.
+            answering=not bool(metadata.get("narration")),
         ):
             logger.warning(
                 "EventBridge: withheld a second answer to a turn the route "

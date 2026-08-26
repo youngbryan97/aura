@@ -177,15 +177,23 @@ def route_answer_supersedes(
     conversation_id: Any = "",
     turn_id: Any = "",
     unprompted: bool = True,
+    answering: bool = True,
 ) -> bool:
     """True when this spoken message is a second lane answering a settled turn.
 
     False when the route has not answered recently, when the window has
     passed, or when this IS the route's answer arriving through the bus —
     that last case is the normal delivery path and must never be withheld.
+
+    ``answering`` is what the rule is actually about. An answer supersedes
+    another answer; it does not supersede an event. A running commentary
+    somebody asked for is a stream of things happening while the answer is
+    still being worked out, and the turn stays open for as long as the work
+    takes — so without this, asking her to narrate a task and then watching
+    her do it produced silence for the whole of it.
     """
     body = _norm(spoken_text)
-    if not body:
+    if not body or not answering:
         return False
     now = time.time()
     conversation = normalize_conversation_id(conversation_id)
