@@ -1866,6 +1866,16 @@ class DesktopTaskSkill(BaseSkill):
                     # returns nothing to an internal caller for exactly
                     # this reason; it could not tell this was one.
                     internal_inference=True,
+                    # Somebody is waiting for this file.
+                    #
+                    # Her reasoning lane declares the same thing and reaches
+                    # the resident worker; this one did not, and asked a lane
+                    # that answered "worker_not_alive" for half a minute
+                    # while the runtime's own health reported Cortex ready and
+                    # generating. Internal is about whose question it is.
+                    # Foreground is about whether anyone is waiting, and both
+                    # are true here.
+                    foreground_request=True,
                 ),
                 timeout=50.0,
             )
@@ -2012,6 +2022,16 @@ class DesktopTaskSkill(BaseSkill):
                     # returns nothing to an internal caller for exactly
                     # this reason; it could not tell this was one.
                     internal_inference=True,
+                    # Somebody is waiting for this file.
+                    #
+                    # Her reasoning lane declares the same thing and reaches
+                    # the resident worker; this one did not, and asked a lane
+                    # that answered "worker_not_alive" for half a minute
+                    # while the runtime's own health reported Cortex ready and
+                    # generating. Internal is about whose question it is.
+                    # Foreground is about whether anyone is waiting, and both
+                    # are true here.
+                    foreground_request=True,
                     ),
                     timeout=timeout_s + 5.0,
                 )
@@ -3579,6 +3599,16 @@ class DesktopTaskSkill(BaseSkill):
                     # returns nothing to an internal caller for exactly
                     # this reason; it could not tell this was one.
                     internal_inference=True,
+                    # Somebody is waiting for this file.
+                    #
+                    # Her reasoning lane declares the same thing and reaches
+                    # the resident worker; this one did not, and asked a lane
+                    # that answered "worker_not_alive" for half a minute
+                    # while the runtime's own health reported Cortex ready and
+                    # generating. Internal is about whose question it is.
+                    # Foreground is about whether anyone is waiting, and both
+                    # are true here.
+                    foreground_request=True,
                 ),
                 timeout=120.0,
             )
