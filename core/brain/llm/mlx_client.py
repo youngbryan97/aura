@@ -67,6 +67,20 @@ from .mlx_worker import _mlx_worker_loop
 #: object, so no value a block legitimately returns can be mistaken for it.
 _SEAM_FELL_THROUGH = object()
 
+#: Characters per token, for turning a prompt length into work. The usual
+#: ratio for this tokenizer family; only ever used to size a deadline, where
+#: being roughly right beats having no relationship to the prompt at all.
+_CHARS_PER_TOKEN = 4.0
+
+#: What to assume before this worker has been measured. Well under the
+#: 716-772 tok/s observed on this host, because being generous with an
+#: unmeasured worker costs a little latency and being mean costs the answer.
+_UNMEASURED_PREFILL_RATE = 300.0
+
+#: How much longer than the reading itself to allow. A shared lane queues,
+#: and a deadline with no room for that cancels healthy work.
+_PREFILL_HEADROOM = 3.0
+
 logger = logging.getLogger("LLM.MLX")
 
 # Abort reasons that race a finishing generation: losing that race is the
@@ -6032,6 +6046,32 @@ class MLXLocalClient:
             0.0,
             float(first_token_hard_ceiling_s or 0.0),
         )
+        # A ceiling that does not account for the prompt is not a budget.
+        #
+        # LIVE 2026-08-26, two lines apart: "first-token ceiling 90.0s for a
+        # 5-char prompt" and "first-token ceiling 4.0s for a 3431-char
+        # prompt". Ninety seconds to read five characters, four to read nine
+        # hundred tokens — the number had no relationship to the work, and
+        # every decision she made while playing was cancelled by it. She chose
+        # her moves from the consequence record alone and never held a plan,
+        # which from outside looks exactly like a mind that is not thinking.
+        #
+        # The floor is the time THIS worker takes to read THIS prompt, at the
+        # rate it has been measured at, with room for the queueing a shared
+        # lane always has. It only ever raises a ceiling, never past the
+        # livelock ceiling that catches a wedged worker.
+        needed = self._prefill_floor_seconds(self._current_prompt_chars)
+        if 0.0 < self._current_first_token_hard_ceiling_s < needed:
+            logger.info(
+                "⏱️ [MLX] first-token ceiling raised %.1fs → %.1fs: a %d-char prompt "
+                "takes about %.1fs to read at %.0f tok/s",
+                self._current_first_token_hard_ceiling_s,
+                needed,
+                self._current_prompt_chars,
+                needed / _PREFILL_HEADROOM,
+                self._measured_prefill_rate(),
+            )
+            self._current_first_token_hard_ceiling_s = needed
         # What the caller allowed, beside what the prompt will cost.
         #
         # A first-token ceiling is only meaningful next to the prompt it has
@@ -6067,7 +6107,23 @@ class MLXLocalClient:
         if not normalized_req_id and self._current_request_id:
             self._mark_progress()
             return
-        self._current_prefill_tokens_processed = max(0, int(processed or 0))
+        done = max(0, int(processed or 0))
+        # How fast this worker actually reads a prompt, from this worker.
+        #
+        # Measured rather than assumed, so a ceiling built on it is a ceiling
+        # built on what the machine does. Averaged, so one slow chunk under
+        # contention does not become the rule.
+        now = time.time()
+        started = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
+        if done > self._current_prefill_tokens_processed and started > 0.0:
+            spent = now - started
+            if spent > 0.05:
+                observed = done / spent
+                previous = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
+                self._prefill_tokens_per_s = (
+                    observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
+                )
+        self._current_prefill_tokens_processed = done
         self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
 
@@ -6402,6 +6458,23 @@ class MLXLocalClient:
             # Bounded above too: an absurd ceiling disables the watchdog.
             return min(3600.0, max(10.0, configured))
         return default
+
+    def _measured_prefill_rate(self) -> float:
+        """Tokens a second this worker reads a prompt at, as measured.
+
+        Falls back to a deliberately pessimistic rate until it has seen one:
+        being generous with an unmeasured worker costs a little latency, and
+        being mean with it costs the answer.
+        """
+        rate = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
+        return rate if rate > 0.0 else _UNMEASURED_PREFILL_RATE
+
+    def _prefill_floor_seconds(self, prompt_chars: int) -> float:
+        """The least time in which this prompt could produce a first token."""
+        chars = max(0, int(prompt_chars or 0))
+        if chars <= 0:
+            return 0.0
+        return (chars / _CHARS_PER_TOKEN / self._measured_prefill_rate()) * _PREFILL_HEADROOM
 
     def _first_token_hard_ceiling(self, *, foreground_request: bool = False) -> float:
         first_token_sla = self._first_token_sla(foreground_request=foreground_request)
