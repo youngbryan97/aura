@@ -1224,6 +1224,33 @@ def _deferral_reason_kind(reason: str) -> str:
     return _DEFERRAL_MEASUREMENT_RE.sub("#", str(reason or "")).strip()
 
 
+def _worker_still_healthy(endpoint: Any) -> bool:
+    """Whether the local worker behind this endpoint is alive and progressing.
+
+    Asked when OUR deadline expired, to tell "it ran out of time" apart from
+    "it is wedged". Unknowable counts as unhealthy, so a caller timeout on an
+    endpoint that cannot answer for itself still trips the circuit.
+    """
+    client = getattr(endpoint, "client", None) or getattr(endpoint, "_client", None)
+    alive = getattr(client, "is_alive", None)
+    if not callable(alive):
+        return False
+    try:
+        if not bool(alive()):
+            return False
+    except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        return False
+    beat = float(getattr(client, "_last_heartbeat", 0.0) or 0.0)
+    if beat <= 0.0:
+        return False
+    return (time.time() - beat) < _HEALTHY_HEARTBEAT_WINDOW_S
+
+
+#: How recently a local worker must have reported in for a caller timeout to
+#: read as "we ran out of time" rather than "it is wedged".
+_HEALTHY_HEARTBEAT_WINDOW_S = 30.0
+
+
 class HealthAwareLLMRouter:
     """
     Routes LLM requests to available endpoints with circuit breaking.
@@ -4037,7 +4064,32 @@ class HealthAwareLLMRouter:
                     action="recorded endpoint timeout and force-aborted local client if possible",
                     severity="error",
                 )
-                if ep.is_local:
+                # Our deadline running out is not the endpoint's failure.
+                #
+                # This tripped the local circuit on a caller timeout, so every
+                # short-budget internal call knocked the shared lane out for
+                # everybody — and this file already says why that is wrong,
+                # a few hundred lines up: "Hitting it says nothing about the
+                # worker's health; it says this turn ran out of time."
+                #
+                # LIVE 2026-08-26: her move decisions were given four seconds
+                # for a nine-hundred-token prompt, timed out, tripped Cortex,
+                # and the next decision found "no endpoints matched routing
+                # plan for tier 'primary'" and came back empty. She played
+                # whole games without a thought reaching her, and the lane the
+                # person was talking to went with it.
+                #
+                # A worker that is genuinely wedged does not present as a
+                # caller timeout — it livelocks, errors, or dies, and every
+                # one of those still trips the circuit below.
+                if ep.is_local and _worker_still_healthy(ep):
+                    logger.info(
+                        "Endpoint %s did not answer inside OUR %.1fs budget; the worker is "
+                        "healthy, so the circuit stays closed.",
+                        ep.name,
+                        endpoint_budget,
+                    )
+                elif ep.is_local:
                     ep.trip_temporarily(last_error)
                 else:
                     ep.record_failure(last_error)
