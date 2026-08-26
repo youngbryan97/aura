@@ -112,6 +112,22 @@ def generator(
         )
         if isinstance(out, str):
             return out
+        if out is None:
+            # A mind that answered nothing is not a broken mind.
+            #
+            # The think path declares `str | None` and None is its way of
+            # saying it has no answer this time — a refusal, an exhausted
+            # local lane, a request it declined. Raising here turned an
+            # ordinary answer into a subsystem fault: measured live, 51 of
+            # them in half an hour, each one recorded MARGINAL and driving
+            # her own affect to frustration=1.00, depletion=0.49, strain.
+            #
+            # Callers already handle an empty answer properly. A decision
+            # falls back to evidence; an approach is simply not stated this
+            # time and is asked for again later. A real transport failure
+            # still raises, because that is a different thing and the
+            # deliberation should stop for it.
+            return ""
         for field in ("content", "text", "answer", "response"):
             value = getattr(out, field, None) or (out.get(field) if isinstance(out, dict) else None)
             if isinstance(value, str) and value.strip():

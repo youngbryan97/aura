@@ -245,6 +245,11 @@ def read_strategy(
     )
 
 
+#: Whether the last attempt to form an approach already went unrecorded, so a
+#: question asked on nearly every cycle cannot fill the ledger on its own.
+_said_it_could_not_plan: dict[str, bool] = {"value": False}
+
+
 def _asking_for_an_approach(goal: str, situation: str, options: Sequence[ActionOption]) -> str:
     names = ", ".join(option.name for option in options)
     return (
@@ -283,10 +288,24 @@ async def settle_on_an_approach(
     try:
         reply = await think(_asking_for_an_approach(goal, situation, options), evidence)
     except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
-        record_degradation(
-            "standing_strategy", exc, severity="info", action="carried on without a stated approach"
-        )
+        # Not having a plan this time is an ordinary outcome, not damage.
+        #
+        # Recorded once and then left alone. Measured live: twenty of these
+        # in half an hour opened a runtime integrity incident, because a
+        # question she asks on almost every cycle was reporting each
+        # unanswered attempt as a subsystem degradation. The condition worth
+        # recording is that she keeps failing to form a plan, and one entry
+        # says that as well as twenty do.
+        if not _said_it_could_not_plan["value"]:
+            _said_it_could_not_plan["value"] = True
+            record_degradation(
+                "standing_strategy",
+                exc,
+                severity="info",
+                action="carried on without a stated approach",
+            )
         return None
+    _said_it_could_not_plan["value"] = False
     settled = read_strategy(reply or "", options, situation=situation)
     if settled is None:
         return None
