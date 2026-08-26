@@ -75,6 +75,18 @@ class Responsive:
     #: Acts since anything last answered her.
     unanswered: int = 0
 
+    def began_again(self) -> None:
+        """A new world, in the same place as the one that ended.
+
+        What she learned about WHERE things happen still holds — the board is
+        where the board was. What does not carry over is the verdict that
+        nothing answers, and while it stood she was never offered a move
+        again: only the ways out, forever. LIVE 2026-08-26: she noticed a
+        finished game, chose to start a new one, clicked it, and then made no
+        move at all for the rest of the run.
+        """
+        self.unanswered = 0
+
     def settled(self) -> bool:
         return self.effective >= ENOUGH_ACTS and bool(self.answered)
 

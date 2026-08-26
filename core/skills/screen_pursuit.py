@@ -1492,6 +1492,8 @@ async def pursue_on_screen(
                 restarts["because"] = because or "nothing here was moving the board"
                 intending["value"] = START_OVER
                 history.clear()
+                # The world that stopped answering is the one she is ending.
+                responds["state"].began_again()
 
                 async def begin_again() -> bool:
                     return await click_normalized(rx, ry, expect_app=target_app, bounds=frame)
