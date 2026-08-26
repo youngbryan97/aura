@@ -63,3 +63,30 @@ def test_one_alternative_is_not_listed_as_two():
     )
     assert held is not None
     assert held.otherwise == ("switch to the right edge",)
+
+
+NAMED_LATE = (
+    "I choose to press left. The board shows two adjacent 16s in the bottom row "
+    "that will merge into a 32, so left is the only move that creates a merge. "
+    "My approach: I'll prioritize moves that create merges, watching for any row "
+    "or column with adjacent equal tiles."
+)
+
+
+def test_the_approach_she_named_beats_the_move_she_opened_with():
+    held = read_strategy(NAMED_LATE, MOVES, situation="16 16 4 32")
+    assert held is not None
+    assert "prioritize moves that create merges" in held.approach
+    assert "press left" not in held.approach
+
+
+def test_a_clause_too_short_to_be_an_approach_is_passed_over():
+    held = read_strategy(
+        "I choose left. My plan is to feed the bottom-left corner.", MOVES, situation="2 4 64"
+    )
+    assert held is not None
+    assert "bottom-left corner" in held.approach
+
+
+def test_a_move_on_its_own_is_still_not_an_approach():
+    assert read_strategy("I choose to press left.", MOVES) is None

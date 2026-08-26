@@ -287,6 +287,35 @@ def _earliest(text: str, patterns: Sequence[str]) -> str:
     return best[1] if best else ""
 
 
+def _first_worth_having(
+    text: str, groups: Sequence[Sequence[str]], options: Sequence[ActionOption] = ()
+) -> str:
+    """The approach, preferring a name she gave it over one read out of her.
+
+    Order by position alone and the first thing she says wins, which is often
+    the move rather than the line: "I choose to press left. ... My approach:
+    I'll prioritize moves that create merges." Order by shape alone and the
+    pivot wins, because "I will switch to right if..." looks exactly like a
+    plan. So a clause she LABELLED is taken first, and only when she labelled
+    nothing is the earliest first-person statement used.
+
+    A clause too short to be a way of going about anything is passed over
+    rather than accepted and then refused: "to press left" is a move.
+    """
+    for patterns in groups:
+        best: tuple[int, str] | None = None
+        for pattern in patterns:
+            for found in re.finditer(pattern, text, re.IGNORECASE):
+                said = _whole_words(found.group("said"))
+                if not _says_enough_to_be_an_approach(said, options):
+                    continue
+                if best is None or found.start() < best[0]:
+                    best = (found.start(), said)
+        if best is not None:
+            return best[1]
+    return ""
+
+
 def keeps_every_option_open(said: str, options: Sequence[ActionOption] = ()) -> bool:
     """Whether this leaves every way forward exactly as open as it found them.
 
@@ -339,15 +368,22 @@ def read_strategy(
     if was_cut_off(text):
         logger.info("her answer stopped in the middle: %r", text[-90:])
         return None
-    approach = _earliest(
+    approach = _first_worth_having(
         text,
         (
-            r"\bplan\s*[:\-]\s*(?P<said>[^.]{4,})",
-            r"\bapproach\s*[:\-]\s*(?P<said>[^.]{4,})",
-            r"\bI(?:'ll| will| am going to|'m going to| choose| plan to| intend to)\s+"
-            r"(?P<said>[^.]{4,})",
-            r"\bstrategy\s+is\s+(?P<said>[^.]{4,})",
+            # Named by her.
+            (
+                r"\b(?:my\s+)?plan\s*(?:is)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
+                r"\b(?:my\s+)?approach\s*(?:is|will\s+be)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
+                r"\b(?:my\s+)?strategy\s*(?:is|will\s+be)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
+            ),
+            # Read out of what she said she would do.
+            (
+                r"\bI(?:'ll| will| am going to|'m going to| choose| plan to| intend to)\s+"
+                r"(?P<said>[^.]{4,})",
+            ),
         ),
+        options,
     )
     if not approach:
         # No lead-in, so the answer itself is the approach.
