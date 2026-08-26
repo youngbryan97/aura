@@ -58,11 +58,22 @@ def test_the_first_processor_reading_is_measured_not_zero() -> None:
     first = _measured_cpu_percent()
     assert first > 0.0, "a busy host read as 0.0% — the counter had no baseline"
     assert first <= 100.0
-    # Asked again immediately, it blocks rather than reporting a stale zero.
+    # Asked again immediately it repeats the last reading rather than waiting.
+    #
+    # It blocked for the rest of the window instead, and this function is on
+    # the resource path boot polls continuously: half a second per call took
+    # the runtime past the launcher's boot deadline and put it in a restart
+    # loop. Measuring honestly must not cost the thing being measured.
     started = time.monotonic()
     again = _measured_cpu_percent()
-    assert time.monotonic() - started >= _CPU_MINIMUM_WINDOW_S * 0.8
-    assert 0.0 <= again <= 100.0
+    assert time.monotonic() - started < 0.05, "a repeat read blocked"
+    assert again == first
+
+    # A hot loop stays cheap.
+    started = time.monotonic()
+    for _ in range(200):
+        _measured_cpu_percent()
+    assert time.monotonic() - started < 1.0, "200 reads took longer than a second"
 
 
 def test_a_reading_that_was_never_taken_says_so() -> None:

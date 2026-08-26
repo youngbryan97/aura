@@ -62,20 +62,35 @@ def _seed_cpu_counter() -> None:
     _CPU_SAMPLED_AT = time.monotonic()
 
 
+#: The last real reading, served to anyone who asks again before the counters
+#: can have moved.
+_CPU_LAST_VALUE = 0.0
+_CPU_EVER_MEASURED = False
+
+
 def _measured_cpu_percent() -> float:
-    """Processor use over a window long enough for the counters to have moved."""
-    global _CPU_SAMPLED_AT
+    """Processor use over a window long enough for the counters to have moved.
+
+    Never blocks twice. Asked again inside the window, it repeats the last real
+    reading rather than waiting for a new one: this function is on the resource
+    path that boot polls continuously, and a half-second wait per call took the
+    runtime past the launcher's boot deadline and put it in a restart loop.
+    """
+    global _CPU_SAMPLED_AT, _CPU_LAST_VALUE, _CPU_EVER_MEASURED
     now = time.monotonic()
     if _CPU_SAMPLED_AT and (now - _CPU_SAMPLED_AT) >= _CPU_MINIMUM_WINDOW_S:
-        value = float(psutil.cpu_percent(interval=None) or 0.0)
+        _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=None) or 0.0)
         _CPU_SAMPLED_AT = now
-        return value
-    # Asked sooner than the counters can answer. Blocking for the rest of the
-    # window is the only way to return a number rather than a zero that means
-    # "I did not look".
-    value = float(psutil.cpu_percent(interval=_CPU_MINIMUM_WINDOW_S) or 0.0)
+        _CPU_EVER_MEASURED = True
+        return _CPU_LAST_VALUE
+    if _CPU_EVER_MEASURED:
+        return _CPU_LAST_VALUE
+    # Nothing has ever been measured and the seed is too fresh to diff against.
+    # One bounded wait, once per process, so the first answer is a reading.
+    _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=_CPU_MINIMUM_WINDOW_S) or 0.0)
     _CPU_SAMPLED_AT = time.monotonic()
-    return value
+    _CPU_EVER_MEASURED = True
+    return _CPU_LAST_VALUE
 
 
 _seed_cpu_counter()
