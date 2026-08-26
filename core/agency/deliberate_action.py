@@ -846,6 +846,13 @@ async def deliberate(
         planned = choose_sequence(reply or "", options, far)
     else:
         planned = plan_without_language([chosen, *ranking], far)
+    logger.info(
+        "committing %d ahead (spoke=%s, ranked %d): %s",
+        far,
+        spoke,
+        len(ranking),
+        [option.name for option in planned],
+    )
     if planned and planned[0] is not chosen:
         # The plan and the settled choice disagree, so there is no plan: what
         # she concluded wins, and one move is a plan of one.
