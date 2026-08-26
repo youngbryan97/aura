@@ -401,6 +401,7 @@ class IncentiveSalience:
         return out
 
     def status(self) -> dict[str, Any]:
+        overvalued = self.overvalued()
         dissociations = sum(r.dissociations for r in self._records.values())
         contacts = sum(r.contacts for r in self._records.values())
         return {
@@ -408,7 +409,8 @@ class IncentiveSalience:
             "contacts": contacts,
             "dissociations": dissociations,
             "dissociation_rate": (dissociations / contacts) if contacts else 0.0,
-            "overvalued": [key for key, _ in self.overvalued()[:5]],
+            "overvalued": [key for key, _ in overvalued[:5]],
+            "overvalued_count": len(overvalued),
             "calibration": self._calibration.to_dict(),
         }
 

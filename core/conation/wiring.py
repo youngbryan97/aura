@@ -111,6 +111,12 @@ def snapshot() -> dict[str, Any]:
         last = status.get("last") or {}
         access = status.get("access", {})
         dynamics = status.get("dynamics", {})
+        blocked = access.get("blocked_wants") or []
+        frustrated = [row.get("key") for row in (dynamics.get("frustrated") or [])]
+        salience = status.get("salience", {})
+        epistemic = status.get("epistemic", {})
+        overvalued = salience.get("overvalued") or []
+        noisy = epistemic.get("noisy_sources") or []
         return {
             "present": True,
             "wanting": last.get("wanting"),
@@ -121,10 +127,21 @@ def snapshot() -> dict[str, Any]:
             "borrowed_fraction": last.get("borrowed_fraction"),
             "refusals": last.get("refusals", []),
             "arousal": dynamics.get("arousal"),
-            "blocked_wants": access.get("blocked_wants", [])[:3],
-            "frustrated": [row.get("key") for row in dynamics.get("frustrated", [])][:3],
-            "overvalued": status.get("salience", {}).get("overvalued", [])[:3],
-            "noisy_sources": status.get("epistemic", {}).get("noisy_sources", [])[:3],
+            # Each of these carries a truncated sample AND its true count.
+            # The sample alone was a false self-report waiting to happen: a
+            # consumer counting three entries has no way to know there are
+            # eleven, and the introspective-accuracy rig caught exactly that
+            # as a gain of 0.50 on the blocked-wants probe.
+            "blocked_wants": blocked[:3],
+            "blocked_want_count": access.get("blocked_count", len(blocked)),
+            "frustrated": frustrated[:3],
+            "frustrated_count": len(frustrated),
+            "overvalued": overvalued[:3],
+            # Counts come from upstream, which truncates its own samples. A
+            # length taken here would be the length of a slice of a slice.
+            "overvalued_count": salience.get("overvalued_count", len(overvalued)),
+            "noisy_sources": noisy[:3],
+            "noisy_source_count": epistemic.get("noisy_source_count", len(noisy)),
         }
     except (ImportError, AttributeError, KeyError, TypeError, ValueError) as exc:
         record_degradation("conation_wiring", exc, severity="debug",

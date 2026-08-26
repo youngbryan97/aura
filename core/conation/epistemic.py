@@ -447,8 +447,13 @@ class EpistemicValuation:
         return out
 
     def status(self) -> dict[str, Any]:
+        noisy = self.noisy_sources()
         return {
             "traces": len(self._traces),
-            "noisy_sources": self.noisy_sources()[:5],
+            # Sample and count both. A caller that sees five entries and no
+            # count cannot tell five from fifty, and anything it says about
+            # how many is then false by construction.
+            "noisy_sources": noisy[:5],
+            "noisy_source_count": len(noisy),
             "tracked": [trace.to_dict() for trace in list(self._traces.values())[:5]],
         }
