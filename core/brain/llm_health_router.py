@@ -4651,7 +4651,28 @@ class HealthAwareLLMRouter:
                                 "ok": False,
                                 "error": f"deliberate_no_text:{deliberate}",
                             }
-                        if ep.is_local:
+                        if ep.is_local and _worker_still_healthy(ep):
+                            # Empty because WE stopped waiting, not because the
+                            # worker failed.
+                            #
+                            # A cancelled generation returns no text, and no
+                            # text opened the circuit: "Circuit OPEN for Cortex
+                            # on transient runtime failure. Reason:
+                            # client_returned_no_text". The next request then
+                            # found "no endpoints matched routing plan for tier
+                            # 'primary'" and came back empty too, which opened
+                            # it again — a loop fed entirely by our own
+                            # deadlines. LIVE 2026-08-26: her every thought
+                            # while playing died in it.
+                            #
+                            # A worker that is alive and heartbeating has not
+                            # failed. One that is not still trips below.
+                            logger.info(
+                                "Endpoint %s returned no text but is alive and heartbeating; "
+                                "the circuit stays closed.",
+                                ep.name,
+                            )
+                        elif ep.is_local:
                             ep.trip_temporarily("client_returned_no_text")
                         return {"ok": False, "error": "client_returned_no_text"}
                 except AttributeError as ae:

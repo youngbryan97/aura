@@ -66,3 +66,20 @@ def test_the_timeout_path_asks_before_tripping():
     # A worker that is genuinely wedged still trips.
     assert "elif ep.is_local:" in block
     assert "ep.trip_temporarily(last_error)" in block
+
+
+def test_empty_text_from_a_healthy_worker_does_not_open_the_circuit():
+    """A cancelled generation returns no text, and no text opened the circuit:
+    "Circuit OPEN for Cortex on transient runtime failure. Reason:
+    client_returned_no_text". The next request then found no endpoint for the
+    primary tier and came back empty too, which opened it again — a loop fed
+    entirely by our own deadlines.
+    """
+    from core.brain import llm_health_router
+
+    source = inspect.getsource(llm_health_router)
+    where = source.index('ep.trip_temporarily("client_returned_no_text")')
+    block = source[where - 1600 : where + 200]
+    assert "ep.is_local and _worker_still_healthy(ep)" in block
+    # A worker that is not alive still trips.
+    assert "elif ep.is_local:" in block
