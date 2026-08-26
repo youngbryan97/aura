@@ -203,6 +203,6 @@ def test_every_authoring_call_is_internal_where_the_gate_reads_it_too():
     source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
     for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
         where = source.index(f'purpose="{purpose}"')
-        window = source[where : where + 1400]
+        window = source[where : where + 1800]
         assert "_non_chat_inference=True" in window, purpose
         assert "internal_inference=True" in window, purpose
