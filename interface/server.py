@@ -781,6 +781,46 @@ NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+_RUNTIME_SHELL_RECOVERY_SCRIPT = b"""(function () {
+    'use strict';
+    var next = new URL(window.location.href);
+    next.searchParams.delete('_aura_runtime');
+    var retire = Promise.resolve();
+    if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
+        retire = navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            return Promise.all((registrations || []).map(function (registration) {
+                var workers = [registration.active, registration.waiting, registration.installing];
+                var ownsAuraShell = workers.some(function (worker) {
+                    try {
+                        var script = new URL(String(worker && worker.scriptURL || ''));
+                        return script.origin === window.location.origin
+                            && script.pathname === '/static/service-worker.js';
+                    } catch (_err) {
+                        return false;
+                    }
+                });
+                if (!ownsAuraShell) return false;
+                workers.forEach(function (worker) {
+                    try { worker && worker.postMessage({ type: 'AURA_RETIRE_RUNTIME_SHELL' }); }
+                    catch (_err) {}
+                });
+                try { return registration.unregister(); }
+                catch (_err) { return false; }
+            }));
+        }).catch(function () {});
+    }
+    retire.then(function () {
+        if (typeof caches === 'undefined' || typeof caches.keys !== 'function') return;
+        return caches.keys().then(function (keys) {
+            return Promise.all(keys.filter(function (key) {
+                return String(key).indexOf('aura-runtime-shell-') === 0;
+            }).map(function (key) { return caches.delete(key); }));
+        });
+    }).catch(function () {}).then(function () {
+        window.location.replace(next.toString());
+    });
+}());
+"""
 _RUNTIME_REVISION_SHELL_PATHS = frozenset(
     runtime_shell_request_path(relative) for relative in RUNTIME_SHELL_ASSETS
 )
@@ -903,6 +943,24 @@ async def serve_immutable_runtime_shell(request: Request, call_next):
                 headers={
                     **NO_CACHE_HEADERS,
                     "X-Aura-Runtime-Recovery": "revision_snapshot_unavailable",
+                },
+            )
+        if request.method == "GET" and path == "/static/aura.js":
+            # The application entrypoint is the only code able to retire a
+            # stale service worker. Returning 409 here makes an older worker
+            # use its cached aura.js, which permanently prevents that repair
+            # code from loading. Serve a non-application recovery entrypoint:
+            # it discards the obsolete shell and navigates the whole document
+            # back through the unaddressed bootstrap, so revision bytes are
+            # never mixed inside one running page.
+            return Response(
+                status_code=200,
+                content=_RUNTIME_SHELL_RECOVERY_SCRIPT,
+                media_type="text/javascript",
+                headers={
+                    **NO_CACHE_HEADERS,
+                    "X-Aura-Runtime-Recovery": "retire_unknown_shell_revision",
+                    "X-Content-Type-Options": "nosniff",
                 },
             )
         return Response(

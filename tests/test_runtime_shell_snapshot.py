@@ -174,10 +174,39 @@ async def test_server_serves_only_known_frozen_revision_bytes(
     assert response.headers["cache-control"].endswith("immutable")
 
     unknown = await server.serve_immutable_runtime_shell(
-        _request("/static/aura.js", query=f"_aura_runtime={'b' * 64}"),
+        _request("/static/aura.css", query=f"_aura_runtime={'b' * 64}"),
         forbidden,
     )
     assert unknown.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_unknown_revision_entrypoint_retires_stale_shell_before_reload(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from interface import server
+
+    monkeypatch.setattr(server, "validate_runtime_security_request", lambda _request: None)
+
+    async def forbidden(_request):
+        raise AssertionError("unknown revision entrypoint fell through to mutable disk")
+
+    response = await server.serve_immutable_runtime_shell(
+        _request(
+            "/static/aura.js",
+            query=f"_aura_runtime={'b' * 64}",
+        ),
+        forbidden,
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-aura-runtime-recovery"] == "retire_unknown_shell_revision"
+    assert response.headers["cache-control"].startswith("no-store")
+    source = response.body.decode("utf-8")
+    assert "AURA_RETIRE_RUNTIME_SHELL" in source
+    assert "aura-runtime-shell-" in source
+    assert "window.location.replace(next.toString())" in source
+    assert "next.searchParams.delete('_aura_runtime')" in source
 
 
 @pytest.mark.asyncio
