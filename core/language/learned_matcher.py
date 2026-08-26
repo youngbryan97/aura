@@ -164,6 +164,39 @@ def _spread(values: Sequence[float]) -> float:
     return math.sqrt(max(0.0, variance))
 
 
+def _score_against(
+    vector: Sequence[float],
+    positives: Sequence[Sequence[float]],
+    negatives: Sequence[Sequence[float]],
+    *,
+    skip_positive: int = -1,
+    skip_negative: int = -1,
+) -> float:
+    """Score against an immutable vector snapshot.
+
+    Feature extraction can take a resident-model forward pass. Keeping the
+    vectors explicit prevents that work from borrowing the matcher's state
+    mutex merely to evaluate a snapshot it already owns.
+    """
+    best_positive = max(
+        (
+            cosine(vector, candidate)
+            for index, candidate in enumerate(positives)
+            if index != skip_positive
+        ),
+        default=-1.0,
+    )
+    best_negative = max(
+        (
+            cosine(vector, candidate)
+            for index, candidate in enumerate(negatives)
+            if index != skip_negative
+        ),
+        default=-1.0,
+    )
+    return best_positive - best_negative
+
+
 @dataclass(frozen=True, slots=True)
 class Boundary:
     """Where one class is unambiguous, and where the two overlap.
@@ -249,8 +282,11 @@ class LearnedMatcher:
     _pending: set[str] = field(default_factory=set, repr=False)
     _dirty: bool = field(default=False, repr=False)
     _loaded: bool = field(default=False, repr=False)
+    _loading: bool = field(default=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _ready: bool = field(default=False, repr=False)
+    _preparing: bool = field(default=False, repr=False)
+    _example_revision: int = field(default=0, repr=False)
     _store: LanguageSubstrateStore | None = field(default=None, repr=False)
 
     def observe(self, sentence: str, *, holds: bool) -> None:
@@ -271,6 +307,7 @@ class LearnedMatcher:
                 self.positives = (*self.positives, text)
             else:
                 self.negatives = (*self.negatives, text)
+            self._example_revision += 1
             self._ready = False
             # Verdicts were reached against the OLD boundary. An example that
             # moves the boundary makes them stale, and keeping them meant a
@@ -287,23 +324,16 @@ class LearnedMatcher:
         to their positives and a mean would put the two clouds on top of each
         other.
         """
-        best_positive = max(
-            (
-                cosine(vector, candidate)
-                for index, candidate in enumerate(self._positive_vectors)
-                if index != skip_positive
-            ),
-            default=-1.0,
+        with self._lock:
+            positives = tuple(self._positive_vectors)
+            negatives = tuple(self._negative_vectors)
+        return _score_against(
+            vector,
+            positives,
+            negatives,
+            skip_positive=skip_positive,
+            skip_negative=skip_negative,
         )
-        best_negative = max(
-            (
-                cosine(vector, candidate)
-                for index, candidate in enumerate(self._negative_vectors)
-                if index != skip_negative
-            ),
-            default=-1.0,
-        )
-        return best_positive - best_negative
 
     def _prepare(self) -> bool:
         """Embed the declaration and measure its boundary. Once."""
@@ -311,39 +341,73 @@ class LearnedMatcher:
         with self._lock:
             if self._ready:
                 return self._boundary is not None
-            self._ready = True
-            self._boundary = None
+            if self._loading or self._preparing:
+                return False
             if len(self.positives) < 2 or len(self.negatives) < 2:
+                self._ready = True
+                self._boundary = None
                 return False
             source = self.features or embed_sentences
-            positives = source(self.positives)
-            negatives = source(self.negatives)
-            if len(positives) != len(self.positives) or len(negatives) != len(self.negatives):
-                return False
-            self._positive_vectors = positives
-            self._negative_vectors = negatives
+            positive_examples = tuple(self.positives)
+            negative_examples = tuple(self.negatives)
+            revision = self._example_revision
+            self._preparing = True
 
+        completed = False
+        try:
+            positives = source(positive_examples)
+            negatives = source(negative_examples)
+            completed = True
+        finally:
+            if not completed:
+                with self._lock:
+                    self._preparing = False
+
+        if len(positives) != len(positive_examples) or len(negatives) != len(
+            negative_examples
+        ):
+            boundary = None
+        else:
             # Leave-one-out: score every declared example against the others.
             # The boundary is where the two sets stop overlapping, which is a
             # measurement of this declaration rather than a number chosen for
             # it.
             positive_scores = [
-                self._score(vector, skip_positive=index)
+                _score_against(
+                    vector,
+                    positives,
+                    negatives,
+                    skip_positive=index,
+                )
                 for index, vector in enumerate(positives)
             ]
             negative_scores = [
-                self._score(vector, skip_negative=index)
+                _score_against(
+                    vector,
+                    positives,
+                    negatives,
+                    skip_negative=index,
+                )
                 for index, vector in enumerate(negatives)
             ]
             worst_positive = min(positive_scores)
             best_negative = max(negative_scores)
-            self._boundary = Boundary(
+            boundary = Boundary(
                 decide_true_above=best_negative,
                 decide_false_below=worst_positive,
                 spread=_spread(positive_scores + negative_scores),
                 separable=worst_positive > best_negative,
             )
-            return True
+
+        with self._lock:
+            self._preparing = False
+            if revision != self._example_revision:
+                return False
+            self._positive_vectors = positives
+            self._negative_vectors = negatives
+            self._boundary = boundary
+            self._ready = True
+            return boundary is not None
 
     def decide(self, sentence: str) -> bool | None:
         """Whether this sentence is one of the things declared, or None.
@@ -357,11 +421,23 @@ class LearnedMatcher:
             return None
         if not self._prepare():
             return None
+        with self._lock:
+            boundary = self._boundary
+            positives = tuple(self._positive_vectors)
+            negatives = tuple(self._negative_vectors)
+            revision = self._example_revision
         vectors = (self.features or embed_sentences)([text])
         if not vectors:
             return None
-        boundary = self._boundary
-        return boundary.decide(self._score(vectors[0])) if boundary else None
+        decision = (
+            boundary.decide(_score_against(vectors[0], positives, negatives))
+            if boundary
+            else None
+        )
+        with self._lock:
+            if revision != self._example_revision or boundary is not self._boundary:
+                return None
+        return decision
 
     # ── durability ──────────────────────────────────────────────────────
     #
@@ -382,45 +458,56 @@ class LearnedMatcher:
     def load(self) -> bool:
         """Read what earlier runs learned. Once, and never fatal."""
         with self._lock:
-            if self._loaded:
+            if self._loaded or self._loading:
                 return False
-            self._loaded = True
-        path = self._store_path()
-        if path is None or not path.is_file():
-            return False
+            self._loading = True
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            record_degradation(
-                "language.learned_matcher",
-                exc,
-                severity="debug",
-                action="started from the declared examples alone",
-                enforce_failure_policy=False,
-            )
-            return False
-        # The gateway writes a {schema, schema_version, payload} envelope, so
-        # the record is one level in. Reading the envelope as the record found
-        # no name and discarded everything the last run learned.
-        if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
-            payload = payload["payload"]
-        if not isinstance(payload, dict) or payload.get("name") != self.name:
-            return False
-        with self._lock:
-            for text in payload.get("positives") or ():
-                if isinstance(text, str) and text not in self.positives:
-                    self.positives = (*self.positives, text)
-            for text in payload.get("negatives") or ():
-                if isinstance(text, str) and text not in self.negatives:
-                    self.negatives = (*self.negatives, text)
-            for text in payload.get("pending") or ():
-                if isinstance(text, str) and len(self._pending) < _PENDING_CEILING:
-                    self._pending.add(text)
-            # Verdicts are NOT restored. They were reached against a boundary
-            # this process has not measured yet, and re-deciding them costs one
-            # warm cycle against keeping an answer nothing here can vouch for.
-            self._ready = False
-        return True
+            path = self._store_path()
+            if path is None or not path.is_file():
+                return False
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                record_degradation(
+                    "language.learned_matcher",
+                    exc,
+                    severity="debug",
+                    action="started from the declared examples alone",
+                    enforce_failure_policy=False,
+                )
+                return False
+            # The gateway writes a {schema, schema_version, payload} envelope,
+            # so the record is one level in. Reading the envelope as the record
+            # found no name and discarded everything the last run learned.
+            if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+                payload = payload["payload"]
+            if not isinstance(payload, dict) or payload.get("name") != self.name:
+                return False
+            changed = False
+            with self._lock:
+                for text in payload.get("positives") or ():
+                    if isinstance(text, str) and text not in self.positives:
+                        self.positives = (*self.positives, text)
+                        changed = True
+                for text in payload.get("negatives") or ():
+                    if isinstance(text, str) and text not in self.negatives:
+                        self.negatives = (*self.negatives, text)
+                        changed = True
+                for text in payload.get("pending") or ():
+                    if isinstance(text, str) and len(self._pending) < _PENDING_CEILING:
+                        self._pending.add(text)
+                if changed:
+                    self._example_revision += 1
+                # Verdicts are NOT restored. They were reached against a
+                # boundary this process has not measured yet, and re-deciding
+                # them costs one warm cycle against keeping an answer nothing
+                # here can vouch for.
+                self._ready = False
+            return True
+        finally:
+            with self._lock:
+                self._loaded = True
+                self._loading = False
 
     def save(self) -> bool:
         """Write what this run learned, through the governed gateway."""
@@ -479,14 +566,17 @@ class LearnedMatcher:
         # offline. A second hardcoded warm call would have fixed this one
         # surface and left the next with the same bug.
         _register(self)
-        self.load()
         key = _cache_key(text)
-        with self._lock:
+        if not self._lock.acquire(blocking=False):
+            return None
+        try:
             if key in self._decided:
                 return self._decided[key]
             if text not in self._pending and len(self._pending) < _PENDING_CEILING:
                 self._pending.add(text)
                 self._dirty = True
+        finally:
+            self._lock.release()
         return None
 
     def warm(self, limit: int = 16) -> int:

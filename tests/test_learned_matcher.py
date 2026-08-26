@@ -14,6 +14,8 @@ feature source is a parameter, and the surface abstains rather than guessing.
 
 from __future__ import annotations
 
+import threading
+
 from core.language.learned_matcher import Boundary, LearnedMatcher
 
 
@@ -136,6 +138,91 @@ def test_a_live_turn_never_waits_for_a_decision() -> None:
     assert settled == 1
     assert matcher.decide_without_waiting("I filed the report.") is True
     assert matcher.report()["pending"] == 0
+
+
+def test_a_live_turn_never_waits_for_the_warmer_mutex() -> None:
+    """A hidden-state warm held this mutex for minutes while /api/chat waited.
+
+    The live surface is an already-known verdict lookup, not a synchronization
+    point with background model work. Contention therefore means abstain now.
+    """
+    matcher = _declared()
+    lock_held = threading.Event()
+    release_lock = threading.Event()
+    finished = threading.Event()
+    result: list[bool | None] = []
+
+    def hold_lock() -> None:
+        with matcher._lock:
+            lock_held.set()
+            release_lock.wait(timeout=2.0)
+
+    def decide_live() -> None:
+        result.append(matcher.decide_without_waiting("I filed the report."))
+        finished.set()
+
+    holder = threading.Thread(target=hold_lock)
+    caller = threading.Thread(target=decide_live)
+    holder.start()
+    assert lock_held.wait(timeout=1.0)
+    caller.start()
+    try:
+        assert finished.wait(timeout=0.1), "live decision blocked on background warming"
+        assert result == [None]
+    finally:
+        release_lock.set()
+        holder.join(timeout=1.0)
+        caller.join(timeout=1.0)
+
+
+def test_feature_computation_does_not_hold_the_matcher_mutex() -> None:
+    """Resident hidden-state reads happen outside the matcher state lock."""
+    feature_started = threading.Event()
+    release_features = threading.Event()
+
+    def slow_features(sentences):
+        texts = list(sentences)
+        feature_started.set()
+        release_features.wait(timeout=2.0)
+        return _mood(texts)
+
+    matcher = _declared()
+    matcher.features = slow_features
+    worker = threading.Thread(target=matcher.decide, args=("I filed it.",))
+    worker.start()
+    assert feature_started.wait(timeout=1.0)
+    acquired = matcher._lock.acquire(timeout=0.1)
+    try:
+        assert acquired, "feature computation retained the matcher mutex"
+    finally:
+        if acquired:
+            matcher._lock.release()
+        release_features.set()
+        worker.join(timeout=2.0)
+
+
+def test_a_boundary_from_an_obsolete_example_revision_is_not_published() -> None:
+    feature_started = threading.Event()
+    release_features = threading.Event()
+
+    def slow_features(sentences):
+        texts = list(sentences)
+        feature_started.set()
+        release_features.wait(timeout=2.0)
+        return _mood(texts)
+
+    matcher = _declared()
+    matcher.features = slow_features
+    result: list[bool | None] = []
+    worker = threading.Thread(target=lambda: result.append(matcher.decide("I filed it.")))
+    worker.start()
+    assert feature_started.wait(timeout=1.0)
+    matcher.observe("Shall I file it?", holds=False)
+    release_features.set()
+    worker.join(timeout=2.0)
+
+    assert result == [None]
+    assert matcher._ready is False
 
 
 def test_the_queue_of_unseen_phrasings_is_bounded() -> None:
