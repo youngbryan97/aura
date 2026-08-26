@@ -662,7 +662,7 @@ def restart_control(observation: dict[str, Any]) -> tuple[str, float, float] | N
     return None
 
 
-def ways_out(observation: dict[str, Any]) -> list[Any]:
+def ways_out(observation: dict[str, Any], *, ended: bool = False) -> list[Any]:
     """What she can do about being stuck, as options she chooses between.
 
     A loop whose only moves are inside the task can only press harder at
@@ -679,7 +679,11 @@ def ways_out(observation: dict[str, Any]) -> list[Any]:
         ActionOption(
             name=SEE_IT_THROUGH,
             detail="keep playing this out and learn from how it ends",
-            needs_words=True,
+            # Needing a reason in words protects live work from being thrown
+            # away on a ranking. Where nothing answers any more there is no
+            # live work to protect, and the alternative to choosing is
+            # pressing keys into something that has finished.
+            needs_words=not ended,
             expectation=Expectation(
                 changed=False, describes="to reach the end of this attempt and know why it failed"
             ),
@@ -693,7 +697,7 @@ def ways_out(observation: dict[str, Any]) -> list[Any]:
             ActionOption(
                 name=START_OVER,
                 params={"label": label, "x": x, "y": y},
-                needs_words=True,
+                needs_words=not ended,
                 detail=f"begin again with {label!r}, knowing what this attempt taught",
                 expectation=Expectation(changed=True, describes="a fresh start on the same task"),
             ),
@@ -1281,7 +1285,18 @@ async def pursue_on_screen(
             # wanted.
             ended = responds["state"].nothing_answers()
             if (stuck(history) or ended) and not seen_through["value"]:
-                available = available + ways_out(observation)
+                out = ways_out(observation, ended=ended)
+                if ended and out:
+                    # Pressing a move key into something that has finished is
+                    # not one of the things she could do. Offering it beside
+                    # the real choices made every cycle look like a decision
+                    # between four keys and a restart, so she went on playing
+                    # a game that was over — measured live, thirty-nine moves
+                    # after Game Over, each one costing a language pass
+                    # because the situation was unusual.
+                    available = out
+                else:
+                    available = available + out
                 if ended and not said_it_ended["value"]:
                     said_it_ended["value"] = True
                     if narrate:

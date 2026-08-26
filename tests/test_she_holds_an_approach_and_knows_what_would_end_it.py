@@ -373,6 +373,36 @@ def test_the_ways_out_of_a_stuck_run_are_the_ones_held_behind_words():
     assert all(option.needs_words for option in offered)
 
 
+def test_where_nothing_answers_the_way_out_needs_no_words():
+    """Needing a reason in words protects live work from being thrown away on
+    a ranking. Where nothing answers any more there is no live work to
+    protect, and the alternative to choosing is pressing keys into something
+    that has finished."""
+    from core.skills.screen_pursuit import ways_out
+
+    seen = {
+        "ok": True,
+        "text": "Game Over Play Again",
+        "layout": [{"text": "Play Again", "x": 0.5, "y": 0.77, "center_x": 0.5, "center_y": 0.77}],
+    }
+    offered = ways_out(seen, ended=True)
+    assert offered
+    assert not any(option.needs_words for option in offered)
+
+
+def test_a_move_into_something_finished_is_not_offered_as_a_choice():
+    """LIVE 2026-08-26: thirty-nine moves after Game Over, each one costing a
+    language pass because a screen with extra options counts as unusual. The
+    move keys were beside the restart the whole time."""
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    where = source.index("if ended and out:")
+    assert "available = out" in source[where : where + 600]
+
+
 @pytest.mark.parametrize(
     ("said", "holds_to"),
     [
