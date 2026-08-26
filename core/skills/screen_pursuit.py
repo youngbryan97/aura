@@ -844,6 +844,14 @@ async def pursue_on_screen(
     from core.perception.where_it_responds import Responsive, describe, noticed, within
     from core.skills.fluid_executor import FluidExecutor, Step
 
+    # The clock starts when she takes this on, not when the first key lands.
+    #
+    # Finding the page and opening it is part of the task and used to be free:
+    # the pursuit's own budget began afterwards, so the outer deadline — the
+    # one that only has room to report — was reached first and won. Live
+    # 2026-08-26: sixty-five narrated moves, nine approaches held, cancelled
+    # from outside and reported as "Completed 0/0 steps".
+    began = time.monotonic()
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     pending: dict[str, Any] = {"deliberation": None, "before": "", "watched": {}}
@@ -1635,7 +1643,7 @@ async def pursue_on_screen(
             decide=decide,
             is_satisfied=satisfied,
             max_cycles=max_cycles,
-            max_seconds=max_seconds,
+            max_seconds=max(1.0, max_seconds - (time.monotonic() - began)),
             perception_reason=f"pursuing on screen: {goal[:60]}",
         )
     finally:

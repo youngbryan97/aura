@@ -34,6 +34,32 @@ import re
 from core.runtime.errors import describe_error, record_degradation
 
 
+def _what_she_got_through(completed: int, requested: int) -> str:
+    """What she actually did, from her own record when no receipt arrived.
+
+    A run cancelled by a deadline never reaches its own accounting, so the
+    counts are zero however much happened. LIVE 2026-08-26: sixty-five
+    narrated moves in a game of 2048, nine approaches held and revised, and
+    the person was told "Completed 0/0 steps."
+    """
+    if completed or requested:
+        return f"Completed {completed}/{requested} steps."
+    try:
+        from core.agency.what_she_is_doing import right_now  # noqa: PLC0415
+
+        held = right_now()
+    except (ImportError, AttributeError, RuntimeError):
+        held = None
+    if held is None or not held.steps:
+        return f"Completed {completed}/{requested} steps."
+    said = f"I got {held.steps} step(s) into it before the time ran out."
+    if held.approach:
+        said = f"{said} What I was doing: {held.approach}"
+        if not said.endswith("."):
+            said = f"{said}."
+    return said
+
+
 def _blocks_consequential_desktop_execution(user_message: str) -> bool:
     """True when the user asked for planning/explanation, not live desktop effects."""
     text = str(user_message or "").strip()
@@ -386,7 +412,7 @@ async def _execute_desktop_objective_from_chat(
         error = str(result.get("error") or result.get("status") or "desktop task failed").strip()
         response = (
             "I routed this through CognitiveEngine and the governed desktop task lane, "
-            f"but it did not complete: {error}. Completed {completed}/{requested} steps. "
+            f"but it did not complete: {error}. {_what_she_got_through(completed, requested)} "
             "I am not claiming the desktop action finished."
         )
         # A partial task can still hold the answer, and withholding it is its
