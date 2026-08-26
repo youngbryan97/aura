@@ -36,7 +36,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.runtime.errors import record_degradation
-from core.runtime.watched_goal import PURSUIT_SECONDS
+from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.ScreenPursuit")
@@ -1781,6 +1781,11 @@ async def pursue_on_screen(
         result["changed_approach"] = plan["changes"]
     if plan["held"] is not None:
         result["approach"] = plan["held"].approach
+    # What a cycle of this actually cost, so the next watched goal asks for
+    # enough time to make the moves it is allowed to make.
+    spent = max(0.0, time.monotonic() - began)
+    if receipt.cycles:
+        a_cycle_took(spent / float(receipt.cycles))
     # How the line she took turned out, written where consequences live, so
     # an approach that keeps failing is harder to reach for next time.
     doing.how_it_went(

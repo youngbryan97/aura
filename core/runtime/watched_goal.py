@@ -78,6 +78,49 @@ FORM_KEYS = ("tab", "return")
 #: playing correctly was cancelled and reported as "Completed 0/0 steps".
 PURSUIT_SECONDS = 600.0
 
+#: The most anyone is asked to wait for one watched goal.
+PURSUIT_CEILING_S = 3600.0
+
+#: How many cycles a watched goal is allowed. This is the real bound on the
+#: work: seconds are only how long that many cycles take.
+PURSUIT_CYCLES = 200
+
+#: What one cycle of a pursuit has been measured taking on this machine.
+_A_CYCLE: dict[str, float] = {"seconds": 0.0}
+
+
+def a_cycle_took(seconds: float) -> None:
+    """Record what one cycle of a pursuit actually cost."""
+    spent = float(seconds or 0.0)
+    if spent <= 0.0:
+        return
+    before = _A_CYCLE["seconds"]
+    _A_CYCLE["seconds"] = spent if before <= 0.0 else before * 0.7 + spent * 0.3
+
+
+def seconds_a_cycle() -> float:
+    """How long one cycle takes, as measured, or nothing if never measured."""
+    return _A_CYCLE["seconds"]
+
+
+def time_for(cycles: int = PURSUIT_CYCLES) -> float:
+    """Long enough to make the moves she is allowed to make.
+
+    The flat number was chosen when a cycle was a keystroke and a glance. A
+    cycle now reads the screen, grades the last prediction, and often thinks
+    in words, and measured live 2026-08-26 it takes about fourteen seconds —
+    so the same budget bought a sixth of the play it was written for, and a
+    run that was building a 128 into the corner was stopped at move 43 of a
+    game that needs a hundred and fifty.
+
+    What bounds the work is the cycle count. Seconds are only how long that
+    many cycles take, and she now knows how long that is.
+    """
+    measured = seconds_a_cycle()
+    if measured <= 0.0:
+        return PURSUIT_SECONDS
+    return max(PURSUIT_SECONDS, min(PURSUIT_CEILING_S, float(cycles) * measured))
+
 
 @dataclass(frozen=True)
 class WatchedGoal:
@@ -94,7 +137,7 @@ class WatchedGoal:
     #: thing itself, which she has to find. Empty when the task is about
     #: whatever is already in front of her.
     where: str = ""
-    max_seconds: float = PURSUIT_SECONDS
+    max_seconds: float = field(default_factory=time_for)
     detail: dict[str, Any] = field(default_factory=dict)
 
     def as_target(self) -> dict[str, Any]:

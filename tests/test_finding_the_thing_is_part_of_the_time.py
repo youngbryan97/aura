@@ -23,7 +23,7 @@ def test_the_clock_starts_before_the_page_is_found():
 def test_what_the_setup_spent_comes_off_the_budget():
     body = SOURCE[SOURCE.index("async def pursue_on_screen") :]
     call = body[body.index("executor.pursue(") : body.index("executor.pursue(") + 700]
-    assert re.search(r"max_seconds=max\(1\.0, max_seconds - \(time\.monotonic\(\) - began\)\)", call)
+    assert re.search(r"max_seconds=max\(1\.0, ends_at - time\.monotonic\(\)\)", call)
 
 
 def test_the_outer_grace_is_still_larger_than_the_pursuit():
