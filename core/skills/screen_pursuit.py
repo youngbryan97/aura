@@ -1255,6 +1255,8 @@ async def pursue_on_screen(
             # here, before she acts, so a pivot is something she was watching
             # for and not something that happened to her.
             holding, ended = still_holds(plan["held"], seen, len(moves))
+            if plan["held"] is not None and holding is False:
+                logger.info("the line she was taking stopped holding: %s", ended)
             # A pivot is immediate; a first attempt is not retried every move.
             #
             # The condition breaking is news and is worth the pass that
@@ -1275,9 +1277,19 @@ async def pursue_on_screen(
             # the question has a subject. The count is still a backstop, so a
             # screen that never resolves into anything is not a screen she
             # goes on playing with no line at all.
+            # A pivot costs a move: she cannot judge a line she never tried.
+            #
+            # The condition on a fresh approach is checked on the very next
+            # cycle, before she has acted under it, and an anchor bound to a
+            # tile that merges away breaks at once. Live 2026-08-26: ten
+            # approaches decided for nine moves made, each one a full pass at
+            # her reasoning, and the run spent its whole budget deciding how
+            # to play rather than playing.
+            tried_it = len(moves) > plan["asked_at"]
             time_to_ask = (
                 holding is False
                 and plan["held"] is not None
+                and tried_it
                 or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
                 or (plan["asked_at"] < 0 and band is not None)
             )
