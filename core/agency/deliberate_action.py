@@ -801,7 +801,7 @@ async def deliberate(
         chosen=chosen,
         spoke=spoke,
         rationale=_reason_or_nothing(
-            _rationale(reply, chosen), [*evidence, _objective(goal, options)], options
+            _rationale(reply, chosen, options), [*evidence, _objective(goal, options)], options
         ),
         then=planned[1:],
         confidence=confidence_from_history(for_option),
@@ -984,7 +984,7 @@ def _reason_or_nothing(
 _BARE_CONCLUSION_CHARS = 32
 
 
-def _rationale(reply: str, chosen: ActionOption) -> str:
+def _rationale(reply: str, chosen: ActionOption, options: Sequence[ActionOption] = ()) -> str:
     """The sentence in which she settled on this move, and why.
 
     A conclusion often follows its reason rather than containing it:
@@ -1004,12 +1004,31 @@ def _rationale(reply: str, chosen: ActionOption) -> str:
             end = min(end, found + 1)
     settled = reply[start:end].strip()
     if len(settled) >= _BARE_CONCLUSION_CHARS or start <= 0:
-        return settled
+        return settled if _is_about(settled, chosen, options) else ""
     before_start = max(
         lowered.rfind(".", 0, max(0, start - 1)), lowered.rfind("\n", 0, max(0, start - 1))
     ) + 1
     leading = reply[before_start:start].strip()
-    return f"{leading} {settled}".strip() if leading else settled
+    said = f"{leading} {settled}".strip() if leading else settled
+    return said if _is_about(said, chosen, options) else ""
+
+
+def _is_about(said: str, chosen: ActionOption, options: Sequence[ActionOption]) -> bool:
+    """Whether this sentence is her settling on THIS move rather than another.
+
+    A move's name can sit inside a phrase about the board — "left" inside
+    "the left side" — so the sentence found around it can be the one where
+    she chose something else. Judged by the same reader that decides the
+    move, because a sentence that reads as a decision to go down is not the
+    reason she went left.
+
+    LIVE 2026-08-26: "Going left — I choose down because the two 4s in
+    column 1 will merge into an 8, consolidating the left side."
+    """
+    if not options:
+        return True
+    named = choose_named(said, options)
+    return named is None or named.name == chosen.name
 
 
 def _open_episode(
