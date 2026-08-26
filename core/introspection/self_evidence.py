@@ -153,6 +153,35 @@ def _condition_surface() -> Any:
     return _ASKS_AFTER_HER
 
 
+#: Words that name something an instrument reads. A question carrying one of
+#: these is asking about the machine; a question carrying none of them and
+#: shaped like an inquiry after somebody is asking about her.
+_AN_INSTRUMENT = re.compile(
+    r"\b(?:memory|ram|cpu|processor|core|load|disk|storage|temperature|thermal|"
+    r"subsystem|degrad\w*|failing|failure|error|usage|resource|uptime|latency|"
+    r"throughput|queue|backlog|swap|throttl\w*|overload\w*|capacity|健康)\b",
+    re.IGNORECASE,
+)
+
+#: The shape of asking after somebody. Phatic inquiry: short, about them, and
+#: naming nothing in particular.
+_ASKING_AFTER_SOMEBODY = re.compile(
+    r"^(?:hey[,\s]+|hi[,\s]+|so[,\s]+)?(?:are\s+you\s+(?:ok|okay|alright|all\s+right|good|fine)|"
+    r"you\s+(?:ok|okay|alright|good)|how\s+are\s+you(?:\s+doing|\s+holding\s+up)?|"
+    r"everything\s+(?:ok|okay|alright)(?:\s+(?:on\s+your\s+end|with\s+you))?|"
+    r"is\s+everything\s+(?:ok|okay|alright))\b",
+    re.IGNORECASE,
+)
+
+
+def _asks_after_her_rather_than_her_instruments(text: str) -> bool:
+    """Whether this is somebody asking how she is, rather than what she reads."""
+    said = " ".join(str(text or "").split())
+    if not said or _AN_INSTRUMENT.search(said):
+        return False
+    return bool(_ASKING_AFTER_SOMEBODY.match(said))
+
+
 def asks_about_own_operational_state(text: Any) -> bool:
     """True when the turn asks what is wrong with HER, not with something else.
 
@@ -164,6 +193,21 @@ def asks_about_own_operational_state(text: Any) -> bool:
 
     raw = str(text or "").strip()
     if not raw:
+        return False
+    if _asks_after_her_rather_than_her_instruments(raw):
+        # Asking after her is not asking for her instruments.
+        #
+        # LIVE 2026-08-26: "are you ok?" was answered with "Processor 32.6%,
+        # memory 56.8%. Thermal pressure 0.00 of 1." — the same category
+        # error as answering a reflective question with a log. She has an
+        # answer to how she is; it is hers to give, and it is not a
+        # percentage.
+        #
+        # Held apart here rather than by teaching the matcher, because "are
+        # you ok" and "are you overloaded" sit next to each other in any
+        # sentence embedding and labelling one of them dragged the other
+        # across with it. What actually separates them is whether the
+        # question names an instrument at all.
         return False
     # Read the topic in the clause that is asking.
     #
