@@ -362,7 +362,9 @@ async def settle_on_an_approach(
     chosen without one is a reaction.
     """
     if think is None:
+        logger.info("asked how to go about %r with no mind to ask", str(goal or "")[:60])
         return None
+    logger.info("asking how to go about %r", str(goal or "")[:60])
     evidence = [f"What is visible now: {situation}", *knowledge]
     if previous is not None:
         evidence.append(f"The approach I was taking — {previous.approach}")
