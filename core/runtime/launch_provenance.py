@@ -110,6 +110,13 @@ _RECOVERABLE_ERRORS = (
     ValueError,
     json.JSONDecodeError,
 )
+_RUNTIME_SOURCE_BINDINGS = {
+    "source_root": "AURA_RUNTIME_SOURCE_ROOT",
+    "commit_sha": "AURA_RUNTIME_SOURCE_COMMIT",
+    "branch": "AURA_RUNTIME_SOURCE_BRANCH",
+    "workspace_state_sha256": "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256",
+    "shell_assets_sha256": "AURA_RUNTIME_SOURCE_SHELL_SHA256",
+}
 
 
 def _truthy(value: object) -> bool:
@@ -411,32 +418,26 @@ def bind_runtime_source_snapshot(
 
     ``AURA_LAUNCH_EXPECTED_*`` names immutable app-build provenance. It cannot
     also name the source a live-source launcher starts days later. Bind the
-    latter once so health can detect changes after boot without mistaking every
-    post-build commit for runtime drift.
+    latter once for every launch mode so health can detect changes after boot
+    without mistaking every post-build commit for runtime drift.
     """
 
     environment = os.environ if env is None else env
     canonical_input = Path(root).expanduser().resolve()
-    if not _truthy(environment.get("AURA_LAUNCHED_FROM_APP")):
-        return {"bound": False, "reason": "direct_launch"}
+    launched_from_app = _truthy(environment.get("AURA_LAUNCHED_FROM_APP"))
+    if launched_from_app:
+        expected_root_text = str(
+            environment.get("AURA_LAUNCH_EXPECTED_ROOT") or ""
+        ).strip()
+        if not expected_root_text:
+            raise RuntimeError("signed app launch is missing AURA_LAUNCH_EXPECTED_ROOT")
+        expected_root = Path(expected_root_text).expanduser().resolve()
+        if canonical_input != expected_root:
+            raise RuntimeError("runtime source root does not match the signed app checkout")
 
-    expected_root_text = str(environment.get("AURA_LAUNCH_EXPECTED_ROOT") or "").strip()
-    if not expected_root_text:
-        raise RuntimeError("signed app launch is missing AURA_LAUNCH_EXPECTED_ROOT")
-    expected_root = Path(expected_root_text).expanduser().resolve()
-    if canonical_input != expected_root:
-        raise RuntimeError("runtime source root does not match the signed app checkout")
-
-    bindings = {
-        "source_root": "AURA_RUNTIME_SOURCE_ROOT",
-        "commit_sha": "AURA_RUNTIME_SOURCE_COMMIT",
-        "branch": "AURA_RUNTIME_SOURCE_BRANCH",
-        "workspace_state_sha256": "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256",
-        "shell_assets_sha256": "AURA_RUNTIME_SOURCE_SHELL_SHA256",
-    }
     existing = {
         field: str(environment.get(name) or "").strip()
-        for field, name in bindings.items()
+        for field, name in _RUNTIME_SOURCE_BINDINGS.items()
     }
     if any(existing.values()):
         missing = sorted(field for field, value in existing.items() if not value)
@@ -447,9 +448,14 @@ def bind_runtime_source_snapshot(
         return {"bound": True, "reused": True, **existing}
 
     snapshot = collect_source_identity(canonical_input)
-    for field, name in bindings.items():
+    for field, name in _RUNTIME_SOURCE_BINDINGS.items():
         environment[name] = str(snapshot[field])
-    return {"bound": True, "reused": False, **snapshot}
+    return {
+        "bound": True,
+        "reused": False,
+        "launch_mode": "signed_app" if launched_from_app else "direct",
+        **snapshot,
+    }
 
 
 def build_launch_manifest(
@@ -534,14 +540,90 @@ def validate_launch_source(
     canonical_input = Path(root).expanduser().resolve()
     launched_from_app = _truthy(environment.get("AURA_LAUNCHED_FROM_APP"))
     if not launched_from_app:
+        expected = {
+            field: str(environment.get(name) or "").strip()
+            for field, name in _RUNTIME_SOURCE_BINDINGS.items()
+        }
+        expected["commit_sha"] = expected["commit_sha"].lower()
+        expected["workspace_state_sha256"] = expected[
+            "workspace_state_sha256"
+        ].lower()
+        expected["shell_assets_sha256"] = expected["shell_assets_sha256"].lower()
+        snapshot_present = any(expected.values())
+        issues: list[str] = []
+        if not snapshot_present:
+            issues.append("runtime_source_snapshot_missing")
+        elif not all(expected.values()):
+            issues.append("runtime_source_snapshot_incomplete")
+
+        actual: dict[str, Any] = {}
+        try:
+            identity = _git_identity(canonical_input)
+            actual.update(identity)
+            actual.update(
+                _workspace_state(
+                    Path(identity["source_root"]),
+                    commit_sha=identity["commit_sha"],
+                )
+            )
+            actual["shell_assets_sha256"] = runtime_shell_assets_sha256(
+                Path(identity["source_root"])
+            )
+        except _RECOVERABLE_ERRORS as exc:
+            issues.append(f"source_identity_unavailable:{type(exc).__name__}")
+
+        expected_root = str(expected.get("source_root") or "")
+        actual_root = str(actual.get("source_root") or "")
+        if expected_root and (
+            str(Path(expected_root).expanduser().resolve(strict=False))
+            != str(Path(actual_root).expanduser().resolve(strict=False))
+        ):
+            issues.append("source_root_mismatch")
+
+        source_drift: list[str] = []
+        for field in (
+            "commit_sha",
+            "branch",
+            "workspace_state_sha256",
+            "shell_assets_sha256",
+        ):
+            frozen = str(expected.get(field) or "")
+            observed = str(actual.get(field) or "")
+            if frozen and frozen != observed:
+                source_drift.append(field)
+
+        identity_issues = [
+            issue
+            for issue in issues
+            if not str(issue).startswith("source_revision_drift:")
+        ]
+        source_verified = bool(snapshot_present and not identity_issues)
+        freshness_issues = [
+            f"source_revision_drift:{field}" for field in source_drift
+        ]
+        source_current = bool(source_verified and not source_drift)
         return {
             "schema": LAUNCH_PROVENANCE_SCHEMA,
             "required": False,
             "launch_mode": "direct",
-            "source_verified": True,
+            "source_verified": source_verified,
             "verified": False,
-            "source_root": str(canonical_input),
-            "issues": [],
+            "verification_scope": "runtime_source_snapshot",
+            "runtime_snapshot_bound": snapshot_present,
+            "source_current": source_current,
+            "freshness_status": (
+                "current"
+                if source_current
+                else "drifted"
+                if source_verified
+                else "unverified"
+            ),
+            "source_drift": sorted(set(source_drift)),
+            "source_root": actual_root or str(canonical_input),
+            "issues": sorted(set(issues + freshness_issues)),
+            "expected": expected,
+            "actual": actual,
+            "manifest": {},
         }
 
     issues: list[str] = []

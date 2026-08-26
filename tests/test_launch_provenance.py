@@ -224,6 +224,90 @@ def test_runtime_snapshot_binds_once_and_survives_later_source_movement(
     assert env["AURA_RUNTIME_SOURCE_SHELL_SHA256"] == "e" * 64
 
 
+def test_direct_runtime_snapshot_binds_once_without_app_identity(
+    monkeypatch,
+    tmp_path,
+):
+    env: dict[str, str] = {}
+    first = {
+        "source_root": str(tmp_path.resolve()),
+        "commit_sha": "a" * 40,
+        "branch": "main",
+        "workspace_state_sha256": "b" * 64,
+        "shell_assets_sha256": "c" * 64,
+        "source_dirty": False,
+        "source_change_count": 0,
+        "source_changed_paths": [],
+        "source_changed_paths_truncated": False,
+    }
+    captures = [first, {**first, "commit_sha": "d" * 40}]
+    monkeypatch.setattr(
+        launch_provenance,
+        "collect_source_identity",
+        lambda _root: captures.pop(0),
+    )
+
+    bound = launch_provenance.bind_runtime_source_snapshot(tmp_path, env=env)
+    rebound = launch_provenance.bind_runtime_source_snapshot(tmp_path, env=env)
+
+    assert bound["bound"] is True
+    assert bound["launch_mode"] == "direct"
+    assert rebound["reused"] is True
+    assert rebound["commit_sha"] == "a" * 40
+    assert len(captures) == 1
+
+
+def test_direct_launch_reports_exact_bound_runtime_revision(monkeypatch, tmp_path):
+    _stub_source(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        launch_provenance,
+        "runtime_shell_assets_sha256",
+        lambda _root: "c" * 64,
+    )
+    env = {
+        "AURA_RUNTIME_SOURCE_ROOT": str(tmp_path.resolve()),
+        "AURA_RUNTIME_SOURCE_COMMIT": "a" * 40,
+        "AURA_RUNTIME_SOURCE_BRANCH": "main",
+        "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256": "b" * 64,
+        "AURA_RUNTIME_SOURCE_SHELL_SHA256": "c" * 64,
+    }
+
+    result = launch_provenance.validate_launch_source(tmp_path, env=env)
+
+    assert result["required"] is False
+    assert result["verified"] is False
+    assert result["source_verified"] is True
+    assert result["runtime_snapshot_bound"] is True
+    assert result["source_current"] is True
+    assert result["source_drift"] == []
+    assert result["issues"] == []
+    assert result["expected"]["commit_sha"] == "a" * 40
+    assert result["actual"]["commit_sha"] == "a" * 40
+
+
+def test_direct_launch_reports_source_movement_after_boot(monkeypatch, tmp_path):
+    _stub_source(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        launch_provenance,
+        "runtime_shell_assets_sha256",
+        lambda _root: "c" * 64,
+    )
+    env = {
+        "AURA_RUNTIME_SOURCE_ROOT": str(tmp_path.resolve()),
+        "AURA_RUNTIME_SOURCE_COMMIT": "d" * 40,
+        "AURA_RUNTIME_SOURCE_BRANCH": "main",
+        "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256": "b" * 64,
+        "AURA_RUNTIME_SOURCE_SHELL_SHA256": "c" * 64,
+    }
+
+    result = launch_provenance.validate_launch_source(tmp_path, env=env)
+
+    assert result["source_verified"] is True
+    assert result["source_current"] is False
+    assert result["source_drift"] == ["commit_sha"]
+    assert result["issues"] == ["source_revision_drift:commit_sha"]
+
+
 def test_runtime_snapshot_separates_boot_currency_from_bundle_age(monkeypatch, tmp_path):
     _executable, _manifest_path, env, _manifest = _app_contract(tmp_path)
     _stub_source(monkeypatch, tmp_path)
