@@ -802,6 +802,21 @@ async def deliberate(
             action="chose from evidence because the reply named no available move",
         )
     ranking: list[ActionOption] = []
+    # The judgement about all the options, whether or not she used words.
+    #
+    # This was worked out only when her words named nothing, so naming a move
+    # cost her the ranking behind it — and with it every follow-on. Measured
+    # live 2026-08-26: a cycle deciding without words committed to four moves
+    # on one screen reading; the same cycle with words committed to one, and
+    # the run spent its budget re-reading the board between moves it had
+    # already made up its mind about.
+    structural, why = choose_without_language(
+        options,
+        history,
+        recalled,
+        wanted=f"{goal}. {approach}".strip(". "),
+        ranked=ranking,
+    )
     if chosen is None:
         # The line she is taking counts here too.
         #
@@ -809,13 +824,6 @@ async def deliberate(
         # words is not an approach, it is a remark. Most moves in a fast loop
         # are decided from evidence, and if her plan cannot reach those, her
         # plan cannot reach most of what she does.
-        structural, why = choose_without_language(
-            options,
-            history,
-            recalled,
-            wanted=f"{goal}. {approach}".strip(". "),
-            ranked=ranking,
-        )
         if structural is None:
             return Deliberation(
                 goal=goal,
@@ -844,6 +852,12 @@ async def deliberate(
     far = how_far_to_commit(history)
     if spoke:
         planned = choose_sequence(reply or "", options, far)
+        if planned and len(planned) < far:
+            # She named one move and is confident enough for several. The
+            # rest is the ranking behind the one she named, which is the same
+            # judgement carried forward rather than a new one — said out loud
+            # as "same plan", and every step still checked against what happened.
+            planned = plan_without_language([*planned, *ranking], far) or planned
     else:
         planned = plan_without_language([chosen, *ranking], far)
     logger.info(
