@@ -776,6 +776,18 @@ async def let_the_voice_catch_up(before: dict[str, int], *, patience: float = 4.
             return
 
 
+def _ask_again_after(asked_at: int) -> int:
+    """How many moves may pass before the question is put again.
+
+    A first plan can wait longer than a second one, because the first is
+    waiting for the screen to say which part of it is the task. The horizon
+    it waits to is the one past which an approach nobody revisits is a habit.
+    """
+    from core.agency.standing_strategy import RECONSIDER_AFTER
+
+    return LANGUAGE_EVERY if asked_at >= 0 else RECONSIDER_AFTER
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -1241,11 +1253,25 @@ async def pursue_on_screen(
             # answers it. Having no stated approach yet is not news, and a run
             # that asks for one every cycle pays a full language pass per move
             # for an answer that was not there last time either.
+            # Asked when there is something to base an approach on.
+            #
+            # This asked on the first cycle, when the only thing she has seen
+            # is a whole screen: on a page holding a game that is the board,
+            # the score, the browser's own tabs and bookmarks, an "Ask Gemini"
+            # button and a copyright line. Live 2026-08-26, she was asked how
+            # she would play and answered by reading the page back, three
+            # runs in a row, because that is what the question was about.
+            #
+            # The part of the screen that answers to her is known a few moves
+            # in, from what changed when she acted. That is the first moment
+            # the question has a subject. The count is still a backstop, so a
+            # screen that never resolves into anything is not a screen she
+            # goes on playing with no line at all.
             time_to_ask = (
                 holding is False
                 and plan["held"] is not None
-                or len(moves) - plan["asked_at"] >= LANGUAGE_EVERY
-                or not moves
+                or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
+                or (plan["asked_at"] < 0 and band is not None)
             )
             if not holding and time_to_ask:
                 plan["asked_at"] = len(moves)
