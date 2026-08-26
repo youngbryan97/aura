@@ -308,9 +308,49 @@ def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:
             rows.append([])
             row_at = y
         rows[-1].append((x, said))
-    return "\n".join(
-        " ".join(said for _x, said in sorted(row)) for row in rows if row
-    )
+    rows = [row for row in rows if row]
+    # Columns, so a place in a row means the same thing in every row.
+    #
+    # An empty cell produces no text, so a row with gaps came out short and
+    # the second entry in it could be the second column or the fourth. A
+    # corner is a column as much as a row, and a plan about one cannot rest
+    # on a position that shifts with whatever happens to be visible.
+    columns = _column_edges([x for row in rows for x, _said in row])
+    if not columns:
+        return "\n".join(" ".join(said for _x, said in sorted(row)) for row in rows)
+    laid: list[str] = []
+    for row in rows:
+        cells = [EMPTY_CELL] * len(columns)
+        for x, said in sorted(row):
+            cells[_nearest(x, columns)] = said
+        # Trailing gaps are kept: a row that is the same width as every
+        # other row is what makes a column a column.
+        laid.append(" ".join(cells))
+    return "\n".join(laid)
+
+
+#: What an empty place looks like when the rest of the row is not empty.
+#: A gap has to be visible for a position to mean anything.
+EMPTY_CELL = "."
+
+
+def _nearest(value: float, edges: Sequence[float]) -> int:
+    return min(range(len(edges)), key=lambda index: abs(edges[index] - value))
+
+
+def _column_edges(xs: Sequence[float]) -> list[float]:
+    """The columns present, from the spacing that is actually there."""
+    ordered = sorted(xs)
+    if not ordered:
+        return []
+    gaps = sorted(b - a for a, b in zip(ordered, ordered[1:]) if b - a > 0.0)
+    typical = gaps[len(gaps) // 2] if gaps else 0.0
+    tolerance = max(0.008, typical * 0.5)
+    edges: list[float] = []
+    for x in ordered:
+        if not edges or (x - edges[-1]) > tolerance:
+            edges.append(x)
+    return edges
 
 
 def describe(band: tuple[float, float, float, float] | None) -> str:
