@@ -40,6 +40,13 @@ logger = logging.getLogger("Aura.Strategy")
 RECONSIDER_AFTER = 12
 
 
+def _already_said(clause: str, said: str) -> bool:
+    """Whether this clause is already in what has been said."""
+    part = " ".join(str(clause or "").split()).lower()
+    whole = " ".join(str(said or "").split()).lower()
+    return bool(part) and (part in whole or whole.endswith(part))
+
+
 @dataclass(frozen=True)
 class Strategy:
     """A line she is taking, why, and what would end it."""
@@ -67,11 +74,18 @@ class Strategy:
         return lines
 
     def narrate(self) -> str:
+        """The line, its reason and its ending, each said once.
+
+        Every part of this can be drawn from the same sentence she spoke, so
+        a narration that appends all three unconditionally reads it back to
+        the listener three times over.
+        """
         said = f"Plan: {self.approach}"
-        if self.because:
+        if self.because and not _already_said(self.because, said):
             said = f"{said} — {self.because}"
-        if self.holds_while.describes:
-            said = f"{said}. Watching for: {self.holds_while.describes}"
+        watching = self.holds_while.describes
+        if watching and not _already_said(watching, said):
+            said = f"{said}. Watching for: {watching}"
         return said
 
 
@@ -229,6 +243,50 @@ def _biggest_thing_in(situation: str) -> str:
 ENOUGH_WORDS = 4
 
 
+#: The longest a clause can run before it is trimmed. A plan said in one
+#: breath is a plan; past this it is the whole answer again.
+CLAUSE_CHARS = 200
+
+
+def _whole_words(said: str, limit: int = CLAUSE_CHARS) -> str:
+    """A clause cut at a word, never inside one.
+
+    LIVE 2026-08-26: "I'm watching for whether that new 8 can later m" — a
+    character count ended the sentence in the middle of a word and she was
+    quoted saying it.
+    """
+    clause = str(said or "").strip(" ,;")
+    # A clause ends where the next one starts.
+    #
+    # "watching to see if this creates a safe pocket on the left, and I will
+    # switch to right if a new tile blocks the bottom row" is two things she
+    # said: what she is watching for, and what she would do instead. Kept
+    # whole, the second is quoted back as part of the first.
+    clause = re.split(r",\s+(?:and|but|so|then)\s+(?:i|it|we|that)\b", clause, maxsplit=1, flags=re.IGNORECASE)[0]
+    clause = clause.strip(" ,;")
+    if len(clause) <= limit:
+        return clause
+    cut = clause[:limit]
+    space = cut.rfind(" ")
+    return (cut[:space] if space > 0 else cut).strip(" ,;")
+
+
+def _earliest(text: str, patterns: Sequence[str]) -> str:
+    """The first of these things she said, not the first pattern that matches.
+
+    Ordering by pattern makes the reading depend on which shape was listed
+    first. Live 2026-08-26 that took "I will switch to right if a new tile
+    appears" — the pivot, said last — as the approach, and left the line she
+    was actually taking in the reason.
+    """
+    best: tuple[int, str] | None = None
+    for pattern in patterns:
+        found = re.search(pattern, text, re.IGNORECASE)
+        if found and (best is None or found.start() < best[0]):
+            best = (found.start(), _whole_words(found.group("said")))
+    return best[1] if best else ""
+
+
 def keeps_every_option_open(said: str, options: Sequence[ActionOption] = ()) -> bool:
     """Whether this leaves every way forward exactly as open as it found them.
 
@@ -281,17 +339,16 @@ def read_strategy(
     if was_cut_off(text):
         logger.info("her answer stopped in the middle: %r", text[-90:])
         return None
-    approach = ""
-    for pattern in (
-        r"\bplan\s*[:\-]\s*(?P<said>[^.]{4,120})",
-        r"\bapproach\s*[:\-]\s*(?P<said>[^.]{4,120})",
-        r"\bI(?:'ll| will| am going to)\s+(?P<said>[^.]{4,120})",
-        r"\bstrategy\s+is\s+(?P<said>[^.]{4,120})",
-    ):
-        found = re.search(pattern, text, re.IGNORECASE)
-        if found:
-            approach = found.group("said").strip(" ,;")
-            break
+    approach = _earliest(
+        text,
+        (
+            r"\bplan\s*[:\-]\s*(?P<said>[^.]{4,})",
+            r"\bapproach\s*[:\-]\s*(?P<said>[^.]{4,})",
+            r"\bI(?:'ll| will| am going to|'m going to| choose| plan to| intend to)\s+"
+            r"(?P<said>[^.]{4,})",
+            r"\bstrategy\s+is\s+(?P<said>[^.]{4,})",
+        ),
+    )
     if not approach:
         # No lead-in, so the answer itself is the approach.
         #
@@ -301,20 +358,29 @@ def read_strategy(
         # "I'm going to stack toward the left edge" says exactly what "I will
         # stack toward the left edge" says. What makes it an approach is that
         # it names something to hold to, which is checked below either way.
-        approach = text[:200].strip(" ,;")
+        approach = _whole_words(text)
     if not approach:
         return None
+    # The line she is taking ends where the reason for it begins.
+    #
+    # Without this the reason is inside the approach and beside it, and the
+    # narration says the same clause twice in one breath.
+    line = re.split(r",?\s+\bbecause\b", approach, maxsplit=1, flags=re.IGNORECASE)[0]
+    line = line.strip(" ,;")
+    # Unless the line was the reason. "Going left because that keeps the row
+    # clear" is all she said, and trimming it leaves two words.
+    if _says_enough_to_be_an_approach(line, options):
+        approach = line
 
-    condition = ""
-    for pattern in (
-        r"\b(?:while|as long as|so long as|provided)\s+(?P<said>[^.]{4,120})",
-        r"\bwatch(?:ing)? for\s+(?P<said>[^.]{4,120})",
-        r"\buntil\s+(?P<said>[^.]{4,120})",
-    ):
-        found = re.search(pattern, text, re.IGNORECASE)
-        if found:
-            condition = found.group("said").strip(" ,;")
-            break
+    condition = _earliest(
+        text,
+        (
+            r"\b(?:while|as long as|so long as|provided)\s+(?P<said>[^.]{4,})",
+            r"\bwatch(?:ing)?(?:\s+out)?\s+(?:for|to\s+see)\s+"
+            r"(?:if|whether|that)?\s*(?P<said>[^.]{4,})",
+            r"\buntil\s+(?P<said>[^.]{4,})",
+        ),
+    )
     if not condition:
         # She said what she is doing without saying what would end it.
         #
@@ -345,16 +411,28 @@ def read_strategy(
             return None
         keep, avoid = (anchor,), ()
         condition = f"{condition} (while the {anchor} is still there)"
-    because = ""
-    reason = re.search(r"\bbecause\s+(?P<said>[^.]{4,140})", text, re.IGNORECASE)
-    if reason:
-        because = reason.group("said").strip(" ,;")
+    because = _earliest(text, (r"\bbecause\s+(?P<said>[^.]{4,})",))
 
+    # What she would do instead, however she named it.
+    #
+    # "I will switch to right if a new tile appears that blocks the bottom
+    # row" is the other line she is prepared to take, and with only
+    # "otherwise" and "if not" to look for it was read as the approach.
     otherwise: list[str] = []
-    for pattern in (r"\botherwise\s+(?P<said>[^.]{3,80})", r"\bif not,?\s+(?P<said>[^.]{3,80})"):
+    for pattern in (
+        r"\botherwise,?\s+(?P<said>[^.]{3,})",
+        r"\bif not,?\s+(?P<said>[^.]{3,})",
+        r"\b(?:I(?:'ll| will| would)?\s*)?switch(?:ing)?\s+to\s+(?P<said>[^.]{3,})",
+        r"\bfall\s+back\s+to\s+(?P<said>[^.]{3,})",
+    ):
         found = re.search(pattern, text, re.IGNORECASE)
         if found:
-            otherwise.append(found.group("said").strip(" ,;"))
+            said = _whole_words(found.group("said"))
+            # One phrasing, not two views of it: "otherwise switch to the
+            # right edge" matches both the word and the verb, and listing
+            # both makes one alternative look like two.
+            if said and not any(said in kept or kept in said for kept in otherwise):
+                otherwise.append(said)
     return Strategy(
         approach=approach,
         because=because,
