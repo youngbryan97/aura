@@ -6313,6 +6313,31 @@ class DesktopTaskSkill(BaseSkill):
                 if authored:
                     task_context["desktop_task_document_body"] = authored
                     document_provenance = "local_cortex_authored_artifact"
+                else:
+                    # She could not write the words, so there is no document.
+                    #
+                    # The fallback composer produces prose ABOUT the request —
+                    # "Notes on the requested subject: The requested subject is
+                    # the focus of this note" — and a file holding that is a
+                    # true receipt for the wrong artifact, which this module
+                    # already calls the worse failure everywhere else it
+                    # appears. LIVE 2026-08-26, three times over, the last one
+                    # because the resident worker was not alive yet.
+                    #
+                    # Saying so costs the person nothing they had; writing the
+                    # template costs them a file they have to notice is empty.
+                    return {
+                        "ok": False,
+                        "status": "desktop_task_content_unavailable",
+                        "error": (
+                            "I could not write the words you asked for, so I have not "
+                            "made the file. Nothing was created. Ask me again in a "
+                            "moment — my own writing was out of reach just then."
+                        ),
+                        "objective": objective,
+                        "steps_completed": 0,
+                        "steps_requested": 1,
+                    }
         if not steps:
             steps = self._derive_steps_from_objective(objective, task_context)
             planner = "heuristic_compat"
