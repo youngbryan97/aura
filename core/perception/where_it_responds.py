@@ -34,14 +34,17 @@ ENOUGH_ACTS = 4
 #: allows for a value appearing one row further out than any seen so far.
 MARGIN = 0.03
 
-#: What share of her acts a place has to answer to before it counts as
-#: answering to her.
+#: How responsive a place has to be, against the most responsive place on
+#: the screen, before it counts as answering to her.
 #:
 #: Everything on a page changes eventually — advertising rotates, clocks
 #: tick, banners cycle — so "it changed" is not the test. The test is whether
-#: it changes when SHE does something. A board answers nearly every move; an
-#: advertisement on a thirty-second rotation answers one move in fifty.
-ANSWERS_OFTEN = 0.4
+#: it changes when SHE does something, and how often is only meaningful
+#: beside the rest of the screen. A fixed share of her acts cannot serve
+#: both: a game board where each square changes a third of the time and an
+#: editor where one line changes every keystroke are the same question with
+#: different numbers. Measured against the busiest place, both answer it.
+ANSWERS_OFTEN = 0.34
 
 
 @dataclass
@@ -49,11 +52,19 @@ class Responsive:
     """Where her actions have been having their effects."""
 
     acts: int = 0
-    #: How often the text at each position changed right after she acted.
+    #: How often the text at each position changed on a move that had an
+    #: effect.
     answered: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: How often it changed on a move that had NO effect. Those moves are the
+    #: control: whatever still changed then was changing on its own.
+    regardless: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: How many of each kind of move there have been, so the two rates can be
+    #: compared rather than the two counts.
+    effective: int = 0
+    idle: int = 0
 
     def settled(self) -> bool:
-        return self.acts >= ENOUGH_ACTS and bool(self.answered)
+        return self.effective >= ENOUGH_ACTS and bool(self.answered)
 
     def band(self) -> tuple[float, float, float, float] | None:
         """The area that answers to her, as (left, top, right, bottom).
@@ -64,18 +75,54 @@ class Responsive:
         """
         if not self.settled():
             return None
-        needed = max(2, int(self.acts * ANSWERS_OFTEN))
-        repeated = [where for where, times in self.answered.items() if times >= needed]
+        # How much more often a place moves when she has an effect than when
+        # she does not. A place that moves either way is moving on its own.
+        idle_rate = {
+            where: times / float(max(1, self.idle)) for where, times in self.regardless.items()
+        }
+        because_of_her = {
+            where: (times / float(max(1, self.effective))) - idle_rate.get(where, 0.0)
+            for where, times in self.answered.items()
+        }
+        because_of_her = {where: rate for where, rate in because_of_her.items() if rate > 0.0}
+        if not because_of_her:
+            return None
+        busiest = max(because_of_her.values())
+        repeated = [
+            where for where, rate in because_of_her.items() if rate >= busiest * ANSWERS_OFTEN
+        ]
         if not repeated:
             return None
-        xs = [where[0] / 100.0 for where in repeated]
-        ys = [where[1] / 100.0 for where in repeated]
+        xs = _middle(sorted(where[0] / 100.0 for where in repeated))
+        ys = _middle(sorted(where[1] / 100.0 for where in repeated))
         return (
-            max(0.0, min(xs) - MARGIN),
-            max(0.0, min(ys) - MARGIN),
-            min(1.0, max(xs) + MARGIN),
-            min(1.0, max(ys) + MARGIN),
+            max(0.0, xs[0] - MARGIN),
+            max(0.0, ys[0] - MARGIN),
+            min(1.0, xs[1] + MARGIN),
+            min(1.0, ys[1] + MARGIN),
         )
+
+
+#: What share of the responsive positions to keep at each edge.
+#:
+#: A bounding box around everything that answered is as wide as its worst
+#: outlier, and a screen read by OCR always has one: a run of text jitters by
+#: a pixel, a banner redraws, a word is read differently between frames.
+#: Measured on a real page, eight moves of that noise stretched the answer
+#: from the board to the whole window. Dropping the outermost tenth at each
+#: edge keeps the part that answers and loses the strays.
+TRIM = 0.1
+
+
+def _middle(values: Sequence[float]) -> tuple[float, float]:
+    """The range these values occupy, ignoring the strays at each end."""
+    if not values:
+        return (0.0, 1.0)
+    if len(values) < 5:
+        return (values[0], values[-1])
+    cut = max(1, int(len(values) * TRIM))
+    kept = values[cut : len(values) - cut] or values
+    return (kept[0], kept[-1])
 
 
 def _cells(observation: dict[str, Any]) -> dict[tuple[int, int], str]:
@@ -94,15 +141,32 @@ def _cells(observation: dict[str, Any]) -> dict[tuple[int, int], str]:
     return found
 
 
-def noticed(state: Responsive, before: dict[str, Any], after: dict[str, Any]) -> Responsive:
-    """Record what changed between one reading and the next, after she acted."""
+def noticed(
+    state: Responsive,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    *,
+    worked: bool = True,
+) -> Responsive:
+    """Record what changed between one reading and the next, after she acted.
+
+    ``worked`` says whether that act had any effect. A move that changed
+    nothing is the control this needs: everything that still changed across
+    it was changing on its own, and a page whose advertising animates as
+    often as the task does cannot be separated any other way.
+    """
     was, now = _cells(before), _cells(after)
     if not was and not now:
         return state
     state.acts += 1
+    if worked:
+        state.effective += 1
+    else:
+        state.idle += 1
+    counted = state.answered if worked else state.regardless
     for where in set(was) | set(now):
         if was.get(where) != now.get(where):
-            state.answered[where] = state.answered.get(where, 0) + 1
+            counted[where] = counted.get(where, 0) + 1
     return state
 
 

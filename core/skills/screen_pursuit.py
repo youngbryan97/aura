@@ -84,6 +84,11 @@ RECENT_ATTEMPTS = 4
 #: hers rather than a run of bandit statistics.
 LANGUAGE_EVERY = 5
 #: How many times one run will go back and look up how the task is done.
+#: How many readings in a row have to show the same thing before a run is
+#: handed back to the person. A page carries things that go away on their
+#: own; a dialog only the person can answer does not.
+TWICE_BEFORE_HANDING_BACK = 2
+
 #: Beyond this the problem is not that she is missing a strategy.
 MAX_RELEARNS = 2
 
@@ -946,9 +951,25 @@ async def pursue_on_screen(
             # changed. Continuing past a question addressed to the person is
             # not perseverance, it is acting blind — and it is how a run
             # eventually stumbles into answering that question by accident.
+            # Seen twice before the task is handed back.
+            #
+            # Handing it back ends the run, and a page carries things that go
+            # away on their own: an advertising rail rotates, a toast appears
+            # and fades, a banner loads late. Measured live, a run stopped
+            # after twelve moves over a rail that had already changed by the
+            # next reading. A dialog only the person can answer is still
+            # there a second later, which is the whole difference.
+            same = verdict.needs_person == needs_person["seen"]
+            needs_person["seen"] = verdict.needs_person
+            needs_person["times"] = needs_person["times"] + 1 if same else 1
+            if needs_person["times"] < TWICE_BEFORE_HANDING_BACK:
+                return None
             needs_person["reason"] = verdict.needs_person
             return None
         if not verdict.present:
+            # Whatever it was is gone, so it was not the thing that stops a run.
+            needs_person["seen"] = ""
+            needs_person["times"] = 0
             return None
 
         # A caller may declare its OWN way forward.
@@ -1055,7 +1076,7 @@ async def pursue_on_screen(
     #: pursuit that had just succeeded.
     blocker_attempts = {"count": 0, "last": "", "dismissed": 0}
     lost_page = {"value": False}
-    needs_person: dict[str, str] = {"reason": ""}
+    needs_person: dict[str, Any] = {"reason": "", "seen": "", "times": 0}
     #: The page this run belongs to, learned on the first cycle when the caller
     #: did not name one.
     anchor: dict[str, str] = {"page": expect_page.strip()}
@@ -1094,8 +1115,6 @@ async def pursue_on_screen(
         # is answered by what happens when she acts. Until enough acts have
         # answered it, this is the whole reading, because a guess about where
         # the task is would be worse.
-        if pending["deliberation"] is not None and pending["before"]:
-            noticed(responds["state"], pending["watched"], observation)
         band = responds["state"].band()
         seen = within(observation, band)
 
@@ -1111,6 +1130,17 @@ async def pursue_on_screen(
         if previous is not None:
             attempt = confirm(previous, pending["before"], seen, spine=spine, graph=graph)
             history.append(attempt)
+            # Learned from the same measurement. A move that changed nothing
+            # is the control: whatever still changed across it was changing
+            # on its own, and a page whose advertising animates as often as
+            # the task does cannot be separated any other way.
+            if pending["watched"]:
+                noticed(
+                    responds["state"],
+                    pending["watched"],
+                    observation,
+                    worked=attempt.verdict.held,
+                )
             if moves:
                 moves[-1]["held"] = attempt.verdict.held
                 moves[-1]["outcome"] = attempt.verdict.why()

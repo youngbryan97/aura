@@ -100,3 +100,25 @@ def test_a_wall_offering_a_way_out_is_dismissed_rather_than_handed_over():
     assert verdict.present
     assert not verdict.needs_person
     assert verdict.label == "Reject all"
+
+
+def test_handing_the_task_back_waits_to_see_the_same_thing_twice():
+    """Handing it back ends the run, and a page carries things that go away on
+    their own: a rail rotates, a toast fades, a banner loads late.
+
+    Measured live: a run stopped after twelve moves over an advertising rail
+    that had already changed by the next reading. A dialog only the person can
+    answer is still there a second later.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    where = source.index('needs_person["times"]')
+    block = source[where - 400 : where + 400]
+    assert "TWICE_BEFORE_HANDING_BACK" in block
+    assert screen_pursuit.TWICE_BEFORE_HANDING_BACK >= 2
+    # And it forgets what is no longer there, so two different things half a
+    # minute apart never add up to one.
+    assert 'needs_person["times"] = 0' in source

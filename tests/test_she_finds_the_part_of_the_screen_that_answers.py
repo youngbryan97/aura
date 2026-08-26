@@ -81,6 +81,29 @@ def test_a_screen_where_nothing_answers_gives_no_band():
     assert state.band() is None
 
 
+def test_a_page_that_animates_as_often_as_the_task_is_still_separable():
+    """Some pages carry advertising that changes on every reading. The moves
+    that had no effect are the control: whatever still changed across those
+    was changing on its own."""
+    state = Responsive()
+    boards = [[2, 4, 8], [4, 8, 16], [8, 16, 32], [2, 16, 32], [4, 32, 64], [8, 32, 64]]
+    rails = ["one", "two", "three", "four", "five", "six", "seven"]
+    for i in range(len(boards) - 1):
+        # Her move worked: the board moved and so did the rail.
+        state = noticed(state, _screen(boards[i], rails[i]), _screen(boards[i + 1], rails[i + 1]))
+    for i in range(4):
+        # Her move did nothing: the board held still and the rail carried on.
+        state = noticed(
+            state,
+            _screen(boards[-1], rails[i]),
+            _screen(boards[-1], rails[i + 1]),
+            worked=False,
+        )
+    situation = within(_screen(boards[-1], "seven"), state.band())
+    assert "seven" not in situation, "an advertisement that animates was read as the task"
+    assert "64" in situation
+
+
 def test_the_answer_can_be_said_out_loud():
     said = describe(_played().band())
     assert "responds to me" in said
@@ -96,4 +119,6 @@ def test_the_loop_reasons_from_the_part_that_answers():
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     assert "seen = within(observation, band)" in source
-    assert "noticed(responds[" in source
+    # Learned from the same measurement that grades the move, so the control
+    # is the move that had no effect.
+    assert "worked=attempt.verdict.held," in source
