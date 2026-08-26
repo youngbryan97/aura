@@ -806,6 +806,28 @@ def _time_left(began: float, max_seconds: float, deadline_at: float) -> float:
     return max(1.0, ends_at - now)
 
 
+def _within_the_run(think: Any, ends_at: float) -> Any:
+    """Her thinking, bounded by what is left of the run rather than its own budget.
+
+    A cycle checks the clock at its top and then goes away to think. When the
+    thought outlasts the run, the deadline is only noticed after it returns,
+    and by then the caller outside — which has room to report and nothing
+    more — has already cancelled everything. LIVE 2026-08-26: twenty-nine
+    narrated moves, a 64 built into the corner, and "Operation took too long.
+    Completed 0/0 steps."
+    """
+    if think is None or ends_at <= 0.0:
+        return think
+
+    async def bounded(objective: str, evidence: Any) -> Any:
+        left = ends_at - time.monotonic()
+        if left <= 1.0:
+            raise TimeoutError("the run is out of time to think")
+        return await asyncio.wait_for(think(objective, evidence), timeout=left)
+
+    return bounded
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -871,6 +893,9 @@ async def pursue_on_screen(
     # 2026-08-26: sixty-five narrated moves, nine approaches held, cancelled
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
+    ends_at = began + float(max_seconds)
+    if deadline_at > 0.0:
+        ends_at = min(ends_at, float(deadline_at))
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     pending: dict[str, Any] = {"deliberation": None, "before": "", "watched": {}}
@@ -1258,7 +1283,7 @@ async def pursue_on_screen(
                     knowledge["held"],
                     seen,
                     screen_options(move_keys),
-                    think=think or _her_reasoning(stakes),
+                    think=_within_the_run(think or _her_reasoning(stakes), ends_at),
                     history=history[-RECENT_ATTEMPTS:],
                 )
             learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
@@ -1322,7 +1347,7 @@ async def pursue_on_screen(
                     # is not the same question as deciding one of them, and
                     # asking it with the thinking that suits a move got the
                     # model's own warm-up handed back as a plan.
-                    think=think or _reasoning_for_a_plan(),
+                    think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
                     knowledge=learned,
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],
@@ -1409,7 +1434,7 @@ async def pursue_on_screen(
                 goal,
                 seen,
                 available,
-                think=(think or _her_reasoning(weight)) if asking else None,
+                think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,
@@ -1599,7 +1624,7 @@ async def pursue_on_screen(
                     f"the finishing condition ({success_when}) is already true, "
                     "and nothing here was done by me",
                     ways_out(first),
-                    think=think or _her_reasoning(stakes),
+                    think=_within_the_run(think or _her_reasoning(stakes), ends_at),
                     control_point="screen_pursuit.pre_met",
                     lived=lived,
                     spine=spine,
@@ -1674,7 +1699,7 @@ async def pursue_on_screen(
             decide=decide,
             is_satisfied=satisfied,
             max_cycles=max_cycles,
-            max_seconds=_time_left(began, max_seconds, deadline_at),
+            max_seconds=max(1.0, ends_at - time.monotonic()),
             perception_reason=f"pursuing on screen: {goal[:60]}",
         )
     finally:

@@ -51,6 +51,11 @@ def _what_she_got_through(completed: int, requested: int) -> str:
     except (ImportError, AttributeError, RuntimeError):
         held = None
     if held is None or not held.steps:
+        logger.info(
+            "nothing to report from her own record: held=%s steps=%s",
+            held is not None,
+            getattr(held, "steps", None),
+        )
         return f"Completed {completed}/{requested} steps."
     said = f"I got {held.steps} step(s) into it before the time ran out."
     if held.approach:
