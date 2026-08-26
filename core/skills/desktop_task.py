@@ -5201,11 +5201,29 @@ class DesktopTaskSkill(BaseSkill):
         "allow_partial",
     )
 
+    #: What the TASK is authorised for, which is not what a STEP is authorised
+    #: for.
+    #:
+    #: A scope belongs to an action. The task's scope is the widest thing in
+    #: its plan; a step that types a key is foreground control and a step that
+    #: writes a file is file io, and each step's lease is issued for its own.
+    #: Inherited, the parent's value is presented against the child's lease
+    #: and the two can never agree.
+    #:
+    #: LIVE 2026-08-26: "make a file on my Desktop called aura_note.txt" was
+    #: refused — lease held 'desktop_file_io', the call derived
+    #: 'foreground_desktop_control', which is the task's declared scope
+    #: arriving through the step context. She could not write a file at all.
+    _TASK_LEVEL_AUTHORITY_KEYS: tuple[str, ...] = (
+        "effect_scope",
+        "risk_level",
+    )
+
     @classmethod
     def _child_step_context(cls, task_context: dict[str, Any] | None) -> dict[str, Any]:
         """A step's context, without the contract that belongs to the task."""
         child = dict(task_context or {})
-        for key in cls._TASK_LEVEL_EXPECTATION_KEYS:
+        for key in (*cls._TASK_LEVEL_EXPECTATION_KEYS, *cls._TASK_LEVEL_AUTHORITY_KEYS):
             child.pop(key, None)
         return child
 
