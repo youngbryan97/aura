@@ -94,7 +94,7 @@ def test_the_writer_waits_once_for_a_warming_lane():
     assert "_is_still_coming_up(text)" in source
     assert "_WARMING_RETRY_SECONDS" in source
     # One wait, not a loop.
-    assert source.count("await _ask()") == 2
+    assert source.count("await _ask()") == 2  # the first, and the one inside the wait loop
 
 
 def test_every_authoring_call_declares_itself_internal():
@@ -233,3 +233,17 @@ def test_her_authoring_origin_is_not_the_surface_the_person_typed_at():
     for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
         where = source.index(f'purpose="{purpose}"')
         assert 'origin="internal_desktop_authoring"' in source[max(0, where - 1400) : where], purpose
+
+
+def test_the_wait_for_a_warming_lane_is_bounded_and_repeats():
+    """A resident model is twenty gigabytes. One wait was measured as not
+    enough after a restart, while the conversation lane had already reported
+    itself ready — the two are not the same lane."""
+    from core.skills import desktop_task
+
+    assert desktop_task._WARMING_WAITS >= 2
+    assert desktop_task._WARMING_RETRY_SECONDS * desktop_task._WARMING_WAITS <= 40.0
+    source = inspect.getsource(DesktopTaskSkill._synthesize_requested_writing)
+    assert "while _is_still_coming_up(text) and waited < _WARMING_WAITS" in source
+    # It stops the moment the answer stops saying "not yet".
+    assert "_is_still_coming_up(text)" in source

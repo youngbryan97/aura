@@ -227,12 +227,16 @@ def _without_filenames(text: str) -> str:
     return re.sub(r"\b[\w-]+\.[A-Za-z0-9]{1,6}\b", " ", str(text or ""))
 
 
-#: How long to wait for a writing lane that says it is still coming up.
+#: How long to wait for a writing lane that says it is still coming up, and
+#: how many times.
 #:
-#: One wait, long enough for a worker that is mid-handshake and short enough
-#: that a person watching does not think it has hung. The outer timeouts still
-#: bound the whole attempt.
+#: A resident model is twenty gigabytes; one wait was measured as not enough
+#: after a restart, while the conversation lane had already reported itself
+#: ready. Three waits is under half a minute, still far inside the outer
+#: timeouts, and the loop stops the moment the answer stops saying "not yet"
+#: — a real failure is still a failure on the first answer.
 _WARMING_RETRY_SECONDS = 8.0
+_WARMING_WAITS = 3
 
 
 def _is_still_coming_up(text: Any) -> bool:
@@ -1868,7 +1872,9 @@ class DesktopTaskSkill(BaseSkill):
 
         try:
             text = await _ask()
-            if _is_still_coming_up(text):
+            waited = 0
+            while _is_still_coming_up(text) and waited < _WARMING_WAITS:
+                waited += 1
                 # Warming is not refusing.
                 #
                 # The chat lane waits for its worker; this one asked once and
@@ -1878,7 +1884,11 @@ class DesktopTaskSkill(BaseSkill):
                 # while the Cortex lane logged "state=warming ... completing
                 # foreground warmup before first generation" — seconds before
                 # the same runtime answered an ordinary question.
-                logger.info("desktop_task: writing lane still warming, waiting once")
+                logger.info(
+                    "desktop_task: writing lane still warming, waiting (%d of %d)",
+                    waited,
+                    _WARMING_WAITS,
+                )
                 await asyncio.sleep(_WARMING_RETRY_SECONDS)
                 text = await _ask()
         except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
