@@ -229,10 +229,30 @@ def _biggest_thing_in(situation: str) -> str:
 ENOUGH_WORDS = 4
 
 
+def keeps_every_option_open(said: str, options: Sequence[ActionOption] = ()) -> bool:
+    """Whether this leaves every way forward exactly as open as it found them.
+
+    A line you are taking excludes something. An answer that names all four
+    ways she could move has restated the choice rather than made one, and it
+    reads as a plan to anything that only checks length and shape.
+
+    LIVE 2026-08-26: "We need answer user. Need decide move for 2048. We must
+    choose one of up/down/left/right based on screen." was accepted as her
+    approach and spoken as one.
+    """
+    names = [str(option.name or "").strip().lower() for option in options if option.name]
+    if len(names) < 2:
+        return False
+    words = set(re.findall(r"[\w'-]+", str(said or "").lower()))
+    return all(name in words for name in names)
+
+
 def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = ()) -> bool:
     """Whether this describes a way of going about it at all."""
     words = re.findall(r"[\w'-]+", str(said or ""))
     if len(words) < ENOUGH_WORDS:
+        return False
+    if keeps_every_option_open(said, options):
         return False
     names = {str(option.name or "").strip().lower() for option in options if option.name}
     return " ".join(words).lower() not in names

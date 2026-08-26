@@ -555,3 +555,23 @@ def test_an_approach_that_says_something_new_survives_the_same_check():
 
 def test_with_nothing_asked_the_check_stands_aside():
     assert read_strategy(SPOKEN, MOVES, asked="") is not None
+
+
+SCAFFOLD = (
+    "We need answer user. Need decide move for 2048. We must choose one of "
+    "up/down/left/right based on screen. I will keep going while it works."
+)
+
+
+def test_naming_every_way_forward_is_restating_the_choice_not_making_one():
+    assert standing_strategy.keeps_every_option_open(SCAFFOLD, MOVES)
+    assert read_strategy(SCAFFOLD, MOVES) is None
+
+
+def test_a_line_that_excludes_something_is_a_line():
+    said = "Keep feeding the bottom-left corner, going left and down. I will stop if the 64 moves off the corner."
+    assert not standing_strategy.keeps_every_option_open(said, MOVES)
+
+
+def test_with_one_way_forward_there_is_nothing_to_exclude():
+    assert not standing_strategy.keeps_every_option_open("press left", MOVES[:1])
