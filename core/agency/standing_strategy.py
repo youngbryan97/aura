@@ -393,6 +393,18 @@ async def settle_on_an_approach(
     _said_it_could_not_plan["value"] = False
     settled = read_strategy(reply or "", options, situation=situation)
     if settled is None:
+        # She answered, and what she said was not an approach.
+        #
+        # The only silent exit left in this organ. Everything else records
+        # why, and this one — the one that actually happens — left nothing,
+        # so "she never states a plan" could not be told apart from "she is
+        # never asked". LIVE 2026-08-26: whole games with no approach held
+        # and no trace of why.
+        logger.info(
+            "no approach in her answer (%d chars): %r",
+            len(str(reply or "")),
+            " ".join(str(reply or "").split())[:200],
+        )
         return None
     return Strategy(
         approach=settled.approach,
