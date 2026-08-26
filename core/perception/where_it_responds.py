@@ -24,6 +24,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.perception.what_is_there import EMPTY_CELL, Arrangement, arranged
+
 logger = logging.getLogger("Aura.Responds")
 
 #: How many acts it takes before the answer is worth using. One coincidence
@@ -290,79 +292,45 @@ def within(
     return _laid_out(inside) or text
 
 
+def what_is_there(
+    observation: dict[str, Any],
+    band: tuple[float, float, float, float] | None,
+) -> Arrangement:
+    """The same reading as :func:`within`, with a place for each thing in it.
+
+    :func:`within` hands back the string she reads. This hands back what it
+    was made from, so a plan about a corner or a bottom row can be checked
+    against the thing itself rather than against prose about it.
+    """
+    inside: list[tuple[float, float, str]] = []
+    for region in observation.get("layout") or []:
+        said = str(region.get("text") or "").strip()
+        if not said:
+            continue
+        try:
+            x = float(region.get("center_x", region.get("x", 0.0)))
+            y = float(region.get("center_y", region.get("y", 0.0)))
+        except (TypeError, ValueError):
+            continue
+        if band is None:
+            inside.append((y, x, said))
+            continue
+        left, top, right, bottom = band
+        if left <= x <= right and top <= y <= bottom:
+            inside.append((y, x, said))
+    return arranged(inside)
+
+
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:
     """The part that answers to her, arranged the way it is arranged.
 
-    Position is not decoration. A board where the largest tile sits in a
-    corner and a board where it sits in the middle are different positions
-    with the same contents, and flattened to "2 4 8 64" they are the same
-    string — so nothing downstream can hold a corner, an edge, a column or a
-    row, and no approach about any of them can survive contact with what she
-    reads.
-
-    Rows are found from the spacing that is actually there rather than from a
-    fixed tolerance: whatever the thing is, its own rows are closer together
-    than they are to the next one.
+    One rendering of :func:`core.perception.what_is_there.arranged`, kept here
+    because a string is what reaches her prompt. The structure behind it is
+    what everything else should be reading: a corner is a place code can ask
+    about, and an approach phrased about one can be checked.
     """
-    if not cells:
-        return ""
-    ordered = sorted(cells)
-    ys = [y for y, _x, _said in ordered]
-    gaps = sorted(b - a for a, b in zip(ys, ys[1:]) if b - a > 0.0)
-    # The typical gap between neighbours, so an outlier row does not set the
-    # scale. Half of it separates "same row" from "next row".
-    typical = gaps[len(gaps) // 2] if gaps else 0.0
-    tolerance = max(0.008, typical * 0.5)
-    rows: list[list[tuple[float, str]]] = []
-    row_at = None
-    for y, x, said in ordered:
-        if row_at is None or (y - row_at) > tolerance:
-            rows.append([])
-            row_at = y
-        rows[-1].append((x, said))
-    rows = [row for row in rows if row]
-    # Columns, so a place in a row means the same thing in every row.
-    #
-    # An empty cell produces no text, so a row with gaps came out short and
-    # the second entry in it could be the second column or the fourth. A
-    # corner is a column as much as a row, and a plan about one cannot rest
-    # on a position that shifts with whatever happens to be visible.
-    columns = _column_edges([x for row in rows for x, _said in row])
-    if not columns:
-        return "\n".join(" ".join(said for _x, said in sorted(row)) for row in rows)
-    laid: list[str] = []
-    for row in rows:
-        cells = [EMPTY_CELL] * len(columns)
-        for x, said in sorted(row):
-            cells[_nearest(x, columns)] = said
-        # Trailing gaps are kept: a row that is the same width as every
-        # other row is what makes a column a column.
-        laid.append(" ".join(cells))
-    return "\n".join(laid)
+    return arranged(cells).as_text()
 
-
-#: What an empty place looks like when the rest of the row is not empty.
-#: A gap has to be visible for a position to mean anything.
-EMPTY_CELL = "."
-
-
-def _nearest(value: float, edges: Sequence[float]) -> int:
-    return min(range(len(edges)), key=lambda index: abs(edges[index] - value))
-
-
-def _column_edges(xs: Sequence[float]) -> list[float]:
-    """The columns present, from the spacing that is actually there."""
-    ordered = sorted(xs)
-    if not ordered:
-        return []
-    gaps = sorted(b - a for a, b in zip(ordered, ordered[1:]) if b - a > 0.0)
-    typical = gaps[len(gaps) // 2] if gaps else 0.0
-    tolerance = max(0.008, typical * 0.5)
-    edges: list[float] = []
-    for x in ordered:
-        if not edges or (x - edges[-1]) > tolerance:
-            edges.append(x)
-    return edges
 
 
 def describe(band: tuple[float, float, float, float] | None) -> str:
