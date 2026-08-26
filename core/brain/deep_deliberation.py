@@ -156,9 +156,25 @@ class DeepDeliberationEngine:
                         timeout=min(20.0, timeout_s),
                     )
                 )
-                if refine_out:
+                # A restatement that is not one leaves the question alone.
+                #
+                # This took whatever came back. Live 2026-08-26: the model's
+                # own warm-up — "We need answer user's request. Need choose
+                # move from up/down/left/right based on 2048 board? User
+                # gives: "Given what" — became the question, and the deep
+                # pass went off and answered that instead.
+                from core.utils.an_answer import adds_nothing_to, was_cut_off
+
+                if refine_out and not was_cut_off(refine_out) and not adds_nothing_to(
+                    refine_out, refine_prompt
+                ):
                     refined = refine_out.strip()[:400]
                     passes += 1
+                elif refine_out:
+                    logger.info(
+                        "the restatement was not one, keeping the question: %r",
+                        " ".join(refine_out.split())[:120],
+                    )
                 # DEEP pass, first choice: a Recursive Latent Cortex episode
                 # on the resident model — workspace recurrence buys real
                 # computational depth before any token is committed. Honest
