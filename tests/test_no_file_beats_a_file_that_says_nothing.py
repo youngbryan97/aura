@@ -145,3 +145,44 @@ def test_an_internal_generation_is_never_forced_to_call_a_tool_first():
     # Keyed on the caller's own declaration, not the derived flag: that one is
     # set for turns which ARE somebody asking.
     assert "kwargs.get(\"internal_inference\")" not in block
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "I can't work through that technical request right now — my language "
+        "backend is temporarily unavailable on my side.",
+        "Sorry, I could not do that.",
+        "Unfortunately the model is unavailable.",
+        "Nothing came back from my own reasoning on that one. Ask me again.",
+        "I wasn't able to get to that.",
+    ],
+)
+def test_a_document_that_declines_is_not_a_document(body):
+    """LIVE 2026-08-26: aura_note.txt was created, reported as done, and held
+    "I can't work through that technical request right now — my language
+    backend is temporarily unavailable on my side."
+
+    The refusal came from the lane that could not answer, and nothing between
+    it and the file recognised that a body which declines is not a body.
+    """
+    from core.skills.desktop_task import _says_she_could_not
+
+    assert _says_she_could_not(body)
+    assert DesktopTaskSkill._usable_freeform_document_body("write about tonight", body) == ""
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Tonight I played 2048 in Chrome and reached a 256 tile.",
+        "Whales are the largest animals on Earth.",
+        "I spent the evening reading about sourdough starters.",
+        "I think the corner strategy is what made the difference.",
+    ],
+)
+def test_a_document_that_says_something_is_kept(body):
+    """A first person is not a refusal. She writes in her own voice."""
+    from core.skills.desktop_task import _says_she_could_not
+
+    assert not _says_she_could_not(body)
