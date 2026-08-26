@@ -4068,6 +4068,22 @@ class HealthAwareLLMRouter:
                 else:
                     self.last_user_error = last_error
 
+        if last_error == "unknown":
+            # Every endpoint was SKIPPED, and each skip recorded why.
+            #
+            # The reasons were written into the fallback chain and the string
+            # the caller reads stayed "unknown", so a request that never
+            # reached a single endpoint reported the one word that says
+            # nothing. LIVE 2026-08-26: "ROUTER_ERROR: unknown (at
+            # all_failed)" to a writing task, while the worker it wanted was
+            # alive and generating for everybody else.
+            skipped = [
+                f"{entry.get('endpoint', '?')}:{entry.get('skip_reason')}"
+                for entry in fallback_chain
+                if isinstance(entry, dict) and entry.get("skip_reason")
+            ]
+            if skipped:
+                last_error = "no endpoint was tried — " + ", ".join(skipped[:4])
         return {
             "ok": False,
             "text": "",
