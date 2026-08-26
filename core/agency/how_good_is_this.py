@@ -45,6 +45,19 @@ LINE_MATTERS = 1.0
 #: computable without knowing anything about the thing.
 _A_TARGET = re.compile(r"^\d[\d,]*$")
 
+#: A line that refers to whatever the biggest thing is, rather than naming it.
+#:
+#: "Keep the largest in the bottom-left corner" is the ordinary way to state
+#: this kind of plan, and it names no value at all — so read literally the
+#: claim was empty and holding the line contributed nothing to any score.
+#: Measured 2026-08-26: her stated approach made no difference to a single
+#: choice.
+_A_SUPERLATIVE = re.compile(
+    r"\b(?:(?P<most>largest|biggest|highest|greatest|max|maximum)"
+    r"|(?P<least>smallest|lowest|least|fewest|min|minimum))\b",
+    re.IGNORECASE,
+)
+
 
 def worth_comparing(toward: str, approach: str) -> bool:
     """Whether there is anything here to score a situation by.
@@ -140,6 +153,24 @@ def _holds_her_line(state: Any, approach: str) -> float:
         from core.perception.what_is_there import holds_in  # noqa: PLC0415
 
         claim = claim_in(said)
+        superlative = _A_SUPERLATIVE.search(said)
+        if not claim.says_something() and claim.at_place and superlative:
+            # A line about whichever thing is the extreme one, bound to
+            # whatever that turns out to be. Both ends, because "keep the
+            # smallest out of the middle" is as ordinary a plan as its
+            # opposite, and reading only one of them makes a whole class of
+            # stated line unusable.
+            wanted = _least(state) if superlative.group("least") else _biggest(state)
+            if wanted > 0:
+                named = f"{wanted:g}"
+                claim = claim.__class__(
+                    changed=claim.changed,
+                    contains=(named,),
+                    absent=claim.absent,
+                    describes=claim.describes,
+                    at_place=claim.at_place,
+                    keeping=(named,),
+                )
         if not claim.says_something():
             return 0.0
         # The content of the claim only. Whether the situation CHANGED is a
@@ -175,6 +206,12 @@ def _biggest(state: Any) -> float:
     numbers = getattr(state, "numbers", None)
     values: Sequence[float] = numbers() if callable(numbers) else ()
     return max(values) if values else 0.0
+
+
+def _least(state: Any) -> float:
+    numbers = getattr(state, "numbers", None)
+    values = numbers() if callable(numbers) else ()
+    return min(values) if values else 0.0
 
 
 def _free(state: Any) -> int | None:

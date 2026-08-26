@@ -91,9 +91,20 @@ def look_ahead(
     started = time.monotonic()
     depth = how_deep_to_look(len(actions), budget_s, branching=max(2, len(actions)))
     scored: dict[str, tuple[float, str]] = {}
+    here_now = _reading(state)
     for action in actions:
         future = expect(state, action)
-        if future is None:
+        if future is None or _reading(future) == here_now:
+            # A move that would change nothing has not gone anywhere.
+            #
+            # Scored like any other, it collects the value of the situation it
+            # left alone, once at every level of the search — so standing
+            # still outscores every move that costs something to make.
+            # Measured against a null on 2026-08-26: choosing this way was
+            # WORSE than choosing at random, with 78% of moves doing nothing.
+            #
+            # Ruling one out before making it is the whole point of being able
+            # to try a move without making it.
             continue
         here = how_good(future, toward=toward, approach=approach)
         onward = _best_from(
@@ -122,9 +133,10 @@ def _best_from(
     if depth <= 0:
         return 0.0
     best = 0.0
+    here_now = _reading(state)
     for action in actions:
         future = expect(state, action)
-        if future is None:
+        if future is None or _reading(future) == here_now:
             continue
         here = how_good(future, toward=toward, approach=approach)
         onward = _best_from(
@@ -141,3 +153,9 @@ def _a_level_took(seconds: float) -> None:
         return
     before = _A_LEVEL["seconds"]
     _A_LEVEL["seconds"] = spent if before <= 0.0 else before * 0.7 + spent * 0.3
+
+
+def _reading(state: Any) -> str:
+    """A state as a thing that can be compared to another state."""
+    as_text = getattr(state, "as_text", None)
+    return as_text() if callable(as_text) else str(state)
