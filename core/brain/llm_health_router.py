@@ -1232,6 +1232,17 @@ def _worker_still_healthy(endpoint: Any) -> bool:
     endpoint that cannot answer for itself still trips the circuit.
     """
     client = getattr(endpoint, "client", None) or getattr(endpoint, "_client", None)
+    # The endpoint's client is often a wrapper — an inference gate, an adapter
+    # — that knows nothing about a worker's heartbeat. Walk to whatever is
+    # actually holding the worker before deciding the worker is unknowable.
+    for _hop in range(3):
+        if client is None or callable(getattr(client, "is_alive", None)):
+            break
+        client = (
+            getattr(client, "_mlx_client", None)
+            or getattr(client, "client", None)
+            or getattr(client, "_client", None)
+        )
     alive = getattr(client, "is_alive", None)
     if not callable(alive):
         return False
@@ -1240,9 +1251,16 @@ def _worker_still_healthy(endpoint: Any) -> bool:
             return False
     except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
         return False
-    beat = float(getattr(client, "_last_heartbeat", 0.0) or 0.0)
+    beat = max(
+        float(getattr(client, "_last_heartbeat", 0.0) or 0.0),
+        float(getattr(client, "_last_progress_at", 0.0) or 0.0),
+        float(getattr(client, "_last_token_progress_at", 0.0) or 0.0),
+    )
     if beat <= 0.0:
-        return False
+        # Alive, and it keeps no clock of its own. A live process that has
+        # never reported a heartbeat is still a live process, and treating it
+        # as wedged is the mistake this function exists to stop.
+        return True
     return (time.time() - beat) < _HEALTHY_HEARTBEAT_WINDOW_S
 
 

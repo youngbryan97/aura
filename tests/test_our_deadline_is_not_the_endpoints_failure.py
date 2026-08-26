@@ -45,8 +45,23 @@ def test_a_worker_that_stopped_beating_is_not():
     assert not _worker_still_healthy(_Endpoint(_Client(True, 600.0)))
 
 
-def test_a_worker_that_never_beat_is_not():
-    assert not _worker_still_healthy(_Endpoint(_Client(True, -1)))
+def test_a_live_worker_that_keeps_no_clock_is_still_alive():
+    """A live process that has never reported a heartbeat is still a live
+    process, and treating it as wedged is the mistake this exists to stop."""
+    assert _worker_still_healthy(_Endpoint(_Client(True, -1)))
+
+
+def test_a_wrapper_is_walked_through_to_the_worker():
+    """The endpoint's client is often an adapter that knows nothing about a
+    heartbeat. It was answering "unknowable" for a worker that was generating
+    at 716 tokens a second."""
+
+    class _Wrapper:
+        def __init__(self, inner):
+            self._mlx_client = inner
+
+    assert _worker_still_healthy(_Endpoint(_Wrapper(_Client(True, 1.0))))
+    assert not _worker_still_healthy(_Endpoint(_Wrapper(_Client(False, 1.0))))
 
 
 def test_an_endpoint_that_cannot_answer_for_itself_is_not_assumed_healthy():
