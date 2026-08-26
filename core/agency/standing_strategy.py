@@ -256,7 +256,7 @@ def read_strategy(
     if not text:
         return None
     if adds_nothing_to(text, asked):
-        logger.info("her answer was the question handed back: %r", text[:120])
+        logger.info("her answer was the question handed back: %r", text[:900])
         return None
     if was_cut_off(text):
         logger.info("her answer stopped in the middle: %r", text[-90:])
@@ -428,7 +428,7 @@ async def settle_on_an_approach(
     logger.info(
         "she answered how to go about it (%d chars): %r",
         len(str(reply or "")),
-        " ".join(str(reply or "").split())[:160],
+        " ".join(str(reply or "").split())[:900],
     )
     settled = read_strategy(
         reply or "",
@@ -447,7 +447,7 @@ async def settle_on_an_approach(
         logger.info(
             "no approach in her answer (%d chars): %r",
             len(str(reply or "")),
-            " ".join(str(reply or "").split())[:200],
+            " ".join(str(reply or "").split())[:900],
         )
         return None
     return Strategy(
