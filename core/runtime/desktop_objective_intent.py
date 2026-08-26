@@ -918,3 +918,53 @@ __all__ = [
     "looks_like_filesystem_observation",
     "looks_like_screen_observation",
 ]
+
+
+#: Ways of asking to be kept company WHILE something happens.
+#:
+#: Distinct from asking to be told afterwards. "Tell me when you're done" is a
+#: report and can wait; "tell me what you're doing as you go" is company, and
+#: company cannot be delivered later.
+ACCOMPANIED = (
+    r"\bas\s+you\s+(?:go|work|play|do)\b",
+    r"\bwhile\s+you\s+(?:go|work|play|do|are)\b",
+    r"\bnarrat(?:e|ing)\b",
+    r"\bcommentary\b",
+    r"\btalk\s+me\s+through\b",
+    r"\bwalk\s+me\s+through\b",
+    r"\bkeep\s+me\s+posted\b",
+    r"\b(?:say|tell\s+me|call\s+out|announce)\s+[^.]{0,40}\b(?:each|every|before\s+each|as\s+each)\b",
+    r"\bbefore\s+(?:each|every)\s+\w+\b",
+    r"\b(?:step|move|turn)\s+by\s+(?:step|move|turn)\b",
+    r"\bwatch\s+you\b",
+    r"\blet\s+me\s+(?:see|watch)\b",
+    r"\bshow\s+me\s+(?:as|while)\b",
+    r"\bout\s+loud\b",
+    r"\bthink(?:ing)?\s+out\s+loud\b",
+)
+_ACCOMPANIED_RE = tuple(re.compile(pattern, re.IGNORECASE) for pattern in ACCOMPANIED)
+
+
+def asks_to_be_accompanied(user_message: Any) -> bool:
+    """Whether the person asked to be with her while she does it.
+
+    A long task is normally handed to the background and answered with a
+    receipt, because a person should not sit and wait on something that takes
+    minutes. That reasoning inverts the moment they ask to be told what is
+    happening as it happens: the telling IS the thing they asked for, and it
+    cannot be delivered afterwards.
+
+    LIVE 2026-08-26: "Find 2048 online, play it, and get to a 256 tile. Say
+    what you are about to do before each move, and tell me here when you have
+    it." came back as "Task accepted into governed background execution. Task
+    id: 3f5e2b3b. Commitment id: 2832f808." — a ticket, for a request whose
+    whole point was watching her do it.
+
+    General to anything anyone asks to watch: a build, a search, a form, a
+    game. Being told afterwards is a report and can wait; being told as it
+    happens is company and cannot.
+    """
+    text = str(user_message or "").strip()
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in _ACCOMPANIED_RE)

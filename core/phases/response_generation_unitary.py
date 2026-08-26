@@ -4909,15 +4909,23 @@ class UnitaryResponsePhase(Phase):
                 task_id = str(last_task_payload.get("task_id", "") or "").strip()
                 commitment_id = str(last_task_payload.get("commitment_id", "") or "").strip()
                 if task_summary or task_id or commitment_id:
-                    details = ["Task accepted into governed background execution."]
-                    if task_id:
-                        details.append(f"Task id: {task_id}.")
-                    if commitment_id:
-                        details.append(f"Commitment id: {commitment_id}.")
-                    if task_summary:
-                        details.append(task_summary)
-                    details.append("No completion is claimed yet.")
-                    ack_response = " ".join(details)
+                    # Said the way she would say it, not the way it is filed.
+                    #
+                    # This has to stay honest — nothing is finished and
+                    # nothing may be claimed — and it does. What it does not
+                    # have to be is a ledger entry read aloud: "Task accepted
+                    # into governed background execution. Task id: 3f5e2b3b.
+                    # Commitment id: 2832f808." told the person two internal
+                    # identifiers and the same sentence twice, because the
+                    # summary already said it.
+                    #
+                    # The ids stay attached where they are useful, in the
+                    # payload the surface already carries, rather than in the
+                    # middle of a sentence addressed to a person.
+                    said = task_summary or "I have started on it."
+                    if "no completion" not in said.lower() and "not claim" not in said.lower():
+                        said = f"{said.rstrip('.')}. I will tell you when it is actually done."
+                    ack_response = said
                     new_state.cognition.last_response = ack_response
                     logger.info(
                         "🎯 Background task already started (outcome=started). "

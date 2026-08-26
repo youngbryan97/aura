@@ -349,6 +349,32 @@ class TaskCommitmentVerifier:
         # 3. Estimate plan size to decide inline vs. async
         estimated_steps = self._estimate_steps(objective, assessment)
         is_long = force_async or estimated_steps > self.INLINE_STEP_THRESHOLD
+        # Unless the person asked to be with her while she does it.
+        #
+        # Handing a long task to the background and answering with a receipt
+        # is right when somebody would otherwise sit and wait. It inverts the
+        # moment they ask to be told what is happening AS it happens: the
+        # telling is the thing they asked for, and a ticket cannot deliver
+        # it. Live 2026-08-26, "play it and say what you are about to do
+        # before each move" was answered with a task id and a commitment id.
+        if is_long and not force_async:
+            try:
+                from core.runtime.desktop_objective_intent import (  # noqa: PLC0415
+                    asks_to_be_accompanied,
+                )
+
+                if asks_to_be_accompanied(requested_objective or objective):
+                    logger.info(
+                        "🎯 Kept in the foreground: the person asked to be told as it happens."
+                    )
+                    is_long = False
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "task_commitment_verifier",
+                    exc,
+                    severity="info",
+                    action="decided inline-or-background without checking for a request to watch",
+                )
 
         if is_long:
             return await self._dispatch_async(
@@ -901,11 +927,17 @@ class TaskCommitmentVerifier:
             commitment_id=commitment_id,
             objective=objective,
             requested_objective=requested_objective,
-            summary=(
-                f"Task accepted into governed background execution (id={task_id}). "
-                "The task ledger is tracking completion status. No completion is claimed yet."
-                + (f" Tracking commitment {commitment_id}." if commitment_id else "")
-            ),
+            # What a person needs to know, in the words a person uses.
+            #
+            # Everything that made the old line honest is still true and still
+            # said: it has started, and nothing is finished. What is gone is
+            # the filing. "Task accepted into governed background execution
+            # (id=3f5e2b3b). The task ledger is tracking completion status.
+            # No completion is claimed yet. Tracking commitment 2832f808."
+            # names two internal identifiers and the ledger that holds them,
+            # none of which the person can do anything with — and the ids are
+            # already attached to the payload the surface carries.
+            summary="I have started on that. Nothing is finished yet — I will tell you when it is.",
             elapsed_ms=elapsed,
         )
 
