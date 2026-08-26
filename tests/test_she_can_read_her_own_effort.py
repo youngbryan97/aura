@@ -17,6 +17,8 @@ with nothing under it.
 """
 from __future__ import annotations
 
+import pytest
+
 from core.brain.self_state_report import _effort_lines
 
 
@@ -57,3 +59,37 @@ def test_the_report_includes_it():
 
     source = inspect.getsource(self_state_report)
     assert "lines.extend(_effort_lines())" in source
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "How hard is the machine you run on working right now?",
+        "how busy is your host",
+        "what is your cpu load",
+        "how much memory are you holding",
+        "are you working hard",
+        "what is the load average",
+    ],
+)
+def test_asking_how_hard_she_is_working_reaches_the_instrument(asked):
+    """LIVE: "what is your cpu load" matched and "how hard is the machine you
+    run on working" did not.
+
+    She answered the second one with "any specific figure would be invented"
+    while the reading sat one function away — the failure mode of every fixed
+    phrase list is recognising the example it was written from.
+    """
+    from core.runtime.self_state_intent import asks_about_own_runtime
+
+    assert asks_about_own_runtime(asked)
+
+
+@pytest.mark.parametrize(
+    "asked",
+    ["what is the weather", "how hard is quantum computing", "tell me about mycelial networks"],
+)
+def test_an_ordinary_question_is_not_a_reading(asked):
+    from core.runtime.self_state_intent import asks_about_own_runtime
+
+    assert not asks_about_own_runtime(asked)

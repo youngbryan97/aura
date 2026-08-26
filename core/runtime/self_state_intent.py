@@ -35,6 +35,18 @@ _RUNTIME_INTROSPECTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         rf"\b{_SELF_SUBJECT}\s+(?:memory (?:usage|footprint|use)|ram|rss|footprint|cpu|load)\b",
         r"\bhow much (?:memory|ram|cpu)\b.{0,30}\b(?:are|do) you\b",
         r"\bhow much (?:memory|ram)\b.{0,20}\b(?:holding|using|consuming)\b",
+    # How hard she, or the machine under her, is working.
+    #
+    # "what is your cpu load" already matched and "how hard is the machine you
+    # run on working" did not, which is the failure mode of every fixed phrase
+    # list: it recognises the example it was written from. Live, she answered
+    # the second one with "any specific figure would be invented" while the
+    # reading sat one function away.
+    r"\bhow (?:hard|busy)\b.{0,40}\b(?:you|your|machine|host|hardware|box|system)\b",
+    r"\b(?:load average|cpu load|system load|utilisation|utilization)\b",
+    r"\bhow (?:loaded|taxed|stressed|strained)\b.{0,30}\b(?:are|is)\b",
+    r"\b(?:machine|host|hardware|box)\b.{0,30}\bworking\b",
+    r"\bare you (?:working hard|under load|struggling|busy)\b",
         # Which model / version is actually serving.
         rf"\b{_SELF_SUBJECT}\s+(?:model|version|build|weights|checkpoint)\b",
         r"\bwhich model (?:are|is) (?:you|running|serving)\b",
