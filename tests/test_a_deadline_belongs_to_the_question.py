@@ -51,3 +51,24 @@ def test_an_unmeasured_host_is_still_given_a_number():
 def test_a_mind_that_cannot_be_asked_leaves_the_budget_alone(monkeypatch):
     monkeypatch.delattr(mlx_client, "time_a_prompt_needs")
     assert time_this_question_needs("x" * 40000, 900, 8.0) == 8.0
+
+
+def test_a_plan_is_asked_in_one_pass_with_room_to_answer():
+    """The run is its own verifier, and the amplifier costs a generation each."""
+    import inspect
+
+    from core.agency import her_reasoning
+
+    source = inspect.getsource(her_reasoning.reasoning_for_a_plan)
+    assert "quick_reasoning(" in source
+    assert "PLAN_TOKENS" in source
+    assert her_reasoning.PLAN_TOKENS > her_reasoning.CHOICE_TOKENS
+
+
+def test_one_pass_is_also_given_the_time_its_question_needs():
+    import inspect
+
+    from core.agency import her_reasoning
+
+    source = inspect.getsource(her_reasoning.quick_reasoning)
+    assert "time_this_question_needs(" in source

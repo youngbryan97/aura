@@ -236,12 +236,18 @@ def reasoning_for_a_plan():
     person and cut this one off inside its own preamble. What this question
     needs is not a heavier pipeline, it is room to answer.
     """
-    return her_reasoning(
-        time_budget_s=DELIBERATE_BUDGET_S,
-        risk_level="normal",
-        origin="agency_settling_on_an_approach",
-        max_tokens=PLAN_TOKENS,
-    )
+    # One pass, with room to answer.
+    #
+    # The amplifier's value is agreement between several attempts and a
+    # verifier's opinion, and it costs a generation for each. Measured live
+    # 2026-08-26: twelve generations of 384 tokens at nine tokens a second —
+    # 528 seconds of a 600-second run spent deciding how to play rather than
+    # playing, for three approaches held.
+    #
+    # The run is its own verifier and a better one: every approach names the
+    # thing that would end it, and every move under it is checked against
+    # what actually happened.
+    return quick_reasoning(origin="agency_settling_on_an_approach", max_tokens=PLAN_TOKENS)
 
 
 def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):
@@ -290,9 +296,9 @@ def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOIC
         # Bounded here as well as at the endpoint: a client that never
         # returns is the same to this loop as one that returns nothing, and
         # only one of those is visible without a deadline of its own.
-        said = await asyncio.wait_for(
-            produce("\n".join([objective, *evidence]), 0.3), timeout=DECISION_BUDGET_S + 2.0
-        )
+        asked = "\n".join([objective, *evidence])
+        allow_s = time_this_question_needs(asked, max_tokens, DECISION_BUDGET_S)
+        said = await asyncio.wait_for(produce(asked, 0.3), timeout=allow_s + 2.0)
         answer = str(said or "").strip()
         if not answer:
             raise RuntimeError("her reasoning produced nothing (no text came back)")
