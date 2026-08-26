@@ -119,9 +119,17 @@ class ConativePhase(StrEnum):
     completing. A heart-jump at a smell is appetitive; the eating is
     consummatory; treating them as one state is why a satiated system keeps
     reporting appetite.
+
+    ``AWAITING`` is a third state Craig had no need for and a system with
+    social barriers does. Between wanting a lesson and having it there is a
+    stretch where the seeking has stopped — the thing is secured — and the
+    having has not started. That is neither appetitive nor consummatory, and
+    collapsing it into appetite makes a settled arrangement look like an
+    unmet need.
     """
 
     APPETITIVE = "appetitive"
+    AWAITING = "awaiting"
     CONSUMMATORY = "consummatory"
     QUIESCENT = "quiescent"
 
