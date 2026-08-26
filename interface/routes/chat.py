@@ -9319,6 +9319,21 @@ _SEAM_FELL_THROUGH = object()
 # ── Conversation Lane Helpers ─────────────────────────────────
 
 
+def _with_mood(prefix: str, sentence: str) -> str:
+    """A reply written to follow a mood prefix, said with or without one.
+
+    Each of these lines continues something: "Mmm, that answer took too long".
+    With no mood to continue from, the sentence has to start for itself —
+    otherwise it reaches the person as a fragment, which is how "that answer
+    took too long to finish cleanly." was read out lowercase. LIVE 2026-08-26.
+    """
+    said = str(sentence or "")
+    lead = str(prefix or "")
+    if lead:
+        return f"{lead}{said}"
+    return said[:1].upper() + said[1:] if said else said
+
+
 def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").strip().lower()
@@ -10259,6 +10274,11 @@ def _lane_status_message_body(
         )
 
     # Build a mood-aware prefix for softer messages
+    #
+    # Every line below is written to continue one: "Mmm, that answer took too
+    # long". With no mood to prefix, the sentence began lowercase and reached
+    # the person as a fragment — "that answer took too long to finish
+    # cleanly." LIVE 2026-08-26.
     _mood_prefix = ""
     try:
         _pe = ServiceContainer.peek("personality_engine", default=None)
@@ -10277,23 +10297,23 @@ def _lane_status_message_body(
 
     if status_override == "warming_timeout":
         return (
-            f"{_mood_prefix}the live answer lane exceeded its warm-up budget before "
-            "a reasoning turn began. I did not misclassify that boot delay as a failed answer."
+            _with_mood(_mood_prefix, "the live answer lane exceeded its warm-up budget before "
+            "a reasoning turn began. I did not misclassify that boot delay as a failed answer.")
         )
     if status_override == "warming_failed":
         return (
-            f"{_mood_prefix}the live answer lane could not finish preparing before "
-            "a reasoning turn began. I recorded the readiness failure separately from Aura's answer quality."
+            _with_mood(_mood_prefix, "the live answer lane could not finish preparing before "
+            "a reasoning turn began. I recorded the readiness failure separately from Aura's answer quality.")
         )
     if timed_out:
-        return f"{_mood_prefix}that answer took too long to finish cleanly. I logged the timeout and preserved the turn context."
+        return _with_mood(_mood_prefix, "that answer took too long to finish cleanly. I logged the timeout and preserved the turn context.")
     if _conversation_lane_is_standby(lane):
-        return f"{_mood_prefix}the local answer path is still preparing. I logged the cold lane instead of claiming Aura is ready."
+        return _with_mood(_mood_prefix, "the local answer path is still preparing. I logged the cold lane instead of claiming Aura is ready.")
     if state == "recovering":
-        return f"{_mood_prefix}the answer lane is recovering from the previous failure. I logged the degraded state instead of emitting a fragment."
+        return _with_mood(_mood_prefix, "the answer lane is recovering from the previous failure. I logged the degraded state instead of emitting a fragment.")
     if state == "failed":
-        return f"{_mood_prefix}the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer."
-    return f"{_mood_prefix}the answer path is not ready yet; the readiness state is recorded on the live lane."
+        return _with_mood(_mood_prefix, "the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer.")
+    return _with_mood(_mood_prefix, "the answer path is not ready yet; the readiness state is recorded on the live lane.")
 
 
 _last_recovery_cooldown_at: float = 0.0
