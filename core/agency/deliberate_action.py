@@ -202,8 +202,32 @@ class Deliberation:
         return f"{opening}. I expect {expects}." if expects else f"{opening}."
 
 
-def recall_consequences(action: str, *, graph: Any = None, depth: int = RECALL_DEPTH) -> list[str]:
-    """What happened the last few times this move was made."""
+def _how_alike(one: str, other: str) -> float:
+    """How much two situations have in common, by what is named in them.
+
+    Words rather than meaning, on purpose: this runs inside a loop that acts
+    several times a second, and the things that make two screens alike — the
+    values on them, the labels, the state — are named literally in what was
+    read. Nothing here is about any one kind of screen.
+    """
+    here = {word for word in re.findall(r"[\w.]+", str(one or "").lower()) if len(word) > 1}
+    there = {word for word in re.findall(r"[\w.]+", str(other or "").lower()) if len(word) > 1}
+    if not here or not there:
+        return 0.0
+    return len(here & there) / float(len(here | there))
+
+
+def recall_consequences(
+    action: str, *, graph: Any = None, depth: int = RECALL_DEPTH, like: str = ""
+) -> list[str]:
+    """What happened the last few times this move was made.
+
+    ``like`` is the situation she is in now. The same action has different
+    consequences in different situations — that is what a situation IS — so
+    recalling by action alone hands her the average of every board she has
+    ever seen instead of what happened on boards like this one. With it, the
+    few she is shown are the closest ones on record.
+    """
     try:
         if graph is None:
             from core.world_model.acg import acg as graph  # noqa: PLC0415
@@ -211,8 +235,16 @@ def recall_consequences(action: str, *, graph: Any = None, depth: int = RECALL_D
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("deliberate_action", exc, action="recall consequences of a move")
         return []
+    rows = list(rows)
+    if like:
+        rows.sort(
+            key=lambda row: _how_alike(like, str(row.get("context", "")))
+            if isinstance(row, Mapping)
+            else 0.0,
+            reverse=True,
+        )
     lines: list[str] = []
-    for row in list(rows)[:depth]:
+    for row in rows[:depth]:
         if not isinstance(row, Mapping):
             continue
         outcome = str(row.get("outcome", "")).strip()
@@ -616,7 +648,7 @@ async def deliberate(
 
     recalled: list[str] = []
     for option in options:
-        recalled.extend(recall_consequences(option.name, graph=graph))
+        recalled.extend(recall_consequences(option.name, graph=graph, like=situation))
         # Where the same move has gone more than one way, say so, so she is
         # deciding over what could happen and not over one expected future.
         spread = what_could_happen(option.name, graph=graph)

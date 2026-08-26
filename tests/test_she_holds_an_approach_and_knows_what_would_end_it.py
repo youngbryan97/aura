@@ -240,3 +240,51 @@ def test_a_condition_that_already_matched_is_unaffected():
     seen = _board(2, 4)
     seen["text"] = "You win! 2048"
     assert goal_reached(seen, "You win")
+
+
+class _WithSituations:
+    def __init__(self, rows):
+        self.rows = list(rows)
+
+    def query_consequences(self, action, params=None):
+        return self.rows
+
+
+def test_what_a_move_did_is_recalled_from_situations_like_this_one():
+    """The same action has different consequences in different situations —
+    that is what a situation IS. Recalling by action alone hands her the
+    average of every screen she has ever seen.
+    """
+    from core.agency.deliberate_action import recall_consequences
+
+    graph = _WithSituations([
+        {"action": "left", "context": "a full board with no empty squares",
+         "outcome": "nothing moved", "success": False},
+        {"action": "left", "context": "2 4 8 with a 64 bottom left",
+         "outcome": "merged into 128", "success": True},
+    ])
+    here = "2 4 8 with a 64 bottom left and a new 2"
+    closest = recall_consequences("left", graph=graph, depth=1, like=here)
+    assert closest == ["left worked before: merged into 128"]
+    unfiltered = recall_consequences("left", graph=graph, depth=1)
+    assert unfiltered == ["left did not work before: nothing moved"]
+
+
+def test_two_situations_with_nothing_in_common_are_not_alike():
+    from core.agency.deliberate_action import _how_alike
+
+    assert _how_alike("2 4 8 with a 64 bottom left", "a full board with no empty squares") < 0.2
+    assert _how_alike("2 4 8 with a 64 bottom left", "2 4 8 with a 64 bottom left") == 1.0
+    assert _how_alike("", "anything") == 0.0
+
+
+def test_recall_without_a_situation_behaves_as_it_always_did():
+    """Nothing that works today changes: the ordering only applies when there
+    is a situation to compare against."""
+    from core.agency.deliberate_action import recall_consequences
+
+    graph = _WithSituations([
+        {"action": "up", "context": "one", "outcome": "first", "success": True},
+        {"action": "up", "context": "two", "outcome": "second", "success": True},
+    ])
+    assert recall_consequences("up", graph=graph, depth=1) == ["up worked before: first"]

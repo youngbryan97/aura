@@ -809,13 +809,14 @@ async def pursue_on_screen(
     """
     from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency import what_she_is_doing as doing
+    from core.perception.where_it_responds import Responsive, describe, noticed, within
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.skills.fluid_executor import FluidExecutor, Step
 
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
-    pending: dict[str, Any] = {"deliberation": None, "before": ""}
+    pending: dict[str, Any] = {"deliberation": None, "before": "", "watched": {}}
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1058,6 +1059,8 @@ async def pursue_on_screen(
     #: The page this run belongs to, learned on the first cycle when the caller
     #: did not name one.
     anchor: dict[str, str] = {"page": expect_page.strip()}
+    #: Where her actions have been having their effects.
+    responds: dict[str, Any] = {"state": Responsive()}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         blocker = await clear_blocker(observation)
@@ -1078,7 +1081,23 @@ async def pursue_on_screen(
         if not observation.get("ok"):
             return None
 
-        seen = str(observation.get("text") or "")
+        # What she is looking at, kept to the part that answers to her.
+        #
+        # A reading of a screen is everything on it. On the page holding a
+        # game that is the board, the score, two advertising rails and a
+        # copyright line, so what she recalls about "a situation like this
+        # one" is dominated by whichever advertisement was loaded — and two
+        # readings of the same board look like different situations because
+        # the advertising rotated under her.
+        #
+        # Which part is the task is not written anywhere on the page, but it
+        # is answered by what happens when she acts. Until enough acts have
+        # answered it, this is the whole reading, because a guess about where
+        # the task is would be worse.
+        if pending["deliberation"] is not None and pending["before"]:
+            noticed(responds["state"], pending["watched"], observation)
+        band = responds["state"].band()
+        seen = within(observation, band)
 
         # Grade the last prediction before making another one.
         #
@@ -1311,6 +1330,9 @@ async def pursue_on_screen(
 
             pending["deliberation"] = chosen
             pending["before"] = seen
+            # Kept whole for the comparison that finds where she has effects,
+            # which cannot use a band it has not worked out yet.
+            pending["watched"] = observation
 
         moves.append({"key": key, "because": because, "at": time.time()})
         doing.a_step_taken()
@@ -1532,6 +1554,10 @@ async def pursue_on_screen(
         {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
         for a in history
     ]
+    where_it_answers = responds["state"].band()
+    if where_it_answers is not None:
+        result["responds_within"] = [round(edge, 3) for edge in where_it_answers]
+        result["responds_described"] = describe(where_it_answers)
     if plan["changes"]:
         result["changed_approach"] = plan["changes"]
     if plan["held"] is not None:
