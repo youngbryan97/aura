@@ -1,0 +1,42 @@
+# core/conation — layering rules. Written, not generated.
+#
+# Conation reads Aura's live state and prices it. It reaches for the drive
+# budgets, the interpersonal model, the novelty archive and the affect layer,
+# and it must reach for nothing that would let it become a second copy of any
+# of them. The `-core` line after the allowed edges forbids the rest.
+
+description = "core.conation: prices what is wanted from measured state; may not author text or hold a second copy of any organ it reads."
+
+include_rules = [
+    "+core.conation",
+
+    # Service lookup, for reading the organs below at call time.
+    "+core.container",
+    "+core.service_names",
+
+    # Degradation records, numeric guards, governed scopes.
+    "+core.runtime",
+    "+core.governance_context",
+
+    # Declared telemetry channels and structural invariants.
+    "+core.fsw",
+    "+core.verify",
+
+    # The organs conation reads rather than duplicates: resource budgets,
+    # the novelty archive and competence derivative, the affect layer that
+    # owns the body, and what she knows about people.
+    "+core.drive_engine",
+    "+core.adaptation",
+    "+core.affect",
+    "+core.memory",
+
+    # Everything else. In particular no brain, no llm, no interface: a
+    # motivational state must never be produced by generated text, and the
+    # cheapest way to guarantee that is to make the import impossible.
+    "-core",
+    "-interface",
+    "-skills",
+    "-llm",
+    "-executors",
+    "-aura_main",
+]

@@ -143,6 +143,22 @@ class CueRecord:
     last_wanting: float = 0.0
     last_seen: float = field(default_factory=time.time)
 
+    #: Which origins have ever supplied this cue's value, and how often. A
+    #: cached value is learned pull whose source is historical, and without
+    #: this the history is lost: after enough contacts a borrowed want and a
+    #: bodily one are the same number. Keeping the tally is the same refusal
+    #: the vicarious ledger makes, applied to the cache that outlives it.
+    origin_counts: dict[str, int] = field(default_factory=dict)
+
+    def attribute(self, origin: str) -> None:
+        self.origin_counts[origin] = self.origin_counts.get(origin, 0) + 1
+
+    def provenance(self) -> str | None:
+        """The origin that has most often supplied this cue's value."""
+        if not self.origin_counts:
+            return None
+        return max(self.origin_counts.items(), key=lambda kv: kv[1])[0]
+
     def liking_prediction(self, min_samples: int) -> float | None:
         """Hedonic estimate, or ``None`` while support is too thin to mean it."""
         if self.liking_samples < min_samples:
@@ -170,6 +186,8 @@ class CueRecord:
             "dissociations": self.dissociations,
             "drift": round(self.drift(), 6),
             "last_wanting": round(self.last_wanting, 6),
+            "provenance": self.provenance(),
+            "origin_counts": dict(self.origin_counts),
         }
 
 
@@ -305,6 +323,15 @@ class IncentiveSalience:
         record.last_wanting = wanting_now
         record.last_seen = time.time()
         return record
+
+    def attribute(self, key: str, origin: Any) -> None:
+        """Record which origin supplied this cue's value on this evaluation."""
+        self._touch(key).attribute(str(origin))
+
+    def provenance(self, key: str) -> str | None:
+        """Where this cue's cached pull came from, historically."""
+        record = self._records.get(key)
+        return None if record is None else record.provenance()
 
     def record_outcome(
         self,
