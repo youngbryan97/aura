@@ -223,12 +223,59 @@ def recall_consequences(action: str, *, graph: Any = None, depth: int = RECALL_D
     return lines
 
 
+#: Below this, the same move going different ways is noise rather than a
+#: world that answers the same action in more than one way.
+SPREAD_DEPTH = 4
+
+
+def what_could_happen(action: str, *, graph: Any = None, depth: int = 12) -> str:
+    """The different ways this move has gone before, when it has gone more than one.
+
+    A single expected outcome is a bet that the world is deterministic. Where
+    it is not — a board that deals a random tile, a page that loads
+    differently, anyone else acting at the same time — the record already
+    holds the answer: the same action, the same kind of situation, and more
+    than one result. Naming the spread lets her decide over what could happen
+    instead of over the one thing she expects, and lets her tell a move that
+    is genuinely unreliable from one she has simply not tried much.
+
+    Returns "" when the record has nothing to say, because a made-up spread
+    is worse than none.
+    """
+    try:
+        if graph is None:
+            from core.world_model.acg import acg as graph  # noqa: PLC0415
+        rows = list(graph.query_consequences(action) or [])[-depth:]
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("deliberate_action", exc, severity="info", action="weigh what a move could lead to")
+        return ""
+    if len(rows) < SPREAD_DEPTH:
+        return ""
+    worked = sum(1 for row in rows if isinstance(row, Mapping) and row.get("success"))
+    if worked in (0, len(rows)):
+        # It has always gone the same way. That is a prediction, not a spread.
+        return ""
+    return (
+        f"{action} has gone more than one way here: it worked {worked} of the "
+        f"last {len(rows)} times, so expect either."
+    )
+
+
 def confidence_from_history(recalled: Sequence[str]) -> float:
     """How much the record supports this move, with no record meaning no opinion."""
     if not recalled:
         return UNTRIED_CONFIDENCE
-    worked = sum(1 for line in recalled if " worked before" in line)
-    return (worked + 1.0) / (len(recalled) + 2.0)
+    grades = [line for line in recalled if " worked before" in line or " did not work before" in line]
+    if not grades:
+        return UNTRIED_CONFIDENCE
+    worked = sum(1 for line in grades if " worked before" in line)
+    settled = (worked + 1.0) / (len(grades) + 2.0)
+    # A move the world answers in more than one way is not a move she knows,
+    # however often it has worked. Confidence is pulled back toward no
+    # opinion rather than reported as if the next time were the average.
+    if any(" has gone more than one way here" in line for line in recalled):
+        return (settled + UNTRIED_CONFIDENCE) / 2.0
+    return settled
 
 
 def _situation_evidence(
@@ -540,6 +587,11 @@ async def deliberate(
     recalled: list[str] = []
     for option in options:
         recalled.extend(recall_consequences(option.name, graph=graph))
+        # Where the same move has gone more than one way, say so, so she is
+        # deciding over what could happen and not over one expected future.
+        spread = what_could_happen(option.name, graph=graph)
+        if spread:
+            recalled.append(spread)
 
     evidence = _situation_evidence(goal, situation, options, history, recalled, knowledge)
     spoke = think is not None

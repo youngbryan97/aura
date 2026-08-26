@@ -126,3 +126,60 @@ def test_the_approach_reads_as_something_a_person_would_say():
     said = held.narrate()
     assert said.startswith("Plan: ")
     assert "Watching for:" in said
+
+
+class _Recorded:
+    """A consequence graph holding what a move has led to before."""
+
+    def __init__(self, rows):
+        self.rows = list(rows)
+
+    def query_consequences(self, action, params=None):
+        return self.rows
+
+
+def test_a_move_the_world_answers_two_ways_is_named_as_such():
+    """A single expected outcome is a bet that the world is deterministic.
+
+    Where it is not, the record already holds the answer: the same action and
+    more than one result.
+    """
+    from core.agency.deliberate_action import what_could_happen
+
+    spread = _Recorded([{"success": i % 2 == 0, "outcome": f"o{i}"} for i in range(6)])
+    said = what_could_happen("up", graph=spread)
+    assert "more than one way" in said
+    assert "3 of the last 6" in said
+
+
+def test_a_move_that_has_always_gone_the_same_way_is_a_prediction_not_a_spread():
+    from core.agency.deliberate_action import what_could_happen
+
+    same = _Recorded([{"success": True, "outcome": "o"} for _ in range(6)])
+    assert what_could_happen("up", graph=same) == ""
+
+
+def test_too_little_record_says_nothing_rather_than_inventing_a_spread():
+    from core.agency.deliberate_action import SPREAD_DEPTH, what_could_happen
+
+    thin = _Recorded([{"success": bool(i), "outcome": "o"} for i in range(SPREAD_DEPTH - 1)])
+    assert what_could_happen("up", graph=thin) == ""
+
+
+def test_confidence_is_pulled_back_when_the_same_move_goes_two_ways():
+    """However often it has worked, a move the world answers in more than one
+    way is not a move she knows."""
+    from core.agency.deliberate_action import UNTRIED_CONFIDENCE, confidence_from_history
+
+    worked = ["up worked before: x"] * 4
+    settled = confidence_from_history(worked)
+    unsettled = confidence_from_history([*worked, "up has gone more than one way here: ..."])
+    assert settled > unsettled > UNTRIED_CONFIDENCE
+
+
+def test_a_spread_line_is_not_counted_as_a_grade():
+    """It describes the record; it is not another entry in it."""
+    from core.agency.deliberate_action import confidence_from_history
+
+    only_spread = ["up has gone more than one way here: it worked 3 of the last 6 times"]
+    assert confidence_from_history(only_spread) == pytest.approx(0.5)
