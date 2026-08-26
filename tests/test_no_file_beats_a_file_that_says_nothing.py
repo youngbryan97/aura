@@ -54,3 +54,44 @@ def test_every_way_the_writer_can_come_back_empty_is_recorded():
     could be written and nobody could tell which guard had fired."""
     source = inspect.getsource(DesktopTaskSkill._synthesize_requested_writing)
     assert source.count("_note_unauthored") >= 3
+
+
+import pytest  # noqa: E402
+
+from core.skills.desktop_task import _is_still_coming_up  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "answered",
+    [
+        "ROUTER_ERROR: worker_not_alive (at all_failed)",
+        "ROUTER_ERROR: init_not_complete (at Cortex)",
+        "ROUTER_ERROR: lane_handshaking (at Cortex)",
+    ],
+)
+def test_a_lane_that_is_coming_up_is_not_a_lane_that_refused(answered):
+    """LIVE 2026-08-26: the writing task got "worker_not_alive" seconds before
+    the same runtime answered an ordinary question, because the Cortex lane
+    was mid-warmup and this caller asked once and gave up."""
+    assert _is_still_coming_up(answered)
+
+
+@pytest.mark.parametrize(
+    "answered",
+    [
+        "ROUTER_ERROR: bad_request (at Cortex)",
+        "ROUTER_ERROR: context_too_long (at Cortex)",
+        "A real sentence about the evening.",
+        "",
+    ],
+)
+def test_a_real_failure_or_real_text_is_not_treated_as_warming(answered):
+    assert not _is_still_coming_up(answered)
+
+
+def test_the_writer_waits_once_for_a_warming_lane():
+    source = inspect.getsource(DesktopTaskSkill._synthesize_requested_writing)
+    assert "_is_still_coming_up(text)" in source
+    assert "_WARMING_RETRY_SECONDS" in source
+    # One wait, not a loop.
+    assert source.count("await _ask()") == 2

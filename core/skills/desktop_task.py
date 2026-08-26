@@ -227,6 +227,31 @@ def _without_filenames(text: str) -> str:
     return re.sub(r"\b[\w-]+\.[A-Za-z0-9]{1,6}\b", " ", str(text or ""))
 
 
+#: How long to wait for a writing lane that says it is still coming up.
+#:
+#: One wait, long enough for a worker that is mid-handshake and short enough
+#: that a person watching does not think it has hung. The outer timeouts still
+#: bound the whole attempt.
+_WARMING_RETRY_SECONDS = 8.0
+
+
+def _is_still_coming_up(text: Any) -> bool:
+    """Whether the router answered with its own not-ready label rather than text.
+
+    The router reports failure in band, as a string beginning ROUTER_ERROR, so
+    a caller that does not know the word writes the error into the document.
+    This one knows it, and treats the warming case as "not yet" rather than
+    "cannot".
+    """
+    said = str(text or "").strip()
+    if not said.startswith("ROUTER_ERROR"):
+        return False
+    return any(
+        marker in said
+        for marker in ("worker_not_alive", "init_not_complete", "lane_handshaking", "warming")
+    )
+
+
 def _note_unauthored(objective: str, why: str) -> None:
     """Record that she could not author what she was asked to write.
 
@@ -1701,8 +1726,8 @@ class DesktopTaskSkill(BaseSkill):
             "tools or steps, do not address the reader about the task, and do "
             "not restate the instruction. Output only the document text."
         )
-        try:
-            text = await asyncio.wait_for(
+        async def _ask() -> str:
+            return await asyncio.wait_for(
                 generate(
                     prompt=prompt,
                     timeout=45.0,
@@ -1714,6 +1739,22 @@ class DesktopTaskSkill(BaseSkill):
                 ),
                 timeout=50.0,
             )
+
+        try:
+            text = await _ask()
+            if _is_still_coming_up(text):
+                # Warming is not refusing.
+                #
+                # The chat lane waits for its worker; this one asked once and
+                # gave up, so a writing task that arrived during warmup was
+                # answered as though she could not write at all. LIVE
+                # 2026-08-26: "ROUTER_ERROR: worker_not_alive (at all_failed)"
+                # while the Cortex lane logged "state=warming ... completing
+                # foreground warmup before first generation" — seconds before
+                # the same runtime answered an ordinary question.
+                logger.info("desktop_task: writing lane still warming, waiting once")
+                await asyncio.sleep(_WARMING_RETRY_SECONDS)
+                text = await _ask()
         except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
             record_degradation(
                 "desktop_task",
