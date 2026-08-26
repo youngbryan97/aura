@@ -40,8 +40,11 @@ def _resident_encode_client(monkeypatch):
     client._active_generation_started_at = 0.0
     client._warmup_in_flight = False
     client._request_lock = threading.Lock()
+    client._request_lock_state_lock = threading.RLock()
     client._request_lock_owner_label = ""
+    client._request_lock_owner_token = ""
     client._request_lock_acquired_at = 0.0
+    client._detached_worker_requests = {}
     client._pending_generations = {}
     client._current_gen_future = None
     client._current_request_id = ""
@@ -253,28 +256,41 @@ def test_hidden_state_read_yields_when_foreground_arrives_during_fence(
     assert not client._request_lock.locked()
 
 
-def test_hidden_state_deadline_recycles_before_worker_is_published_idle(
+def test_hidden_state_deadline_stays_owned_until_its_terminal_frame(
     monkeypatch,
 ) -> None:
     from core.brain.llm import mlx_client
 
     client = _resident_encode_client(monkeypatch)
     client._req_q = queue.Queue()
-    recycled: list[tuple[str, bool]] = []
-
     async def expire(_future, *, timeout_s):
         assert timeout_s == 1.0
         raise TimeoutError
 
-    async def reboot(*, reason, mark_failed):
-        # Cleanup and lock release happen before a potentially slow recycle.
-        assert client._active_generations == 0
-        assert not client._request_lock.locked()
-        recycled.append((reason, mark_failed))
-
     monkeypatch.setattr(mlx_client, "_await_shared_future", expire)
-    client.reboot_worker = reboot
 
     assert asyncio.run(client.encode_hidden(["a bounded observation"], timeout_s=1.0)) == []
-    assert recycled == [("encode_hidden_deadline", False)]
+    assert client._active_generations == 1
+    assert client._request_lock.locked()
+    assert client._request_lock_owner_label == "model_hidden_features"
+    assert len(client._pending_generations) == 1
+    assert len(client._detached_worker_requests) == 1
+
+    request_id, future = next(iter(client._pending_generations.items()))
+    client._pending_generations.pop(request_id)
+    response = {
+        "id": request_id,
+        "action": "encode_hidden",
+        "status": "ok",
+        "vectors": [[0.5]],
+    }
+    assert asyncio.run(
+        client._route_terminal_worker_response(request_id, future, response)
+    )
+
+    assert client._active_generations == 0
+    assert client._current_gen_future is None
     assert client._pending_generations == {}
+    assert client._detached_worker_requests == {}
+    assert not client._request_lock.locked()
+    assert client._request_lock_owner_label == ""

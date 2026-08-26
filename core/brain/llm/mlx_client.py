@@ -40,6 +40,7 @@ from core.conversation.continuation import continuation_state_text
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import instrument
 from core.runtime.process_privilege import Privilege, ProcessRole
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
@@ -4792,6 +4793,13 @@ class MLXLocalClient:
         # separate event loop, causing RuntimeError. threading.Lock is loop-agnostic.
         self._lock = _threading.Lock()
         self._request_lock = _threading.Lock()
+        self._request_lock_state_lock = _threading.RLock()
+        self._request_lock_owner_token = ""
+        # Optional callers may stop waiting while their command is still
+        # running in the worker. The listener owns these requests until their
+        # correlated terminal frame arrives; publishing the lane as idle before
+        # then would let a foreground turn queue behind invisible model work.
+        self._detached_worker_requests: dict[str, tuple[SharedFuture, str]] = {}
         self._deferred_reboot_reason: str | None = None
         self._consecutive_spawn_failures: int = 0
         self._spawn_backoff_until: float = 0.0
@@ -7129,7 +7137,12 @@ class MLXLocalClient:
                     )
         return False
 
-    def _try_acquire_request_lock(self, *, owner_label: str) -> bool:
+    def _try_acquire_request_lock(
+        self,
+        *,
+        owner_label: str,
+        owner_token: str = "",
+    ) -> bool:
         """Acquire the worker lane without waiting.
 
         Optional background reads use this path because waiting behind model
@@ -7138,10 +7151,81 @@ class MLXLocalClient:
         regular request, so diagnostics never report an ownerless held lock.
         """
 
-        if not self._request_lock.acquire(False):
-            return False
-        self._request_lock_owner_label = str(owner_label or "")
-        self._request_lock_acquired_at = time.time()
+        with self._request_lane_state_guard():
+            if not self._request_lock.acquire(False):
+                return False
+            self._request_lock_owner_label = str(owner_label or "")
+            self._request_lock_owner_token = str(owner_token or "")
+            self._request_lock_acquired_at = time.time()
+            return True
+
+    def _release_request_lock_if_owned(
+        self,
+        *,
+        owner_label: str,
+        owner_token: str,
+    ) -> bool:
+        """Release only the request lane whose identity the caller owns."""
+
+        with self._request_lane_state_guard():
+            if not self._request_lock.locked():
+                return False
+            if self._request_lock_owner_label != str(owner_label or ""):
+                return False
+            if self._request_lock_owner_token != str(owner_token or ""):
+                return False
+            self._release_request_lock_locked()
+            return True
+
+    def _register_detached_worker_request(
+        self,
+        request_id: str,
+        future: SharedFuture,
+        *,
+        owner_label: str,
+    ) -> bool:
+        """Transfer an unfinished optional request from its caller to the listener."""
+
+        with self._request_lane_state_guard():
+            if future.done():
+                return False
+            if not hasattr(self, "_detached_worker_requests"):
+                self._detached_worker_requests = {}
+            self._detached_worker_requests[str(request_id)] = (
+                future,
+                str(owner_label or ""),
+            )
+            return True
+
+    async def _route_terminal_worker_response(
+        self,
+        request_id: str,
+        future: SharedFuture,
+        response: dict[str, Any],
+    ) -> bool:
+        """Deliver one terminal frame and retire listener-owned work."""
+
+        detached_owner = ""
+        with self._request_lane_state_guard():
+            detached_requests = getattr(self, "_detached_worker_requests", {})
+            detached = detached_requests.pop(str(request_id), None)
+            if detached is not None and detached[0] is future:
+                detached_owner = detached[1]
+            delivered = _set_shared_future_result(future, response)
+
+        if not detached_owner:
+            return delivered
+
+        await self._finish_generation_ownership(str(request_id), future, None)
+        released = self._release_request_lock_if_owned(
+            owner_label=detached_owner,
+            owner_token=str(request_id),
+        )
+        logger.info(
+            "🔤 [ENCODE] listener retired detached request %s (lane_released=%s).",
+            str(request_id)[:12],
+            released,
+        )
         return True
 
     def _release_request_lock_if_aborted(self, reason: str) -> None:
@@ -7152,19 +7236,43 @@ class MLXLocalClient:
         rather than the wedge's. When the lock is held by someone else, the
         lane stays fenced and the holder releases it in its own finally.
         """
-        holder = str(getattr(self, "_request_lock_owner_label", "") or "")
-        if not self._request_lock.locked():
+        if self._release_detached_request_lock():
             return
-        aborted_owner = bool(self._current_request_started_at > 0.0 or self._active_generations)
-        if holder and not aborted_owner:
-            logger.warning(
-                "🛑 [MLX] Force-abort (%s) left the request lane held by %s — "
-                "its own holder must release it.",
-                reason,
-                holder,
+        with self._request_lane_state_guard():
+            holder = str(getattr(self, "_request_lock_owner_label", "") or "")
+            if not self._request_lock.locked():
+                return
+            aborted_owner = bool(
+                self._current_request_started_at > 0.0 or self._active_generations
             )
-            return
-        self._release_request_lock()
+            if holder and not aborted_owner:
+                logger.warning(
+                    "🛑 [MLX] Force-abort (%s) left the request lane held by %s — "
+                    "its own holder must release it.",
+                    reason,
+                    holder,
+                )
+                return
+            self._release_request_lock_locked()
+
+    def _release_detached_request_lock(self) -> bool:
+        """Release the lane only when its token names listener-owned work."""
+
+        with self._request_lane_state_guard():
+            if not self._request_lock.locked():
+                return False
+            holder = str(getattr(self, "_request_lock_owner_label", "") or "")
+            owner_token = str(getattr(self, "_request_lock_owner_token", "") or "")
+            detached = getattr(self, "_detached_worker_requests", {}).get(owner_token)
+            if detached is None or detached[1] != holder:
+                return False
+            self._detached_worker_requests.pop(owner_token, None)
+            self._release_request_lock_locked()
+            return True
+
+    def _clear_detached_worker_requests(self) -> None:
+        with self._request_lane_state_guard():
+            getattr(self, "_detached_worker_requests", {}).clear()
 
     def _apply_pending_force_abort_reconcile(self) -> None:
         """Finish a forced abort's state reconciliation, under the lock.
@@ -7199,6 +7307,7 @@ class MLXLocalClient:
         self._cancel_lane_renewal_task()
         self._replace_ipc_queues()
         self._release_request_lock_if_aborted(str(reason))
+        self._clear_detached_worker_requests()
         logger.warning(
             "🧹 [MLX] Reconciled deferred force-abort state for %s (%s).",
             os.path.basename(self.model_path),
@@ -7206,7 +7315,25 @@ class MLXLocalClient:
         )
 
     def _release_request_lock(self) -> None:
+        with self._request_lane_state_guard():
+            self._release_request_lock_locked()
+
+    @contextlib.contextmanager
+    def _request_lane_state_guard(self):
+        """Serialize lane metadata when this is a fully constructed client."""
+
+        state_lock = getattr(self, "_request_lock_state_lock", None)
+        if state_lock is None:
+            yield
+            return
+        with state_lock, instrument("mlx_request_lane_state"):
+            yield
+
+    def _release_request_lock_locked(self) -> None:
+        """Release the lane while ``_request_lock_state_lock`` is held."""
+
         self._request_lock_owner_label = ""
+        self._request_lock_owner_token = ""
         self._request_lock_acquired_at = 0.0
         try:
             self._request_lock.release()
@@ -10806,6 +10933,8 @@ class MLXLocalClient:
             self._pending_generations.clear()
             self._current_gen_future = None
             self._active_generations = 0
+            self._release_detached_request_lock()
+            self._clear_detached_worker_requests()
 
             process, self._process = self._process, None
             if process is not None:
@@ -10866,13 +10995,17 @@ class MLXLocalClient:
         # entire deadline behind the other and logged a misleading worker
         # failure.  Hidden-state reads are optional, so they never wait for the
         # lane: either this read owns the worker now or it has no opinion.
-        if not self._try_acquire_request_lock(owner_label="model_hidden_features"):
+        request_id = uuid.uuid4().hex
+        owner_label = "model_hidden_features"
+        if not self._try_acquire_request_lock(
+            owner_label=owner_label,
+            owner_token=request_id,
+        ):
             logger.info("🔤 [ENCODE] declined: request_lane_busy")
             return []
 
         future: SharedFuture | None = None
-        request_id = ""
-        recycle_reason = ""
+        detached = False
         lane_protected = False
         response: Any = None
         try:
@@ -10901,7 +11034,6 @@ class MLXLocalClient:
                 logger.info("🔤 [ENCODE] declined: foreground_active_after_fence")
                 return []
 
-            request_id = uuid.uuid4().hex
             self._job_seq_counter += 1
             request = {
                 "id": request_id,
@@ -10923,17 +11055,35 @@ class MLXLocalClient:
             response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
         except (TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.info("🔤 [ENCODE] failed: %s: %s", type(exc).__name__, str(exc)[:160])
-            if isinstance(exc, TimeoutError):
-                # encode_hidden has no token loop to cancel cooperatively.  A
-                # timed-out command may still own the worker, so publishing it
-                # as idle would let foreground generation queue behind an
-                # invisible job.  Recycle only on this abnormal deadline path;
-                # ordinary contention was already declined before enqueue.
-                recycle_reason = "encode_hidden_deadline"
-            return []
+            if isinstance(exc, TimeoutError) and future is not None:
+                # The caller's patience is not evidence that the worker failed.
+                # Keep ownership with the request until the persistent listener
+                # sees its exact terminal frame. A foreground request can still
+                # invoke the measured preemption ladder if this work truly stalls.
+                detached = self._register_detached_worker_request(
+                    request_id,
+                    future,
+                    owner_label=owner_label,
+                )
+                if detached:
+                    logger.info(
+                        "🔤 [ENCODE] caller detached from request %s; worker ownership remains fenced.",
+                        request_id[:12],
+                    )
+                    return []
+                try:
+                    response = future.result()
+                except (
+                    cfutures.CancelledError,
+                    cfutures.InvalidStateError,
+                    asyncio.CancelledError,
+                ):
+                    return []
+            else:
+                return []
         finally:
             try:
-                if future is not None:
+                if future is not None and not detached:
                     await asyncio.shield(
                         self._finish_generation_ownership(
                             request_id,
@@ -10941,18 +11091,17 @@ class MLXLocalClient:
                             None,
                         )
                     )
-                elif lane_protected:
+                elif lane_protected and not detached:
                     released = await asyncio.shield(
                         self._set_durable_lane_preemptible(True)
                     )
                     if not released:
                         self._durable_lane_release_owed = True
             finally:
-                self._release_request_lock()
-                if recycle_reason:
-                    await self.reboot_worker(
-                        reason=recycle_reason,
-                        mark_failed=False,
+                if not detached:
+                    self._release_request_lock_if_owned(
+                        owner_label=owner_label,
+                        owner_token=request_id,
                     )
         if not isinstance(response, dict) or response.get("status") != "ok":
             logger.info(
@@ -11442,6 +11591,7 @@ class MLXLocalClient:
             # SECOND request into a critical section another caller was still
             # running — the abort's own damage, not the wedge's.
             self._release_request_lock_if_aborted(reason)
+            self._clear_detached_worker_requests()
             gc.collect()
         finally:
             if acquired:
@@ -12079,9 +12229,12 @@ class MLXLocalClient:
                     if isinstance(res, dict):
                         self._note_soft_cancel_acknowledgement(res)
                     future = self._pending_generations.pop(req_id, None) if req_id else None
-                    if future and not future.done():
+                    if future and await self._route_terminal_worker_response(
+                        str(req_id),
+                        future,
+                        res,
+                    ):
                         self._mark_progress()
-                        _set_shared_future_result(future, res)
                         continue
                     # A generation can finish after the caller has already
                     # abandoned it and started another turn. Never hand a
@@ -12170,6 +12323,8 @@ class MLXLocalClient:
                                 "memory_pressure": res.get("memory_pressure") or {},
                             },
                         )
+                    self._release_detached_request_lock()
+                    self._clear_detached_worker_requests()
                     continue
                 elif status == "error":
                     init_error = (
@@ -15965,7 +16120,9 @@ class MLXLocalClient:
 
             for future in list(self._pending_generations.values()):
                 _cancel_shared_future(future)
+            self._release_detached_request_lock()
             self._pending_generations.clear()
+            self._clear_detached_worker_requests()
             self._current_gen_future = None
             self._active_generations = 0
             if self._init_future is not None:
@@ -16286,6 +16443,7 @@ class MLXLocalClient:
             for future in pending_futures.values():
                 _cancel_shared_future(future)
             self._pending_generations.clear()
+            self._clear_detached_worker_requests()
             self._current_gen_future = None
             self._init_future = None
             self._active_generations = 0
