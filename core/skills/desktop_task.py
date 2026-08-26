@@ -1872,8 +1872,23 @@ class DesktopTaskSkill(BaseSkill):
             return False
         return bool(
             re.search(
-                r"\b(?:write|draft|compose|type|create|make\s+up|tell)\b.{0,80}\b"
-                r"(?:paragraph|note|document|essay|summary|report|journal entry|"
+                # Any verb that introduces authored content, not a chosen few.
+                #
+                # The list held "make up" and not "make", so "make a file on my
+                # Desktop with one sentence in it about what you did tonight"
+                # fell through to the deterministic composer and the file held
+                # "Notes on the requested subject: The requested subject is the
+                # focus of this note." Correctly created, correctly saved, and
+                # empty of content — for the third time, reached by a phrasing
+                # nobody had listed.
+                #
+                # Verbs of production are a small closed class and the same one
+                # every request uses; literary forms are open and there is
+                # always another. LIVE 2026-08-26.
+                r"\b(?:write|writing|written|draft|compose|type|create|make|made|put|"
+                r"add|save|jot|record|tell|generate|produce|fill)\b.{0,80}\b"
+                r"(?:paragraph|sentence|sentences|line|lines|note|document|essay|"
+                r"summary|report|journal entry|"
                 # Creative forms are freeform writing too. Without them, "write
                 # a haiku to a file called poem.txt" fell through to the
                 # deterministic composer and the file held "Notes on the

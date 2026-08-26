@@ -54,3 +54,42 @@ def test_a_creative_request_is_a_written_artifact() -> None:
     assert DesktopTaskSkill._objective_requests_written_artifact(
         "write a haiku to a file called poem.txt on my desktop"
     )
+
+
+@pytest.mark.parametrize(
+    "objective",
+    [
+        "make a file on my Desktop called aura_note.txt with one sentence in it "
+        "about what you did tonight",
+        "save one sentence about tonight to a file",
+        "put two lines about the weather in weather.txt",
+        "add a short note about the meeting to notes.txt",
+        "jot a line about this in scratch.txt",
+    ],
+)
+def test_a_verb_of_production_is_enough_to_reach_the_writer(objective):
+    """The verb list held "make up" and not "make".
+
+    LIVE 2026-08-26: "make a file on my Desktop with one sentence in it about
+    what you did tonight" fell through to the deterministic composer and the
+    file held "Notes on the requested subject: The requested subject is the
+    focus of this note." Correctly created, correctly saved, and empty of
+    content — for the third time, reached by a phrasing nobody had listed.
+
+    Verbs of production are a small closed class and the same one every
+    request uses. Literary forms are open, and there is always another.
+    """
+    assert DesktopTaskSkill._objective_requests_freeform_written_content(objective)
+
+
+@pytest.mark.parametrize(
+    "objective",
+    [
+        "open the notes app",
+        "delete the file called old.txt",
+        "take a screenshot",
+        "close the window",
+    ],
+)
+def test_a_request_that_authors_nothing_is_not_freeform_writing(objective):
+    assert not DesktopTaskSkill._objective_requests_freeform_written_content(objective)
