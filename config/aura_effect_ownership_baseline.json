@@ -2265,14 +2265,6 @@
       "scope": "<module>.guarded_write_text"
     },
     {
-      "callee": "core.runtime.atomic_writer.ensure_private_directory",
-      "canonical_owner": true,
-      "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>.FileWriteGateway._replace_symlink_unchecked"
-    },
-    {
       "callee": "core.runtime.atomic_writer.atomic_append_text",
       "canonical_owner": true,
       "category": "direct_atomic_file_write",
@@ -2415,6 +2407,14 @@
       "count": 1,
       "path": "core/runtime/file_write_gateway.py",
       "scope": "<module>.FileWriteGateway.write_text_async"
+    },
+    {
+      "callee": "core.runtime.atomic_writer.ensure_private_directory",
+      "canonical_owner": false,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/runtime/file_write_primitives.py",
+      "scope": "<module>.replace_symlink_unchecked"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
@@ -11986,27 +11986,19 @@
     },
     {
       "callee": "os.replace",
-      "canonical_owner": true,
+      "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>.FileWriteGateway._replace_symlink_unchecked"
+      "path": "core/runtime/file_write_batch_journal.py",
+      "scope": "<module>.recover_directory_batch"
     },
     {
-      "callee": "temporary.symlink_to",
-      "canonical_owner": true,
+      "callee": "os.replace",
+      "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>.FileWriteGateway._replace_symlink_unchecked"
-    },
-    {
-      "callee": "temporary.unlink",
-      "canonical_owner": true,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>.FileWriteGateway._replace_symlink_unchecked"
+      "path": "core/runtime/file_write_batch_journal.py",
+      "scope": "<module>.write_directory_batch_journal"
     },
     {
       "callee": "shutil.copy2",
@@ -12130,27 +12122,35 @@
     },
     {
       "callee": "os.replace",
-      "canonical_owner": true,
+      "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>._recover_directory_batch"
+      "path": "core/runtime/file_write_primitives.py",
+      "scope": "<module>.replace_symlink_unchecked"
+    },
+    {
+      "callee": "temporary.symlink_to",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/runtime/file_write_primitives.py",
+      "scope": "<module>.replace_symlink_unchecked"
+    },
+    {
+      "callee": "temporary.unlink",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/runtime/file_write_primitives.py",
+      "scope": "<module>.replace_symlink_unchecked"
     },
     {
       "callee": "os.unlink",
-      "canonical_owner": true,
+      "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>._unlink_private_regular_at"
-    },
-    {
-      "callee": "os.replace",
-      "canonical_owner": true,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/file_write_gateway.py",
-      "scope": "<module>._write_directory_batch_journal"
+      "path": "core/runtime/file_write_primitives.py",
+      "scope": "<module>.unlink_private_regular_at"
     },
     {
       "callee": "self._db_path.parent.mkdir",
@@ -15914,6 +15914,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0639966174c2f80a84d78f2fa36b98dc935fef2875c01b3797505fe4a38793f7",
+  "inventory_sha256": "4c2ccb0d077547e0e0a5f9995aba07d4cdc52fe4a5b98247bbd402f205925691",
   "schema_version": 1
 }
