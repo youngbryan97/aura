@@ -68,6 +68,26 @@ def _router() -> Any:
         return None
 
 
+def time_this_question_needs(prompt: str, max_tokens: int, floor_s: float) -> float:
+    """How long to allow, from the size of what is asked and what is wanted back.
+
+    A budget picked as a constant has to fit both "left" and "how should I
+    play this", and fits neither. Live 2026-08-26: every approach question in
+    a game of 2048 timed out at the eight seconds that suit a one-word move,
+    so she played the whole game with no plan and nothing said why.
+
+    Never shortens what the caller asked for — only lengthens it to what the
+    machine has been measured needing.
+    """
+    try:
+        from core.brain.llm.mlx_client import time_a_prompt_needs  # noqa: PLC0415
+
+        needed = time_a_prompt_needs(len(str(prompt or "")), max_tokens)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return float(floor_s)
+    return max(float(floor_s), needed)
+
+
 def generator(
     *,
     origin: str = "agency_next_move",
@@ -81,6 +101,7 @@ def generator(
         router = _router()
         if router is None:
             raise RuntimeError("no model router is registered")
+        allow_s = time_this_question_needs(prompt, max_tokens, timeout_s)
         messages = [
             {"role": "system", "content": CHOOSING_ROLE},
             {"role": "user", "content": prompt},
@@ -103,7 +124,7 @@ def generator(
             # and the whole run stood still for it. Past this, deciding from
             # evidence is not just faster, it is the only thing that is still
             # a decision about the board in front of her.
-            timeout=timeout_s,
+            timeout=allow_s,
             # Deciding a move is not answering a person. Without this the
             # user-surface reply contract is applied to the decision and
             # grades it against a question invented from its own prompt:
@@ -157,6 +178,8 @@ def her_reasoning(
     async def think(objective: str, evidence: Sequence[str]) -> str:
         from core.brain.reasoning_amplifier_v2 import amplify_turn  # noqa: PLC0415
 
+        asked = "\n".join([objective, *evidence])
+        allow_s = time_this_question_needs(asked, max_tokens, time_budget_s)
         amplified = await asyncio.wait_for(
             amplify_turn(
                 objective,
@@ -164,9 +187,9 @@ def her_reasoning(
                 task_type="planning",
                 evidence=list(evidence),
                 risk_level=risk_level,
-                time_budget_s=time_budget_s,
+                time_budget_s=allow_s,
             ),
-            timeout=time_budget_s + 4.0,
+            timeout=allow_s + 4.0,
         )
         answer = str(amplified.answer or "").strip()
         if not answer:

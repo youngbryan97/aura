@@ -81,6 +81,44 @@ _UNMEASURED_PREFILL_RATE = 300.0
 #: and a deadline with no room for that cancels healthy work.
 _PREFILL_HEADROOM = 3.0
 
+#: What this host has actually been measured doing, kept where a caller who
+#: has to size a deadline can read it.
+#:
+#: A question's deadline belongs to the question. Sized from a constant
+#: instead, one budget has to fit both "left" and "how should I play this",
+#: and it fits neither: measured live 2026-08-26, every approach question in
+#: a game timed out at eight seconds and she played the whole thing with no
+#: plan. These are rates this machine was seen working at, not guesses.
+_HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0}
+
+#: Decode is slower and more variable than prefill, so an unmeasured worker
+#: is credited with little until it proves otherwise.
+_UNMEASURED_DECODE_RATE = 8.0
+
+
+def observed_rates() -> dict[str, float]:
+    """Prefill and decode rates this host has been measured at, tokens a second."""
+    return {
+        "prefill": _HOST_RATES["prefill"] or _UNMEASURED_PREFILL_RATE,
+        "decode": _HOST_RATES["decode"] or _UNMEASURED_DECODE_RATE,
+    }
+
+
+def time_a_prompt_needs(prompt_chars: int, max_tokens: int) -> float:
+    """The least time in which this question could be read and answered.
+
+    Reading the prompt and writing the answer are separate costs and both are
+    real: an answer that is a whole plan takes many more tokens than an answer
+    that is one word, on top of a prompt that is far longer.
+    """
+    rates = observed_rates()
+    chars = max(0, int(prompt_chars or 0))
+    wanted = max(0, int(max_tokens or 0))
+    reading = (chars / _CHARS_PER_TOKEN / rates["prefill"]) * _PREFILL_HEADROOM
+    writing = wanted / rates["decode"]
+    return reading + writing
+
+
 logger = logging.getLogger("LLM.MLX")
 
 # Abort reasons that race a finishing generation: losing that race is the
@@ -6136,6 +6174,7 @@ class MLXLocalClient:
                 self._prefill_tokens_per_s = (
                     observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                 )
+                _HOST_RATES["prefill"] = self._prefill_tokens_per_s
         if done != last_done:
             self._prefill_observed_at = now
             self._prefill_observed_tokens = done
@@ -6158,6 +6197,17 @@ class MLXLocalClient:
             # malformed messages. It still proves the worker is alive.
             self._mark_progress()
             return
+        # Decode measured the same way prefill is: between two observations,
+        # so queueing before the first token is not charged to writing.
+        previous_at = float(getattr(self, "_last_token_progress_at", 0.0) or 0.0)
+        if previous_at > 0.0 and self._current_first_token_at > 0.0:
+            spent = now - previous_at
+            if 0.005 < spent < 5.0:
+                observed = 1.0 / spent
+                previous = _HOST_RATES["decode"]
+                _HOST_RATES["decode"] = (
+                    observed if previous <= 0.0 else previous * 0.8 + observed * 0.2
+                )
         self._last_token_progress_at = now
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
