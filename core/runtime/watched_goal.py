@@ -46,8 +46,22 @@ CONTINUING: tuple[str, ...] = (
 )
 _CONTINUING_RE = tuple(re.compile(pattern, re.IGNORECASE) for pattern in CONTINUING)
 
-#: Words that introduce the condition which ends the watching.
+#: Words that introduce the condition which ends the watching, by saying WHEN.
 UNTIL = ("until", "till", "til", "up to", "as soon as", "once you", "when you", "when it", "once it")
+
+#: Words that introduce it by naming what is being AIMED AT.
+#:
+#: A finish can be said either way and they mean the same thing: "play until
+#: you get a 256 tile" and "play it and get to a 256 tile" are one request.
+#: LIVE 2026-08-26: the second was not recognised as a goal to keep at, so it
+#: never reached the lane that plays anything — it was answered with a web
+#: search while the board sat untouched. The capability was there; the
+#: phrasing could not reach it.
+AIMING_AT = (
+    "get to", "gets to", "getting to", "get me to", "reach", "reaches", "reaching",
+    "get a", "get an", "get the", "make a", "make an", "make the", "hit a", "hit an",
+    "hit the", "score a", "score an", "score the", "up to a", "to a", "to an",
+)
 #: A browser's own furniture repeats page words in the tab strip and the
 #: address bar, so a condition matched anywhere on screen can be satisfied by
 #: the title before anything happens. Content starts below the chrome.
@@ -110,19 +124,34 @@ def _continuation(text: str) -> str:
     return ""
 
 
-def _condition_clause(text: str) -> str:
-    """The part of the request that says when to stop."""
+def _condition_clauses(text: str) -> list[str]:
+    """Every part of the request that could be saying when to stop, in order.
+
+    More than one, because a request usually carries more than one candidate
+    and the last is not always the right one. LIVE 2026-08-26: "Find 2048
+    online, play it, and get to a 256 tile. Say what you are about to do
+    before each move, and tell me here when you have it." — the rider on the
+    end reads as a condition ("when you ... have it") and, taken as the
+    latest, it stole the finish from the tile that was actually being played
+    for.
+    """
     lowered = text.lower()
-    best = -1
-    clause = ""
-    for word in UNTIL:
-        found = lowered.find(word)
-        if found < 0:
-            continue
-        if found > best:
-            best = found
-            clause = text[found + len(word) :]
-    return clause.strip(" ,.—-")
+    found: list[tuple[int, str]] = []
+    for word in (*UNTIL, *AIMING_AT):
+        start = lowered.find(word)
+        while start >= 0:
+            clause = text[start + len(word) :].strip(" ,.—-")
+            if clause:
+                found.append((start, clause))
+            start = lowered.find(word, start + 1)
+    found.sort(key=lambda pair: pair[0])
+    return [clause for _at, clause in found]
+
+
+def _condition_clause(text: str) -> str:
+    """The single part of the request that says when to stop, best first."""
+    clauses = _condition_clauses(text)
+    return clauses[-1] if clauses else ""
 
 
 def _finishing_test(clause: str) -> str:
@@ -158,6 +187,77 @@ def _finishing_test(clause: str) -> str:
         if word.lower() in {"done", "finished", "complete", "passed", "failed", "ready"}:
             return word
     return ""
+
+
+def _best_finishing_test(text: str) -> str:
+    """The strongest finish the request names.
+
+    A number or a quoted phrase is a thing the screen can be matched against
+    and needs no interpretation, so one of those beats a clause that names
+    nothing in particular however late it appears. Without this, a closing
+    "tell me when you have it" outranked the tile being played for.
+    """
+    clauses = _condition_clauses(text)
+    named: list[str] = []
+    for clause in clauses:
+        test = _finishing_test(clause)
+        if not test:
+            continue
+        if re.fullmatch(r"\d[\d,]*", test) or f'"{test}"' in text or f"'{test}'" in text:
+            return test
+        named.append(test)
+    if named:
+        return named[-1]
+    # No clause named it, so the request names it some other way.
+    #
+    # People say a target in more ways than any list of verbs will hold: "I
+    # want to see a 1024 tile", "show me a 512", "I'd like a 2048 out of
+    # this". The continuation cue has already established that this is a
+    # thing to keep at, and in a thing to keep at, a value named in it is
+    # what finishing looks like. Listing the verbs instead would leave the
+    # next phrasing outside the capability again.
+    #
+    # Two values are not targets: a duration says how long rather than what,
+    # and the name of the thing being worked in is not a state of it.
+    return _value_named_in(text, skipping=_where_it_happens(text))
+
+
+#: Units that make a number a duration or a count of tries rather than a
+#: state the screen will show.
+NOT_A_TARGET = (
+    "second", "seconds", "sec", "secs", "minute", "minutes", "min", "mins",
+    "hour", "hours", "day", "days", "time", "times", "move", "moves", "round",
+    "rounds", "turn", "turns", "try", "tries", "attempt", "attempts", "game", "games",
+)
+
+
+def _value_named_in(text: str, *, skipping: str = "") -> str:
+    """The value this request is aiming at, when no clause introduced one.
+
+    One value in a request that names a thing is that thing's name: "play
+    2048" is not a request to reach 2048, and "keep playing 2048 for 30
+    moves" says how long rather than what. It takes a second value for one of
+    them to be a target — "keep playing 2048, I want to see a 1024 tile" —
+    and the target is the later one, because the thing is named before the
+    state it should reach.
+    """
+    body = str(text or "")
+    excluded = {word.replace(",", "") for word in re.findall(r"\d[\d,]*", str(skipping or ""))}
+    candidates: list[str] = []
+    for found in re.finditer(r"\b(\d[\d,]{0,9})\b", body):
+        value = found.group(1).replace(",", "")
+        after = body[found.end() : found.end() + 24].strip().lower()
+        if any(re.match(rf"{unit}\b", after) for unit in NOT_A_TARGET):
+            # How long, or how many tries. Neither is a state of the screen.
+            continue
+        candidates.append(value)
+    distinct = list(dict.fromkeys(candidates))
+    remaining = [value for value in distinct if value not in excluded]
+    if excluded and remaining:
+        return remaining[-1]
+    if len(distinct) < 2:
+        return ""
+    return distinct[-1]
 
 
 def _named_app(text: str) -> str:
@@ -258,7 +358,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     cue = _continuation(text)
     if not cue:
         return None
-    condition = _finishing_test(_condition_clause(text))
+    condition = _best_finishing_test(text)
     if not condition:
         return None
 
