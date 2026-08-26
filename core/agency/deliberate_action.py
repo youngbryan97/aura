@@ -137,6 +137,17 @@ class ActionOption:
     params: Mapping[str, Any] = field(default_factory=dict)
     detail: str = ""
     expectation: Expectation = field(default_factory=Expectation)
+    #: Whether taking this needs a reason in words.
+    #:
+    #: Most choices are fine to make from evidence — that is what keeps a
+    #: loop fast, and the model is her language organ rather than her
+    #: decision organ. Some are not: an option that throws away the work so
+    #: far is not the kind of thing to reach for because it happened to rank
+    #: highest with nothing else working. Measured live, a run with language
+    #: out of reach began the task again three times in a hundred seconds,
+    #: each time from a ranking, and each restart erased the record the
+    #: ranking was built on.
+    needs_words: bool = False
 
     def label(self) -> str:
         return f"{self.name}: {self.detail}" if self.detail else self.name
@@ -479,6 +490,12 @@ def choose_without_language(
     """
     if not options:
         return None, "nothing is available to do"
+
+    # Some things are not hers to do on a ranking alone.
+    speakable = [option for option in options if not option.needs_words]
+    if not speakable:
+        return None, "everything available needs a reason I cannot put into words right now"
+    options = speakable
 
     failed_recently: dict[str, int] = {}
     tried_at: dict[str, int] = {}

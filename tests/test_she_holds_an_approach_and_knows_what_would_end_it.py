@@ -332,3 +332,42 @@ def test_the_loop_hands_her_approach_to_every_decision():
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     assert 'approach=plan["held"].approach if plan["held"] is not None else ""' in source
+
+
+def test_throwing_away_the_work_so_far_is_not_reachable_from_a_ranking():
+    """Most choices are fine to make from evidence — that is what keeps a
+    loop fast. Some are not.
+
+    Measured live with language out of reach: a run began the task again
+    three times in a hundred seconds, each time from a ranking, and each
+    restart erased the record the ranking was built on. With the costly ways
+    out held behind words: no restarts, 66 moves graded, and she kept playing.
+    """
+    from core.agency.deliberate_action import choose_without_language
+
+    moves = [ActionOption(name=name, detail=f"press {name}") for name in ("up", "down")]
+    costly = ActionOption(name="start over", detail="begin again", needs_words=True)
+    chosen, _why = choose_without_language([*moves, costly], wanted="begin again from the start")
+    assert chosen.name != "start over"
+
+
+def test_when_everything_available_needs_words_she_says_so():
+    from core.agency.deliberate_action import choose_without_language
+
+    only_costly = [ActionOption(name="start over", needs_words=True)]
+    chosen, why = choose_without_language(only_costly)
+    assert chosen is None
+    assert "words" in why
+
+
+def test_the_ways_out_of_a_stuck_run_are_the_ones_held_behind_words():
+    from core.skills.screen_pursuit import ways_out
+
+    seen = {
+        "ok": True,
+        "text": "New Game",
+        "layout": [{"text": "New Game", "x": 0.5, "y": 0.2, "center_x": 0.5, "center_y": 0.2}],
+    }
+    offered = ways_out(seen)
+    assert offered, "a stuck run was offered no way out at all"
+    assert all(option.needs_words for option in offered)

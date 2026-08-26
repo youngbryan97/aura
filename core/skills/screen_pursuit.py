@@ -679,6 +679,7 @@ def ways_out(observation: dict[str, Any]) -> list[Any]:
         ActionOption(
             name=SEE_IT_THROUGH,
             detail="keep playing this out and learn from how it ends",
+            needs_words=True,
             expectation=Expectation(
                 changed=False, describes="to reach the end of this attempt and know why it failed"
             ),
@@ -692,6 +693,7 @@ def ways_out(observation: dict[str, Any]) -> list[Any]:
             ActionOption(
                 name=START_OVER,
                 params={"label": label, "x": x, "y": y},
+                needs_words=True,
                 detail=f"begin again with {label!r}, knowing what this attempt taught",
                 expectation=Expectation(changed=True, describes="a fresh start on the same task"),
             ),
