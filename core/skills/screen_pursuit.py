@@ -1406,6 +1406,12 @@ async def pursue_on_screen(
                         _tell("Nothing I do is changing anything here — this attempt is over.")
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
+            # A pace chosen because the commentary was behind ends when it
+            # is not. Left standing, one choice governs the whole run and she
+            # never gets asked again.
+            if pacing["choice"] and not behind.get("waiting"):
+                pacing["choice"] = ""
+                pacing["brief"] = False
             offered_pacing = bool(behind.get("waiting")) and not pacing["choice"]
             if offered_pacing:
                 available = available + pacing_options(behind)
@@ -1553,7 +1559,14 @@ async def pursue_on_screen(
             # pattern it has already chosen pays the whole cycle per move —
             # measured live, about one move every three seconds, where a
             # person plays several a second.
-            sequence = [key, *follow_on] if follow_on and not pacing["brief"] else [key]
+            # Saying less is about her mouth, not her hands.
+            #
+            # Choosing it collapsed every committed sequence to a single key
+            # for the rest of the run, so one decision about commentary cost
+            # her all multi-move play: measured live 2026-08-26, forty-eight
+            # cycles that had committed to two to four moves each produced
+            # fifty-three moves between them, one screen reading apiece.
+            sequence = [key, *follow_on] if follow_on else [key]
             # Intent, then action. Said before the body moves, because that is
             # the order a person doing something narrates it in.
             #
@@ -1563,7 +1576,10 @@ async def pursue_on_screen(
             # left-then-right and narrated "Going right — left has worked."
             for position, step in enumerate(sequence):
                 reason = (None if pacing["brief"] else made) if position == 0 else None
-                _say_intent(step, reason, out_loud=narrate, following_on=position > 0)
+                # Under a quiet pace only the first of a sequence is spoken.
+                # The moves still happen; what she asked for is fewer words.
+                aloud = narrate and (position == 0 or not pacing["brief"])
+                _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
             if len(sequence) > 1:
                 # Only the keys that really landed are spoken for. Focus can
                 # move part-way through a batch, and a commentary describing
