@@ -28,12 +28,12 @@ from core.executive.bounded_sandbox_policy import (
     validate_idle_sandbox_probe_arguments,
 )
 from core.executive.execution_policy import (
-    scope_is_within,
     classify_execution_risk,
     normalize_risk,
     normalize_tool_name,
     resolve_execution_effect_scope,
     risk_at_most,
+    scope_is_within,
 )
 from core.runtime.errors import record_degradation
 from core.runtime.receipts import AutonomyReceipt, get_receipt_store

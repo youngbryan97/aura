@@ -20,6 +20,8 @@ starting over in the worst moment to start over.
 """
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import re
 import time
@@ -374,7 +376,20 @@ async def settle_on_an_approach(
             evidence.append(attempt.as_evidence())
     try:
         reply = await think(_asking_for_an_approach(goal, situation, options), evidence)
-    except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
+    except asyncio.CancelledError:
+        # Her own deadline, or ours.
+        #
+        # A thought that ran out of time arrives here the same way a task
+        # being torn down does, and the two must not be treated alike: the
+        # first is an ordinary answer of "not this time", the second is a
+        # shutdown that has to keep travelling. The current task knows which
+        # it is, because only a real cancellation is recorded against it.
+        current = asyncio.current_task()
+        if current is not None and current.cancelling():
+            raise
+        logger.info("her thinking ran out of time before it named an approach")
+        return None
+    except Exception as exc:  # noqa: BLE001 - see below
         # Not having a plan this time is an ordinary outcome, not damage.
         #
         # Recorded once and then left alone. Measured live: twenty of these
@@ -383,6 +398,12 @@ async def settle_on_an_approach(
         # unanswered attempt as a subsystem degradation. The condition worth
         # recording is that she keeps failing to form a plan, and one entry
         # says that as well as twenty do.
+        # Caught wide on purpose. A narrow tuple here read as care and was
+        # blindness: anything outside it left this function without touching
+        # a single line of logging, and the caller — which must survive a
+        # thought that fails — swallowed it. LIVE 2026-08-26: twenty-five
+        # approach questions asked, not one answer, not one word about why.
+        logger.info("could not settle on an approach: %s", exc.__class__.__name__)
         if not _said_it_could_not_plan["value"]:
             _said_it_could_not_plan["value"] = True
             record_degradation(

@@ -10,7 +10,12 @@ discovered when it fails.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+
 import pytest
+
+from core.agency import standing_strategy
 
 from core.agency.deliberate_action import ActionOption
 from core.agency.standing_strategy import (
@@ -469,3 +474,61 @@ def test_a_move_or_a_preference_is_not_an_approach(said):
     """A bare option name is a move and two words of encouragement is a
     preference. Anchoring either to the board would dress it up as a plan."""
     assert read_strategy(said, MOVES, situation=BOARD) is None
+
+
+class _ThinkingThatFails:
+    """A mind that fails in a way nobody wrote a tuple for."""
+
+    def __init__(self, raising: BaseException) -> None:
+        self.raising = raising
+
+    async def __call__(self, *_args, **_kwargs):
+        raise self.raising
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [KeyError("gone"), OSError("no socket"), ZeroDivisionError("nonsense")],
+)
+async def test_a_thought_that_fails_any_way_at_all_is_still_no_plan(failure, caplog):
+    """Whatever her thinking raises, the answer is no plan — and it is said."""
+    with caplog.at_level(logging.INFO, logger="Aura.Strategy"):
+        settled = await standing_strategy.settle_on_an_approach(
+            "get to 256", "2 4 8", MOVES, think=_ThinkingThatFails(failure)
+        )
+    assert settled is None
+    assert "could not settle on an approach" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_thought_that_ran_out_of_time_is_no_plan_not_a_teardown(caplog):
+    with caplog.at_level(logging.INFO, logger="Aura.Strategy"):
+        settled = await standing_strategy.settle_on_an_approach(
+            "get to 256",
+            "2 4 8",
+            MOVES,
+            think=_ThinkingThatFails(asyncio.CancelledError()),
+        )
+    assert settled is None
+    assert "ran out of time" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_real_cancellation_keeps_travelling():
+    """Tearing the task down must not be read as an ordinary failed thought."""
+    thinking = asyncio.Event()
+
+    async def never_answers(*_args, **_kwargs):
+        thinking.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.ensure_future(
+        standing_strategy.settle_on_an_approach(
+            "get to 256", "2 4 8", MOVES, think=never_answers
+        )
+    )
+    await thinking.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
