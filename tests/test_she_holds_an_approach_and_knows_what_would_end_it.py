@@ -183,3 +183,60 @@ def test_a_spread_line_is_not_counted_as_a_grade():
 
     only_spread = ["up has gone more than one way here: it worked 3 of the last 6 times"]
     assert confidence_from_history(only_spread) == pytest.approx(0.5)
+
+
+def _board(*values) -> dict:
+    layout = [
+        {"text": str(value), "x": 0.3 + 0.1 * i, "y": 0.4, "center_x": 0.3 + 0.1 * i,
+         "center_y": 0.4, "width": 0.06, "height": 0.05}
+        for i, value in enumerate(values)
+    ]
+    layout.append(
+        {"text": "SCORE", "x": 0.7, "y": 0.1, "center_x": 0.7, "center_y": 0.1,
+         "width": 0.08, "height": 0.03}
+    )
+    layout.append(
+        {"text": "1024", "x": 0.78, "y": 0.1, "center_x": 0.78, "center_y": 0.1,
+         "width": 0.06, "height": 0.03}
+    )
+    return {"ok": True, "text": " ".join([*(str(v) for v in values), "SCORE 1024"]), "layout": layout}
+
+
+def test_a_goal_described_in_words_still_notices_the_value_it_names():
+    """Her own goal reader turns "play until you get a 128 tile" into "128",
+    so the usual path never sees a sentence. A caller that passes the
+    description straight through waited forever with the tile in front of
+    her: 494 moves, a 128 on the board, and the run reported out of time.
+    """
+    from core.skills.screen_pursuit import goal_reached
+
+    seen = _board(2, 64, 128, 4)
+    assert goal_reached(seen, "a 128 tile is on the board")
+    assert goal_reached(seen, "128")
+    assert not goal_reached(seen, "a 4096 tile is on the board")
+
+
+def test_the_value_still_has_to_be_a_thing_and_not_a_label_s_number():
+    """The reason the strict path exists: "SCORE 1024" is not a 1024 tile."""
+    from core.skills.screen_pursuit import goal_reached
+
+    assert not goal_reached(_board(2, 4, 8), "a 1024 tile is on the board")
+    assert not goal_reached(_board(2, 4, 8), "1024")
+
+
+def test_a_description_naming_no_single_value_is_left_alone():
+    """Only a condition naming exactly one value gets the second reading.
+    Anything else means what it says."""
+    from core.skills.screen_pursuit import goal_reached
+
+    seen = _board(2, 64, 128, 4)
+    assert not goal_reached(seen, "a 128 or 256 tile")
+    assert not goal_reached(seen, "the word Congratulations appears")
+
+
+def test_a_condition_that_already_matched_is_unaffected():
+    from core.skills.screen_pursuit import goal_reached
+
+    seen = _board(2, 4)
+    seen["text"] = "You win! 2048"
+    assert goal_reached(seen, "You win")

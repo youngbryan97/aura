@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 from typing import Any
 
 #: Labels that CLOSE something without agreeing to anything. Ordered by how
@@ -129,6 +130,13 @@ CHROME_STRIP_HEIGHT = 0.12
 #: dialog. A single hint sent a loop into forty Escape presses.
 MIN_HINTS_FOR_BARE_ESCAPE = 2
 
+#: How far apart two runs of text can be and still be parts of one thing, as
+#: a share of the screen. A dialog is a cluster: its wording and its controls
+#: occupy one patch of screen, because they are one object. Words scattered
+#: across a page are a page.
+TOGETHER_X = 0.34
+TOGETHER_Y = 0.18
+
 OVERLAY_HINTS: tuple[str, ...] = (
     r"\bcookies?\b",
     r"\bconsent\b",
@@ -220,6 +228,48 @@ NEVER_INTENDED = (
 )
 
 
+def _where(region: dict[str, Any]) -> tuple[float, float] | None:
+    try:
+        return (
+            float(region.get("center_x", region.get("x", 0.0))),
+            float(region.get("center_y", region.get("y", 0.0))),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _together(one: dict[str, Any], other: dict[str, Any]) -> bool:
+    """Whether two runs of text are near enough to be parts of one thing."""
+    here, there = _where(one), _where(other)
+    if here is None or there is None:
+        return True
+    return abs(here[0] - there[0]) <= TOGETHER_X and abs(here[1] - there[1]) <= TOGETHER_Y
+
+
+def _hints_around(
+    region: dict[str, Any], layout: Sequence[dict[str, Any]]
+) -> tuple[str, ...]:
+    """The overlay wording near this control, rather than anywhere on screen.
+
+    A dialog is a cluster. Its wording sits with its buttons because they are
+    one object, and a page is not made into a dialog by holding the same words
+    somewhere else on it.
+
+    LIVE: a games page carried "SIGN UP" in one advertising rail and
+    "Subscribe & Save 5%" in another, half a screen apart and half a screen
+    from the board. Between them they matched two hints, which was the whole
+    evidence needed to declare a dialog only the person could answer — and the
+    task stopped with the board untouched in the middle of the screen.
+    """
+    nearby = " ".join(
+        str(other.get("text") or "")
+        for other in layout
+        if _region_y(other) is None or _region_y(other) >= CHROME_STRIP_HEIGHT
+        if _together(region, other)
+    ).lower()
+    return tuple(pattern for pattern in OVERLAY_HINTS if re.search(pattern, nearby))
+
+
 def _is_what_she_intended(warnings: tuple[str, ...], intending: str) -> bool:
     """Whether a warning is about the thing she has just decided to do."""
     if not intending or not warnings:
@@ -295,12 +345,18 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
     best_score = 0
     best: dict[str, Any] | None = None
     accepting_seen: list[str] = []
+    #: Acceptance controls that have dialog wording AROUND them, which is what
+    #: separates a dialog from a page that says the same words somewhere else.
+    accepting_here: list[tuple[str, tuple[str, ...]]] = []
     for region in layout:
         label = str(region.get("text") or "").strip()
         if not label or len(label) > 40:
             continue
         if _is_accepting(label):
             accepting_seen.append(label)
+            near = _hints_around(region, layout)
+            if near:
+                accepting_here.append((label, near))
             continue
         score = _dismissal_score(label)
         if score > best_score:
@@ -332,7 +388,7 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
             reasons=hints + ("no_labelled_dismissal_offered",),
         )
 
-    if accepting_seen and len(hints) >= MIN_HINTS_FOR_BARE_ESCAPE:
+    if accepting_here and len(accepting_here[0][1]) >= MIN_HINTS_FOR_BARE_ESCAPE:
         # Something is asking for agreement and offering no way to decline.
         # That is the person's call, and closing it for them would be making a
         # commitment in their name.
@@ -348,7 +404,7 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
             present=True,
             needs_person=(
                 "this dialog only offers acceptance ("
-                + ", ".join(sorted(set(accepting_seen))[:3])
+                + ", ".join(sorted({label for label, _near in accepting_here})[:3])
                 + "), which is a decision for you rather than for me"
             ),
             reasons=hints or ("accepting_controls_only",),

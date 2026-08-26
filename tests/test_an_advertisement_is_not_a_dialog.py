@@ -51,6 +51,31 @@ def test_a_real_consent_wall_still_belongs_to_the_person():
     assert "acceptance" in verdict.needs_person
 
 
+def test_the_evidence_has_to_be_one_thing_rather_than_a_whole_page():
+    """A games page carried "SIGN UP" in one advertising rail and "Subscribe
+    & Save 5%" in another, half a screen apart and half a screen from the
+    board. Between them they matched two hints, which was the whole evidence
+    needed to declare a dialog only the person could answer.
+
+    A dialog is a cluster: its wording sits with its buttons because they are
+    one object.
+    """
+    far_apart = {
+        "ok": True,
+        "text": "SIGN UP Subscribe & Save 5% 2048 4 8 16",
+        "layout": [
+            {"text": "SIGN UP", "center_x": 0.06, "center_y": 0.30, "x": 0.06, "y": 0.30},
+            {"text": "Create your baby registry", "center_x": 0.06, "center_y": 0.24, "x": 0.06, "y": 0.24},
+            {"text": "Subscribe & Save 5%", "center_x": 0.93, "center_y": 0.70, "x": 0.93, "y": 0.70},
+            {"text": "Available at Walmart", "center_x": 0.93, "center_y": 0.75, "x": 0.93, "y": 0.75},
+            {"text": "4", "center_x": 0.46, "center_y": 0.40, "x": 0.46, "y": 0.40},
+            {"text": "8", "center_x": 0.54, "center_y": 0.40, "x": 0.54, "y": 0.40},
+        ],
+    }
+    verdict = assess_overlay(far_apart)
+    assert not verdict.needs_person, verdict.needs_person
+
+
 def test_the_evidence_required_is_the_same_either_way():
     """Pressing Escape at a screen is the smaller move; handing the task back
     is the larger one, and it cannot ask for less evidence."""
@@ -59,7 +84,7 @@ def test_the_evidence_required_is_the_same_either_way():
     from core.perception import blocking_overlay
 
     source = inspect.getsource(blocking_overlay.assess_overlay)
-    assert "if accepting_seen and len(hints) >= MIN_HINTS_FOR_BARE_ESCAPE:" in source
+    assert "len(accepting_here[0][1]) >= MIN_HINTS_FOR_BARE_ESCAPE" in source
     assert MIN_HINTS_FOR_BARE_ESCAPE >= 2
 
 

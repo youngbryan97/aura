@@ -300,6 +300,21 @@ def content_text(
     return " ".join(said) if said else str(observation.get("text") or "")
 
 
+def _value_is_on_screen(value: str, observation: dict[str, Any]) -> bool:
+    """Whether the screen is showing this value as a thing in its own right.
+
+    A value that is the whole of a text region is a value the screen is
+    showing; one inside a longer run is part of a sentence about something
+    else, and one sitting beside a word is that word's number.
+    """
+    regions = list(observation.get("layout") or [])
+    return any(
+        _matches(value, str(region.get("text") or ""), whole_region=True)
+        and not labelled_by(region, regions)
+        for region in regions
+    )
+
+
 def goal_reached(
     observation: dict[str, Any],
     success_when: str,
@@ -339,15 +354,24 @@ def goal_reached(
     if band_is_whole_screen:
         text = str(observation.get("text") or "")
         if not bare_value:
-            return bool(text) and _matches(pattern, text)
+            if bool(text) and _matches(pattern, text):
+                return True
+            # A description that names one value is waiting for that value.
+            #
+            # Her own goal reader turns "play until you get a 128 tile" into
+            # "128", so the usual path never sees a sentence. A caller that
+            # passes the description straight through would otherwise wait
+            # forever with the tile in front of her — measured: 494 moves, a
+            # 128 on the board, and the run reported out of time. Only tried
+            # once the condition as written has failed, so nothing that
+            # matches today changes.
+            values = re.findall(r"\b\d[\d,]*\b", pattern)
+            if len(values) != 1:
+                return False
+            return _value_is_on_screen(values[0], observation)
         # With no band and no geometry there is nothing to check a bare value
         # against, so every region is examined instead of the flattened text.
-        regions = list(observation.get("layout") or [])
-        return any(
-            _matches(pattern, str(region.get("text") or ""), whole_region=True)
-            and not labelled_by(region, regions)
-            for region in regions
-        )
+        return _value_is_on_screen(pattern, observation)
 
     layout = observation.get("layout") or []
     if not layout:
