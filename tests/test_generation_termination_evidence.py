@@ -489,6 +489,45 @@ def test_post_generation_completion_accepts_a_short_terminal_answer():
     assert receipt["semantic_completion_incomplete"] is False
 
 
+def test_natural_eos_accepts_a_complete_unpunctuated_entity_answer():
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": "Who wrote the novel Solaris?",
+    }
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        "Stanisław Lem",
+        generated_tokens=5,
+        generation_stop_reason="eos",
+    )
+
+    assert receipt["semantic_completion_satisfied"] is True
+    assert receipt["semantic_completion_incomplete"] is False
+    assert receipt["semantic_completion_terminal_boundary"] is False
+    assert receipt["semantic_completion_eos_boundary"] is True
+
+
+def test_natural_eos_does_not_accept_dangling_syntax():
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": "Name the latest release and cite its source.",
+    }
+
+    receipt = _semantic_completion_receipt_state(
+        job,
+        "The latest release is",
+        generated_tokens=5,
+        generation_stop_reason="eos",
+    )
+
+    assert receipt["semantic_completion_satisfied"] is False
+    assert receipt["semantic_completion_incomplete"] is True
+    assert receipt["semantic_completion_eos_boundary"] is False
+
+
 def test_post_generation_completion_rejects_a_clipped_short_answer():
     job = {
         "clean_user_surface_contract": True,

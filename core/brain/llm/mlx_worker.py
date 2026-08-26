@@ -1208,8 +1208,18 @@ def _semantic_completion_receipt_state(
     response_text: Any,
     *,
     generated_tokens: int,
+    generation_stop_reason: str = "",
 ) -> dict[str, Any]:
-    """Describe completion without changing the model's decode distribution."""
+    """Describe completion without changing the model's decode distribution.
+
+    Terminal punctuation is required while decoding because it is the only
+    mechanical evidence that an early stop is safe. A natural model EOS is a
+    different boundary: it is the author's explicit end of the utterance, and
+    concise answers such as a name, number, path, or label need not be a
+    punctuated sentence. EOS therefore closes an otherwise covered and clean
+    candidate, while the canonical truncation detector still rejects dangling
+    syntax such as ``The latest release is``.
+    """
 
     required = bool(job.get("semantic_completion_contract", False))
     candidate = _surface_quality_candidate(job, response_text).rstrip()
@@ -1224,6 +1234,7 @@ def _semantic_completion_receipt_state(
                 requested_epistemic_partition_is_covered,
                 unanswered_question_parts,
             )
+            from core.conversation.response_reliability import _has_truncated_tail
             from core.language.discourse_commitments import unfulfilled_commitments
             from core.runtime.structured_input import analyze_prompt_shape
 
@@ -1248,6 +1259,14 @@ def _semantic_completion_receipt_state(
                 }
                 for item in unfulfilled_commitments(candidate)
             ]
+            eos_completion_boundary = bool(
+                str(generation_stop_reason or "").strip().lower() == "eos"
+                and candidate
+                and not _has_truncated_tail(
+                    candidate,
+                    generation_stop_reason="eos",
+                )
+            )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _record_mlx_degradation(
                 exc,
@@ -1255,10 +1274,13 @@ def _semantic_completion_receipt_state(
                 severity="warning",
             )
             quality_reasons = ["completion_diagnostics_unavailable"]
+            eos_completion_boundary = False
+    else:
+        eos_completion_boundary = False
     # The established validator remains the authority. Diagnostics explain its
     # decision; they do not reimplement it and accidentally create a second,
     # divergent completion contract.
-    satisfied = bool(
+    early_stop_ready = bool(
         required
         and _semantic_surface_stop_ready(
             job,
@@ -1270,6 +1292,15 @@ def _semantic_completion_receipt_state(
             minimum_tokens=1,
         )
     )
+    eos_stop_ready = bool(
+        required
+        and eos_completion_boundary
+        and not missing_indexes
+        and not discourse_missing
+        and not quality_reasons
+        and epistemic_covered is True
+    )
+    satisfied = bool(early_stop_ready or eos_stop_ready)
     return {
         "semantic_completion_contract": required,
         "semantic_completion_satisfied": satisfied,
@@ -1281,6 +1312,7 @@ def _semantic_completion_receipt_state(
         "semantic_completion_quality_reasons": quality_reasons,
         "semantic_completion_epistemic_partition_covered": epistemic_covered,
         "semantic_completion_terminal_boundary": terminal_boundary,
+        "semantic_completion_eos_boundary": eos_completion_boundary,
     }
 
 
@@ -9821,10 +9853,28 @@ def _mlx_worker_loop(
                         )
                         logger.debug("Affective steering post-generation observation failed: %s", steering_obs_exc)
 
+                    preliminary_stop_reason = _classify_generation_stop_reason(
+                        soft_cancelled=soft_cancelled,
+                        deadline_hit=deadline_hit,
+                        sentinel_aborted=sentinel_aborted,
+                        role_continuation_hit=role_continuation_hit,
+                        configured_stop_hit=configured_stop_hit,
+                        hard_token_limit_hit=hard_token_limit_hit,
+                        semantic_contract_satisfied=False,
+                        generated_tokens=total_generated_tokens,
+                        max_tokens=max(
+                            1,
+                            _safe_int(
+                                surface_control_state.get("generation_max_tokens_applied"),
+                                max_tokens,
+                            ),
+                        ),
+                    )
                     semantic_completion_state = _semantic_completion_receipt_state(
                         job,
                         response_text,
                         generated_tokens=total_generated_tokens,
+                        generation_stop_reason=preliminary_stop_reason,
                     )
                     semantic_contract_satisfied = bool(
                         semantic_completion_state["semantic_completion_satisfied"]
@@ -9862,7 +9912,13 @@ def _mlx_worker_loop(
                         role_continuation_hit=role_continuation_hit,
                         configured_stop_hit=configured_stop_hit,
                         hard_token_limit_hit=hard_token_limit_hit,
-                        semantic_contract_satisfied=semantic_contract_satisfied,
+                        # Preserve natural EOS as the causal stop event. The
+                        # semantic label is reserved for our early-stop
+                        # mechanism, not a post-hoc relabel of model behavior.
+                        semantic_contract_satisfied=bool(
+                            semantic_contract_satisfied
+                            and preliminary_stop_reason != "eos"
+                        ),
                         generated_tokens=total_generated_tokens,
                         max_tokens=max(
                             1,
