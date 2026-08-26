@@ -2029,6 +2029,60 @@ def _content_recall_keywords(user_message: str) -> list[str]:
     return [tok for tok in tokens if tok not in _CONTENT_RECALL_STOPWORDS]
 
 
+#: What a question asks for, and how that thing looks when someone says it.
+#:
+#: A question and its answer rarely share vocabulary. "What number did I
+#: say?" and "I'm thinking about a number: 47" overlap on nothing that
+#: matters, and "what did I tell you about my family?" shares not one word
+#: with "my sister's name is Nell". Matching the question's words against the
+#: answer's words finds the cases where somebody repeated themselves and
+#: misses ordinary conversation.
+#:
+#: What the question DOES say is what kind of thing it wants back.
+_ASKED_FOR_A_KIND: tuple[tuple[str, str], ...] = (
+    (r"\bnumbers?\b", r"\b\d[\d,.]*\b"),
+    (r"\b(?:date|day|month|year|when)\b", r"\b(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}(?:st|nd|rd|th)?\s+\w+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b"),
+    (r"\b(?:time|hour|o'?clock)\b", r"\b\d{1,2}[:.]\d{2}\s*(?:am|pm)?\b"),
+    (r"\b(?:url|link|address|site|website)\b", r"https?://\S+|\b\w+\.(?:com|org|net|io|co)\b"),
+    (r"\b(?:file|path|folder|directory)\b", r"(?:/|~/)\S+|\b\w+\.[a-z]{2,4}\b"),
+    (r"\b(?:colou?r)\b", r"\b(?:red|orange|yellow|green|blue|indigo|violet|purple|pink|black|white|grey|gray|brown|teal|cyan|magenta)\b"),
+    (r"\b(?:name|called|codename)\b", r"\b[A-Z][a-zA-Z'-]{2,}\b"),
+    # Only where the question asks for the WORDS themselves. "What did I tell
+    # you about my family?" is not asking to be quoted, and demanding a
+    # quotation of it finds nothing — the general question falls through to
+    # the most recent thing she was actually told.
+    (r"\b(?:exact\s+words|word\s+for\s+word|verbatim|quote)\b", r"[\"'“‘][^\"'”’]{2,80}[\"'”’]"),
+)
+
+
+def _kind_asked_for(user_message: str) -> str:
+    """The pattern that matches the kind of thing this question wants back."""
+    asked = str(user_message or "").lower()
+    for question_shape, answer_shape in _ASKED_FOR_A_KIND:
+        if re.search(question_shape, asked):
+            return answer_shape
+    return ""
+
+
+def _states_something(text: str) -> bool:
+    """Whether this turn told her something rather than asked her something.
+
+    "What did I tell you?" is answered by the turns where the person told her
+    something, and an assertion is recognisable without knowing its subject:
+    it does not end in a question mark and does not open with an
+    interrogative.
+    """
+    said = " ".join(str(text or "").split())
+    if not said or said.rstrip().endswith("?"):
+        return False
+    return not re.match(
+        r"^(?:what|which|who|whom|whose|when|where|why|how|is|are|was|were|do|does|"
+        r"did|can|could|will|would|should|have|has|had|am)\b",
+        said,
+        re.IGNORECASE,
+    )
+
+
 async def _find_session_content_exchanges(
     user_message: str,
     *,
@@ -2047,8 +2101,6 @@ async def _find_session_content_exchanges(
     failed 0/3 purely because the plant had scrolled out of the window while
     still sitting in the log. Keyword matching over <=500 turns is cheap."""
     keywords = _content_recall_keywords(user_message)
-    if not keywords:
-        return []
     exchanges = await _recent_completed_conversation_exchanges(
         current_user_message=user_message,
         session_id=session_id,
@@ -2060,11 +2112,33 @@ async def _find_session_content_exchanges(
         if not user_text:
             continue
         hits = sum(1 for keyword in keywords if keyword in user_text)
-        if hits >= min(2, len(keywords)):
+        if keywords and hits >= min(2, len(keywords)):
             scored.append((hits, idx, entry))
     # Best keyword coverage first; among ties prefer the most recent turn.
     scored.sort(key=lambda item: (-item[0], -item[1]))
-    return [entry for _, _, entry in scored]
+    if scored:
+        return [entry for _, _, entry in scored]
+
+    # Nothing matched on words, which is the ordinary case rather than the
+    # exception: a question and its answer rarely share vocabulary. What the
+    # question does say is what KIND of thing it wants back, so look for a
+    # turn where the person told her something of that kind.
+    #
+    # LIVE 2026-08-26, one turn apart in the same conversation: "I'm thinking
+    # about a number: 47. Just hold on to it." → "Got it. 47 is on hold." →
+    # "what number did I say?" → "I don't find that in this conversation's
+    # completed turns." And "my sister's name is Nell" → "what did I just
+    # tell you about my family?" → "Nothing. You haven't told me anything
+    # about your family in this conversation."
+    wanted = _kind_asked_for(user_message)
+    for entry in exchanges:
+        told = str(entry.get("user") or "")
+        if not told or not _states_something(told):
+            continue
+        if wanted and not re.search(wanted, told, re.IGNORECASE):
+            continue
+        return [entry]
+    return []
 
 
 _NON_ANSWER_OPENERS: tuple[str, ...] = (
