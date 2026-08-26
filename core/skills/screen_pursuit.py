@@ -897,6 +897,7 @@ async def pursue_on_screen(
     from core.agency.looking_ahead import look_ahead
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
+    from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.where_it_responds import (
         Responsive,
@@ -956,6 +957,9 @@ async def pursue_on_screen(
     #: Attempts she chose to begin again, and why.
     restarts: dict[str, Any] = {"count": 0, "because": ""}
     foreseen: dict[str, bool] = {"said": False}
+    #: The last call about whether a decision was worth thinking over, so a
+    #: standing answer is not said again every cycle.
+    last_call: dict[str, Any] = {"asked": None, "why": ""}
     #: How she has decided to handle acting faster than she can speak.
     pacing: dict[str, Any] = {"choice": "", "because": "", "brief": False, "waits": 0}
     #: When language was last consulted, so it is asked where it counts.
@@ -1495,22 +1499,6 @@ async def pursue_on_screen(
             held_line = plan["held"].approach if plan["held"] is not None else ""
             unusual = stuck(history) or ended or offered_pacing
             weight = stakes if unusual else min(stakes, 0.3)
-            # And a routine move in a fast loop does not always need words.
-            #
-            # Asking costs the cycle; deciding from evidence costs nothing,
-            # and on a board that changes a little at a time the two usually
-            # agree. So language is consulted where it is most likely to
-            # change the answer, and often enough in between that what she
-            # says stays her own reasoning.
-            asking = (
-                unusual
-                or not moves
-                or restarts["count"] > asked["after_restarts"]
-                or len(moves) - asked["at"] >= LANGUAGE_EVERY
-            )
-            if asking:
-                asked["at"] = len(moves)
-                asked["after_restarts"] = restarts["count"]
             # Where each move would lead, when she has worked out how this
             # moves and there is anything to prefer one future over another by.
             ahead: dict[str, tuple[float, str]] = {}
@@ -1525,6 +1513,25 @@ async def pursue_on_screen(
                     approach=held_line,
                     budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
                 )
+            # And a routine move in a fast loop does not always need words.
+            #
+            # What a thought is worth here, rather than how long since the
+            # last one. A counter cannot tell a forced move from the one that
+            # decides the shape of the next thirty, so it spends the same on
+            # both and is wrong about both.
+            asking, because_of = worth_a_pass(
+                ahead,
+                stakes=weight,
+                since_words=len(moves) - asked["at"],
+                horizon=LANGUAGE_EVERY,
+                unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
+            )
+            if asking != last_call["asked"] or last_call["why"] != because_of:
+                last_call.update({"asked": asking, "why": because_of})
+                logger.info("%s: %s", "thinking about this one" if asking else "no need to think", because_of)
+            if asking:
+                asked["at"] = len(moves)
+                asked["after_restarts"] = restarts["count"]
             chosen = await deliberate(
                 goal,
                 seen,
