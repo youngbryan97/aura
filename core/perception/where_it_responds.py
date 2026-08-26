@@ -63,8 +63,31 @@ class Responsive:
     effective: int = 0
     idle: int = 0
 
+    #: How many acts in a row can have no effect before the world she is
+    #: working in has stopped answering her altogether.
+    #:
+    #: One is a bad move. Two is a bad idea. Several in a row, with nothing
+    #: anywhere on the screen responding, is not a run of bad moves — it is a
+    #: thing that has ended. A finished game, a session that expired, a form
+    #: already submitted, a connection that dropped.
+    DEAD_AFTER = 4
+
+    #: Acts since anything last answered her.
+    unanswered: int = 0
+
     def settled(self) -> bool:
         return self.effective >= ENOUGH_ACTS and bool(self.answered)
+
+    def nothing_answers(self) -> bool:
+        """Whether the thing she is working in has stopped responding at all.
+
+        Read from what happened rather than from what the screen says. A page
+        that has ended says so in its own words — "Game Over", "Session
+        expired", "Thanks for your submission" — and there is no list of
+        those words that covers the next one. What every ending has in common
+        is that nothing she does changes anything any more.
+        """
+        return self.unanswered >= self.DEAD_AFTER
 
     def band(self) -> tuple[float, float, float, float] | None:
         """The area that answers to her, as (left, top, right, bottom).
@@ -159,6 +182,8 @@ def noticed(
     if not was and not now:
         return state
     state.acts += 1
+    changed = any(was.get(where) != now.get(where) for where in set(was) | set(now))
+    state.unanswered = 0 if changed else state.unanswered + 1
     if worked:
         state.effective += 1
     else:

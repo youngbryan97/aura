@@ -122,3 +122,47 @@ def test_the_loop_reasons_from_the_part_that_answers():
     # Learned from the same measurement that grades the move, so the control
     # is the move that had no effect.
     assert "worked=attempt.verdict.held," in source
+
+
+def test_a_world_that_has_stopped_answering_is_recognised_without_reading_it():
+    """A page that has ended says so in its own words — "Game Over", "Session
+    expired", "Thanks for your submission" — and there is no list of those
+    words that covers the next one. What every ending has in common is that
+    nothing she does changes anything any more.
+
+    LIVE 2026-08-26: she played to Game Over and went on pressing arrow keys
+    into a dead board.
+    """
+    state = Responsive()
+    dead = _screen([2, 4, 8], "BuyNow")
+    for _ in range(Responsive.DEAD_AFTER - 1):
+        state = noticed(state, dead, dead, worked=False)
+    assert not state.nothing_answers(), "a few bad moves are not an ending"
+    state = noticed(state, dead, dead, worked=False)
+    assert state.nothing_answers()
+
+
+def test_one_thing_moving_again_means_it_has_not_ended():
+    state = Responsive()
+    dead = _screen([2, 4, 8], "BuyNow")
+    for _ in range(Responsive.DEAD_AFTER + 2):
+        state = noticed(state, dead, dead, worked=False)
+    assert state.nothing_answers()
+    state = noticed(state, dead, _screen([4, 8, 16], "BuyNow"))
+    assert not state.nothing_answers()
+    assert state.unanswered == 0
+
+
+def test_the_loop_offers_a_way_out_when_the_thing_has_ended():
+    """Predictions breaking says her moves are wrong. Nothing answering says
+    the attempt is over. They are different facts and both deserve the
+    choice."""
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    where = source.index("ended = responds[")
+    block = source[where : where + 300]
+    assert "nothing_answers()" in block
+    assert "stuck(history) or ended" in block

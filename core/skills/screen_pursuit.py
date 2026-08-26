@@ -1084,6 +1084,8 @@ async def pursue_on_screen(
     anchor: dict[str, str] = {"page": expect_page.strip()}
     #: Where her actions have been having their effects.
     responds: dict[str, Any] = {"state": Responsive()}
+    #: Said once, when the thing she is working in stops answering at all.
+    said_it_ended: dict[str, bool] = {"value": False}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         blocker = await clear_blocker(observation)
@@ -1267,8 +1269,23 @@ async def pursue_on_screen(
             # choice. Both ways out are hers, and both are recorded as
             # decisions with reasons rather than happening to her.
             available = screen_options(move_keys)
-            if stuck(history) and not seen_through["value"]:
+            # The ways out are offered when what she is doing has stopped
+            # working, and when the thing itself has stopped responding.
+            #
+            # Two different facts. Predictions breaking says her moves are
+            # wrong; nothing answering at all says the attempt is over — a
+            # finished game, an expired session, a form already submitted.
+            # Measured live: she played to Game Over and went on pressing
+            # arrow keys into a dead board, because a run of broken
+            # predictions had not accumulated in the way the first test
+            # wanted.
+            ended = responds["state"].nothing_answers()
+            if (stuck(history) or ended) and not seen_through["value"]:
                 available = available + ways_out(observation)
+                if ended and not said_it_ended["value"]:
+                    said_it_ended["value"] = True
+                    if narrate:
+                        _tell("Nothing I do is changing anything here — this attempt is over.")
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
             if behind.get("waiting") and not pacing["choice"]:
@@ -1602,6 +1619,8 @@ async def pursue_on_screen(
         for a in history
     ]
     where_it_answers = responds["state"].band()
+    if responds["state"].nothing_answers():
+        result["stopped_responding"] = True
     if where_it_answers is not None:
         result["responds_within"] = [round(edge, 3) for edge in where_it_answers]
         result["responds_described"] = describe(where_it_answers)
