@@ -260,6 +260,7 @@ class ConationEngine:
                 controllability=controllability,
                 arousal_potential=potential,
                 instrumental=instrumental,
+                irreducible_override=self._interventions.get("irreducible"),
                 effort=incentive.effort,
             )
 
@@ -304,6 +305,7 @@ class ConationEngine:
                 frame=frame or PlayFrame(),
                 norm_violation=norm_violation,
                 governed=governed,
+                intimacy_override=self._interventions.get("intimacy"),
             )
             readings[ValueOrigin.ENACTIVE] = reading
             refusals.extend(declined)

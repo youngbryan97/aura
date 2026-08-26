@@ -825,3 +825,49 @@ def test_person_model_accuracy_is_graded_against_what_they_did(engine):
     engine.learn("tease", experienced_liking=0.4, person="friend",
                  observed_amusement=0.1)
     assert engine.enactive.accuracy_for("friend").predictions == 1
+
+
+def test_every_recognised_intervention_actually_moves_something(engine):
+    """Refutes: an accepted do() key may be wired to nothing.
+
+    The failure this catches is the quiet one. A test forces a variable, sees
+    no change, and reports that the model does not depend on it — when the
+    truth is that nothing read the key. Each recognised key is exercised here
+    against a state it must change.
+    """
+    for error in (0.9, 0.6, 0.35, 0.15):
+        engine.epistemic.observe_error("target", error)
+
+    baseline = engine.epistemic.value("target", epistemic_affordance=0.9,
+                                      arousal_potential=0.5)
+    with engine.do(irreducible=0.95):
+        forced = engine.appraise(
+            Incentive(key="target"), epistemic_affordance=0.9, arousal_potential=0.5
+        )
+    assert forced.magnitude_of(ValueOrigin.EPISTEMIC) < baseline.magnitude
+
+    with engine.do(intimacy=0.0):
+        stranger = engine.appraise(
+            Incentive(key="tease"),
+            forecast=_forecast(predicted_distress=0.4),
+            frame=_frame(), norm_violation=0.5, governed=True,
+        )
+    with engine.do(intimacy=1.0):
+        close = engine.appraise(
+            Incentive(key="tease"),
+            forecast=_forecast(predicted_distress=0.4),
+            frame=_frame(), norm_violation=0.5, governed=True,
+        )
+    assert Refusal.HARM in stranger.refusals
+    assert Refusal.HARM not in close.refusals
+
+    with engine.do(own_contacts=0):
+        engine.vicarious.observe_valuation(
+            agent="peer", target="toy", strength=0.9,
+            evidence="holding it", similarity=0.9, possesses=True,
+        )
+        naive = engine.appraise(Incentive(key="toy"))
+    with engine.do(own_contacts=500):
+        experienced = engine.appraise(Incentive(key="toy"))
+    assert naive.magnitude_of(ValueOrigin.VICARIOUS) > \
+        experienced.magnitude_of(ValueOrigin.VICARIOUS)

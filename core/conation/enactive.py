@@ -296,6 +296,7 @@ class EnactiveValuation:
         frame: PlayFrame,
         norm_violation: float,
         governed: bool = False,
+        intimacy_override: float | None = None,
     ) -> tuple[OriginReading, tuple[str, ...]]:
         """Price an act aimed at another person's state, or refuse it.
 
@@ -332,7 +333,11 @@ class EnactiveValuation:
         if not frame.reciprocated():
             refusals.append(Refusal.UNRECIPROCATED)
 
-        closeness, intimacy_evidence = self.intimacy(forecast.person)
+        if intimacy_override is None:
+            closeness, intimacy_evidence = self.intimacy(forecast.person)
+        else:
+            closeness = max(0.0, min(1.0, float(intimacy_override)))
+            intimacy_evidence = f"intimacy forced to {closeness:.2f} by intervention"
         ceiling = self.distress_ceiling(closeness)
         if forecast.predicted_distress >= ceiling:
             refusals.append(Refusal.HARM)

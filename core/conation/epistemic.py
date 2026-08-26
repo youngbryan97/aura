@@ -292,6 +292,7 @@ class EpistemicValuation:
         controllability: float | None = None,
         arousal_potential: float | None = None,
         instrumental: bool = False,
+        irreducible_override: float | None = None,
         effort: float = 0.0,
     ) -> OriginReading:
         """Curiosity about one target.
@@ -373,6 +374,8 @@ class EpistemicValuation:
         positive = sum(terms.values()) / len(terms)
 
         irreducible = trace.irreducible() if trace is not None else None
+        if irreducible_override is not None:
+            irreducible = max(0.0, min(1.0, float(irreducible_override)))
         penalty = 0.0
         if irreducible is not None:
             penalty += irreducible

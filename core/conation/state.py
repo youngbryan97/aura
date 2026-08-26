@@ -208,9 +208,6 @@ class ConativeState:
         """
         return self.predicted_liking is not None
 
-    #: Sting is the comparison pain, and it is not the wanting. Held as its
-    #: own field because a system that adds them pursues a thing harder the
-    #: more the lack of it hurts, which is backwards.
     def available_origins(self) -> tuple[ValueOrigin, ...]:
         """Origins that had real evidence behind them."""
         return tuple(
