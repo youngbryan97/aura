@@ -124,3 +124,24 @@ def test_every_authoring_call_declares_itself_internal():
             f"{purpose} still presents as a chat turn"
         )
     assert source.count("_non_chat_inference=True") == len(purposes)
+
+
+def test_an_internal_generation_is_never_forced_to_call_a_tool_first():
+    """The handoff exists so she cannot answer a PERSON's question without the
+    evidence it needs. Her own authoring prompt contains no such question.
+
+    LIVE 2026-08-26: "Write the CONTENT of a document about ... The full
+    request was: make a file on my Desktop called aura_note.txt" was read as a
+    turn about a file, handed a tool, and refused to generate at all. The tool
+    it wanted is the step that writes down what the call returns.
+    """
+    from pathlib import Path
+
+    source = Path("core/brain/llm_health_router.py").read_text(encoding="utf-8")
+    where = source.index("not_a_person_asking")
+    block = source[where : where + 400]
+    assert "non_chat_inference" in block
+    assert "is_background=not_a_person_asking" in block
+    # Keyed on the caller's own declaration, not the derived flag: that one is
+    # set for turns which ARE somebody asking.
+    assert "kwargs.get(\"internal_inference\")" not in block

@@ -1958,8 +1958,28 @@ class HealthAwareLLMRouter:
         tool_handoff_allowed = bool(kwargs.get("allow_tools", True)) and not (
             side_effect_free_completion
         )
+        # An internal generation is never a turn that must call a tool first.
+        #
+        # The handoff exists so she cannot answer a PERSON's question without
+        # the evidence it needs. Her own authoring prompt contains no such
+        # question: "Write the CONTENT of a document about ... The full
+        # request was: make a file on my Desktop called aura_note.txt" was
+        # read as a turn about a file, handed a tool, and refused to generate
+        # at all — "grounding_required_no_tool_result". The tool it wanted is
+        # the step that writes down what this call returns.
+        #
+        # `_non_chat_inference` already declares this and already suppresses
+        # the reply contract one layer down; it had no say here.
+        # The caller's own declaration, not the derived flag.
+        #
+        # `internal_inference` is set from several places, including for turns
+        # that ARE somebody asking — keying on it stopped the chat lane
+        # handing off for "run some python", which is the exact turn the
+        # handoff exists for. `_non_chat_inference` is passed by the caller
+        # and means only this.
+        not_a_person_asking = inferred_background or non_chat_inference
         if should_force_tool_handoff(
-            contract, is_background=inferred_background
+            contract, is_background=not_a_person_asking
         ) and (tool_handoff_allowed and not _contract_tool_handoff_val):
             tools = build_agentic_tool_map(
                 contract.required_skill if contract else None,
