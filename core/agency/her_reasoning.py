@@ -140,6 +140,17 @@ def generator(
             # grades it against a question invented from its own prompt:
             # measured live, "left" was rejected as arithmetic_answer_missing.
             internal_inference=True,
+            # An answer that is read by code has no private channel.
+            #
+            # Typed lane control, not a text instruction. Left unsaid, the
+            # template opens the model's own thinking channel, and there is
+            # nobody here to keep anything private from and nothing that
+            # separates the two streams afterwards. Measured live
+            # 2026-08-26: "We need answer user. Need decide move for 2048.
+            # We must choose one of up/down/left/right based on screen." —
+            # the model reasoning about the question, returned as her answer
+            # and spoken aloud as her plan.
+            cognitive_mode="fast",
         )
         if isinstance(out, str):
             return out
