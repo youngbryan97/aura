@@ -1,14 +1,14 @@
-"""The commentary has to be about the moves she actually made.
+"""The commentary and the body cannot drift apart.
 
 Mind and voice being aware of what the body is doing in the moment is the
-thing this demonstrates, and it only means something if the two cannot drift
-apart. Announcing a decision announces an intention: a keystroke refused for
-focus, or delivered to the wrong window, would have been described as a move
-she made.
+thing this demonstrates, and it only means something if the two agree.
 
-So a move is reported after the body makes it, named by the key that was
-actually pressed, in the order it was pressed. A run that presses nothing
-says nothing.
+She narrates the way a person doing something narrates it: intent, then
+action. That is a real risk — an intention is not an act, and a keystroke
+refused for focus would otherwise be described as a move she made. So the
+rule is stricter than "say what happened": every intention she states is
+either carried out, or corrected out loud, and the RECORD of what she did is
+written only from what landed.
 """
 from __future__ import annotations
 
@@ -46,20 +46,39 @@ def body(monkeypatch):
         state["text"] = f"board {len(state['pressed'])}"
         return True
 
+    async def press_many(keys, *, expect_app=""):
+        """A body double has to cover the whole body.
+
+        She commits to a short sequence and sends it in one call, so a double
+        that only stands in for single keystrokes lets the real automation
+        through and the contract under test measures nothing.
+        """
+        if not state["accepts"]:
+            return 0
+        for key in keys:
+            state["pressed"].append(key)
+        state["text"] = f"board {len(state['pressed'])}"
+        return len(list(keys))
+
     async def frontmost(_app):
         return True
 
     async def identity():
         return {"url": "https://example.test/", "title": "board", "error": ""}
 
-    def said(key, chosen=None, *, out_loud=False):
-        state["said"].append(f"Board: {str(key).capitalize()}")
+    def intended(key, chosen=None, *, out_loud=False):
+        state["said"].append(f"Going {str(key).lower()}")
+
+    def missed(key, *, out_loud=False):
+        state["said"].append(f"{str(key).capitalize()} did not land")
 
     monkeypatch.setattr(sp, "read_screen", read)
     monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "press_many", press_many)
     monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
     monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "_say_move", said)
+    monkeypatch.setattr(sp, "_say_intent", intended)
+    monkeypatch.setattr(sp, "_say_it_did_not_land", missed)
 
     from core.agency import task_knowledge as tk
 
@@ -93,7 +112,8 @@ async def test_every_move_she_makes_is_reported(body):
         graph=_Store(),
     )
     assert body["pressed"], "she never moved"
-    assert len(body["said"]) == len(body["pressed"])
+    carried_out = [line for line in body["said"] if not line.endswith("did not land")]
+    assert len(carried_out) == len(body["pressed"])
 
 
 @pytest.mark.asyncio
@@ -109,7 +129,7 @@ async def test_the_order_of_the_words_is_the_order_of_the_moves(body):
         spine=_Store(),
         graph=_Store(),
     )
-    spoken = [line.split(": ", 1)[1].lower() for line in body["said"]]
+    spoken = [line.split(" ", 1)[1].lower() for line in body["said"] if line.startswith("Going ")]
     assert spoken == body["pressed"]
 
 
@@ -129,11 +149,19 @@ async def test_a_keystroke_that_did_not_land_is_not_described_as_a_move(body):
         graph=_Store(),
     )
     assert body["pressed"] == []
-    assert body["said"] == [], "she described a move her body never made"
+    assert body["said"], "she said nothing at all about what she was trying"
+    assert all(
+        line.endswith("did not land") for line in body["said"] if not line.startswith("Going ")
+    )
+    # Every intention she stated was corrected, so nothing she said stands as
+    # a move her body never made.
+    intended = [line for line in body["said"] if line.startswith("Going ")]
+    corrected = [line for line in body["said"] if line.endswith("did not land")]
+    assert len(corrected) == len(intended)
 
 
 def test_a_move_is_reported_in_the_shape_a_person_reads():
-    from core.skills.screen_pursuit import _say_move
+    from core.skills.screen_pursuit import _say_intent
 
     seen = []
 
@@ -152,7 +180,7 @@ def test_a_move_is_reported_in_the_shape_a_person_reads():
         import asyncio
 
         async def run():
-            _say_move("up", "the corner holds")
+            _say_intent("up", "the corner holds")
             await asyncio.sleep(0)
 
         asyncio.run(run())
@@ -160,8 +188,8 @@ def test_a_move_is_reported_in_the_shape_a_person_reads():
         container.ServiceContainer.get = original
 
     assert seen, "the move reached nothing"
-    assert seen[0]["reason"] == "Board: Up"
-    assert seen[0]["payload"]["decision"]["chose"] == "Board: Up"
+    assert seen[0]["reason"] == "Going up"
+    assert seen[0]["payload"]["decision"]["chose"] == "Going up"
 
 
 def test_the_line_carries_her_reasoning_not_just_the_keystroke():
@@ -174,7 +202,7 @@ def test_the_line_carries_her_reasoning_not_just_the_keystroke():
     import asyncio
 
     from core.agency.deliberate_action import ActionOption, Deliberation, Expectation
-    from core.skills.screen_pursuit import _say_move
+    from core.skills.screen_pursuit import _say_intent
 
     seen = []
 
@@ -203,7 +231,7 @@ def test_the_line_carries_her_reasoning_not_just_the_keystroke():
         )
 
         async def run():
-            _say_move("up", chosen)
+            _say_intent("up", chosen)
             await asyncio.sleep(0)
 
         asyncio.run(run())
@@ -211,7 +239,7 @@ def test_the_line_carries_her_reasoning_not_just_the_keystroke():
         container.ServiceContainer.get = original
 
     decision = seen[0]["payload"]["decision"]
-    assert decision["chose"] == "Board: Up"
+    assert decision["chose"] == "Going up"
     assert decision["because"] == "the corner holds if I go up"
     assert decision["expected"] == "the big tile to stay in the corner"
 
@@ -220,7 +248,7 @@ def test_a_choice_made_without_language_says_so_in_the_same_line():
     import asyncio
 
     from core.agency.deliberate_action import ActionOption, Deliberation
-    from core.skills.screen_pursuit import _say_move
+    from core.skills.screen_pursuit import _say_intent
 
     seen = []
 
@@ -245,7 +273,7 @@ def test_a_choice_made_without_language_says_so_in_the_same_line():
         )
 
         async def run():
-            _say_move("left", wordless)
+            _say_intent("left", wordless)
             await asyncio.sleep(0)
 
         asyncio.run(run())
@@ -331,7 +359,7 @@ async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(
 
     import core.skills.screen_pursuit as sp_module
 
-    sp_module._say_move = said
+    sp_module._say_intent = said
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
@@ -355,7 +383,7 @@ async def test_a_silent_run_still_publishes_but_does_not_speak(body):
 
     import core.skills.screen_pursuit as sp_module
 
-    sp_module._say_move = said
+    sp_module._say_intent = said
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",

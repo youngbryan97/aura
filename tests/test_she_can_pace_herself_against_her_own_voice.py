@@ -75,6 +75,13 @@ def body(monkeypatch):
         state["text"] = f"board {len(state['pressed'])}"
         return True
 
+    async def press_many(keys, *, expect_app=""):
+        """A body double has to cover the whole body — batches included."""
+        for key in keys:
+            state["pressed"].append(key)
+        state["text"] = f"board {len(state['pressed'])}"
+        return len(list(keys))
+
     async def frontmost(_app):
         return True
 
@@ -89,9 +96,11 @@ def body(monkeypatch):
 
     monkeypatch.setattr(sp, "read_screen", read)
     monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "press_many", press_many)
     monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
     monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "_say_move", said)
+    monkeypatch.setattr(sp, "_say_intent", said)
+    monkeypatch.setattr(sp, "_say_it_did_not_land", lambda key, *, out_loud=False: None)
     monkeypatch.setattr(sp, "narration_backlog", lambda: {"waiting": state["backlog"]})
     monkeypatch.setattr(sp, "let_the_voice_catch_up", catch_up)
 

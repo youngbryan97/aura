@@ -1,14 +1,209 @@
 {
+  "dimensions": [
+    {
+      "description": "Runtime substrate steering dimension: valence_positive",
+      "key": "valence_positive",
+      "layers_extracted": [
+        25,
+        27,
+        29,
+        31,
+        33,
+        35,
+        37,
+        39,
+        41
+      ],
+      "n_negative_prompts": 12,
+      "n_positive_prompts": 12,
+      "vector_dim": 5120
+    },
+    {
+      "description": "Runtime substrate steering dimension: arousal",
+      "key": "arousal",
+      "layers_extracted": [
+        25,
+        27,
+        29,
+        31,
+        33,
+        35,
+        37,
+        39,
+        41
+      ],
+      "n_negative_prompts": 10,
+      "n_positive_prompts": 10,
+      "vector_dim": 5120
+    },
+    {
+      "description": "Runtime substrate steering dimension: curiosity",
+      "key": "curiosity",
+      "layers_extracted": [
+        25,
+        27,
+        29,
+        31,
+        33,
+        35,
+        37,
+        39,
+        41
+      ],
+      "n_negative_prompts": 10,
+      "n_positive_prompts": 10,
+      "vector_dim": 5120
+    },
+    {
+      "description": "Runtime substrate steering dimension: frustration",
+      "key": "frustration",
+      "layers_extracted": [
+        25,
+        27,
+        29,
+        31,
+        33,
+        35,
+        37,
+        39,
+        41
+      ],
+      "n_negative_prompts": 10,
+      "n_positive_prompts": 10,
+      "vector_dim": 5120
+    },
+    {
+      "description": "Runtime substrate steering dimension: energy",
+      "key": "energy",
+      "layers_extracted": [
+        25,
+        27,
+        29,
+        31,
+        33,
+        35,
+        37,
+        39,
+        41
+      ],
+      "n_negative_prompts": 8,
+      "n_positive_prompts": 8,
+      "vector_dim": 5120
+    }
+  ],
+  "extraction_contract": {
+    "dimensions": [
+      "valence_positive",
+      "arousal",
+      "curiosity",
+      "frustration",
+      "energy"
+    ],
+    "extraction_contract_sha256": "cdf8a8bcec9209696f2575ff1e8bd9fce214078dfdfeffd11b7da81f44964a16",
+    "max_prompts_per_polarity": null,
+    "representation_sha256": "144a5565445fca876e1f4d1943b6a9de932ac428baa44df957ebaa3a338b9d0e",
+    "schema": "aura.caa.extraction_contract.v1",
+    "target_layers": [
+      25,
+      27,
+      29,
+      31,
+      33,
+      35,
+      37,
+      39,
+      41
+    ]
+  },
+  "generation_sha256": "ae432aeed3db00c0cb5f8a58786549b53c5089358ef5c1af544bd70270033371",
   "method": "contrastive_activation_addition",
   "model": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
   "model_identity": {
-    "model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
-    "model_path_input": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+    "model_artifact_descriptor": {
+      "artifact_profile": {
+        "architectures": [
+          "Qwen2ForCausalLM"
+        ],
+        "evidence": "index_metadata",
+        "exists": true,
+        "fingerprint": "bb8cdbc4d5eb45032cb9050c6cc565da0c3ba35122370b90cebf1a7d68f555d0",
+        "full_attention_layers": 64,
+        "hidden_size": 5120,
+        "layer_types": [],
+        "linear_attention_layers": 0,
+        "model_type": "qwen2",
+        "native_context_window": 32768,
+        "num_attention_heads": 40,
+        "num_hidden_layers": 64,
+        "num_key_value_heads": 8,
+        "path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+        "quantization_bits": 4,
+        "size_class": "32b",
+        "total_parameters": 32763876352,
+        "vocab_size": 152064,
+        "weight_bytes": 18431289344
+      },
+      "behavior_identity": {
+        "bundle_sha256": "7eb54f8b670bba6e5b37ae5f9c6d016e9628034951b3ee702ca0096123c5e674",
+        "file_count": 5,
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "sha256": "d5495a1e5db0611132a97e46a65dbb64a642a499421228b9c8b93229097fa9a4",
+            "size_bytes": 2509
+          },
+          {
+            "path": "config.json",
+            "sha256": "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785",
+            "size_bytes": 867
+          },
+          {
+            "path": "model.safetensors.index.json",
+            "sha256": "8ae48f398d91156dc01a99e58de936e4ddd94c0768f4d0e2e9537170aee60d0b",
+            "size_bytes": 143058
+          },
+          {
+            "path": "tokenizer.json",
+            "sha256": "3fd169731d2cbde95e10bf356d66d5997fd885dd8dbb6fb4684da3f23b2585d8",
+            "size_bytes": 11421892
+          },
+          {
+            "path": "tokenizer_config.json",
+            "sha256": "ee8f6d44bf2353e6d3686c3adaf70e1ccfe9e6ed6822d0ab2f28cafdd7754792",
+            "size_bytes": 729
+          }
+        ]
+      },
+      "canonical_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+      "descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+      "repository_id": "",
+      "revision": "",
+      "schema": "aura.model_artifact_descriptor.v1",
+      "weight_identity": {
+        "files": 4,
+        "fingerprint": "8eae71e73a14d1228a942d4faf84690d70b62148f25b0f924435535f7c550fad",
+        "method": "sha256"
+      }
+    },
+    "model_config_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118/config.json",
     "model_config_sha256": "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785",
-    "model_config_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118/config.json"
+    "model_descriptor_file_sha256": "382a298836451fc6ad9ac64ec6a698f419eb98cdeb93d5408ac918230cfb0705",
+    "model_descriptor_path": "/private/tmp/claude-501/-Users-bryan--aura-live-source/658a55ba-878d-46ad-b56b-7a2ed26ed67f/scratchpad/fused32b_descriptor.json",
+    "model_descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+    "model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118"
   },
-  "adapter": null,
   "n_model_layers": 64,
+  "representation_identity": {
+    "adapter_identity": null,
+    "fusion_provenance": null,
+    "model_descriptor_sha256": "b87c5c29134f5cc917044986cb4df5e3e5f7b77edf57a709e7cfebba28aa2054",
+    "representation_sha256": "144a5565445fca876e1f4d1943b6a9de932ac428baa44df957ebaa3a338b9d0e",
+    "schema": "aura.caa.representation_identity.v1"
+  },
+  "target_layer_fraction": [
+    0.4,
+    0.65
+  ],
   "target_layers": [
     25,
     27,
@@ -20,102 +215,233 @@
     39,
     41
   ],
-  "target_layer_fraction": [
-    0.4,
-    0.65
-  ],
-  "dimensions": [
-    {
-      "key": "valence_positive",
-      "description": "Runtime substrate steering dimension: valence_positive",
-      "n_positive_prompts": 12,
-      "n_negative_prompts": 12,
-      "layers_extracted": [
-        25,
-        27,
-        29,
-        31,
-        33,
-        35,
-        37,
-        39,
-        41
-      ],
-      "vector_dim": 5120
-    },
-    {
-      "key": "arousal",
-      "description": "Runtime substrate steering dimension: arousal",
-      "n_positive_prompts": 10,
-      "n_negative_prompts": 10,
-      "layers_extracted": [
-        25,
-        27,
-        29,
-        31,
-        33,
-        35,
-        37,
-        39,
-        41
-      ],
-      "vector_dim": 5120
-    },
-    {
-      "key": "curiosity",
-      "description": "Runtime substrate steering dimension: curiosity",
-      "n_positive_prompts": 10,
-      "n_negative_prompts": 10,
-      "layers_extracted": [
-        25,
-        27,
-        29,
-        31,
-        33,
-        35,
-        37,
-        39,
-        41
-      ],
-      "vector_dim": 5120
-    },
-    {
-      "key": "frustration",
-      "description": "Runtime substrate steering dimension: frustration",
-      "n_positive_prompts": 10,
-      "n_negative_prompts": 10,
-      "layers_extracted": [
-        25,
-        27,
-        29,
-        31,
-        33,
-        35,
-        37,
-        39,
-        41
-      ],
-      "vector_dim": 5120
-    },
-    {
-      "key": "energy",
-      "description": "Runtime substrate steering dimension: energy",
-      "n_positive_prompts": 8,
-      "n_negative_prompts": 8,
-      "layers_extracted": [
-        25,
-        27,
-        29,
-        31,
-        33,
-        35,
-        37,
-        39,
-        41
-      ],
-      "vector_dim": 5120
-    }
-  ],
+  "timestamp": "2026-08-26T09:03:18Z",
   "total_vectors": 45,
-  "timestamp": "2026-07-02T06:09:54Z"
+  "vector_files": [
+    {
+      "name": "arousal_layer25.npz",
+      "sha256": "41afeb4a0856a475bb0a4bd6d6a4dd80b8e13dfa02bbe352fc853918fb0378ba",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer27.npz",
+      "sha256": "8650dccd4b0defd0df2a1dba60fe00d05acddd55b1fec42b2cd8b4be1dfe603a",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer29.npz",
+      "sha256": "4ca5556be3f0d8813cf81f7ba256c637a4ee0447e6040899b2083daed9a26627",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer31.npz",
+      "sha256": "f69a3f68ecaf565f3a21db201d9e3bff771fa6ee1bdeca0d5ef978a519d05b39",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer33.npz",
+      "sha256": "3d1d495903025f0d92209ea41327391f81a7c8226574afe801f52f641f7f9bee",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer35.npz",
+      "sha256": "28b6ced7eae86eea23e3da3d7b85fab1a0d9545bffb6cc8632e3e8b81b0a12ce",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer37.npz",
+      "sha256": "1c26b8c117043db3556203eb63ec41beeea42a8bd0617807505b87406e87b8de",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer39.npz",
+      "sha256": "99e87251f04b1b36e39129eb6e4da5171ee3af6b2f69112395e4b87d1a74cc5d",
+      "size_bytes": 25609
+    },
+    {
+      "name": "arousal_layer41.npz",
+      "sha256": "3af1dbf02d4e75daa18370b0b0f1418a6806ef98b6137c005f05691be56e8913",
+      "size_bytes": 25609
+    },
+    {
+      "name": "curiosity_layer25.npz",
+      "sha256": "2a43386919c68740b22cfe6b5c17c69bd99d9dbb25f5b2c20f9d18964866abbc",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer27.npz",
+      "sha256": "7eb7d9f3230bc796a17477e12a11fd4a52b099765bd541c6c0447fe2987c3864",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer29.npz",
+      "sha256": "8f5792f617e5b97f068dcf84708737c820f0b841eaa3f63bdcada685c2d44b84",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer31.npz",
+      "sha256": "cdaa1ff24968859e9444c6ea954004d8d9ccd2a34d15fbe524c950ed9f56062e",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer33.npz",
+      "sha256": "edd1319be1f3ee985065ad520b23c2fd7a5bd5a78f0053e45e75be5082e13492",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer35.npz",
+      "sha256": "74b7c9d1c8b7776b7ce8ac6a082322ec2f9d919d89446b367af8e5092ebbc329",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer37.npz",
+      "sha256": "5828c2a016355b7bde97aab81c1bfd83e47630b7f6ef27408de4d38efa769d9e",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer39.npz",
+      "sha256": "87a74ac4ad5fb09608e3e5f2fcece4240a9f903d374490ced90da699a0f01dfd",
+      "size_bytes": 25617
+    },
+    {
+      "name": "curiosity_layer41.npz",
+      "sha256": "0149916a0dae7138771d3fb6af8dc00c3f2376460952adf5f235314b5029db2e",
+      "size_bytes": 25617
+    },
+    {
+      "name": "energy_layer25.npz",
+      "sha256": "3b85b6437f9c8d8a23c112a25e2aa0903e2cabd2eee8fbfa690886bdab7f4ae7",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer27.npz",
+      "sha256": "dcb12e5b57450dff76c2f5190ba69bf0c84ef6aee752f098cfc1bec17a2b205a",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer29.npz",
+      "sha256": "2f19ae185d6cab594fba2a7666de8264c4ace99fa5a91d098ab6fb47819b2aaa",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer31.npz",
+      "sha256": "3f353110292f608241baef8f676e3bb928bd88acf0726c9de540e5468172b6af",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer33.npz",
+      "sha256": "263eb87dd325fcc2db1bc59d8b2dad48523865a70eda128a1212fe4304672263",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer35.npz",
+      "sha256": "cf202fcc3770769aac7f32cebfc55ecfeb95cd60777f4a810701fea005ec1990",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer37.npz",
+      "sha256": "707e489fe5c1934a548597cdc94e3c8c368c363cba41e8c5251dcaa3b7226c93",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer39.npz",
+      "sha256": "63a3eee8ed17c01cb750c501e307e2b60697aabfc2af7f1e5fe5b19244988de0",
+      "size_bytes": 25605
+    },
+    {
+      "name": "energy_layer41.npz",
+      "sha256": "9d12f79ef49c98c3b9d8c914afa7d8a8e8e67e4ac1d0e78f82d28ecae1f5a984",
+      "size_bytes": 25605
+    },
+    {
+      "name": "frustration_layer25.npz",
+      "sha256": "cd4a81ca8d9121c0d87ff48bf84a19eb9406ba9f725ddd95c2c954ad5202944d",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer27.npz",
+      "sha256": "e008c4606908f6e954a1e2bd73d533f7943a061d72f4398e978cc08c5b03ee79",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer29.npz",
+      "sha256": "9120058fbd0bd2bacf7ef6e8367b3c7bd219e01e44ee4c0cf26e108441187b7e",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer31.npz",
+      "sha256": "e75dcdad01f7877366557e83aeb82b177d27751dbaf72e0719e68d873c44d6d8",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer33.npz",
+      "sha256": "33cf290cfafea3804ef8592ed86326c6f35e8f3fdfb87a6c6b74466a194ca094",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer35.npz",
+      "sha256": "39caed5bb64b1058d0b7ae5abc04b90ed91de6af722f27e973da5d0472550dc3",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer37.npz",
+      "sha256": "0f20324f9593d4e532c73c774c8156e082aa9e0f0e68ccc6301ab4b1d975d48a",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer39.npz",
+      "sha256": "eae0d7b1338fc564ba9c5e2d1d7f18ba74400749b516b27df2a3615cd01143b3",
+      "size_bytes": 25625
+    },
+    {
+      "name": "frustration_layer41.npz",
+      "sha256": "492f3d4812439aaa6e29369f066fcbd4945a8e3af3af80ac924f3b9bae92458f",
+      "size_bytes": 25625
+    },
+    {
+      "name": "valence_positive_layer25.npz",
+      "sha256": "ff9abed0979b08577f669f573ebc6291fa78ef71273ef8d75bdadb2941569773",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer27.npz",
+      "sha256": "1503df2a0face5617776a9c8409492742bdfdf80d6913e71cace4db4bae0de8d",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer29.npz",
+      "sha256": "c9cd74cf5759807f75c81ba720bd6cc0dc0fb86d1a64cc876f67eb1eb5ae9169",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer31.npz",
+      "sha256": "927204809ff2e3879ad818b78339f7127619af45e680592089f361b041d69e89",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer33.npz",
+      "sha256": "21a570fd3e71c9562b6c7fcedcf139636d26d04b34a76481c87d8a78876b414d",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer35.npz",
+      "sha256": "f306ee5a5b9daf8edc4ae03c99429a7197a5d20058aef0e817a2fb4d6372c420",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer37.npz",
+      "sha256": "51eb592510eacca464560595af51b888864fc8869fff13b317ea66d549a33a76",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer39.npz",
+      "sha256": "043d153984f29286a23c54e505f81c9a3b8aa3c1b13478edfd8523f5b842b6ed",
+      "size_bytes": 25645
+    },
+    {
+      "name": "valence_positive_layer41.npz",
+      "sha256": "c1c71c30a13d0cfef12a2955f814757ff8275e34537ef331cce26ac3663be5c3",
+      "size_bytes": 25645
+    }
+  ]
 }

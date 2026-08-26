@@ -1400,6 +1400,10 @@ async def pursue_on_screen(
             # measured live, about one move every three seconds, where a
             # person plays several a second.
             sequence = [key, *follow_on] if follow_on and not pacing["brief"] else [key]
+            # Intent, then action. Said before the body moves, because that is
+            # the order a person doing something narrates it in.
+            for step in sequence:
+                _say_intent(step, None if pacing["brief"] else made, out_loud=narrate)
             if len(sequence) > 1:
                 # Only the keys that really landed are spoken for. Focus can
                 # move part-way through a batch, and a commentary describing
@@ -1409,12 +1413,14 @@ async def pursue_on_screen(
             else:
                 arrived = 1 if await press(key, expect_app=target_app) else 0
             for step in sequence[:arrived]:
-                # Each one is said, because each one happened, in the order it
-                # happened.
-                _say_move(step, None if pacing["brief"] else made, out_loud=narrate)
                 if step != key:
                     moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
                     doing.a_step_taken()
+            for step in sequence[arrived:]:
+                # An intention she stated and did not carry out is corrected
+                # out loud. The record of what she did is written only from
+                # what landed, so the two can never drift.
+                _say_it_did_not_land(step, out_loud=narrate)
             if arrived and pacing["choice"] == SLOW_DOWN:
                 await let_the_voice_catch_up(narration_backlog())
             return arrived > 0
@@ -1646,20 +1652,50 @@ def _tell(line: str) -> None:
         record_degradation("screen_pursuit", exc, severity="info", action="held a plan without saying it")
 
 
-def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
-    """Report a move her body has just made, and why she made it.
+def _say_intent(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
+    """Say what she is about to do, before her body does it.
 
-    Both halves, in one record, at one moment. The key is the one actually
-    pressed, so the commentary cannot drift from the keystrokes; the reason
-    and the expectation come from the deliberation that produced it, so what
-    reaches the surface is her thinking about the choice rather than a report
-    of a reflex. Narrating from the body alone would describe a twitch;
-    narrating from the decision alone would describe an intention she might
-    not have carried out.
+    A commentary that only ever reports finished moves is a log. Somebody
+    watching wants the intention and then the action, in that order, because
+    that is the order a person doing something narrates it in.
 
-    Offered to the workspace rather than spoken here, so whether it is said
-    out loud stays the narrator's business and a silent run is unchanged.
+    The reason this was ever the other way round is real and does not go
+    away: an intention is not an act, and a keystroke refused for focus would
+    be described as a move she made. So the intention is said here and the
+    body is watched afterwards — an intention that was not carried out is
+    corrected out loud by :func:`_say_it_did_not_land`, and the RECORD of
+    what she did is still written only from what landed.
     """
+    said = f"Going {str(key).strip().lower()}"
+    because = ""
+    if chosen is not None:
+        because = str(getattr(chosen, "rationale", "") or "")
+    _publish_decision(said, because, _expected_of(chosen), chosen)
+    if out_loud:
+        _tell(f"{said} — {because}" if because else said)
+
+
+def _say_it_did_not_land(key: str, *, out_loud: bool = False) -> None:
+    """Say that what she meant to do did not happen.
+
+    Without this, saying the intention first would let the commentary drift
+    from the body the moment anything refused a keystroke — which is the
+    failure that put the narration after the act in the first place.
+    """
+    said = f"{str(key).strip().capitalize()} did not land"
+    _publish_decision(said, "the window did not take it", "", None)
+    if out_loud:
+        _tell(said)
+
+
+def _expected_of(chosen: Any) -> str:
+    option = getattr(chosen, "chosen", None)
+    expectation = getattr(option, "expectation", None)
+    return str(getattr(expectation, "describes", "") or "")
+
+
+def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> None:
+    """Offer one decision to the workspace, whatever kind of line it is."""
     try:
         from core.consciousness.global_workspace import ContentType
         from core.container import ServiceContainer
@@ -1668,18 +1704,7 @@ def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
         publish = getattr(workspace, "publish", None) if workspace else None
         if publish is None:
             return
-        said = f"Board: {str(key).strip().capitalize()}"
-        because = ""
-        expected = ""
-        spoke = True
-        if chosen is not None:
-            because = str(getattr(chosen, "rationale", "") or "")
-            spoke = bool(getattr(chosen, "spoke", True))
-            option = getattr(chosen, "chosen", None)
-            expectation = getattr(option, "expectation", None)
-            expected = str(getattr(expectation, "describes", "") or "")
         coroutine = publish(
-            # What she is doing right now, while somebody watches her do it.
             priority=0.9,
             source="screen_pursuit.moved",
             payload={
@@ -1688,7 +1713,7 @@ def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
                     "chose": said,
                     "because": because,
                     "expected": expected,
-                    "spoke": spoke,
+                    "spoke": bool(getattr(chosen, "spoke", True)) if chosen is not None else True,
                 },
             },
             reason=said,
@@ -1702,25 +1727,7 @@ def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
         task = loop.create_task(coroutine)
         task.add_done_callback(lambda done: done.exception())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation("screen_pursuit", exc, severity="info", action="moved without saying so")
-
-    if not out_loud:
-        return
-    # Said because it was asked for, not because it won a competition.
-    #
-    # The workspace broadcasts one winner a tick, which is the right way to
-    # decide what she is ATTENDING to and the wrong way to decide whether a
-    # commentary somebody requested gets delivered. Measured live: she played
-    # steadily and one move in twenty reached her voice.
-    try:
-        from core.agency.narrator import Narrator
-
-        line = f"Board: {str(key).strip().capitalize()}"
-        because = str(getattr(chosen, "rationale", "") or "") if chosen is not None else ""
-        Narrator.say_everywhere(f"{line} — {because}" if because else line)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation("screen_pursuit", exc, severity="info", action="moved without saying it out loud")
-
+        record_degradation("screen_pursuit", exc, severity="info", action="acted without saying so")
 
 
 async def _settled_after(
