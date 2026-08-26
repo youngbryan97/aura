@@ -1562,9 +1562,96 @@ def _is_capability_inventory_request(user_message: str) -> bool:
     return _is_capability_request(user_message)
 
 
+#: Whether the person is asking what she can do.
+#:
+#: The hundred-odd markers and the structural rules below are the floor. This
+#: is the mechanism, because "list your tools" is on the list and "list your
+#: capabilities" is not, and that is what a list of phrasings always looks
+#: like from the inside.
+_ASKS_WHAT_SHE_CAN_DO: object | None = None
+
+
+def _inventory_surface() -> object | None:
+    global _ASKS_WHAT_SHE_CAN_DO
+    if _ASKS_WHAT_SHE_CAN_DO is not None:
+        return _ASKS_WHAT_SHE_CAN_DO
+    try:
+        from core.language.learned_matcher import LearnedMatcher, embed_sentences
+
+        _ASKS_WHAT_SHE_CAN_DO = LearnedMatcher(
+            name="capability_inventory_request",
+            positives=(
+                "list your capabilities",
+                "what tools do you have",
+                "what can you actually do on this computer right now?",
+                "run me through what you're able to do",
+                "give me the rundown of your skills",
+                "what are you able to reach from here?",
+            ),
+            negatives=(
+                "why is the second invoice picking up the first one's lines?",
+                "what's actually going on with this project?",
+                "can you do the marble problem?",
+                "how does confusion change your planning?",
+                "what is the capital of Peru",
+                "write me a one-pager about the migration",
+                "read that file and tell me what it says",
+            ),
+            features=embed_sentences,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        _ASKS_WHAT_SHE_CAN_DO = None
+    return _ASKS_WHAT_SHE_CAN_DO
+
+
 def _is_explicit_capability_inventory_request(user_message: str) -> bool:
+    """Whether this turn is asking what she can do, rather than asking her to."""
+    settled = _capability_inventory_floor(user_message)
+    surface = _inventory_surface()
+    if surface is None:
+        return settled
+    if settled:
+        try:
+            surface.observe(str(user_message or ""), holds=True)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+        return True
+    # An address is not a sentence, so the surface sees the words too.
+    try:
+        from core.intent.opaque_spans import without_opaque_spans
+
+        asked = without_opaque_spans(str(user_message or ""))
+    except (ImportError, TypeError, ValueError):
+        asked = str(user_message or "")
+    try:
+        return bool(surface.decide_without_waiting(asked))
+    except (RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _capability_inventory_floor(user_message: str) -> bool:
     text = _chat_memory_state._normalize_user_message(user_message)
     if not text:
+        return False
+    # An address is not a sentence.
+    #
+    # LIVE, 2026-08-25: "Something weird is happening in a little project of
+    # mine at /private/tmp/claude-501/-Users-bryan--aura-live-source/.../
+    # invoice-tools. There's no error and no failing test... What's actually
+    # going on?" was answered with a recitation of 79 capability entries and a
+    # declaration that no tool would be run. The word "aura" was inside the
+    # PATH, which put her within eighty characters of a capability word, and
+    # the structural rule below counted it as her being the subject.
+    #
+    # `without_opaque_spans` was written for this and cites this same
+    # directory in its own docstring. It just was not being called here.
+    try:
+        from core.intent.opaque_spans import without_opaque_spans
+
+        text = without_opaque_spans(text)
+    except (ImportError, TypeError, ValueError):
+        pass
+    if not text.strip():
         return False
     explicit_markers = (
         "explain what external tools you can use",
