@@ -523,6 +523,32 @@ def _describes_the_same_thing(wanted: str, option: ActionOption) -> float:
     return len(goal_words & described) / len(goal_words)
 
 
+def _foresight_lines(foresight: dict[str, tuple[float, str]] | None) -> list[str]:
+    """What she can see each move leading to, as evidence she can read."""
+    if not foresight:
+        return []
+    ranked = sorted(foresight.items(), key=lambda row: row[1][0], reverse=True)
+    return [
+        f"{name} would leave: {said}" if said else f"{name} looks worth {score:.2f}"
+        for name, (score, said) in ranked
+    ]
+
+
+def _best_ahead(
+    foresight: dict[str, tuple[float, str]] | None, options: Sequence[ActionOption]
+) -> ActionOption | None:
+    """The move her own model of the world says leads somewhere best."""
+    if not foresight:
+        return None
+    by_name = {option.name.lower(): option for option in options}
+    ranked = sorted(foresight.items(), key=lambda row: row[1][0], reverse=True)
+    for name, _scored in ranked:
+        option = by_name.get(str(name).strip().lower())
+        if option is not None and can_be_part_of_a_plan(option):
+            return option
+    return None
+
+
 def choose_without_language(
     options: Sequence[ActionOption],
     history: Sequence[Attempt] = (),
@@ -789,6 +815,7 @@ async def deliberate(
     lived: bool = True,
     announce: bool = True,
     approach: str = "",
+    foresight: dict[str, tuple[float, str]] | None = None,
 ) -> Deliberation:
     """Pick the next move toward ``goal`` from what is available right now.
 
@@ -810,7 +837,17 @@ async def deliberate(
         if spread:
             recalled.append(spread)
 
-    evidence = _situation_evidence(goal, situation, options, history, recalled, knowledge)
+    # What she can see coming, where she has worked out how this thing moves.
+    #
+    # A third way to reach a move, beside asking her language organ and
+    # reading the record: applying what she knows about the world to each
+    # option and looking at the result. Cheaper than words and more specific
+    # than a memory, and it is the only route that can rule out a move that
+    # would do nothing before she spends one on finding out.
+    seen_coming = _foresight_lines(foresight)
+    evidence = _situation_evidence(
+        goal, situation, options, history, [*recalled, *seen_coming], knowledge
+    )
     spoke = think is not None
     reply = ""
     try:
@@ -873,6 +910,11 @@ async def deliberate(
         # words is not an approach, it is a remark. Most moves in a fast loop
         # are decided from evidence, and if her plan cannot reach those, her
         # plan cannot reach most of what she does.
+        ahead = _best_ahead(foresight, options)
+        if ahead is not None:
+            structural = ahead
+            why = str((foresight or {}).get(ahead.name, (0.0, ""))[1] or "").strip()
+            why = why or "it is the best of the ways this could go"
         if structural is None:
             return Deliberation(
                 goal=goal,

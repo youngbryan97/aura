@@ -880,8 +880,11 @@ async def pursue_on_screen(
     """
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt, confirm, deliberate
+    from core.agency.how_good_is_this import how_good, worth_comparing
+    from core.agency.how_good_is_this import why as why_this
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
+    from core.perception.how_it_moves import HowItMoves
     from core.perception.where_it_responds import (
         Responsive,
         describe,
@@ -910,6 +913,10 @@ async def pursue_on_screen(
         "arranged": None,
         "watched": {},
     }
+    # What she works out about how this thing answers to her, from her own
+    # moves. Empty at the start of every run: a rule that held on one thing is
+    # a guess about the next one, and she should find out rather than assume.
+    knows = HowItMoves()
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -921,6 +928,7 @@ async def pursue_on_screen(
     intending: dict[str, str] = {"value": ""}
     #: Attempts she chose to begin again, and why.
     restarts: dict[str, Any] = {"count": 0, "because": ""}
+    foreseen: dict[str, bool] = {"said": False}
     #: How she has decided to handle acting faster than she can speak.
     pacing: dict[str, Any] = {"choice": "", "because": "", "brief": False, "waits": 0}
     #: When language was last consulted, so it is asked where it counts.
@@ -1232,6 +1240,11 @@ async def pursue_on_screen(
                 seen_after=laid_out,
             )
             history.append(attempt)
+            # Her own move, and what it did. Three things she already had and
+            # threw away after one glance, which is why she could never try a
+            # move without making it.
+            if pending["arranged"] is not None and previous.chosen is not None:
+                knows.watched(pending["arranged"], previous.chosen.name, laid_out)
             # Learned from the same measurement. A move that changed nothing
             # is the control: whatever still changed across it was changing
             # on its own, and a page whose advertising animates as often as
@@ -1449,6 +1462,7 @@ async def pursue_on_screen(
             # 2026-08-26: seventeen passes for fourteen moves, twenty seconds
             # a move, and a run that spent its budget deliberating over a
             # button she was never going to press.
+            held_line = plan["held"].approach if plan["held"] is not None else ""
             unusual = stuck(history) or ended or offered_pacing
             weight = stakes if unusual else min(stakes, 0.3)
             # And a routine move in a fast loop does not always need words.
@@ -1467,10 +1481,25 @@ async def pursue_on_screen(
             if asking:
                 asked["at"] = len(moves)
                 asked["after_restarts"] = restarts["count"]
+            # Where each move would lead, when she has worked out how this
+            # moves and there is anything to prefer one future over another by.
+            ahead: dict[str, tuple[float, str]] = {}
+            if worth_comparing(success_when, held_line):
+                for name, future in knows.expect_all(
+                    laid_out, [option.name for option in available]
+                ).items():
+                    ahead[name] = (
+                        how_good(future, toward=success_when, approach=held_line),
+                        why_this(future, toward=success_when, approach=held_line),
+                    )
+            if ahead and not foreseen["said"]:
+                foreseen["said"] = True
+                logger.info("she can see ahead now: %s", knows.says())
             chosen = await deliberate(
                 goal,
                 seen,
                 available,
+                foresight=ahead or None,
                 think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
