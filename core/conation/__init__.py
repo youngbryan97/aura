@@ -51,6 +51,10 @@ from core.conation.origins import (
     OriginReading,
     ValueOrigin,
 )
+from core.conation.overjustification import (
+    INTRINSIC_ORIGINS,
+    OverjustificationGuard,
+)
 from core.conation.salience import IncentiveSalience, SalienceCalibration
 from core.conation.state import (
     VECTOR_FIELDS,
@@ -76,7 +80,9 @@ __all__ = [
     "HomeostaticValuation",
     "Incentive",
     "IncentiveSalience",
+    "INTRINSIC_ORIGINS",
     "Instrumentality",
+    "OverjustificationGuard",
     "MindTopology",
     "OriginReading",
     "OutcomeReport",

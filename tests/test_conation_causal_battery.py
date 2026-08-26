@@ -25,6 +25,7 @@ from core.conation import (
     Blocker,
     ConativePhase,
     Incentive,
+    Instrumentality,
     MindTopology,
     PlayFrame,
     Refusal,
@@ -871,3 +872,69 @@ def test_every_recognised_intervention_actually_moves_something(engine):
         experienced = engine.appraise(Incentive(key="toy"))
     assert naive.magnitude_of(ValueOrigin.VICARIOUS) > \
         experienced.magnitude_of(ValueOrigin.VICARIOUS)
+
+
+# ── the three constants now enforce something ────────────────────────────
+
+
+def test_an_undeclared_origin_contributes_nothing(engine, monkeypatch):
+    """Refutes: an origin may report a number without declaring its evidence.
+
+    An origin added later without an entry in EVIDENCE_REQUIRED is exactly the
+    addition that looks harmless and makes the readout a fiction.
+    """
+    from core.conation import origins as origins_module
+
+    trimmed = dict(origins_module.EVIDENCE_REQUIRED)
+    trimmed.pop(ValueOrigin.EPISTEMIC)
+    monkeypatch.setattr("core.conation.engine.EVIDENCE_REQUIRED", trimmed)
+
+    state = _snail(engine)
+    assert state.dominant_origin is not ValueOrigin.EPISTEMIC
+    assert any("undeclared_origin" in r for r in state.refusals)
+
+
+def test_an_enactive_reading_needs_a_person(engine):
+    """Refutes: a projected want may be reported as an original one."""
+    state = engine.appraise(
+        Incentive(key="tease"),
+        forecast=TargetForecast(person="", predicted_amusement=0.8),
+        frame=_frame(), norm_violation=0.5, governed=True,
+    )
+    assert state.magnitude_of(ValueOrigin.ENACTIVE) == 0.0
+
+
+def test_an_extrinsic_payoff_never_teaches_an_autotelic_motive(engine):
+    """Refutes: one cached value is safe for both kinds of reason.
+
+    Deci's overjustification effect is a hazard for any agent that folds every
+    reward into one number: an autotelic pull that coincides with a useful
+    outcome gets re-attributed to the outcome, and goes when the outcome does.
+    """
+    snail = _snail(engine)
+    assert snail.instrumentality is Instrumentality.AUTOTELIC
+    assert snail.dominant_origin is ValueOrigin.EPISTEMIC
+
+    engine.learn("snail", experienced_liking=0.5, extrinsic_payoff=0.9)
+    status = engine.overjustification.status()
+    assert status["protected_payoffs"] == 1
+    assert status["incentives"] == 1
+
+
+def test_an_instrumental_motive_is_not_protected(engine):
+    """Refutes: the guard fires on everything and learns nothing.
+
+    An instrumental motive's payoff belongs in its cached value, because the
+    payoff is the point.
+    """
+    engine.appraise(Incentive(key="chore", cached_value=0.4, goal_value=0.8))
+    engine.learn("chore", experienced_liking=0.5, extrinsic_payoff=0.9)
+    assert engine.overjustification.status()["protected_payoffs"] == 0
+
+
+def test_erosion_needs_a_first_payoff_to_compare_against(engine):
+    """Refutes: erosion can be reported before anything was paid."""
+    from core.conation.overjustification import ContaminationRecord
+
+    record = ContaminationRecord(key="x", origin="epistemic")
+    assert record.erosion() is None

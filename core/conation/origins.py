@@ -143,6 +143,7 @@ class Instrumentality(StrEnum):
     motivation. ``AUTOTELIC`` states are the ones that lose value when a
     reward is attached to them, so a system that cannot tell them apart will
     damage its own curiosity by paying for it.
+    ``core/conation/overjustification.py`` is what acts on the distinction.
     """
 
     AUTOTELIC = "autotelic"
@@ -150,9 +151,10 @@ class Instrumentality(StrEnum):
 
 
 #: What each origin must be able to point at before it may report a number.
-#: Read by ``core/conation/engine.py`` when it assembles a state, and by
-#: ``core/conation/invariants.py``, which fails if any origin ever carries a
-#: magnitude without the evidence named here.
+#: ``core/conation/engine.py`` drops any reading whose origin is missing from
+#: this table and records the drop as a refusal, so an origin added without
+#: declaring what evidence it needs contributes nothing rather than
+#: contributing an unexplained number.
 EVIDENCE_REQUIRED: dict[ValueOrigin, str] = {
     ValueOrigin.HOMEOSTATIC: "a measured deficit in a named resource budget",
     ValueOrigin.EPISTEMIC: "a measured change in prediction error or competence",
@@ -162,8 +164,9 @@ EVIDENCE_REQUIRED: dict[ValueOrigin, str] = {
 }
 
 #: Origins that cannot be produced without a second agent in the loop. The
-#: engine refuses to assemble these from solo evidence, which is what stops a
-#: borrowed want from being reported as an original one.
+#: engine checks that one was actually there before letting these into the
+#: available set, which is what stops a borrowed or projected want from being
+#: reported as an original one.
 SOCIAL_ORIGINS: frozenset[ValueOrigin] = frozenset(
     {ValueOrigin.VICARIOUS, ValueOrigin.ENACTIVE}
 )

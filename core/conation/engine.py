@@ -56,26 +56,29 @@ from dataclasses import dataclass, field
 from typing import Any, Iterator, Sequence
 
 from core.conation.access import AccessLedger, Blocker
-from core.conation.calibration import CalibrationRegistry
 from core.conation.aesthetic import AestheticValuation
+from core.conation.calibration import CalibrationRegistry
 from core.conation.dynamics import ConativeDynamics
 from core.conation.enactive import EnactiveValuation, PlayFrame, TargetForecast
 from core.conation.epistemic import EpistemicValuation
 from core.conation.homeostatic import HomeostaticValuation
 from core.conation.origins import (
+    EVIDENCE_REQUIRED,
+    REQUIRED_TOPOLOGY,
+    SOCIAL_ORIGINS,
     ConativePhase,
     Instrumentality,
     MindTopology,
     OriginReading,
-    REQUIRED_TOPOLOGY,
     ValueOrigin,
 )
+from core.conation.overjustification import OverjustificationGuard
 from core.conation.salience import IncentiveSalience, SalienceCalibration
 from core.conation.state import (
+    VECTOR_FIELDS,
     ConativeState,
     Incentive,
     OutcomeReport,
-    VECTOR_FIELDS,
 )
 from core.conation.vicarious import VicariousValuation
 from core.runtime.errors import record_degradation
@@ -134,6 +137,7 @@ class ConationEngine:
         self.enactive = EnactiveValuation()
         self.access = AccessLedger()
         self.dynamics = ConativeDynamics()
+        self.overjustification = OverjustificationGuard()
 
         #: Arbitration weights by vector field. Resolved through the
         #: calibration registry, which reports whether a head earned them or
@@ -310,7 +314,24 @@ class ConationEngine:
             readings[ValueOrigin.ENACTIVE] = reading
             refusals.extend(declined)
 
-        available = [r for r in readings.values() if r.available]
+        # Every origin reporting a magnitude must have a declared evidence
+        # contract, and a social origin must have had another agent in the
+        # loop to produce it. Both are checked here rather than trusted,
+        # because an origin added later without either is exactly the kind of
+        # addition that looks harmless and makes the readout a fiction.
+        available = []
+        for reading in readings.values():
+            if not reading.available:
+                continue
+            if reading.origin not in EVIDENCE_REQUIRED:
+                refusals.append(f"undeclared_origin:{reading.origin}")
+                continue
+            if reading.origin in SOCIAL_ORIGINS and not self._had_another_agent(
+                reading.origin, incentive, forecast
+            ):
+                refusals.append(f"social_origin_without_another_agent:{reading.origin}")
+                continue
+            available.append(reading)
         dominant = max(available, key=lambda r: r.magnitude).origin if available else None
         total = sum(r.magnitude for r in available)
 
@@ -341,11 +362,11 @@ class ConationEngine:
             self.salience.attribute(incentive.key, dominant)
         self.access.observe_want(incentive.key, wanting)
         self.dynamics.register_motive(wanting)
-        borrowed = readings.get(ValueOrigin.VICARIOUS)
+        borrowed = next(
+            (r for r in available if r.origin is ValueOrigin.VICARIOUS), None
+        )
         borrowed_fraction = (
-            borrowed.magnitude / total
-            if borrowed is not None and borrowed.available and total > EPS
-            else 0.0
+            borrowed.magnitude / total if borrowed is not None and total > EPS else 0.0
         )
 
         topology = MindTopology.SOLO
@@ -394,6 +415,23 @@ class ConationEngine:
         )
         self._last_state = state
         return state
+
+    @staticmethod
+    def _had_another_agent(
+        origin: ValueOrigin, incentive: Incentive, forecast: TargetForecast | None
+    ) -> bool:
+        """Whether a second mind was actually in the loop for a social origin.
+
+        Vicarious value needs an observed valuation by somebody; enactive value
+        needs a person the act is aimed at. Either without its agent is a
+        borrowed or projected want reported as an original one, which is the
+        failure the whole provenance apparatus exists to prevent.
+        """
+        if origin is ValueOrigin.ENACTIVE:
+            return forecast is not None and bool(forecast.person)
+        if origin is ValueOrigin.VICARIOUS:
+            return True  # the vicarious module refuses anonymous observations
+        return True
 
     def _phase(self, key: str, wanting: float, blocker: str) -> ConativePhase:
         """Where in Craig's cycle this motive currently sits."""
@@ -508,6 +546,7 @@ class ConationEngine:
         prediction_error: float | None = None,
         person: str | None = None,
         observed_amusement: float | None = None,
+        extrinsic_payoff: float = 0.0,
     ) -> OutcomeReport:
         """Fold one real outcome back into every predictor it touches.
 
@@ -518,6 +557,26 @@ class ConationEngine:
         predicted_liking = self.salience.predicted_liking(key)
         record = self.salience._records.get(key)
         predicted_wanting = record.last_wanting if record is not None else 0.0
+
+        # An extrinsic payoff delivered to an autotelic motive is recorded
+        # rather than folded into the cached value. Letting it teach would
+        # re-attribute a reason of her own to a task's reward, and the pull
+        # would go when the reward did.
+        last = self._last_state
+        at_risk = (
+            last is not None
+            and last.incentive_key == key
+            and self.overjustification.is_at_risk(
+                last.instrumentality, last.dominant_origin
+            )
+        )
+        if at_risk and extrinsic_payoff:
+            self.overjustification.observe_payoff(
+                key,
+                origin=last.dominant_origin,
+                payoff=extrinsic_payoff,
+                intrinsic_now=last.magnitude_of(last.dominant_origin),
+            )
 
         result = self.salience.record_outcome(
             key, experienced_liking=experienced_liking
@@ -577,6 +636,7 @@ class ConationEngine:
             "enactive": self.enactive.status(),
             "access": self.access.status(),
             "dynamics": self.dynamics.status(),
+            "overjustification": self.overjustification.status(),
             "last": self._last_state.to_dict() if self._last_state else None,
         }
 
