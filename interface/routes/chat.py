@@ -9368,6 +9368,38 @@ def _request_requires_cognitive_engine(
     return requires, request_surface
 
 
+#: Internal names for the things that keep her from answering, and what each
+#: of them means to the person waiting.
+_BLOCKER_IN_WORDS: tuple[tuple[str, str], ...] = (
+    ("worker_not_alive", "My mind is still starting up."),
+    ("model_not_loaded", "My mind is still loading."),
+    ("warmup", "I am still warming up."),
+    ("cortex", "My main reasoning is still coming online."),
+    ("foreground_owner", "I am still finishing something else."),
+    ("recovery", "I am recovering from a problem a moment ago."),
+    ("memory", "I am still loading what I remember."),
+)
+
+
+def _in_plain_words(blocker: Any) -> str:
+    """What a readiness blocker means to somebody waiting for an answer.
+
+    A token is not a reason. LIVE 2026-08-26: "I am not ready to answer that
+    yet — my mind is still coming up. I am still worker_not_alive." A person
+    can do nothing with that word, and printing it is how internal vocabulary
+    keeps arriving on the product surface. Anything without a plain reading
+    is left out rather than shown raw: the sentence around it already says
+    she is not ready.
+    """
+    token = str(blocker or "").strip().lower()
+    if not token:
+        return ""
+    for name, said in _BLOCKER_IN_WORDS:
+        if name in token:
+            return said
+    return ""
+
+
 def _why_there_is_no_answer(lane: Any) -> str:
     """Say what actually stopped the turn, in the words that are true of it.
 
@@ -9385,8 +9417,13 @@ def _why_there_is_no_answer(lane: Any) -> str:
     state = lane if isinstance(lane, dict) else {}
     reason = str(state.get("last_failure_reason") or "").strip().lower()
     blockers = [str(item) for item in (state.get("readiness_blockers") or []) if item]
-    ready = bool(state.get("conversation_ready", True))
-    warming = bool(state.get("warmup_in_flight")) or not ready
+    # Still warming means a warm-up is actually happening.
+    #
+    # `conversation_ready` is False on this lane because THIS turn just
+    # marked it failed, so reading that as "she is still coming up" told
+    # people to wait for something that had already finished — measured
+    # live, on a lane whose own health said ready with no blockers at all.
+    warming = bool(state.get("warmup_in_flight")) or bool(state.get("readiness_blockers"))
 
     if "timeout" in reason or "deadline" in reason or "slow" in reason:
         return (
@@ -9394,10 +9431,11 @@ def _why_there_is_no_answer(lane: Any) -> str:
             "I had an answer. Ask me again and it should come back."
         )
     if warming or blockers:
-        waiting_on = f" I am still {blockers[0]}." if blockers else ""
+        # The specific reason instead of the general one, where there is one.
+        waiting_on = _in_plain_words(blockers[0]) if blockers else ""
         return (
-            "I am not ready to answer that yet — my mind is still coming up."
-            f"{waiting_on} Give me a moment and ask again."
+            f"{waiting_on or 'I am not ready to answer that yet — my mind is still coming up.'}"
+            " Give me a moment and ask again."
         )
     if "unavailable" in reason or "no_reply" in reason or not reason:
         return (

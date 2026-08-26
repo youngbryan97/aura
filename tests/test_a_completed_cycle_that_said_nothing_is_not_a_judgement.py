@@ -26,10 +26,10 @@ def test_a_timeout_is_called_a_timeout():
 
 def test_a_mind_still_coming_up_says_so_and_names_what_it_waits_on():
     said = _why_there_is_no_answer(
-        {"conversation_ready": False, "readiness_blockers": ["loading the model"]}
+        {"warmup_in_flight": True, "readiness_blockers": ["model_not_loaded"]}
     )
-    assert "not ready" in said
-    assert "loading the model" in said
+    assert "still loading" in said
+    assert "Give me a moment" in said
 
 
 def test_an_empty_cycle_says_nothing_came_back_rather_than_claiming_a_judgement():
@@ -74,3 +74,42 @@ def test_an_empty_cycle_is_tried_once_more_before_refusing():
     block = source[where - 700 : where + 400]
     assert "_attempt_protected_foreground_reply" in block
     assert "reply_text = second_try" in block
+
+
+def test_a_lane_this_turn_just_marked_failed_is_not_called_warming():
+    """`conversation_ready` is False on this lane because the turn itself
+    marked it failed. Reading that as "she is still coming up" told people to
+    wait for something that had already finished — measured live, on a lane
+    whose own health said ready with no blockers at all."""
+    said = _why_there_is_no_answer(
+        {
+            "state": "failed",
+            "conversation_ready": False,
+            "readiness_blockers": [],
+            "last_failure_reason": "",
+        }
+    )
+    assert "still coming up" not in said
+    assert "Nothing came back" in said
+
+
+def test_a_real_warm_up_still_says_so():
+    said = _why_there_is_no_answer(
+        {"warmup_in_flight": True, "readiness_blockers": ["worker_not_alive"]}
+    )
+    assert "starting up" in said
+
+
+def test_an_internal_token_never_reaches_the_person():
+    """A token is not a reason. LIVE 2026-08-26: "I am still
+    worker_not_alive." Anything without a plain reading is left out rather
+    than shown raw — the sentence around it already says she is not ready."""
+    from interface.routes.chat import _in_plain_words
+
+    assert _in_plain_words("worker_not_alive") == "My mind is still starting up."
+    assert _in_plain_words("some_internal_thing_42") == ""
+    said = _why_there_is_no_answer(
+        {"warmup_in_flight": True, "readiness_blockers": ["some_internal_thing_42"]}
+    )
+    assert "some_internal_thing_42" not in said
+    assert "_" not in said
