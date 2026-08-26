@@ -1194,16 +1194,21 @@ class HostAutomationProvider:
         steps = []
         for key in wanted:
             steps.append(
-                f'''if front is "" or front is {guard} or {guard} is "" then
+                f'''if hasFocus is "" or hasFocus is {guard} or {guard} is "" then
                         {codes[key]}
                         set sent to sent + 1
                     end if'''
             )
         body = "\n                    ".join(steps)
+        # `front` is AppleScript's own word (front window), so a variable of
+        # that name makes the whole script a syntax error at runtime — and a
+        # script that never runs sends no keys while reporting nothing useful.
+        # Measured live: every batched keystroke silently failed and she
+        # narrated "Left did not land" over and over with the game untouched.
         script = f'''
                 set sent to 0
                 tell application "System Events"
-                    set front to name of first application process whose frontmost is true
+                    set hasFocus to name of first application process whose frontmost is true
                     {body}
                 end tell
                 return sent

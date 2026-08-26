@@ -66,7 +66,7 @@ def body(monkeypatch):
     async def identity():
         return {"url": "https://example.test/", "title": "board", "error": ""}
 
-    def intended(key, chosen=None, *, out_loud=False):
+    def intended(key, chosen=None, *, out_loud=False, following_on=False):
         state["said"].append(f"Going {str(key).lower()}")
 
     def missed(key, *, out_loud=False):
@@ -396,3 +396,73 @@ async def test_a_silent_run_still_publishes_but_does_not_speak(body):
         graph=_Store(),
     )
     assert spoken and not any(spoken)
+
+
+def test_a_move_that_continues_a_plan_does_not_borrow_the_first_one_s_reason():
+    """LIVE 2026-08-26: she committed to left-then-right and narrated "Going
+    right — left has worked." The reason belonged to the first move; under the
+    second it said something false.
+    """
+    import asyncio
+
+    from core.skills.screen_pursuit import _say_intent
+
+    seen = []
+
+    class _Workspace:
+        async def publish(self, **fields):
+            seen.append(fields)
+            return True
+
+    import core.container as container
+
+    original = container.ServiceContainer.get
+    container.ServiceContainer.get = staticmethod(
+        lambda name, default=None: _Workspace() if name == "global_workspace" else default
+    )
+    try:
+
+        async def run():
+            _say_intent("right", None, following_on=True)
+            await asyncio.sleep(0)
+
+        asyncio.run(run())
+    finally:
+        container.ServiceContainer.get = original
+
+    decision = seen[0]["payload"]["decision"]
+    assert decision["chose"] == "Going right"
+    assert decision["because"] == "same plan"
+
+
+def test_a_decision_about_herself_is_never_part_of_a_plan():
+    """LIVE 2026-08-26: a plan built from everything available put "say less"
+    between two moves and her body tried to press it — "Say less did not
+    land". A plan is a sequence of things done to the world.
+    """
+    from core.agency.deliberate_action import (
+        can_be_part_of_a_plan,
+        choose_sequence,
+        plan_without_language,
+    )
+    from core.skills.screen_pursuit import pacing_options, screen_options, ways_out
+
+    moves = screen_options(("up", "down", "left", "right"))
+    pacing = pacing_options({"waiting": 3})
+    outs = ways_out(
+        {
+            "ok": True,
+            "text": "New Game",
+            "layout": [{"text": "New Game", "x": 0.5, "y": 0.2, "center_x": 0.5, "center_y": 0.2}],
+        }
+    )
+    everything = [*moves, *pacing, *outs]
+
+    assert all(can_be_part_of_a_plan(option) for option in moves)
+    assert not any(can_be_part_of_a_plan(option) for option in pacing)
+    assert not any(can_be_part_of_a_plan(option) for option in outs)
+
+    assert all(option in moves for option in plan_without_language(everything, 4))
+    # Named in the middle of a spoken plan, it ends the plan rather than
+    # sitting inside it.
+    assert [o.name for o in choose_sequence("left, say less, down", everything, 4)] == ["left"]

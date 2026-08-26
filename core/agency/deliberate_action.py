@@ -550,6 +550,25 @@ def choose_without_language(
 PLAN_AHEAD = 4
 
 
+def can_be_part_of_a_plan(option: ActionOption) -> bool:
+    """Whether this can follow another action without re-deciding.
+
+    A plan is a sequence of things done to the world, one after the next. Two
+    kinds of choice cannot sit in one: a decision about HOW she proceeds
+    rather than what she does — pacing herself, changing her mind about the
+    task — and anything that needs a reason in words.
+
+    Told apart by what the option expects, which every option already states:
+    an action on the world expects the world to be different afterwards, and
+    a decision about herself does not. LIVE 2026-08-26: a plan built from
+    everything available put "say less" between two moves, and her body tried
+    to press it. She narrated "Say less did not land".
+    """
+    if option.needs_words:
+        return False
+    return bool(option.expectation.changed or option.expectation.contains)
+
+
 def plan_without_language(
     ranked: Sequence[ActionOption], limit: int
 ) -> tuple[ActionOption, ...]:
@@ -570,6 +589,8 @@ def plan_without_language(
         return ()
     seen: list[ActionOption] = []
     for option in ranked:
+        if not can_be_part_of_a_plan(option):
+            continue
         if option.name not in {chosen.name for chosen in seen}:
             seen.append(option)
         if len(seen) >= wanted:
@@ -631,6 +652,10 @@ def choose_sequence(
         # A name repeated back to back is one move said twice, not two moves.
         if plan and plan[-1] is option:
             continue
+        if plan and not can_be_part_of_a_plan(option):
+            # A decision about how she proceeds ends the plan rather than
+            # sitting inside it. It stays available as a choice of its own.
+            break
         plan.append(option)
         if len(plan) >= max(1, int(limit)):
             break

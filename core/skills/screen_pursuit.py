@@ -1402,8 +1402,14 @@ async def pursue_on_screen(
             sequence = [key, *follow_on] if follow_on and not pacing["brief"] else [key]
             # Intent, then action. Said before the body moves, because that is
             # the order a person doing something narrates it in.
-            for step in sequence:
-                _say_intent(step, None if pacing["brief"] else made, out_loud=narrate)
+            #
+            # Only the first one carries the reason she gave. The rest are
+            # the same decision continuing, and repeating its reason under
+            # each of them says something false: live, she committed to
+            # left-then-right and narrated "Going right — left has worked."
+            for position, step in enumerate(sequence):
+                reason = (None if pacing["brief"] else made) if position == 0 else None
+                _say_intent(step, reason, out_loud=narrate, following_on=position > 0)
             if len(sequence) > 1:
                 # Only the keys that really landed are spoken for. Focus can
                 # move part-way through a batch, and a commentary describing
@@ -1652,7 +1658,9 @@ def _tell(line: str) -> None:
         record_degradation("screen_pursuit", exc, severity="info", action="held a plan without saying it")
 
 
-def _say_intent(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:
+def _say_intent(
+    key: str, chosen: Any = None, *, out_loud: bool = False, following_on: bool = False
+) -> None:
     """Say what she is about to do, before her body does it.
 
     A commentary that only ever reports finished moves is a log. Somebody
@@ -1667,7 +1675,7 @@ def _say_intent(key: str, chosen: Any = None, *, out_loud: bool = False) -> None
     what she did is still written only from what landed.
     """
     said = f"Going {str(key).strip().lower()}"
-    because = ""
+    because = "same plan" if following_on else ""
     if chosen is not None:
         because = str(getattr(chosen, "rationale", "") or "")
     _publish_decision(said, because, _expected_of(chosen), chosen)

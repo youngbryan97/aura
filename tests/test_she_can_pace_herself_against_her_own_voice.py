@@ -88,7 +88,7 @@ def body(monkeypatch):
     async def identity():
         return {"url": "https://example.test/", "title": "board", "error": ""}
 
-    def said(key, chosen=None, *, out_loud=False):
+    def said(key, chosen=None, *, out_loud=False, following_on=False):
         state["said"].append((key, chosen is not None))
 
     async def catch_up(before, patience=4.0):
