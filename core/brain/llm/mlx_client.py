@@ -2821,20 +2821,20 @@ def _bounded_generation_max_tokens(
             pass
     admitted = max(bounded, min(completion_floor, admitted_cap))
     if admitted > bounded and contract_floor > bounded:
-        # CP126 a6db6c23. `bounded` is what adaptive shrinkage decided this
-        # machine can afford right now; this line raises it back up because an
-        # unsatisfiable typed contract produces a truncated reply, which is
-        # worse than a slow one. That trade is deliberate — but it was made
-        # SILENTLY, off an unauthenticated plain dictionary, and nothing
-        # downstream could see that the pressure budget had been overridden or
-        # by how much. Now it is bounded and it is visible.
-        _record_mlx_degradation(
-            RuntimeError(
-                f"typed output contract raised the generation budget "
-                f"{bounded}->{admitted} above adaptive shrinkage"
-            ),
-            action="honoured a typed reply contract over the memory-pressure budget",
-            severity="warning",
+        # This is a successful policy decision. The generation receipt carries
+        # every input and ``completion_floor_applied``; the log makes the choice
+        # visible to operators without teaching resilience that Aura was hurt.
+        logger.info(
+            "[MLX] Completion contract raised generation cap %d->%d above "
+            "adaptive shrinkage.",
+            bounded,
+            admitted,
+            extra={
+                "generation_budget_decision": "completion_floor_over_adaptive_cap",
+                "adaptive_generation_cap": bounded,
+                "admitted_generation_cap": admitted,
+                "contract_generation_floor": contract_floor,
+            },
         )
     return admitted
 

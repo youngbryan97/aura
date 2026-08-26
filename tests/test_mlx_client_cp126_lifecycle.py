@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import multiprocessing as mp
 import pathlib
 import time
@@ -1534,18 +1535,32 @@ class TestExpectationsAreGroundedInArtifacts:
             == _MAX_OUTPUT_CONTRACT_FLOOR_TOKENS
         )
 
-    def test_overriding_the_pressure_budget_is_recorded(self, monkeypatch):
+    def test_overriding_the_pressure_budget_is_policy_telemetry(
+        self,
+        monkeypatch,
+        caplog,
+    ):
         import core.brain.llm.mlx_client as mod
 
         recorded = []
         monkeypatch.setattr(
             mod, "_record_mlx_degradation", lambda exc, **kw: recorded.append(str(exc))
         )
-        admitted = mod._bounded_generation_max_tokens(
-            2048, 128, 4096, 512, {"semantic_token_cap": 900}
-        )
+        with caplog.at_level(logging.INFO, logger="LLM.MLX"):
+            admitted = mod._bounded_generation_max_tokens(
+                2048, 128, 4096, 512, {"semantic_token_cap": 900}
+            )
         assert admitted > 128
-        assert any("above adaptive shrinkage" in msg for msg in recorded)
+        assert recorded == []
+        decisions = [
+            record
+            for record in caplog.records
+            if getattr(record, "generation_budget_decision", "")
+            == "completion_floor_over_adaptive_cap"
+        ]
+        assert len(decisions) == 1
+        assert decisions[0].adaptive_generation_cap == 128
+        assert decisions[0].admitted_generation_cap == 900
 
     def test_a_contract_within_the_budget_is_silent(self, monkeypatch):
         import core.brain.llm.mlx_client as mod
