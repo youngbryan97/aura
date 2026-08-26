@@ -5035,6 +5035,11 @@ def _has_exact_reply_request(user_message: Any) -> bool:
     return bool(requested_exact_reply_target(user_message))
 
 
+#: A reply the request pinned to this many words or fewer is a fragment the
+#: person asked for. Above it, brevity is a style and coverage still applies.
+_COVERAGE_EXEMPT_WORDS = 3
+
+
 def _matches_exact_reply_request(user_message: Any, reply_text: Any) -> bool:
     raw_user = str(user_message or "").strip()
     raw_reply = str(reply_text or "").strip()
@@ -8812,10 +8817,21 @@ def _assess_user_facing_reply(
     # turn: "what?" answered with "what?" is a confusion-repair turn, and
     # "Check it." to a debugging question is a substantive one. Both give the
     # question back.
+    # A question that names its own answer cannot be faulted for getting it
+    # back. "Reply with one word: ready" answered "ready" was rejected live
+    # as adding nothing beyond the question — and the person was refused with
+    # a canned line instead. The word WAS the answer. Where the request
+    # itself pins the reply to a handful of words, coverage is not the test
+    # to apply, and the contract that pinned it is already parsed here.
+    pinned_to_a_fragment = bool(
+        requested_output_contract(user_message).word_max is not None
+        and requested_output_contract(user_message).word_max <= _COVERAGE_EXEMPT_WORDS
+    )
     if (
         not exact_reply
         and not strict_answer_tag_reply
         and not memory_pin_confirmation
+        and not pinned_to_a_fragment
         and (_requires_substantive_reply(user_message) or is_confusion_repair_turn(user_message))
         and _adds_nothing_to_the_question(user_message, raw)
     ):

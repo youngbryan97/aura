@@ -100,3 +100,45 @@ def test_the_bridge_asks_whether_this_is_an_answer_at_all():
 
     source = inspect.getsource(eb._suppress_internal_leak)
     assert 'answering=not bool(metadata.get("narration"))' in source
+
+
+def test_a_question_that_names_its_own_answer_is_not_faulted_for_getting_it_back():
+    """Live: "Reply with one word: ready" answered "ready" was rejected as
+    adding nothing beyond the question, and the person was refused with a
+    canned line instead. The word WAS the answer.
+
+    Where the request pins the reply to a handful of words, coverage is not
+    the test to apply — and the contract that pinned it is already parsed.
+    """
+    import core.conversation.response_reliability as rr
+
+    for asked, answered in (
+        ("Reply with one word: ready", "ready"),
+        ("Answer in one word: up or down?", "up"),
+    ):
+        contract = rr.requested_output_contract(asked)
+        assert contract.word_max is not None and contract.word_max <= rr._COVERAGE_EXEMPT_WORDS
+        assert rr._adds_nothing_to_the_question(asked, answered), "the premise of the old fault"
+
+
+def test_giving_an_open_question_back_is_still_faulted():
+    """The rule keeps doing its job where nothing pinned the reply."""
+    import core.conversation.response_reliability as rr
+
+    asked = "Explain how the cache works"
+    assert rr.requested_output_contract(asked).word_max is None
+    assert rr._adds_nothing_to_the_question(asked, "How the cache works")
+    assert rr._requires_substantive_reply(asked)
+
+
+def test_the_exemption_reads_the_contract_rather_than_the_wording():
+    """Every phrasing that pins a reply to one word has to be covered, and
+    there are many. Reading the parsed contract covers them all; a list of
+    phrasings covers the ones somebody thought of."""
+    import inspect
+
+    import core.conversation.response_reliability as rr
+
+    source = inspect.getsource(rr._assess_user_facing_reply)
+    where = source.index("pinned_to_a_fragment")
+    assert "requested_output_contract(user_message).word_max" in source[where : where + 400]

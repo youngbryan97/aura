@@ -503,22 +503,32 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     return bool(getattr(receipt, "success", False))
 
 
-async def press_many(keys: Sequence[str], *, expect_app: str = "") -> bool:
-    """Press several allowed keys in order, in one call.
+async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
+    """Press several allowed keys in order, in one call. Returns how many landed.
 
     Spawning the automation costs about a third of a second whatever it
     carries, so a loop pressing one key at a time pays that on every move.
-    The focus guard still runs, once, because the batch is one action as far
-    as the window is concerned.
+    The focus guard still runs, once for each key, because focus can move
+    part-way through a batch.
+
+    The count is what a caller narrating its own moves needs. One flag for
+    the batch would let her say four moves when the window went away after
+    the second, and what she says has to be what her body did.
     """
     wanted = [str(key or "").strip().lower() for key in keys]
     wanted = [key for key in wanted if key in PRESSABLE_KEYS]
     if not wanted:
-        return False
+        return 0
     from core.capabilities.host_automation import get_host_automation
 
     receipt = await get_host_automation().hotkeys(wanted, expect_app=expect_app)
-    return bool(getattr(receipt, "success", False))
+    evidence = dict(getattr(receipt, "evidence", None) or {})
+    if "keys_sent" in evidence:
+        try:
+            return max(0, min(len(wanted), int(evidence["keys_sent"])))
+        except (TypeError, ValueError):
+            pass
+    return len(wanted) if bool(getattr(receipt, "success", False)) else 0
 
 
 class ScreenPursuitSkill(BaseSkill):
@@ -1309,21 +1319,24 @@ async def pursue_on_screen(
             # measured live, about one move every three seconds, where a
             # person plays several a second.
             sequence = [key, *follow_on] if follow_on and not pacing["brief"] else [key]
-            landed = (
-                await press_many(sequence, expect_app=target_app)
-                if len(sequence) > 1
-                else await press(key, expect_app=target_app)
-            )
-            if landed:
-                for step in sequence:
-                    # Each one is said, because each one happened, in the
-                    # order it happened.
-                    _say_move(step, None if pacing["brief"] else made, out_loud=narrate)
-                    if step != key:
-                        moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
-                if pacing["choice"] == SLOW_DOWN:
-                    await let_the_voice_catch_up(narration_backlog())
-            return landed
+            if len(sequence) > 1:
+                # Only the keys that really landed are spoken for. Focus can
+                # move part-way through a batch, and a commentary describing
+                # moves the window never received is the disconnect this
+                # whole path exists to avoid.
+                arrived = await press_many(sequence, expect_app=target_app)
+            else:
+                arrived = 1 if await press(key, expect_app=target_app) else 0
+            for step in sequence[:arrived]:
+                # Each one is said, because each one happened, in the order it
+                # happened.
+                _say_move(step, None if pacing["brief"] else made, out_loud=narrate)
+                if step != key:
+                    moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
+                    doing.a_step_taken()
+            if arrived and pacing["choice"] == SLOW_DOWN:
+                await let_the_voice_catch_up(narration_backlog())
+            return arrived > 0
 
         return Step(name=f"press {key}", action=act)
 

@@ -332,10 +332,18 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
             reasons=hints + ("no_labelled_dismissal_offered",),
         )
 
-    if accepting_seen:
+    if accepting_seen and len(hints) >= MIN_HINTS_FOR_BARE_ESCAPE:
         # Something is asking for agreement and offering no way to decline.
         # That is the person's call, and closing it for them would be making a
         # commitment in their name.
+        #
+        # Only where something is really in the way. The same page that holds
+        # the task also holds advertising, and advertising is written in the
+        # language of consent: "Subscribe & Save 57%" in a banner beside a
+        # game read as a dialog offering nothing but acceptance, and the whole
+        # task stopped and asked the person to decide. A word is not a dialog.
+        # The evidence required here is the evidence required to press Escape
+        # at something — a page that merely SAYS "subscribe" is a page.
         return OverlayVerdict(
             present=True,
             needs_person=(

@@ -429,6 +429,7 @@ def choose_without_language(
     history: Sequence[Attempt] = (),
     recalled: Sequence[str] = (),
     wanted: str = "",
+    ranked: list[ActionOption] | None = None,
 ) -> tuple[ActionOption | None, str]:
     """Pick a move from evidence alone, with no language anywhere in it.
 
@@ -472,6 +473,8 @@ def choose_without_language(
         scored.append((score, staleness, option))
 
     scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    if ranked is not None:
+        ranked.extend(option for _score, _staleness, option in scored)
     best_score, _staleness, best = scored[0]
     if failed_recently.get(best.name):
         why = f"{best.name} is the least bad of what is left"
@@ -496,6 +499,33 @@ def choose_without_language(
 #: is a bet on the world not changing under it, and the longer the bet the
 #: worse it gets.
 PLAN_AHEAD = 4
+
+
+def plan_without_language(
+    ranked: Sequence[ActionOption], limit: int
+) -> tuple[ActionOption, ...]:
+    """A short sequence from a ranking, when she is deciding without words.
+
+    Repeating one choice with no new information tells her nothing she does
+    not already know, and the ranking behind a single choice already holds
+    the rest of the answer: what the record supports, what just failed, what
+    has been left alone longest. Taking the top few in order is the same
+    judgement carried one step further, and every step of it is still checked
+    against what actually happened.
+
+    How far it runs is not decided here. It is her measured confidence, which
+    is one move whenever her recent predictions have been breaking.
+    """
+    wanted = max(1, int(limit))
+    if wanted <= 1:
+        return ()
+    seen: list[ActionOption] = []
+    for option in ranked:
+        if option.name not in {chosen.name for chosen in seen}:
+            seen.append(option)
+        if len(seen) >= wanted:
+            break
+    return tuple(seen)
 
 
 def how_far_to_commit(history: Sequence[Attempt], ceiling: int = PLAN_AHEAD) -> int:
@@ -633,8 +663,11 @@ async def deliberate(
             severity="info",
             action="chose from evidence because the reply named no available move",
         )
+    ranking: list[ActionOption] = []
     if chosen is None:
-        structural, why = choose_without_language(options, history, recalled, wanted=goal)
+        structural, why = choose_without_language(
+            options, history, recalled, wanted=goal, ranked=ranking
+        )
         if structural is None:
             return Deliberation(
                 goal=goal,
@@ -647,9 +680,24 @@ async def deliberate(
         chosen = structural
         reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
 
-    planned = (
-        choose_sequence(reply or "", options, how_far_to_commit(history)) if spoke else ()
-    )
+    # How far ahead to commit, and to what.
+    #
+    # Committing is what makes her fast: looking at the screen and deciding
+    # cost about one and a half seconds together, a keystroke about a tenth,
+    # so a run that looks again between every move of a pattern it already
+    # settled on plays at a fraction of the speed it could. Committing is
+    # also a bet on the world not changing under her, which is why how far
+    # she commits is her own measured confidence rather than a setting — and
+    # why every step of it is still checked against what actually happened.
+    #
+    # Words are not required for it. A ranking is a judgement about all the
+    # options, not only the winner, and carrying it one step further is the
+    # same judgement rather than a new one.
+    far = how_far_to_commit(history)
+    if spoke:
+        planned = choose_sequence(reply or "", options, far)
+    else:
+        planned = plan_without_language([chosen, *ranking], far)
     if planned and planned[0] is not chosen:
         # The plan and the settled choice disagree, so there is no plan: what
         # she concluded wins, and one move is a plan of one.

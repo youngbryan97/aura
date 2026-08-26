@@ -1181,15 +1181,45 @@ class HostAutomationProvider:
                 error=f"not plain keys: {', '.join(unknown)}",
             )
 
-        body = "\n                    ".join(codes[key] for key in wanted)
+        # Each key is counted as it is sent, and the window is checked before
+        # each one.
+        #
+        # The batch reports how many keys really landed rather than one flag
+        # for the lot. A caller that says what it did — narrating a move as it
+        # happens — would otherwise describe four moves from one success, and
+        # if focus moved after the second key two of those never happened. The
+        # count is the evidence that keeps what she says equal to what her
+        # body did.
+        guard = _as_applescript_string(str(expect_app or "").strip())
+        steps = []
+        for key in wanted:
+            steps.append(
+                f'''if front is "" or front is {guard} or {guard} is "" then
+                        {codes[key]}
+                        set sent to sent + 1
+                    end if'''
+            )
+        body = "\n                    ".join(steps)
         script = f'''
+                set sent to 0
                 tell application "System Events"
+                    set front to name of first application process whose frontmost is true
                     {body}
                 end tell
+                return sent
             '''
         receipt = await AppleScriptRunner.run(script, timeout=5.0)
         receipt.action = "hotkeys"
         receipt.target = " ".join(wanted)
+        landed = 0
+        try:
+            landed = int(str(receipt.result or "0").strip())
+        except (TypeError, ValueError):
+            landed = len(wanted) if receipt.success else 0
+        receipt.evidence = {**dict(receipt.evidence or {}), "keys_sent": landed, "keys_asked": len(wanted)}
+        if landed < len(wanted):
+            receipt.success = False
+            receipt.error = receipt.error or f"only {landed} of {len(wanted)} keys reached {expect_app or 'the window'}"
         self._log_receipt(receipt)
         return receipt
 
