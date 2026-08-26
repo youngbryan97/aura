@@ -238,7 +238,7 @@ async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
         spine=_Store(),
         graph=_Store(),
     )
-    offered = [line for line in think.asked[0] if line.startswith("Available move")]
+    offered = [line for call in think.asked for line in call if line.startswith("Available move")]
     assert any("tab" in line for line in offered)
     assert not any("up" in line for line in offered)
 

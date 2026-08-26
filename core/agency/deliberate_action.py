@@ -172,6 +172,9 @@ class Deliberation:
     #: False when the choice was made without language — she acted, and could
     #: not put it in her own words because the model was not reachable.
     spoke: bool = True
+    #: The moves after this one, when she named a sequence rather than a move.
+    #: Empty when she named one thing, which is the ordinary case.
+    then: tuple[ActionOption, ...] = ()
     decided_at: float = field(default_factory=time.time)
 
     @property
@@ -438,6 +441,76 @@ def choose_without_language(
     return best, why
 
 
+
+#: How many moves ahead one decision may commit to.
+#:
+#: Long enough that the fixed cost of looking and deciding is amortised over
+#: several actions, short enough that she is never far from checking. A plan
+#: is a bet on the world not changing under it, and the longer the bet the
+#: worse it gets.
+PLAN_AHEAD = 4
+
+
+def how_far_to_commit(history: Sequence[Attempt], ceiling: int = PLAN_AHEAD) -> int:
+    """How many moves ahead it is honest to commit to, given how it has gone.
+
+    A plan is a bet that the world will not change under it, and in a world
+    that generates new state after every action the bet decays with each
+    step. So the length of a plan is not a setting — it is what her own
+    recent predictions say about how predictable this is.
+
+    Every recent prediction held: commit to the ceiling. Any of them broke:
+    commit to less. Most of them broke: one move at a time, because that is
+    what the evidence supports.
+    """
+    recent = [attempt for attempt in list(history)[-ceiling:] if attempt is not None]
+    if not recent:
+        # Nothing measured yet. One move, then find out.
+        return 1
+    held = sum(1 for attempt in recent if getattr(attempt.verdict, "held", False))
+    share = held / len(recent)
+    if share >= 1.0:
+        return max(1, ceiling)
+    if share >= 0.5:
+        return max(1, ceiling // 2)
+    return 1
+
+
+def choose_sequence(
+    reply: str, options: Sequence[ActionOption], limit: int = PLAN_AHEAD
+) -> tuple[ActionOption, ...]:
+    """An ordered plan read out of a reply, when it names one.
+
+    A single choice is the special case of a plan of one. Reading several is
+    what lets a fast loop stop paying to think and look between every action
+    — a person playing a game does not re-read the board between the four
+    keystrokes of a pattern they have already decided on.
+
+    Only moves that are really available, only in the order they were named,
+    and never more than the caller allows.
+    """
+    text = str(reply or "")
+    if not text.strip() or not options:
+        return ()
+    by_name = {option.name.lower(): option for option in options}
+    found: list[tuple[int, ActionOption]] = []
+    for name, option in by_name.items():
+        for match in re.finditer(rf"\b{re.escape(name)}\b", text, re.IGNORECASE):
+            found.append((match.start(), option))
+    if not found:
+        return ()
+    found.sort(key=lambda row: row[0])
+    plan: list[ActionOption] = []
+    for _where, option in found:
+        # A name repeated back to back is one move said twice, not two moves.
+        if plan and plan[-1] is option:
+            continue
+        plan.append(option)
+        if len(plan) >= max(1, int(limit)):
+            break
+    return tuple(plan)
+
+
 async def deliberate(
     goal: str,
     situation: str,
@@ -522,6 +595,13 @@ async def deliberate(
         chosen = structural
         reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
 
+    planned = (
+        choose_sequence(reply or "", options, how_far_to_commit(history)) if spoke else ()
+    )
+    if planned and planned[0] is not chosen:
+        # The plan and the settled choice disagree, so there is no plan: what
+        # she concluded wins, and one move is a plan of one.
+        planned = ()
     for_option = [line for line in recalled if line.startswith(chosen.name)]
     deliberation = Deliberation(
         goal=goal,
@@ -531,6 +611,7 @@ async def deliberate(
         rationale=_reason_or_nothing(
             _rationale(reply, chosen), [*evidence, _objective(goal, options)], options
         ),
+        then=planned[1:],
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
         recalled=tuple(recalled),

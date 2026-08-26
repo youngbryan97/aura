@@ -105,11 +105,21 @@ def body(monkeypatch):
 
 
 def _thinks(*replies):
+    """A stand-in mind whose answers are scripted for the question about a move.
+
+    She asks two different questions of language: how to go about the task at
+    all, and which move to make now. A double that answers by call order
+    hands a move-shaped reply to the question about the approach, which is
+    not a fixture detail — it is the same confusion the loop itself has to
+    avoid.
+    """
     queue = list(replies)
     asked = []
 
     async def think(objective, evidence):
         asked.append(list(evidence))
+        if "Decide how to play toward this goal" in str(objective):
+            return ""
         return queue.pop(0) if queue else replies[-1]
 
     think.asked = asked
@@ -130,7 +140,7 @@ async def test_she_is_offered_the_choice_when_her_voice_is_behind(body):
         spine=_Store(),
         graph=_Store(),
     )
-    offered = [line for line in think.asked[0] if line.startswith("Available move")]
+    offered = [line for call in think.asked for line in call if line.startswith("Available move")]
     assert any(SLOW_DOWN in line for line in offered)
 
 
@@ -200,7 +210,7 @@ async def test_a_silent_run_is_never_asked_about_pacing(body):
         spine=_Store(),
         graph=_Store(),
     )
-    offered = [line for line in think.asked[0] if line.startswith("Available move")]
+    offered = [line for call in think.asked for line in call if line.startswith("Available move")]
     assert not any(SLOW_DOWN in line for line in offered)
 
 
@@ -337,3 +347,124 @@ def test_a_live_decision_carries_its_own_deadline():
     assert "timeout=timeout_s" in source, "the model call has no deadline of its own"
     assert "asyncio.wait_for" in source, "a client that never returns would hang the loop"
     assert her_reasoning.DECISION_BUDGET_S <= 10.0
+
+
+def test_how_far_she_commits_is_what_her_predictions_say():
+    """2048 generates a new tile after every move, so a plan is a bet that
+    decays with each step.
+
+    The length of a plan is not a setting — it is what her own recent
+    predictions say about how predictable this position is.
+    """
+    from core.agency.deliberate_action import PLAN_AHEAD, Attempt, Verdict, how_far_to_commit
+
+    def graded(held):
+        return Attempt(option="up", expected="a shift", verdict=Verdict(held=held, observed_change=held))
+
+    assert how_far_to_commit([]) == 1, "nothing measured yet is one move, then find out"
+    assert how_far_to_commit([graded(True)] * 4) == PLAN_AHEAD
+    assert how_far_to_commit([graded(True), graded(True), graded(False), graded(False)]) == PLAN_AHEAD // 2
+    assert how_far_to_commit([graded(False)] * 4) == 1
+
+
+def test_a_plan_is_read_in_the_order_she_named_it():
+    from core.agency.deliberate_action import ActionOption, choose_sequence
+
+    options = [ActionOption(name=name) for name in ("up", "down", "left", "right")]
+    plan = choose_sequence("left, down, left, down", options, 4)
+    assert [option.name for option in plan] == ["left", "down", "left", "down"]
+
+
+def test_a_name_said_twice_running_is_one_move():
+    from core.agency.deliberate_action import ActionOption, choose_sequence
+
+    options = [ActionOption(name=name) for name in ("up", "down", "left")]
+    plan = choose_sequence("left left then down", options, 4)
+    assert [option.name for option in plan] == ["left", "down"]
+
+
+def test_a_plan_that_disagrees_with_the_conclusion_is_not_a_plan():
+    """What she concluded wins; one move is a plan of one."""
+    import inspect
+
+    from core.agency import deliberate_action
+
+    source = inspect.getsource(deliberate_action.deliberate)
+    assert "planned[0] is not chosen" in source
+
+
+def test_a_pivot_is_immediate_and_a_first_attempt_is_not_retried_every_move():
+    """The condition breaking is news and is worth the pass that answers it.
+
+    Having no stated approach yet is not news. A loop that asks for one every
+    cycle pays a full language pass per move for an answer that was not there
+    last time either.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    where = source.index("time_to_ask = (")
+    condition = source[where : where + 300]
+    assert 'plan["held"] is not None' in condition, "a real pivot is answered at once"
+    assert "LANGUAGE_EVERY" in condition, "a first attempt waits for the rhythm"
+
+
+def test_what_she_is_doing_is_held_where_the_rest_of_her_can_read_it():
+    """An approach that lives inside the loop that chose it is a gear in a box.
+
+    Asked mid-task what she is doing, the answer has to come from what her
+    body is actually working from.
+    """
+    from core.agency import what_she_is_doing as doing
+    from core.brain.self_state_report import runtime_self_report
+
+    doing.taking_on("reach the highest tile", where="Safari")
+    doing.going_about_it(
+        "keep the largest tile in one corner",
+        because="it keeps a clear row above",
+        watching_for="the corner losing its tile",
+        alternatives=("build along the right edge",),
+        lived=False,
+    )
+    try:
+        lines = doing.as_lines()
+        assert any("reach the highest tile" in line for line in lines)
+        assert any("keep the largest tile in one corner" in line for line in lines)
+        assert any("the corner losing its tile" in line for line in lines)
+        report = runtime_self_report()
+        assert "keep the largest tile in one corner" in report, "her instruments omitted her own plan"
+    finally:
+        doing.how_it_went(False, "test", graph=_Store())
+
+
+def test_changing_her_mind_keeps_what_she_left_behind():
+    from core.agency import what_she_is_doing as doing
+
+    doing.taking_on("get somewhere")
+    doing.going_about_it("the first way", lived=False)
+    doing.going_about_it("the second way", because="the first stopped working", lived=False)
+    try:
+        current = doing.right_now()
+        assert current.approach == "the second way"
+        assert current.left_behind == ("the first way",)
+        assert current.changes == 1
+    finally:
+        doing.how_it_went(False, "test", graph=_Store())
+
+
+def test_an_undertaking_nobody_touched_stops_being_the_present():
+    import time
+
+    from core.agency import what_she_is_doing as doing
+
+    doing.taking_on("something long ago")
+    doing.going_about_it("a way", lived=False)
+    current = doing.right_now()
+    current.changed_at = time.time() - (doing.STALE_AFTER_S + 1)
+    try:
+        assert doing.right_now() is None, "she answered for work that stopped hours ago"
+        assert doing.as_lines() == []
+    finally:
+        doing.how_it_went(False, "test", graph=_Store())

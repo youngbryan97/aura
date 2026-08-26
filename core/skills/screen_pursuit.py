@@ -503,6 +503,24 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     return bool(getattr(receipt, "success", False))
 
 
+async def press_many(keys: Sequence[str], *, expect_app: str = "") -> bool:
+    """Press several allowed keys in order, in one call.
+
+    Spawning the automation costs about a third of a second whatever it
+    carries, so a loop pressing one key at a time pays that on every move.
+    The focus guard still runs, once, because the batch is one action as far
+    as the window is concerned.
+    """
+    wanted = [str(key or "").strip().lower() for key in keys]
+    wanted = [key for key in wanted if key in PRESSABLE_KEYS]
+    if not wanted:
+        return False
+    from core.capabilities.host_automation import get_host_automation
+
+    receipt = await get_host_automation().hotkeys(wanted, expect_app=expect_app)
+    return bool(getattr(receipt, "success", False))
+
+
 class ScreenPursuitSkill(BaseSkill):
     """Keep looking at the screen and acting until a goal is reached."""
 
@@ -756,6 +774,8 @@ async def pursue_on_screen(
     reasoning, keeping the predict-and-check loop around it.
     """
     from core.agency.deliberate_action import Attempt, confirm, deliberate
+    from core.agency import what_she_is_doing as doing
+    from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.skills.fluid_executor import FluidExecutor, Step
 
@@ -780,6 +800,8 @@ async def pursue_on_screen(
     #: What she knows about doing this, learned once at the start and again
     #: whenever what she is doing stops working.
     knowledge: dict[str, Any] = {"held": None, "relearned": 0, "meant": []}
+    # The approach she is taking, and how often she has had to change it.
+    plan: dict[str, Any] = {"held": None, "changes": 0, "asked_at": -1}
 
     async def observe() -> dict[str, Any]:
         # Put the target back in front before looking at it.
@@ -1102,6 +1124,60 @@ async def pursue_on_screen(
                 )
             learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
 
+            # The line she is taking, and the thing that would end it.
+            #
+            # Choosing a move from what is on screen is reacting: it assumes
+            # the world sits still and corrects once the world says
+            # otherwise. Anywhere the world keeps moving while she works, an
+            # approach is the missing middle — a line held across moves, with
+            # the condition that would make it wrong named when she adopts it
+            # rather than discovered when it fails. The condition is checked
+            # here, before she acts, so a pivot is something she was watching
+            # for and not something that happened to her.
+            holding, ended = still_holds(plan["held"], seen, len(moves))
+            # A pivot is immediate; a first attempt is not retried every move.
+            #
+            # The condition breaking is news and is worth the pass that
+            # answers it. Having no stated approach yet is not news, and a run
+            # that asks for one every cycle pays a full language pass per move
+            # for an answer that was not there last time either.
+            time_to_ask = (
+                holding is False
+                and plan["held"] is not None
+                or len(moves) - plan["asked_at"] >= LANGUAGE_EVERY
+                or not moves
+            )
+            if not holding and time_to_ask:
+                plan["asked_at"] = len(moves)
+                fresh = await settle_on_an_approach(
+                    goal,
+                    seen,
+                    screen_options(move_keys),
+                    think=think or _her_reasoning(max(stakes, 0.5)),
+                    knowledge=learned,
+                    history=history[-RECENT_ATTEMPTS:],
+                    previous=plan["held"],
+                    moves_made=len(moves),
+                )
+                if fresh is not None:
+                    changing = plan["held"] is not None
+                    plan["held"] = fresh
+                    plan["changes"] += 1 if changing else 0
+                    # Held where the rest of her can see it, not in this loop.
+                    doing.going_about_it(
+                        fresh.approach,
+                        because=fresh.because,
+                        watching_for=fresh.holds_while.describes,
+                        alternatives=fresh.otherwise,
+                        spine=spine,
+                        lived=lived,
+                    )
+                    if narrate:
+                        said = fresh.narrate()
+                        _tell(f"{said} ({ended})" if changing and ended else said)
+            if plan["held"] is not None:
+                learned = learned + plan["held"].as_evidence()
+
             # When nothing in the task is working, the task itself becomes a
             # choice. Both ways out are hers, and both are recorded as
             # decisions with reasons rather than happening to her.
@@ -1203,6 +1279,7 @@ async def pursue_on_screen(
             pending["before"] = seen
 
         moves.append({"key": key, "because": because, "at": time.time()})
+        doing.a_step_taken()
         # Nothing is said here on purpose.
         #
         # Every decision is published to the deliberation stream as it is
@@ -1213,6 +1290,7 @@ async def pursue_on_screen(
         # entirely, and the loop should read the same in all three cases.
 
         made = pending["deliberation"]
+        follow_on = [option.name for option in getattr(made, "then", ()) or ()] if made else []
 
         async def act() -> bool:
             # Said after the body did it, never before.
@@ -1222,9 +1300,27 @@ async def pursue_on_screen(
             # or sent to the wrong window, would have been described as a move
             # she made. What she says she did is now what her body did, in the
             # order it did it.
-            landed = await press(key, expect_app=target_app)
+            # One call for the whole sequence she settled on.
+            #
+            # Looking and deciding cost about three seconds; the keystroke
+            # itself costs a third of one, and spawning the automation is most
+            # of that. A run that re-reads the board between every key of a
+            # pattern it has already chosen pays the whole cycle per move —
+            # measured live, about one move every three seconds, where a
+            # person plays several a second.
+            sequence = [key, *follow_on] if follow_on and not pacing["brief"] else [key]
+            landed = (
+                await press_many(sequence, expect_app=target_app)
+                if len(sequence) > 1
+                else await press(key, expect_app=target_app)
+            )
             if landed:
-                _say_move(key, None if pacing["brief"] else made, out_loud=narrate)
+                for step in sequence:
+                    # Each one is said, because each one happened, in the
+                    # order it happened.
+                    _say_move(step, None if pacing["brief"] else made, out_loud=narrate)
+                    if step != key:
+                        moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
                 if pacing["choice"] == SLOW_DOWN:
                     await let_the_voice_catch_up(narration_backlog())
             return landed
@@ -1352,6 +1448,8 @@ async def pursue_on_screen(
             )
             speaker = None
 
+    # She has taken something on, and the rest of her should know it.
+    doing.taking_on(goal, where=target_app or "")
     executor = FluidExecutor(verifier=None, gateway=None)
     try:
         receipt = await executor.pursue(
@@ -1397,6 +1495,17 @@ async def pursue_on_screen(
         {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
         for a in history
     ]
+    if plan["changes"]:
+        result["changed_approach"] = plan["changes"]
+    if plan["held"] is not None:
+        result["approach"] = plan["held"].approach
+    # How the line she took turned out, written where consequences live, so
+    # an approach that keeps failing is harder to reach for next time.
+    doing.how_it_went(
+        bool(receipt.completed),
+        f"{len(moves)} move(s), {plan['changes']} change(s) of approach",
+        graph=graph,
+    )
     if undecided["reason"] and not receipt.completed:
         # Name the judgement, not the budget. "no_move_available" would say
         # the screen offered nothing; this says she could not decide, and why.
@@ -1419,6 +1528,24 @@ async def pursue_on_screen(
         result["outcome"] = "navigated_away"
     return result
 
+
+
+def _tell(line: str) -> None:
+    """Say something that is not a move — the line she is taking, or a change of it.
+
+    A watcher who only ever hears the keystrokes sees a twitch every second
+    and no thinking behind it. What she is trying, and the moment she stops
+    trying it, is what a watcher came to hear.
+    """
+    said = " ".join(str(line or "").split())
+    if not said:
+        return
+    try:
+        from core.agency.narrator import Narrator
+
+        Narrator.say_everywhere(said)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("screen_pursuit", exc, severity="info", action="held a plan without saying it")
 
 
 def _say_move(key: str, chosen: Any = None, *, out_loud: bool = False) -> None:

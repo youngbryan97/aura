@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1138,6 +1139,57 @@ class HostAutomationProvider:
         receipt = await AppleScriptRunner.run(script, timeout=3.0)
         receipt.action = "hotkey"
         receipt.target = "+".join(keys)
+        self._log_receipt(receipt)
+        return receipt
+
+    async def hotkeys(self, keys: Sequence[str], *, expect_app: str = "") -> AutomationReceipt:
+        """Send several plain keys in one go, in order.
+
+        One AppleScript, not one per key. Spawning the process costs about a
+        third of a second whatever it carries, so a loop pressing one key at a
+        time pays that on every move — measured live, four moves cost 1.28s of
+        pure process overhead before anything was decided or read.
+
+        Plain keys only, deliberately: this exists for a run that has decided
+        on a short sequence, and a modifier combination is not that. The focus
+        guard runs once for the batch, because the batch is one action as far
+        as the window is concerned.
+        """
+        wanted = [str(key or "").strip().lower() for key in keys]
+        wanted = [key for key in wanted if key]
+        if not wanted:
+            return AutomationReceipt(action="hotkeys", target="", success=False, error="no keys given")
+
+        refusal = await self._ensure_input_target(expect_app, "hotkeys")
+        if refusal is not None:
+            return refusal
+
+        codes = {
+            "return": "key code 36", "enter": "key code 36",
+            "tab": "key code 48", "escape": "key code 53", "esc": "key code 53",
+            "delete": "key code 51", "backspace": "key code 51",
+            "space": "key code 49",
+            "up": "key code 126", "down": "key code 125",
+            "left": "key code 123", "right": "key code 124",
+        }
+        unknown = [key for key in wanted if key not in codes]
+        if unknown:
+            return AutomationReceipt(
+                action="hotkeys",
+                target=" ".join(wanted),
+                success=False,
+                error=f"not plain keys: {', '.join(unknown)}",
+            )
+
+        body = "\n                    ".join(codes[key] for key in wanted)
+        script = f'''
+                tell application "System Events"
+                    {body}
+                end tell
+            '''
+        receipt = await AppleScriptRunner.run(script, timeout=5.0)
+        receipt.action = "hotkeys"
+        receipt.target = " ".join(wanted)
         self._log_receipt(receipt)
         return receipt
 

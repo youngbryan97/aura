@@ -574,13 +574,32 @@ def _affect_line() -> str:
     return line
 
 
+def _doing_lines() -> list[str]:
+    """What she is working on, and how she has decided to go about it.
+
+    Asked mid-task what she is doing, the honest answer is the one her body
+    is working from. Without this she answers from the model's guess while
+    her hands do something else, which is the same failure as inventing the
+    weather and harder to catch, because a plausible account of her own
+    intentions reads exactly like a true one.
+    """
+    try:
+        from core.agency.what_she_is_doing import as_lines  # noqa: PLC0415
+
+        return as_lines()
+    except _RECOVERABLE as exc:
+        record_degradation("self_state_report", exc, severity="info", action="omit what she is doing")
+        return []
+
+
 def runtime_self_report() -> str:
     """A short, true readout of her machine state right now.
 
     Returns "" when nothing could be read, so a caller never pastes an empty
     heading into the prompt and invites her to fill it in.
     """
-    lines = [line for line in (_uptime_line(), _model_line()) if line]
+    lines = _doing_lines()
+    lines.extend(line for line in (_uptime_line(), _model_line()) if line)
     lines.extend(_memory_lines())
     lines.extend(_effort_lines())
     cognition = _cognition_line()

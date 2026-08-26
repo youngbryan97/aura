@@ -44,8 +44,9 @@ DELIBERATE_BUDGET_S = 45.0
 #: The role given to the model when it is choosing rather than answering.
 CHOOSING_ROLE = (
     "You are choosing Aura's next move. The evidence lists the goal, what is "
-    "visible now, and every move that is really available. Name the one move "
-    "you choose and say why in one sentence."
+    "visible now, and every move that is really available. Name the move you "
+    "choose and say why in one sentence. If the next few moves follow from it "
+    "and the position is stable, name them in order."
 )
 
 
