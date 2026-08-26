@@ -39,6 +39,16 @@ DECISION_BUDGET_S = 8.0
 #: makes the model keep writing after it has answered, and a loop that has to
 #: move once a second waits for all of it.
 CHOICE_TOKENS = 96
+
+#: Room for a plan, which is a different answer from a move.
+#:
+#: A move is one word. An approach is a line to take, the reason for it, and
+#: the thing that would end it — and before any of that, the model writes its
+#: own way into the question. Measured live 2026-08-26: the warm-up alone
+#: used the whole 96 and the answer never started, so what came back was
+#: "We need answer user's request. Need choose one of up/down/left/right"
+#: and it was held as her plan.
+PLAN_TOKENS = 512
 #: Deliberation this long is for a decision that carries real weight.
 DELIBERATE_BUDGET_S = 45.0
 #: The role given to the model when it is choosing rather than answering.
@@ -205,6 +215,22 @@ def her_reasoning(
         return answer
 
     return think
+
+
+def reasoning_for_a_plan():
+    """Her thinking for the question of how to go about something.
+
+    Asked through the ordinary amplifier rather than the deep route: the deep
+    route runs the whole cognitive pipeline, which shapes an answer for a
+    person and cut this one off inside its own preamble. What this question
+    needs is not a heavier pipeline, it is room to answer.
+    """
+    return her_reasoning(
+        time_budget_s=DELIBERATE_BUDGET_S,
+        risk_level="normal",
+        origin="agency_settling_on_an_approach",
+        max_tokens=PLAN_TOKENS,
+    )
 
 
 def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):

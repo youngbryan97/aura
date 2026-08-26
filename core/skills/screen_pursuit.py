@@ -783,6 +783,13 @@ def _her_reasoning(stakes: float) -> Any:
     return reasoning_for(stakes)
 
 
+def _reasoning_for_a_plan() -> Any:
+    """Her judgement on how to go about something, which is not a move."""
+    from core.agency.her_reasoning import reasoning_for_a_plan
+
+    return reasoning_for_a_plan()
+
+
 async def pursue_on_screen(
     *,
     goal: str,
@@ -1250,7 +1257,7 @@ async def pursue_on_screen(
                     # is not the same question as deciding one of them, and
                     # asking it with the thinking that suits a move got the
                     # model's own warm-up handed back as a plan.
-                    think=think or _her_reasoning(max(stakes, 0.7)),
+                    think=think or _reasoning_for_a_plan(),
                     knowledge=learned,
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.utils.an_answer import adds_nothing_to, was_cut_off
 from core.utils.engine_support import coerce_text, record_engine_degradation, resolve_brain
 
 logger = logging.getLogger("Aura.DeepDeliberation")
@@ -163,8 +164,6 @@ class DeepDeliberationEngine:
                 # move from up/down/left/right based on 2048 board? User
                 # gives: "Given what" — became the question, and the deep
                 # pass went off and answered that instead.
-                from core.utils.an_answer import adds_nothing_to, was_cut_off
-
                 if refine_out and not was_cut_off(refine_out) and not adds_nothing_to(
                     refine_out, refine_prompt
                 ):
@@ -274,6 +273,20 @@ class DeepDeliberationEngine:
                             timeout=timeout_s,
                         )
                     )
+                    # A generation that stopped in the middle is not an
+                    # answer, and taking it as one spends the whole budget on
+                    # the first attempt. Live 2026-08-26: "We need answer
+                    # user's request. Need choose one of up/down/left/right
+                    # based on screen OCR and available moves. Need final:
+                    # one sentence what this" — the model's warm-up, cut off,
+                    # returned as her thinking. Another pass is what the
+                    # budget is for.
+                    if ans_out and was_cut_off(ans_out):
+                        logger.info(
+                            "a pass stopped in the middle, trying again: %r",
+                            " ".join(ans_out.split())[-110:],
+                        )
+                        continue
                     if ans_out:
                         answer = ans_out.strip()
                         passes += 1
@@ -282,11 +295,15 @@ class DeepDeliberationEngine:
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as exc:
                 _degrade(exc, action="returned refined-question with heuristic note after model deliberation failed")
 
+        # No answer is said as no answer.
+        #
+        # This returned a sentence that reads exactly like one — "No model was
+        # available to answer, but the question has been sharpened" — and no
+        # caller could tell it from thinking she had actually done. Live
+        # 2026-08-26 it was handed back as her plan. The refined question is
+        # still carried on the result, where a caller that wants it can ask.
         if not answer:
-            answer = (
-                "No model was available to answer, but the question has been sharpened. "
-                f"Answer the refined question: {refined}"
-            )
+            logger.info("no model answered, so there is no answer to give")
         # Record what this deliberation actually achieved. A run that
         # produced only the sharpened-question fallback did NOT deliberate
         # with a model, and health must be able to say so.
