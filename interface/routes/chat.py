@@ -9368,6 +9368,48 @@ def _request_requires_cognitive_engine(
     return requires, request_surface
 
 
+def _why_there_is_no_answer(lane: Any) -> str:
+    """Say what actually stopped the turn, in the words that are true of it.
+
+    The fixed line said "I couldn't put together an answer I'd stand behind",
+    which claims a judgement she made about her own answer. Measured live:
+    three identical questions refused in a row and the fourth answered
+    normally, while the runtime was still warming its caches and foreground
+    turns were averaging sixteen seconds. She had not weighed an answer and
+    found it wanting. She ran out of time.
+
+    A person can act on "I ran out of time, ask me again" and can do nothing
+    with a statement about her standards. The lane already carries why, so
+    the reply is built from it rather than from a constant.
+    """
+    state = lane if isinstance(lane, dict) else {}
+    reason = str(state.get("last_failure_reason") or "").strip().lower()
+    blockers = [str(item) for item in (state.get("readiness_blockers") or []) if item]
+    ready = bool(state.get("conversation_ready", True))
+    warming = bool(state.get("warmup_in_flight")) or not ready
+
+    if "timeout" in reason or "deadline" in reason or "slow" in reason:
+        return (
+            "That one took longer than I had for it and I ran out of time before "
+            "I had an answer. Ask me again and it should come back."
+        )
+    if warming or blockers:
+        waiting_on = f" I am still {blockers[0]}." if blockers else ""
+        return (
+            "I am not ready to answer that yet — my mind is still coming up."
+            f"{waiting_on} Give me a moment and ask again."
+        )
+    if "unavailable" in reason or "no_reply" in reason or not reason:
+        return (
+            "Nothing came back from my own reasoning on that one, so I have "
+            "nothing to give you rather than something I made up. Ask me again."
+        )
+    return (
+        f"I could not answer that one: {reason.replace('_', ' ')}. "
+        "Ask me again in a moment."
+    )
+
+
 def _request_allows_legacy_orchestrator_fallback(request: Request) -> bool:
     """Legacy chat fallback is opt-in only.
 
@@ -18926,12 +18968,7 @@ async def _refuse_an_empty_canonical_reply(
             # raw 'status=' token straight to the user — internal vocabulary
             # that explains nothing to the person waiting for an answer
             # (2026-07-18 soak: 32 turns of it).
-            failure_reply = (
-                "I couldn't put together an answer I'd stand behind for that one, "
-                "and I won't hand you a thinner substitute and call it mine. "
-                "The full reasoning path didn't complete — worth retrying in a "
-                "moment, and the runtime logs carry the detail."
-            )
+            failure_reply = _why_there_is_no_answer(lane)
             # Same reading as the other two refusal sites. "The runtime logs
             # carry the detail" is the sharpest form of the defect: it tells the
             # person their answer exists somewhere she declined to look.
@@ -22969,6 +23006,33 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 },
             )
             return JSONResponse(response_data)
+
+        if not str(reply_text or "").strip():
+            # A completed cycle that produced nothing is not a judgement.
+            #
+            # The kernel finished and returned an empty string — no timeout,
+            # so none of the waiting-and-retrying above applies. Measured
+            # live: three identical questions refused in a row while the
+            # runtime warmed its caches, and the fourth answered normally.
+            # Nothing was wrong with the question, and nothing was wrong with
+            # her. One more attempt through the lane that already exists for
+            # this is cheaper than telling somebody their answer does not
+            # exist when it exists a second later.
+            second_try = await _attempt_protected_foreground_reply("canonical_empty_reply")
+            if second_try:
+                reply_text = second_try
+                reply_source = reply_source or "protected_foreground"
+                logger.info(
+                    "✅ Empty canonical reply answered on a second attempt (len=%d)",
+                    len(reply_text),
+                )
+            else:
+                record_degradation(
+                    "chat",
+                    RuntimeError("canonical cycle produced nothing, twice"),
+                    severity="info",
+                    action="told the person why rather than claiming a judgement",
+                )
 
         _seam_early_response, lane, pending_exchange_id = await _refuse_an_empty_canonical_reply(
             _chat_session_id=_chat_session_id,
