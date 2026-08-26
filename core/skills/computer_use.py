@@ -2089,6 +2089,15 @@ end tell
             "could_not_get_there": result.get("could_not_get_there", ""),
             "wanted": result.get("wanted", ""),
             "verification": f"pursuit ended {outcome or 'without a named outcome'}",
+            # A run that spent its clock has none left for a second try.
+            #
+            # The caller retries a critical step that did not finish, which
+            # is right for a keystroke that missed and wrong for this: the
+            # retry gets a deadline that has already passed, makes no move,
+            # and its empty receipt replaces the one describing the work.
+            # LIVE 2026-08-26: thirty-eight narrated moves reported as
+            # "ran out of time before reaching the goal (after 0 move(s))".
+            "retryable": outcome not in {"out_of_time", "out_of_cycles"},
         }
 
     @staticmethod
