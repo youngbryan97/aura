@@ -9487,6 +9487,33 @@ def _status_represents_memory_state_result(status: str | None) -> bool:
     }
 
 
+_VERIFIED_STATE_PROJECTION_AUTHORITIES: dict[str, tuple[str, str]] = {
+    "verified_action_episode": (
+        "verified_action_episode_serialization",
+        "governed_action_episode",
+    ),
+    "verified_answer_provenance": (
+        "verified_answer_provenance_serialization",
+        "answer_bound_turn_evidence",
+    ),
+}
+
+
+def _verified_state_projection_authority(
+    status: str | None,
+) -> tuple[str, str] | None:
+    """Return typed serialization authority carried by a response status.
+
+    A deterministic projection of verified state is neither model-authored
+    prose nor an unowned runtime replacement. Its authority comes from the
+    typed object it serializes. Keeping that distinction in one registry stops
+    generic topicality heuristics from throwing away exact answers merely
+    because an explanation introduces vocabulary absent from a short question.
+    """
+
+    return _VERIFIED_STATE_PROJECTION_AUTHORITIES.get(str(status or "").strip())
+
+
 def _collect_governed_action_lane_status(status: str) -> dict[str, Any]:
     """Return truthful lane status for a completed governed action response.
 
@@ -20658,6 +20685,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             proof_status = str(status or "")
             is_governed_action_status = _status_represents_governed_action_result(proof_status)
             is_memory_state_status = _status_represents_memory_state_result(proof_status)
+            state_projection_authority = _verified_state_projection_authority(
+                proof_status
+            )
 
             _new_text, _new_status = await _apply_desktop_objective_chokepoint(
                 final_text, proof_status
@@ -20670,6 +20700,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # conversational staleness/topicality reshaping below.
                 is_governed_action_status = _status_represents_governed_action_result(proof_status)
                 is_memory_state_status = _status_represents_memory_state_result(proof_status)
+                state_projection_authority = _verified_state_projection_authority(
+                    proof_status
+                )
 
             # A deterministic tool-result response has an author, but it is
             # not the language model. Bind that authority after the shared
@@ -20701,13 +20734,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "semantic_completion_satisfied": authority_proven,
                     }
                 )
-            elif proof_status == "verified_action_episode":
+            elif state_projection_authority is not None:
+                authority_kind, authority_reason = state_projection_authority
                 _live_turn_trace.update(
                     {
-                        "response_path": "verified_action_episode",
-                        "response_authority_kind": "verified_action_episode_serialization",
+                        "response_path": proof_status,
+                        "response_authority_kind": authority_kind,
                         "response_authority_proven": True,
-                        "response_authority_reason": "governed_action_episode",
+                        "response_authority_reason": authority_reason,
                         "model_generation_used": False,
                         "live_mind_generation_required": False,
                         "semantic_completion_contract_expected": True,
@@ -20741,7 +20775,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
 
             try:
-                if not (is_governed_action_status or is_memory_state_status):
+                if not (
+                    is_governed_action_status
+                    or is_memory_state_status
+                    or state_projection_authority is not None
+                ):
                     recent_user_messages = await _gather_recent_user_messages_for_relevance(
                         _semantic_user_message
                     )
@@ -20847,7 +20885,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 desktop_requires_cognitive_engine
                 and response_confidence == "degraded"
                 and hard_fastpath_quality_failed
-                and not (is_governed_action_status or is_memory_state_status)
+                and not (
+                    is_governed_action_status
+                    or is_memory_state_status
+                    or state_projection_authority is not None
+                )
             ):
                 return await _fail_closed_degraded_desktop_reply(
                     final_text,

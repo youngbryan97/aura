@@ -234,3 +234,59 @@ async def test_live_projection_reads_bound_prior_answer_without_model_narration(
     assert "no tool lookup" in reply
     assert len(grounding) == 1
     assert "aura.answer_provenance.v1" in grounding[0]
+
+
+def test_provenance_projection_has_verified_serialization_authority() -> None:
+    from interface.routes import chat
+
+    authority = chat._verified_state_projection_authority(
+        "verified_answer_provenance"
+    )
+
+    assert authority == (
+        "verified_answer_provenance_serialization",
+        "answer_bound_turn_evidence",
+    )
+
+
+def test_verified_provenance_serialization_proves_delivery_without_model_authorship() -> None:
+    from interface.routes import chat
+
+    authority_kind, authority_reason = chat._verified_state_projection_authority(
+        "verified_answer_provenance"
+    ) or ("", "")
+    contract = chat._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status="verified_answer_provenance",
+        reply_source="fastpath",
+        turn_trace={
+            "engine_think_invoked": False,
+            "cognitive_engine_reply_accepted": False,
+            "cognitive_engine_reply_failed": False,
+            "bounded_contract_used": False,
+            "legacy_fallback_used": False,
+            "response_path": "verified_answer_provenance",
+            "response_authority_kind": authority_kind,
+            "response_authority_proven": True,
+            "response_authority_reason": authority_reason,
+            "live_mind_generation_required": False,
+            "foreground_model_generation_consumed": False,
+            "foreground_model_generation_count": 0,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+            "semantic_completion_contract_expected": True,
+            "semantic_completion_receipt_present": True,
+            "semantic_completion_satisfied": True,
+        },
+    )
+
+    assert contract["model_native_output"] is False
+    assert contract["state_native_output"] is True
+    assert contract["response_authority_proven"] is True
+    assert contract["answer_delivery_proven"] is True
+    assert contract["semantic_completion_mode"] == authority_kind
+    assert contract["final_text_authorship"] == authority_kind
