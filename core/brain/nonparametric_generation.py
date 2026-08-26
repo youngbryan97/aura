@@ -45,6 +45,22 @@ _GEN_ERRORS = (RuntimeError, ValueError, TypeError, AttributeError, IndexError, 
 PHI_DORMANT = 0.05
 
 
+def _as_float32_numpy(value: Any) -> np.ndarray:
+    """Cross the MLX/NumPy boundary without exposing unsupported dtypes.
+
+    NumPy cannot consume an MLX ``bfloat16`` buffer through PEP 3118.  Cast
+    numerically on the MLX device first; viewing the storage as ``uint16``
+    would preserve bytes but corrupt the represented hidden values.
+    """
+
+    if type(value).__module__.startswith("mlx"):
+        import mlx.core as mx
+
+        value = value.astype(mx.float32)
+        mx.eval(value)
+    return np.asarray(value, dtype=np.float32)
+
+
 def normalize(vec: np.ndarray) -> np.ndarray:
     """Unit-normalize a key. L2 distance on unit vectors encodes cosine: cos = 1 - d²/2."""
     v = np.asarray(vec, dtype=np.float32).reshape(-1)
@@ -73,11 +89,26 @@ class MLXEncoder:
     def encode_hidden_ids(self, ids: list[int]) -> np.ndarray:
         return normalize(self._hidden_from_ids(list(ids)))
 
+    def encode_hidden_sequence_ids(self, ids: list[int]) -> np.ndarray:
+        """Encode every prefix position with one causal model forward."""
+
+        hidden = self._hidden_sequence_from_ids(list(ids))
+        norms = np.linalg.norm(hidden, axis=-1, keepdims=True)
+        return np.divide(
+            hidden,
+            norms,
+            out=np.array(hidden, copy=True),
+            where=norms > 1e-8,
+        )
+
     def _hidden_from_ids(self, ids: list[int]) -> np.ndarray:
+        return self._hidden_sequence_from_ids(ids)[-1]
+
+    def _hidden_sequence_from_ids(self, ids: list[int]) -> np.ndarray:
         import mlx.core as mx
 
         h = self._hidden_model(mx.array([ids]))
-        return np.array(h[0, -1], dtype=np.float32)
+        return _as_float32_numpy(h[0])
 
     def encode_tokens(self, text: str) -> list[int]:
         return list(self.tok.encode(text))
@@ -280,14 +311,14 @@ def generate_with_memory(
         return ""
     for _ in range(token_budget):
         try:
-            logits = np.array(_lm_head(model, h[:, -1:, :])[0, -1], dtype=np.float32)
+            logits = _as_float32_numpy(_lm_head(model, h[:, -1:, :])[0, -1])
         except _GEN_ERRORS as exc:
             record_degradation("nonparametric_generation_head", exc)
             break
         next_id = int(np.argmax(logits))
         if use_memory:
             try:
-                key = normalize(np.array(h[0, -1], dtype=np.float32))
+                key = normalize(_as_float32_numpy(h[0, -1]))
                 next_id, last_index = _select_with_memory(
                     memory, key, logits, k=k, temperature=temperature, phi=phi,
                     free_energy=free_energy, base_lam=base_lam, exclude_index=last_index,
@@ -356,8 +387,8 @@ def make_nonparametric_logits_processor(
             if hidden_model is None:
                 return logits
             h = hidden_model(seq)
-            key = normalize(np.array(h[0, -1], dtype=np.float32))
-            lg = np.array(logits, dtype=np.float32).reshape(-1)
+            key = normalize(_as_float32_numpy(h[0, -1]))
+            lg = _as_float32_numpy(logits).reshape(-1)
             mixture, fired = _blended_distribution(
                 memory, key, lg, k=k, temperature=temperature, phi=phi,
                 free_energy=free_energy, base_lam=base_lam, exclude_index=exclude_index,

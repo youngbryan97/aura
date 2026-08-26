@@ -72,6 +72,55 @@ def test_encoder_uses_the_resolved_hybrid_text_backbone():
     assert np.isclose(np.linalg.norm(hidden), 1.0)
 
 
+def test_encoder_converts_real_mlx_bfloat16_and_encodes_sequence_once():
+    mx = pytest.importorskip("mlx.core")
+
+    from core.brain.nonparametric_generation import MLXEncoder
+
+    class Backbone:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, ids):
+            self.calls += 1
+            values = mx.broadcast_to(
+                ids[..., None].astype(mx.float32),
+                (*ids.shape, 4),
+            )
+            return values.astype(mx.bfloat16)
+
+    class Tokenizer:
+        all_special_ids = []
+
+        @staticmethod
+        def encode(_text):
+            return [1, 2, 3]
+
+    backbone = Backbone()
+    language = type(
+        "LanguageModel",
+        (),
+        {"args": type("Args", (), {"hidden_size": 4})(), "model": backbone},
+    )()
+    wrapper = type(
+        "HybridWrapper",
+        (),
+        {
+            "args": type("WrapperArgs", (), {"model_type": "qwen3_5"})(),
+            "language_model": language,
+        },
+    )()
+
+    encoder = MLXEncoder(wrapper, Tokenizer())
+    sequence = encoder.encode_hidden_sequence_ids([1, 2, 3])
+
+    assert backbone.calls == 1
+    assert sequence.dtype == np.float32
+    assert sequence.shape == (3, 4)
+    assert np.all(np.isfinite(sequence))
+    assert np.allclose(np.linalg.norm(sequence, axis=1), 1.0)
+
+
 def test_cosine_from_l2_orthogonal_is_zero():
     # two orthogonal unit vectors are sqrt(2) apart → cosine 0
     assert abs(cosine_from_l2(np.sqrt(2.0))) < 1e-6
