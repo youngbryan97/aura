@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 41 outbound edges when this was generated.
+# 42 outbound edges when this was generated.
 
 description = "core.phases: may import only what it already imports; every new edge is an edit here."
 
@@ -20,6 +20,7 @@ include_rules = [
     "+core.brain",
     "+core.cognition",
     "+core.coherence",
+    "+core.conation",
     "+core.consciousness",
     "+core.container",
     "+core.conversation",

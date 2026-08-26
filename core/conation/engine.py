@@ -236,7 +236,7 @@ class ConationEngine:
                 )
             readings[ValueOrigin.HOMEOSTATIC] = reading
 
-        # Epistemic.
+        # Curiosity, gated on an actual inspectable affordance.
         affordance = float(self._forced("epistemic_affordance", epistemic_affordance))
         potential = self._forced("arousal_potential", arousal_potential)
         if affordance > EPS:
@@ -253,13 +253,13 @@ class ConationEngine:
                 effort=incentive.effort,
             )
 
-        # Aesthetic.
+        # Compression progress over what has been encoded before.
         if aesthetic_payload is not None:
             readings[ValueOrigin.AESTHETIC] = self.aesthetic.value(
                 incentive.key, payload=aesthetic_payload, model=aesthetic_model
             )
 
-        # Vicarious.
+        # Value borrowed from an observed valuation, if there is one.
         own_contacts = int(
             self._forced(
                 "own_contacts",
@@ -274,7 +274,7 @@ class ConationEngine:
             )
             readings[ValueOrigin.VICARIOUS] = reading
 
-        # Enactive.
+        # Value located in another mind, gated and governed.
         if forecast is not None:
             distress = float(
                 self._forced("predicted_distress", forecast.predicted_distress)

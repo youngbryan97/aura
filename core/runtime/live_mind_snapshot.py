@@ -46,6 +46,9 @@ REQUIRED_LIVE_MIND_SECTIONS = {
     "phenomenal_engine": "phenomenal_engine",
 }
 
+#: Conation is read through its own module rather than the container, because
+#: it is a pure computation over state the container already holds and has no
+#: lifecycle of its own to register.
 LIVE_MIND_OBSERVATION_SERVICES = (
     "phenomenal_knowing",
     "recursive_self_knowing",
@@ -225,6 +228,25 @@ def assess_live_mind_snapshot(snapshot: dict[str, Any] | None) -> dict[str, Any]
     }
 
 
+def _conation_snapshot() -> dict[str, Any]:
+    """What is being wanted this turn, and on what evidence.
+
+    One-way. The conative state grounds what she says; nothing she says may
+    write it back, which core/conation/invariants.py enforces at the import
+    graph rather than by convention.
+    """
+    try:
+        from core.conation.wiring import snapshot as conation_snapshot
+
+        return conation_snapshot()
+    except _SNAPSHOT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "live_mind_snapshot", exc, severity="debug",
+            action="conation section omitted from this turn",
+        )
+        return {"present": False, "reason": "conation unavailable"}
+
+
 def collect_live_mind_snapshot(*, lane: dict[str, Any] | None = None) -> dict[str, Any]:
     """Collect compact runtime state for one live desktop conversation turn."""
     services = {name: _service(name) for name in LIVE_MIND_SERVICE_NAMES}
@@ -248,5 +270,6 @@ def collect_live_mind_snapshot(*, lane: dict[str, Any] | None = None) -> dict[st
     snapshot["automatic_self_knowing"] = _compact(_call(services["automatic_self_knowing"], "snapshot"))
     snapshot["screen_perception"] = _compact(_call(services["screen_perception"], "get_status"))
     snapshot["perceptual_pump"] = _compact(_call(services["perceptual_pump"], "get_status"))
+    snapshot["conation"] = _compact(_conation_snapshot())
     snapshot["frontmost_app_fast"] = _frontmost_app_fast()
     return snapshot

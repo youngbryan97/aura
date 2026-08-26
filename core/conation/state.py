@@ -130,8 +130,8 @@ class Incentive:
 
     #: Whether the pursuit is licensed by the current permitted-action set.
     #: Kept on the incentive rather than folded into value, because a want
-    #: that survives its own prohibition is the psychologically real case and
-    #: the one Aura needs in order to choose the permitted alternative.
+    #: that survives its own prohibition is the psychologically real case, and
+    #: it is what she needs to choose the permitted alternative instead.
     permitted: bool = True
 
     def to_dict(self) -> dict[str, object]:

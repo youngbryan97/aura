@@ -1309,6 +1309,46 @@ def install_runtime_validation() -> dict[str, Any]:
             ),
         )
     )
+    # Conation. The first claim is a measurement of an existing defect and is
+    # exhaustive over the cases it names; the second is the separation that
+    # answers it. Neither says anything about live traffic, because the organ
+    # has run in tests and in one process, not across a conversation.
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The affect appraisal path returns one identical point for five "
+                "motivational situations that behave nothing alike."
+            ),
+            test="test_affect_path_collapses_all_five_cases_to_one_point",
+            owner="core/affect/damasio_v2.py",
+            asserted_in="core/conation/origins.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Exhaustive over the five stated triggers: every pair at L2 "
+                "distance zero in (v, a, e). Says nothing about the LLM appraisal "
+                "path, which is the primary and was not measured here."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Conation separates those same situations by where the value came "
+                "from and whose mind was involved, and a forbidden want keeps its "
+                "pull and its attention while losing its selectability."
+            ),
+            test="test_conation_separates_the_same_five_cases",
+            owner="core/conation/engine.py",
+            asserted_in="core/conation/__init__.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "41 intervention tests over constructed states. The organ reaches "
+                "the live mind snapshot and the affect layer's arousal axis, but no "
+                "conversation turn has been graded on whether the separation "
+                "changes what gets said."
+            ),
+        )
+    )
     suite.add_claim(
         Claim(
             statement=(

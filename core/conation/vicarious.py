@@ -190,34 +190,46 @@ class VicariousValuation:
 
     @staticmethod
     def agent_credibility(agent: str) -> tuple[float, str]:
-        """How much this agent's judgement has tracked outcomes before.
+        """How much this agent's judgement has earned, from what Aura observed.
 
-        Read from Aura's interpersonal model, which already holds what she has
-        learned about the people she knows. An unknown agent gets the lowest
-        credibility that still permits any transfer, because a stranger's
-        attention does mark salience — that is what makes a crowd looking up
-        work — while carrying no track record.
+        Read out of the interpersonal store, which holds typed observations
+        about people rather than a trust scalar. Credibility here is the share
+        of recorded observations about this person that are warm rather than
+        difficult, which is a real measurement over real records and is
+        checkable against the file it came from.
+
+        An unknown agent gets the stranger's share. That is not zero, because
+        a stranger's attention does mark salience — a crowd looking up works
+        on people who know nobody in it — and it is not high, because there is
+        no track record behind it. Half is the reading that adds nothing in
+        either direction: it says the observation counts for what it is worth
+        on its own, with the agent contributing neither credit nor doubt.
         """
         try:
-            from core.container import ServiceContainer
+            from core.memory.interpersonal_model import Valence
+            from core.memory.interpersonal_store import get_interpersonal_store
 
-            model = ServiceContainer.get("interpersonal_model", default=None)
-            if model is None:
-                return 0.25, "interpersonal model unavailable; stranger weight"
-            for accessor in ("trust_for", "get_trust", "familiarity_for"):
-                method = getattr(model, accessor, None)
-                if callable(method):
-                    value = method(agent)
-                    if value is not None and math.isfinite(float(value)):
-                        bounded = max(0.0, min(1.0, float(value)))
-                        return bounded, f"interpersonal model {accessor}={bounded:.2f}"
-            return 0.25, "interpersonal model exposes no credibility accessor"
-        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            store = get_interpersonal_store()
+            model = store.model_for(agent)
+            observations = list(model)
+            if not observations:
+                return 0.5, f"no observations recorded about {agent}"
+            warm = sum(1 for o in observations if o.valence == Valence.WARM)
+            difficult = sum(1 for o in observations if o.valence == Valence.DIFFICULT)
+            decided = warm + difficult
+            if decided == 0:
+                return 0.5, f"{len(observations)} observations, none valenced"
+            share = warm / decided
+            return (
+                max(0.0, min(1.0, share)),
+                f"{warm} warm of {decided} valenced observations about {agent}",
+            )
+        except (ImportError, AttributeError, TypeError, ValueError, OSError) as exc:
             record_degradation(
                 "conation_vicarious", exc, severity="debug",
                 action="agent credibility unreadable; stranger weight applied",
             )
-            return 0.25, "interpersonal model unreadable; stranger weight"
+            return 0.5, "interpersonal store unreadable; stranger weight"
 
     @staticmethod
     def borrowed_weight(

@@ -30,8 +30,8 @@ game.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 #: Labels that CLOSE something without agreeing to anything. Ordered by how

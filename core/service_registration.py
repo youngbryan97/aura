@@ -493,6 +493,16 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
+    # Conation — the motivational faculty. Prices what is wanted by where the
+    # value came from and whose mind was involved, which valence and arousal
+    # cannot distinguish: five situations that behave nothing alike return one
+    # identical point from the affect path.
+    container.register(
+        'conation',
+        lambda: __import__('core.conation.engine', fromlist=['get_conation']).get_conation(),
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
     # Concept formation — abstracts new conceptual primitives from repeated prediction errors
     # (complements AbstractionEngine, which distills from successes).
     container.register(

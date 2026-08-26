@@ -814,11 +814,11 @@ async def pursue_on_screen(
     judgement or a test that needs a fixed one. ``think`` replaces only the
     reasoning, keeping the predict-and-check loop around it.
     """
-    from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency import what_she_is_doing as doing
-    from core.perception.where_it_responds import Responsive, describe, noticed, within
+    from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
+    from core.perception.where_it_responds import Responsive, describe, noticed, within
     from core.skills.fluid_executor import FluidExecutor, Step
 
     moves: list[dict[str, Any]] = []

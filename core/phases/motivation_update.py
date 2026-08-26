@@ -9,6 +9,7 @@ from core.consciousness.executive_authority import get_executive_authority as ge
 from core.runtime.service_registry import get_runtime_service, has_runtime_service
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.proposal_governance import propose_governed_initiative_to_state
+from core.runtime.errors import record_degradation
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -104,21 +105,76 @@ class MotivationUpdatePhase(Phase):
                 )
                 logger.debug("MotivationUpdate: intention decision=%s", decision.get("reason"))
                 
-        # 3. Spontaneity (Curiosity Spikes)
-        if random.random() < 0.01 and _background_curiosity_allowed(): # Lower frequency per tick
-             next_state, decision = await propose_governed_initiative_to_state(
-                 next_state,
-                 "Spontaneous curiosity spike: Exploring latent interests.",
-                 orchestrator=None,
-                 source="motivation_update",
-                 kind="curiosity_spike",
-                 urgency=0.5,
-                 triggered_by="curiosity",
-                 metadata={"drive": "curiosity", "phase": "motivation_update", "spontaneous": True},
-             )
-             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
+        # 3. Spontaneity, from a measured epistemic opportunity
+        #
+        # This used to be `random.random() < 0.01`: a curiosity that fired by
+        # coin flip rather than because anything was interesting. A spike with
+        # no target cannot say what it is curious about, cannot be satisfied by
+        # finding out, and fires just as often when everything is understood.
+        # Conation supplies a target, an origin and the evidence behind it, so
+        # the initiative that reaches governance can be argued with.
+        spike = self._conative_spike()
+        if spike and _background_curiosity_allowed():
+            next_state, decision = await propose_governed_initiative_to_state(
+                next_state,
+                spike["goal"],
+                orchestrator=None,
+                source="motivation_update",
+                kind="curiosity_spike",
+                urgency=float(spike.get("urgency", 0.5)),
+                triggered_by=str(spike.get("origin") or "curiosity"),
+                metadata={
+                    "drive": "curiosity",
+                    "phase": "motivation_update",
+                    "spontaneous": True,
+                    "conative_origin": spike.get("origin"),
+                    "conative_evidence": spike.get("evidence"),
+                    "conative_topology": spike.get("topology"),
+                },
+            )
+            logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    def _conative_spike(self) -> Optional[dict]:
+        """A spontaneous goal only when something is actually interesting.
+
+        Returns ``None`` when no target carries epistemic value, which is the
+        common case and the correct one. Silence from a motivational system is
+        information: it means nothing is pulling.
+        """
+        try:
+            from core.conation.engine import get_conation
+
+            engine = get_conation()
+            status = engine.status()
+            noisy = set(status.get("epistemic", {}).get("noisy_sources", []))
+            candidates = [
+                trace
+                for trace in status.get("epistemic", {}).get("tracked", [])
+                if trace.get("key") not in noisy
+                and (trace.get("learning_progress") or 0.0) > 0.0
+            ]
+            if not candidates:
+                return None
+            best = max(candidates, key=lambda t: t.get("learning_progress") or 0.0)
+            progress = float(best.get("learning_progress") or 0.0)
+            return {
+                "goal": f"Return to {best['key']}: still learning from it.",
+                "origin": "epistemic",
+                "urgency": max(0.1, min(0.9, progress)),
+                "topology": "solo",
+                "evidence": (
+                    f"learning progress {progress:.3f} over "
+                    f"{best.get('exposures', 0)} exposures"
+                ),
+            }
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError) as exc:
+            record_degradation(
+                "motivation_update", exc, severity="debug",
+                action="conative spike unavailable; no spontaneous curiosity this tick",
+            )
+            return None
 
     def _assess_needs(self, state: AuraState) -> Optional[dict]:
         """Ported logic from MotivationEngine._assess_needs."""

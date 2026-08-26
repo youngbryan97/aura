@@ -43,20 +43,20 @@ from core.conation.engine import (
 from core.conation.epistemic import EpistemicValuation, wundt_curve
 from core.conation.homeostatic import HomeostaticValuation
 from core.conation.origins import (
-    ConativePhase,
     EVIDENCE_REQUIRED,
+    SOCIAL_ORIGINS,
+    ConativePhase,
     Instrumentality,
     MindTopology,
     OriginReading,
-    SOCIAL_ORIGINS,
     ValueOrigin,
 )
 from core.conation.salience import IncentiveSalience, SalienceCalibration
 from core.conation.state import (
+    VECTOR_FIELDS,
     ConativeState,
     Incentive,
     OutcomeReport,
-    VECTOR_FIELDS,
 )
 from core.conation.vicarious import VicariousValuation
 

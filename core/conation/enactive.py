@@ -225,32 +225,51 @@ class EnactiveValuation:
 
     @staticmethod
     def intimacy(person: str) -> tuple[float, str]:
-        """Closeness with this person, read from the interpersonal model.
+        """Closeness with this person, earned from what Aura has observed.
+
+        Two things have to be true for one person to be closer than another,
+        and they are separate. She has to know a lot about them, and what she
+        knows has to be warm. Knowing a great deal about someone difficult is
+        not intimacy, and one warm exchange with a stranger is not either, so
+        the two multiply rather than average.
+
+        Depth is the share of the person model's own capacity that has been
+        filled. That scale comes from the model rather than from a number
+        chosen here, so it stays correct if the model's capacity changes.
 
         An unknown person reads zero. A stranger is not a little bit close,
         and defaulting to a middling number would licence acts nobody has
-        earned.
+        earned — which for this origin is the failure that matters.
         """
         try:
-            from core.container import ServiceContainer
+            from core.memory.interpersonal_model import Valence
+            from core.memory.interpersonal_store import get_interpersonal_store
 
-            model = ServiceContainer.get("interpersonal_model", default=None)
-            if model is None:
-                return 0.0, "interpersonal model unavailable; stranger"
-            for accessor in ("intimacy_for", "closeness_for", "familiarity_for"):
-                method = getattr(model, accessor, None)
-                if callable(method):
-                    value = method(person)
-                    if value is not None and math.isfinite(float(value)):
-                        bounded = max(0.0, min(1.0, float(value)))
-                        return bounded, f"interpersonal model {accessor}={bounded:.2f}"
-            return 0.0, "interpersonal model exposes no closeness accessor"
-        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            store = get_interpersonal_store()
+            model = store.model_for(person)
+            observations = list(model)
+            if not observations:
+                return 0.0, f"nothing recorded about {person}; stranger"
+            capacity = max(1, int(getattr(model, "max_observations", 256)))
+            depth = min(1.0, len(observations) / capacity)
+            warm = sum(1 for o in observations if o.valence == Valence.WARM)
+            difficult = sum(1 for o in observations if o.valence == Valence.DIFFICULT)
+            decided = warm + difficult
+            warmth = 0.0 if decided == 0 else warm / decided
+            closeness = depth * warmth
+            return (
+                max(0.0, min(1.0, closeness)),
+                (
+                    f"{len(observations)} observations of {capacity} capacity, "
+                    f"{warm} warm of {decided} valenced"
+                ),
+            )
+        except (ImportError, AttributeError, TypeError, ValueError, OSError) as exc:
             record_degradation(
                 "conation_enactive", exc, severity="debug",
                 action="intimacy unreadable; stranger threshold applied",
             )
-            return 0.0, "interpersonal model unreadable; stranger"
+            return 0.0, "interpersonal store unreadable; stranger"
 
     def distress_ceiling(self, intimacy: float) -> float:
         """The threshold this relationship has earned."""

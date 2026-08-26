@@ -45,9 +45,13 @@ CORE = ROOT / "core"
 #: reason it exists: it may not reach anything that generates a number. A
 #: closed-world list of what it happens to import today would allow a later
 #: import of core.brain the moment somebody added one.
+#: `conation` is written for the same reason. Its rule is that a motivational
+#: state may never be produced by generated text, and a closed-world list of
+#: today's imports would allow core.brain the moment somebody added one — which
+#: is precisely the import that the organ's own invariant exists to forbid.
 HANDWRITTEN = {
-    "engineering", "fsw", "health", "observability", "persistence", "runtime",
-    "utils", "verify",
+    "conation", "engineering", "fsw", "health", "observability", "persistence",
+    "runtime", "utils", "verify",
 }
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}

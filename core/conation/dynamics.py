@@ -327,9 +327,9 @@ class ConativeDynamics:
         if activation <= EPS:
             return {"delivered": False, "reason": "no conative activation"}
         try:
-            from core.container import ServiceContainer
+            from core.affect.affective_circumplex import get_circumplex
 
-            circumplex = ServiceContainer.get("affective_circumplex", default=None)
+            circumplex = get_circumplex()
             applied = False
             if circumplex is not None and hasattr(circumplex, "apply_event"):
                 # Arousal only. Conation says how activated she is, and says

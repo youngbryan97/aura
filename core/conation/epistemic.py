@@ -305,7 +305,7 @@ class EpistemicValuation:
         what distinguishes the snail from both a blank wall and a wall of
         static.
 
-        ``instrumental`` marks a look taken in order to get something else.
+        ``instrumental`` marks a look taken to get something else.
         Such a look is still worth taking and is still priced here, but it is
         reported as instrumental so it cannot be counted as the autotelic
         case. The distinction is the difference between reading a manual and
