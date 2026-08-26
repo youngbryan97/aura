@@ -1136,7 +1136,9 @@ async def pursue_on_screen(
         # forty times because nothing ever checked that the board moved.
         previous = pending["deliberation"]
         if previous is not None:
-            attempt = confirm(previous, pending["before"], seen, spine=spine, graph=graph)
+            attempt = confirm(
+                previous, pending["before"], seen, spine=spine, graph=graph, toward=success_when
+            )
             history.append(attempt)
             # Learned from the same measurement. A move that changed nothing
             # is the control: whatever still changed across it was changing

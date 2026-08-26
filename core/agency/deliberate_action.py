@@ -160,8 +160,15 @@ class Attempt:
     option: str
     expected: str
     verdict: Verdict
+    #: Whether the situation moved TOWARD the goal, where that is measurable.
+    #: None when there is nothing to measure it against.
+    progressed: bool | None = None
 
     def as_evidence(self) -> str:
+        if self.verdict.held and self.progressed:
+            return f"{self.option} did what was expected ({self.expected}) and got closer."
+        if self.verdict.held and self.progressed is False:
+            return f"{self.option} changed things ({self.expected}) but got no closer."
         if self.verdict.held:
             return f"{self.option} did what was expected ({self.expected})."
         return f"{self.option} was expected to {self.expected}, but {self.verdict.why()}."
@@ -1051,6 +1058,37 @@ def _open_episode(
         return None
 
 
+def _highest_in(text: str) -> int:
+    values = [
+        int(found.replace(",", ""))
+        for found in re.findall(r"\b(\d[\d,]{0,9})\b", str(text or ""))
+    ]
+    return max(values) if values else 0
+
+
+def made_progress(before: str, after: str, toward: str) -> bool | None:
+    """Whether the situation moved toward the goal, where that is measurable.
+
+    "It worked" has meant "the view is different", which is the honest test
+    that an action HAPPENED and a poor test of whether it helped. A move that
+    shuffles things scores exactly as well as one that builds, so a record
+    built from it prefers whatever changes the screen most reliably rather
+    than whatever gets anywhere. Measured live: she pressed the same
+    direction over and over because it kept "working".
+
+    Where the goal names a value, closer is computable — the largest value in
+    front of her rose. Where it does not, there is nothing to measure and
+    this says so rather than guessing.
+    """
+    wanted = str(toward or "").strip()
+    if not re.fullmatch(r"\d[\d,]*", wanted):
+        return None
+    was, now = _highest_in(before), _highest_in(after)
+    if not was and not now:
+        return None
+    return now > was
+
+
 def confirm(
     deliberation: Deliberation,
     before: str,
@@ -1058,6 +1096,7 @@ def confirm(
     *,
     spine: Any = None,
     graph: Any = None,
+    toward: str = "",
 ) -> Attempt:
     """Check the prediction against what actually happened, and record it.
 
@@ -1068,13 +1107,15 @@ def confirm(
         return Attempt(option="", expected="", verdict=Verdict(held=False, observed_change=False))
 
     verdict = deliberation.chosen.expectation.check(before, after)
+    moved_on = made_progress(before, after, toward)
     attempt = Attempt(
         option=deliberation.chosen.name,
         expected=deliberation.chosen.expectation.describes or "the situation to change",
         verdict=verdict,
+        progressed=moved_on,
     )
     _resolve_episode(deliberation, verdict, spine=spine)
-    _record_consequence(deliberation, verdict, after, graph=graph)
+    _record_consequence(deliberation, verdict, after, graph=graph, progressed=moved_on)
     _announce_outcome(deliberation, attempt, verdict)
     return attempt
 
@@ -1127,17 +1168,33 @@ def _resolve_episode(deliberation: Deliberation, verdict: Verdict, *, spine: Any
         record_degradation("deliberate_action", exc, action="resolve an episode for a move")
 
 
-def _record_consequence(deliberation: Deliberation, verdict: Verdict, after: str, *, graph: Any = None) -> None:
+def _record_consequence(
+    deliberation: Deliberation,
+    verdict: Verdict,
+    after: str,
+    *,
+    graph: Any = None,
+    progressed: bool | None = None,
+) -> None:
     if deliberation.chosen is None:
         return
     try:
         if graph is None:
             from core.world_model.acg import acg as graph  # noqa: PLC0415
+        # Recorded as a success only when it also got somewhere, where that
+        # is measurable. A move that changes the view without advancing the
+        # goal is not a move worth reaching for again, and recording it as
+        # one is how a record comes to prefer whatever reliably shuffles
+        # things.
+        worked = verdict.held if progressed is None else bool(verdict.held and progressed)
+        said = verdict.why() if not verdict.held else (after[:400] or "as expected")
+        if verdict.held and progressed is False:
+            said = f"changed things but got no closer: {said}"
         graph.record_outcome(
             deliberation.chosen.name,
             deliberation.situation[:400],
-            verdict.why() if not verdict.held else (after[:400] or "as expected"),
-            verdict.held,
+            said,
+            worked,
         )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("deliberate_action", exc, action="record what a move led to")
