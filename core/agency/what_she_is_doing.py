@@ -82,10 +82,20 @@ class Undertaking:
 
 _current: Undertaking | None = None
 
+#: The last thing she finished, kept after it ends.
+#:
+#: A report about a piece of work is written after the work stops, and the
+#: record used to be cleared at exactly that moment. LIVE 2026-08-26: fifty
+#: narrated moves in a game of 2048, and the person was told she got one step
+#: into it, because by then the only record left was of something else.
+_last: Undertaking | None = None
+
 
 def taking_on(goal: str, *, where: str = "") -> Undertaking:
     """She has started something."""
-    global _current
+    global _current, _last
+    if _current is not None:
+        _last = _current
     _current = Undertaking(goal=" ".join(str(goal or "").split()), where=str(where or ""))
     _publish(f"Starting: {_current.goal}", priority=0.75)
     return _current
@@ -142,7 +152,9 @@ def how_it_went(succeeded: bool, note: str = "", *, graph: Any = None) -> None:
     harder to reach for next time and one that works is easier — which is the
     only thing that makes holding an approach different from having a habit.
     """
-    global _current
+    global _current, _last
+    if _current is not None:
+        _last = _current
     if _current is None or not _current.approach:
         _current = None
         return
@@ -165,6 +177,13 @@ def right_now() -> Undertaking | None:
     if _current is None or not _current.fresh():
         return None
     return _current
+
+
+def just_finished() -> Undertaking | None:
+    """The last thing she did, for a report written after it stopped."""
+    if _last is None or not _last.fresh():
+        return None
+    return _last
 
 
 def as_lines() -> list[str]:

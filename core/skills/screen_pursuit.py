@@ -147,6 +147,9 @@ class ScreenPursuitInput(BaseModel):
     target_app: str = Field(default="", max_length=120)
     max_cycles: int = Field(default=200, ge=1, le=2000)
     max_seconds: float = Field(default=600.0, ge=1.0, le=3600.0)
+    #: When the whole thing must be over, on the same monotonic clock. Set by
+    #: a caller that started counting before this action did.
+    deadline_at: float = Field(default=0.0, ge=0.0)
     narrate: bool = Field(default=True)
 
 
@@ -590,6 +593,7 @@ class ScreenPursuitSkill(BaseSkill):
             policy=policy,
             max_cycles=params.max_cycles,
             max_seconds=params.max_seconds,
+            deadline_at=params.deadline_at,
             narrate=params.narrate,
             region_top=params.success_region_top,
             region_bottom=params.success_region_bottom,
@@ -788,6 +792,20 @@ def _ask_again_after(asked_at: int) -> int:
     return LANGUAGE_EVERY if asked_at >= 0 else RECONSIDER_AFTER
 
 
+def _time_left(began: float, max_seconds: float, deadline_at: float) -> float:
+    """What is left of the budget, on whichever clock started first.
+
+    A caller that began counting before this action did says so, and its
+    deadline wins: otherwise the setup between the two is free time that the
+    outer deadline is then blamed for.
+    """
+    now = time.monotonic()
+    ends_at = began + float(max_seconds)
+    if deadline_at > 0.0:
+        ends_at = min(ends_at, float(deadline_at))
+    return max(1.0, ends_at - now)
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -811,6 +829,7 @@ async def pursue_on_screen(
     move_keys: Sequence[str] = DEFAULT_MOVES,
     max_cycles: int = 200,
     max_seconds: float = PURSUIT_SECONDS,
+    deadline_at: float = 0.0,
     narrate: bool = True,
     region_top: float = 0.0,
     region_bottom: float = 1.0,
@@ -1655,7 +1674,7 @@ async def pursue_on_screen(
             decide=decide,
             is_satisfied=satisfied,
             max_cycles=max_cycles,
-            max_seconds=max(1.0, max_seconds - (time.monotonic() - began)),
+            max_seconds=_time_left(began, max_seconds, deadline_at),
             perception_reason=f"pursuing on screen: {goal[:60]}",
         )
     finally:

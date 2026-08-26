@@ -4560,10 +4560,19 @@ class DesktopTaskSkill(BaseSkill):
         # which is the wrong question about a request carrying a condition.
         watched = read_watched_goal(text)
         if watched is not None:
+            # The clock is stamped here, not when the pursuit starts.
+            #
+            # Between planning a step and running it there is authority to
+            # check and a lane to enter, and that time was free: the pursuit
+            # began its own budget afterwards, so the outer deadline — which
+            # only has room to report — was reached first and cancelled a run
+            # that was playing correctly. LIVE 2026-08-26.
+            target = watched.as_target()
+            target["deadline_at"] = time.monotonic() + float(watched.max_seconds)
             return [
                 DesktopTaskStep(
                     action="pursue_on_screen",
-                    target=json.dumps(watched.as_target()),
+                    target=json.dumps(target),
                     reason=f"keep at it until {watched.success_when!r} is on screen",
                     expect=f"{watched.success_when} appears",
                     critical=True,

@@ -45,9 +45,9 @@ def _what_she_got_through(completed: int, requested: int) -> str:
     if completed or requested:
         return f"Completed {completed}/{requested} steps."
     try:
-        from core.agency.what_she_is_doing import right_now  # noqa: PLC0415
+        from core.agency.what_she_is_doing import just_finished, right_now  # noqa: PLC0415
 
-        held = right_now()
+        held = right_now() or just_finished()
     except (ImportError, AttributeError, RuntimeError):
         held = None
     if held is None or not held.steps:
