@@ -59,3 +59,41 @@ def test_a_failure_is_not_softened():
 def test_the_numbers_come_from_the_receipt():
     said = _said_plainly({"action": "x", "evidence": "moves=1;outcome=goal_reached"})
     assert "1 move" in said and "1 moves" not in said
+
+
+def test_work_that_never_happened_is_not_reported_as_done():
+    """A goal already true when she arrived is a real outcome and a different
+    one. Reading it out as "got there" claims work that never happened."""
+    assert _said_plainly({"action": "pursue_on_screen", "evidence": "moves=0;outcome=goal_reached"}) == ""
+    assert _said_plainly({"action": "x", "evidence": "steps=0;outcome=goal_reached"}) == ""
+    assert _said_plainly({"action": "x", "evidence": "moves=3;outcome=goal_reached"}) != ""
+
+
+def test_the_same_thing_twice_is_one_thing():
+    """A store holding a retry and its original holds two receipts for one
+    action, and reading both out claims she did it twice."""
+    from core.introspection.self_evidence import EvidenceBundle, Reading, ReadingState, render_past_actions
+
+    same = {"action": "pursue_on_screen", "evidence": "moves=4;outcome=goal_reached", "cause": "play"}
+    rendered = render_past_actions(
+        EvidenceBundle(
+            demand="past_actions",
+            readings=(Reading(
+                channel="tool_receipts",
+                state=ReadingState.READ,
+                value=[dict(same), dict(same), dict(same)],
+                unit="actions",
+                provenance="test",
+            ),),
+        )
+    )
+    assert rendered.count("got there") == 1
+
+
+def test_a_cause_is_shortened_at_a_word_not_through_one():
+    from core.introspection.self_evidence import _whole_words
+
+    said = _whole_words("Find 2048 online, play it, and tell me here when you have it", 30)
+    assert said.endswith("…")
+    assert not said.endswith("wh…")
+    assert _whole_words("short", 30) == "short"

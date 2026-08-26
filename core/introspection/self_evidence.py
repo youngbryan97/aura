@@ -1104,6 +1104,20 @@ _PLAIN_OUTCOME = (
 )
 
 
+def _whole_words(text: str, limit: int) -> str:
+    """Shortened at a word, not through one.
+
+    A cause cut to a fixed number of characters ends mid-word — "tell me here
+    when y" — which reads as though something went wrong rather than as
+    though it was shortened.
+    """
+    said = str(text or "").strip()
+    if len(said) <= limit:
+        return said
+    cut = said[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-")
+    return f"{cut}…" if cut else said[:limit]
+
+
 def _said_plainly(entry: Mapping[str, Any]) -> str:
     """One recorded action, in the words a person would use for it.
 
@@ -1111,7 +1125,13 @@ def _said_plainly(entry: Mapping[str, Any]) -> str:
     come from the receipt. Only the spelling changes.
     """
     evidence = str(entry.get("evidence") or "").strip()
-    cause = " ".join(str(entry.get("cause") or "").split())
+    cause = _whole_words(" ".join(str(entry.get("cause") or "").split()), 120)
+    if re.search(r"\b(?:moves|steps)=0\b", evidence):
+        # Nothing was done, so there is nothing to report as done. A goal that
+        # was already true when she arrived is a real outcome and a different
+        # one, and reading it out as "got there" claims work that never
+        # happened.
+        return ""
     parts = [piece for piece in re.split(r"[;,]\s*", evidence) if piece]
     said = ""
     detail: list[str] = []
@@ -1142,7 +1162,7 @@ def _said_plainly(entry: Mapping[str, Any]) -> str:
         said = str(entry.get("action") or "did something").replace("_", " ")
     line = said if not detail else f"{said} — {', '.join(detail)}"
     if cause:
-        line = f"{line}. You had asked: {cause[:120]}"
+        line = f"{line}. You had asked: {cause}"
     return line
 
 
@@ -1165,8 +1185,18 @@ def render_past_actions(bundle: EvidenceBundle) -> str:
         # online, play it, and get to a 256 tile…" is a log line, and the
         # person asked what she did.
         lines = ["Here is what I actually did, most recent first:"]
+        said_already: set[str] = set()
         for entry in reading.value or ():
-            lines.append(f"  • {_said_plainly(entry)}")
+            said = _said_plainly(entry)
+            if not said or said in said_already:
+                # The same thing twice is one thing. A store that holds a
+                # retry and its original holds two receipts for one action,
+                # and reading both out claims she did it twice.
+                continue
+            said_already.add(said)
+            lines.append(f"  • {said}")
+        if len(lines) == 1:
+            return "I have no verified record of doing anything yet."
         return "\n".join(lines)
     return ""
 
