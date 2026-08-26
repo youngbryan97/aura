@@ -268,9 +268,22 @@ async def _execute_desktop_objective_from_chat(
             # "Chrome is in front, showing …" turns an answer back into a
             # progress report, and nobody asked how many steps it took to
             # look at their own screen. Non-perception observations keep it.
+            # An observation that reports the outcome IS the answer.
+            #
+            # The step count is bookkeeping about the machinery, and this file
+            # already says so twice — for perceptions, and for deliverables.
+            # It is just as true here: "Reached it: '256' appeared after 25
+            # move(s). 6 of them did what I expected. (Completed 1/1 governed
+            # desktop steps.)" answers the question and then reads the ledger
+            # out after it. Nobody asked how many governed steps it took.
+            #
+            # LIVE 2026-08-26, on the run where she actually got there.
+            answers_the_question = bool(result.get("observation_meta")) or _reports_an_outcome(
+                observation
+            )
             response = (
                 observation
-                if result.get("observation_meta")
+                if answers_the_question
                 else f"{observation} (Completed {completed}/{requested} governed desktop steps.)"
             )
         else:
@@ -710,6 +723,21 @@ def _perception_needs_her_own_answer(result: dict[str, Any], objective: str) -> 
             action="served the screen description because answer shape was undecidable",
         )
         return False
+
+
+#: How an observation says it is reporting an outcome rather than describing
+#: a screen. Both halves of the thing a person asked for: whether it happened,
+#: and what happened.
+_AN_OUTCOME = re.compile(
+    r"\b(?:reached it|reached the|got there|it worked|done|finished|completed|"
+    r"could not|couldn'?t|failed|gave up|stopped)\b",
+    re.IGNORECASE,
+)
+
+
+def _reports_an_outcome(observation: str) -> bool:
+    """Whether this already tells the person how the thing they asked for went."""
+    return bool(_AN_OUTCOME.search(str(observation or "")))
 
 
 def _desktop_task_observation(result: dict[str, Any]) -> str:
