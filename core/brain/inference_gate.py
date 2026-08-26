@@ -310,6 +310,25 @@ _STATE_SIGNAL_REWRITES = (
 )
 
 
+def _worker_process_started_at(client: Any) -> float:
+    """When the worker process was created, or 0.0 when that cannot be read.
+
+    Ground truth for "is this worker new". Lane bookkeeping is written when
+    warmup begins and is absent for the window between spawn and that write;
+    a creation time cannot be absent for a process that exists.
+    """
+    process = getattr(client, "_process", None)
+    pid = getattr(process, "pid", None)
+    if not pid:
+        return 0.0
+    try:
+        from core.runtime.process_identity import _create_time  # noqa: PLC0415
+
+        return float(_create_time(int(pid)) or 0.0)
+    except (ImportError, AttributeError, TypeError, ValueError, OSError):
+        return 0.0
+
+
 def _worker_process_is_running(proc: Any) -> bool:
     """True when a worker process handle exists AND is still running.
 
@@ -3366,6 +3385,25 @@ class InferenceGate:
         """
         if client is None:
             return False
+        load_deadline_s = InferenceGate._env_float("AURA_CORTEX_LOAD_DEADLINE_S", 200.0)
+        # A worker that has only just been spawned is neither wedged nor idle.
+        # It is new.
+        #
+        # The lane bookkeeping below is set when warmup BEGINS, and there is a
+        # window after the process exists where none of it is true yet. In
+        # that window a running worker read as idle-but-running — the wedged
+        # case — and was killed, which is the doom loop this guard was written
+        # to end, reached through the one gap it did not cover. LIVE
+        # 2026-08-26: spawn, "Loading model", "Model loaded", force-killed,
+        # respawn, five times over, while every caller that needed her writing
+        # was told "worker_not_alive" and the runtime's own health said the
+        # lane was ready.
+        #
+        # Process creation time is the ground truth here: it cannot be unset,
+        # cannot lag, and is already captured by the kill path itself.
+        started_at = _worker_process_started_at(client)
+        if started_at and (time.time() - started_at) < load_deadline_s:
+            return True
         warming = bool(getattr(client, "_warmup_in_flight", False)) or str(
             getattr(client, "_lane_state", "")
         ) in {"warming", "recovering"}
@@ -3373,7 +3411,6 @@ class InferenceGate:
             return False
         transition_at = float(getattr(client, "_lane_transition_at", 0.0) or 0.0)
         warming_age = time.time() - transition_at if transition_at else 1e9
-        load_deadline_s = InferenceGate._env_float("AURA_CORTEX_LOAD_DEADLINE_S", 200.0)
         return warming_age < load_deadline_s
 
     @staticmethod
