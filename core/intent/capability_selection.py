@@ -91,15 +91,19 @@ def _points_at_something_real(text: str) -> bool:
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     # A directory named outright, which the file check does not claim.
-    import re
-    from pathlib import Path as _Path
+    #
+    # LIVE, 2026-08-25: the pattern here ended at `[\w.\-~/]+`, so a path at
+    # the end of a sentence came back with the full stop attached and did not
+    # resolve. Nothing pointed at anything real, no tool was selected, and a
+    # request to diagnose a project was answered with a capability catalogue.
+    # The reader lives in one place now.
+    try:
+        from core.language.named_paths import first_existing_path
 
-    for candidate in re.findall(r"(?<![\w])(~?/[\w.\-~/]+)", text):
-        try:
-            if _Path(candidate).expanduser().exists():
-                return True
-        except (OSError, ValueError):
-            continue
+        if first_existing_path(text) is not None:
+            return True
+    except (ImportError, OSError, ValueError):
+        pass
     return False
 
 
