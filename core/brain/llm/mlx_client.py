@@ -6032,6 +6032,20 @@ class MLXLocalClient:
             0.0,
             float(first_token_hard_ceiling_s or 0.0),
         )
+        # What the caller allowed, beside what the prompt will cost.
+        #
+        # A first-token ceiling is only meaningful next to the prompt it has
+        # to read: 4 seconds is generous for a hundred tokens and impossible
+        # for two thousand. Without both numbers in one line, a cancelled
+        # request looks like a slow worker, and every decision she made while
+        # playing was cancelled this way.
+        if self._current_first_token_hard_ceiling_s > 0.0:
+            logger.info(
+                "⏱️ [MLX] first-token ceiling %.1fs for a %d-char prompt (%d max tokens)",
+                self._current_first_token_hard_ceiling_s,
+                self._current_prompt_chars,
+                self._current_requested_max_tokens,
+            )
         self._current_prefill_tokens_processed = 0
         self._current_prefill_tokens_total = 0
         self._mark_progress()
