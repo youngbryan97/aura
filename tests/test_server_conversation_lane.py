@@ -27,6 +27,61 @@ import interface.routes.chat_runtime_proof as _chat_runtime_proof
 import interface.routes.chat_protected_prompt as _chat_protected_prompt
 
 
+@pytest.mark.asyncio
+async def test_reply_quality_candidate_is_measured_once_per_request(monkeypatch):
+    import core.conversation.response_reliability as reliability
+    import interface.routes.chat as chat_routes
+
+    calls = {
+        "recent": 0,
+        "stale": 0,
+        "same": 0,
+        "topic": 0,
+        "glitch": 0,
+        "reliability": 0,
+    }
+
+    async def _recent(_message):
+        calls["recent"] += 1
+        return ["earlier", "question"]
+
+    def _count(name, value):
+        def _measured(*_args, **_kwargs):
+            calls[name] += 1
+            return value
+
+        return _measured
+
+    assessment = SimpleNamespace(ok=True, reasons=(), retryable=False, hard_failure=False)
+    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", _recent)
+    monkeypatch.setattr(chat_routes, "_is_actionably_stale_response", _count("stale", False))
+    monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", _count("same", False))
+    monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", _count("topic", (False, "")))
+    monkeypatch.setattr(chat_routes, "_looks_semantically_glitched", _count("glitch", (False, "")))
+    monkeypatch.setattr(
+        reliability,
+        "assess_user_facing_reply",
+        _count("reliability", assessment),
+    )
+
+    token = chat_routes._CHAT_REPLY_QUALITY_SNAPSHOTS.set({})
+    try:
+        first = await chat_routes._measure_reply_quality_candidate("question", "answer")
+        second = await chat_routes._measure_reply_quality_candidate("question", "answer")
+    finally:
+        chat_routes._CHAT_REPLY_QUALITY_SNAPSHOTS.reset(token)
+
+    assert first is second
+    assert calls == {
+        "recent": 1,
+        "stale": 1,
+        "same": 1,
+        "topic": 1,
+        "glitch": 1,
+        "reliability": 1,
+    }
+
+
 def _force_full_mind_runtime(monkeypatch, chat_routes):
     """Mark every runtime subsystem available for a desktop full-mind-path turn.
 

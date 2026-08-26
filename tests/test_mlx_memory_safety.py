@@ -5,6 +5,74 @@ import time
 from types import SimpleNamespace
 
 
+def test_throughput_sample_prefers_worker_measured_generation_clocks(monkeypatch):
+    from core.brain.llm import mlx_client
+    from core.brain.llm.model_registry import get_model_runtime_assignment
+
+    captured = []
+    monkeypatch.setattr(mlx_client, "record_generation", lambda **kwargs: captured.append(kwargs))
+    assignment = get_model_runtime_assignment("Aura-32B-20260510-151144")
+    client = mlx_client.MLXLocalClient(
+        assignment.model_path,
+        runtime_assignment=assignment,
+    )
+    client._current_request_started_at = time.time() - 90.0
+
+    client._record_throughput_sample(
+        {
+            "tokens_used": 30,
+            "prompt_tokenization": {"tokens": 900},
+            "prompt_cache_reused_tokens": 700,
+            "generation_stop_reason": "eos",
+            "generation_performance": {
+                "prefill_seconds": 2.25,
+                "decode_seconds": 7.5,
+            },
+        },
+        prompt="ignored because tokenization is measured",
+        foreground_request=True,
+    )
+
+    assert len(captured) == 1
+    assert captured[0]["prefill_seconds"] == 2.25
+    assert captured[0]["decode_seconds"] == 7.5
+    assert captured[0]["cache_warm"] is True
+
+
+def test_worker_preserves_mlx_generation_performance():
+    from core.brain.llm.mlx_worker import _generation_performance_snapshot
+
+    response = SimpleNamespace(
+        prompt_tokens=900,
+        prompt_tps=300.0,
+        generation_tokens=40,
+        generation_tps=8.0,
+        peak_memory=14.25,
+        finish_reason="stop",
+    )
+
+    measured = _generation_performance_snapshot(
+        response,
+        fallback_prompt_tokens=1,
+        fallback_generation_tokens=2,
+        first_token_seconds=3.1,
+        stream_seconds=8.2,
+    )
+
+    assert measured == {
+        "prompt_tokens": 900,
+        "prompt_tps": 300.0,
+        "prefill_seconds": 3.0,
+        "generation_tokens": 40,
+        "generation_tps": 8.0,
+        "decode_seconds": 5.0,
+        "first_token_seconds": 3.1,
+        "stream_seconds": 8.2,
+        "peak_memory_gb": 14.25,
+        "finish_reason": "stop",
+    }
+
+
 def test_external_memory_sentinel_uses_current_footprint_not_lifetime_peak():
     from tools.memory_sentinel import _RUsageV4, current_phys_footprint_bytes
 

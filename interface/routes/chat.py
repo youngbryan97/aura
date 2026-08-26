@@ -1709,6 +1709,23 @@ class _ConversationQualityState:
     last_access_monotonic: float = dataclasses.field(default_factory=time.monotonic)
 
 
+@dataclasses.dataclass(frozen=True)
+class _ReplyQualitySnapshot:
+    recent_user_messages: tuple[str, ...]
+    is_stale: bool
+    is_same_diff: bool
+    is_off_topic: bool
+    off_topic_reason: str
+    semantic_glitch: bool
+    semantic_glitch_reason: str
+    reply_assessment: Any
+
+
+_CHAT_REPLY_QUALITY_SNAPSHOTS: ContextVar[
+    dict[tuple[str, str], _ReplyQualitySnapshot] | None
+] = ContextVar("chat_reply_quality_snapshots", default=None)
+
+
 _CONVERSATION_QUALITY_STATE_LIMIT = 256
 _CONVERSATION_QUALITY_STATE_TTL_S = 6 * 60 * 60.0
 _DEFAULT_CONVERSATION_QUALITY_KEY = "default"
@@ -12536,6 +12553,75 @@ def _original_reply_is_safe_to_surface(
     return True
 
 
+async def _measure_reply_quality_candidate(
+    user_message: str,
+    reply_text: Any,
+    *,
+    recent_user_messages: Sequence[str] | None = None,
+) -> _ReplyQualitySnapshot:
+    """Measure one candidate once inside its request.
+
+    Stabilization and terminal admission examine the same unchanged candidate
+    back to back. Each pass used to repeat transcript acquisition, semantic
+    integrity checks, and the full reliability classifier. Besides delaying
+    delivery, the duplicate classifier wrote the same candidate to the turn
+    ledger twice. A request-scoped snapshot keeps every check while making the
+    candidate identity the unit of work.
+    """
+
+    user = str(user_message or "")
+    reply = str(reply_text or "")
+    key = (user, reply)
+    cache = _CHAT_REPLY_QUALITY_SNAPSHOTS.get()
+    if cache is not None:
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+    recent = tuple(
+        recent_user_messages
+        if recent_user_messages is not None
+        else await _gather_recent_user_messages_for_relevance(user)
+    )
+
+    is_stale = _is_actionably_stale_response(user, reply)
+    is_same_diff = _is_same_answer_different_prompt(user, reply)
+    is_off_topic, off_topic_reason = _evaluate_reply_topicality(
+        user,
+        reply,
+        recent_user_messages=list(recent),
+    )
+    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
+        user,
+        reply,
+    )
+    try:
+        from core.conversation.response_reliability import assess_user_facing_reply
+
+        reply_assessment = assess_user_facing_reply(
+            user,
+            reply,
+            recent_user_messages=recent,
+        )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc)
+        logger.debug("Conversation reliability assessment unavailable: %s", exc)
+        reply_assessment = None
+
+    snapshot = _ReplyQualitySnapshot(
+        recent_user_messages=recent,
+        is_stale=is_stale,
+        is_same_diff=is_same_diff,
+        is_off_topic=is_off_topic,
+        off_topic_reason=off_topic_reason,
+        semantic_glitch=semantic_glitch,
+        semantic_glitch_reason=semantic_glitch_reason,
+        reply_assessment=reply_assessment,
+    )
+    if cache is not None:
+        cache[key] = snapshot
+    return snapshot
+
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -12609,7 +12695,8 @@ async def _stabilize_user_facing_reply(
         return grounded_traceability
     if grounded and _chat_preflight._is_private_cognitive_model_request(user_message):
         return grounded
-    recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
+    quality = await _measure_reply_quality_candidate(user_message, text)
+    recent_user_messages = list(quality.recent_user_messages)
     recent_user_context = _build_recent_user_context_block(recent_user_messages)
     generic, generic_reason = _looks_generic_assistantish(user_message, text)
     identity_collapse = bool(generic and generic_reason == "assistant_disclaimer")
@@ -12624,27 +12711,14 @@ async def _stabilize_user_facing_reply(
         or _PROMPT_ARTIFACT_PATTERNS.search(text)
         or _SEARCH_SNIPPET_PATTERNS.search(text)
     )
-    off_topic, off_topic_reason = _evaluate_reply_topicality(
-        user_message,
-        text,
-        recent_user_messages=recent_user_messages,
-    )
-    stale_repeat = _is_actionably_stale_response(user_message, text)
-    same_diff = _is_same_answer_different_prompt(user_message, text)
+    off_topic = quality.is_off_topic
+    off_topic_reason = quality.off_topic_reason
+    stale_repeat = quality.is_stale
+    same_diff = quality.is_same_diff
     truncated_tail = _chat_desktop_repair._looks_truncated_tail(text)
-    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(user_message, text)
-    try:
-        from core.conversation.response_reliability import assess_user_facing_reply
-
-        live_reply_assessment = assess_user_facing_reply(
-            user_message,
-            text,
-            recent_user_messages=recent_user_messages,
-        )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Conversation reliability assessment unavailable in stabilizer: %s", exc)
-        live_reply_assessment = None
+    semantic_glitch = quality.semantic_glitch
+    semantic_glitch_reason = quality.semantic_glitch_reason
+    live_reply_assessment = quality.reply_assessment
     assessment_retryable = _reply_assessment_requires_repair(live_reply_assessment)
     social_grounding_reasons = {
         "ungrounded_person_address",
@@ -12662,11 +12736,12 @@ async def _stabilize_user_facing_reply(
                 protected_foreground_lane=protected_foreground_lane,
             )
             if social_repair:
-                social_assessment = assess_user_facing_reply(
+                social_quality = await _measure_reply_quality_candidate(
                     user_message,
                     social_repair,
                     recent_user_messages=recent_user_messages,
                 )
+                social_assessment = social_quality.reply_assessment
                 if not _reply_assessment_requires_repair(social_assessment):
                     logger.info(
                         "Stabilizer repaired an ungrounded social/deployment draft "
@@ -12675,11 +12750,12 @@ async def _stabilize_user_facing_reply(
                     return social_repair
             social_repair = grounded_social_repair_reply(user_message)
             if social_repair:
-                social_assessment = assess_user_facing_reply(
+                social_quality = await _measure_reply_quality_candidate(
                     user_message,
                     social_repair,
                     recent_user_messages=recent_user_messages,
                 )
+                social_assessment = social_quality.reply_assessment
                 if not _reply_assessment_requires_repair(social_assessment):
                     logger.info(
                         "Stabilizer replaced an ungrounded social/deployment draft "
@@ -12697,14 +12773,12 @@ async def _stabilize_user_facing_reply(
     if set(getattr(live_reply_assessment, "reasons", ()) or ()) & self_condition_reasons:
         grounded_condition = _build_grounded_self_condition_reply(user_message)
         if grounded_condition:
-            try:
-                grounded_assessment = assess_user_facing_reply(
-                    user_message,
-                    grounded_condition,
-                    recent_user_messages=recent_user_messages,
-                )
-            except _CHAT_RECOVERABLE_ERRORS:
-                grounded_assessment = None
+            grounded_quality = await _measure_reply_quality_candidate(
+                user_message,
+                grounded_condition,
+                recent_user_messages=recent_user_messages,
+            )
+            grounded_assessment = grounded_quality.reply_assessment
             if not _reply_assessment_requires_repair(grounded_assessment):
                 logger.info("Stabilizer rebound self-condition reply to canonical fresh evidence.")
                 return grounded_condition
@@ -17964,6 +18038,7 @@ async def api_chat(
         str(request_profile.get("surface") or "").strip().casefold()[:32]
     )
     session_token = _CHAT_REQUEST_SESSION.set(conversation_session)
+    quality_snapshot_token = _CHAT_REPLY_QUALITY_SNAPSHOTS.set({})
     # How long a turn takes, measured where the user experiences it. Nothing in
     # the runtime timed this until 2026-08-10, which is why "what is your median
     # response latency?" got a confident, invented 152ms: there was no reading
@@ -18025,6 +18100,7 @@ async def api_chat(
         _CHAT_REQUEST_SESSION.reset(session_token)
         _CHAT_REQUEST_SURFACE.reset(surface_token)
         _CHAT_REQUEST_PRINCIPAL.reset(principal_token)
+        _CHAT_REPLY_QUALITY_SNAPSHOTS.reset(quality_snapshot_token)
 
 
 def _requested_output_contract_result(
@@ -23026,29 +23102,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             semantic_glitch, semantic_glitch_reason = False, ""
             reply_assessment = None
         else:
-            is_stale = _is_actionably_stale_response(_semantic_user_message, reply_text)
-            is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, reply_text)
-            recent_user_messages = await _gather_recent_user_messages_for_relevance(
-                _semantic_user_message
-            )
-            is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-                _semantic_user_message,
-                reply_text,
-                recent_user_messages=recent_user_messages,
-            )
-            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
+            quality = await _measure_reply_quality_candidate(
                 _semantic_user_message, reply_text
             )
-            try:
-                from core.conversation.response_reliability import assess_user_facing_reply
-
-                reply_assessment = assess_user_facing_reply(
-                    _semantic_user_message,
-                    reply_text,
-                    recent_user_messages=recent_user_messages,
-                )
-            except _CHAT_RECOVERABLE_ERRORS:
-                reply_assessment = None
+            is_stale = quality.is_stale
+            is_same_diff = quality.is_same_diff
+            recent_user_messages = list(quality.recent_user_messages)
+            is_off_topic = quality.is_off_topic
+            off_topic_reason = quality.off_topic_reason
+            semantic_glitch = quality.semantic_glitch
+            semantic_glitch_reason = quality.semantic_glitch_reason
+            reply_assessment = quality.reply_assessment
         desktop_recall_contract_failed = False
         desktop_context_contract_failed = False
         desktop_memory_state_contract_failed = False

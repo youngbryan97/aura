@@ -5716,10 +5716,32 @@ class MLXLocalClient:
             # kept a cache is a WARM sample. Mixing warm and cold makes both
             # predictions wrong, which is why the shape carries it.
             cache_warm = bool(int(response.get("prompt_cache_reused_tokens") or 0) > 0)
-            # Prefill is not reported separately; attribute a bounded share of
-            # the elapsed time to it rather than inventing a number, and let
-            # the estimator's percentiles absorb the split.
-            prefill = min(elapsed * 0.25, prompt_tokens * 1.0e-3)
+            performance = response.get("generation_performance")
+            exact_prefill = None
+            exact_decode = None
+            if isinstance(performance, dict):
+                try:
+                    measured_prefill = float(performance.get("prefill_seconds"))
+                    measured_decode = float(performance.get("decode_seconds"))
+                    if math.isfinite(measured_prefill) and measured_prefill >= 0.0:
+                        exact_prefill = measured_prefill
+                    if math.isfinite(measured_decode) and measured_decode > 0.0:
+                        exact_decode = measured_decode
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            # Old workers do not report the split. Keep the bounded fallback
+            # for rolling compatibility, but never overwrite MLX's measured
+            # prompt and decode clocks with an estimate when they are present.
+            prefill = (
+                exact_prefill
+                if exact_prefill is not None
+                else min(elapsed * 0.25, prompt_tokens * 1.0e-3)
+            )
+            decode = (
+                exact_decode
+                if exact_decode is not None
+                else max(1e-6, elapsed - prefill)
+            )
             stop_reason = str(response.get("generation_stop_reason") or "").lower()
             surface_receipt = response.get("surface_control_receipt")
             semantic_complete = bool(
@@ -5738,7 +5760,7 @@ class MLXLocalClient:
                 prompt_tokens=prompt_tokens,
                 generated_tokens=generated,
                 prefill_seconds=prefill,
-                decode_seconds=max(1e-6, elapsed - prefill),
+                decode_seconds=decode,
                 cache_warm=cache_warm,
                 foreground=bool(foreground_request),
                 completion_observed=completion_observed,

@@ -316,6 +316,54 @@ def _safe_int(value: Any, default: int) -> int:
         return default
 
 
+def _generation_performance_snapshot(
+    response: Any,
+    *,
+    fallback_prompt_tokens: int,
+    fallback_generation_tokens: int,
+    first_token_seconds: float | None,
+    stream_seconds: float,
+) -> dict[str, Any]:
+    """Preserve the timing MLX measured instead of reconstructing it later."""
+
+    prompt_tps = max(0.0, _safe_float(getattr(response, "prompt_tps", 0.0), 0.0))
+    generation_tps = max(
+        0.0,
+        _safe_float(getattr(response, "generation_tps", 0.0), 0.0),
+    )
+    prompt_tokens = max(
+        0,
+        _safe_int(
+            getattr(response, "prompt_tokens", fallback_prompt_tokens),
+            fallback_prompt_tokens,
+        ),
+    )
+    generation_tokens = max(
+        0,
+        _safe_int(
+            getattr(response, "generation_tokens", fallback_generation_tokens),
+            fallback_generation_tokens,
+        ),
+    )
+    return {
+        "prompt_tokens": prompt_tokens,
+        "prompt_tps": prompt_tps,
+        "prefill_seconds": prompt_tokens / prompt_tps if prompt_tps > 0.0 else None,
+        "generation_tokens": generation_tokens,
+        "generation_tps": generation_tps,
+        "decode_seconds": (
+            generation_tokens / generation_tps if generation_tps > 0.0 else None
+        ),
+        "first_token_seconds": first_token_seconds,
+        "stream_seconds": max(0.0, _safe_float(stream_seconds, 0.0)),
+        "peak_memory_gb": max(
+            0.0,
+            _safe_float(getattr(response, "peak_memory", 0.0), 0.0),
+        ),
+        "finish_reason": str(getattr(response, "finish_reason", "") or ""),
+    }
+
+
 def _surface_generation_contract_enabled(job: dict[str, Any]) -> bool:
     """Decide whether this job's decode runs with the steering clamp.
 
@@ -7998,6 +8046,7 @@ def _mlx_worker_loop(
                     response_text = ""
                     total_generated_tokens = 0
                     interoception_payload = None
+                    generation_performance: dict[str, Any] = {}
                     surface_control_state = _apply_surface_generation_controls(engine, model, job)
                     _enforce_surface_controls_or_fail(job, surface_control_state)
                     surface_quality_gate_enabled = _surface_quality_gate_enabled(job)
@@ -8531,6 +8580,9 @@ def _mlx_worker_loop(
                                     if use_speculative:
                                         clean_kwargs["draft_model"] = draft_model
                                     draft_accepted_tokens = 0
+                                    generation_stream_started_at = time.perf_counter()
+                                    first_token_latency_s: float | None = None
+                                    final_generation_response = None
 
                                     for response in _gen_stream(
                                         _np_tap,
@@ -8538,6 +8590,13 @@ def _mlx_worker_loop(
                                         clean_kwargs,
                                     ):
                                         watchdog.activity()
+                                        final_generation_response = response
+                                        if first_token_latency_s is None:
+                                            first_token_latency_s = max(
+                                                0.0,
+                                                time.perf_counter()
+                                                - generation_stream_started_at,
+                                            )
 
                                         # ``mlx_lm.generate_step`` computes the
                                         # next logits before yielding the current
@@ -8773,6 +8832,36 @@ def _mlx_worker_loop(
                                                 break
                                         if stop_hit:
                                             break
+
+                                    generation_stream_elapsed_s = max(
+                                        0.0,
+                                        time.perf_counter() - generation_stream_started_at,
+                                    )
+                                    if final_generation_response is not None:
+                                        generation_performance = (
+                                            _generation_performance_snapshot(
+                                                final_generation_response,
+                                                fallback_prompt_tokens=prefill_tokens,
+                                                fallback_generation_tokens=token_count,
+                                                first_token_seconds=first_token_latency_s,
+                                                stream_seconds=generation_stream_elapsed_s,
+                                            )
+                                        )
+                                        logger.info(
+                                            "⏱️ [WORKER] generation performance: "
+                                            "prefill=%d tokens/%.2fs (%.1f tok/s), "
+                                            "decode=%d tokens/%.2fs (%.1f tok/s), "
+                                            "first_token=%.2fs stream=%.2fs peak=%.2fGB",
+                                            generation_performance["prompt_tokens"],
+                                            generation_performance["prefill_seconds"] or 0.0,
+                                            generation_performance["prompt_tps"],
+                                            generation_performance["generation_tokens"],
+                                            generation_performance["decode_seconds"] or 0.0,
+                                            generation_performance["generation_tps"],
+                                            first_token_latency_s or 0.0,
+                                            generation_stream_elapsed_s,
+                                            generation_performance["peak_memory_gb"],
+                                        )
 
                                     if sentinel is not None and not sentinel_aborted:
                                         terminal_signal = sentinel.finalize()
@@ -10010,6 +10099,7 @@ def _mlx_worker_loop(
                             0,
                             int(prompt_token_count) - int(prefill_tokens),
                         ),
+                        "generation_performance": dict(generation_performance),
                         # The parent's OOM footprint probe must not cost an IPC
                         # round trip, so the size rides along with every result.
                         "prompt_cache_bytes": (
