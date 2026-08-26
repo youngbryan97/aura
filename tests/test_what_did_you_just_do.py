@@ -97,3 +97,57 @@ def test_a_cause_is_shortened_at_a_word_not_through_one():
     assert said.endswith("…")
     assert not said.endswith("wh…")
     assert _whole_words("short", 30) == "short"
+
+
+import pytest  # noqa: E402
+
+from core.introspection.self_evidence import (  # noqa: E402
+    asks_about_past_actions,
+    asks_for_her_view,
+)
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "what did you just do?",
+        "what have you done today?",
+        "which files did you touch earlier?",
+        "do you remember the wallpaper you set?",
+    ],
+)
+def test_a_question_about_the_record_is_answered_from_the_record(asked):
+    assert asks_about_past_actions(asked)
+    assert not asks_for_her_view(asked)
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "you played 2048 a few times tonight. what did you actually find hard about it?",
+        "what did you think of that game?",
+        "how did it feel to lose?",
+        "what would you do differently next time?",
+        "why did you keep going right?",
+    ],
+)
+def test_a_question_about_her_experience_is_not_answered_with_a_log(asked):
+    """A receipt holds what happened and cannot hold what she made of it.
+
+    LIVE 2026-08-26: "what did you actually find hard about it?" matched the
+    shape of a question about the record and was answered with a list of tool
+    receipts, which took her out of the conversation entirely.
+    """
+    assert asks_for_her_view(asked)
+    assert not asks_about_past_actions(asked)
+
+
+def test_a_word_that_appears_in_half_her_requests_does_not_outrank_recency():
+    """LIVE 2026-08-26: "find" in a question about a game pulled a months-old
+    wallpaper search above the game she had just played, because that cause
+    began "Find a blue whale image online"."""
+    source = inspect.getsource(resolve_past_actions)
+    where = source.index("word not in {")
+    stoplist = source[where : where + 1200]
+    for common in ("find", "play", "open", "make", "look"):
+        assert f'"{common}"' in stoplist

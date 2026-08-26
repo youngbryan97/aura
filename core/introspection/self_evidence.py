@@ -949,11 +949,43 @@ _PAST_ACTION_QUESTION_RE = re.compile(
 )
 
 
+#: Questions about her experience of what she did, rather than about the
+#: record of it. A receipt holds what happened and cannot hold what she made
+#: of it, so answering one of these from the ledger is a category error.
+_ASKS_FOR_HER_VIEW_RE = re.compile(
+    r"\b(?:hard|hardest|difficult|tricky|easy|easiest|frustrating|interesting|"
+    r"fun|enjoy(?:ed|able)?|like(?:d)?|prefer(?:red)?|feel|felt|think|thought|"
+    r"opinion|surprised?|notice(?:d)?|learn(?:ed|t)?|realise[d]?|realize[d]?|"
+    r"differently|better|worse|worth\s+it|go\s+wrong|why\s+did\s+you)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_for_her_view(text: Any) -> bool:
+    """Whether the turn asks what she made of it rather than what happened.
+
+    LIVE 2026-08-26: "you played 2048 a few times tonight — what did you
+    actually find hard about it?" was answered with a list of tool receipts.
+    The question matched "what … did you", which is the shape of a question
+    about the record, and the thing being asked for was her judgement. No
+    ledger holds that, so reading one out is not a grounded answer to it —
+    it is a different answer to a different question.
+    """
+    return bool(_ASKS_FOR_HER_VIEW_RE.search(str(text or "")))
+
+
 def asks_about_past_actions(text: Any) -> bool:
-    """True when the turn asks what she did, rather than asking her to do it."""
+    """True when the turn asks what she did, rather than asking her to do it.
+
+    A question about her experience of doing it is not this. Grounding a
+    factual recall in receipts is right; hijacking a reflective question with
+    a log is not, and it takes her out of the conversation entirely.
+    """
 
     raw = str(text or "").strip()
-    return bool(raw) and bool(_PAST_ACTION_QUESTION_RE.search(raw))
+    if not raw or asks_for_her_view(raw):
+        return False
+    return bool(_PAST_ACTION_QUESTION_RE.search(raw))
 
 
 def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
@@ -1047,7 +1079,18 @@ def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
         if word not in {"what", "which", "when", "where", "have", "your", "yours",
                         "actually", "without", "guessing", "earlier", "today",
                         "asked", "about", "them", "this", "that", "with", "from",
-                        "were", "then", "into", "just", "give", "tell", "some"}
+                        "were", "then", "into", "just", "give", "tell", "some",
+                        # Verbs every request contains. LIVE 2026-08-26: "find"
+                        # in a question about a game pulled a months-old
+                        # wallpaper search above the game, because its cause
+                        # began "Find a blue whale image online". A word that
+                        # appears in half her requests discriminates nothing
+                        # and outranking recency with it is worse than not
+                        # narrowing at all.
+                        "find", "look", "make", "made", "take", "took", "open",
+                        "opened", "play", "played", "done", "doing", "going",
+                        "keep", "kept", "show", "shown", "used", "using",
+                        "want", "need", "please", "could", "would", "again"}
     }
     if terms and actions:
         def _score(entry: dict[str, Any]) -> tuple[int, float]:
