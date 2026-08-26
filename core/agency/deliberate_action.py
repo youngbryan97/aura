@@ -75,6 +75,11 @@ class Expectation:
     contains: tuple[str, ...] = ()
     absent: tuple[str, ...] = ()
     describes: str = ""
+    #: A place something must be in, said the way a person says places — a
+    #: corner, an edge, the middle. Only meaningful against a reading that
+    #: kept its arrangement, and ignored against a flat one.
+    at_place: str = ""
+    keeping: tuple[str, ...] = ()
 
     def check(self, before: str, after: str) -> Verdict:
         missing: list[str] = []
@@ -96,6 +101,47 @@ class Expectation:
             lingering=tuple(lingering),
             stalled=stuck,
         )
+
+    def check_in(self, before: Any, after: Any) -> Verdict:
+        """Check the claim against a reading that kept its arrangement.
+
+        The same claim, asked of the thing rather than of prose about it. A
+        move can be checked for having moved something — not merely for the
+        text differing, which a tile appearing somewhere else also does — and
+        a claim about a place is a question with an answer.
+        """
+        from core.perception.what_is_there import holds_in  # noqa: PLC0415
+
+        moved = before.as_text() != after.as_text()
+        ok, why = holds_in(
+            after,
+            contains=self.contains,
+            absent=self.absent,
+            at_place=self.at_place,
+            keeping=self.keeping,
+        )
+        stuck = self.changed and not moved
+        missing = (why,) if not ok and "did not appear" in why else ()
+        lingering = (why,) if not ok and "still there" in why else ()
+        elsewhere = (why,) if not ok and not missing and not lingering else ()
+        return Verdict(
+            held=ok and not stuck,
+            observed_change=moved,
+            missing=missing or elsewhere,
+            lingering=lingering,
+            stalled=stuck,
+        )
+
+    def says_something(self) -> bool:
+        """Whether this claim could be interestingly wrong.
+
+        A claim that only says the view will differ is satisfied by almost any
+        keystroke on almost any screen, so being right by it teaches nothing —
+        and the length of her plans, the part of the screen she believes
+        answers to her, and the record of what her moves lead to are all read
+        off that verdict.
+        """
+        return bool(self.contains or self.absent or (self.at_place and self.keeping))
 
     def is_empty(self) -> bool:
         return not (self.contains or self.absent or self.changed)
@@ -193,6 +239,9 @@ class Deliberation:
     #: The moves after this one, when she named a sequence rather than a move.
     #: Empty when she named one thing, which is the ordinary case.
     then: tuple[ActionOption, ...] = ()
+    #: What she claimed this move would do, when she said something specific.
+    #: An option offers a default claim; a decision can carry a sharper one.
+    expected: Expectation | None = None
     decided_at: float = field(default_factory=time.time)
 
     @property
@@ -872,14 +921,25 @@ async def deliberate(
         # she concluded wins, and one move is a plan of one.
         planned = ()
     for_option = [line for line in recalled if line.startswith(chosen.name)]
+    # What she claimed this move would do, when she claimed something.
+    #
+    # She predicts specifically and always has — "the two 4s in column 1 will
+    # merge into an 8" — and none of it reached the check: the move carried
+    # the option's own claim that the view would differ. Read here rather than
+    # at any one call site, because a decision made anywhere deserves to be
+    # graded on what it actually said.
+    from core.agency.standing_strategy import claim_in  # noqa: PLC0415
+
+    claimed = claim_in(reason_text := _reason_or_nothing(
+        _rationale(reply, chosen, options), [*evidence, _objective(goal, options)], options
+    ))
     deliberation = Deliberation(
         goal=goal,
         situation=situation,
         chosen=chosen,
         spoke=spoke,
-        rationale=_reason_or_nothing(
-            _rationale(reply, chosen, options), [*evidence, _objective(goal, options)], options
-        ),
+        rationale=reason_text,
+        expected=claimed if claimed.says_something() else None,
         then=planned[1:],
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),
@@ -1193,6 +1253,8 @@ def confirm(
     spine: Any = None,
     graph: Any = None,
     toward: str = "",
+    seen_before: Any = None,
+    seen_after: Any = None,
 ) -> Attempt:
     """Check the prediction against what actually happened, and record it.
 
@@ -1202,11 +1264,23 @@ def confirm(
     if deliberation.chosen is None:
         return Attempt(option="", expected="", verdict=Verdict(held=False, observed_change=False))
 
-    verdict = deliberation.chosen.expectation.check(before, after)
+    # What she claimed, when she claimed something, checked against the thing
+    # rather than against prose about it.
+    #
+    # An option's own claim is that the view will differ, which is satisfied
+    # by almost any keystroke on almost any screen. Live 2026-08-26: 17 of 20
+    # such predictions held, and holding told her nothing, while the length of
+    # her plans and the record of what her moves lead to both read that
+    # verdict as though it were confidence.
+    claim = deliberation.expected or deliberation.chosen.expectation
+    if seen_before is not None and seen_after is not None:
+        verdict = claim.check_in(seen_before, seen_after)
+    else:
+        verdict = claim.check(before, after)
     moved_on = made_progress(before, after, toward)
     attempt = Attempt(
         option=deliberation.chosen.name,
-        expected=deliberation.chosen.expectation.describes or "the situation to change",
+        expected=claim.describes or "the situation to change",
         verdict=verdict,
         progressed=moved_on,
     )

@@ -194,6 +194,14 @@ def still_holds(strategy: Strategy | None, reading: str, moves_made: int = 0) ->
     return True, ""
 
 
+#: Words after which a number says where something is, not what it is.
+_COUNTS_A_PLACE = re.compile(
+    r"\b(?:column|col|row|cell|square|position|index|line|page|step|item|slot|seat|"
+    r"place|number|no\.|#)\s*$",
+    re.IGNORECASE,
+)
+
+
 def _watchable(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """What a stated condition says must be present, and what must not be.
 
@@ -207,9 +215,17 @@ def _watchable(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
         return (), ()
     keep: list[str] = []
     avoid: list[str] = []
-    for match in re.finditer(r"\b(\d[\d,]{0,6})\b", body):
+    # A plural is the same thing said of several: "the two 4s" names a 4.
+    for match in re.finditer(r"\b(\d[\d,]{0,6})s?\b", body):
         value = match.group(1).replace(",", "")
         before = body[: match.start()].lower()
+        # A number that says WHERE is not a thing to watch for.
+        #
+        # "column 1" and "row 3" name a place, and read as values they became
+        # claims that a 1 and a 3 would appear. Measured 2026-08-26 on her own
+        # words: "the two 4s in column 1 will merge into an 8" claimed a 1.
+        if _COUNTS_A_PLACE.search(before):
+            continue
         if re.search(r"\b(?:no|not|without|avoid|never|unless)\b[^.]{0,30}$", before):
             avoid.append(value)
         else:
@@ -609,4 +625,64 @@ async def settle_on_an_approach(
         holds_while=settled.holds_while,
         otherwise=settled.otherwise,
         adopted_on_move=int(moves_made),
+    )
+
+
+#: Where a sentence stops naming what goes in and starts naming what comes out.
+_BECOMES = re.compile(
+    r"\b(?:becomes?|becoming|merges?|merging|combines?|combining|turns?|turning|"
+    r"forms?|forming|adds?\s+up|joins?|joining)\b[^.]{0,24}?\b(?:in)?to\b",
+    re.IGNORECASE,
+)
+
+
+def _only_what_it_becomes(said: str, named: Sequence[str]) -> tuple[str, ...]:
+    """In a sentence about something turning into something, the result is the claim.
+
+    "The two 4s will merge into an 8" says an 8 will be there. It does not say
+    the 4s will be — they are what was spent — and it does not say they will
+    be gone either, because another may be somewhere else or arrive next.
+
+    So the honest reading of a transformation is what comes out of it. Live
+    2026-08-26 this read as a claim that the 4s and the 8 would all be
+    present, and a correct prediction was graded as a broken one.
+    """
+    found = _BECOMES.search(said)
+    if not found:
+        return tuple(named)
+    after = said[found.end() :]
+    results = tuple(
+        value.replace(",", "") for value in re.findall(r"\b(\d[\d,]{0,6})s?\b", after)
+    )
+    return tuple(dict.fromkeys(results)) or tuple(named)
+
+
+def claim_in(said: str) -> Expectation:
+    """What she said would happen, as something that can be checked.
+
+    She predicts specifically and always has — "the two 4s in column 1 will
+    merge into an 8", "keep the 64 in the corner" — and until now none of it
+    reached the check. The move carried the claim that the view would differ,
+    which is satisfied by almost any keystroke on almost any screen.
+
+    Read the same way an approach is read: values she named, whether she named
+    them as things to have or things to avoid, and the place she named if she
+    named one. Nothing here is about any particular kind of screen.
+
+    Returns a claim that says nothing when she said nothing specific, and the
+    caller keeps whatever default it had.
+    """
+    body = " ".join(str(said or "").split())
+    if not body:
+        return Expectation(changed=True, describes="")
+    keep, avoid = _watchable(body)
+    keep = _only_what_it_becomes(body, keep)
+    place = place_named_in(body)
+    return Expectation(
+        changed=True,
+        contains=keep,
+        absent=avoid,
+        describes=body[:CLAUSE_CHARS],
+        at_place=place,
+        keeping=keep if place else (),
     )

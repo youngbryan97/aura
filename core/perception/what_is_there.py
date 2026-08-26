@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-__all__ = ["Arrangement", "Cell", "arranged", "EMPTY_CELL"]
+__all__ = ["Arrangement", "Cell", "arranged", "holds_in", "EMPTY_CELL"]
 
 #: What an empty place looks like when the rest of the row is not empty. A gap
 #: has to be visible for a position to mean anything.
@@ -158,6 +158,20 @@ class Arrangement:
 
     # ── how it is said ───────────────────────────────────────────────────
 
+    def places_of(self, said: str) -> set[str]:
+        """Every place something occupies, named the way a person names places.
+
+        What makes a plan about a corner a plan that can be checked. Asked of
+        the thing itself rather than of prose about it, so "the 64 is still in
+        the corner" is a question with an answer.
+        """
+        wanted = " ".join(str(said or "").split()).lower()
+        if not wanted:
+            return set()
+        return {
+            self.place_of(cell) for cell in self.cells if cell.says.strip().lower() == wanted
+        }
+
     def as_text(self) -> str:
         """The rendering she reads, with gaps kept so a column stays a column."""
         if not self.rows or not self.columns:
@@ -254,3 +268,39 @@ def _column_edges(xs: Sequence[float]) -> tuple[float, ...]:
 
 def _nearest(value: float, edges: Sequence[float]) -> int:
     return min(range(len(edges)), key=lambda index: abs(edges[index] - value))
+
+
+def holds_in(
+    arrangement: Arrangement,
+    *,
+    contains: Sequence[str] = (),
+    absent: Sequence[str] = (),
+    at_place: str = "",
+    keeping: Sequence[str] = (),
+) -> tuple[bool, str]:
+    """Whether a claim about a laid-out thing is true of it, and why not.
+
+    A claim with content can be interestingly wrong, which is the whole value
+    of making one. "The view will be different" is satisfied by almost any
+    keystroke on almost any screen: measured live 2026-08-26, seventeen of
+    twenty such predictions held and holding told her nothing, while the
+    length of her plans and the record of what her moves lead to were both
+    reading that verdict as if it were confidence.
+
+    Every part is optional, so a claim says as much as she said and no more.
+    """
+    said_here = {cell.says.strip().lower() for cell in arrangement.cells}
+    missing = [want for want in contains if str(want).strip().lower() not in said_here]
+    if missing:
+        return False, f"{', '.join(missing)} did not appear"
+    lingering = [gone for gone in absent if str(gone).strip().lower() in said_here]
+    if lingering:
+        return False, f"{', '.join(lingering)} is still there"
+    if at_place and keeping:
+        for want in keeping:
+            where = arrangement.places_of(want)
+            if not where:
+                return False, f"{want} is not there at all"
+            if at_place not in where:
+                return False, f"{want} is {' and '.join(sorted(where))}, not {at_place}"
+    return True, ""

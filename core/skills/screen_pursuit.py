@@ -882,7 +882,13 @@ async def pursue_on_screen(
     from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
-    from core.perception.where_it_responds import Responsive, describe, noticed, within
+    from core.perception.where_it_responds import (
+        Responsive,
+        describe,
+        noticed,
+        what_is_there,
+        within,
+    )
     from core.skills.fluid_executor import FluidExecutor, Step
 
     # The clock starts when she takes this on, not when the first key lands.
@@ -898,7 +904,12 @@ async def pursue_on_screen(
         ends_at = min(ends_at, float(deadline_at))
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
-    pending: dict[str, Any] = {"deliberation": None, "before": "", "watched": {}}
+    pending: dict[str, Any] = {
+        "deliberation": None,
+        "before": "",
+        "arranged": None,
+        "watched": {},
+    }
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1196,6 +1207,9 @@ async def pursue_on_screen(
         # the task is would be worse.
         band = responds["state"].band()
         seen = within(observation, band, responds["state"])
+        # The same reading, with a place for each thing in it. What she reads
+        # is the string; what her claims are checked against is this.
+        laid_out = what_is_there(observation, band)
 
         # Grade the last prediction before making another one.
         #
@@ -1208,7 +1222,14 @@ async def pursue_on_screen(
         previous = pending["deliberation"]
         if previous is not None:
             attempt = confirm(
-                previous, pending["before"], seen, spine=spine, graph=graph, toward=success_when
+                previous,
+                pending["before"],
+                seen,
+                spine=spine,
+                graph=graph,
+                toward=success_when,
+                seen_before=pending["arranged"],
+                seen_after=laid_out,
             )
             history.append(attempt)
             # Learned from the same measurement. A move that changed nothing
@@ -1518,6 +1539,7 @@ async def pursue_on_screen(
 
             pending["deliberation"] = chosen
             pending["before"] = seen
+            pending["arranged"] = laid_out
             # Kept whole for the comparison that finds where she has effects,
             # which cannot use a band it has not worked out yet.
             pending["watched"] = observation
