@@ -1686,6 +1686,7 @@ def _tell(line: str) -> None:
     said = " ".join(str(line or "").split())
     if not said:
         return
+    logger.info("saying out loud: %r", said[:160])
     try:
         from core.agency.narrator import Narrator
 
@@ -1711,9 +1712,16 @@ def _say_intent(
     what she did is still written only from what landed.
     """
     said = f"Going {str(key).strip().lower()}"
-    because = "same plan" if following_on else ""
-    if chosen is not None:
-        because = str(getattr(chosen, "rationale", "") or "")
+    # A reason she did not give does not erase the one she has.
+    #
+    # This read the other way round and the assignment was unconditional, so
+    # a choice carrying no rationale of its own — the ordinary case — wiped
+    # out "same plan" and left a bare keystroke. LIVE 2026-08-26: a whole
+    # game of "Going up", "Going down", with every reason she had for them
+    # discarded one line before it was said.
+    because = str(getattr(chosen, "rationale", "") or "") if chosen is not None else ""
+    if not because and following_on:
+        because = "same plan"
     _publish_decision(said, because, _expected_of(chosen), chosen)
     if out_loud:
         _tell(f"{said} — {because}" if because else said)
