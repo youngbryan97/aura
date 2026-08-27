@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 from core.intent.declared_capability import requested_foundational_domains
-from core.intent.exercising_software import asks_to_exercise_software
+from core.intent.needs_computation import asks_to_exercise_software
 
 _PATH = "/private/tmp/claude-501/-Users-bryan--aura-live-source/scratchpad/ledgerkit"
 
@@ -69,3 +69,51 @@ def test_a_description_does_not_open_the_code_domain() -> None:
     """The whole point of the domain reader: mood is not machine I/O."""
     assert "code" not in requested_foundational_domains("explain how the ledger works")
     assert "code" not in requested_foundational_domains("what does that library do?")
+
+
+_CSV = (
+    "I've got a deals export at /private/tmp/claude-501/scratchpad/deals.csv that I've "
+    "never shown you. How many of them are approved, what do they add up to in total, "
+    "and which region has the highest average approved deal size?"
+)
+
+
+def test_an_aggregate_over_a_named_file_needs_code_too() -> None:
+    """LIVE, 2026-08-27: only the file reader was offered, and the turn failed.
+
+    Counting and averaging a spreadsheet is arithmetic whose operands are in the
+    file, so the sentence carries none — which is why the readers for arithmetic
+    written in the sentence found nothing.
+    """
+    from core.intent.needs_computation import asks_for_an_aggregate, needs_computation
+
+    assert asks_for_an_aggregate(_CSV) is True
+    assert needs_computation(_CSV) is True
+    domains = requested_foundational_domains(_CSV)
+    assert "file" in domains and "code" in domains
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "how many people live in Peru?",
+        "what does that library do?",
+        "explain how the ledger works",
+        "how much do you like this idea?",
+    ],
+)
+def test_an_aggregate_with_nothing_to_aggregate_is_not_computation(asked: str) -> None:
+    """A question about the world is not a computation over a named thing."""
+    from core.intent.needs_computation import asks_for_an_aggregate
+
+    assert asks_for_an_aggregate(asked) is False
+
+
+def test_one_module_owns_the_judgement() -> None:
+    """Two readers of one judgement is what this tree keeps paying for."""
+    from core.intent import exercising_software, needs_computation
+
+    assert (
+        exercising_software.asks_to_exercise_software
+        is needs_computation.asks_to_exercise_software
+    )

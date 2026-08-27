@@ -732,9 +732,9 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
     # three times to write a script with it and was vetoed three times.
     if not needs_compute:
         try:
-            from core.intent.exercising_software import asks_to_exercise_software
+            from core.intent.needs_computation import needs_computation
 
-            needs_compute = asks_to_exercise_software(body)
+            needs_compute = needs_computation(body)
         except (ImportError, AttributeError, TypeError, ValueError):
             needs_compute = False
     if needs_compute and "code" not in requested:
