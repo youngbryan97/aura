@@ -1115,6 +1115,7 @@ async def pursue_on_screen(
     from core.agency.looking_ahead import look_ahead
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
+    from core.agency.what_i_can_do_here import WhatWorksHere
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.where_it_responds import (
@@ -1160,6 +1161,12 @@ async def pursue_on_screen(
     knew = recall(this_world)
     if knew:
         logger.info("she has been in %r before: %s", this_world, sorted(knew))
+    # Which of her acts do anything here, found out rather than declared.
+    #
+    # A solver written for one thing is handed its action set. She was handed
+    # hers the same way, and it was the last large thing about an unfamiliar
+    # world that somebody else was still establishing for her.
+    can_do = WhatWorksHere.from_memory(knew.get("acts") or {}, told=tuple(move_keys))
     knows = UnifiedWorldModel(
         rules=HowItMoves.from_memory(knew.get("moves") or {}, TRUST_CARRIED_OVER)
     )
@@ -1563,6 +1570,13 @@ async def pursue_on_screen(
                 seen_after=laid_out,
             )
             history.append(attempt)
+            if previous.chosen is not None:
+                # A key that never changes anything is not one of her actions
+                # in this world, whoever wrote it down.
+                can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+                if can_do.dead() and not foreseen.get("acts"):
+                    foreseen["acts"] = True
+                    logger.info("what works here: %s", can_do.says())
             # Her own move, and what it did. Three things she already had and
             # threw away after one glance, which is why she could never try a
             # move without making it.
@@ -1769,7 +1783,7 @@ async def pursue_on_screen(
             # When nothing in the task is working, the task itself becomes a
             # choice. Both ways out are hers, and both are recorded as
             # decisions with reasons rather than happening to her.
-            available = screen_options(move_keys)
+            available = screen_options(can_do.available() or move_keys)
             # The ways out are offered when what she is doing has stopped
             # working, and when the thing itself has stopped responding.
             #
@@ -2237,6 +2251,7 @@ async def pursue_on_screen(
         {
             "responds": responds["state"].as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
+            "acts": can_do.as_memory(),
             "approach": plan["held"].approach if plan["held"] is not None else "",
         },
     )
