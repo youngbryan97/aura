@@ -866,6 +866,82 @@ def _say_what_kind_of_problem(
     _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
 
 
+#: The one heading every line she takes in a world is filed under.
+#:
+#: A move is graded against the KIND of position it was made from, because a
+#: move that helps in a corner may not help in the middle. A line is not: it
+#: is the thing she holds ACROSS positions, and grading it per position would
+#: be grading it as if it were a move.
+A_LINE_HERE = "the line to take here"
+
+#: How many screenfuls down she will look for the thing before deciding the
+#: page does not have one. A page is taller than a screen and what she came
+#: for is usually below the writing about it — six is enough to clear a
+#: heading, a paragraph and an advertising rail without walking a long article
+#: end to end.
+SCREENFULS_TO_LOOK = 6
+
+#: The least a reading has to hold before it counts as a thing laid out rather
+#: than as prose that happens to have numbers in it.
+ENOUGH_TO_BE_A_THING = 4
+
+
+def _is_a_thing_laid_out(reading: Any) -> bool:
+    """Whether this reading holds something arranged in rows and columns."""
+    rows = int(getattr(reading, "rows", 0) or 0)
+    columns = int(getattr(reading, "columns", 0) or 0)
+    occupied = getattr(reading, "occupied", None)
+    if rows < 2 or columns < 2 or not callable(occupied):
+        return False
+    return occupied() >= ENOUGH_TO_BE_A_THING
+
+
+async def _bring_it_into_view(look: Any, read: Any) -> int:
+    """Scroll down until what she came for is on screen, or the page runs out.
+
+    A page is taller than a screen. She opened a real sliding puzzle, read the
+    heading and the advertising above it, found no part of what she could see
+    that answered to her, and reported truthfully that nothing on screen
+    offered a move — with the board eleven screenfuls further down. LIVE
+    2026-08-27, and the run ended having made none.
+
+    Scrolling commits to nothing. It moves a view and is undone by moving
+    back, which is the same line drawn around every other input she is allowed
+    to try without knowing what it will do.
+
+    Returns how far down she had to go, so a caller can say so.
+    """
+    from core.capabilities.host_automation import get_host_automation
+
+    try:
+        hands = get_host_automation()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        record_degradation("screen_pursuit", exc, action="scroll to find the thing")
+        return 0
+    for down in range(SCREENFULS_TO_LOOK):
+        seen = await look()
+        if not seen.get("ok"):
+            return down
+        if _is_a_thing_laid_out(read(seen)):
+            if down:
+                logger.info("what she came for was %d screenful(s) down", down)
+            return down
+        try:
+            await hands.scroll(dy=-A_SCREENFUL)
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("screen_pursuit", exc, action="scroll to find the thing")
+            return down
+        await asyncio.sleep(SETTLE_AFTER_SCROLL_S)
+    return SCREENFULS_TO_LOOK
+
+
+#: How far one scroll goes. A screenful, so a thing is never stepped over.
+A_SCREENFUL = 600
+
+#: Long enough for a page to finish moving before it is read again.
+SETTLE_AFTER_SCROLL_S = 0.35
+
+
 def _what_there_is_to_aim_at(reading: Any) -> str:
     """What to prefer one situation over another by, when nobody said.
 
@@ -1180,7 +1256,7 @@ async def pursue_on_screen(
     from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.how_good_is_this import worth_comparing
     from core.agency.looking_ahead import look_ahead
-    from core.agency.standing_strategy import settle_on_an_approach, still_holds
+    from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
     from core.agency.what_worked_before import WhatWorkedBefore
@@ -1247,6 +1323,15 @@ async def pursue_on_screen(
     # without ever learning. A future worked out as if the world sits still is
     # a future that cannot happen.
     world = WhatTheWorldDoes.from_memory(knew.get("world") or {}, TRUST_CARRIED_OVER)
+    # And which of the lines she has taken here actually left her better off.
+    #
+    # She wrote down the last approach she happened to be holding when a run
+    # ended, and nothing ever read it back — a writer with no reader, storing
+    # the most recent line rather than the one that worked. Graded the same
+    # way a move is, and resumed as a stance rather than as words, so the
+    # first reading of the new run can drop it.
+    lines = WhatWorkedBefore.from_memory(knew.get("lines") or {}, TRUST_CARRIED_OVER)
+    lines_held: dict[str, Any] = dict(knew.get("lines_held") or {})
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1683,6 +1768,15 @@ async def pursue_on_screen(
                 # skill: the same triple she learns the world's rules from
                 # also says which move is worth making again from a shape
                 # like that one.
+                went_well = _left_her_better_off(
+                    pending["arranged"],
+                    laid_out,
+                    success_when,
+                    plan["held"].approach if plan["held"] is not None else "",
+                )
+                if plan["held"] is not None:
+                    lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
+                    lines_held[plan["held"].approach] = plan["held"].as_memory()
                 skilled.learned(
                     pending["arranged"].as_shape(),
                     previous.chosen.name,
@@ -2225,6 +2319,28 @@ async def pursue_on_screen(
     # produce. Whether to accept it or begin again is hers, made the same way
     # every other choice is, and it is only offered when there is really a
     # way to begin again.
+    # The line that worked here before, resumed as a stance rather than as
+    # words. She holds it from the first move, and the ordinary machinery
+    # tests it against what is really here: still_holds drops it the moment
+    # its condition stops being true, exactly as it would drop a fresh one.
+    if plan["held"] is None:
+        worked = lines.suggests(A_LINE_HERE)
+        if worked:
+            again = Strategy.from_memory(lines_held.get(worked) or knew.get("approach") or worked)
+            if again is not None:
+                plan["held"] = again
+                logger.info("taking up the line that worked here before: %r", again.approach)
+
+    # Before anything else, put what she came for on screen.
+    #
+    # A page is taller than a screen, and what she came for is usually below
+    # the writing about it. Without this she reads the heading and the
+    # advertising, finds no part of what she can see that answers to her, and
+    # says so — truthfully, with the thing itself further down.
+    await _bring_it_into_view(
+        observe, lambda seen: what_is_there(seen, None, like=None)
+    )
+
     if not moves:
         first = await observe()
         if first.get("ok") and satisfied(first):
@@ -2369,7 +2485,15 @@ async def pursue_on_screen(
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
             "world": world.as_memory(),
-            "approach": plan["held"].approach if plan["held"] is not None else "",
+            "lines": lines.as_memory(),
+            # Only the lines she has actually held, so the record does not
+            # grow a stance for every phrasing she tried once.
+            "lines_held": {
+                said: kept
+                for said, kept in lines_held.items()
+                if said in (lines.known.get(A_LINE_HERE) or {})
+            },
+            "approach": plan["held"].as_memory() if plan["held"] is not None else {},
         },
     )
     # What a cycle of this actually cost, so the next watched goal asks for
