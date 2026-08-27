@@ -533,6 +533,37 @@ def _admit_sampling_control(job: dict[str, Any], key: str) -> float:
     return min(max(_safe_float(job.get(key, default), default), lower), upper)
 
 
+def _reasoning_reserve_tokens() -> int:
+    """Tokens the private reasoning channel has been costing, or 0."""
+
+    try:
+        from core.brain.llm.thinking_reserve import reserve_tokens
+
+        return int(reserve_tokens())
+    except (ImportError, TypeError, ValueError):
+        return 0
+
+
+def _record_reasoning_cost(
+    *,
+    reasoning_chars: int,
+    surface_chars: int,
+    generated_tokens: int,
+) -> None:
+    """Tell the reserve what this generation spent thinking."""
+
+    try:
+        from core.brain.llm.thinking_reserve import record_reasoning_cost
+
+        record_reasoning_cost(
+            reasoning_chars=reasoning_chars,
+            surface_chars=surface_chars,
+            generated_tokens=generated_tokens,
+        )
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _admit_max_tokens(value: Any, default: int) -> int:
     return max(1, min(_safe_int(value, default), _ABSOLUTE_MAX_TOKENS))
 
@@ -7837,6 +7868,17 @@ def _mlx_worker_loop(
                     min_p = max(_safe_float(min_p, 0.03), 0.03)
                     repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.18)
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
+                # The caller sized this against the answer. On a thinking model the
+                # budget goes on reasoning first, so an unadjusted ceiling truncates
+                # the answers to exactly the questions that needed reasoning. The
+                # reserve is what the private channel has been costing, measured; it
+                # is zero until there is enough to measure. Both caps below still
+                # bind, so a reserve widens the answer and never overruns the
+                # serving profile.
+                if native_thinking is True:
+                    _reserve = _reasoning_reserve_tokens()
+                    if _reserve > 0:
+                        max_tokens += _reserve
                 max_tokens = _serving_lane_output_cap(
                     model_path,
                     str(job.get("serving_lane") or "foreground_standard"),
@@ -8968,6 +9010,11 @@ def _mlx_worker_loop(
                                                 native_channels.reasoning
                                             ),
                                         }
+                                    )
+                                    _record_reasoning_cost(
+                                        reasoning_chars=len(native_channels.reasoning),
+                                        surface_chars=len(current_response or ""),
+                                        generated_tokens=token_count,
                                     )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
