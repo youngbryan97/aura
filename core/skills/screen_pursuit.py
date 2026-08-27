@@ -876,8 +876,18 @@ def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:
     said = [word for word in re.split(r"[^a-z0-9]+", name) if len(word) > 2]
     if not said:
         return True
-    here = " ".join((str(page or ""), str(window or ""), str(reading or ""))).lower()
-    return any(word in here for word in said)
+    # Identity first, and the reading only when there is no identity.
+    #
+    # A screen reading is of the screen, not of her window, so anything else
+    # visible counts as evidence that she has arrived. LIVE 2026-08-26: the
+    # word she was looking for was in a terminal on the same display, the test
+    # passed, and she played into that instead. What identifies a thing — an
+    # address, a title, the name of the window — cannot be borrowed from
+    # somebody else's window the way words on a screen can.
+    known = " ".join((str(page or ""), str(window or ""))).lower().strip()
+    if known:
+        return any(word in known for word in said)
+    return any(word in str(reading or "").lower() for word in said)
 
 
 def _her_reasoning(stakes: float) -> Any:
@@ -1018,9 +1028,12 @@ async def pursue_on_screen(
         # replaced its target — technically correct and completely stuck. A
         # task that is meant to last minutes has to be able to recover the
         # conditions it needs rather than only detect that they are gone.
-        if target_app:
+        # The window this run belongs to, named by the caller or learned on
+        # the first cycle. Either way it has to be in front to be acted in.
+        mine = target_app or anchor["app"]
+        if mine:
             try:
-                await _ensure_frontmost(target_app)
+                await _ensure_frontmost(mine)
                 # Anchor to the page this run STARTED on when the caller did
                 # not name one.
                 #
