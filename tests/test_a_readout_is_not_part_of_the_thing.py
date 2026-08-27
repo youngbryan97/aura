@@ -19,7 +19,6 @@ import pytest
 
 from core.perception.how_it_moves import (
     ALWAYS_THERE,
-    CHANGES_NEARLY_ALWAYS,
     STILL_ENOUGH_TO_JUDGE,
     HowItMoves,
     shifted_and_combined,
@@ -65,7 +64,7 @@ def spawn(state: Arrangement, rng: random.Random) -> Arrangement:
     )
 
 
-def watch(moves: int = 24, seed: int = 5) -> tuple[HowItMoves, Arrangement]:
+def watch(moves: int = 60, seed: int = 5) -> tuple[HowItMoves, Arrangement]:
     rng = random.Random(seed)
     knows = HowItMoves()
     plain = board(BOARD)
@@ -126,9 +125,14 @@ def test_a_place_that_never_changes_is_not_a_readout():
     assert not knows.counters
 
 
-def test_the_two_things_it_asks_are_both_needed():
-    assert 0.0 < CHANGES_NEARLY_ALWAYS < 1.0
-    assert 0.0 < ALWAYS_THERE < 1.0
+def test_somewhere_seen_empty_once_is_a_place_for_good():
+    knows, _ = watch()
+    assert (2, 2) in knows._a_place
+    assert (2, 2) not in knows.counters
+
+
+def test_being_never_empty_is_what_makes_it_furniture():
+    assert 0.0 < ALWAYS_THERE <= 1.0
 
 
 # ── and what she learned about the wrong thing is dropped ────────────────
@@ -137,10 +141,57 @@ def test_learning_what_the_thing_is_starts_the_learning_again():
     """Everything until then compared a board with a score stuck to it."""
     knows, _ = watch()
     tried = max(knows.tried.values()) if knows.tried else 0
-    assert 0 < tried < 24
+    assert 0 < tried < 60
 
 
 def test_a_reading_with_the_furniture_cropped_out_is_what_is_compared():
     knows, state = watch()
     assert knows.the_thing(state).rows == 4
     assert state.rows == 5
+
+
+# ── furniture as it really appears ───────────────────────────────────────
+
+def dressed(inner: Arrangement, score: int, like: Arrangement | None) -> Arrangement:
+    """The thing as a page really presents it: a title, a label, a score."""
+    cells = [(0.02, 0.20, "2048"), (0.05, 0.50, "SCORE"), (0.05, 0.65, str(score))] + [
+        (0.20 + cell.row * 0.15, 0.20 + cell.column * 0.15, cell.says) for cell in inner.cells
+    ]
+    return arranged(cells, like=like)
+
+
+def watch_a_page(moves: int = 60, seed: int = 5) -> tuple[HowItMoves, Arrangement]:
+    rng = random.Random(seed)
+    knows = HowItMoves()
+    plain = board(BOARD)
+    score = 0
+    state = dressed(plain, score, None)
+    for _ in range(moves):
+        move = rng.choice(["left", "right", "up", "down"])
+        moved = shifted_and_combined(plain, move)
+        if moved.occupied() < plain.occupied():
+            score += 8  # a score changes on a merge, not on every act
+        plain = spawn(moved, rng)
+        after = dressed(plain, score, state)
+        knows.watched(state, move, after)
+        state = after
+    return knows, state
+
+
+def test_a_title_a_label_and_a_score_are_all_furniture():
+    knows, _ = watch_a_page()
+    assert len(knows.counters) == 3
+
+
+def test_a_readout_that_only_changes_sometimes_is_still_a_readout():
+    """A score changes on a merge, not on every act. Never being empty is
+    what tells it apart, not how often it changes."""
+    knows, _ = watch_a_page()
+    assert knows.rule() is not None
+
+
+def test_and_the_thing_underneath_is_worked_out():
+    knows, state = watch_a_page()
+    assert knows.rule().name == "slides and combines"
+    assert knows.confidence() == pytest.approx(1.0)
+    assert knows.expect(state, "left") is not None

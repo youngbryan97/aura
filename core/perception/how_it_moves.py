@@ -183,6 +183,8 @@ class HowItMoves:
     #: what it holds has changed.
     _seen_at: dict[tuple[int, int], int] = field(default_factory=dict)
     _changed_at: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: Places she has seen empty, which settles them as part of the thing.
+    _a_place: set[tuple[int, int]] = field(default_factory=set)
     _looks: int = 0
 
     # ── learning ─────────────────────────────────────────────────────────
@@ -201,33 +203,38 @@ class HowItMoves:
         a thing her moves move.
         """
         self._looks += 1
-        was = {(cell.row, cell.column): cell.says for cell in before.cells}
         now = {(cell.row, cell.column): cell.says for cell in after.cells}
-        for place, said in now.items():
-            if place not in was:
+        # Somewhere she has seen empty is a place, and never furniture again.
+        #
+        # One glimpse settles it. Everything in the thing she is acting on is
+        # empty sometimes — that is what makes it a place rather than a
+        # readout — and nothing that surrounds it ever is.
+        for row in range(after.rows):
+            for column in range(after.columns):
+                if (row, column) not in now:
+                    self._a_place.add((row, column))
+                    self.counters.discard((row, column))
+        if not self._a_place:
+            # Nothing has been empty yet, so there is nothing to tell apart.
+            return
+        # How long a place has to have gone without ever being empty before
+        # that means something: as many looks as the thing has places.
+        #
+        # A tile can sit in a corner for six moves running. It cannot sit
+        # there for as many moves as there are squares while everything else
+        # moves around it — and where it can, it is furniture in every sense
+        # that matters to a rule about movement.
+        enough = max(STILL_ENOUGH_TO_JUDGE, after.places())
+        for place in now:
+            if place in self._a_place:
                 continue
             self._seen_at[place] = self._seen_at.get(place, 0) + 1
-            if was[place] != said:
-                self._changed_at[place] = self._changed_at.get(place, 0) + 1
             times = self._seen_at[place]
-            if times < STILL_ENOUGH_TO_JUDGE:
+            if times < enough or self._looks < enough:
                 continue
-            # Furniture is always there. A place in the thing itself is empty
-            # much of the time — that is what makes it a place rather than a
-            # readout — so a cell that happens to change often while it is
-            # occupied is not a counter.
-            always_there = times / max(1, self._looks) >= ALWAYS_THERE
-            keeps_changing = (
-                always_there
-                and self._changed_at.get(place, 0) / times >= CHANGES_NEARLY_ALWAYS
-            )
-            # A place joins the furniture once and does not leave it.
-            #
-            # Judged fresh every move it flickered in and out, and each flicker
-            # threw away what she had learned. A thing that has sat still and
-            # said something different nearly every time for long enough is
-            # what it is.
-            if not keeps_changing or place in self.counters:
+            if times / max(1, self._looks) < ALWAYS_THERE:
+                continue
+            if place in self.counters:
                 continue
             self.counters.add(place)
             if True:
@@ -307,7 +314,15 @@ class HowItMoves:
         return (self.right.get(rule.name, 0) / tried) if tried else 0.0
 
     def the_thing(self, arrangement: Arrangement) -> Arrangement:
-        """The part of a reading that behaves like one thing."""
+        """The part of a reading that behaves like one thing.
+
+        Furniture surrounds a thing; it is not most of it. Where what has
+        never been empty is most of what is there, nothing has been told apart
+        yet and cropping would leave a handful of cells that every rule agrees
+        about for want of anything to disagree over.
+        """
+        if not self.counters or len(self.counters) * 2 >= max(1, arrangement.occupied()):
+            return arrangement
         return arrangement.without(self.counters)
 
     def expect(self, arrangement: Arrangement, action: str) -> Arrangement | None:
@@ -402,17 +417,11 @@ def _near_enough(
     return True
 
 
-#: How many times a place has to have been watched before it can be called a
-#: counter. Below this, a tile that merged twice in the same corner looks the
-#: same as a score.
+#: The least number of looks before anything can be called furniture, for a
+#: thing so small that its own size would be a lower bar.
 STILL_ENOUGH_TO_JUDGE = 6
 
-#: How often a place has to change, of the times it was there, to be one.
-#: A counter changes nearly every time; a tile that happens to sit in one
-#: place for a while does not.
-CHANGES_NEARLY_ALWAYS = 0.8
-
-#: How often a place has to be occupied at all. Furniture is always there; a
-#: place in the thing itself is empty much of the time, which is what makes it
-#: a place rather than a readout.
-ALWAYS_THERE = 0.9
+#: How often a place has to be occupied before it counts as never empty. Not
+#: quite one, because a reading can drop something faint for a frame and that
+#: is not the same as the place being free.
+ALWAYS_THERE = 0.95

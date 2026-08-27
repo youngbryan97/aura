@@ -161,15 +161,18 @@ def test_what_the_world_adds_on_its_own_does_not_falsify_her_rule():
     assert knows.confidence() == pytest.approx(1.0)
 
 
-def test_a_rule_that_stops_working_stops_being_trusted():
+def test_a_rule_that_stops_working_stops_being_the_one_she_uses():
+    """A world can change under her, and what she knows has to change with it."""
     knows, state = watch(shifted_and_combined)
-    assert knows.rule() is not None
+    was = knows.rule()
+    assert was is not None and was.name == "slides and combines"
     rng = random.Random(3)
     for _ in range(20):
         after = spawn(state, rng)
         knows.watched(state, "left", after)
         state = after
-    assert knows.rule() is None or knows.confidence() < 1.0
+    now = knows.rule()
+    assert now is None or now.name != was.name
 
 
 def test_watching_nothing_happen_in_an_empty_world_teaches_nothing():
