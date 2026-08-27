@@ -1363,6 +1363,26 @@ def _build_grounded_capability_inventory_reply(
     return _apply_aura_voice_shaping(reply)
 
 
+#: A question that names a time other than now, and so wants a comparison.
+#:
+#: What separates "what can you do" from "what can you do that you could not
+#: before" is a second time in the sentence. A channel that measures one
+#: moment has half the answer and no way to know it.
+_ANOTHER_TIME = re.compile(
+    r"\b(?:used\s+to|before|previously|already|since|until|"
+    r"(?:a|last|this|the\s+past)\s+(?:month|week|year|day|night|time)|"
+    r"yesterday|earlier|recently|lately|new(?:ly)?|now\s+that|"
+    r"could\s*n(?:o|')t|couldn.t|were\s*n(?:o|')t|did\s*n(?:o|')t|"
+    r"chang\w+|differen\w+|improv\w+|progress|learn\w+)\b",
+    re.IGNORECASE,
+)
+
+
+def _asks_what_has_changed(user_message: str) -> bool:
+    """Whether the question names a time other than now."""
+    return bool(_ANOTHER_TIME.search(str(user_message or "")))
+
+
 def _build_bounded_capability_inventory_repair_reply(user_message: str) -> str:
     """Ground desktop tool/capability questions without invoking a second model pass.
 
@@ -1373,6 +1393,15 @@ def _build_bounded_capability_inventory_repair_reply(user_message: str) -> str:
     """
 
     if not _chat_preflight._is_explicit_capability_inventory_request(user_message):
+        return ""
+    if _asks_what_has_changed(user_message):
+        # A catalogue of now is not an answer about what is different.
+        #
+        # This channel measures one moment and says so honestly. Asked "what
+        # can you do that you could not a month ago" it answered with a list
+        # of what it found today and said nothing at all about the month —
+        # LIVE 2026-08-26. A question that names two times wants both of them,
+        # which is a question for the part of her that remembers.
         return ""
     reply = _build_grounded_capability_inventory_reply(user_message)
     if _capability_inventory_reply_is_inadequate(user_message, reply):
