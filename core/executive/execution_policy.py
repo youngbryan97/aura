@@ -532,6 +532,11 @@ def _skill_meta_for(name: str) -> Any:
         return None
 
 
+#: Tools whose whole job is to run a snippet the caller supplies. Their risk is
+#: a property of that snippet, so it cannot be known before there is one.
+_RUNS_A_SNIPPET = frozenset({"run_code", "code_repl"})
+
+
 def classify_execution_risk(
     tool_name: Any,
     params: dict[str, Any] | None = None,
@@ -546,8 +551,38 @@ def classify_execution_risk(
     scope = str(effect_scope or "").strip().lower() or resolve_execution_effect_scope(
         name, arguments
     )
-    if name == "run_code" or name == "run_python":
+    if name in _RUNS_A_SNIPPET or name == "run_python":
+        # Rate the snippet, not the authorship.
+        #
+        # This returned "critical" for any stateful run and "high" otherwise,
+        # which is a statement about who typed the code rather than about what
+        # it can touch. Every snippet then needed a confirmation the turn has
+        # no way to ask for, so "read these docs and actually use the library"
+        # could not be answered at all — while the same sandbox ran the same
+        # import in 40ms with no effect on anything.
+        #
+        # The code is a string before it runs, so its reach is a question with
+        # an answer. A snippet that computes and prints is medium: still
+        # somebody's code running on this machine, which is why it is not low.
+        # Anything that writes, spawns, reaches the network, or resolves a name
+        # at runtime keeps the old rating.
+        #
+        # Statefulness does not change a pure snippet's rating. What a previous
+        # snippet left in the sandbox cannot act on its own; only a new snippet
+        # can, and that one is read on its own reach and refused on its own
+        # terms. Rating a pure snippet by the session rather than by itself was
+        # the same category mistake one level up.
+        from core.skills.snippet_reach import reach_of
+
         stateful = bool(arguments.get("stateful", True))
+        snippet = ""
+        for key in ("code", "source", "script", "snippet"):
+            value = arguments.get(key)
+            if isinstance(value, str) and value.strip():
+                snippet = value
+                break
+        if snippet and reach_of(snippet).only_computes:
+            return "medium"
         return "critical" if stateful else "high"
     if name == "auto_refactor":
         if scope == "privileged_mutation":

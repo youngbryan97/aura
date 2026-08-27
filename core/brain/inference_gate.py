@@ -2270,10 +2270,19 @@ def _reachable_scope(name: str, skill_scope: Any, permitted: set[str]) -> str | 
 
 
 def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
-    """Whether dispatch would stop this tool to ask, on a turn that cannot ask."""
-    try:
-        from core.executive.execution_policy import classify_execution_risk
+    """Whether dispatch would stop this tool to ask, on a turn that cannot ask.
 
+    Only when the answer does not depend on the arguments. A tool whose whole
+    job is to run a snippet is rated from that snippet, and at offer time there
+    is no snippet — withholding it on the worst case means it can never be
+    called, which is how "read these docs and actually use the library" became
+    unanswerable. Dispatch sees the real arguments and refuses there.
+    """
+    try:
+        from core.executive.execution_policy import _RUNS_A_SNIPPET, classify_execution_risk
+
+        if name in _RUNS_A_SNIPPET:
+            return False
         risk = str(classify_execution_risk(name, {}, effect_scope=scope) or "").lower()
     except (ImportError, RuntimeError, TypeError, ValueError):
         return False
