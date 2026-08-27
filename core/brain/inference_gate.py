@@ -13481,6 +13481,40 @@ class InferenceGate:
                 max_tokens = _plan_floor_final
                 context["max_tokens"] = max_tokens
 
+        # FINAL word on the budget for an answer turn, for the same reason the
+        # execution floor above is applied here: every earlier raise can be and
+        # was overwritten by a later cap.
+        #
+        # LIVE, 2026-08-27: a question whose answer had to be worked out
+        # carried a completion floor of 896 tokens all the way to the worker,
+        # which read it correctly and opened the private reasoning channel —
+        # and the same turn was dispatched with 128, so the generation ended
+        # still inside that channel with no answer at all, twice.
+        #
+        # A declared output ceiling, a strict or operator contract, a probe and
+        # a blocked resource stake all still win; each of those is an explicit
+        # requirement rather than an incidental cap.
+        if (
+            _foreground_answer_turn
+            and not bool(context.get("hard_output_token_ceiling", False))
+            and not bool(context.get("resource_stakes_blocked", False))
+            and not bool(context.get("desktop_execution_contract", False))
+        ):
+            try:
+                _answer_floor_final = int(
+                    context.get("user_surface_completion_floor") or 0
+                )
+            except (TypeError, ValueError, OverflowError):
+                _answer_floor_final = 0
+            if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
+                logger.info(
+                    "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
+                    max_tokens,
+                    _answer_floor_final,
+                )
+                max_tokens = _answer_floor_final
+                context["max_tokens"] = max_tokens
+
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
             context,

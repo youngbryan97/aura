@@ -94,3 +94,39 @@ def test_a_discarded_draft_is_written_down() -> None:
     window = client[start - 1400 : start + 700]
     assert "draft_chars=%d head=%r tail=%r" in window
     assert "_rejected_surface_draft(" in window
+
+
+def test_the_answer_floor_gets_the_last_word_at_dispatch() -> None:
+    """Every earlier raise can be, and was, overwritten by a later cap.
+
+    LIVE, 2026-08-27: a question whose answer had to be worked out carried a
+    completion floor of 896 tokens all the way to the worker, which read it and
+    opened the private reasoning channel. The same turn was dispatched with
+    128, so the generation ended still inside that channel with no answer.
+    """
+
+    body = _GATE.read_text()
+    answer = _line_of("[ANSWER BUDGET] Answer turn:")
+    lane = _line_of("serving_lane = self._cortex_serving_lane(")
+    bias = _line_of("somatic_temperature, max_tokens, applied_bias = self._apply_runtime_sampling_biases(")
+    assert bias < answer, "the last word comes after every earlier budget step"
+    assert answer < lane, "and before the serving profile clamps it"
+
+
+def test_the_last_word_yields_to_a_declared_requirement() -> None:
+    body = _GATE.read_text()
+    start = body.index("FINAL word on the budget for an answer turn")
+    window = body[start : start + 1600]
+    for guard in (
+        "_foreground_answer_turn",
+        'context.get("hard_output_token_ceiling", False)',
+        'context.get("resource_stakes_blocked", False)',
+        'context.get("desktop_execution_contract", False)',
+    ):
+        assert guard in window, guard
+
+
+def test_the_execution_floor_still_owns_execution_turns() -> None:
+    body = _GATE.read_text()
+    assert "FINAL word on the budget for an execution turn" in body
+    assert "_plan_floor_final" in body
