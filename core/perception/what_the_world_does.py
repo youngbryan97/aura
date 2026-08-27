@@ -94,10 +94,10 @@ class WhatTheWorldDoes:
     def might_do(self, state: Arrangement) -> tuple[tuple[Arrangement, float], ...]:
         """The ways this position might look once the world has had its turn.
 
-        Each way with the share of the time it happens, so a caller can take
-        the average rather than the best — which is the whole point. Bounded,
-        because averaging over four of the ways and over twelve of them give
-        nearly the same number and one costs three times as much.
+        Each way carries the share of the time it happens, so a caller can
+        take the average rather than the best. Bounded, because averaging over
+        four of the ways and over twelve of them give nearly the same number
+        and one costs three times as much.
         """
         if not self.worth_expecting():
             return ()

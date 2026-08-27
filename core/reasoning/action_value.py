@@ -510,12 +510,43 @@ def _install_observers() -> None:
         pass  # no-op: intentional
 
 
+def _on_the_event_loop() -> bool:
+    """Whether this call is happening on the thread that must not be blocked."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 def get_action_value_model() -> ActionValueModel:
+    """The one value model, fetched without ever opening a database on the loop.
+
+    Two things were wrong here and they compounded. The first call built the
+    model AND pulled its statistics — SQLite, on whatever thread arrived
+    first, which is the event loop. The second held the singleton lock across
+    all of it, so every other caller queued behind the I/O as well.
+
+    LIVE, repeatedly, most recently 2026-08-27: "blocking lock
+    'core.reasoning.action_value.1' ... was held 278ms on the event loop
+    thread (limit 50ms) — the loop could not make progress for that window",
+    and the runtime tainted itself over it every time.
+
+    Building is cheap and stays under the lock. Pulling the statistics is not,
+    so it happens outside the lock, and on the loop it does not happen at all:
+    the model is left stale and ``refresh_if_stale`` — which already exists,
+    and already goes to a thread — does it before anything scores with it.
+    """
     global _model
+    built = False
     if _model is None:
         with _model_lock:
             if _model is None:
                 _model = ActionValueModel()
-                _model.refresh()
+                built = True
+    if built and not _on_the_event_loop():
+        # Off the loop there is nothing to protect, so warm it now and save
+        # the first caller a stale read.
+        _model.refresh()
     _install_observers()
     return _model
