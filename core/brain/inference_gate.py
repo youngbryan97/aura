@@ -13494,9 +13494,13 @@ class InferenceGate:
         # A declared output ceiling, a strict or operator contract, a probe and
         # a blocked resource stake all still win; each of those is an explicit
         # requirement rather than an incidental cap.
+        # The presence of a floor is the entitlement. It is set further up only
+        # for turns that qualify, so re-deriving the qualification here just
+        # gives the two conditions somewhere to drift apart — and they did: the
+        # turn that carried floor=896 to the worker did not satisfy a second
+        # copy of the test, and was dispatched with 375.
         if (
-            _foreground_answer_turn
-            and not bool(context.get("hard_output_token_ceiling", False))
+            not bool(context.get("hard_output_token_ceiling", False))
             and not bool(context.get("resource_stakes_blocked", False))
             and not bool(context.get("desktop_execution_contract", False))
         ):

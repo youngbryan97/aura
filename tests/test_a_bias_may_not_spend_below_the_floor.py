@@ -118,7 +118,6 @@ def test_the_last_word_yields_to_a_declared_requirement() -> None:
     start = body.index("FINAL word on the budget for an answer turn")
     window = body[start : start + 1600]
     for guard in (
-        "_foreground_answer_turn",
         'context.get("hard_output_token_ceiling", False)',
         'context.get("resource_stakes_blocked", False)',
         'context.get("desktop_execution_contract", False)',
@@ -130,3 +129,18 @@ def test_the_execution_floor_still_owns_execution_turns() -> None:
     body = _GATE.read_text()
     assert "FINAL word on the budget for an execution turn" in body
     assert "_plan_floor_final" in body
+
+
+def test_the_floor_in_context_is_the_entitlement() -> None:
+    """Re-deriving the qualification gives two conditions room to drift.
+
+    LIVE, 2026-08-27: the turn that carried floor=896 all the way to the worker
+    did not satisfy a second copy of the entitlement test at dispatch, and was
+    sent with 375 tokens.
+    """
+
+    body = _GATE.read_text()
+    start = body.index("The presence of a floor is the entitlement")
+    window = body[start : start + 900]
+    assert "_foreground_answer_turn" not in window
+    assert 'context.get("user_surface_completion_floor")' in window
