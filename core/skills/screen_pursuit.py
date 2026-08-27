@@ -921,11 +921,33 @@ async def _bring_it_into_view(look: Any, read: Any) -> int:
     for down in range(SCREENFULS_TO_LOOK):
         seen = await look()
         if not seen.get("ok"):
+            logger.info(
+                "looking for what she came for, %d down: nothing could be read (%s)",
+                down,
+                seen.get("error") or "no reason given",
+            )
             return down
-        if _is_a_thing_laid_out(read(seen)):
-            if down:
-                logger.info("what she came for was %d screenful(s) down", down)
+        here = read(seen)
+        if _is_a_thing_laid_out(here):
+            logger.info(
+                "what she came for is %d screenful(s) down: %dx%d with %d thing(s) in it",
+                down,
+                here.rows,
+                here.columns,
+                here.occupied(),
+            )
             return down
+        # Say what WAS there. A run that ends "nothing offered a move" names
+        # the symptom and hides whether she read a page with no grid on it, a
+        # grid too small to count, or nothing at all.
+        logger.info(
+            "%d down: read %d region(s), %dx%d with %d thing(s) — not a thing laid out yet",
+            down,
+            len(seen.get("layout") or ()),
+            here.rows,
+            here.columns,
+            here.occupied(),
+        )
         try:
             await hands.scroll(dy=-_a_screenful(hands))
         except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
