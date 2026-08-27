@@ -2219,6 +2219,27 @@ def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
     return risk in {"high", "critical"}
 
 
+def _long_enough_to_answer(prompt: Any, max_tokens: Any, asked_for: float) -> float:
+    """A budget at least as long as this machine has been measured needing.
+
+    A question's deadline belongs to the question. Given fifty seconds for a
+    prompt that takes longer than that to read and answer, the decode stops
+    politely part way and a real reply is thrown away for an apology: LIVE
+    2026-08-26, "Request deadline reached at token 207", and what the person
+    got was "I couldn't get a clear enough answer together."
+
+    Only ever lengthens what the caller asked for, and never past the ceiling
+    the gate already enforces.
+    """
+    try:
+        from core.brain.llm.mlx_client import time_a_prompt_needs
+
+        needed = time_a_prompt_needs(len(str(prompt or "")), int(max_tokens or 0))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return float(asked_for)
+    return max(float(asked_for), min(float(InferenceGate._MAX_REQUEST_TIMEOUT_S), needed))
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -11843,6 +11864,7 @@ class InferenceGate:
                 stakes_token_ceiling=stakes_token_ceiling,
                 surface_completion_floor=surface_completion_floor,
             )
+            timeout_val = _long_enough_to_answer(prompt, max_tokens, timeout_val)
         except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
             record_degradation(
                 "inference_gate",
