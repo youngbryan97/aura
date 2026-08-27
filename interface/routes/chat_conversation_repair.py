@@ -243,6 +243,20 @@ def _verified_floor_answer(user_message: str = "") -> str:
         return ""
 
 
+def _asks_about_another_time(user_message: str) -> bool:
+    """Whether the question names a time other than now.
+
+    A reading of her live state answers a question about now. It answers
+    nothing at all about a month ago, however specific it is.
+    """
+    try:
+        from core.phases.response_contract import _NAMES_ANOTHER_TIME
+
+        return bool(_NAMES_ANOTHER_TIME.search(str(user_message or "")))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def _build_degraded_live_reply(
     frame: dict[str, Any],
     user_message: str = "",
@@ -595,7 +609,18 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
                 reason="confusion_repair",
             )
 
-    if _contains_phrase(user_text, _SPECIFICITY_PUSH_MARKERS):
+    if _contains_phrase(user_text, _SPECIFICITY_PUSH_MARKERS) and not _asks_about_another_time(
+        user_message
+    ):
+        # Being specific about now is not being specific about what was asked.
+        #
+        # This substitutes a reading of her live state for a hedged reply, on
+        # the strength of the person having asked for specifics. Where the
+        # question named another time, the substitute is specific about the
+        # wrong thing and the answer that was there is gone. LIVE 2026-08-26:
+        # "what are you able to do that you could not do a month ago — be
+        # specific" was answered "Things feel unusually settled right now. My
+        # attention is on internal monitoring."
         if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS) and not _contains_phrase(
             reply_text_n, _CLARITY_REPAIR_MARKERS
         ):
