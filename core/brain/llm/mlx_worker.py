@@ -544,12 +544,27 @@ def _answer_is_derived_here(job: dict[str, Any]) -> bool:
     """
 
     try:
+        from core.brain.llm.thinking_reserve import proved_insufficient
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         floor = int(job.get("user_surface_completion_floor") or 0)
+        budget = int(job.get("max_tokens") or 0)
+        proved = int(proved_insufficient())
     except (ImportError, TypeError, ValueError):
         return False
-    return floor > A_CLOSED_QUESTIONS_FLOOR
+    if floor <= A_CLOSED_QUESTIONS_FLOOR:
+        return False
+    # Do not open a channel this budget has already been proved unable to
+    # close. A generation that ends inside it has no surface at all, and the
+    # turn serves nothing; with the channel shut the model reasons in the open
+    # and at least the working it got through reaches the person.
+    #
+    # LIVE, 2026-08-27: three attempts in a row ended inside the channel, the
+    # last after 127 seconds and 3,411 characters of reasoning. The same
+    # question with the channel closed had served a real partial derivation.
+    if 0 < budget <= proved:
+        return False
+    return True
 
 
 def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:

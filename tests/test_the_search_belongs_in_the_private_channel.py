@@ -120,3 +120,32 @@ def test_a_generation_that_is_not_the_surface_is_left_alone() -> None:
     assert (
         thinking_enabled_for_generation(_CORTEX, final_user_surface=False) is None
     )
+
+
+def test_a_budget_proved_unable_to_close_the_channel_keeps_it_shut() -> None:
+    """Nothing served is worse than partial working served.
+
+    LIVE, 2026-08-27: three attempts in a row ended inside the channel, the
+    last after 127 seconds and 3,411 characters of reasoning, and the turn
+    served nothing each time. The same question with the channel closed had
+    served a real partial derivation.
+    """
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    try:
+        job = {"user_surface_completion_floor": 896, "max_tokens": 896}
+        assert _answer_is_derived_here(job)
+        thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=896)
+        assert not _answer_is_derived_here(job)
+        # A budget bigger than the one that failed is worth trying again.
+        assert _answer_is_derived_here(
+            {"user_surface_completion_floor": 896, "max_tokens": 1792}
+        )
+    finally:
+        thinking_reserve.forget()
+
+
+def test_a_job_with_no_budget_is_left_to_the_floor_alone() -> None:
+    assert _answer_is_derived_here({"user_surface_completion_floor": 896})

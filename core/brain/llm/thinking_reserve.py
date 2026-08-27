@@ -154,6 +154,13 @@ def seconds_to_decode(tokens: int) -> float:
     return wanted / rate
 
 
+def proved_insufficient() -> int:
+    """The largest budget a generation ran out of while still thinking."""
+
+    with _lock:
+        return _proved_insufficient
+
+
 def observations() -> int:
     """How many generations the reserve is learned from."""
 
