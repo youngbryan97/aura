@@ -55,9 +55,41 @@ _CONNECTOR_RE = re.compile(
 )
 
 _REPEATED_CLAUSE_RE = re.compile(
-    r"(?:^|[,;]\s*)(?:what|why|how|which)\b",
+    # A conjunction may sit between the comma and the question word, and
+    # usually does. LIVE 2026-08-27: "Two things: what's 2^20, and what did I
+    # ask you to remember earlier?" read as ONE part, because ", and what"
+    # is not ", what" — and the second question was dropped without a word.
+    r"(?:^|[,;]\s*(?:and\s+|or\s+|but\s+|also\s+)?)"
+    r"(?:what|why|how|which|when|where|who)\b",
     re.IGNORECASE,
 )
+
+#: A message that says how many things it is asking.
+#:
+#: The plainest signal there is, and nothing read it. Someone who opens with
+#: "two things" has told you the part count before asking anything.
+_ANNOUNCED_PARTS_RE = re.compile(
+    r"\b(?P<count>two|three|four|five|a\s+couple\s+of|a\s+few|both)\s+"
+    r"(?:quick\s+|short\s+|small\s+)?"
+    r"(?:things|questions|parts|asks)\b",
+    re.IGNORECASE,
+)
+
+#: What each of those words counts to. "A few" is three, which is what people
+#: mean by it and the least it can be.
+_HOW_MANY_IS_THAT = {
+    "two": 2, "three": 3, "four": 4, "five": 5,
+    "a couple of": 2, "a few": 3, "both": 2,
+}
+
+
+def _parts_announced(text: str) -> int:
+    """How many things the message says it is asking, if it says."""
+    found = _ANNOUNCED_PARTS_RE.search(text)
+    if not found:
+        return 0
+    said = " ".join(found.group("count").lower().split())
+    return _HOW_MANY_IS_THAT.get(said, 0)
 
 _NUMBERED_ITEM_RE = re.compile(r"(?:^|\n)\s*\d+[.)]\s+")
 _INLINE_NUMBERED_ITEM_RE = re.compile(
@@ -600,6 +632,59 @@ def _container_obligation_segments(text: str) -> tuple[str, ...]:
     return parts
 
 
+#: Where a second question starts inside one sentence: a comma or semicolon,
+#: optionally a conjunction, then a question word.
+#: Question words that are a whole question by themselves.
+_A_QUESTION_ON_ITS_OWN = frozenset({"why", "how", "when", "where", "what"})
+
+#:
+#: "Which", "who" and "whose" are left out on purpose. They are the ordinary
+#: relative pronouns — "the capital of Peru, which I keep forgetting" is one
+#: question — and this check causes a REJECTION, so a wrongly split sentence
+#: costs a correct answer. Missing "and which one is better?" costs nothing
+#: but a check that did not fire.
+_ANOTHER_QUESTION_RE = re.compile(
+    r"[,;]\s*(?:and\s+|or\s+|but\s+|also\s+)?"
+    r"(?=(?:what|why|how|when|where)\b)",
+    re.IGNORECASE,
+)
+
+
+def _coordinated_question_segments(text: str) -> tuple[str, ...]:
+    """Split one sentence that asks several questions.
+
+    People write "what's 2^20, and what did I ask you to remember?" far more
+    often than they number their questions. The directive splitter beside this
+    one already does the same job for coordinated verbs — "explain X, give Y"
+    — and coordinated QUESTIONS had no equivalent, so a two-part ask arrived
+    as one segment with nothing for coverage to compare against.
+
+    LIVE 2026-08-27: exactly that sentence was answered "1,048,576." and the
+    second question was dropped without a word about it.
+
+    A single question stays a normal sentence. "What is the capital of Peru,
+    which I keep forgetting?" is untouched, because the relative pronouns are
+    deliberately not boundaries: see the pattern above for why a false split
+    is worse here than a missed one.
+    """
+    raw = str(text or "").strip()
+    if not raw.endswith("?"):
+        return ()
+    pieces = [part.strip(" ,;") for part in _ANOTHER_QUESTION_RE.split(raw)]
+    # A lone question word is a whole question. "What broke, and why?" asks
+    # two things, and the second is one word long.
+    kept = [
+        part
+        for part in pieces
+        if len(part.split()) >= 2 or part.strip("? ").lower() in _A_QUESTION_ON_ITS_OWN
+    ]
+    if len(kept) < 2:
+        return ()
+    # Each piece carries the question mark it shares, so a segment reads as
+    # the ask it is rather than as a fragment.
+    return tuple(part if part.endswith("?") else f"{part}?" for part in kept)
+
+
 def _question_segments(text: str) -> tuple[str, ...]:
     """The individual asks in an utterance, as text.
 
@@ -633,6 +718,8 @@ def _question_segments(text: str) -> tuple[str, ...]:
         coordinated = _coordinated_directive_segments(part)
         if coordinated:
             sentence_asks.extend(coordinated)
+        elif questions := _coordinated_question_segments(part):
+            sentence_asks.extend(questions)
         elif container_obligations := _container_obligation_segments(part):
             sentence_asks.extend(container_obligations)
         elif (
@@ -694,8 +781,11 @@ def analyze_prompt_shape(text: str) -> PromptShape:
 
     ask_segments = _question_segments(raw)
 
+    announced_parts = _parts_announced(raw)
+
     part_candidates = [
         1,
+        announced_parts,
         # Sentence-level asks. Every other candidate below counts per LINE or
         # per verb list, and a chat box is one line: "give me an example of X.
         # and separately — do you enjoy it?" scored 1 part, so the prompt was
@@ -717,7 +807,10 @@ def analyze_prompt_shape(text: str) -> PromptShape:
         or (explicit_question_marks >= 1 and len(raw.split()) >= 60)
     )
     requires_single_reply_coverage = bool(
-        question_parts >= 2 or connector_parts > 0 or repeated_clause_parts >= 2
+        question_parts >= 2
+        or connector_parts > 0
+        or repeated_clause_parts >= 2
+        or announced_parts >= 2
     )
 
     return PromptShape(
