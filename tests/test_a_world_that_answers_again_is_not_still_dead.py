@@ -43,3 +43,35 @@ def test_it_can_die_again_afterwards():
     state.began_again()
     state.unanswered = Responsive.DEAD_AFTER
     assert state.nothing_answers()
+
+
+# ── and deciding to start again is not starting again ────────────────────
+
+from pathlib import Path  # noqa: E402
+
+SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+RESTART = SOURCE[SOURCE.index("async def begin_again") : SOURCE.index("async def begin_again") + 1600]
+
+
+def test_the_verdict_is_not_cleared_when_she_merely_decides_to_restart():
+    """A click that landed on nothing left her believing the world was fresh."""
+    decides = SOURCE.index('intending["value"] = START_OVER')
+    clears = SOURCE.index('responds["state"].began_again()')
+    clicks = SOURCE.index("clicked = await click_normalized(")
+    assert decides < clicks < clears
+
+
+def test_the_screen_is_read_again_before_anything_is_believed():
+    assert "after = await observe()" in RESTART
+    assert "now_showing.strip() == was_showing.strip()" in RESTART
+
+
+def test_a_restart_that_did_not_take_is_reported_as_not_taking():
+    assert "the restart did not take" in RESTART
+    assert "return False" in RESTART
+
+
+def test_and_it_is_only_counted_when_it_worked():
+    counted = RESTART.index('restarts["count"] += 1')
+    checked = RESTART.index("now_showing.strip() == was_showing.strip()")
+    assert checked < counted

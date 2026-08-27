@@ -1879,7 +1879,6 @@ async def pursue_on_screen(
                 label = str(params.get("label") or "")
                 rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
                 frame = list(observation.get("bounds") or [])
-                restarts["count"] += 1
                 # Always a reason, even when her wording was unusable. The
                 # filters drop an echo of the evidence, which is right, and a
                 # decision with no recorded reason is not much better than an
@@ -1887,11 +1886,35 @@ async def pursue_on_screen(
                 restarts["because"] = because or "nothing here was moving the board"
                 intending["value"] = START_OVER
                 history.clear()
-                # The world that stopped answering is the one she is ending.
-                responds["state"].began_again()
+                was_showing = seen
 
                 async def begin_again() -> bool:
-                    return await click_normalized(rx, ry, expect_app=target_app or anchor["app"], bounds=frame)
+                    clicked = await click_normalized(
+                        rx, ry, expect_app=target_app or anchor["app"], bounds=frame
+                    )
+                    if not clicked:
+                        return False
+                    # Deciding to start again is not starting again.
+                    #
+                    # The verdict that nothing answers was cleared when she
+                    # CHOSE to restart, so a click that landed on nothing left
+                    # her believing the world was fresh — and she went back to
+                    # pressing keys into a finished game. LIVE 2026-08-26:
+                    # "Nothing I do is changing anything here — this attempt is
+                    # over", and then "Going right", at a board reading Game
+                    # Over the whole time.
+                    #
+                    # A click reports success for having happened. Only the
+                    # screen can say whether it did anything.
+                    after = await observe()
+                    now_showing = within(after, responds["state"].band(), responds["state"])
+                    if now_showing.strip() == was_showing.strip():
+                        logger.info("the restart did not take — the screen is unchanged")
+                        return False
+                    restarts["count"] += 1
+                    responds["state"].began_again()
+                    logger.info("began again: %s", label or "restart")
+                    return True
 
                 return Step(name=f"begin again with {label!r}", action=begin_again)
 
