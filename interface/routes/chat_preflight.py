@@ -1604,8 +1604,28 @@ def _inventory_surface() -> object | None:
     return _ASKS_WHAT_SHE_CAN_DO
 
 
+def _asks_what_is_different(user_message: str) -> bool:
+    """Whether the question names a time other than now, and wants a comparison."""
+    try:
+        from core.phases.response_contract import _NAMES_ANOTHER_TIME
+
+        return bool(_NAMES_ANOTHER_TIME.search(str(user_message or "")))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def _is_explicit_capability_inventory_request(user_message: str) -> bool:
     """Whether this turn is asking what she can do, rather than asking her to."""
+    if _asks_what_is_different(user_message):
+        # A question that names two times is not a question about now.
+        #
+        # An inventory measures one moment. Routed here, "what can you do that
+        # you could not do a month ago" got a list of what is there today,
+        # which answers half of it while looking whole — and when the builder
+        # was taught to decline, the turn came back empty instead, because it
+        # had already been routed. LIVE 2026-08-26, three times, each fix one
+        # door further upstream than the last.
+        return False
     settled = _capability_inventory_floor(user_message)
     surface = _inventory_surface()
     if surface is None:

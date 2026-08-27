@@ -88,3 +88,21 @@ def test_and_a_question_about_now_still_is():
 
     assert inv("what tools can you use")
     assert inv("list your capabilities")
+
+
+def test_neither_classifier_calls_a_comparison_an_inventory_question():
+    """Three fixes, each one door further upstream than the last."""
+    from interface.routes.chat_preflight import (
+        _is_capability_inventory_request,
+        _is_explicit_capability_inventory_request,
+    )
+
+    asked = "What are you able to do that you could not do a month ago?"
+    assert not _is_explicit_capability_inventory_request(asked)
+    assert not _is_capability_inventory_request(asked)
+
+
+def test_and_a_plain_inventory_question_still_reaches_it():
+    from interface.routes.chat_preflight import _is_explicit_capability_inventory_request
+
+    assert _is_explicit_capability_inventory_request("what tools can you use")
