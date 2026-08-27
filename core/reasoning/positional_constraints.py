@@ -652,6 +652,19 @@ def describe_positional_answer(answer: PositionalAnswer | None) -> str:
             lines.append(f"{label}: {spoken[0]} and {spoken[1]}.")
         else:
             lines.append(f"{label}: {', '.join(spoken[:-1])} and {spoken[-1]}.")
+    # Whether the clues force it, when that was asked.
+    #
+    # LIVE, 2026-08-27: "which crate holds what, and is the answer forced or
+    # are there several?" got the arrangement and nothing about the second
+    # half — which the solver knows exactly, because it enumerated every
+    # arrangement to find the first half.
+    #
+    # Only when they DO force it. Several arrangements that agree on the
+    # findings is already reported by the alternatives below where it matters,
+    # and a count added to every answer is answering more than was asked —
+    # which is its own defect in this tree.
+    if lines and answer.arrangements == 1:
+        lines.append("The clues force it: that is the only arrangement that fits.")
     for asked, readings in answer.alternatives:
         label = asked[:1].upper() + asked[1:]
         shown = "; ".join(

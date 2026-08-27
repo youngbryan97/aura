@@ -111,3 +111,37 @@ def test_dropping_any_premise_loosens_the_puzzle(premise: str) -> None:
 """No answer is asserted for the loosened puzzles: fewer premises may still
 force the same arrangement, and that would be a correct answer rather than a
 failure."""
+
+
+def test_it_says_whether_the_clues_force_it() -> None:
+    """The second half of the question, which the solver already knows.
+
+    LIVE, 2026-08-27: "which crate holds what, and is the answer forced or are
+    there several?" got the arrangement and nothing about forcing — after
+    enumerating every arrangement to find the arrangement.
+    """
+    told = describe_positional_answer(answer_positional_problem(_PUZZLE))
+    assert "only arrangement" in told
+
+
+def test_an_underdetermined_puzzle_says_so_and_shows_the_options() -> None:
+    """Silence is the wrong answer to ambiguity: it reads as inability."""
+    loosened = _PUZZLE.replace("The dye is at one end. ", "")
+    told = describe_positional_answer(answer_positional_problem(loosened))
+    assert "not settled by these clues" in told
+    assert "2 fit" in told
+    assert "only arrangement" not in told
+
+
+def test_forcing_is_only_reported_when_it_forces() -> None:
+    """A count added to every answer answers more than was asked.
+
+    It appended "2 arrangements fit the clues" to a neighbours question that
+    had asked nothing about uniqueness, and broke that answer's contract.
+    """
+    told = describe_positional_answer(answer_positional_problem(_PUZZLE))
+    assert told.count("only arrangement") == 1
+    loosened = _PUZZLE.replace("The dye is at one end. ", "")
+    assert "arrangements fit the clues" not in describe_positional_answer(
+        answer_positional_problem(loosened)
+    )
