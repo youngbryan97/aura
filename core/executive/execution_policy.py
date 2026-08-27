@@ -608,8 +608,14 @@ def classify_execution_risk(
 
         stateful = bool(arguments.get("stateful", True))
         snippet = _snippet_in(arguments)
-        if snippet and reach_of(snippet).only_computes:
-            return "medium"
+        if snippet:
+            reach = reach_of(snippet)
+            if reach.only_computes:
+                return "medium"
+            # Say why it needs a confirmation. "This snippet acts" and "this
+            # snippet could not be read" carry the same rating and are
+            # different problems.
+            logger.info("risk: %s snippet is not pure — %s", name, reach.why())
         if not snippet:
             # Rated as the worst case for want of a snippet. Say what arrived,
             # because "there was no code" and "the code was somewhere this did
