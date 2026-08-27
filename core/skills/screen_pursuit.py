@@ -890,6 +890,33 @@ def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:
     return any(word in str(reading or "").lower() for word in said)
 
 
+async def _take_the_run_its_bearings(
+    anchor: dict[str, str], *, expect_page: str = "", open_page: str = ""
+) -> None:
+    """Work out which page and which window this run belongs to.
+
+    Done before anything depends on the answer, because everything does: what
+    is brought forward, what a keystroke is bound to, and whether she is in
+    the thing she was asked to act in at all.
+    """
+    page = await current_page_identity()
+    if not anchor["page"]:
+        anchor["page"] = str(
+            expect_page or page.get("url") or page.get("title") or ""
+        ).strip()
+    if not anchor["app"]:
+        # The application that holds the page, when this run is about a page
+        # at all. A task about a desktop application would otherwise anchor
+        # itself to a browser that happens to be open behind it.
+        about_a_page = bool(open_page or expect_page or page.get("url"))
+        holder = str(page.get("app") or "") if about_a_page else ""
+        anchor["app"] = (holder or await _frontmost() or "").strip()
+    if anchor["app"]:
+        logger.info(
+            "this run belongs to %r on %r", anchor["app"], anchor["page"][:60]
+        )
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -1030,6 +1057,18 @@ async def pursue_on_screen(
         # conditions it needs rather than only detect that they are gone.
         # The window this run belongs to, named by the caller or learned on
         # the first cycle. Either way it has to be in front to be acted in.
+        # Work out what this run belongs to before anything depends on it.
+        #
+        # This whole block sat inside "if the run has a window", and the only
+        # thing that could give it one was inside the block. With nothing
+        # named the run never acquired an anchor, never brought anything
+        # forward, and sent every key to whatever happened to be in front —
+        # for want of a first cycle it could never have. LIVE 2026-08-26:
+        # thirty-five moves into a terminal with the game one window back.
+        if not anchor["page"] or not anchor["app"]:
+            await _take_the_run_its_bearings(
+                anchor, expect_page=expect_page, open_page=open_page
+            )
         mine = target_app or anchor["app"]
         if mine:
             try:
