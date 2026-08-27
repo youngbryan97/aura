@@ -1028,6 +1028,14 @@ class StandingAuthorityManager:
         resolved_origin = coerce_authority_origin(origin or ctx.get("origin") or ctx.get("source"))
         scope = str(effect_scope or "").strip().lower() or resolve_execution_effect_scope(name, args)
         risk = normalize_risk(risk_level or classify_execution_risk(name, args, effect_scope=scope))
+        logger.info(
+            "lease risk %s for %s (scope=%s, given=%r) from arguments %s",
+            risk,
+            name,
+            scope,
+            str(risk_level or ""),
+            sorted(str(key) for key in args)[:6] or "none",
+        )
         user_auth = (
             context_has_user_authority(resolved_origin, ctx)
             if user_authorized is None
@@ -1350,6 +1358,13 @@ class StandingAuthorityManager:
         # was supplied — normalize_risk("") returns a default rather than an
         # empty string, so testing the normalised value never finds a gap.
         raw_risk = str(risk_level or ctx.get("risk_level") or "").strip()
+        risk_came_from = (
+            "the caller"
+            if str(risk_level or "").strip()
+            else "the context" if str(ctx.get("risk_level") or "").strip()
+            else "the arguments" if arguments
+            else "the record"
+        )
         if raw_risk:
             risk = normalize_risk(raw_risk)
         elif arguments:
@@ -1385,10 +1400,12 @@ class StandingAuthorityManager:
             # carried a snippet that only computes and rated medium. Rating the
             # call MORE precisely made it fail, which is backwards.
             logger.warning(
-                "Standing authority risk mismatch for %s: lease held %r, this call derived %r",
+                "Standing authority risk mismatch for %s: lease held %r, this call derived %r "
+                "from %s",
                 name,
                 record.risk_level,
                 risk,
+                risk_came_from,
             )
             return (
                 False,

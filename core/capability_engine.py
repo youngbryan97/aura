@@ -4277,12 +4277,25 @@ class CapabilityEngine(AuraBaseModule):
         params: dict[str, Any],
         effect_scope: str,
     ) -> str:
-        return classify_execution_risk(
+        risk = classify_execution_risk(
             skill_name,
             params,
             effect_scope=effect_scope,
             metabolic_cost=meta.metabolic_cost,
         )
+        # Which arguments the rating was taken on.
+        #
+        # A tool rated from its arguments and a tool rated from nothing produce
+        # the same word, and the lease then compares two of them taken at
+        # different moments. Finding that out has cost five live turns.
+        self.logger.info(
+            "risk %s for %s (scope=%s) from arguments %s",
+            risk,
+            skill_name,
+            effect_scope,
+            sorted(str(key) for key in (params or {}))[:6] or "none",
+        )
+        return risk
 
     @staticmethod
     def _user_advocate_irreversible_for(

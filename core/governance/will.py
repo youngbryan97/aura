@@ -338,32 +338,51 @@ def _make_receipt_id(ts: float, source: str, content: str) -> str:
 
 
 def _derived_effect_scope(context: Mapping[str, Any] | None) -> str:
-    """What this action actually costs, computed rather than claimed."""
+    """What this action actually costs, computed rather than claimed.
+
+    Nothing is derived from nothing. Without the arguments, this resolved the
+    tool's blanket scope — its most dangerous action — and handed that to a
+    lease check as "what this call does", which then refused a lease taken
+    against the real arguments. Deriving both sides from the same functions
+    makes them agree only when both sides have the same input; with no input,
+    the honest answer is that this side has nothing to say.
+    """
     ctx = dict(context or {})
     tool = ctx.get("tool") or ctx.get("skill") or ""
     args = ctx.get("authority_arguments")
+    if not isinstance(args, dict) or not args:
+        return ""
     try:
         from core.executive.execution_policy import resolve_execution_effect_scope
 
-        return str(resolve_execution_effect_scope(tool, args if isinstance(args, dict) else {}))
+        return str(resolve_execution_effect_scope(tool, args))
     except (ImportError, AttributeError, TypeError, ValueError):
         return str(ctx.get("effect_scope") or "")
 
 
 def _derived_risk_level(context: Mapping[str, Any] | None) -> str:
+    """The risk of THIS call, or nothing when the arguments are not here.
+
+    LIVE, 2026-08-27: code_repl was leased at medium against a snippet that
+    only computes, and this derived critical from an empty dict — the rating
+    for a call nobody could read — so the lease was refused for disagreeing
+    with a value that described no call at all. Third place in one chain with
+    the same shape.
+    """
     ctx = dict(context or {})
     tool = ctx.get("tool") or ctx.get("skill") or ""
     args = ctx.get("authority_arguments")
+    if not isinstance(args, dict) or not args:
+        return ""
     try:
         from core.executive.execution_policy import (
             classify_execution_risk,
             resolve_execution_effect_scope,
         )
 
-        payload = args if isinstance(args, dict) else {}
         return str(
             classify_execution_risk(
-                tool, payload, effect_scope=resolve_execution_effect_scope(tool, payload)
+                tool, args, effect_scope=resolve_execution_effect_scope(tool, args)
             )
         )
     except (ImportError, AttributeError, TypeError, ValueError):
