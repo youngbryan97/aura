@@ -243,3 +243,29 @@ def test_a_reading_stands_alone_when_there_is_nothing_to_join(deals: Path) -> No
 
     served = str(_serve_tabular_answer(f"how many are approved in {deals}?", ""))
     assert "approved" in served
+
+
+def test_evidence_is_never_followed_by_an_admission_of_having_none(deals: Path) -> None:
+    """A correct finding with "I couldn't get to an answer" underneath it.
+
+    LIVE, 2026-08-27: "Wren is not top: Marek leads at 21 and Wren is at 16."
+    came back with the canned failure appended, so a settled premise read as a
+    failure. The sentence was written inline in two places and recognised in
+    none.
+    """
+    from core.conversation.reply_provenance import THE_HONEST_FAILURE, admits_no_answer
+    from interface.routes.chat import _serve_tabular_answer
+
+    assert admits_no_answer(THE_HONEST_FAILURE) is True
+    assert admits_no_answer("Marek leads at 21, so I would not move her yet.") is False
+
+    counted = collections.Counter(row["rep"] for row in _rows(deals))
+    runner_up = counted.most_common(2)[1][0]
+    served = str(
+        _serve_tabular_answer(
+            f"Given {runner_up} has the most deals in {deals}, should we move them?",
+            THE_HONEST_FAILURE,
+        )
+    )
+    assert "is not top" in served
+    assert "couldn't get to an answer" not in served

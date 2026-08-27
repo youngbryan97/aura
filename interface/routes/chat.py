@@ -16032,10 +16032,15 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
                     return computed
                 from core.conversation.reply_provenance import (
                     ReplyProvenance,
+                    admits_no_answer,
                     declared_provenance,
                 )
 
-                if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
+                # Never follow evidence with an admission of having none.
+                if (
+                    declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value
+                    or admits_no_answer(written)
+                ):
                     return computed
                 return f"{computed}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -20898,11 +20903,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # 2026-07-25 endurance probe served this exact sentence on the
             # retention turns and it reads like a subsystem talking about
             # itself. Say what happened and what they can do.
-            failure_reply = (
-                "I couldn't get to an answer I'd stand behind on that one, and I "
-                "won't send you a thinner one and pass it off as the real thing. "
-                "Ask me again in a moment and I should have it."
-            )
+            from core.conversation.reply_provenance import THE_HONEST_FAILURE
+
+            failure_reply = THE_HONEST_FAILURE
             # Before giving up, ask whether the runtime already HOLDS the answer.
             #
             # Live 2026-08-10: asked which of her subsystems were degraded and
@@ -22950,11 +22953,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "response_path": "desktop_cognitive_engine_required_no_reply",
                 }
             )
-            failure_reply = (
-                "I couldn't get to an answer I'd stand behind on that one, and I "
-                "won't send you a thinner one and pass it off as the real thing. "
-                "Ask me again in a moment and I should have it."
-            )
+            from core.conversation.reply_provenance import THE_HONEST_FAILURE
+
+            failure_reply = THE_HONEST_FAILURE
             # Before giving up, ask whether the runtime already HOLDS the answer.
             #
             # Live 2026-08-10: asked which of her subsystems were degraded and

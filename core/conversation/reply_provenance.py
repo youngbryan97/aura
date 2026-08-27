@@ -283,3 +283,36 @@ __all__ = [
     "excused_reasons",
     "forget_declared_provenance",
 ]
+
+
+#: The reply the runtime sends when it has nothing it will stand behind.
+#:
+#: Written inline in two places and recognised in none, so evidence and this
+#: could be joined: a correct finding followed by an admission of having no
+#: finding. LIVE, 2026-08-27: "Wren is not top: Marek leads at 21 and Wren is
+#: at 16." came back with this appended underneath it.
+THE_HONEST_FAILURE = (
+    "I couldn't get to an answer I'd stand behind on that one, and I "
+    "won't send you a thinner one and pass it off as the real thing. "
+    "Ask me again in a moment and I should have it."
+)
+
+
+def admits_no_answer(text: object) -> bool:
+    """Whether this reply says it has nothing, and so may not follow evidence.
+
+    Matched on the sentence rather than on a marker, because the marker is
+    attached by the path that builds it and this is asked by paths that only
+    receive it.
+    """
+    said = " ".join(str(text or "").split()).lower()
+    if not said:
+        return False
+    if " ".join(THE_HONEST_FAILURE.split()).lower() in said:
+        return True
+    # The same admission, reworded by a repair pass.
+    return (
+        "couldn't get to an answer" in said
+        or "could not get to an answer" in said
+        or "won't send you a thinner one" in said
+    )
