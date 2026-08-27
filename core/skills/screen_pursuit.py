@@ -1064,7 +1064,13 @@ async def pursue_on_screen(
                     # another part of her closed the browser mid-run, and she
                     # played twelve moves of 2048 into a chat window.
                     if not anchor["app"]:
-                        anchor["app"] = str(page.get("app") or await _frontmost() or "").strip()
+                        # The application that holds the page, when this run is
+                        # about a page at all. A task about a desktop
+                        # application would otherwise anchor itself to a
+                        # browser that happens to be open behind it.
+                        about_a_page = bool(open_page or expect_page)
+                        holder = str(page.get("app") or "") if about_a_page else ""
+                        anchor["app"] = (holder or await _frontmost() or "").strip()
                         if anchor["app"]:
                             logger.info("this run belongs to %r", anchor["app"])
                 if anchor["page"] and not await _ensure_page(anchor["page"]):

@@ -538,6 +538,15 @@ class BrowserController:
         return {
             "url": parts[0].strip(),
             "title": (parts[1].strip() if len(parts) > 1 else ""),
+            # Which application holds it.
+            #
+            # A page and a window were allowed to be two different things: a
+            # caller could read that the browser is on the page it wants while
+            # acting in something else entirely. LIVE 2026-08-26: a run
+            # confirmed it was in a game by this url, anchored itself to a
+            # terminal that happened to be in front, and typed into that for
+            # thirty-five moves.
+            "app": browser,
             "error": "",
         }
 
