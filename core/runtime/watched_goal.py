@@ -227,15 +227,19 @@ def _condition_clauses(text: str) -> list[str]:
     latest, it stole the finish from the tile that was actually being played
     for.
     """
-    lowered = text.lower()
     found: list[tuple[int, str]] = []
     for word in (*UNTIL, *AIMING_AT):
-        start = lowered.find(word)
-        while start >= 0:
-            clause = text[start + len(word) :].strip(" ,.—-")
+        # As WORDS, not as letters that happen to be there.
+        #
+        # Matched anywhere at all, "til" sits inside "tiles" and "to a" inside
+        # "onto a", so a request that merely mentions tiles gets its finishing
+        # condition sliced out of the middle of a word. LIVE 2026-08-27: "the
+        # classic one with numbered tiles" cut at "numbered ti|les", and what
+        # she was left waiting for was the word "are".
+        for at in re.finditer(rf"\b{re.escape(word)}\b", text, flags=re.IGNORECASE):
+            clause = text[at.end() :].strip(" ,.—-")
             if clause:
-                found.append((start, clause))
-            start = lowered.find(word, start + 1)
+                found.append((at.start(), clause))
     found.sort(key=lambda pair: pair[0])
     return [clause for _at, clause in found]
 
@@ -411,7 +415,10 @@ def _where_it_happens(text: str) -> str:
         before = str(match.group("before") or "").strip().lower()
         if before in _ALREADY_THERE:
             continue
-        named = _LOCATION_TAIL.sub("", str(match.group("what") or "")).strip(" .,'\"")
+        # Trimmed before the tail is looked for, because "online" at the end
+        # of a name is only at the end once the space after it is gone.
+        said = str(match.group("what") or "").strip()
+        named = _LOCATION_TAIL.sub("", said).strip(" .,'\"")
         if not named or named.lower() in _NOT_A_PLACE:
             continue
         return named
@@ -436,8 +443,14 @@ _SUBJECT_RE = re.compile(
     r"\b(?:go\s+to|go\s+find|navigate\s+to|head\s+to|find|search\s+for|look\s+up|"
     r"pull\s+up|bring\s+up|open|visit|load|play|use)\s+"
     r"(?:a\s+|an\s+|the\s+|some\s+)?"
-    r"(?P<what>[A-Za-z0-9][^.\n,]{0,40}?)"
-    r"(?=\s+(?:in|on|at|until|till|and|then)\b|[.,\n]|$)",
+    r"(?P<what>[A-Za-z0-9][^.\n,;:()\u2013\u2014]{0,40}?)"
+    # Whatever sets an aside off ends the name, and a comma is not the only
+    # thing that does. A dash, a semicolon, a colon and a bracket all close a
+    # noun phrase in English. LIVE 2026-08-27: "Find a sliding puzzle online —
+    # the classic one with numbered tiles" named no place at all, because the
+    # aside ran past the forty characters the name is allowed and nothing in
+    # it was a comma.
+    r"(?=\s+(?:in|on|at|until|till|and|then)\b|[.,;:()\u2013\u2014\n]|\s+-\s|$)",
     re.IGNORECASE,
 )
 
