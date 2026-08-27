@@ -1462,6 +1462,38 @@ def _grandfathered_overreach() -> frozenset[str]:
     return frozenset(str(entry) for entry in payload.get("grandfathered", ()))
 
 
+
+def _name_what_is_still_available(
+    denial: dict[str, Any], refused: Any, context: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Add the other tools this turn was offered to a refusal.
+
+    LIVE, 2026-08-27: file_operation was leased read_only for the turn, and the
+    model asked it to WRITE a script so it could exercise a library — twice.
+    Both calls came back "denied_by_default: tool_execution requires validated
+    scoped authority", which says what went wrong and nothing about what would
+    work, while code_repl sat offered on the same turn, able to import that
+    library and run it.
+
+    Naming what remains is not a hint about the task. It is the part of a
+    refusal the caller can act on, and the complement of not offering a tool
+    that will be refused.
+    """
+    offered = (context or {}).get("required_skills") or (context or {}).get("offered_skills")
+    if not isinstance(offered, (list, tuple, set)):
+        return denial
+    name = str(refused or "")
+    instead = sorted({str(item) for item in offered if str(item) and str(item) != name})[:4]
+    if not instead:
+        return denial
+    told = dict(denial)
+    told["available_instead"] = instead
+    told["error"] = f"{told.get('error', 'refused')}. Still available on this turn: " + ", ".join(
+        instead
+    ) + "."
+    return told
+
+
 class CapabilityEngine(AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
 
@@ -6103,7 +6135,7 @@ class CapabilityEngine(AuraBaseModule):
                             skill_name,
                             reason,
                         )
-                    return denial
+                    return _name_what_is_still_available(denial, skill_name, context)
 
                 constraints = dict(getattr(tool_handle, "constraints", {}) or {})
                 if constraints:
