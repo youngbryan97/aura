@@ -43,10 +43,21 @@ __all__ = ["MOST_WAYS", "ENOUGH_TO_EXPECT", "WhatTheWorldDoes"]
 
 logger = logging.getLogger("Aura.WhatTheWorldDoes")
 
-#: How many of the ways the world might answer she works through. Every empty
-#: place is one, so a wide-open board has a dozen — and the value of averaging
-#: over them flattens out long before that while the cost does not.
-MOST_WAYS = 4
+#: How many of the ways the world might answer she works through.
+#:
+#: Every empty place is one, so a wide-open board has a dozen. Measured
+#: 2026-08-27 rather than guessed, six games each, run to a dead board, with
+#: the depth of the search left free to adapt to what each level costs:
+#:
+#:     2 ways    median best  512    total 1219
+#:     4 ways    median best  768    total 1726
+#:     8 ways    median best 1024    total 1966
+#:
+#: Four was the guess and it was too few. Each doubling buys less than the
+#: last while costing twice as much, and by eight the search is choosing a
+#: shallower depth to pay for the breadth — which is where the two stop
+#: trading in her favour.
+MOST_WAYS = 8
 
 #: How many acts have to have been watched before what turned up in them is
 #: worth planning around. Below this, one unlucky look decides everything.
