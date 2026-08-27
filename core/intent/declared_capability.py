@@ -723,6 +723,20 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
             needs_compute = requested_arithmetic_result(body) is not None
         except (ImportError, AttributeError, TypeError, ValueError):
             needs_compute = False
+    # Being handed a library and asked to use it is a request to run code.
+    #
+    # The readers above admit the code domain for arithmetic and for finite
+    # constraint problems — things that settle BY computation. Handed a library
+    # with "read it, then actually use it", only the file domain was
+    # recognised, so the only tool offered could read files; the model tried
+    # three times to write a script with it and was vetoed three times.
+    if not needs_compute:
+        try:
+            from core.intent.exercising_software import asks_to_exercise_software
+
+            needs_compute = asks_to_exercise_software(body)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            needs_compute = False
     if needs_compute and "code" not in requested:
         requested.append("code")
     return tuple(requested)

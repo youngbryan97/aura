@@ -52,24 +52,35 @@ def test_a_tool_is_offered_for_the_safe_actions_it_has() -> None:
 
 
 def test_a_tool_needing_a_confirmation_nobody_can_give_is_not_offered() -> None:
-    """code_repl passes the ceiling and still cannot run.
-
-    Running code the model just wrote is correctly high risk. Offering it spends
-    a tool call on a refusal.
-    """
-    kept, withheld = _tools_within_reach({"diagnose_repo": 1, "code_repl": 2}, _SANDBOX_CEILING)
-    assert "code_repl" in withheld
+    """A tool whose risk is high whatever the arguments spends a call on a refusal."""
+    kept, withheld = _tools_within_reach(
+        {"diagnose_repo": 1, "test_generator": 2}, _SANDBOX_CEILING
+    )
+    assert "test_generator" in withheld
     assert "diagnose_repo" in kept
+
+
+def test_a_tool_rated_from_its_arguments_is_offered_before_they_exist() -> None:
+    """code_repl and run_code are rated from the snippet, and there is none yet.
+
+    Withholding them on the worst case meant they could never be called, so
+    "read these docs and actually use the library" had no execution lane at all
+    and the turn ended in "I couldn't get to an answer I'd stand behind".
+    Dispatch sees the real snippet and refuses there.
+    """
+    kept, withheld = _tools_within_reach({"code_repl": 1, "run_code": 2}, _SANDBOX_CEILING)
+    assert sorted(kept) == ["code_repl", "run_code"]
+    assert not withheld
 
 
 def test_the_tool_that_answers_survives_the_filter() -> None:
     """diagnose_repo runs the project's own code, not the model's."""
     kept, withheld = _tools_within_reach(
-        {"diagnose_repo": 1, "code_repl": 2, "file_operation": 3, "web_search": 4},
+        {"diagnose_repo": 1, "test_generator": 2, "file_operation": 3, "web_search": 4},
         _SANDBOX_CEILING,
     )
     assert "diagnose_repo" in kept
-    assert "code_repl" in withheld, "running model-written code needs a confirmation"
+    assert "test_generator" in withheld, "an unconditionally high tool was offered"
 
 
 def test_an_unrated_skill_is_still_offered() -> None:
