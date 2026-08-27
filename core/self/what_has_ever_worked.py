@@ -35,7 +35,13 @@ from typing import Any, Sequence
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["HowItHasGone", "never_worked", "what_has_ever_worked"]
+__all__ = [
+    "HowItHasGone",
+    "how_few_things_it_is_mostly",
+    "never_worked",
+    "says",
+    "what_has_ever_worked",
+]
 
 logger = logging.getLogger("Aura.WhatHasEverWorked")
 
@@ -145,11 +151,52 @@ def never_worked(known: Sequence[str] = (), learner: Any = None) -> dict[str, tu
     }
 
 
+#: What counts as most of a record.
+MOST_OF_IT = 0.9
+
+#: How few actions can account for that before the record is about them rather
+#: than about the range of things she does.
+TOO_FEW_TO_BE_BREADTH = 3
+
+
+def how_few_things_it_is_mostly(learner: Any = None) -> tuple[int, tuple[str, ...]]:
+    """How few actions make up most of the record, and which they are.
+
+    A record can be enormous and say almost nothing. A probe that fires every
+    few minutes for a month buries everything she actually did under its own
+    traffic, and a count taken across it reads as breadth when it is
+    repetition. Asking which single action is biggest misses it, because
+    probes come in pairs — one meant to succeed and one meant to fail.
+
+    LIVE 2026-08-27: two actions were 31,200 of 32,315 rows, written
+    continuously over twenty-nine days. Ninety-six per cent of the record she
+    would answer questions about herself from was those two.
+    """
+    gone = what_has_ever_worked(learner)
+    rows = sum(how.tried for how in gone.values())
+    if not rows:
+        return (0, ())
+    biggest = sorted(gone.values(), key=lambda how: -how.tried)
+    running = 0
+    named: list[str] = []
+    for how in biggest:
+        running += how.tried
+        named.append(how.action)
+        if running / rows >= MOST_OF_IT:
+            break
+    return (len(named), tuple(named))
+
+
 def says(known: Sequence[str] = (), learner: Any = None) -> str:
     """What the record says about her, in a line she could be held to."""
     split = never_worked(known, learner)
     if not any(split.values()):
         return "there is no record of anything having been tried"
-    return "; ".join(
-        f"{len(names)} {label}" for label, names in split.items() if names
-    )
+    said = "; ".join(f"{len(names)} {label}" for label, names in split.items() if names)
+    few, which = how_few_things_it_is_mostly(learner)
+    if few and few <= TOO_FEW_TO_BE_BREADTH:
+        # Said in the same breath as the count, because the count means
+        # something different once you know this.
+        joined = ", ".join(repr(name) for name in which)
+        said = f"{said} — though {MOST_OF_IT:.0%} of the record is {joined}"
+    return said

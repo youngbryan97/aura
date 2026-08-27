@@ -123,3 +123,51 @@ def test_a_thing_with_no_name_is_not_a_thing(tmp_path):
 
 def test_how_it_has_gone_defaults_to_never_tried():
     assert HowItHasGone("x").says() == "x: never tried"
+
+
+# ── a record can be enormous and say almost nothing ──────────────────────
+
+from core.self.what_has_ever_worked import (  # noqa: E402
+    MOST_OF_IT,
+    TOO_FEW_TO_BE_BREADTH,
+    how_few_things_it_is_mostly,
+)
+
+
+@pytest.fixture
+def probed(tmp_path):
+    """A record buried under one probe pair, which is what hers looks like."""
+    rows = [("probe:passes", 1)] * 500 + [("probe:fails", 0)] * 500
+    rows += [(f"real:{n}", n % 2) for n in range(20)]
+    return Learner(tmp_path, rows=rows)
+
+
+def test_how_few_things_the_record_is_mostly(probed):
+    few, which = how_few_things_it_is_mostly(probed)
+    assert few == 2
+    assert set(which) == {"probe:passes", "probe:fails"}
+
+
+def test_a_probe_pair_is_found_even_though_neither_is_biggest_alone(probed):
+    """Asking which single action is biggest misses it: probes come in pairs,
+    one meant to succeed and one meant to fail."""
+    few, _which = how_few_things_it_is_mostly(probed)
+    assert few <= TOO_FEW_TO_BE_BREADTH
+
+
+def test_and_it_is_said_alongside_the_count(probed):
+    """The count means something different once you know this."""
+    said = says(learner=probed)
+    assert f"{MOST_OF_IT:.0%} of the record is" in said
+    assert "probe:passes" in said
+
+
+def test_a_record_with_real_breadth_says_nothing_of_the_kind(tmp_path):
+    spread = Learner(tmp_path, rows=[(f"thing:{n}", n % 2) for n in range(60) for _ in range(3)])
+    few, _which = how_few_things_it_is_mostly(spread)
+    assert few > TOO_FEW_TO_BE_BREADTH
+    assert "of the record is" not in says(learner=spread)
+
+
+def test_an_empty_record_is_mostly_nothing(tmp_path):
+    assert how_few_things_it_is_mostly(Learner(tmp_path)) == (0, ())
