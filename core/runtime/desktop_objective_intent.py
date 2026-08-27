@@ -849,6 +849,44 @@ _ABOUT_HER_METHOD_RE = re.compile(
 )
 
 
+#: Ways of putting a CLAIM in front of her rather than a job.
+#:
+#: A closed class of discourse acts, not topic words: the object of the
+#: sentence is an assertion to be discussed, and no amount of doing anything
+#: settles it. "Someone claims you're just a chatbot with a screenshot tool"
+#: mentions a screenshot and is not a request for one.
+_ABOUT_A_CLAIM_RE = re.compile(
+    r"\b(?:someone|somebody|people|they|he|she|critics?|a\s+friend|my\s+\w+)\s+"
+    r"(?:claims?|says?|said|argues?|reckons?|thinks?|insists?|told\s+me)\b"
+    r"|\bi(?:'ve| have)\s+been\s+told\b"
+    r"|\bi(?:'m| am)\s+told\b"
+    r"|\b(?:rebut|refute|push\s+back\s+on|argue\s+against|respond\s+to\s+(?:the\s+)?claim)\b"
+    r"|\bis\s+it\s+true\s+that\b"
+    r"|\bdo\s+you\s+(?:agree|disagree)\b"
+    r"|\bwhat\s+would\s+you\s+say\s+to\s+(?:that|this|them)\b",
+    re.IGNORECASE,
+)
+
+
+def puts_a_claim_to_her(user_message: str) -> bool:
+    """True when the message hands her an assertion to discuss, not a job.
+
+    The object of the sentence is a proposition. Nothing she does to the world
+    settles it, so a lane that acts is the wrong lane however many capability
+    words the claim happens to contain.
+
+    LIVE 2026-08-27: "Someone claims you're just a chatbot with a screenshot
+    tool. Rebut that in a few sentences." went to the desktop lane, tried to
+    read the screen, and was refused by the executive — because the sentence
+    contains the word screenshot.
+
+    A closed class of discourse acts rather than a list of topics, so it holds
+    for any capability somebody makes a claim about.
+    """
+    text = str(user_message or "")
+    return bool(text.strip()) and bool(_ABOUT_A_CLAIM_RE.search(text))
+
+
 def asks_about_screens_in_general(user_message: str) -> bool:
     """True when the request is about screens as a kind, not about this one.
 
@@ -871,6 +909,8 @@ def asks_about_screens_in_general(user_message: str) -> bool:
     text = str(user_message or "").lower()
     if not text:
         return False
+    if puts_a_claim_to_her(text):
+        return True
     if _ABOUT_HER_METHOD_RE.search(text):
         return True
     # The class, and nothing definite alongside it to look at.

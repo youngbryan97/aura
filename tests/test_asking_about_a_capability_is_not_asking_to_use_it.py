@@ -103,3 +103,54 @@ def test_a_plural_can_still_be_definite():
 def test_nothing_is_not_a_question_about_anything():
     assert asks_about_screens_in_general("") is False
     assert asks_about_screens_in_general("   ") is False
+
+
+# ── a claim put to her is not a job either ───────────────────────────────
+
+from core.runtime.desktop_objective_intent import puts_a_claim_to_her  # noqa: E402
+
+CLAIMS = [
+    "Someone claims you're just a chatbot with a screenshot tool. Rebut that in a few sentences.",
+    "I've been told AI can't learn within a session. What would you say to that?",
+    "Is it true that you can read my screen?",
+    "My friend says you cannot open a browser. Push back on that.",
+    "Do you agree that 2048 is a good test of generality?",
+    "Critics say desktop agents are a demo trick. Refute that.",
+    "People say you just take screenshots. Argue against it.",
+]
+
+JOBS = [
+    "Take a screenshot and tell me what you see",
+    "take a screenshot",
+    "read my screen",
+    "open the browser and click Submit",
+    "play 2048 until you get a 128 tile",
+]
+
+
+@pytest.mark.parametrize("said", CLAIMS)
+def test_an_assertion_handed_to_her_is_recognised(said):
+    assert puts_a_claim_to_her(said) is True
+
+
+@pytest.mark.parametrize("said", CLAIMS)
+def test_and_goes_to_neither_lane_that_acts_or_looks(said):
+    """LIVE 2026-08-27: a rebuttal request tried to read the screen and was
+    refused by the executive, because the claim contained the word screenshot."""
+    assert looks_like_desktop_objective(said) is False
+    assert looks_like_screen_observation(said) is False
+
+
+@pytest.mark.parametrize("said", JOBS)
+def test_a_job_is_not_a_claim(said):
+    assert puts_a_claim_to_her(said) is False
+
+
+@pytest.mark.parametrize("said", JOBS)
+def test_and_still_reaches_a_lane_that_does_something(said):
+    assert looks_like_desktop_objective(said) or looks_like_screen_observation(said)
+
+
+def test_nothing_is_not_a_claim():
+    assert puts_a_claim_to_her("") is False
+    assert puts_a_claim_to_her("   ") is False
