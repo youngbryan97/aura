@@ -2189,6 +2189,51 @@ def _tool_loop_budget(timeout_s: Any) -> float:
     return max(_TOOL_LOOP_FLOOR_S, whole - _ANSWER_RESERVE_S)
 
 
+#: Fields a tool result carries that a person would want to read.
+_READABLE_RESULT_FIELDS = ("content", "stdout", "summary", "text", "output", "answer")
+
+#: Fields that are the runtime talking to itself.
+_PLUMBING_FIELDS = frozenset(
+    {
+        "authority_closure", "token_revoked", "standing_authority_closed",
+        "intent_closed", "governance_receipt_id", "agency_receipt_id",
+        "expectation_receipt_id", "deliberation_receipts", "retries", "skill",
+        "mode", "governance_route", "action_expectation", "expectation_verdict",
+        "verification_evidence", "duration_ms", "ok",
+    }
+)
+
+
+def _what_a_tool_returned(result: Any) -> str:
+    """The readable part of a tool result, never the envelope.
+
+    LIVE, 2026-08-27: with none of the readable fields present, this fell back
+    to str() on the whole dict and put `authority_closure`, `token_revoked` and
+    `standing_authority_closed` on the screen. That is the runtime talking
+    about itself, and the person asked about a ledger.
+    """
+    if result is None:
+        return ""
+    if not isinstance(result, dict):
+        return str(result).strip()
+    for field in _READABLE_RESULT_FIELDS:
+        value = result.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    # No prose, so say what it found in the fields that name things.
+    said: list[str] = []
+    for key, value in result.items():
+        if key in _PLUMBING_FIELDS or key in _READABLE_RESULT_FIELDS:
+            continue
+        if isinstance(value, str) and value.strip():
+            said.append(f"{key}: {value.strip()}")
+        elif isinstance(value, (list, tuple)) and value:
+            said.append(f"{key}: " + ", ".join(str(item) for item in list(value)[:8]))
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            said.append(f"{key}: {value}")
+    return "; ".join(said[:6])
+
+
 def _tools_within_reach(
     tools: dict, allowed_scopes: object
 ) -> tuple[dict, tuple[str, ...]]:
@@ -8230,18 +8275,7 @@ class InferenceGate:
             # and the record of the read held the arguments and no result — so
             # the fallback that reports what the tools found had nothing to
             # report.
-            returned = call.get("result")
-            if isinstance(returned, dict):
-                observed = str(
-                    returned.get("content")
-                    or returned.get("stdout")
-                    or returned.get("summary")
-                    or returned.get("text")
-                    or returned.get("output")
-                    or ""
-                ).strip()
-            else:
-                observed = str(returned or "").strip()
+            observed = _what_a_tool_returned(call.get("result"))
             record_tool_receipt(
                 str(call.get("tool") or call.get("name") or "tool"),
                 ok=bool(call.get("ok", True)),
