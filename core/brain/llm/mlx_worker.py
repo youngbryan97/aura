@@ -7778,6 +7778,16 @@ def _mlx_worker_loop(
                             ),
                             answer_is_derived_here=_answer_is_derived_here(job),
                         )
+                        # Which channel the search went down is the difference
+                        # between an answer and a page of working, and nothing
+                        # recorded it.
+                        logger.info(
+                            "🎯 [WORKER] Native thinking %s (surface=%s floor=%s mode=%s).",
+                            native_thinking,
+                            bool(job.get("clean_user_surface_contract", False)),
+                            job.get("user_surface_completion_floor"),
+                            job.get("cognitive_mode"),
+                        )
 
                         if job.get("user_surface_continuation_contract", False):
                             prompt = render_chat_continuation_template(
