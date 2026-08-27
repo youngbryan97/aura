@@ -8222,6 +8222,26 @@ class InferenceGate:
         for call in called:
             if not isinstance(call, dict):
                 continue
+            # What it RETURNED, not only that it ran.
+            #
+            # A receipt saying a tool executed and not what came back cannot
+            # support any answer. LIVE, 2026-08-27: file_operation read a
+            # project's docs in 6ms, the turn had nothing to say afterwards,
+            # and the record of the read held the arguments and no result — so
+            # the fallback that reports what the tools found had nothing to
+            # report.
+            returned = call.get("result")
+            if isinstance(returned, dict):
+                observed = str(
+                    returned.get("content")
+                    or returned.get("stdout")
+                    or returned.get("summary")
+                    or returned.get("text")
+                    or returned.get("output")
+                    or ""
+                ).strip()
+            else:
+                observed = str(returned or "").strip()
             record_tool_receipt(
                 str(call.get("tool") or call.get("name") or "tool"),
                 ok=bool(call.get("ok", True)),
@@ -8229,6 +8249,7 @@ class InferenceGate:
                 object_ref=str(call.get("args") or "")[:200],
                 effect_observed=True,
                 verification="tool loop returned a result for this turn",
+                observed_content=observed[:2000],
             )
         return text or None
 

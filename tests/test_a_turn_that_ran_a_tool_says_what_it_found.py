@@ -75,3 +75,23 @@ def test_it_says_it_is_a_record_rather_than_an_answer(
     told = _what_the_tools_found()
     assert "what I ran and what came back" in told
     assert "125.0" in told
+
+
+def test_the_receipt_records_what_came_back_not_only_that_it_ran() -> None:
+    """A receipt holding the arguments and no result supports no answer.
+
+    LIVE, 2026-08-27: file_operation read a project's docs in 6ms, the turn had
+    nothing to say afterwards, and the fallback that reports what the tools
+    found had nothing to report — the record held the call and not the result.
+    """
+    import inspect
+
+    from core.brain import inference_gate
+
+    source = inspect.getsource(inference_gate)
+    assert "observed_content=observed[:2000]" in source, (
+        "the tool-loop receipt stopped carrying what the tool returned"
+    )
+    # And it reads the shapes a tool result actually arrives in.
+    for key in ("content", "stdout", "summary", "text", "output"):
+        assert f'returned.get("{key}")' in source, key
