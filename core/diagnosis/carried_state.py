@@ -47,10 +47,15 @@ class CarriedState:
     name: str
     kind: str
     detail: str
+    #: The edit that removes it, worked out from the code rather than written.
+    remedy: str = ""
 
     def as_sentence(self) -> str:
         """The finding in one line, naming where it is."""
-        return f"{self.file}:{self.line} — {self.detail}"
+        said = f"{self.file}:{self.line} — {self.detail}"
+        if self.remedy:
+            said += f" {self.remedy}"
+        return said
 
 
 def _is_mutable_default(node: ast.expr) -> str:
@@ -118,6 +123,14 @@ def _in_one_file(path: Path, root: Path) -> list[CarriedState]:
             if not kind:
                 continue
             verb = "is changed by the body" if arg.arg in changed else "can be changed by a caller"
+            # The edit follows from the shape, so the system states it rather
+            # than asking the model to infer it from a description.
+            remedy = (
+                f"The change is to default {arg.arg} to None and build a fresh "
+                f"one inside: `def {node.name}(..., {arg.arg}=None)` with "
+                f"`{arg.arg} = {'[]' if kind == 'list' else '{}' if kind == 'dict' else kind + '()'} "
+                f"if {arg.arg} is None else {arg.arg}` as the first line of the body."
+            )
             found.append(
                 CarriedState(
                     file=shown,
@@ -125,6 +138,7 @@ def _in_one_file(path: Path, root: Path) -> list[CarriedState]:
                     function=node.name,
                     name=arg.arg,
                     kind="default argument",
+                    remedy=remedy,
                     detail=(
                         f"{node.name}({arg.arg}=...) defaults to a {kind} built once, when "
                         f"the function was defined. Every call that leaves {arg.arg} out gets "
@@ -144,6 +158,10 @@ def _in_one_file(path: Path, root: Path) -> list[CarriedState]:
                     detail=(
                         f"{name} is defined once at the top of {shown} and {node.name} changes "
                         f"it in place, so every call adds to what the calls before it left."
+                    ),
+                    remedy=(
+                        f"The change is for {node.name} to work on its own copy, or for "
+                        f"{name} to be created per call rather than at import."
                     ),
                 )
             )

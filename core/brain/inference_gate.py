@@ -2171,6 +2171,24 @@ async def _refuse_a_cold_protected_lane(
     return _seam_early_response
 
 
+#: What a turn keeps back so it can say what the tools found. Sized for a short
+#: answer over an evidence block on the resident model, not for a fresh essay.
+_ANSWER_RESERVE_S = 45.0
+
+#: Below this the tool loop cannot complete a single call, so squeezing it
+#: further trades one failure for another.
+_TOOL_LOOP_FLOOR_S = 20.0
+
+
+def _tool_loop_budget(timeout_s: Any) -> float:
+    """How long the tool loop may run, leaving enough to report what it found."""
+    try:
+        whole = float(timeout_s)
+    except (TypeError, ValueError):
+        return _TOOL_LOOP_FLOOR_S
+    return max(_TOOL_LOOP_FLOOR_S, whole - _ANSWER_RESERVE_S)
+
+
 def _tools_within_reach(
     tools: dict, allowed_scopes: object
 ) -> tuple[dict, tuple[str, ...]]:
@@ -8086,7 +8104,17 @@ class InferenceGate:
                     # rebuilt from memory, and got a 400.
                     evidence=evidence,
                 ),
-                timeout=max(20.0, float(timeout_s)),
+                # The tool loop's job is to GET the evidence; the reply's job
+                # is to SAY it, and evidence nobody can say is worth nothing.
+                #
+                # LIVE, 2026-08-27: a repository diagnosis ran in 389ms and
+                # came back complete — the contradiction, the line, the
+                # project's own broken invariant. The tool-calling pass had
+                # taken 65s of a 148s turn and the presenting pass was refused
+                # before dispatch, "because the request budget was already
+                # spent". The answer was in hand and there was no time left to
+                # say it.
+                timeout=_tool_loop_budget(timeout_s),
             )
         except (TimeoutError, asyncio.CancelledError) as exc:
             record_degradation(
