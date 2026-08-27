@@ -917,6 +917,68 @@ async def _take_the_run_its_bearings(
         )
 
 
+async def _why_nothing_answers(mine: str) -> str:
+    """Why nothing she does is changing anything, before blaming the thing.
+
+    A world that has stopped answering and a world she cannot reach look
+    identical from inside the loop: keys reported sent, her window reported in
+    front, and nothing moving. LIVE 2026-08-26, a system permission dialog sat
+    above every window, took the keyboard, and swallowed every keystroke for
+    an hour — and what she said was that the game had ended.
+
+    Something else holding the keyboard is a different thing from a thing that
+    is finished, and it has a different answer: one of them somebody can fix.
+    """
+    on_top = await _whats_on_top(mine)
+    if on_top:
+        return (
+            f"Nothing I do is reaching this — {on_top} is in front of it and taking "
+            "the keyboard. Nothing I press is getting through."
+        )
+    return "Nothing I do is changing anything here — this attempt is over."
+
+
+async def _whats_on_top(mine: str) -> str:
+    """What is above her window, when something is.
+
+    Read from the window server rather than from what claims to be frontmost:
+    a dialog can sit above everything while the application underneath is
+    still the frontmost one, which is exactly the case that fools every other
+    check.
+    """
+    try:
+        import Quartz  # noqa: PLC0415
+
+        windows = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="could not see what is on top"
+        )
+        return ""
+    ours = str(mine or "").strip().lower()
+    above: list[str] = []
+    for window in windows or []:
+        try:
+            layer = int(window.get("kCGWindowLayer", 0) or 0)
+            owner = str(window.get("kCGWindowOwnerName", "") or "")
+        except (TypeError, ValueError, AttributeError):
+            continue
+        # Ordinary windows sit at zero. Anything above that is over everything,
+        # including hers, whatever claims to be frontmost.
+        if 0 < layer < ABOVE_EVERYTHING and owner and owner.lower() != ours:
+            above.append(owner)
+    if not above:
+        return ""
+    return sorted(set(above), key=above.index)[0]
+
+
+#: Where the menu bar, the dock and the system's own furniture live. A window
+#: above ordinary windows but below these is something put in front of her.
+ABOVE_EVERYTHING = 20
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -1634,7 +1696,7 @@ async def pursue_on_screen(
                 if ended and not said_it_ended["value"]:
                     said_it_ended["value"] = True
                     if narrate:
-                        _tell("Nothing I do is changing anything here — this attempt is over.")
+                        _tell(await _why_nothing_answers(mine))
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
             # A pace chosen because the commentary was behind ends when it
