@@ -4176,6 +4176,36 @@ def _only_soft_proofs_missing(contract: Any) -> bool:
     )
 
 
+def _authored_answer_can_serve_unfinished(contract: Any) -> bool:
+    """Her own words, at the site that exists because they are unfinished.
+
+    ``_authored_answer_can_serve`` is the full test and it requires the answer
+    to be complete. At the last-resort salvage site that test can never pass:
+    the draft is here precisely because the generation did not finish. Applying
+    it there withholds real authored work and sends an apology instead, and an
+    apology is not more complete than a partial answer — it carries nothing.
+
+    Authorship still has to hold. This admits a reply the model itself wrote
+    and the output contract accepted; it does not admit repair text, runtime
+    substitution or a legacy fallback wearing her voice.
+
+    LIVE, 2026-08-27: 948 characters of a worked derivation were produced,
+    marked incomplete on a deadline, denied the continuation that would have
+    completed them ("live desktop turns stay bounded to one foreground
+    generation"), and then withheld for being incomplete. The person got "I
+    couldn't get to an answer I'd stand behind on that one."
+    """
+
+    return bool(
+        isinstance(contract, dict)
+        and contract.get("authentic_cognitive_reply")
+        and contract.get("final_requested_output_contract_proven")
+        and not contract.get("authorship_replacement_applied")
+        and not contract.get("legacy_fallback_used")
+        and not contract.get("bounded_contract_used")
+    )
+
+
 def _authored_answer_can_serve(contract: Any) -> bool:
     """Keep a valid answer independent from full-system certification state."""
 
@@ -22932,7 +22962,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 if not (
                     salvage_output_proven
-                    and _authored_answer_can_serve(salvage_contract)
+                    and _authored_answer_can_serve_unfinished(salvage_contract)
                 ):
                     logger.warning(
                         "Preserved no-reply draft remained ineligible for delivery; "
@@ -22943,6 +22973,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         or "unknown",
                     )
                     salvaged_no_reply = ""
+                else:
+                    logger.info(
+                        "Serving %d characters of unfinished authored work rather "
+                        "than an apology (unproven=%s).",
+                        len(salvaged_no_reply),
+                        ",".join(
+                            salvage_contract.get("full_mind_missing_proofs") or ()
+                        )
+                        or "none",
+                    )
             # A recall question the model could not answer at all.
             #
             # LIVE 2026-08-17: "what was the first thing I said to you in this
