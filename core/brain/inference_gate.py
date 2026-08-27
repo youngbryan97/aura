@@ -8323,6 +8323,24 @@ class InferenceGate:
             is_user_visible = bool(
                 (foreground_request or self._origin_is_user_facing(origin))
                 and not bool(kwargs.get("health_probe", False))
+                # An answer that is read by code is not a reply to anybody.
+                #
+                # A generation that picks a move gets graded here against a
+                # question invented from its own prompt: numeric_answer_missing,
+                # unanswered_question_part, off_topic_self_reflection_reply —
+                # five reasons at once, none of which is about the thing it was
+                # asked for. It is then thrown away as a failed generation, the
+                # local fallback returns nothing, and she decides without
+                # language on a board she can read perfectly well. LIVE
+                # 2026-08-27, mid-pursuit, on the first move of a run.
+                #
+                # The caller already says so. her_reasoning has passed
+                # internal_inference=True since the last time this bit, and
+                # every other layer honours it; this one was computing user
+                # visibility from where the request came from instead of from
+                # what the answer is for. A move decision inside a foreground
+                # task is foreground and is not a reply.
+                and not bool(kwargs.get("internal_inference", False))
                 and not proof_evaluation_contract
                 and not strict_output_contract
                 and not web_interlocutor_contract
