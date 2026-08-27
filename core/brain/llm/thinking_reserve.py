@@ -37,6 +37,13 @@ _WINDOW = 128
 _PERCENTILE = 0.9
 
 _observed: deque[int] = deque(maxlen=_WINDOW)
+
+#: The largest budget a generation has been given and still not finished
+#: thinking inside. Unlike the window this is a proof rather than a sample: the
+#: channel demonstrably needs more than this, so one observation is enough and
+#: no percentile applies.
+_proved_insufficient = 0
+
 _lock = threading.Lock()
 
 
@@ -66,18 +73,41 @@ def record_reasoning_cost(
         _observed.append(max(0, spent))
 
 
+def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
+    """A generation ended still inside the private channel.
+
+    That is not a sample of what reasoning costs, it is a proof that reasoning
+    cost more than this. It needs no percentile and no second opinion, which
+    matters because the only generations that open the channel are the ones
+    this reserve exists to rescue — so waiting for a window of them to
+    accumulate means every one of them fails first.
+    """
+
+    global _proved_insufficient
+    try:
+        spent = max(0, int(budget_tokens))
+    except (TypeError, ValueError):
+        return
+    with _lock:
+        _proved_insufficient = max(_proved_insufficient, spent)
+
+
 def reserve_tokens() -> int:
     """Tokens to add to an answer budget so reasoning does not eat it.
 
-    Zero until the window holds enough observations to carry a percentile.
+    The larger of what the window has measured and what a generation has
+    already proved to be too little. The window needs enough observations to
+    carry a percentile; the proof needs one.
     """
 
     with _lock:
         seen = sorted(_observed)
-    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
-        return 0
-    index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
-    return max(0, seen[index])
+        proved = _proved_insufficient
+    measured = 0
+    if len(seen) >= _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
+        measured = max(0, seen[index])
+    return max(measured, proved)
 
 
 def observations() -> int:
@@ -90,5 +120,7 @@ def observations() -> int:
 def forget() -> None:
     """Drop what has been learned. For tests and for a model swap."""
 
+    global _proved_insufficient
     with _lock:
         _observed.clear()
+        _proved_insufficient = 0

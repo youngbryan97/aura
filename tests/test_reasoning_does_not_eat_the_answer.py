@@ -88,3 +88,56 @@ def test_the_worker_widens_the_ceiling_only_while_thinking() -> None:
             reasoning_chars=2000, surface_chars=2000, generated_tokens=800
         )
     assert _reasoning_reserve_tokens() == 400
+
+
+def test_a_budget_that_ran_out_thinking_is_a_proof_not_a_sample() -> None:
+    """One observation is enough, because waiting means every one fails first.
+
+    The only generations that open the private channel are the ones this
+    reserve exists to rescue, so a window of them can only accumulate through
+    failures.
+    """
+
+    assert thinking_reserve.reserve_tokens() == 0
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=896)
+    assert thinking_reserve.reserve_tokens() == 896
+
+
+def test_the_proof_keeps_the_largest_budget_that_was_still_too_small() -> None:
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=512)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=1280)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=768)
+    assert thinking_reserve.reserve_tokens() == 1280
+
+
+def test_the_window_wins_when_it_measures_more_than_the_proof() -> None:
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=100)
+    for _ in range(20):
+        thinking_reserve.record_reasoning_cost(
+            reasoning_chars=4000, surface_chars=1000, generated_tokens=2000
+        )
+    assert thinking_reserve.reserve_tokens() == 1600
+
+
+def test_rubbish_proofs_are_dropped() -> None:
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=-5)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens="x")
+    assert thinking_reserve.reserve_tokens() == 0
+
+
+def test_forgetting_drops_the_proof_as_well_as_the_window() -> None:
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
+    assert thinking_reserve.reserve_tokens() == 2048
+    thinking_reserve.forget()
+    assert thinking_reserve.reserve_tokens() == 0
+
+
+def test_only_a_generation_that_thought_teaches_the_window() -> None:
+    """A percentile over mostly-zeros is zero."""
+
+    from pathlib import Path as _Path
+
+    body = _Path("core/brain/llm/mlx_worker.py").read_text()
+    start = body.index("reasoning_chars=len(native_channels.reasoning),")
+    window = body[start - 700 : start]
+    assert "if native_thinking is True:" in window

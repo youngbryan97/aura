@@ -552,6 +552,19 @@ def _answer_is_derived_here(job: dict[str, Any]) -> bool:
     return floor > A_CLOSED_QUESTIONS_FLOOR
 
 
+def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
+    """Tell the reserve this budget was proved too small for the channel."""
+
+    try:
+        from core.brain.llm.thinking_reserve import (
+            record_budget_that_ran_out_thinking,
+        )
+
+        record_budget_that_ran_out_thinking(budget_tokens=budget_tokens)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _reasoning_reserve_tokens() -> int:
     """Tokens the private reasoning channel has been costing, or 0."""
 
@@ -9041,11 +9054,17 @@ def _mlx_worker_loop(
                                             ),
                                         }
                                     )
-                                    _record_reasoning_cost(
-                                        reasoning_chars=len(native_channels.reasoning),
-                                        surface_chars=len(current_response or ""),
-                                        generated_tokens=token_count,
-                                    )
+                                    if native_thinking is True:
+                                        # Only a generation that HAD a private channel says what one
+                                        # costs. Recording the rest fills the window with zeros, and a
+                                        # percentile over mostly-zeros is zero — so the reserve stayed
+                                        # at nothing while the background lanes ran non-thinking
+                                        # generations by the hundred.
+                                        _record_reasoning_cost(
+                                            reasoning_chars=len(native_channels.reasoning),
+                                            surface_chars=len(current_response or ""),
+                                            generated_tokens=token_count,
+                                        )
                                     if native_thinking is True and not native_channels.boundary_closed:
                                         # The budget ran out while the model was still thinking, so
                                         # there is no surface at all. That is a budget failure and not
@@ -9058,6 +9077,7 @@ def _mlx_worker_loop(
                                             len(native_channels.reasoning),
                                             max_tokens,
                                         )
+                                        _record_budget_that_ran_out_thinking(max_tokens)
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
