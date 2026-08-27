@@ -16,6 +16,19 @@ the position each time, because the places something can arrive in are wherever
 there is room, and that changes every move. Nothing here knows what a tile is.
 It knows that things turn up she did not put there, what they tend to say, and
 how often that happens.
+
+Measured 2026-08-27, five games each, run to a dead board, the world model as
+its own axis so what it is worth can be read off rather than inferred:
+
+    random                    best 128    total  288    185 moves
+    her scoring               best 1024   total 1648    822 moves
+    her scoring + this        best 1024   total 1994    996 moves
+    her line                  best 512    total 1074    535 moves
+    her line + this           best 1024   total 2972   1484 moves, max 2048
+
+The last row is the first time anything here has reached a 2048 tile. Held
+against a plan, knowing what the world does between her acts nearly triples
+what a game comes to and doubles how long she stays in it.
 """
 
 from __future__ import annotations

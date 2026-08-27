@@ -883,6 +883,17 @@ def _what_there_is_to_aim_at(reading: Any) -> str:
     way through — which a nearer goal does not, because arriving at one makes
     every situation after it look equally good.
 
+    Measured 2026-08-27, played the way the loop plays it — the goal put
+    through the same gate, six games each, run to a dead board:
+
+        said "the largest"          median 128, and not one look ahead
+        read the ceiling off it     median 768, max 1024, 666 looks ahead
+
+    The first is random. Not because the words are wrong but because nothing
+    downstream can use them: worth_comparing refuses a goal it cannot measure,
+    the search never runs, and every move is a coin toss on a board she can
+    read perfectly well.
+
     Where the things in front of her are not numbers, nothing here invents a
     purpose: it says so, and she goes back to acting and looking.
     """
