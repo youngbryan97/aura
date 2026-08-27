@@ -152,8 +152,49 @@ def _gap(a: int, b: int, seats: int, cyclic: bool) -> int:
     return min(distance, seats - distance) if cyclic else distance
 
 
+#: A problem that lists what it is arranging: "each holds a different one of:
+#: bolts, cable, dye, epoxy, foam". The list IS the entity set, stated.
+_ENUMERATED_RE = re.compile(
+    r"(?:each\s+(?:holds|has|contains|shows|is)\s+"
+    r"(?:a\s+)?(?:different\s+)?(?:one\s+of|of)|"
+    r"one\s+(?:each\s+)?of|"
+    r"in\s+some\s+order)\s*:?\s*"
+    r"([a-z][\w-]*(?:\s*,\s*[a-z][\w-]*)+(?:\s*,?\s*and\s+[a-z][\w-]*)?)",
+    re.IGNORECASE,
+)
+
+
+def _enumerated_entities(text: str) -> list[str]:
+    """The things a problem says it is arranging, when it lists them.
+
+    The reader below finds capitalised words, which is people. This module's
+    own description names shelves and queues among its families, and a shelf
+    holds lowercase things — so a puzzle that spells out its own entity set
+    could not be parsed at all.
+
+    LIVE, 2026-08-27: "Five crates on a shelf... each holds a different one of:
+    bolts, cable, dye, epoxy, foam" found no names, declined, and the model
+    narrated a truncated "Step 1" instead of an answer that enumeration
+    settles in eight lines.
+    """
+    match = _ENUMERATED_RE.search(str(text or ""))
+    if not match:
+        return []
+    listed = re.split(r"\s*,\s*|\s+and\s+", match.group(1))
+    found: list[str] = []
+    for raw in listed:
+        word = raw.strip().strip(".").lower()
+        if not word or word in _NOT_A_NAME or word in found:
+            continue
+        found.append(word)
+    return found if 3 <= len(found) <= MAX_ENTITIES else []
+
+
 def _names(text: str) -> list[str]:
-    """Capitalised words that behave like names in this problem."""
+    """What this problem is arranging: named people, or things it lists."""
+    listed = _enumerated_entities(text)
+    if listed:
+        return listed
     found: list[str] = []
     for match in _NAME_RE.finditer(text):
         name = match.group(1)
@@ -191,6 +232,16 @@ def _seat_count(text: str, names: list[str]) -> int:
     return len(names)
 
 
+#: Ordinals a row puzzle counts with, in order.
+_ORDINALS = (
+    "first", "second", "third", "fourth", "fifth",
+    "sixth", "seventh", "eighth", "ninth", "tenth",
+)
+
+#: Counts a premise spells out.
+_COUNT_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight")
+
+
 def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> list[Constraint]:
     known = {name.lower(): name for name in names}
     if not known:
@@ -220,7 +271,25 @@ def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
         solo = re.findall(rf"\b({alternation})\b", sentence, re.IGNORECASE)
         if not cyclic and len(set(name.lower() for name in solo)) == 1:
             who = known[solo[0].lower()]
-            if re.search(r"\b(?:either\s+end|one\s+of\s+the\s+(?:two\s+)?ends|an?\s+end)\b", lowered):
+            # An ordinal counted from a side: "the crate second from the left
+            # holds cable", "third from the right". Row puzzles are half made
+            # of these and none of them parsed.
+            ordinal = re.search(
+                r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b"
+                r"[^.?!]{0,20}?\bfrom\s+the\s+(left|right)\b",
+                lowered,
+            )
+            if ordinal and not sentence_negated:
+                index = _ORDINALS.index(ordinal.group(1))
+                if ordinal.group(2) == "left":
+                    add(sentence, lambda s, n, a=who, i=index: s[a] == i)
+                else:
+                    add(sentence, lambda s, n, a=who, i=index: s[a] == n - 1 - i)
+                continue
+            if re.search(
+                r"\b(?:either\s+end|one\s+end|one\s+of\s+the\s+(?:two\s+)?ends|an?\s+end)\b",
+                lowered,
+            ):
                 if sentence_negated:
                     add(sentence, lambda s, n, a=who: 0 < s[a] < n - 1)
                 else:
@@ -255,6 +324,26 @@ def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
         clause = " ".join(sentence.split()).lower()
         middle = pair.group("mid").lower()
         negated = bool(re.search(r"\b(?:not|never|n't|no)\b", clause))
+
+        # "There are exactly two crates between the bolts and the foam."
+        #
+        # A count of things BETWEEN two entities fixes the distance at that
+        # count plus one, and it is one of the commonest premises a row puzzle
+        # states. Nothing here read it, so a five-premise puzzle parsed two.
+        gap = re.search(
+            r"\b(?:exactly\s+)?(one|two|three|four|five|six|seven|eight|1|2|3|4|5|6|7|8)\s+"
+            r"\w{0,14}?\s*between\b",
+            clause,
+        )
+        if gap and not cyclic:
+            spoken = gap.group(1)
+            count = int(spoken) if spoken.isdigit() else _COUNT_WORDS.index(spoken) + 1
+            distance = count + 1
+            if negated:
+                add(sentence, lambda s, n, a=first, b=second, d=distance: abs(s[a] - s[b]) != d)
+            else:
+                add(sentence, lambda s, n, a=first, b=second, d=distance: abs(s[a] - s[b]) == d)
+            continue
 
         if re.search(r"\bopposite\b", clause):
             if seats % 2 == 0 and cyclic:
@@ -400,16 +489,24 @@ def _questions(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
     # was cut off mid-reasoning.
     if re.search(
         r"\bwho\s+sits\s+where\b"
-        r"|\bwhat\s+is\s+the\s+(?:order|arrangement|seating)\b"
+        r"|\bwhat\s+is\s+the\s+(?:order|arrangement|seating|layout)\b"
         r"|\bwhere\s+(?:does|do)\s+(?:each|everyone|everybody)\b"
-        r"|\bwork\s+out\s+the\s+(?:order|arrangement|seating)\b"
-        r"|\b(?:give|tell)\s+me\s+the\s+(?:order|arrangement|seating)\b",
+        r"|\bwork\s+out\s+the\s+(?:order|arrangement|seating|layout)\b"
+        r"|\b(?:give|tell)\s+me\s+the\s+(?:order|arrangement|seating|layout)\b"
+        # A shelf is asked about differently from a dinner table: "which crate
+        # holds what", "what goes where", "which shelf has which". The forms
+        # above are all about people sitting, and this module's own
+        # description names shelves and queues among its families.
+        r"|\bwhich\s+\w{2,14}\s+(?:holds|has|contains|gets|is)\s+"
+        r"(?:what|which|where)\b"
+        r"|\bwhat\s+(?:goes|is)\s+where\b"
+        r"|\bwhich\s+is\s+which\b",
         text,
         re.IGNORECASE,
     ):
         asked.append(
             Question(
-                "the seating order",
+                "the order, left to right",
                 "",
                 "arrangement",
                 lambda s, n: tuple(
@@ -541,8 +638,20 @@ def describe_positional_answer(answer: PositionalAnswer | None) -> str:
         label = asked[:1].upper() + asked[1:]
         if len(spoken) == 1:
             lines.append(f"{label}: {spoken[0]}.")
+        elif asked.startswith("the order"):
+            # An ordered answer is a sequence, not a set. Joining five things
+            # with "and" between every pair reads as a list of neighbours
+            # rather than as first, second, third — and the whole point of the
+            # answer is which position each one is in.
+            lines.append(
+                f"{label}: " + ", ".join(
+                    f"{index}. {name}" for index, name in enumerate(spoken, start=1)
+                ) + "."
+            )
+        elif len(spoken) == 2:
+            lines.append(f"{label}: {spoken[0]} and {spoken[1]}.")
         else:
-            lines.append(f"{label}: {' and '.join(spoken)}.")
+            lines.append(f"{label}: {', '.join(spoken[:-1])} and {spoken[-1]}.")
     for asked, readings in answer.alternatives:
         label = asked[:1].upper() + asked[1:]
         shown = "; ".join(
