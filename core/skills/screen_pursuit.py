@@ -1729,8 +1729,15 @@ async def pursue_on_screen(
             # which cannot use a band it has not worked out yet.
             pending["watched"] = observation
 
-        moves.append({"key": key, "because": because, "at": time.time()})
-        doing.a_step_taken()
+        # The first move is recorded when it lands, like every other one.
+        #
+        # Written here, before the body was asked to do anything, it counted
+        # whether or not the keystroke reached a window. LIVE 2026-08-26:
+        # thirty-five moves in the record, a board that had not changed once,
+        # and no correction said out loud — because only the FOLLOW-ONS of a
+        # sequence were written from what landed, and a plan of one has no
+        # follow-ons.
+        about_to = {"key": key, "because": because, "at": time.time()}
         # Nothing is said here on purpose.
         #
         # Every decision is published to the deliberation stream as it is
@@ -1795,10 +1802,15 @@ async def pursue_on_screen(
                 arrived = await press_many(sequence, expect_app=target_app or anchor["app"])
             else:
                 arrived = 1 if await press(key, expect_app=target_app or anchor["app"]) else 0
-            for step in sequence[:arrived]:
-                if step != key:
-                    moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
-                    doing.a_step_taken()
+            for position, step in enumerate(sequence[:arrived]):
+                if position == 0:
+                    about_to["at"] = time.time()
+                    moves.append(about_to)
+                else:
+                    moves.append(
+                        {"key": step, "because": "part of the same plan", "at": time.time()}
+                    )
+                doing.a_step_taken()
             for step in sequence[arrived:]:
                 # An intention she stated and did not carry out is corrected
                 # out loud. The record of what she did is written only from
