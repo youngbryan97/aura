@@ -1318,7 +1318,7 @@ async def pursue_on_screen(
         seen = within(observation, band, responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
-        laid_out = what_is_there(observation, band)
+        laid_out = what_is_there(observation, band, like=pending["arranged"])
 
         # Is this the thing she was asked to act in.
         #

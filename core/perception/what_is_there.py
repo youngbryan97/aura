@@ -70,6 +70,10 @@ class Arrangement:
     rows: int
     columns: int
     cells: tuple[Cell, ...]
+    #: Where the columns and rows were found to be, so a later reading of the
+    #: same thing can be placed in the same grid rather than inferring its own.
+    down_at: tuple[float, ...] = ()
+    across_at: tuple[float, ...] = ()
 
     # ── what is where ────────────────────────────────────────────────────
 
@@ -203,17 +207,30 @@ class Arrangement:
         return " ".join(parts)
 
 
-def arranged(cells: Iterable[tuple[float, float, str]]) -> Arrangement:
+def arranged(
+    cells: Iterable[tuple[float, float, str]], like: "Arrangement | None" = None
+) -> Arrangement:
     """Work out the rows and columns that are really there.
 
     Both are found from the spacing present rather than from a fixed
     tolerance: whatever the thing is, the gaps within one of its rows are
     smaller than the gap to the next row, and a reading of a four-column board
     and a reading of a twelve-column timetable both say so themselves.
+
+    ``like`` is the last reading of the same thing. A shape is a property of
+    the thing and not of one glance at it: a four-by-four board whose top row
+    happens to be empty reads as four-by-three, and two readings that disagree
+    about the shape cannot be compared at all. LIVE 2026-08-26: five of twelve
+    readings unusable, and she could work out nothing about how the board
+    moved. Given the last one, a reading that fits inside it is placed in it.
     """
     placed = sorted((y, x, said) for y, x, said in cells if str(said or "").strip())
     if not placed:
         return Arrangement(rows=0, columns=0, cells=())
+
+    kept = _placed_in(placed, like)
+    if kept is not None:
+        return kept
 
     tolerance = _typical_gap([y for y, _x, _said in placed]) * 0.5
     banded: list[list[tuple[float, str]]] = []
@@ -242,7 +259,13 @@ def arranged(cells: Iterable[tuple[float, float, str]]) -> Arrangement:
             found.append(
                 Cell(row=index, column=_nearest(x, columns), says=said, at=(x, 0.0))
             )
-    return Arrangement(rows=len(banded), columns=len(columns), cells=tuple(found))
+    return Arrangement(
+        rows=len(banded),
+        columns=len(columns),
+        cells=tuple(found),
+        down_at=tuple(row[0][0] for row in [] ) or _row_edges(banded, placed),
+        across_at=columns,
+    )
 
 
 def _typical_gap(values: Sequence[float]) -> float:
@@ -304,3 +327,50 @@ def holds_in(
             if at_place not in where:
                 return False, f"{want} is {' and '.join(sorted(where))}, not {at_place}"
     return True, ""
+
+
+def _row_edges(
+    banded: list[list[tuple[float, str]]], placed: list[tuple[float, float, str]]
+) -> tuple[float, ...]:
+    """Where each row was found to be, in the order they run."""
+    edges: list[float] = []
+    seen = 0
+    for row in banded:
+        ys = [y for y, _x, _said in placed[seen : seen + len(row)]]
+        seen += len(row)
+        if ys:
+            edges.append(sum(ys) / len(ys))
+    return tuple(edges)
+
+
+def _placed_in(
+    placed: list[tuple[float, float, str]], like: Arrangement | None
+) -> Arrangement | None:
+    """This reading laid into the grid the last one found, when it fits.
+
+    Only when everything in it lands on a row and a column the last reading
+    knew about, and no two things land in the same place. Anything else is a
+    different thing, or the same thing rearranged, and inferring its own shape
+    is the honest answer.
+    """
+    if like is None or not like.down_at or not like.across_at:
+        return None
+    rows, columns = like.down_at, like.across_at
+    room = _typical_gap(sorted(rows)) if len(rows) > 1 else 1.0
+    reach = _typical_gap(sorted(columns)) if len(columns) > 1 else 1.0
+    found: dict[tuple[int, int], Cell] = {}
+    for y, x, said in placed:
+        row, column = _nearest(y, rows), _nearest(x, columns)
+        if abs(rows[row] - y) > room or abs(columns[column] - x) > reach:
+            return None
+        where = (row, column)
+        if where in found:
+            return None
+        found[where] = Cell(row=row, column=column, says=str(said).strip(), at=(x, y))
+    return Arrangement(
+        rows=len(rows),
+        columns=len(columns),
+        cells=tuple(found.values()),
+        down_at=rows,
+        across_at=columns,
+    )

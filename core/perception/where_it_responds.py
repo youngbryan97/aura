@@ -338,6 +338,7 @@ def within(
 def what_is_there(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
+    like: Arrangement | None = None,
 ) -> Arrangement:
     """The same reading as :func:`within`, with a place for each thing in it.
 
@@ -361,7 +362,7 @@ def what_is_there(
         left, top, right, bottom = band
         if left <= x <= right and top <= y <= bottom:
             inside.append((y, x, said))
-    return arranged(inside)
+    return arranged(inside, like=like)
 
 
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:

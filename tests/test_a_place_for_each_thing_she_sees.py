@@ -177,3 +177,45 @@ def test_one_thing_is_a_place_of_its_own():
     only = arranged([(0.5, 0.5, "OK")])
     assert (only.rows, only.columns) == (1, 1)
     assert only.as_text() == "OK"
+
+
+# ── a shape belongs to the thing, not to one glance at it ────────────────
+
+FULL = [
+    (0.20 + r * 0.15, 0.20 + c * 0.15, said)
+    for r, row in enumerate([["2", "4", "8", "16"], ["4", "8", "2", "4"],
+                             ["8", "2", "4", "8"], ["2", "4", "8", "2"]])
+    for c, said in enumerate(row)
+]
+TOP_ROW_EMPTY = [cell for cell in FULL if cell[0] > 0.25]
+
+
+def test_a_reading_with_an_empty_edge_row_reads_smaller_on_its_own():
+    """Which is why two readings of one board could not be compared."""
+    assert arranged(TOP_ROW_EMPTY).rows == 3
+
+
+def test_the_last_reading_of_the_same_thing_gives_it_its_shape():
+    placed = arranged(TOP_ROW_EMPTY, like=arranged(FULL))
+    assert (placed.rows, placed.columns) == (4, 4)
+    assert placed.row_at(0) == (None, None, None, None)
+
+
+def test_the_things_in_it_keep_their_places():
+    placed = arranged(TOP_ROW_EMPTY, like=arranged(FULL))
+    assert placed.at(1, 0).says == "4"
+    assert placed.at(3, 3).says == "2"
+
+
+def test_a_different_thing_is_not_forced_into_the_old_shape():
+    elsewhere = arranged([(0.90, 0.90, "x"), (0.95, 0.95, "y")], like=arranged(FULL))
+    assert (elsewhere.rows, elsewhere.columns) == (2, 2)
+
+
+def test_two_things_landing_in_one_place_means_it_is_not_that_shape():
+    crowded = arranged([(0.20, 0.20, "a"), (0.205, 0.205, "b")], like=arranged(FULL))
+    assert crowded.rows != 4 or crowded.columns != 4
+
+
+def test_with_no_previous_reading_it_infers_its_own():
+    assert arranged(TOP_ROW_EMPTY, like=None).rows == 3
