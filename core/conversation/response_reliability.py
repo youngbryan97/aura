@@ -3347,6 +3347,7 @@ _MAX_PLAUSIBLE_USER_TURN_CHARS = 2000
 _REQUEST_COVERAGE_REASONS = frozenset(
     {
         "missing_requested_exact_reply",
+        "missing_requested_bare_answer",
         "missing_requested_word_count",
         "missing_requested_sentence_count",
         "missing_requested_reference_value",
@@ -3683,6 +3684,36 @@ def _missing_requested_memory_limit_coverage(user_message: Any, reply_text: Any)
     )
 
 
+#: How long a bare answer can be and still be bare. A name, a number, a date
+#: or a short phrase, with room for the article and a full stop — not a
+#: sentence of context around it.
+A_BARE_ANSWER = 12
+
+#: Ways of asking for the answer and nothing else.
+#:
+#: This is how people ordinarily ask for it. Only explicit counts were
+#: recognised, so "just the name" was heard as no instruction at all: LIVE
+#: 2026-08-27, "Look up who won the 2026 Turing Award and tell me just the
+#: name" came back with three hundred and sixty characters, most of them
+#: pasted from the page.
+_BARE_ANSWER_REQUEST_RE = re.compile(
+    r"\b(?:tell|give|say|send|reply|respond|answer|name|show)\s+(?:me\s+)?"
+    r"(?:with\s+)?(?:just|only|simply)\b"
+    r"|\b(?:just|only)\s+(?:the|its|his|her|their|a|an)\s+"
+    r"(?:name|answer|number|word|date|title|value|result|figure)\b"
+    r"|\b(?:the\s+)?(?:name|answer|number|word|date|title|value|result)\s+only\b"
+    r"|\bnothing\s+else\b"
+    r"|\bno\s+(?:preamble|explanation|commentary|extra)\b"
+    r"|\bone\s+word\s+(?:answer|only)\b",
+    re.IGNORECASE,
+)
+
+
+def _asked_for_a_bare_answer(user_message: Any) -> bool:
+    """Whether the request asked for the answer and nothing around it."""
+    return bool(_BARE_ANSWER_REQUEST_RE.search(str(user_message or "")))
+
+
 def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[str]:
     user = visible_user_request(user_message)
     reply = str(reply_text or "").strip()
@@ -3693,6 +3724,9 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     exact_target = requested_exact_reply_target(user)
     if exact_target and not _matches_exact_reply_request(user, reply):
         reasons.append("missing_requested_exact_reply")
+
+    if _asked_for_a_bare_answer(user) and _word_count(reply) > A_BARE_ANSWER:
+        reasons.append("missing_requested_bare_answer")
 
     requested_word_range = _requested_word_count_range(user)
     if requested_word_range:

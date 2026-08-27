@@ -1645,6 +1645,7 @@ _REQUIREMENT_SHORTFALL_REASONS = frozenset(
 
 _REQUIREMENT_SHORTFALL_LABELS = {
     "missing_requested_phrase": "include a phrase you asked for",
+    "missing_requested_bare_answer": "give the answer on its own, as asked",
     "missing_requested_word_count": "hit the word count you asked for",
     "missing_requested_sentence_count": "hit the sentence count you asked for",
     "missing_requested_reference_value": "include a reference value you asked for",
