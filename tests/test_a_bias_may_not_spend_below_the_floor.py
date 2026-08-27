@@ -51,3 +51,46 @@ def test_the_multiplier_still_has_a_smallest_factor() -> None:
     # The bias keeps its own range; the floor is a second, independent bound.
     body = _GATE.read_text()
     assert re.search(r"0\.40 <= factor <= 1\.20", body)
+
+
+def test_the_floor_covers_the_same_turns_the_multiplier_does() -> None:
+    """A hard question routed to the deliberate lane still gets a floor.
+
+    LIVE, 2026-08-27: the deliberate lane carried no desktop contract, so the
+    floor did not apply and the model was dispatched with 128 tokens for a
+    question the quick lane had given 896. Choosing the right lane made the
+    budget worse.
+    """
+
+    body = _GATE.read_text()
+    start = body.index("_foreground_answer_turn = (")
+    guard = body[start : start + 400]
+    for condition in (
+        "not is_background",
+        "self._origin_is_user_facing(origin)",
+        "not isolated_generation_contract",
+        "not health_probe",
+        "not benchmark_request",
+        "not proof_evaluation_contract",
+        "not strict_answer_contract",
+    ):
+        assert condition in guard, condition
+    assert "desktop_cognitive_engine_contract or _foreground_answer_turn" in body
+
+
+def test_a_declared_ceiling_and_a_blocked_stake_still_win() -> None:
+    body = _GATE.read_text()
+    start = body.index("desktop_cognitive_engine_contract or _foreground_answer_turn")
+    window = body[start : start + 300]
+    assert 'context.get("hard_output_token_ceiling", False)' in window
+    assert 'context.get("resource_stakes_blocked", False)' in window
+
+
+def test_a_discarded_draft_is_written_down() -> None:
+    """A gate that destroys an answer records what it destroyed."""
+
+    client = Path("core/brain/llm/mlx_client.py").read_text()
+    start = client.index("Worker rejected the visible draft for semantic ")
+    window = client[start - 1400 : start + 700]
+    assert "draft_chars=%d head=%r tail=%r" in window
+    assert "_rejected_surface_draft(" in window

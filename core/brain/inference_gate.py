@@ -11913,8 +11913,30 @@ class InferenceGate:
             except (TypeError, ValueError, OverflowError):
                 explicit_max_tokens_cap = None
         surface_completion_floor = 0
+        # How much room an answer needs is a property of the question, not of
+        # the path that happens to serve it.
+        #
+        # LIVE, 2026-08-27: a question that had to be worked out was routed to
+        # the deliberate lane BECAUSE it was hard, and that lane carried no
+        # desktop contract, so the floor did not apply and the model was
+        # dispatched with 128 tokens. The quick lane, for the same question,
+        # got 896. Choosing the right lane made the budget worse.
+        #
+        # The population is the one the sampling multiplier below already acts
+        # on: user-facing foreground generations. One gate lowers the budget
+        # and one floors it, and they now cover the same turns. A declared
+        # output ceiling and a blocked resource stake still win, as before.
+        _foreground_answer_turn = (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and not isolated_generation_contract
+            and not health_probe
+            and not benchmark_request
+            and not proof_evaluation_contract
+            and not strict_answer_contract
+        )
         if (
-            desktop_cognitive_engine_contract
+            (desktop_cognitive_engine_contract or _foreground_answer_turn)
             and not bool(context.get("hard_output_token_ceiling", False))
             and not bool(context.get("resource_stakes_blocked", False))
         ):

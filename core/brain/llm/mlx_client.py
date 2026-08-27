@@ -15202,10 +15202,32 @@ class MLXLocalClient:
                             self.get_last_surface_control_receipt()
                         ),
                     )
+                    # A gate that destroys an answer has to say what it
+                    # destroyed. Without the text, a rejection is a label:
+                    # nothing downstream, and nobody reading the log later, can
+                    # tell a correct answer thrown away from a bad one caught.
+                    #
+                    # LIVE, 2026-08-27: a worked-through arithmetic derivation
+                    # was rejected for internal_task_prompt_leak after two
+                    # minutes of generation, and none of the three leak
+                    # detectors fired on the text that had been served for the
+                    # same question one turn earlier. The draft was preserved
+                    # in memory as recovery evidence and never written down, so
+                    # the reason it was rejected could not be reproduced.
+                    _rejected_text = str(
+                        _rejected_surface_draft(
+                            self.get_last_surface_control_receipt()
+                        )
+                        or ""
+                    )
                     logger.warning(
                         "🛡️ [MLX] Worker rejected the visible draft for semantic "
-                        "quality (%s); preserving the resident lane.",
+                        "quality (%s); preserving the resident lane. "
+                        "draft_chars=%d head=%r tail=%r",
                         ",".join(quality_rejection_reasons),
+                        len(_rejected_text),
+                        _rejected_text[:400],
+                        _rejected_text[-200:] if len(_rejected_text) > 400 else "",
                     )
                     return None
                 if not text and not cooperative_stop:
