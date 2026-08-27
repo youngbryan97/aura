@@ -72,3 +72,19 @@ def test_and_the_builder_still_answers_about_now():
     )
 
     assert grounded("what tools can you use") != ""
+
+
+def test_a_comparison_is_not_classified_as_an_inventory_question_at_all():
+    """Guarding the builder was too late: the turn had already been routed."""
+    from core.phases.response_contract import looks_like_capability_inventory_request as inv
+
+    assert not inv("What are you able to do that you could not do a month ago?")
+    assert not inv("what can you do now that you could not before")
+    assert not inv("what new abilities do you have")
+
+
+def test_and_a_question_about_now_still_is():
+    from core.phases.response_contract import looks_like_capability_inventory_request as inv
+
+    assert inv("what tools can you use")
+    assert inv("list your capabilities")

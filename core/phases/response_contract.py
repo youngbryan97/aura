@@ -734,6 +734,17 @@ def _looks_like_search_capability_question(text: str) -> bool:
     return bool(_SEARCH_CAPABILITY_QUESTION_RE.search(raw))
 
 
+#: A question naming a time other than now, and so asking for a comparison.
+_NAMES_ANOTHER_TIME = re.compile(
+    r"\b(?:used\s+to|before|previously|since|"
+    r"(?:a|last|this|the\s+past)\s+(?:month|week|year|day)|"
+    r"yesterday|earlier|recently|lately|now\s+that|"
+    r"could\s*n(?:o|\u2019|\')?t|couldn\'?t|were\s*n(?:o|\u2019|\')?t|"
+    r"did\s*n(?:o|\u2019|\')?t|chang\w+|differen\w+|improv\w+|new(?:ly)?)\b",
+    re.IGNORECASE,
+)
+
+
 def looks_like_capability_inventory_request(text: str) -> bool:
     raw = str(text or "").strip()
     if not raw:
@@ -742,6 +753,17 @@ def looks_like_capability_inventory_request(text: str) -> bool:
         return False
     lowered = raw.lower()
     if re.search(r"\b(?:do it|go ahead|actually do|perform|execute this|start now)\b", lowered):
+        return False
+    if _NAMES_ANOTHER_TIME.search(raw):
+        # A question that names two times is not a question about now.
+        #
+        # An inventory measures one moment. "What can you do that you could
+        # not do a month ago" asks what is different, and a list of what is
+        # there today answers half of it while looking like a whole answer —
+        # LIVE 2026-08-26, twice, because the first fix guarded the builder
+        # and the turn had already been routed by then. Held here, where the
+        # question is read, so nothing downstream is asked for something it
+        # cannot give.
         return False
     return bool(_CAPABILITY_INVENTORY_RE.search(raw))
 
