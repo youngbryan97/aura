@@ -373,6 +373,45 @@ def _named_app(text: str) -> str:
     return named.group(1).strip() if named else ""
 
 
+def apps_named_in(text: str) -> tuple[str, ...]:
+    """Applications a phrase could be naming, likeliest first.
+
+    A phrase is not an application name. "open it in the browser" is a
+    sentence, and the application in it is the browser — but handed over whole
+    it is looked up as though somebody had installed something called "it in
+    the browser". LIVE 2026-08-27: exactly that, and the run stopped one step
+    from the thing it was asked to do.
+
+    "The browser" names no product, so every browser is a candidate and
+    whichever is really installed answers. Nothing here decides that: this
+    reads the words, and the caller finds out what is there.
+    """
+    said = str(text or "").strip()
+    if not said:
+        return ()
+    named = _named_app(said)
+    if named:
+        return (named,)
+    lowered = said.lower()
+    if re.search(r"\bbrowsers?\b", lowered):
+        # Whichever of these is actually here. Ordered by how common they are
+        # on a Mac, not by preference.
+        return ("Safari", "Google Chrome", "Firefox", "Microsoft Edge", "Arc", "Brave Browser")
+    # A phrase with a preposition in it is a sentence about an app rather than
+    # the name of one, and the name is what comes before the preposition.
+    head = re.split(r"\b(?:in|on|at|with|using|from|into)\b", said, maxsplit=1)[0].strip(" .,'\"")
+    if head and head.lower() not in _NOT_AN_APP and head.lower() != lowered:
+        return (head,)
+    return ()
+
+
+#: Words that name no application, however they are dressed up.
+_NOT_AN_APP = frozenset({
+    "it", "this", "that", "them", "one", "the app", "the application", "the window",
+    "the page", "the site", "the thing",
+})
+
+
 def _keys_for(text: str) -> tuple[str, ...]:
     lowered = text.lower()
     # Word boundaries: "form" sits inside "conformance" and "performance".

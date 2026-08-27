@@ -4268,6 +4268,24 @@ end tell
                 )
                 app_target = resolution.resolved
                 if not resolution.launchable:
+                    # A phrase is not an application name. Read the words for
+                    # what they name, and try whatever they could be naming.
+                    from core.runtime.watched_goal import apps_named_in
+
+                    for candidate in apps_named_in(params.target):
+                        if candidate.strip().lower() == str(params.target or "").strip().lower():
+                            continue
+                        again = await asyncio.to_thread(resolve_installed_app_target, candidate)
+                        if again.launchable:
+                            logger.info(
+                                "%r is not an application; %r is what it names",
+                                params.target,
+                                again.resolved,
+                            )
+                            resolution = again
+                            app_target = again.resolved
+                            break
+                if not resolution.launchable:
                     return {
                         "ok": False,
                         "status": "application_not_found",
