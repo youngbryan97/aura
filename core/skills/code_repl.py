@@ -396,6 +396,31 @@ def _record_repl_degradation(
     )
 
 
+#: What the restricted runner removes. A snippet that needs one of these is
+#: outside what that strategy can run, whatever the program itself is doing.
+_STRIPPED_BUILTINS = (
+    "__import__ not found",
+    "name 'open' is not defined",
+    "name 'eval' is not defined",
+    "name 'exec' is not defined",
+    "name 'compile' is not defined",
+    "name 'globals' is not defined",
+    "name 'locals' is not defined",
+    "name '__import__' is not defined",
+)
+
+
+def _is_a_sandbox_limit(result: dict[str, Any]) -> bool:
+    """Whether this failure is the sandbox refusing rather than the code failing."""
+    if result.get("ok"):
+        return False
+    said = " ".join(
+        str(result.get(key) or "")
+        for key in ("stderr", "error", "traceback", "summary")
+    )
+    return any(marker in said for marker in _STRIPPED_BUILTINS)
+
+
 class CodeREPLInput(BaseModel):
     code: str = Field(..., description="Python code to execute in the REPL.")
     session_id: str | None = Field(
@@ -489,6 +514,26 @@ class CodeREPLSkill(BaseSkill):
         result = await self._execute_via_sandbox_runner(
             code, timeout_s, session_dir
         )
+        # A strategy that CANNOT run this code has not run it.
+        #
+        # The restricted runner strips __import__, open, eval and the rest, so
+        # any snippet that imports anything comes back
+        # ImportError('__import__ not found'). That is the sandbox refusing,
+        # not the program being wrong, and returning it as the result stopped
+        # the chain at its most restricted link.
+        #
+        # LIVE, 2026-08-27: "read these docs, then actually use the library"
+        # got through routing, offering, leasing, permission and the executive
+        # — five separate fixes — reached this skill, and died here, on a
+        # description that calls itself "the exact equivalent of a
+        # code_execution/code_interpreter tool".
+        if result is not None and _is_a_sandbox_limit(result):
+            logger.info(
+                "code_repl: the restricted runner cannot run this snippet (%s); "
+                "falling through to the next strategy.",
+                str(result.get("stderr") or result.get("error") or "")[:120],
+            )
+            result = None
 
         if result is None:
             # Strategy 2: Use SandboxOperator (fallback)
