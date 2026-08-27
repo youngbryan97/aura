@@ -111,6 +111,20 @@ _HOST_SUBJECT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: The machine named as WHERE she is, rather than as what is being asked about.
+#:
+#: "What are you able to do on this machine" names the machine the way "in
+#: this room" names a room: it is the setting, and the question is about her.
+#: LIVE 2026-08-26: answered "The machine is at 0.0% processor and 66.0%
+#: memory right now." A preposition is the difference between a subject and a
+#: place, and it is the same difference in any sentence.
+_THE_PLACE_SHE_IS = re.compile(
+    r"\b(?:on|in|at|with|using|from|onto|inside)\s+"
+    r"(?:this|that|the|my|your|our|a|an|his|her|their)?\s*"
+    r"(?:machine|host|hardware|box|laptop|computer|mac|desktop)\b",
+    re.IGNORECASE,
+)
+
 #: Whether the turn is asking about her own condition.
 #:
 #: The patterns above are the floor. This is the mechanism, because which
@@ -253,10 +267,19 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # channel and an unrelated turn count answered it instead.
     # Naming a resource of the machine under her, and tying it to her, IS the
     # question — "how much memory are you using" needs no word for enquiry.
-    about_her_host = bool(_HOST_SUBJECT_RE.search(asked)) and bool(_RUNS_ON_RE.search(asked))
-    about_her = bool(_SELF_SUBJECT_RE.search(asked)) or about_her_host
+    # The machine as the subject, not the machine as the address.
+    #
+    # Stripped before the subject is read, because "on this machine" is a
+    # setting the way "in this room" is: the question is about whoever is in
+    # it. What is left after the setting is removed is what is being asked
+    # about.
+    subject = _THE_PLACE_SHE_IS.sub(" ", asked)
+    about_her_host = bool(_HOST_SUBJECT_RE.search(subject)) and bool(
+        _RUNS_ON_RE.search(subject)
+    )
+    about_her = bool(_SELF_SUBJECT_RE.search(subject)) or about_her_host
     settled = about_her_host or (
-        about_her and bool(_TROUBLE_RE.search(asked) or _STATE_ENQUIRY_RE.search(asked))
+        about_her and bool(_TROUBLE_RE.search(subject) or _STATE_ENQUIRY_RE.search(subject))
     )
     surface = _condition_surface()
     if surface is None:
