@@ -293,10 +293,14 @@ def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> R
     traced = None
     if not failures:
         for way in ways:
-            if way.kind == "entry point":
+            if way.kind != "entry point":
+                continue
+            # ways[0] may already BE the entry point, and running it twice put
+            # "python run.py and python run.py" in the report.
+            if way is not ways[0]:
                 observations.append(observe(root, way))
-                traced = trace_run(root, way.argv[0])
-                break
+            traced = trace_run(root, way.argv[0])
+            break
 
     carried = carried_state(root)
     source, called = ("", ())
@@ -315,7 +319,14 @@ def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> R
         root=str(root),
         contradictions=tuple(getattr(traced, "contradictions", ()) or ()),
         ran=" and ".join(item.ran for item in observations),
-        ok=all(item.ok for item in observations) and not failures and not carried,
+        # A run that exits 0 and contradicts itself is not ok. It exited 0 in
+        # the live case too — no error, no failing test, and a wrong invoice.
+        ok=(
+            all(item.ok for item in observations)
+            and not failures
+            and not carried
+            and not getattr(traced, "contradictions", ())
+        ),
         exit_code=observations[0].exit_code,
         passed=passed,
         failed=failed,
@@ -338,7 +349,7 @@ def describe_diagnosis(diagnosis: RepositoryDiagnosis) -> str:
     if diagnosis.error:
         return f"I could not run {diagnosis.root}: {diagnosis.error}"
 
-    if diagnosis.ok and not diagnosis.carried:
+    if diagnosis.ok and not diagnosis.carried and not diagnosis.contradictions:
         counted = f": {diagnosis.passed} passed, nothing failed" if diagnosis.passed else ""
         return f"I ran {diagnosis.ran} in {diagnosis.root}{counted}."
 

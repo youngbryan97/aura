@@ -53,14 +53,19 @@ class Contradiction:
     first_result: str
     later_call: str
     later_result: str
+    #: What the two calls did inside, where that is what diverged.
+    inner: tuple[str, ...] = ()
 
     def as_sentence(self) -> str:
         """What was observed, in one line, with no interpretation."""
-        return (
+        said = (
             f"{self.function} was called twice with the same arguments and answered "
             f"differently: {self.first_call} gave {self.first_result}, then "
             f"{self.later_call} gave {self.later_result} ({self.file}:{self.line})."
         )
+        if self.inner:
+            said += " Inside it: " + " ".join(self.inner)
+        return said
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +96,7 @@ MAX = int(sys.argv[4])
 
 seen = []
 pending = {}
+stack = []
 
 # A comprehension or a lambda is not something a caller invokes by name, and a
 # generator frame returns None after yielding, which reads as a contradiction
@@ -164,11 +170,14 @@ def _trace(frame, event, arg):
         except (AttributeError, TypeError, ValueError):
             asked = {}
         pending[id(frame)] = asked
+        stack.append(len(seen))
         return _trace
     if event == "return" and _ours(code) and code.co_name not in SYNTHETIC:
         asked = pending.pop(id(frame), None)
         if asked is None:
             return _trace
+        if stack:
+            stack.pop()
         seen.append(
             {
                 "function": code.co_name,
@@ -176,6 +185,8 @@ def _trace(frame, event, arg):
                 "line": code.co_firstlineno,
                 "args": asked,
                 "result": _shape(arg),
+                "depth": len(stack),
+                "index": len(seen),
             }
         )
     return _trace
@@ -213,9 +224,63 @@ def _contradictions_in(calls: list[dict]) -> tuple[Contradiction, ...]:
                 first_result=str(first.get("result")),
                 later_call=f"{function}({_readable(arguments)})",
                 later_result=str(later.get("result")),
+                inner=_what_diverged_inside(calls, first, later),
             )
         )
     return tuple(found)
+
+
+def _children_of(calls: list[dict], parent: dict) -> list[dict]:
+    """The calls this one made, in order.
+
+    A call is recorded when it returns, so its children are the entries before
+    it, one level deeper, back to the previous call at the parent's own depth.
+    """
+    index = int(parent.get("index", -1))
+    depth = int(parent.get("depth", 0))
+    found: list[dict] = []
+    for candidate in reversed(calls[:index]):
+        candidate_depth = int(candidate.get("depth", 0))
+        if candidate_depth <= depth:
+            break
+        if candidate_depth == depth + 1:
+            found.append(candidate)
+    found.reverse()
+    return found
+
+
+def _what_diverged_inside(
+    calls: list[dict], first: dict, later: dict
+) -> tuple[str, ...]:
+    """Where inside the two calls they stopped agreeing.
+
+    A contradiction says where the symptom is visible; this says whether the
+    cause is deeper. If the same inner call answered differently, the divergence
+    came from there. If every inner call answered the SAME, the divergence
+    started in this function's own body — which is what a frozen default looks
+    like: the caller wanted a fresh value and got the same one twice.
+    """
+    ours = _children_of(calls, first)
+    theirs = _children_of(calls, later)
+    if not ours or len(ours) != len(theirs):
+        return ()
+    said: list[str] = []
+    for mine, yours in zip(ours, theirs):
+        if str(mine.get("function")) != str(yours.get("function")):
+            return ()
+        name = str(mine.get("function"))
+        where = f"{mine.get('file')}:{mine.get('line')}"
+        if str(mine.get("result")) != str(yours.get("result")):
+            said.append(
+                f"{name} also answered differently "
+                f"({mine.get('result')} then {yours.get('result')}, {where})."
+            )
+        else:
+            said.append(
+                f"{name} answered {mine.get('result')} both times ({where}), "
+                f"so the difference did not come from there."
+            )
+    return tuple(said[:3])
 
 
 def _readable(arguments: str) -> str:
