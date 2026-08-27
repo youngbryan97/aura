@@ -21,6 +21,17 @@ Measured 2026-08-27, eight lives, up to 3000 moves each:
 Carrying it, she reached a 2048 tile twice and the share of moves answered on
 sight — recognised rather than decided — went from 12% to 26%. Starting fresh,
 neither happened.
+
+Twenty lives of 8000 moves each says something more careful. There the totals
+are flat in both arms (1995 → 2025 carrying, 1632 → 1662 fresh) though carrying
+still runs about a fifth higher throughout, and the fresh arm reaches 2048 by
+luck three times in twenty. What holds at both lengths is the fluency: 14% →
+26% carrying against 12% → 18% fresh.
+
+Which makes sense. Given eight thousand moves a life has time to work the world
+out from nothing, so what was carried matters less. The live case is the short
+one — a pursuit gets a couple of hundred cycles, not eight thousand — and that
+is where carrying is worth the most.
 """
 
 from __future__ import annotations

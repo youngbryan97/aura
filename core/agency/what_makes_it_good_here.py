@@ -56,6 +56,7 @@ from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
 
 __all__ = [
     "ENOUGH_TO_REWEIGH",
+    "LONG_ENOUGH_TO_TELL",
     "HOW_FAST_SHE_CHANGES_HER_MIND",
     "LEAST_A_THING_CAN_BE_WORTH",
     "MOST_A_THING_CAN_BE_WORTH",
@@ -80,6 +81,14 @@ LEAST_A_THING_CAN_BE_WORTH = 0.05
 #: Nor can one thing swamp everything else on the strength of a good spell.
 MOST_A_THING_CAN_BE_WORTH = 3.0
 
+#: How many moves to wait before saying how one turned out.
+#:
+#: A move that opens a line pays several moves later, and one that takes an
+#: easy merge costs later. Judged on the step it was made on, the first reads
+#: as bad and the second as good. Long enough for the consequence to have
+#: happened, short enough that it is still this move's consequence.
+LONG_ENOUGH_TO_TELL = 8
+
 
 @dataclass
 class WhatMakesItGoodHere:
@@ -95,8 +104,33 @@ class WhatMakesItGoodHere:
     _when_it_did_not: dict[str, float] = field(default_factory=dict)
     _went_well: int = 0
     _did_not: int = 0
+    #: Moves made but not yet graded, because what came of them has not
+    #: happened yet.
+    _waiting: list[tuple[dict[str, float], float]] = field(default_factory=list)
 
     # ── learning ─────────────────────────────────────────────────────────
+
+    def what_came_of_it(self, after: Mapping[str, float], stood_at: float) -> None:
+        """One move, and where the world's own count stood after it.
+
+        The grade a move deserves is not visible when it is made. A move that
+        opens a line pays several moves later; one that takes an easy merge
+        costs later. Judged on the step alone, the first reads as bad and the
+        second as good, and the weights learn the opposite of what is true.
+
+        So a move is held until enough has happened to say how it turned out,
+        and graded on whether the world's own count is higher by then. That
+        count is not something any weight of hers can move, and it changes
+        often enough to tell one move from another — which is what the two
+        graders tried before it each lacked.
+        """
+        if not after:
+            return
+        self._waiting.append((dict(after), float(stood_at)))
+        if len(self._waiting) <= LONG_ENOUGH_TO_TELL:
+            return
+        was, stood = self._waiting.pop(0)
+        self.watched(was, stood_at >= stood)
 
     def watched(self, after: Mapping[str, float], better: bool) -> None:
         """One move: what the situation it led to was like, and whether it helped.

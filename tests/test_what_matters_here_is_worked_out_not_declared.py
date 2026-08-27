@@ -151,3 +151,47 @@ def test_but_comes_back_part_of_the_way_toward_the_standing_guess():
 def test_rubbish_is_not_a_memory():
     assert WhatMakesItGoodHere.from_memory("not a memory").weights() is None
     assert WhatMakesItGoodHere.from_memory({"worth": "bad"}).worth == AS_GOOD_A_GUESS_AS_ANY
+
+
+# ── the grade a move deserves is not visible when it is made ─────────────
+
+def test_a_move_is_held_until_enough_has_happened_to_judge_it():
+    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
+
+    matters = WhatMakesItGoodHere()
+    for turn in range(LONG_ENOUGH_TO_TELL):
+        matters.what_came_of_it({"nearness": 0.5, "room": 0.5}, float(turn))
+    assert matters.seen == 0, "graded a move before anything came of it"
+
+
+def test_and_graded_once_it_has():
+    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
+
+    matters = WhatMakesItGoodHere()
+    for turn in range(LONG_ENOUGH_TO_TELL + 5):
+        matters.what_came_of_it({"nearness": 0.5, "room": 0.5}, float(turn))
+    assert matters.seen == 5
+
+
+def test_what_it_is_graded_on_is_where_things_stood_later():
+    """A move that opens a line pays several moves later, and one that takes
+    an easy merge costs later. Judged on its own step, both read backwards."""
+    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
+
+    matters = WhatMakesItGoodHere()
+    # A move that looks poor now — no room — but is followed by things going
+    # well; and one that looks fine now and is followed by things going badly.
+    for _ in range(30):
+        matters.what_came_of_it({"nearness": 0.5, "line": 0.0, "room": 0.1, "order": 0.5}, 0.0)
+        for _ in range(LONG_ENOUGH_TO_TELL):
+            matters.what_came_of_it({"nearness": 0.5, "line": 0.0, "room": 0.5, "order": 0.5}, 100.0)
+    assert matters.seen > 0
+    # The room-poor move was followed by a rise, so having little room is not
+    # what the bad moves had.
+    assert matters.worth["room"] <= MOST_A_THING_CAN_BE_WORTH
+
+
+def test_a_move_with_nothing_in_it_waits_for_nothing():
+    matters = WhatMakesItGoodHere()
+    matters.what_came_of_it({}, 1.0)
+    assert matters.seen == 0
