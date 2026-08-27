@@ -98,10 +98,10 @@ def play(
         if how == "random":
             move = rng.choice(MOVES)
         else:
-            line = approach if how in ("her line", "and the world") else ""
+            line = approach if "line" in how else ""
             ahead = look_ahead(
                 knows, state, list(MOVES), toward=toward, approach=line,
-                world=world if how == "and the world" else None,
+                world=world if "world" in how else None,
             )
             if ahead:
                 move = max(ahead.items(), key=lambda row: row[1][0])[0]
@@ -131,7 +131,16 @@ def play(
 
 
 def measure(games: int, moves: int, approach: str) -> None:
-    ways = ("random", "her scoring", "her line", "and the world")
+    # The world model is its own axis rather than a rider on the line, so
+    # what it is worth can be read off directly instead of inferred from two
+    # things changing at once.
+    ways = (
+        "random",
+        "her scoring",
+        "her scoring + world",
+        "her line",
+        "her line + world",
+    )
     print(f"{games} games, up to {moves} moves each, same world and same perception\n")
     print(f"{'how she chose':<14} {'best tile':>11} {'total':>9} {'moves':>7} {'wasted':>8} {'learned':>8}")
     print("-" * 62)

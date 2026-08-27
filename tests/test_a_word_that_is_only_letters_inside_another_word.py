@@ -97,3 +97,44 @@ def test_whatever_sets_an_aside_off_ends_the_name(said, place):
 
 def test_a_thing_already_open_is_still_not_a_place_to_go():
     assert _where_it_happens("2048 is open in Chrome already") == ""
+
+
+# ── a process with no stated end is still a process ──────────────────────
+
+from core.runtime.watched_goal import read_watched_goal  # noqa: E402
+
+
+def test_working_a_world_out_by_playing_it_is_a_goal_to_be_watched():
+    """LIVE 2026-08-27: answered "Done — opened Safari, and opened Safari.\""""
+    goal = read_watched_goal(
+        "Find a sliding puzzle online — the classic one with numbered tiles "
+        "and a single empty space — open it in the browser, and work out how "
+        "it moves by actually playing it."
+    )
+    assert goal is not None
+    assert goal.where == "sliding puzzle"
+    assert goal.move_keys == ("up", "down", "left", "right")
+
+
+def test_and_not_naming_an_end_means_the_end_is_the_budget():
+    goal = read_watched_goal("open the puzzle and keep playing it")
+    assert goal is not None
+    assert goal.success_when == ""
+
+
+def test_an_end_that_is_named_is_still_the_end():
+    goal = read_watched_goal("play 2048 until you get a 128 tile")
+    assert goal is not None and goal.success_when == "128"
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "open the fridge",
+        "send an email to Sam",
+        "What is 2 + 2?",
+        "make a note about the meeting",
+    ],
+)
+def test_a_request_that_one_action_finishes_is_not_watched(said):
+    assert read_watched_goal(said) is None

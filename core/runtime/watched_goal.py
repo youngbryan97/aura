@@ -502,9 +502,21 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     cue = _continuation(text)
     if not cue:
         return None
+    # A process that never says when to stop is still a process.
+    #
+    # Requiring a named finish made "find a sliding puzzle and work out how it
+    # moves by playing it" structurally unplannable: no number, no quoted
+    # phrase, nothing for a screen to be matched against — so it fell through
+    # to the one-shot verbs and was answered "Done — opened Safari, and opened
+    # Safari." LIVE 2026-08-27, which is the same shape of failure recorded
+    # against this module on 2026-08-19 with a different phrasing.
+    #
+    # Every cue that gets this far is unambiguously about carrying on: keep
+    # going, playing, stepping through, monitoring, over and over. None of
+    # them can be true after one action. Not naming an end does not make a
+    # request one-shot — it means the end is the budget, which is a thing the
+    # pursuit already knows how to run to.
     condition = _best_finishing_test(text)
-    if not condition:
-        return None
 
     app = _named_app(text)
     where = _where_it_happens(text)

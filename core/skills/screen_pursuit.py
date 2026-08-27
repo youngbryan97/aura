@@ -861,6 +861,26 @@ def _say_what_kind_of_problem(
     _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
 
 
+def _what_there_is_to_aim_at(reading: Any) -> str:
+    """What to prefer one situation over another by, when nobody said.
+
+    A request can name a process without naming a finish — "play it and work
+    out how it moves" — and then there is nothing to score a future against,
+    so she acts and looks for as long as the budget lasts and never uses the
+    model she is building. That is a waste of the thing she just worked out.
+
+    What she can read off the world instead is whether it counts. Where the
+    things in front of her are numbers, more is the direction the world itself
+    is pointing, and "the largest" is a goal her own measure already
+    understands. Where they are not numbers, nothing here invents a purpose:
+    it says so, and she goes back to acting and looking.
+    """
+    numbers = getattr(reading, "numbers", None)
+    if not callable(numbers):
+        return ""
+    return "the largest" if numbers() else ""
+
+
 def _left_her_better_off(
     before: Any, after: Any, toward: str, approach: str
 ) -> bool:
@@ -1891,14 +1911,16 @@ async def pursue_on_screen(
             # Where each move would lead, when she has worked out how this
             # moves and there is anything to prefer one future over another by.
             ahead: dict[str, tuple[float, str]] = {}
-            if worth_comparing(success_when, held_line):
+            # What she is playing for, which the request does not always say.
+            aiming_at = success_when or _what_there_is_to_aim_at(laid_out)
+            if worth_comparing(aiming_at, held_line):
                 # As far ahead as there is time to look, which is decided from
                 # what a level of looking has been measured costing.
                 ahead = look_ahead(
                     knows.rules,
                     laid_out,
                     [option.name for option in available],
-                    toward=success_when,
+                    toward=aiming_at,
                     approach=held_line,
                     budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
                     world=world,
