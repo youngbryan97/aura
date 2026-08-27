@@ -73,6 +73,8 @@ class RepositoryDiagnosis:
     stated_intent: str = ""
     observations: tuple[object, ...] = field(default_factory=tuple)
     carried: tuple[object, ...] = field(default_factory=tuple)
+    #: Places the run disagreed with itself — the same call, a different answer.
+    contradictions: tuple[object, ...] = field(default_factory=tuple)
     hypothesis_id: str = ""
     notes: tuple[str, ...] = field(default_factory=tuple)
     error: str = ""
@@ -82,6 +84,7 @@ class RepositoryDiagnosis:
         return sum(
             (
                 bool(self.failures),
+                bool(self.contradictions),
                 bool(self.carried),
                 bool(self.stated_intent),
                 any(not getattr(item, "ok", True) for item in self.observations),
@@ -242,6 +245,12 @@ def confirm_diagnosis(hypothesis_id: str, *, worked: bool) -> None:
 
 def _claim_of(diagnosis: RepositoryDiagnosis) -> str:
     """The finding stated as something that can turn out to be false."""
+    if diagnosis.contradictions:
+        first = diagnosis.contradictions[0]
+        return (
+            f"in {Path(diagnosis.root).name}, {getattr(first, 'function', 'a function')} "
+            f"answering differently to the same call explains the symptom"
+        )
     if diagnosis.carried:
         first = diagnosis.carried[0]
         return (
@@ -257,6 +266,7 @@ def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> R
     """Run the project every way it affords, and report what that showed."""
     from core.diagnosis.carried_state import carried_state
     from core.diagnosis.experiment import Affordance, affordances, observe
+    from core.diagnosis.value_trace import trace_run
 
     root = Path(str(path)).expanduser()
     if not root.is_dir():
@@ -278,11 +288,14 @@ def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> R
     observations = [observe(root, ways[0])]
     failures, passed, failed = _parse_failures(observations[0].output)
     # A suite that passes has not accounted for a symptom, so the project is
-    # also run the way a person runs it.
+    # also run the way a person runs it — and under the tracer, which is the
+    # half that finds a cause nobody thought to look for.
+    traced = None
     if not failures:
-        for way in ways[1:]:
+        for way in ways:
             if way.kind == "entry point":
                 observations.append(observe(root, way))
+                traced = trace_run(root, way.argv[0])
                 break
 
     carried = carried_state(root)
@@ -300,6 +313,7 @@ def diagnose_repository(path: str | Path, *, argv: list[str] | None = None) -> R
 
     diagnosis = RepositoryDiagnosis(
         root=str(root),
+        contradictions=tuple(getattr(traced, "contradictions", ()) or ()),
         ran=" and ".join(item.ran for item in observations),
         ok=all(item.ok for item in observations) and not failures and not carried,
         exit_code=observations[0].exit_code,
@@ -347,6 +361,15 @@ def describe_diagnosis(diagnosis: RepositoryDiagnosis) -> str:
             else:
                 lines.append(f"I ran {ran}; it printed nothing and exited {getattr(item, 'exit_code', 0)}.")
 
+    if diagnosis.contradictions:
+        lines.append(
+            "Running it with every call recorded, it contradicted itself: "
+            + " ".join(
+                item.as_sentence()
+                for item in diagnosis.contradictions[:3]
+                if hasattr(item, "as_sentence")
+            )
+        )
     if diagnosis.carried:
         lines.append(describe_carried_state(tuple(diagnosis.carried)))
     if diagnosis.source:
