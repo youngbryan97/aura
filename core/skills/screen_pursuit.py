@@ -841,6 +841,45 @@ def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
     _tell(f"I can see what my moves do here now — {rules.says()}.")
 
 
+async def _frontmost() -> str:
+    """The application in front, for a run that was never told which one."""
+    try:
+        from core.capabilities.host_automation import get_host_automation
+
+        receipt = await get_host_automation().get_frontmost_app()
+        found = str(getattr(receipt, "result", "") or "").strip()
+        return found if getattr(receipt, "success", False) else ""
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="acted without knowing the window"
+        )
+        return ""
+
+
+def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:
+    """Whether this is the thing she was asked to act in.
+
+    She was asked to find something and act in it, and nothing anywhere
+    checked that she had: a reading is a reading, and anything with text laid
+    out in rows reads as something she could push. LIVE 2026-08-26, another
+    part of her closed the browser mid-run and she played twelve moves of 2048
+    into a chat window, narrating every one of them.
+
+    Identity where there is identity — an address, a title, the name of the
+    window — and the reading itself where there is not. What is not accepted
+    is silence: a name she was given and cannot find anywhere is a name she
+    has not arrived at.
+    """
+    name = " ".join(str(wanted or "").split()).lower()
+    if not name:
+        return True
+    said = [word for word in re.split(r"[^a-z0-9]+", name) if len(word) > 2]
+    if not said:
+        return True
+    here = " ".join((str(page or ""), str(window or ""), str(reading or ""))).lower()
+    return any(word in here for word in said)
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -1002,6 +1041,19 @@ async def pursue_on_screen(
                     anchor["page"] = str(
                         expect_page or page.get("url") or page.get("title") or ""
                     ).strip()
+                    # And the window it is in, so a keystroke has somewhere it
+                    # belongs.
+                    #
+                    # Nothing named meant nothing checked: an empty target is
+                    # read as "no constraint" rather than "I do not know where
+                    # I am", so every guard passed and every key went to
+                    # whatever happened to be in front. LIVE 2026-08-26:
+                    # another part of her closed the browser mid-run, and she
+                    # played twelve moves of 2048 into a chat window.
+                    if not anchor["app"]:
+                        anchor["app"] = str(page.get("app") or await _frontmost() or "").strip()
+                        if anchor["app"]:
+                            logger.info("this run belongs to %r", anchor["app"])
                 if anchor["page"] and not await _ensure_page(anchor["page"]):
                     # The page this run is about is no longer in front and
                     # could not be brought back. Reading on would be reading
@@ -1167,7 +1219,7 @@ async def pursue_on_screen(
 
                 async def click_declared() -> bool:
                     return await click_normalized(
-                        ux, uy, expect_app=target_app, bounds=frame
+                        ux, uy, expect_app=target_app or anchor["app"], bounds=frame
                     )
 
                 return Step(
@@ -1178,7 +1230,7 @@ async def pursue_on_screen(
             key = verdict.suggested_key
 
             async def press_away() -> bool:
-                return await press(key, expect_app=target_app)
+                return await press(key, expect_app=target_app or anchor["app"])
 
             return Step(name=f"dismiss overlay with {key}", action=press_away)
 
@@ -1189,7 +1241,7 @@ async def pursue_on_screen(
 
             async def click_away() -> bool:
                 return await click_normalized(
-                    x, y, expect_app=target_app, bounds=frame
+                    x, y, expect_app=target_app or anchor["app"], bounds=frame
                 )
 
             return Step(name=f"dismiss overlay via {label!r}", action=click_away)
@@ -1206,13 +1258,16 @@ async def pursue_on_screen(
     needs_person: dict[str, Any] = {"reason": "", "seen": "", "times": 0}
     #: The page this run belongs to, learned on the first cycle when the caller
     #: did not name one.
-    anchor: dict[str, str] = {"page": expect_page.strip()}
+    anchor: dict[str, str] = {"page": expect_page.strip(), "app": target_app.strip()}
     #: Where her actions have been having their effects.
     responds: dict[str, Any] = {
         "state": Responsive.from_memory(knew.get("responds") or {}, TRUST_CARRIED_OVER)
     }
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
+    #: Whether she has confirmed being in the thing she was asked to act in.
+    confirmed_here: dict[str, bool] = {"value": False}
+    not_there: dict[str, str] = {"reason": ""}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         blocker = await clear_blocker(observation)
@@ -1251,6 +1306,23 @@ async def pursue_on_screen(
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         laid_out = what_is_there(observation, band)
+
+        # Is this the thing she was asked to act in.
+        #
+        # Checked before a key is pressed rather than after, because a
+        # keystroke into the wrong window is not something a later cycle can
+        # take back.
+        if not confirmed_here["value"]:
+            confirmed_here["value"] = am_i_there(
+                open_page or expect_page, seen, anchor["page"], anchor["app"]
+            )
+            if not confirmed_here["value"]:
+                not_there["reason"] = (
+                    f"{(open_page or expect_page)!r} is not what is in front of me — "
+                    f"{anchor['app'] or 'this window'} is"
+                )
+                logger.info("she is not where she was asked to be: %s", not_there["reason"])
+                return None
 
         # Grade the last prediction before making another one.
         #
@@ -1600,7 +1672,7 @@ async def pursue_on_screen(
                 responds["state"].began_again()
 
                 async def begin_again() -> bool:
-                    return await click_normalized(rx, ry, expect_app=target_app, bounds=frame)
+                    return await click_normalized(rx, ry, expect_app=target_app or anchor["app"], bounds=frame)
 
                 return Step(name=f"begin again with {label!r}", action=begin_again)
 
@@ -1674,9 +1746,9 @@ async def pursue_on_screen(
                 # move part-way through a batch, and a commentary describing
                 # moves the window never received is the disconnect this
                 # whole path exists to avoid.
-                arrived = await press_many(sequence, expect_app=target_app)
+                arrived = await press_many(sequence, expect_app=target_app or anchor["app"])
             else:
-                arrived = 1 if await press(key, expect_app=target_app) else 0
+                arrived = 1 if await press(key, expect_app=target_app or anchor["app"]) else 0
             for step in sequence[:arrived]:
                 if step != key:
                     moves.append({"key": step, "because": "part of the same plan", "at": time.time()})
@@ -1758,7 +1830,7 @@ async def pursue_on_screen(
                     label, rx, ry = fresh
                     intending["value"] = START_OVER
                     frame = list(first.get("bounds") or [])
-                    if await click_normalized(rx, ry, expect_app=target_app, bounds=frame):
+                    if await click_normalized(rx, ry, expect_app=target_app or anchor["app"], bounds=frame):
                         # Look again before judging anything, and before
                         # claiming anything.
                         #
@@ -1891,6 +1963,13 @@ async def pursue_on_screen(
         f"{len(moves)} move(s), {plan['changes']} change(s) of approach",
         graph=graph,
     )
+    if not_there["reason"] and not receipt.completed:
+        # Named apart from every other way a run can end. "Nothing offered a
+        # move" would say the screen had nothing on it; this says she was
+        # never in the thing she was asked to act in, which is a different
+        # failure with a different fix.
+        result["outcome"] = "could_not_get_there"
+        result["could_not_get_there"] = not_there["reason"]
     if undecided["reason"] and not receipt.completed:
         # Name the judgement, not the budget. "no_move_available" would say
         # the screen offered nothing; this says she could not decide, and why.
