@@ -1374,7 +1374,18 @@ async def pursue_on_screen(
                     responds["state"],
                     pending["watched"],
                     observation,
-                    worked=attempt.verdict.held,
+                    # Whether the act had an effect, not whether her claim
+                    # about it was right.
+                    #
+                    # These were the same answer while the only claim a move
+                    # carried was that the view would differ, and they came
+                    # apart the moment a claim could say something. A move
+                    # that moved the board and did not do the specific thing
+                    # she predicted was being counted as a move that did
+                    # nothing — the control for working out which part of the
+                    # screen answers to her — so the band stopped settling and
+                    # nothing downstream of it could form.
+                    worked=attempt.verdict.observed_change,
                 )
             if moves:
                 moves[-1]["held"] = attempt.verdict.held
