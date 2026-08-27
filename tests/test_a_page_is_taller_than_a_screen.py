@@ -170,3 +170,50 @@ def test_and_so_does_one_that_raises():
             raise RuntimeError("macOS did not report a primary screen")
 
     assert _a_screenful(Broken()) == A_SCREENFUL_AT_LEAST
+
+
+# ── "I found nothing" and "I cannot see" are different facts ─────────────
+
+@pytest.mark.asyncio
+async def test_a_screen_that_cannot_be_read_says_so(hands):
+    """LIVE 2026-08-27: nine runs reported an empty board while the truth was
+    that the machine had no interactive session and no capture was possible."""
+    page = hands(Page(thing_at=0))
+
+    async def blind():
+        return {"ok": False, "error": "screen capture deferred while the interactive session is unavailable"}
+
+    told: dict[str, str] = {"reason": ""}
+    await _bring_it_into_view(blind, page.read, told)
+    assert "interactive session" in told["reason"]
+
+
+@pytest.mark.asyncio
+async def test_and_a_screen_she_can_read_reports_nothing_of_the_kind(hands):
+    page = hands(Page(thing_at=1))
+    told: dict[str, str] = {"reason": ""}
+    await _bring_it_into_view(page.look, page.read, told)
+    assert told["reason"] == ""
+
+
+@pytest.mark.asyncio
+async def test_a_reason_is_given_even_when_the_reading_gives_none(hands):
+    page = hands(Page(thing_at=0))
+
+    async def mute():
+        return {"ok": False}
+
+    told: dict[str, str] = {"reason": ""}
+    await _bring_it_into_view(mute, page.read, told)
+    assert told["reason"] == "no reason given"
+
+
+def test_it_is_named_apart_from_every_other_ending():
+    import inspect
+
+    from core.skills import computer_use
+
+    endings = inspect.getsource(computer_use)
+    assert '"cannot_see": "the screen could not be read at all"' in endings
+    for other in ("no_move_available", "could_not_get_there", "navigated_away", "stalled"):
+        assert other in endings

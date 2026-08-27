@@ -2042,7 +2042,8 @@ end tell
         reason = ""
         if not result.get("completed"):
             reason = (
-                str(result.get("cannot_decide") or "")
+                str(result.get("cannot_see") or "")
+                or str(result.get("cannot_decide") or "")
                 or str(result.get("needs_person") or "")
                 or str(result.get("blocked_by") or "")
                 or str(result.get("could_not_get_there") or "")
@@ -2052,6 +2053,7 @@ end tell
                     "out_of_time": "ran out of time before reaching the goal",
                     "navigated_away": "the page it was working on was replaced",
                     "no_move_available": "nothing on screen offered a move",
+                    "cannot_see": "the screen could not be read at all",
                     "stalled": "the screen stopped changing",
                 }.get(outcome, outcome or "the goal was not reached")
             )

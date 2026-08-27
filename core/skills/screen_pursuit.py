@@ -896,7 +896,7 @@ def _is_a_thing_laid_out(reading: Any) -> bool:
     return occupied() >= ENOUGH_TO_BE_A_THING
 
 
-async def _bring_it_into_view(look: Any, read: Any) -> int:
+async def _bring_it_into_view(look: Any, read: Any, cannot_see: dict[str, str] | None = None) -> int:
     """Scroll down until what she came for is on screen, or the page runs out.
 
     A page is taller than a screen. She opened a real sliding puzzle, read the
@@ -909,8 +909,11 @@ async def _bring_it_into_view(look: Any, read: Any) -> int:
     back, which is the same line drawn around every other input she is allowed
     to try without knowing what it will do.
 
-    Returns how far down she had to go, so a caller can say so.
+    Returns how far down she had to go, so a caller can say so. ``cannot_see``
+    is filled in when the screen could not be read at all, which is a
+    different fact from finding nothing on it.
     """
+    cannot_see = {} if cannot_see is None else cannot_see
     from core.capabilities.host_automation import get_host_automation
 
     try:
@@ -921,11 +924,11 @@ async def _bring_it_into_view(look: Any, read: Any) -> int:
     for down in range(SCREENFULS_TO_LOOK):
         seen = await look()
         if not seen.get("ok"):
+            why = str(seen.get("error") or "no reason given")
             logger.info(
-                "looking for what she came for, %d down: nothing could be read (%s)",
-                down,
-                seen.get("error") or "no reason given",
+                "looking for what she came for, %d down: nothing could be read (%s)", down, why
             )
+            cannot_see["reason"] = why
             return down
         here = read(seen)
         if _is_a_thing_laid_out(here):
@@ -1377,6 +1380,14 @@ async def pursue_on_screen(
     lines = WhatWorkedBefore.from_memory(knew.get("lines") or {}, TRUST_CARRIED_OVER)
     lines_held: dict[str, Any] = dict(knew.get("lines_held") or {})
     undecided: dict[str, str] = {"reason": ""}
+    #: Why the screen could not be read, when that is what stopped her.
+    #:
+    #: "Nothing on screen offered a move" and "I cannot see the screen" are
+    #: different facts and only one of them is about the screen's contents.
+    #: LIVE 2026-08-27: nine runs reported the first while the truth was the
+    #: second — the machine had no interactive session, so no capture was
+    #: possible at all, and every layer above read that as an empty board.
+    cannot_see: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
     #: The finishing condition was already met on the first reading.
@@ -2382,7 +2393,7 @@ async def pursue_on_screen(
     # advertising, finds no part of what she can see that answers to her, and
     # says so — truthfully, with the thing itself further down.
     await _bring_it_into_view(
-        observe, lambda seen: what_is_there(seen, None, like=None)
+        observe, lambda seen: what_is_there(seen, None, like=None), cannot_see
     )
 
     if not moves:
@@ -2552,6 +2563,12 @@ async def pursue_on_screen(
         f"{len(moves)} move(s), {plan['changes']} change(s) of approach",
         graph=graph,
     )
+    if cannot_see["reason"] and not receipt.completed and not moves:
+        # Named apart from every other ending. She was never able to look, so
+        # nothing about the screen's contents is being reported and no amount
+        # of acting differently would have helped.
+        result["outcome"] = "cannot_see"
+        result["cannot_see"] = cannot_see["reason"]
     if not_there["reason"] and not receipt.completed:
         # Named apart from every other way a run can end. "Nothing offered a
         # move" would say the screen had nothing on it; this says she was
