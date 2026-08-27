@@ -3380,6 +3380,43 @@ _LIGHTWEIGHT_REMEMBER_OBJECT_RE = re.compile(
 )
 
 
+def _the_answer_has_to_be_worked_out(
+    user_message: str,
+    shape: Any,
+) -> bool:
+    """Whether this turn's answer is a derivation rather than a reading.
+
+    The compact lane's whole justification is that the full phase stack adds no
+    evidence: present state, recall and capability all have a snapshot to read
+    from, and going the long way round only spends the deadline. That
+    justification fails for a question whose answer does not exist anywhere
+    until it has been worked out.
+
+    LIVE, 2026-08-27: "45 becomes 15. 28 becomes 14. 66 becomes 22. What am I
+    doing, what does 91 become?" went compact on two question parts, spent its
+    budget on false starts about digit manipulation and stopped mid-derivation.
+    The same class of question with three parts had gone the long way one turn
+    earlier and found the rule cleanly. The lane was decided by counting parts,
+    in two places that each wrote the count out again.
+
+    Two independent things mark a turn as a derivation, and neither contains
+    the other: several obligations to satisfy in one reply, and a work contract
+    that already measured the answer as needing deliberation. The count stays,
+    because a three-part request is heavy however little each part weighs.
+    """
+
+    if int(getattr(shape, "question_parts", 0) or 0) >= 3:
+        return True
+    try:
+        from core.language.semantic_work import build_semantic_work_contract
+
+        return bool(build_semantic_work_contract(user_message).requires_deliberation)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc)
+        logger.debug("Answer-work classification skipped: %s", exc)
+        return False
+
+
 def _is_lightweight_live_desktop_state_or_recall_turn(
     user_message: str,
     effective_user_message: str,
@@ -3404,7 +3441,7 @@ def _is_lightweight_live_desktop_state_or_recall_turn(
         return False
 
     shape = analyze_prompt_shape(user_message)
-    if int(getattr(shape, "question_parts", 0) or 0) >= 3:
+    if _the_answer_has_to_be_worked_out(user_message, shape):
         return False
 
     lightweight_signal = bool(_LIGHTWEIGHT_LIVE_STATE_OR_RECALL_RE.search(text))
@@ -3575,7 +3612,7 @@ def _is_compact_desktop_chat_contract(
     # added over a minute of latency, then regenerated the same answer on the
     # ordinary lane when the RLC receipt failed. Heavy actions and explicit
     # deep self-process turns remain excluded below/above.
-    if int(getattr(shape, "question_parts", 0) or 0) >= 3:
+    if _the_answer_has_to_be_worked_out(user_message, shape):
         return False
     heavy_action = re.search(
         r"\b(?:debug|diagnose|fix|implement|review|run|test|open|create|export|search)\b"
