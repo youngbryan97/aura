@@ -533,6 +533,25 @@ def _admit_sampling_control(job: dict[str, Any], key: str) -> float:
     return min(max(_safe_float(job.get(key, default), default), lower), upper)
 
 
+def _answer_is_derived_here(job: dict[str, Any]) -> bool:
+    """Whether this generation is where the answer gets worked out.
+
+    The completion floor is the runtime's own measure of how much room the
+    visible request needs. A closed question answered once carries the base
+    floor; anything above it is work the request named and no phase upstream
+    has done. That is the turn whose search belongs in the private channel
+    rather than in the reply.
+    """
+
+    try:
+        from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+        floor = int(job.get("user_surface_completion_floor") or 0)
+    except (ImportError, TypeError, ValueError):
+        return False
+    return floor > A_CLOSED_QUESTIONS_FLOOR
+
+
 def _reasoning_reserve_tokens() -> int:
     """Tokens the private reasoning channel has been costing, or 0."""
 
@@ -7757,6 +7776,7 @@ def _mlx_worker_loop(
                             final_user_surface=bool(
                                 job.get("clean_user_surface_contract", False)
                             ),
+                            answer_is_derived_here=_answer_is_derived_here(job),
                         )
 
                         if job.get("user_surface_continuation_contract", False):
@@ -9016,6 +9036,18 @@ def _mlx_worker_loop(
                                         surface_chars=len(current_response or ""),
                                         generated_tokens=token_count,
                                     )
+                                    if native_thinking is True and not native_channels.boundary_closed:
+                                        # The budget ran out while the model was still thinking, so
+                                        # there is no surface at all. That is a budget failure and not
+                                        # a model failure, and it read downstream as producing nothing.
+                                        # The flag was recorded here and nothing ever read it.
+                                        logger.warning(
+                                            "🧠 [WORKER] Generation ended inside the private channel: "
+                                            "%d reasoning chars, no answer. The decode budget of %d "
+                                            "tokens did not cover the thinking this question needed.",
+                                            len(native_channels.reasoning),
+                                            max_tokens,
+                                        )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()

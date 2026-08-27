@@ -607,6 +607,7 @@ def thinking_enabled_for_generation(
     *,
     cognitive_mode: object = None,
     final_user_surface: bool = False,
+    answer_is_derived_here: bool = False,
 ) -> bool | None:
     """Resolve native thinking for the generation role, not only its depth.
 
@@ -619,9 +620,22 @@ def thinking_enabled_for_generation(
     The tokenizer's native ``enable_thinking=False`` contract closes that
     channel before decoding. This is typed execution-role control, not a text
     instruction, and templates that do not support it remain unchanged.
+
+    That reasoning holds while the premise does: the answer was settled
+    upstream and this stage renders it. Where no phase settled it — a rule to
+    infer, an order to work out, a quantity nothing has computed — this stage
+    is where the answer gets made, and a reasoning model does the reasoning
+    either way. Closing the channel does not save the deadline then; it moves
+    the search into the answer.
+
+    LIVE, 2026-08-27: "45 becomes 15. 28 becomes 14. 66 becomes 22. What does
+    91 become?" was answered four times, each time with the model's search
+    visible in the reply and each time cut off before a conclusion: ratios,
+    then digit sums, then digit parity, then the budget was gone. The private
+    channel had been closed, so all of that arrived where the answer belonged.
     """
 
-    if final_user_surface:
+    if final_user_surface and not answer_is_derived_here:
         return False
     return thinking_enabled_for_request(
         model_name,

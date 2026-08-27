@@ -408,6 +408,13 @@ def _parts_the_request_counted(text: str) -> int:
         return 0
 
 
+#: What a question needs when it needs nothing in particular: one closed
+#: question, answered once. Every larger floor is this plus the work the
+#: request named. Anything reading a floor to ask "does this answer need real
+#: room?" compares against this rather than inventing its own number.
+A_CLOSED_QUESTIONS_FLOOR = 256
+
+
 def answer_surface_token_floor(text: str) -> int:
     """Minimum decode capacity needed to answer the visible request once.
 
@@ -439,7 +446,7 @@ def answer_surface_token_floor(text: str) -> int:
         or obligations >= 2
         or single_obligation_needs_room
     ):
-        return 256
+        return A_CLOSED_QUESTIONS_FLOOR
 
     # Reserve capacity by required work, not merely by clause count. A worked
     # example and executable pseudocode each need substantially more surface
