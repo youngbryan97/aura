@@ -37,7 +37,6 @@ def test_a_long_request_that_mentions_her_is_not_a_health_question():
 @pytest.mark.parametrize(
     "asked",
     [
-        "how are you doing?",
         "are any of your subsystems degraded?",
         "which of your subsystems is degraded right now?",
         "is anything failing on your side?",
@@ -112,3 +111,19 @@ def test_a_list_item_after_and_is_not_a_separate_request():
         "for me: who you are, what you can do, and how we'd know it worked."
     )
     assert "five slides" in asking_part(asked)
+
+
+def test_asking_how_she_is_doing_is_not_asking_for_telemetry():
+    """"How are you doing?" is answered by her own condition, not by a gauge.
+
+    It used to qualify here. It should not: "are you ok?" was once answered
+    with "Processor 32.6%, memory 56.8%. Thermal pressure 0.00 of 1." — the
+    same category error as answering a reflective question with a log. What
+    separates the two is whether the question names an instrument at all.
+    """
+    from core.introspection.self_evidence import asks_about_own_operational_state
+
+    assert asks_about_own_operational_state("how are you doing?") is False
+    assert asks_about_own_operational_state("are you ok?") is False
+    # Naming an instrument still reaches the instruments.
+    assert asks_about_own_operational_state("how is your memory doing?") is True

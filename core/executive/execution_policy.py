@@ -617,14 +617,21 @@ def classify_execution_risk(
             # different problems.
             logger.info("risk: %s snippet is not pure — %s", name, reach.why())
         if not snippet:
-            # Rated as the worst case for want of a snippet. Say what arrived,
-            # because "there was no code" and "the code was somewhere this did
-            # not look" are different problems with the same rating.
+            # No snippet to read. Say what arrived, because "there was no code"
+            # and "the code was somewhere this did not look" are different
+            # problems with the same rating.
             logger.info(
                 "risk: %s rated without a snippet; arguments carried %s",
                 name,
                 sorted(str(key) for key in (arguments or {}))[:8] or "nothing",
             )
+            # And keep this tool's own prior rating rather than reaching past
+            # it to the worst case. Nothing is known about a call nobody can
+            # read, which is what the scope rating already means; tightening
+            # code_repl from high to critical on an unreadable call changed a
+            # rating that had never depended on the snippet at all.
+            if name not in {"run_code", "run_python"}:
+                return "high"
         return "critical" if stateful else "high"
     if name == "auto_refactor":
         if scope == "privileged_mutation":

@@ -385,6 +385,12 @@ def _negated_near(question: str, column: str) -> bool:
     return False
 
 
+def _names_an_aggregation(question: str) -> bool:
+    """Whether the question actually asked for one, rather than defaulting."""
+    lowered = str(question or "").lower()
+    return any(re.search(pattern, lowered) for _name, pattern in _AGGREGATIONS)
+
+
 def _aggregation(question: str) -> str:
     """Which figure the question asks for.
 
@@ -426,6 +432,11 @@ def _whole_table_answer(
         if all(str(row.get(column, "")).strip() == value for column, value in applied)
     ]
     if not kept:
+        return None
+    # "Is this file any good?" names no aggregation. _aggregation defaults to
+    # "total" so a caller can ask for a breakdown without saying "total", and
+    # over the WHOLE table that default invents a figure nobody asked for.
+    if not _names_an_aggregation(question):
         return None
     aggregation = _aggregation(question)
     amounts = (

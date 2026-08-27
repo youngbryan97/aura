@@ -163,7 +163,7 @@ def test_the_reading_lands_in_the_reply_not_in_place_of_it() -> None:
     from core.introspection.self_evidence import asks_about_own_operational_state
 
     composed = compose_measured(
-        "How hard is the machine working, and what are you doing later?",
+        "How hard is your machine working, and what are you doing later?",
         "Later I am consolidating memory.",
         "The machine is at 12.0% processor and 60.0% memory right now.",
         asks_about_own_operational_state,

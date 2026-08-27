@@ -87,11 +87,42 @@ _TROUBLE_RE = re.compile(
     r"not\s+working|misbehaving|stuck|wedged|repeatedly)(?![\w-])",
     re.IGNORECASE,
 )
-#: Asking about her state at all, even without a trouble word — "how are your
-#: subsystems doing", "status of your internals".
+#: Words that ask after a condition and mean nothing else: nobody says
+#: "utilisation" about a sales region.
 _STATE_ENQUIRY_RE = re.compile(
-    r"\b(?:status|health|healthy|state|doing|holding\s+up|nominal|ok(?:ay)?|"
-    r"how\s+hard|working|load|loaded|busy|utili[sz]ation|usage)\b",
+    r"\b(?:status|health|healthy|nominal|utili[sz]ation|"
+    r"how\s+hard|load|loaded|busy)\b",
+    re.IGNORECASE,
+)
+
+#: Words that ask after a condition only when they are about HER. "Doing",
+#: "state", "ok", "working" and "usage" are ordinary English about anything.
+#:
+#: LIVE, 2026-08-27: "since YOUR deals.csv analysis showed West had the highest
+#: average approved deal size, what is West DOING differently?" was answered
+#: with "The machine is at 22.2% processor and 59.4% memory right now." The
+#: "your" attached to the analysis and the "doing" attached to West, and a
+#: topic in one part with a question in another is not evidence about the same
+#: thing — which is the failure this gate's own docstring warns about.
+#: Up to two words between, so "your internals holding up" counts and "your
+#: deals.csv analysis showed West had the highest average ... what West is
+#: doing" does not. `\W` was wrong here: it matches non-word characters only,
+#: so a single noun in between broke it.
+_NEARBY = r"(?:\W+\w+){0,2}\W+"
+
+#: A clause about what is still to come, removed before her condition is read.
+_ABOUT_WHAT_COMES_NEXT = re.compile(
+    r"\b(?:doing|up\s+to|planning|working\s+on)\b[^.?!]{0,24}?"
+    r"\b(?:later|tonight|tomorrow|next|after\s+this|this\s+afternoon|"
+    r"this\s+evening|rest\s+of\s+the\s+day|today)\b",
+    re.IGNORECASE,
+)
+
+_WEAK_STATE_RE = re.compile(
+    r"\b(?:you|your|yours|it)\b" + _NEARBY
+    + r"\b(?:doing|state|working|ok(?:ay)?|usage|holding\s+up)\b"
+    r"|\b(?:doing|state|working|ok(?:ay)?|usage|holding\s+up)\b" + _NEARBY
+    + r"\b(?:you|your|yours)\b",
     re.IGNORECASE,
 )
 
@@ -274,12 +305,23 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # it. What is left after the setting is removed is what is being asked
     # about.
     subject = _THE_PLACE_SHE_IS.sub(" ", asked)
+    # "What are you doing later" is her plans, not her instruments.
+    #
+    # A weak state word beside a future reference is asking what she WILL do,
+    # and answering it with a processor percentage is the same category error
+    # as answering "are you ok" with one.
+    subject = _ABOUT_WHAT_COMES_NEXT.sub(" ", subject)
     about_her_host = bool(_HOST_SUBJECT_RE.search(subject)) and bool(
         _RUNS_ON_RE.search(subject)
     )
     about_her = bool(_SELF_SUBJECT_RE.search(subject)) or about_her_host
     settled = about_her_host or (
-        about_her and bool(_TROUBLE_RE.search(subject) or _STATE_ENQUIRY_RE.search(subject))
+        about_her
+        and bool(
+            _TROUBLE_RE.search(subject)
+            or _STATE_ENQUIRY_RE.search(subject)
+            or _WEAK_STATE_RE.search(subject)
+        )
     )
     surface = _condition_surface()
     if surface is None:
