@@ -16198,7 +16198,18 @@ def _serve_recent_activity(user_message: object, reply: object) -> object:
         # headings separate evidence from everything around it; served to
         # somebody who asked what she had been up to tonight it reads as a
         # status page — the right facts in the wrong voice.
-        described = narrate_recent_activity(read_recent_activity())
+        # Bound it to the stretch the person asked about.
+        #
+        # LIVE, 2026-08-27: "of everything I've thrown at you in the last hour
+        # or so, what did you actually do well?" came back with several days of
+        # work — 2048, a sliding puzzle, notes written to a Desktop — because
+        # the record was read by COUNT and the window in the sentence was never
+        # read at all.
+        from core.language.stated_window import seconds_named
+
+        described = narrate_recent_activity(
+            read_recent_activity(since_seconds=seconds_named(user_message))
+        )
         if not described:
             return reply
         logger.info("🗂️ Served the activity record from the intention log.")

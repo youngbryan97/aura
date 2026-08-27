@@ -1073,6 +1073,16 @@ def asks_about_past_actions(text: Any) -> bool:
     return bool(_PAST_ACTION_QUESTION_RE.search(raw))
 
 
+def _window_named(query: Any) -> float:
+    """How far back the question asked, in seconds, or 0 for no window."""
+    try:
+        from core.language.stated_window import seconds_named
+
+        return float(seconds_named(query) or 0.0)
+    except (ImportError, TypeError, ValueError):
+        return 0.0
+
+
 def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
     """Verified effects from her own tool receipts, newest first.
 
@@ -1153,6 +1163,20 @@ def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
             return 0.0
 
     actions.sort(key=_at, reverse=True)
+    # Bound it to the stretch the question asked about.
+    #
+    # LIVE, 2026-08-27: "of everything I've thrown at you in the last hour or
+    # so, what did you actually do well?" came back with 2048, a sliding puzzle
+    # and notes written to a Desktop — days of work, because the record was
+    # read by COUNT and the window in the sentence was never read.
+    window = _window_named(query)
+    if window:
+        floor = time.time() - window
+        recent = [entry for entry in actions if _at(entry) >= floor]
+        # An empty window is a real answer — "nothing in the last hour" — but
+        # only when the record HAS entries to have excluded.
+        if recent or actions:
+            actions = recent
     # Only genuinely contentless words are dropped. The first version also
     # stripped "count", "files" and "directory" — the exact words that
     # discriminate — so a question about a count matched anything, and what
@@ -1336,6 +1360,19 @@ def past_actions_answer(message: Any) -> str:
         return ""
     bundle = resolve_past_actions(query=message)
     if not bundle.grounded:
+        # Nothing in the window they asked about is an ANSWER, not an absence.
+        #
+        # Bounding the record to "the last hour" turned a wrong answer into no
+        # answer, and the turn fell through to the model — which is how a
+        # question with a definite answer ends up guessed at.
+        window = _window_named(message)
+        if window and resolve_past_actions(query="").grounded:
+            from core.language.stated_window import describe_window
+
+            return (
+                f"Nothing in {describe_window(window)}: I have no verified record "
+                "of an action of mine in that stretch."
+            )
         return ""
     return render_past_actions(bundle)
 

@@ -114,10 +114,17 @@ def _humanise(seconds: float) -> str:
     return f"{seconds / 86_400:.1f} days"
 
 
-def read_recent_activity(limit: int = _SAMPLE) -> ActivityWindow:
+def read_recent_activity(
+    limit: int = _SAMPLE, *, since_seconds: float | None = None
+) -> ActivityWindow:
     """The most recent completed work, and what it was.
 
     Read-only, so a chat turn can never write to the record it is describing.
+
+    `since_seconds` bounds it to what a person actually asked about. LIVE,
+    2026-08-27: "of everything I've thrown at you in the last hour or so, what
+    did you actually do well?" came back with several days of work, because the
+    record was read by COUNT and the window in the sentence was never read.
     """
     path = _database()
     if path is None:
@@ -134,11 +141,14 @@ def read_recent_activity(limit: int = _SAMPLE) -> ActivityWindow:
         )
         return ActivityWindow()
     try:
+        floor = 0.0
+        if since_seconds and since_seconds > 0:
+            floor = max(0.0, time.time() - float(since_seconds))
         rows = connection.execute(
             "SELECT intention, drive, status, completed_at, actual_outcome "
-            "FROM intentions WHERE completed_at > 0 "
+            "FROM intentions WHERE completed_at > ? "
             "ORDER BY completed_at DESC LIMIT ?",
-            (max(1, int(limit)),),
+            (floor, max(1, int(limit))),
         ).fetchall()
     except _RECOVERABLE as exc:
         record_degradation(
