@@ -55,3 +55,20 @@ def test_and_still_answers_a_question_about_now():
     """Whatever it says, it does not refuse the question it can answer."""
     said = _build_bounded_capability_inventory_repair_reply("what tools can you use")
     assert isinstance(said, str)
+
+
+def test_the_guard_is_on_the_builder_not_on_one_of_seven_doors():
+    """Six other paths reach the builder directly."""
+    from interface.routes.chat_desktop_repair import (
+        _build_grounded_capability_inventory_reply as grounded,
+    )
+
+    assert grounded("what can you do that you could not do a month ago") == ""
+
+
+def test_and_the_builder_still_answers_about_now():
+    from interface.routes.chat_desktop_repair import (
+        _build_grounded_capability_inventory_reply as grounded,
+    )
+
+    assert grounded("what tools can you use") != ""
