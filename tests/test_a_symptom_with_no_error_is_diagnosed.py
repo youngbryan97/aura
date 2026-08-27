@@ -126,3 +126,40 @@ def test_the_finding_is_filed_as_something_that_can_be_wrong(project: Path) -> N
     confirm_diagnosis(diagnosis.hypothesis_id, worked=True)
     after = engine.belief(diagnosis.hypothesis_id)
     assert after is not None and after >= before
+
+
+def test_her_explanation_leads_the_evidence_that_supports_it() -> None:
+    """The answer, then the working — not the working, then the answer.
+
+    LIVE, 2026-08-27: the finding was complete and correct, and fifteen lines
+    of it sat above "Found it — classic mutable default argument, and exactly
+    why nothing ever raises". Somebody who asked what the cause is and what to
+    change reads the answer first.
+    """
+    from interface.routes.chat import _explains_the_finding
+
+    found = (
+        "I ran python run.py and it printed: invoice one: 125.0. add_line was called "
+        "twice with the same arguments and answered differently (invoice.py:4). "
+        "add_line(lines=...) defaults to a list built once."
+    )
+    explanation = (
+        "Found it — a classic mutable default argument, and exactly why nothing ever "
+        "raises. The cause is invoice.py:4: add_line(item, price, lines=[]) evaluates "
+        "that default once, when the function is defined, so every call that omits "
+        "lines appends into the same list object and invoice one's rows are still "
+        "there when invoice two starts."
+    )
+    assert _explains_the_finding(explanation, found) is True
+
+    # A remark is not an account of anything, and leading with it buries the
+    # finding instead.
+    assert _explains_the_finding("Yeah, that looks right to me.", found) is False
+    assert (
+        _explains_the_finding(
+            "I had a look and something odd is going on with the totals here, though "
+            "I would want to check a few more things before saying anything definite.",
+            found,
+        )
+        is False
+    )

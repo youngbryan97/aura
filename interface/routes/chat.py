@@ -15827,6 +15827,29 @@ def _serve_built_artifact(reply: object) -> object:
     return reply
 
 
+#: Below this a reply is a remark, not an account of what was found.
+_EXPLANATION_CHARS = 200
+
+
+def _explains_the_finding(written: str, found: str) -> bool:
+    """Whether the reply accounts for the finding rather than mentioning it.
+
+    The test is that it names things the finding names — a function, a file, a
+    line — because a reply that explains an observation has to refer to it.
+    """
+    if len(written) < _EXPLANATION_CHARS:
+        return False
+    import re as _re
+
+    names = {
+        token
+        for token in _re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}\.py|[a-z_]{4,}\(", found)
+    }
+    if not names:
+        return False
+    return sum(1 for token in names if token in written) >= 2
+
+
 def _serve_repo_diagnosis(reply: object) -> object:
     """Put what running the project showed in front of what was said about it.
 
@@ -15859,6 +15882,19 @@ def _serve_repo_diagnosis(reply: object) -> object:
         if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
             logger.info("🔬 Served the diagnosis alone; the draft admitted having nothing.")
             return found
+        # Her explanation leads when there is one.
+        #
+        # LIVE, 2026-08-27: the finding was complete and correct, and fifteen
+        # lines of it sat above "Found it — classic mutable default argument,
+        # and exactly why nothing ever raises". Somebody who asked what the
+        # cause is and what to change reads the answer, then the working — not
+        # the working, then the answer.
+        #
+        # It only leads when it IS an explanation: a short reply that says
+        # nothing about the finding would bury the finding instead.
+        if _explains_the_finding(written, found):
+            logger.info("🔬 Served the diagnosis under the explanation of it.")
+            return f"{written}\n\nWhat I ran, and what it showed:\n{found}"
         logger.info("🔬 Served the diagnosis from running the project.")
         return f"{found}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:
