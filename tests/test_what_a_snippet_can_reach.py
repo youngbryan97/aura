@@ -121,3 +121,36 @@ def test_the_tool_is_still_offered_before_the_snippet_exists() -> None:
     )
     assert "run_code" in kept
     assert not withheld
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"code": _USES_A_LOCAL_LIBRARY},
+        {"params": {"code": _USES_A_LOCAL_LIBRARY}},
+        {"arguments": {"code": _USES_A_LOCAL_LIBRARY}},
+        {"input": {"source": _USES_A_LOCAL_LIBRARY}},
+    ],
+)
+def test_the_snippet_is_found_however_the_call_wrapped_it(arguments: dict) -> None:
+    """LIVE, 2026-08-27: the call arrived as {"params": {"code": …}}.
+
+    The reader looked at the top level only, found no snippet, rated the call
+    critical and stopped to ask for a confirmation nobody could give. Being
+    unable to read a snippet that is right there is not the same as there being
+    none, and only one of those should be rated as the worst case.
+    """
+    assert (
+        classify_execution_risk("code_repl", arguments, effect_scope="sandboxed_compute")
+        == "medium"
+    )
+
+
+def test_a_wrapped_snippet_that_acts_is_still_stopped() -> None:
+    """Unwrapping must not become a way past the guard."""
+    risk = classify_execution_risk(
+        "code_repl",
+        {"params": {"code": "import subprocess\nsubprocess.run(['ls'])"}},
+        effect_scope="sandboxed_compute",
+    )
+    assert risk in {"high", "critical"}

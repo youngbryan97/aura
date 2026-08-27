@@ -536,6 +536,35 @@ def _skill_meta_for(name: str) -> Any:
 #: a property of that snippet, so it cannot be known before there is one.
 _RUNS_A_SNIPPET = frozenset({"run_code", "code_repl"})
 
+#: What a caller might call the snippet.
+_SNIPPET_KEYS = ("code", "source", "script", "snippet")
+
+#: Where a tool call might have wrapped its arguments.
+_ARGUMENT_WRAPPERS = ("params", "arguments", "input", "args", "kwargs")
+
+
+def _snippet_in(arguments: dict[str, Any]) -> str:
+    """The code a caller supplied, wrapped or not.
+
+    LIVE, 2026-08-27: the tool call arrived as {"params": {"code": ...}} and
+    this read the top level only, so it found no snippet, rated the call
+    critical and stopped to ask for a confirmation nobody could give. Reading
+    it must not depend on somebody else having unwrapped it first — an
+    unreadable call is rated as the worst case, and being unable to read one
+    that is right there is not the same thing.
+    """
+    levels = [arguments]
+    for wrapper in _ARGUMENT_WRAPPERS:
+        nested = (arguments or {}).get(wrapper)
+        if isinstance(nested, dict):
+            levels.append(nested)
+    for level in levels:
+        for key in _SNIPPET_KEYS:
+            value = level.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return ""
+
 
 def classify_execution_risk(
     tool_name: Any,
@@ -575,12 +604,7 @@ def classify_execution_risk(
         from core.skills.snippet_reach import reach_of
 
         stateful = bool(arguments.get("stateful", True))
-        snippet = ""
-        for key in ("code", "source", "script", "snippet"):
-            value = arguments.get(key)
-            if isinstance(value, str) and value.strip():
-                snippet = value
-                break
+        snippet = _snippet_in(arguments)
         if snippet and reach_of(snippet).only_computes:
             return "medium"
         return "critical" if stateful else "high"
