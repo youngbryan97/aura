@@ -14286,6 +14286,23 @@ def _should_collect_desktop_required_search_evidence(
         named_file = None
     if named_file is not None and named_file.exists:
         return False, "", None
+    # A DIRECTORY on this disk settles it for the same reason.
+    #
+    # The reader above finds a named file; "debug the project at <path>" names
+    # a folder, so this fell through.
+    #
+    # LIVE 2026-08-27: a request to diagnose a project ran a web search for the
+    # user's whole sentence, path included, and came back with GitHub issues
+    # about disk usage under /private/tmp/claude-501. The search itself then
+    # threw all five results away as irrelevant — correctly — having spent the
+    # turn's tool budget on a question whose evidence was on the disk.
+    try:
+        from core.language.named_paths import first_existing_path
+
+        if first_existing_path(user_message) is not None:
+            return False, "", None
+    except _CHAT_RECOVERABLE_ERRORS:
+        pass
     # A document the person addressed directly is not a search question
     # either, for the same reason: the bytes are AT that address.
     #
