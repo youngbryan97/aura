@@ -12676,6 +12676,29 @@ class InferenceGate:
                     applied_bias["max_tokens_factor"],
                     max_tokens,
                 )
+            # A bias may spend less of the budget than it was given. It may not
+            # spend less than the request needs. The completion floor was
+            # applied further up and this multiplier ran after it, so the floor
+            # has to be put back or it was never a floor.
+            #
+            # LIVE, 2026-08-27: a question that had to be worked out carried a
+            # floor of 896 tokens. An integration measure scaled the budget by
+            # its smallest permitted factor and the model was dispatched with
+            # 363, stopping one sentence before the answer. The same principle
+            # is already written where the floor is computed: sampling biases
+            # may make an answer terser, and may not make the surface smaller
+            # than the visible request.
+            try:
+                _floor = int(context.get("user_surface_completion_floor") or 0)
+            except (TypeError, ValueError, OverflowError):
+                _floor = 0
+            if 0 < _floor and max_tokens < _floor:
+                logger.info(
+                    "🧠 Completion floor restored after sampling bias: %d→%d.",
+                    max_tokens,
+                    _floor,
+                )
+                max_tokens = _floor
 
         if (
             not is_background
