@@ -63,8 +63,21 @@ def test_a_rule_is_composed_rather_than_chosen_off_a_list():
     assert rule.as_facts() == "one thing carries one place, nothing combines"
 
 
-def test_the_puzzle_is_worked_out_by_composing_one(lived):
-    assert lived["one into the gap"]["rule"] == "one thing steps"
+@pytest.mark.parametrize(
+    ("world", "rule"),
+    [
+        ("one into the gap", "one thing steps"),
+        ("everything shuffles", "everything steps"),
+        ("one goes the distance", "one thing slides"),
+    ],
+)
+def test_a_world_is_worked_out_by_composing_a_rule_for_it(lived, world, rule):
+    """Three points of the space nobody wrote down, each found from watching.
+
+    Three rather than one, so the claim is that she searches the space rather
+    than that a single point of it happens to work.
+    """
+    assert lived[world]["rule"] == rule
 
 
 def test_and_she_looks_ahead_in_it_like_any_other_world(lived):

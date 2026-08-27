@@ -16,6 +16,8 @@ the identical stack with nothing written for any of them.
     still                 nothing she does moves anything
     swaps                 the two ends of every line exchange places
     one into the gap      a sliding-puzzle: one thing moves into the space
+    everything shuffles   everything with room ahead of it moves one place
+    one goes the distance one thing travels as far as it can, the rest stay
 
 Four of these are compositions she can reach — not because anyone wrote them
 down, but because they fall out of the three facts a push can turn on. The
@@ -94,6 +96,20 @@ def one_into_the_gap(state: Arrangement, action: str) -> Arrangement:
     return Arrangement(state.rows, state.columns, tuple(cells), state.down_at, state.across_at)
 
 
+def everything_steps(state: Arrangement, action: str) -> Arrangement:
+    """Everything with a free place ahead of it moves one place that way."""
+    from core.perception.how_it_moves import composed
+
+    return composed("one place", False, "everything").apply(state, action) or state
+
+
+def one_thing_slides(state: Arrangement, action: str) -> Arrangement:
+    """One thing goes as far that way as it can, and nothing else moves."""
+    from core.perception.how_it_moves import composed
+
+    return composed("all the way", False, "one thing").apply(state, action) or state
+
+
 #: Each world, whether things arrive in it on their own, whether it starts
 #: full, and whether she has a hypothesis that fits it.
 WORLDS: dict[str, tuple[Callable, bool, bool, bool]] = {
@@ -102,6 +118,10 @@ WORLDS: dict[str, tuple[Callable, bool, bool, bool]] = {
     "still": (still, True, False, True),
     "swaps": (swaps, False, True, False),
     "one into the gap": (one_into_the_gap, False, True, True),
+    # Two more points in the same space, so the claim is that she searches it
+    # rather than that three of its points happen to work.
+    "everything shuffles": (everything_steps, True, False, True),
+    "one goes the distance": (one_thing_slides, True, False, True),
 }
 
 
