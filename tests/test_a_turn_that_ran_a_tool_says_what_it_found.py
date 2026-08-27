@@ -95,3 +95,21 @@ def test_the_receipt_records_what_came_back_not_only_that_it_ran() -> None:
     # And it reads the shapes a tool result actually arrives in.
     for key in ("content", "stdout", "summary", "text", "output"):
         assert f'returned.get("{key}")' in source, key
+
+
+def test_both_giving_up_paths_ask_what_the_tools_found() -> None:
+    """Two places build the refusal, and a fix applied to one leaves the other.
+
+    LIVE, 2026-08-27: the rescue was added to the first, the second served the
+    turn, and a successful file_operation was still followed by "I couldn't get
+    to an answer I'd stand behind."
+    """
+    from pathlib import Path
+
+    source = Path("interface/routes/chat.py").read_text()
+    builds = source.count("failure_reply = THE_HONEST_FAILURE")
+    asks = source.count("evidenced_reply = _what_the_tools_found()")
+    assert builds >= 2, "the refusal is built somewhere this no longer counts"
+    assert asks == builds, (
+        f"{builds} paths build the refusal and {asks} ask what the tools returned"
+    )

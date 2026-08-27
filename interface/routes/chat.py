@@ -23018,6 +23018,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
                 _semantic_user_message
             )
+            if not evidenced_reply:
+                # And what this turn's tools actually returned. The same rescue
+                # as the other giving-up path, which is why both exist: two
+                # places build this reply and a fix applied to one of them
+                # leaves the other saying "I couldn't get to an answer" on top
+                # of a tool result.
+                evidenced_reply = _what_the_tools_found()
             if evidenced_reply:
                 failure_reply = evidenced_reply
             # A refusal is the right answer when nothing better is known. When
