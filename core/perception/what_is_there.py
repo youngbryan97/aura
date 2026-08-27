@@ -176,6 +176,42 @@ class Arrangement:
             self.place_of(cell) for cell in self.cells if cell.says.strip().lower() == wanted
         }
 
+    def without(self, places: set[tuple[int, int]]) -> "Arrangement":
+        """This thing with some places dropped, and any row or column they
+        were the whole of dropped with them.
+
+        What is left is the part that behaves like one thing. A score beside a
+        board answers to her the same way the board does, so it sits inside the
+        part of the screen that responds — and it holds a row nothing ever
+        moves into. Cropped out, what remains is the board.
+        """
+        if not places:
+            return self
+        kept = [cell for cell in self.cells if (cell.row, cell.column) not in places]
+        if not kept:
+            return Arrangement(rows=0, columns=0, cells=())
+        rows = sorted({cell.row for cell in kept})
+        columns = sorted({cell.column for cell in kept})
+        row_of = {row: index for index, row in enumerate(rows)}
+        column_of = {column: index for index, column in enumerate(columns)}
+        return Arrangement(
+            rows=len(rows),
+            columns=len(columns),
+            cells=tuple(
+                Cell(
+                    row=row_of[cell.row],
+                    column=column_of[cell.column],
+                    says=cell.says,
+                    at=cell.at,
+                )
+                for cell in kept
+            ),
+            down_at=tuple(self.down_at[row] for row in rows if row < len(self.down_at)),
+            across_at=tuple(
+                self.across_at[column] for column in columns if column < len(self.across_at)
+            ),
+        )
+
     def as_text(self) -> str:
         """The rendering she reads, with gaps kept so a column stays a column."""
         if not self.rows or not self.columns:

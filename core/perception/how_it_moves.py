@@ -174,8 +174,79 @@ class HowItMoves:
     recent: list[tuple[str, frozenset[str]]] = field(default_factory=list)
     #: Pairs of readings that could not be compared at all.
     unreadable: int = 0
+    #: Places that sit still and change what they say — a score, a clock, a
+    #: count of moves. They answer to her, so they are inside the part of the
+    #: screen that responds, and no rule about what her act MOVES can predict
+    #: one. Left in the comparison they make every hypothesis wrong forever.
+    counters: set[tuple[int, int]] = field(default_factory=set)
+    #: How often each place has been seen holding something, and how often
+    #: what it holds has changed.
+    _seen_at: dict[tuple[int, int], int] = field(default_factory=dict)
+    _changed_at: dict[tuple[int, int], int] = field(default_factory=dict)
+    _looks: int = 0
 
     # ── learning ─────────────────────────────────────────────────────────
+
+    def _note_counters(self, before: Arrangement, after: Arrangement) -> None:
+        """Places that sit still and change what they say.
+
+        A score, a clock, a count of moves. They answer to her — they change
+        when she acts — so the part of the screen that responds to her
+        includes them, and every rule about what her act MOVES is wrong about
+        one every single time. LIVE 2026-08-26: seventeen readings watched,
+        every hypothesis discredited, on a board she was reading correctly.
+
+        Nothing here knows what a score is. What it knows is that a thing
+        which never goes anywhere and keeps saying something different is not
+        a thing her moves move.
+        """
+        self._looks += 1
+        was = {(cell.row, cell.column): cell.says for cell in before.cells}
+        now = {(cell.row, cell.column): cell.says for cell in after.cells}
+        for place, said in now.items():
+            if place not in was:
+                continue
+            self._seen_at[place] = self._seen_at.get(place, 0) + 1
+            if was[place] != said:
+                self._changed_at[place] = self._changed_at.get(place, 0) + 1
+            times = self._seen_at[place]
+            if times < STILL_ENOUGH_TO_JUDGE:
+                continue
+            # Furniture is always there. A place in the thing itself is empty
+            # much of the time — that is what makes it a place rather than a
+            # readout — so a cell that happens to change often while it is
+            # occupied is not a counter.
+            always_there = times / max(1, self._looks) >= ALWAYS_THERE
+            keeps_changing = (
+                always_there
+                and self._changed_at.get(place, 0) / times >= CHANGES_NEARLY_ALWAYS
+            )
+            # A place joins the furniture once and does not leave it.
+            #
+            # Judged fresh every move it flickered in and out, and each flicker
+            # threw away what she had learned. A thing that has sat still and
+            # said something different nearly every time for long enough is
+            # what it is.
+            if not keeps_changing or place in self.counters:
+                continue
+            self.counters.add(place)
+            if True:
+                # What she learned was about a different thing.
+                #
+                # Every observation until now compared a board with a score
+                # stuck to it against rules about a board. Those are not
+                # evidence about the board, and left in the counts they hold a
+                # correct rule below the bar for as long as they outnumber
+                # what came after.
+                logger.info(
+                    "the thing itself is %s, not what surrounds it — starting again",
+                    f"{len(self.counters)} place(s) smaller",
+                )
+                self.right.clear()
+                self.tried.clear()
+                self.seen = 0
+                self.recent.clear()
+
 
     def watched(self, before: Arrangement, action: str, after: Arrangement) -> None:
         """One of her own moves, and what it did."""
@@ -190,13 +261,19 @@ class HowItMoves:
             # worked out, on a board she was reading perfectly well.
             self.unreadable += 1
             return
+        self._note_counters(before, after)
+        # The part that behaves like one thing, with its furniture cropped out.
+        here, there = self.the_thing(before), self.the_thing(after)
+        if not here.cells or (here.rows, here.columns) != (there.rows, there.columns):
+            self.unreadable += 1
+            return
         agreed: set[str] = set()
         for rule in RULES:
-            predicted = rule.apply(before, action)
+            predicted = rule.apply(here, action)
             if predicted is None:
                 continue
             self.tried[rule.name] = self.tried.get(rule.name, 0) + 1
-            if _near_enough(predicted, after):
+            if _near_enough(predicted, there):
                 self.right[rule.name] = self.right.get(rule.name, 0) + 1
                 agreed.add(rule.name)
         self.seen += 1
@@ -229,6 +306,10 @@ class HowItMoves:
         tried = self.tried.get(rule.name, 0)
         return (self.right.get(rule.name, 0) / tried) if tried else 0.0
 
+    def the_thing(self, arrangement: Arrangement) -> Arrangement:
+        """The part of a reading that behaves like one thing."""
+        return arrangement.without(self.counters)
+
     def expect(self, arrangement: Arrangement, action: str) -> Arrangement | None:
         """What this thing would look like after that, without doing it.
 
@@ -238,7 +319,7 @@ class HowItMoves:
         rule = self.rule()
         if rule is None:
             return None
-        return rule.apply(arrangement, action)
+        return rule.apply(self.the_thing(arrangement), action)
 
     def expect_all(
         self, arrangement: Arrangement, actions: Sequence[str]
@@ -295,7 +376,9 @@ class HowItMoves:
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
 
 
-def _near_enough(predicted: Arrangement, seen: Arrangement) -> bool:
+def _near_enough(
+    predicted: Arrangement, seen: Arrangement, ignoring: set[tuple[int, int]] | None = None
+) -> bool:
     """Whether a rule got right the part it claimed to know about.
 
     A world that adds something of its own — a dealt tile, a new row, a clock
@@ -304,7 +387,12 @@ def _near_enough(predicted: Arrangement, seen: Arrangement) -> bool:
     """
     if predicted.rows != seen.rows or predicted.columns != seen.columns:
         return False
-    claimed = {(cell.row, cell.column): cell.says for cell in predicted.cells}
+    skip = ignoring or set()
+    claimed = {
+        (cell.row, cell.column): cell.says
+        for cell in predicted.cells
+        if (cell.row, cell.column) not in skip
+    }
     actual = {(cell.row, cell.column): cell.says for cell in seen.cells}
     for place, said in claimed.items():
         if actual.get(place) != said:
@@ -312,3 +400,19 @@ def _near_enough(predicted: Arrangement, seen: Arrangement) -> bool:
     # And nothing may vanish that the rule kept: an extra arrival is the
     # world's business, a disappearance would be the rule's mistake.
     return True
+
+
+#: How many times a place has to have been watched before it can be called a
+#: counter. Below this, a tile that merged twice in the same corner looks the
+#: same as a score.
+STILL_ENOUGH_TO_JUDGE = 6
+
+#: How often a place has to change, of the times it was there, to be one.
+#: A counter changes nearly every time; a tile that happens to sit in one
+#: place for a while does not.
+CHANGES_NEARLY_ALWAYS = 0.8
+
+#: How often a place has to be occupied at all. Furniture is always there; a
+#: place in the thing itself is empty much of the time, which is what makes it
+#: a place rather than a readout.
+ALWAYS_THERE = 0.9
