@@ -917,6 +917,51 @@ async def _take_the_run_its_bearings(
         )
 
 
+#: The one key she may send without knowing where it will land.
+#:
+#: Every other keystroke needs to be bound to a window, and the reason is on
+#: the record: unbound arrow keys played thirty-five moves of a game into a
+#: chat window. Escape is different in kind rather than in degree. It declines,
+#: it commits to nothing, it is reversible, and it is the platform-standard
+#: way out of a modal on every desktop. Sending it at whatever has the
+#: keyboard is the only way to reach a thing that took the keyboard from her.
+DECLINES_AND_NOTHING_ELSE = "escape"
+
+
+async def clear_what_is_in_front(on_top: str) -> bool:
+    """Try to get whatever is covering her work out of the way.
+
+    A dialog in front of the thing she is acting in is an obstacle, not a
+    reason to stop — a person closes it and carries on. She could see one and
+    name it and had no way to move it, because every key she can send is bound
+    to her own window and the dialog is not in it.
+
+    Only ever the key that declines. She may clear something out of her way;
+    she may not agree to something on somebody's behalf, and a dialog asking
+    for a permission or a consent is exactly the case where those two come
+    apart. blocking_overlay.py holds the same line for a dialog inside a page:
+    it dismisses and never agrees.
+    """
+    if not str(on_top or "").strip():
+        return False
+    try:
+        from core.capabilities.host_automation import get_host_automation
+
+        logger.info("something is in front of her work (%s) — declining it", on_top)
+        await get_host_automation().hotkeys([DECLINES_AND_NOTHING_ELSE])
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="could not decline what was in front"
+        )
+        return False
+    still_there = await _whats_on_top(on_top)
+    if still_there:
+        logger.info("%r is still in front and will not decline", still_there)
+        return False
+    logger.info("%s is out of the way", on_top)
+    return True
+
+
 async def _why_nothing_answers(mine: str) -> str:
     """Why nothing she does is changing anything, before blaming the thing.
 
@@ -931,9 +976,12 @@ async def _why_nothing_answers(mine: str) -> str:
     """
     on_top = await _whats_on_top(mine)
     if on_top:
+        # Try to move it before saying it cannot be moved.
+        if await clear_what_is_in_front(on_top):
+            return f"{on_top} was in front of this. I have closed it — carrying on."
         return (
             f"Nothing I do is reaching this — {on_top} is in front of it and taking "
-            "the keyboard. Nothing I press is getting through."
+            "the keyboard, and it will not close. Nothing I press is getting through."
         )
     return "Nothing I do is changing anything here — this attempt is over."
 
@@ -1388,8 +1436,26 @@ async def pursue_on_screen(
     #: Whether she has confirmed being in the thing she was asked to act in.
     confirmed_here: dict[str, bool] = {"value": False}
     not_there: dict[str, str] = {"reason": ""}
+    #: What she last tried to move out of her way, so a thing that will not
+    #: close is not pressed at once a cycle for the rest of the run.
+    in_the_way: dict[str, str] = {"last": ""}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
+        # Something in front of her work is cleared before anything else.
+        #
+        # Not once it has cost her four moves discovering that nothing
+        # answers: a dialog that owns the keyboard makes every reading and
+        # every keystroke of this cycle meaningless, and a person closes it
+        # and carries on rather than playing on underneath it.
+        in_front = await _whats_on_top(target_app or anchor["app"])
+        if in_front and in_front != in_the_way["last"]:
+            in_the_way["last"] = in_front
+            if await clear_what_is_in_front(in_front):
+                in_the_way["last"] = ""
+                if narrate:
+                    _tell(f"{in_front} was in front of this. Closed it.")
+                return None
+
         blocker = await clear_blocker(observation)
         if blocker is not None:
             # Verified, not assumed. A blocker still present after the previous
