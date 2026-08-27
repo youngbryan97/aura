@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import logging
 import os
+from pathlib import Path
 import tempfile
 from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, Field
@@ -31,6 +32,46 @@ class FileOpInput(BaseModel):
     destination: Optional[str] = Field(None, description="Destination path for move or copy actions.")
     start_line: Optional[int] = Field(None, description="Starting line number for 'patch' action (inclusive, 1-indexed).")
     end_line: Optional[int] = Field(None, description="Ending line number for 'patch' action (inclusive, 1-indexed).")
+
+#: Actions that observe and change nothing.
+_READING_ACTIONS = frozenset({"read", "list", "exists", "stat", "head", "tail"})
+
+
+def _the_person_named_this_path(path: str) -> bool:
+    """Whether this exact path appears in what the person said this turn.
+
+    The authorisation is theirs and it is literal: the path has to be in their
+    own words, not derived, expanded or guessed at by anything downstream.
+    """
+    wanted = str(path or "").strip()
+    if not wanted:
+        return False
+    try:
+        from core.conversation.session_scope import the_persons_own_words
+
+        said = str(the_persons_own_words("") or "")
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    if not said:
+        return False
+    # Identity or containment, never substring.
+    #
+    # Testing whether the text appears in the sentence authorised every PARENT
+    # of a named path, because a parent is a prefix of it — so naming anything
+    # at all authorised "/". What a person authorises by naming a place is that
+    # place and what is inside it.
+    try:
+        from core.language.named_paths import named_paths
+
+        target = Path(os.path.realpath(wanted))
+        for candidate in named_paths(said):
+            named = Path(os.path.realpath(candidate))
+            if target == named or target.is_relative_to(named):
+                return True
+    except (OSError, ValueError, ImportError):
+        return False
+    return False
+
 
 class FileOperationSkill(BaseSkill):
     name = "file_operation"
@@ -69,10 +110,22 @@ class FileOperationSkill(BaseSkill):
         except ValueError:
             return False
 
-    def _safe_resolve(self, path: str) -> str:
+    def _safe_resolve(self, path: str, *, for_reading: bool = False) -> str:
         """Resolve path and enforce it stays within root_dir.
 
         Prevents path traversal via ../ or absolute paths to unauthorized areas.
+
+        One exception, and only for reading: a path the PERSON typed in their
+        own message this turn. They named it, which is the authorisation, and
+        it is the same reason `diagnose_repo` may be aimed at any directory
+        somebody names — a capability this tree gained precisely because
+        nothing could look at a project a person pointed at.
+
+        LIVE, 2026-08-27: "docs and source are at <path>. Read it, then
+        actually use it" was refused with "resolves outside workspace" for a
+        directory in the person's own sentence. Writing outside the workspace
+        stays refused, because naming a place to read is not asking for it to
+        be changed.
         """
         if not path:
             return os.path.realpath(self.root_dir)
@@ -84,6 +137,11 @@ class FileOperationSkill(BaseSkill):
 
         # Check containment
         if not self._is_within_root(full):
+            if for_reading and _the_person_named_this_path(path):
+                self.logger.info(
+                    "Reading %s: outside the workspace, and the person named it.", path
+                )
+                return full
             raise PermissionError(f"Access denied: path '{path}' resolves outside workspace")
         return full
 
@@ -143,8 +201,11 @@ class FileOperationSkill(BaseSkill):
         if not action:
             return {"ok": False, "error": "Missing 'action' parameter (read, write, list, exists, delete, append, move, copy, patch)"}
 
+        # Only the actions that change nothing may reach outside the
+        # workspace, and only for a path the person typed themselves.
+        reading = str(action).strip().lower() in _READING_ACTIONS
         try:
-            full_path = self._safe_resolve(path)
+            full_path = self._safe_resolve(path, for_reading=reading)
         except PermissionError as e:
             self.logger.warning("Path traversal blocked: %s", e)
             return {"ok": False, "error": str(e)}
