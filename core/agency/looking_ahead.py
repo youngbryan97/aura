@@ -73,6 +73,8 @@ def look_ahead(
     approach: str = "",
     budget_s: float = 0.5,
     world: Any = None,
+    weights: Any = None,
+    depth: int = 0,
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
 
@@ -96,7 +98,8 @@ def look_ahead(
         return {}
 
     started = time.monotonic()
-    depth = how_deep_to_look(len(actions), budget_s, branching=max(2, len(actions)))
+    fixed_depth = bool(depth)
+    depth = depth or how_deep_to_look(len(actions), budget_s, branching=max(2, len(actions)))
     scored: dict[str, tuple[float, str]] = {}
     here_now = _reading(state)
     for action in actions:
@@ -113,15 +116,15 @@ def look_ahead(
             # Ruling one out before making it is the whole point of being able
             # to try a move without making it.
             continue
-        here = how_good(future, toward=toward, approach=approach)
+        here = how_good(future, toward=toward, approach=approach, weights=weights)
         onward = _after_the_world(
             expect, future, actions, depth - 1,
-            toward=toward, approach=approach, trust=trust, world=world,
+            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
         )
         scored[action] = (here + trust * onward, why(future, toward=toward, approach=approach))
 
     spent = time.monotonic() - started
-    if scored and depth:
+    if scored and depth and not fixed_depth:
         _a_level_took(spent / float(depth))
     logger.debug("looked %d ahead over %d move(s) in %.3fs", depth, len(actions), spent)
     return scored
@@ -137,6 +140,7 @@ def _after_the_world(
     approach: str,
     trust: float,
     world: Any = None,
+    weights: Any = None,
 ) -> float:
     """What this comes to once the world has had its turn, and she has hers.
 
@@ -156,13 +160,13 @@ def _after_the_world(
     if not ways:
         return _best_from(
             expect, state, actions, depth,
-            toward=toward, approach=approach, trust=trust, world=world,
+            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
         )
     return sum(
         share
         * _best_from(
             expect, way, actions, depth,
-            toward=toward, approach=approach, trust=trust, world=world,
+            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
         )
         for way, share in ways
     )
@@ -178,6 +182,7 @@ def _best_from(
     approach: str,
     trust: float,
     world: Any = None,
+    weights: Any = None,
 ) -> float:
     """The best this could still come to, that many levels on."""
     if depth <= 0:
@@ -188,10 +193,10 @@ def _best_from(
         future = expect(state, action)
         if future is None or _reading(future) == here_now:
             continue
-        here = how_good(future, toward=toward, approach=approach)
+        here = how_good(future, toward=toward, approach=approach, weights=weights)
         onward = _after_the_world(
             expect, future, actions, depth - 1,
-            toward=toward, approach=approach, trust=trust, world=world,
+            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
         )
         best = max(best, here + trust * onward)
     return best

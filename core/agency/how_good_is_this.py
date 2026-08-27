@@ -34,6 +34,7 @@ and looking.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any, Sequence
 
 __all__ = ["ROOM_MATTERS", "how_good", "worth_comparing"]
@@ -81,24 +82,55 @@ def worth_comparing(toward: str, approach: str) -> bool:
     return bool(_target(toward)) or bool(str(approach or "").strip())
 
 
+def terms(
+    state: Any,
+    *,
+    toward: str = "",
+    approach: str = "",
+) -> dict[str, float]:
+    """What there is to like about a situation, each thing on its own.
+
+    ``how_good`` adds these up with weights. Kept apart, they can be weighed
+    differently in a world where different things matter — which is a fact
+    about the world and not something anybody can know in advance.
+    """
+    return {
+        "nearness": _nearness(state, toward),
+        "line": _holds_her_line(state, approach),
+        "room": _room(state),
+        "order": _order(state),
+    }
+
+
+#: What each thing is worth when nothing has been learned about this world.
+AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
+    "nearness": 1.0,
+    "line": LINE_MATTERS,
+    "room": ROOM_MATTERS,
+    "order": ORDER_MATTERS,
+}
+
+
 def how_good(
     state: Any,
     *,
     toward: str = "",
     approach: str = "",
+    weights: Mapping[str, float] | None = None,
 ) -> float:
-    """How good this situation is, between nearness, her line, and room.
+    """How good this situation is, between nearness, her line, room and order.
 
     ``state`` is anything that reads like an arrangement: it is asked for its
     numbers, its free places, and whether a claim holds in it. Nothing else is
     assumed about it.
+
+    ``weights`` is what each of those is worth here, when she has worked that
+    out. Without it the standing weights apply, which are a guess — a good
+    enough one to start from and no more than that.
     """
-    return (
-        _nearness(state, toward)
-        + LINE_MATTERS * _holds_her_line(state, approach)
-        + ROOM_MATTERS * _room(state)
-        + ORDER_MATTERS * _order(state)
-    )
+    weighed = AS_GOOD_A_GUESS_AS_ANY if weights is None else weights
+    here = terms(state, toward=toward, approach=approach)
+    return sum(here[name] * float(weighed.get(name, 0.0)) for name in here)
 
 
 def rank(
