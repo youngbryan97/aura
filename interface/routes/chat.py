@@ -15966,6 +15966,41 @@ def _tables_named_in(question: str, *, already: list) -> list:
     return found
 
 
+def _what_the_tools_found() -> str:
+    """What this turn's tools actually returned, or "".
+
+    Read from the turn's own receipts, so it can only report a tool that really
+    executed and only content that tool really observed. It reports rather than
+    interprets: the interpreting is what failed, and a record of what happened
+    is worth more than an apology for not having one.
+    """
+    try:
+        from core.conversation.surface_disposition import turn_tool_receipts
+
+        receipts = turn_tool_receipts()
+    except _CHAT_RECOVERABLE_ERRORS:
+        return ""
+    said: list[str] = []
+    for receipt in receipts:
+        if not isinstance(receipt, dict) or not receipt.get("ok"):
+            continue
+        found = str(
+            receipt.get("observed_content") or receipt.get("evidence") or ""
+        ).strip()
+        if not found:
+            continue
+        tool = str(receipt.get("tool") or receipt.get("tool_name") or "a tool").strip()
+        said.append(f"{tool} returned:\n{found[:1500]}")
+    if not said:
+        return ""
+    logger.info("🧾 Served what this turn's tools returned (%d).", len(said))
+    lead = (
+        "I did not get a written answer together, so here is what I ran and "
+        "what came back:"
+    )
+    return lead + "\n\n" + "\n\n".join(said[:3])
+
+
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
     """Answer a quantitative question about a data file by computing it.
 
@@ -20937,6 +20972,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 evidenced_reply = _chat_conversation_repair._self_health_answer_or_empty(
                     _semantic_user_message
                 )
+            if not evidenced_reply:
+                # A tool ran and found something. Saying "I couldn't get to an
+                # answer" on top of that is not honesty, it is losing the work.
+                #
+                # LIVE, 2026-08-27, repeatedly: file_operation read the docs in
+                # 4ms, diagnose_repo returned a complete finding in 276ms,
+                # code_repl ran — and the turn still ended in the sentence
+                # above, because the model wrote nothing usable afterwards.
+                # Every governance link was clear by then; what was missing was
+                # somebody saying what the tool had returned.
+                evidenced_reply = _what_the_tools_found()
             if evidenced_reply:
                 failure_reply = evidenced_reply
             if pending_exchange_id:
