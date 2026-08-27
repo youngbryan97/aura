@@ -2216,15 +2216,57 @@ def _tools_within_reach(
         return tools, ()
     kept, withheld = {}, []
     for name, definition in dict(tools).items():
-        scope = SKILL_EFFECT_SCOPES.get(str(name))
-        if scope is not None and str(scope) not in permitted:
+        declared_scope = SKILL_EFFECT_SCOPES.get(str(name))
+        if declared_scope is None:
+            # Unrated. Withholding what nobody has rated hides every new skill,
+            # which is how a skill built for a request ends up never called.
+            kept[name] = definition
+            continue
+        scope = _reachable_scope(str(name), declared_scope, permitted)
+        if scope is None:
             withheld.append(str(name))
             continue
-        if scope is not None and _needs_a_confirmation_nobody_can_give(str(name), str(scope)):
+        if _needs_a_confirmation_nobody_can_give(str(name), scope):
             withheld.append(str(name))
             continue
         kept[name] = definition
     return kept, tuple(withheld)
+
+
+def _reachable_scope(name: str, skill_scope: Any, permitted: set[str]) -> str | None:
+    """The safest thing this skill can do that the turn allows, or None.
+
+    A skill's blanket scope is its most dangerous action. `file_operation` is
+    rated state_mutation because it can delete, and its read, list and exists
+    actions mutate nothing — which is why the dispatch is handed the ceiling
+    and refuses each call on its own scope.
+
+    LIVE, 2026-08-27: "read the docs at <path>, then actually use it" ran under
+    a sandboxed_compute ceiling, and the blanket rating withheld the only tool
+    that could read the file. Offering it for its safe actions is the design
+    this file already describes; it just was not filtering that way.
+    """
+    if skill_scope is None:
+        return "unknown"
+    if str(skill_scope) in permitted:
+        return str(skill_scope)
+    try:
+        from core.skills.action_scope import (
+            EFFECT_SCOPE_RANK,
+            declared_action_scopes,
+            skill_class_named,
+        )
+    except ImportError:
+        return None
+    try:
+        declared = declared_action_scopes(skill_class_named(name))
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        return None
+    reachable = [scope for scope in declared.values() if scope in permitted]
+    if not reachable:
+        return None
+    # The safest reachable one, because that is what the turn may actually do.
+    return min(reachable, key=lambda scope: EFFECT_SCOPE_RANK.get(scope, 9))
 
 
 def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:

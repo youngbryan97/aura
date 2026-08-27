@@ -21,10 +21,34 @@ from core.brain.inference_gate import _tools_within_reach
 _SANDBOX_CEILING = frozenset({"status", "pure_compute", "read_only", "sandboxed_compute"})
 
 
-def test_a_tool_above_the_ceiling_is_not_offered() -> None:
-    kept, withheld = _tools_within_reach({"diagnose_repo": 1, "file_operation": 2}, _SANDBOX_CEILING)
-    assert "file_operation" in withheld, "state_mutation was offered under a sandbox ceiling"
-    assert "diagnose_repo" in kept
+_READ_ONLY_CEILING = frozenset({"status", "pure_compute", "read_only"})
+
+
+def test_a_tool_whose_every_action_is_out_of_reach_is_not_offered() -> None:
+    """diagnose_repo is sandboxed_compute all the way down."""
+    kept, withheld = _tools_within_reach({"diagnose_repo": 1}, _READ_ONLY_CEILING)
+    assert "diagnose_repo" in withheld
+    assert not kept
+
+
+def test_a_tool_is_offered_for_the_safe_actions_it_has() -> None:
+    """A skill's blanket rating is its most dangerous action, not its only one.
+
+    LIVE, 2026-08-27: "read the docs at <path>, then actually use it" ran under
+    a sandboxed_compute ceiling, and file_operation — rated state_mutation
+    because it can delete — was withheld, so the only tool that could read the
+    file was gone. Its read, list and exists actions mutate nothing, and the
+    dispatch is handed the ceiling and refuses each call on its own scope.
+    """
+    from core.brain.inference_gate import _reachable_scope
+
+    assert _reachable_scope("file_operation", "state_mutation", _SANDBOX_CEILING) == "read_only"
+    kept, withheld = _tools_within_reach({"file_operation": 1}, _SANDBOX_CEILING)
+    assert "file_operation" in kept
+    assert not withheld
+    # Still offered under a read-only ceiling, for the same reason.
+    kept, _withheld = _tools_within_reach({"file_operation": 1}, _READ_ONLY_CEILING)
+    assert "file_operation" in kept
 
 
 def test_a_tool_needing_a_confirmation_nobody_can_give_is_not_offered() -> None:
@@ -40,11 +64,12 @@ def test_a_tool_needing_a_confirmation_nobody_can_give_is_not_offered() -> None:
 
 def test_the_tool_that_answers_survives_the_filter() -> None:
     """diagnose_repo runs the project's own code, not the model's."""
-    kept, _ = _tools_within_reach(
+    kept, withheld = _tools_within_reach(
         {"diagnose_repo": 1, "code_repl": 2, "file_operation": 3, "web_search": 4},
         _SANDBOX_CEILING,
     )
-    assert sorted(kept) == ["diagnose_repo", "web_search"]
+    assert "diagnose_repo" in kept
+    assert "code_repl" in withheld, "running model-written code needs a confirmation"
 
 
 def test_an_unrated_skill_is_still_offered() -> None:
