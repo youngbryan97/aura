@@ -5,12 +5,26 @@ there afterwards — and until now all three were thrown away after one glance.
 So she could never try a move without making it, and every plan was a bet
 placed blind.
 
-This holds a small set of hypotheses about how a laid-out thing answers a
-directional act, scores each against what actually happened, and uses the best
-one while it keeps predicting. None of them is about any particular kind of
-screen: they are the ways a set of things in rows and columns can respond to
-being pushed. When none of them predicts, that is the answer, and she goes
-back to acting and looking.
+Anyone can write a solver for a thing once somebody hands them the rules,
+because the rules ARE the solver: turn them into a transition function and
+search over it. The hard part was never the search. It was that somebody had
+already done the abstracting, and what they handed over was the answer to the
+only question worth asking.
+
+So the hypotheses here are not a list of games. They are a space, and she
+composes a rule out of it rather than picking one off a menu somebody wrote.
+Three independent facts about how a laid-out thing answers a push —
+
+    how far a thing carries      all the way to the end, or one place
+    whether equals combine       two the same become one worth both
+    how many things move         everything that can, or one thing
+
+— which is eight ways for a thing to move, plus not moving at all. Nothing in
+that space is about any particular screen: the facts are the ways a set of
+things in rows and columns can respond to being pushed, and a rule made of
+them is a transition function she arrived at rather than one she was given.
+When nothing in the space predicts what she sees, that is the answer, and she
+goes back to acting and looking rather than taking the nearest fit.
 
 The scoring allows for what the world adds on its own. A board that deals a
 new tile, a page that updates a clock, a list that gains a row from somebody
@@ -26,7 +40,16 @@ from typing import Any, Callable, Sequence
 
 from core.perception.what_is_there import Arrangement, Cell
 
-__all__ = ["HowItMoves", "Rule", "RULES", "shifted", "shifted_and_combined"]
+__all__ = [
+    "HowItMoves",
+    "Rule",
+    "RULES",
+    "CARRIES",
+    "HOW_MANY",
+    "composed",
+    "shifted",
+    "shifted_and_combined",
+]
 
 logger = logging.getLogger("Aura.HowItMoves")
 
@@ -142,21 +165,153 @@ def _worth_both(said: str) -> str:
     return f"{doubled:g}"
 
 
+#: How far a thing carries when it is pushed.
+CARRIES: tuple[str, ...] = ("all the way", "one place")
+
+#: How much of what could move does move.
+HOW_MANY: tuple[str, ...] = ("everything", "one thing")
+
+
+def _stepped(
+    arrangement: Arrangement, action: str, *, combines: bool, only_one: bool
+) -> Arrangement | None:
+    """Things move one place the way they were pushed, and no further.
+
+    A thing goes forward if the place ahead of it is free — or, where equals
+    combine, if the place ahead holds one the same. With ``only_one`` a single
+    thing moves and the rest stay put, which is what a puzzle with one space
+    in it looks like from the outside.
+    """
+    step = _TOWARD.get(str(action or "").strip().lower())
+    if step is None or not arrangement.rows or not arrangement.columns:
+        return None
+    down, across = step
+    held = {(cell.row, cell.column): cell.says for cell in arrangement.cells}
+    going: list[tuple[tuple[int, int], tuple[int, int], str]] = []
+    for (row, column), said in held.items():
+        ahead = (row + down, column + across)
+        if not (0 <= ahead[0] < arrangement.rows and 0 <= ahead[1] < arrangement.columns):
+            continue
+        there = held.get(ahead)
+        if there is None or (combines and there == said):
+            going.append((ahead, (row, column), said))
+    if not going:
+        return arrangement
+    # Whichever space comes first, read the way anything laid out is read.
+    going.sort(key=lambda move: (move[0], move[1]))
+    if only_one:
+        going = going[:1]
+    landed = dict(held)
+    for ahead, came_from, said in going:
+        if landed.get(came_from) != said:
+            continue
+        was_there = landed.get(ahead)
+        landed.pop(came_from, None)
+        landed[ahead] = _worth_both(said) if (combines and was_there == said) else said
+    cells = tuple(
+        Cell(row=row, column=column, says=said, at=(0.0, 0.0))
+        for (row, column), said in landed.items()
+    )
+    return Arrangement(rows=arrangement.rows, columns=arrangement.columns, cells=cells)
+
+
+def _carried(
+    arrangement: Arrangement, action: str, *, combines: bool, only_one: bool
+) -> Arrangement | None:
+    """Things go as far that way as they can, packing to the end."""
+    whole = shifted_and_combined(arrangement, action) if combines else shifted(arrangement, action)
+    if whole is None or not only_one:
+        return whole
+    # One thing moving all the way, and everything else where it was.
+    was = {(cell.row, cell.column): cell.says for cell in arrangement.cells}
+    now = {(cell.row, cell.column): cell.says for cell in whole.cells}
+    landed = sorted(place for place, said in now.items() if was.get(place) != said)
+    if not landed:
+        return arrangement
+    first = landed[0]
+    kept = dict(was)
+    kept[first] = now[first]
+    for place in was:
+        if place != first and place not in now:
+            kept.pop(place, None)
+            break
+    cells = tuple(
+        Cell(row=row, column=column, says=said, at=(0.0, 0.0))
+        for (row, column), said in kept.items()
+    )
+    return Arrangement(rows=arrangement.rows, columns=arrangement.columns, cells=cells)
+
+
 @dataclass(frozen=True)
 class Rule:
-    """One way a thing might answer to being pushed."""
+    """One way a thing might answer to being pushed.
+
+    Made of the facts it is made of, so what she worked out can be said in
+    terms of the world rather than as the name of something off a list.
+    """
 
     name: str
     apply: Callable[[Arrangement, str], Arrangement | None]
+    carries: str = ""
+    combines: bool = False
+    how_many: str = ""
+
+    def as_facts(self) -> str:
+        """The transition she arrived at, in the terms it was arrived at in."""
+        if not self.carries:
+            return "nothing she does moves anything"
+        joins = "two the same become one worth both" if self.combines else "nothing combines"
+        return f"{self.how_many} carries {self.carries}, {joins}"
 
 
-#: Every way this knows of. Ordered from the strongest claim to the weakest,
-#: so a tie goes to the rule that said the most.
-RULES: tuple[Rule, ...] = (
-    Rule("slides and combines", shifted_and_combined),
-    Rule("slides", shifted),
-    Rule("does not move", unchanged),
-)
+def composed(carries: str, combines: bool, how_many: str) -> Rule:
+    """One rule out of the space, built from the three facts that make it."""
+    all_the_way = carries == "all the way"
+    only_one = how_many == "one thing"
+    build = _carried if all_the_way else _stepped
+
+    def apply(arrangement: Arrangement, action: str) -> Arrangement | None:
+        return build(arrangement, action, combines=combines, only_one=only_one)
+
+    moves = "slides" if all_the_way else "steps"
+    name = f"{'one thing' if only_one else 'everything'} {moves}"
+    if not only_one and all_the_way:
+        # The two she met first, kept in the words she already reports them in.
+        name = "slides"
+    if combines:
+        name = f"{name} and combines"
+    return Rule(name, apply, carries=carries, combines=combines, how_many=how_many)
+
+
+def _every_way() -> tuple[Rule, ...]:
+    """The whole space, strongest claim first, so a tie goes to the fuller one.
+
+    A rule that says everything moves as far as it can and combines on the way
+    claims the most about the most places; one that says nothing moves claims
+    the least. Ordering that way lets a tie be broken toward the rule that
+    claims least, which is the only honest way to break one: where two
+    hypotheses have never disagreed about anything she has seen, the extra
+    thing the fuller one claims is the part she has no evidence for.
+    """
+    made = [
+        composed(carries, combines, how_many)
+        for carries in CARRIES
+        for how_many in HOW_MANY
+        for combines in (True, False)
+    ]
+    made.sort(
+        key=lambda rule: (
+            rule.carries == "all the way",
+            rule.how_many == "everything",
+            rule.combines,
+        ),
+        reverse=True,
+    )
+    return tuple(made) + (Rule("does not move", unchanged),)
+
+
+#: Every way this can compose. Nothing here was written for any world.
+RULES: tuple[Rule, ...] = _every_way()
 
 
 @dataclass
@@ -176,6 +331,11 @@ class HowItMoves:
     unreadable: int = 0
     #: Times something turned up that she did not put there.
     arrivals: int = 0
+    #: Acts that actually moved something, and how each rule did on those.
+    #: Only these tell one hypothesis from another.
+    moved: int = 0
+    right_when_it_moved: dict[str, int] = field(default_factory=dict)
+    tried_when_it_moved: dict[str, int] = field(default_factory=dict)
     #: Places that sit still and change what they say — a score, a clock, a
     #: count of moves. They answer to her, so they are inside the part of the
     #: screen that responds, and no rule about what her act MOVES can predict
@@ -188,6 +348,11 @@ class HowItMoves:
     #: Places she has seen empty, which settles them as part of the thing.
     _a_place: set[tuple[int, int]] = field(default_factory=set)
     _looks: int = 0
+    #: How full the thing has been, added up across looks.
+    _how_full: float = 0.0
+    #: Every place that has ever held anything. What has not is not part of
+    #: the thing, and something sitting beside it is at the edge of the thing.
+    _ever_held: set[tuple[int, int]] = field(default_factory=set)
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -202,7 +367,9 @@ class HowItMoves:
 
         Nothing here knows what a score is. What it knows is that a thing
         which never goes anywhere and keeps saying something different is not
-        a thing her moves move.
+        a thing her moves move. Both halves are load-bearing: staying put is
+        what an ordinary thing does whenever she pushes the other way, and
+        saying something new is what nothing wedged in place ever does.
         """
         self._looks += 1
         now = {(cell.row, cell.column): cell.says for cell in after.cells}
@@ -220,21 +387,70 @@ class HowItMoves:
             # Nothing has been empty yet, so there is nothing to tell apart.
             return
         # How long a place has to have gone without ever being empty before
-        # that means something: as many looks as the thing has places.
+        # that means anything — which depends entirely on how full the thing is.
         #
-        # A tile can sit in a corner for six moves running. It cannot sit
-        # there for as many moves as there are squares while everything else
-        # moves around it — and where it can, it is furniture in every sense
-        # that matters to a rule about movement.
-        enough = max(STILL_ENOUGH_TO_JUDGE, after.places())
+        # In something half empty, a place that is occupied every single time
+        # she looks stands out, and a few looks settle it. In something with
+        # fifteen things on sixteen places, every place is occupied nearly
+        # always, and never having caught one empty is what she would expect of
+        # an ordinary place. The same observation carries information in the
+        # first case and none in the second.
+        #
+        # So: enough looks that an ordinary place would almost certainly have
+        # been caught empty by now. A place free a fifteenth of the time is
+        # missed forty-six looks running about one time in twenty. Below that
+        # she has no evidence, and cropping on no evidence takes the thing
+        # apart. Measured 2026-08-27 on a puzzle with one space: a rule that
+        # was exactly right about 200 of 200 moves scored 78%, because most of
+        # the board had been called furniture and cut out of the comparison.
+        # And she is not watching one place. She is watching all of them, and
+        # asking of each whether it has been surprisingly reliable. The more
+        # places she asks that of, the more certain it becomes that one of them
+        # answers yes for no reason — sixteen places, each missed one time in a
+        # hundred, is one wrongly-called place in six runs. So the bar for any
+        # single place rises with how many are being held to it.
+        self._how_full += after.occupied() / max(1, after.places())
+        enough = max(
+            STILL_ENOUGH_TO_JUDGE,
+            _looks_to_expect_an_empty(self.fullness(), among=after.places()),
+        )
+        was = {(cell.row, cell.column): cell.says for cell in before.cells}
+        self._ever_held.update(now)
         for place in now:
             if place in self._a_place:
                 continue
             self._seen_at[place] = self._seen_at.get(place, 0) + 1
+            if place in was and was[place] != now[place]:
+                self._changed_at[place] = self._changed_at.get(place, 0) + 1
             times = self._seen_at[place]
             if times < enough or self._looks < enough:
                 continue
             if times / max(1, self._looks) < ALWAYS_THERE:
+                continue
+            # Sitting still is not enough, and it never was.
+            #
+            # Never having seen a place empty cannot settle this on its own, and
+            # no number of looks makes it: she picks her own moves, so where
+            # things end up is a sample she biased herself, and in something
+            # nearly full a place she has never caught free is the ordinary
+            # case. Measured 2026-08-27 on a puzzle with one space, where two
+            # ordinary places were called furniture after ninety looks and
+            # cutting them out opened gaps that were not there.
+            #
+            # What settles it is one of two things, and either will do.
+            #
+            # A readout keeps saying something new while going nowhere: 240,
+            # 244, 252, in the same place every time. Nothing wedged in a
+            # corner does that.
+            #
+            # Or it stands apart. A title, a label, the word SCORE — those never
+            # change at all, and what marks them is that the places around them
+            # are not places anything has ever been. The thing itself is packed:
+            # everywhere in it has held something. Furniture sits at the edge of
+            # it with blank beside it.
+            if not self._stands_apart(place, after) and (
+                self._changed_at.get(place, 0) < TWICE_IS_THE_WORLD
+            ):
                 continue
             if place in self.counters:
                 continue
@@ -253,9 +469,32 @@ class HowItMoves:
                 )
                 self.right.clear()
                 self.tried.clear()
+                self.right_when_it_moved.clear()
+                self.tried_when_it_moved.clear()
                 self.seen = 0
+                self.moved = 0
                 self.recent.clear()
 
+
+    def _stands_apart(self, place: tuple[int, int], seen: Arrangement) -> bool:
+        """Whether nothing has ever been beside this, in a thing that is packed.
+
+        A place next to somewhere nothing has ever been is at the edge of the
+        thing rather than in it. Where most of the layout has never held
+        anything the test says nothing — a sparse thing is all edges — so it
+        only answers where the thing is packed enough for a blank neighbour to
+        be remarkable.
+        """
+        row, column = place
+        room = max(1, seen.rows * seen.columns)
+        if len(self._ever_held) * 2 < room:
+            return False
+        for beside in ((row - 1, column), (row + 1, column), (row, column - 1), (row, column + 1)):
+            if not (0 <= beside[0] < seen.rows and 0 <= beside[1] < seen.columns):
+                continue
+            if beside not in self._ever_held:
+                return True
+        return False
 
     def watched(self, before: Arrangement, action: str, after: Arrangement) -> None:
         """One of her own moves, and what it did."""
@@ -277,15 +516,36 @@ class HowItMoves:
             self.unreadable += 1
             return
         self._note_arrivals(here, there)
+        # Whether this act told one hypothesis from another.
+        #
+        # An act that changed nothing is agreed about by every rule there is:
+        # they all predict what is already there. Counting that as evidence
+        # lets a rule that is wrong about every act that MOVED something ride
+        # to near-certainty on the many that did not. Measured 2026-08-26 in a
+        # sliding puzzle, where the board is nearly full and most directions
+        # do nothing: "slides and combines", 99% sure, in a world that does
+        # nothing of the kind.
+        told_apart = here.as_text() != there.as_text()
+        if told_apart:
+            self.moved += 1
         agreed: set[str] = set()
         for rule in RULES:
             predicted = rule.apply(here, action)
             if predicted is None:
                 continue
             self.tried[rule.name] = self.tried.get(rule.name, 0) + 1
-            if _near_enough(predicted, there):
+            right = _near_enough(predicted, there)
+            if right:
                 self.right[rule.name] = self.right.get(rule.name, 0) + 1
                 agreed.add(rule.name)
+            if told_apart:
+                self.tried_when_it_moved[rule.name] = (
+                    self.tried_when_it_moved.get(rule.name, 0) + 1
+                )
+                if right:
+                    self.right_when_it_moved[rule.name] = (
+                        self.right_when_it_moved.get(rule.name, 0) + 1
+                    )
         self.seen += 1
         self.recent.append((str(action), frozenset(agreed)))
         del self.recent[:-REMEMBERED]
@@ -296,25 +556,52 @@ class HowItMoves:
         """The one that has been right most often, once there is enough to say."""
         if self.seen < ENOUGH_TO_TRUST:
             return None
+        # Where things do move, a rule has to be right about the acts that
+        # moved them. Where nothing has ever moved, there is nothing to be
+        # right about and the absence of movement is itself the finding.
+        anything_moves = self.moved >= ENOUGH_TO_TRUST
         best: tuple[float, Rule] | None = None
         for rule in RULES:
-            tried = self.tried.get(rule.name, 0)
+            tried = (
+                self.tried_when_it_moved.get(rule.name, 0)
+                if anything_moves
+                else self.tried.get(rule.name, 0)
+            )
             if tried < ENOUGH_TO_TRUST:
                 continue
-            share = self.right.get(rule.name, 0) / tried
+            right = (
+                self.right_when_it_moved.get(rule.name, 0)
+                if anything_moves
+                else self.right.get(rule.name, 0)
+            )
+            share = right / tried
             if share < OFTEN_ENOUGH:
                 continue
-            if best is None or share > best[0]:
+            # Ties go to the rule that claims the LEAST.
+            #
+            # RULES runs strongest claim first, so taking a later one on equal
+            # evidence takes the weaker. Where two hypotheses have never once
+            # disagreed about anything she has seen, the extra thing the fuller
+            # one claims is the part nothing supports. Measured 2026-08-27 in a
+            # puzzle whose things are all different: "steps and combines" and
+            # "steps" predict identically, because no two equal things ever
+            # meet, and combining was a claim about a thing that never happened.
+            if best is None or share >= best[0]:
                 best = (share, rule)
         return best[1] if best else None
 
     def confidence(self) -> float:
-        """How often the rule she is using has been right."""
+        """How often the rule she is using has been right about a real move."""
         rule = self.rule()
         if rule is None:
             return 0.0
-        tried = self.tried.get(rule.name, 0)
-        return (self.right.get(rule.name, 0) / tried) if tried else 0.0
+        if self.moved >= ENOUGH_TO_TRUST:
+            tried = self.tried_when_it_moved.get(rule.name, 0)
+            right = self.right_when_it_moved.get(rule.name, 0)
+        else:
+            tried = self.tried.get(rule.name, 0)
+            right = self.right.get(rule.name, 0)
+        return (right / tried) if tried else 0.0
 
     def _note_arrivals(self, before: Arrangement, after: Arrangement) -> None:
         """Whether anything turned up that she did not put there.
@@ -328,6 +615,10 @@ class HowItMoves:
         """
         if after.occupied() > before.occupied():
             self.arrivals += 1
+
+    def fullness(self) -> float:
+        """How full the thing has been, on average, across every look."""
+        return self._how_full / self._looks if self._looks else 0.0
 
     def world_adds_things(self) -> bool:
         """Whether the world puts something new in front of her between acts.
@@ -383,6 +674,9 @@ class HowItMoves:
             "tried": dict(self.tried),
             "seen": self.seen,
             "arrivals": self.arrivals,
+            "moved": self.moved,
+            "right_when_it_moved": dict(self.right_when_it_moved),
+            "tried_when_it_moved": dict(self.tried_when_it_moved),
         }
 
     @classmethod
@@ -413,6 +707,9 @@ class HowItMoves:
             tried=tried,
             seen=int(round(float(held.get("seen") or 0) * share)),
             arrivals=int(round(float(held.get("arrivals") or 0) * share)),
+            moved=int(round(float(held.get("moved") or 0) * share)),
+            right_when_it_moved=carried(held.get("right_when_it_moved")),
+            tried_when_it_moved=carried(held.get("tried_when_it_moved")),
         )
 
     def says(self) -> str:
@@ -461,3 +758,41 @@ STILL_ENOUGH_TO_JUDGE = 6
 #: quite one, because a reading can drop something faint for a frame and that
 #: is not the same as the place being free.
 ALWAYS_THERE = 0.95
+
+#: How unlikely missing an ordinary place's empty moments has to be before
+#: never having seen one empty is evidence about the place rather than about
+#: how full the thing is. Twenty to one.
+UNLIKELY_TO_HAVE_MISSED = 0.05
+
+#: How full a thing can get before "never seen empty" stops being able to mean
+#: anything at all. At this point an ordinary place is free so rarely that no
+#: number of looks settles it, and nothing is called furniture.
+TOO_FULL_TO_TELL = 0.995
+
+
+def _looks_to_expect_an_empty(fullness: float, among: int = 1) -> int:
+    """How many looks before an ordinary place would surely have been caught free.
+
+    A place in a thing that is ``fullness`` full is free the rest of the time,
+    so the chance of missing every one of its free moments falls off by that
+    factor each look. This is the look at which missing them all would be a
+    twenty-to-one result — before it, never having seen a place empty says
+    nothing about the place.
+
+    ``among`` is how many places are being asked the same question. Asking it
+    of many at once makes a rare answer common, so the odds each one has to
+    clear are shared out between them.
+    """
+    full = max(0.0, min(1.0, float(fullness or 0.0)))
+    if full <= 0.0:
+        return STILL_ENOUGH_TO_JUDGE
+    if full >= TOO_FULL_TO_TELL:
+        return _NEVER
+    from math import ceil, log
+
+    odds = UNLIKELY_TO_HAVE_MISSED / max(1, int(among))
+    return max(STILL_ENOUGH_TO_JUDGE, int(ceil(log(odds) / log(full))))
+
+
+#: A bar no run reaches, for a thing so full that occupancy tells her nothing.
+_NEVER = 1 << 30
