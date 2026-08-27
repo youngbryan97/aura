@@ -310,6 +310,26 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
     normalized = normalize_memory_intent_text(text)
     if not normalized:
         return False
+    # An address is not a sentence.
+    #
+    # LIVE, 2026-08-27: "ok this is driving me nuts. /private/tmp/claude-501/
+    # -Users-bryan--aura-live-source/.../invoice-tools — clean run, nothing
+    # raises... what's the actual cause, and what do I change?" read as a
+    # question about her capabilities, so routing skipped the skill block
+    # entirely, no tool was offered, and the model guessed the answer from the
+    # symptom instead of looking. "aura" is in the path.
+    #
+    # This is the second reader with this bug; the first was fixed in
+    # chat_preflight the same way, which is what two functions answering one
+    # question always costs.
+    try:
+        from core.intent.opaque_spans import without_opaque_spans
+
+        normalized = without_opaque_spans(normalized)
+    except (ImportError, TypeError, ValueError):
+        pass
+    if not normalized.strip():
+        return False
     if len(normalized.split()) > 80:
         return False
     sanitized = strip_negated_action_spans(normalized).lower()

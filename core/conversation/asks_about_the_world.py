@@ -131,9 +131,26 @@ _ABOUT_HER = re.compile(
 )
 
 
+def _said(message: object) -> str:
+    """The message with its addresses removed.
+
+    LIVE, 2026-08-27: appending a real path to "what is the capital of Peru"
+    made this want outside evidence, because a path is full of things that look
+    like proper names. A path names something on this disk; it is never a
+    reason to go and look on the network.
+    """
+    text = str(message or "")
+    try:
+        from core.intent.opaque_spans import without_opaque_spans
+
+        return without_opaque_spans(text)
+    except (ImportError, TypeError, ValueError):
+        return text
+
+
 def asks_for_sources(message: object) -> bool:
     """Whether the person asked where the answer comes from."""
-    return bool(_WANTS_SOURCES.search(str(message or "")))
+    return bool(_WANTS_SOURCES.search(_said(message)))
 
 
 def _names(message: str) -> list[str]:
@@ -168,7 +185,7 @@ def _names(message: str) -> list[str]:
 
 def asks_about_a_named_thing(message: object) -> bool:
     """A factual question about something named, that is not her."""
-    text = str(message or "")
+    text = _said(message)
     if not text.strip() or _ABOUT_HER.search(text):
         return False
     if not _ASKS_FOR_FACTS.search(text):
@@ -210,7 +227,7 @@ def wants_outside_evidence(message: object) -> bool:
     "is that startup still going?" can reach the same answer as "who founded
     X" without anyone adding a word to a list.
     """
-    text = str(message or "")
+    text = _said(message)
     if not text.strip():
         return False
     if asks_for_sources(text):

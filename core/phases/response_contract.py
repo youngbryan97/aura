@@ -746,6 +746,18 @@ _NAMES_ANOTHER_TIME = re.compile(
 
 
 def looks_like_capability_inventory_request(text: str) -> bool:
+    # An address is not a sentence.
+    #
+    # This is the THIRD reader of "is this an inventory question" to be caught
+    # reading the word "aura" out of a filesystem path, after chat_preflight
+    # and skill_task_bridge. Three implementations of one judgement is the
+    # actual defect; masking here stops the live symptom.
+    try:
+        from core.intent.opaque_spans import without_opaque_spans
+
+        text = without_opaque_spans(str(text or ""))
+    except (ImportError, TypeError, ValueError):
+        text = str(text or "")
     raw = str(text or "").strip()
     if not raw:
         return False
