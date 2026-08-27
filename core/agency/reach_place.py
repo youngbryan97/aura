@@ -182,6 +182,48 @@ async def _choose_destination(
     return picked, decision.rationale, tuple(option.name for option in options)
 
 
+#: How many of the results she ranked are worth opening before giving up.
+#: Enough that one dead link does not end the task, few enough that a search
+#: which returned nothing usable is not walked end to end.
+MOST_TRIES = 3
+
+#: How a page says it is not there.
+#:
+#: The web has one vocabulary for this and every site uses it, because it is
+#: what a person reading the page has to understand. Nothing here is about any
+#: particular site: these are the words a server puts in a title when the
+#: thing asked for does not exist.
+_NOT_THERE = (
+    "not found",
+    "could not be found",
+    "couldn't be found",
+    "cannot be found",
+    "page doesn't exist",
+    "page does not exist",
+    "no longer available",
+    "page unavailable",
+    "error 404",
+)
+
+
+def _says_it_is_not_there(title: str) -> bool:
+    """Whether the page in front announces that it is not the thing.
+
+    Read off the title, which is where a server puts it, and matched on whole
+    phrases so a page legitimately *about* missing things is not mistaken for
+    a missing page.
+    """
+    said = " ".join(str(title or "").lower().split())
+    if not said:
+        return False
+    # A bare status number only when it is the whole title. A cafe called 404
+    # is a real place, and a page whose title merely contains the digits is
+    # not announcing anything.
+    if said.strip(" -–—|:") == "404":
+        return True
+    return any(phrase in said for phrase in _NOT_THERE)
+
+
 async def reach(
     wanted: str,
     *,
@@ -204,6 +246,10 @@ async def reach(
         outcome.reason = "nowhere was named"
         return outcome
 
+    #: Everything the search turned up, when there was a search. A URL given
+    #: outright or remembered leaves this empty, and then there is one thing
+    #: to try rather than several.
+    candidates: list[dict[str, str]] = []
     if browser is None:
         try:
             from core.capabilities.browser_controller import get_browser_controller  # noqa: PLC0415
@@ -273,28 +319,60 @@ async def reach(
         outcome.because = because
         outcome.title = picked["title"]
 
-    try:
-        await browser.open_url(url, new_tab=False)
-    except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation("reach_place", exc, action="open the page a task happens on")
-        outcome.reason = f"the page would not open ({type(exc).__name__})"
-        return outcome
-
-    # Arrival is read back, never assumed. A navigation that reported success
-    # and left the browser somewhere else is the failure this checks for.
-    try:
-        page = await browser.current_page()
-    except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
-        page = {}
-    landed = str(page.get("url") or "")
-    outcome.url = landed or url
-    outcome.title = str(page.get("title") or outcome.title)
-    wanted_host = host_of(url)
-    outcome.arrived = bool(wanted_host) and host_of(landed) == wanted_host
-    if not outcome.arrived:
-        outcome.reason = f"the browser is on {host_of(landed) or 'nothing'}, not {wanted_host}"
+    # The one she picked, then the others she considered, in the order she
+    # ranked them. A result that turns out not to be the place is a reason to
+    # try the next one, not a reason to stop: she already did the work of
+    # deciding which results could be it.
+    rest = [row for row in (candidates or ()) if str(row.get("url") or "") != url]
+    tries = [{"url": url, "title": outcome.title}] + rest[: MOST_TRIES - 1]
     outcome.app = str(getattr(browser, "_preferred_browser", "") or "")
-    outcome.detail = {"asked_for": url, "landed_on": landed}
-    if outcome.arrived:
+    for attempt, row in enumerate(tries):
+        going_to = str(row.get("url") or "")
+        if not going_to:
+            continue
+        try:
+            await browser.open_url(going_to, new_tab=False)
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("reach_place", exc, action="open the page a task happens on")
+            outcome.reason = f"the page would not open ({type(exc).__name__})"
+            continue
+
+        # Arrival is read back, never assumed. A navigation that reported
+        # success and left the browser somewhere else is one failure this
+        # checks for; a server that answered with a page saying the thing is
+        # not there is the other.
+        try:
+            page = await browser.current_page()
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
+            page = {}
+        landed = str(page.get("url") or "")
+        outcome.url = landed or going_to
+        outcome.title = str(page.get("title") or row.get("title") or "")
+        outcome.detail = {"asked_for": going_to, "landed_on": landed}
+        wanted_host = host_of(going_to)
+        if not wanted_host or host_of(landed) != wanted_host:
+            outcome.reason = f"the browser is on {host_of(landed) or 'nothing'}, not {wanted_host}"
+            continue
+        if _says_it_is_not_there(outcome.title):
+            # Getting to the right server is not getting to the thing.
+            #
+            # Arrival was judged on the host alone, so a page that answered
+            # "The page could not be found" counted as arrived, and a whole
+            # run anchored itself to it: she read a not-found page, found no
+            # part of it that answered to her, and reported truthfully that
+            # nothing on screen offered a move. LIVE 2026-08-27, on a sliding
+            # puzzle she had searched for and chosen correctly.
+            outcome.reason = f"{wanted_host} answered with {outcome.title!r}"
+            logger.info(
+                "%s is not there (%r) — trying the next result", going_to, outcome.title
+            )
+            continue
+        outcome.arrived = True
+        if attempt:
+            outcome.because = (
+                f"{outcome.because + '; ' if outcome.because else ''}"
+                f"the first {attempt} did not exist"
+            )
         _remember_arrival(wanted, outcome.url, graph=graph)
+        return outcome
     return outcome
