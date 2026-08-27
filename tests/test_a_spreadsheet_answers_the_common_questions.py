@@ -215,3 +215,31 @@ def test_an_ambiguous_measure_is_not_corrected(deals: Path) -> None:
     from core.conversation.tabular_answer import check_ranking_claim
 
     assert check_ranking_claim(deals, "Since West came out top on deal size, why?") == ""
+
+
+def test_a_reading_is_evidence_for_an_answer_not_a_replacement(deals: Path) -> None:
+    """Correcting somebody is not answering them.
+
+    LIVE, 2026-08-27: "Given Wren has the most deals in deals.csv, should we
+    put her on the enterprise accounts?" came back "Wren is not top: Marek
+    leads at 21 and Wren is at 16." — the premise correctly settled and the
+    question left unanswered.
+    """
+    from interface.routes.chat import _serve_tabular_answer
+
+    counted = collections.Counter(row["rep"] for row in _rows(deals))
+    runner_up = counted.most_common(2)[1][0]
+    asked = (
+        f"Given {runner_up} has the most deals in {deals}, should we put them "
+        "on the enterprise accounts?"
+    )
+    served = str(_serve_tabular_answer(asked, "Yes, they look like the obvious choice."))
+    assert "is not top" in served, "the premise went unchecked"
+    assert "obvious choice" in served, "the question went unanswered"
+
+
+def test_a_reading_stands_alone_when_there_is_nothing_to_join(deals: Path) -> None:
+    from interface.routes.chat import _serve_tabular_answer
+
+    served = str(_serve_tabular_answer(f"how many are approved in {deals}?", ""))
+    assert "approved" in served

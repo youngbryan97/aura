@@ -16019,7 +16019,25 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
                 logger.info(
                     "📊 Served %d computed reading(s) of %s.", len(readings), path
                 )
-                return "\n\n".join(readings)
+                computed = "\n\n".join(readings)
+                # A reading is evidence for an answer, not a replacement for it.
+                #
+                # LIVE, 2026-08-27: "Given Wren has the most deals in
+                # deals.csv, should we put her on the enterprise accounts?"
+                # came back "Wren is not top: Marek leads at 21 and Wren is at
+                # 16." — the premise correctly settled and the question left
+                # unanswered. Correcting somebody is not answering them.
+                written = str(reply or "").strip()
+                if not written or computed in written:
+                    return computed
+                from core.conversation.reply_provenance import (
+                    ReplyProvenance,
+                    declared_provenance,
+                )
+
+                if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
+                    return computed
+                return f"{computed}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.tabular_answer",
