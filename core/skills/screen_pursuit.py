@@ -1696,7 +1696,7 @@ async def pursue_on_screen(
                 if ended and not said_it_ended["value"]:
                     said_it_ended["value"] = True
                     if narrate:
-                        _tell(await _why_nothing_answers(mine))
+                        _tell(await _why_nothing_answers(target_app or anchor["app"]))
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
             # A pace chosen because the commentary was behind ends when it
