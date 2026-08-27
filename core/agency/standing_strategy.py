@@ -73,6 +73,61 @@ class Strategy:
             lines.append(f"If it stops holding — {', '.join(self.otherwise)}")
         return lines
 
+    def as_memory(self) -> dict[str, Any]:
+        """The line, in a form that survives the process.
+
+        A stance rather than a sentence. Kept as a string it comes back as
+        words with nothing to check them against, so she cannot tell whether
+        it is still the right line — which is what made carrying one over
+        pointless and left the remembered approach with no reader at all.
+        """
+        return {
+            "approach": self.approach,
+            "because": self.because,
+            "describes": self.holds_while.describes,
+            "at_place": self.holds_while.at_place,
+            "keeping": list(self.holds_while.keeping),
+            "contains": list(self.holds_while.contains),
+            "absent": list(self.holds_while.absent),
+            "otherwise": list(self.otherwise),
+        }
+
+    @classmethod
+    def from_memory(cls, held: Any) -> "Strategy | None":
+        """A line she held before, ready to be tested against what is here now.
+
+        Resumed rather than assumed: it comes back with the condition that
+        would end it, so the first reading of the new run can drop it.
+        """
+        if isinstance(held, str):
+            # What an older run wrote down: the words with nothing to check.
+            said = held.strip()
+            return cls(approach=said) if said else None
+        if not isinstance(held, dict):
+            return None
+        said = str(held.get("approach") or "").strip()
+        if not said:
+            return None
+
+        def texts(key: str) -> tuple[str, ...]:
+            value = held.get(key)
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(str(item) for item in value if str(item).strip())
+
+        return cls(
+            approach=said,
+            because=str(held.get("because") or ""),
+            holds_while=Expectation(
+                describes=str(held.get("describes") or ""),
+                at_place=str(held.get("at_place") or ""),
+                keeping=texts("keeping"),
+                contains=texts("contains"),
+                absent=texts("absent"),
+            ),
+            otherwise=texts("otherwise"),
+        )
+
     def narrate(self) -> str:
         """The line, its reason and its ending, each said once.
 
