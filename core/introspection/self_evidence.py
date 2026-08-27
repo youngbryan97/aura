@@ -118,6 +118,44 @@ _ABOUT_WHAT_COMES_NEXT = re.compile(
     re.IGNORECASE,
 )
 
+#: "Down" and "off" name a condition only when something IS down or off. Both
+#: are also the commonest particles in English, and a particle is not a
+#: predicate.
+#:
+#: LIVE, 2026-08-27: "what does 210 become, and how confident are you — is
+#: three examples enough to PIN IT DOWN?" was answered with "The machine is at
+#: 14.0% processor and 60.2% memory right now." The "you" supplied the subject
+#: and "down" supplied the trouble, and the question was arithmetic.
+#:
+#: What separates the two is the frame, not the verb, so there is no list of
+#: phrasal verbs to keep up to date. A pronoun object sitting between a verb
+#: and "down"/"off" makes it a particle — "narrow it down", "write that down",
+#: "call it off". The one frame where that pronoun is a subject instead is the
+#: copula, and there the condition reading is the right one: "is it down".
+_A_PARTICLE_NOT_A_CONDITION = re.compile(
+    r"\b(\w+)\s+\b(?:it|this|that|them|things|matters)\s+(?:down|off)\b",
+    re.IGNORECASE,
+)
+
+#: The one verb before that pronoun which makes it a subject rather than an
+#: object, so "is it down" keeps its condition reading.
+_COPULA = frozenset(
+    "is are was were be been being am seems seem looks look feels feel "
+    "stays stay remains remain gets get got goes go went gone".split()
+)
+
+
+def _without_particles(said: str) -> str:
+    """The sentence with "narrow it down" and "call it off" taken out."""
+
+    def decide(match: re.Match[str]) -> str:
+        if match.group(1).lower() in _COPULA:
+            return match.group(0)
+        return " "
+
+    return _A_PARTICLE_NOT_A_CONDITION.sub(decide, said)
+
+
 _WEAK_STATE_RE = re.compile(
     r"\b(?:you|your|yours|it)\b" + _NEARBY
     + r"\b(?:doing|state|working|ok(?:ay)?|usage|holding\s+up)\b"
@@ -311,6 +349,8 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # and answering it with a processor percentage is the same category error
     # as answering "are you ok" with one.
     subject = _ABOUT_WHAT_COMES_NEXT.sub(" ", subject)
+    # "Pin it down" is not a report that something is down.
+    subject = _without_particles(subject)
     about_her_host = bool(_HOST_SUBJECT_RE.search(subject)) and bool(
         _RUNS_ON_RE.search(subject)
     )
