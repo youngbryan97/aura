@@ -158,3 +158,29 @@ def test_nothing_returned_reads_as_nothing() -> None:
 
     assert _what_a_tool_returned(None) == ""
     assert _what_a_tool_returned({"ok": True, "skill": "x", "retries": 0}) == ""
+
+
+def test_the_envelope_is_stripped_wherever_the_receipt_came_from() -> None:
+    """Several places record a receipt and only one of them strips.
+
+    LIVE, 2026-08-27: authority_closure and token_revoked reached the screen
+    twice, once through each recorder. Stripping happens at the point of
+    display now, rather than trusting each of them.
+    """
+    from interface.routes.chat import _readable_result
+
+    raw = (
+        '{"authority_closure":{"closed":true,"token_revoked":true},'
+        '"duration_ms":4.7,"files":["API.md","ledgerkit.py"],"ok":true,'
+        '"path":"/tmp/ledgerkit","retries":0,"skill":"file_operation"}'
+    )
+    told = _readable_result(raw)
+    for plumbing in ("authority_closure", "token_revoked", "duration_ms"):
+        assert plumbing not in told, told
+    assert "API.md" in told
+
+    # Prose stays prose, and nothing stays nothing.
+    assert _readable_result("invoice one: 125.0") == "invoice one: 125.0"
+    assert _readable_result("") == ""
+    # Something that only looks like JSON is left alone rather than lost.
+    assert _readable_result("{not really json}") == "{not really json}"

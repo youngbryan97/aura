@@ -15966,6 +15966,34 @@ def _tables_named_in(question: str, *, already: list) -> list:
     return found
 
 
+def _readable_result(raw: object) -> str:
+    """A tool result a person can read, whichever recorder wrote it.
+
+    Several places record a receipt and only one of them strips the envelope,
+    so this strips at the point of display instead of trusting each of them.
+    LIVE, 2026-08-27: `authority_closure`, `token_revoked` and
+    `standing_authority_closed` reached the screen twice, once through each
+    recorder.
+    """
+    said = str(raw or "").strip()
+    if not said:
+        return ""
+    if said.startswith("{") and said.endswith("}"):
+        import json as _json
+
+        try:
+            parsed = _json.loads(said)
+        except (TypeError, ValueError):
+            return said
+        try:
+            from core.brain.inference_gate import _what_a_tool_returned
+
+            return _what_a_tool_returned(parsed)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return said
+    return said
+
+
 def _what_the_tools_found() -> str:
     """What this turn's tools actually returned, or "".
 
@@ -15984,9 +16012,9 @@ def _what_the_tools_found() -> str:
     for receipt in receipts:
         if not isinstance(receipt, dict) or not receipt.get("ok"):
             continue
-        found = str(
+        found = _readable_result(
             receipt.get("observed_content") or receipt.get("evidence") or ""
-        ).strip()
+        )
         if not found:
             continue
         tool = str(receipt.get("tool") or receipt.get("tool_name") or "a tool").strip()
