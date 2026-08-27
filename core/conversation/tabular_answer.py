@@ -653,3 +653,81 @@ def _describe_contrast(answer: TabularAnswer) -> str:
         f" ({answer.rows_used} of {answer.rows_total} rows):"
     )
     return head + "\n- " + "\n- ".join(lines)
+
+
+#: A claim that some named thing leads on some measure: "West came out top on
+#: average approved deal size", "Marek has the most deals", "South is highest".
+_A_RANKING_CLAIM = re.compile(
+    r"\b(?P<who>[A-Z][\w'-]*|[a-z][\w'-]{2,})\b\s+"
+    r"(?:came\s+out|is|was|has|had|comes\s+out|leads?\s+on)\s+"
+    r"(?:the\s+)?(?:top|highest|largest|biggest|most|best|first)\b",
+    re.IGNORECASE,
+)
+
+
+def check_ranking_claim(path: str | Path, message: object) -> str:
+    """Test a claim the message rests on against the table, or "".
+
+    LIVE, 2026-08-27: "Since West came out top on average approved deal size in
+    deals.csv, what's West doing that the other regions should copy?" She
+    doubted it — correctly, the leader is South — and then reasoned from
+    figures she had not looked at: "West often has deals sitting for a long
+    time or getting rejected."
+
+    A premise about a named file is checkable. Doubting one is worth much less
+    than settling it, and the same enumeration that answers the question
+    answers the premise.
+
+    Returns "" whenever the claim does not resolve to one unambiguous reading,
+    for the reason the rest of this module returns None: a wrong correction
+    served with authority is worse than no correction.
+    """
+    said = str(message or "")
+    claim = _A_RANKING_CLAIM.search(said)
+    if not claim:
+        return ""
+    named = claim.group("who").strip()
+    # The claim is not phrased as a question, so it is asked as one. What the
+    # named thing IS tells us how to group: "West" is a value in some column,
+    # and that column is the axis the claim ranks along.
+    try:
+        target = Path(str(path))
+        header, rows = _read_rows(target)
+    except _RECOVERABLE:
+        return ""
+    grouping = next(
+        (
+            column
+            for column in header
+            if any(str(row.get(column, "")).strip().lower() == named.lower() for row in rows)
+        ),
+        "",
+    )
+    if not grouping:
+        return ""
+    # Only the claim, asked as a question. Feeding the whole message back in
+    # asked "which region has the Since Marek has the most deals, what is he
+    # doing right?" — the rest of the sentence is about what to DO, and it is
+    # not part of the claim being checked.
+    stated = said[claim.start() : claim.end() + 60].split("?")[0].split(",")[0]
+    answer = answer_tabular_question(path, f"which {grouping} has the {stated}")
+    if answer is None or not answer.ranking or answer.group_column == _WHOLE_TABLE:
+        return ""
+    leader, figure = answer.ranking[0]
+    if leader.strip().lower() == named.lower():
+        return ""
+    # Only when the thing they named is actually in this column, otherwise the
+    # claim was about something this table does not hold.
+    ranked = {key.strip().lower(): value for key, value in answer.ranking}
+    if named.lower() not in ranked:
+        return ""
+    theirs = ranked[named.lower()]
+    shown = (
+        f"{figure:,.2f}" if answer.aggregation != "count" else f"{int(figure)}"
+    )
+    mine = f"{theirs:,.2f}" if answer.aggregation != "count" else f"{int(theirs)}"
+    return (
+        f"{named} is not top: by {answer.group_column}, {answer.aggregation} "
+        f"{answer.value_column or 'rows'}, {leader} leads at {shown} and {named} "
+        f"is at {mine}."
+    )

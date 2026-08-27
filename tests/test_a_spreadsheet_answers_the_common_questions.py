@@ -168,3 +168,50 @@ def test_the_same_figure_is_not_said_twice(deals: Path) -> None:
 
     readings = _tabular_readings(deals, "how many are approved? how many approved deals?")
     assert len(readings) == len(set(readings))
+
+
+def test_a_false_premise_about_the_table_is_settled(deals: Path) -> None:
+    """Doubting a premise is worth much less than checking it.
+
+    LIVE, 2026-08-27: "Since West came out top on average approved deal size in
+    deals.csv, what's West doing that the other regions should copy?" She
+    doubted it — correctly, the leader is South — and then reasoned from
+    figures she had never looked at: "West often has deals sitting for a long
+    time or getting rejected."
+    """
+    from core.conversation.tabular_answer import check_ranking_claim
+
+    counted = collections.Counter(row["rep"] for row in _rows(deals))
+    leader, most = counted.most_common(1)[0]
+    runner_up = counted.most_common(2)[1][0]
+
+    told = check_ranking_claim(
+        deals, f"Since {runner_up} has the most deals, what are they doing right?"
+    )
+    assert told, "a false claim about this table went unchecked"
+    assert leader in told and str(most) in told
+    assert runner_up in told
+
+
+def test_a_true_premise_is_left_alone(deals: Path) -> None:
+    """Correcting a claim that is right is worse than saying nothing."""
+    from core.conversation.tabular_answer import check_ranking_claim
+
+    counted = collections.Counter(row["rep"] for row in _rows(deals))
+    leader = counted.most_common(1)[0][0]
+    assert check_ranking_claim(deals, f"Since {leader} has the most deals, what now?") == ""
+
+
+def test_a_claim_about_something_the_table_does_not_hold(deals: Path) -> None:
+    """A wrong correction served with authority is worse than no correction."""
+    from core.conversation.tabular_answer import check_ranking_claim
+
+    assert check_ranking_claim(deals, "Since Atlantis has the most deals, what now?") == ""
+    assert check_ranking_claim(deals, "what should we do about the pipeline?") == ""
+
+
+def test_an_ambiguous_measure_is_not_corrected(deals: Path) -> None:
+    """"Deal size" fits three numeric columns, so there is no single reading."""
+    from core.conversation.tabular_answer import check_ranking_claim
+
+    assert check_ranking_claim(deals, "Since West came out top on deal size, why?") == ""

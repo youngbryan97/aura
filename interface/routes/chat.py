@@ -15917,6 +15917,7 @@ def _tabular_readings(path: object, question: str) -> list[str]:
     """
     from core.conversation.tabular_answer import (
         answer_tabular_question,
+        check_ranking_claim,
         describe_tabular_answer,
     )
     from core.language.asking_clauses import asking_clauses
@@ -15924,6 +15925,18 @@ def _tabular_readings(path: object, question: str) -> list[str]:
     asked = [clause for clause in asking_clauses(question) if clause.strip()]
     said: list[str] = []
     seen: set[str] = set()
+    # A premise about this table is checkable, and settling one is worth a
+    # great deal more than doubting it.
+    #
+    # LIVE, 2026-08-27: "Since West came out top on average approved deal size
+    # in deals.csv, what's West doing that the other regions should copy?" She
+    # doubted the premise — correctly, the leader is South — and then reasoned
+    # from figures she had never looked at: "West often has deals sitting for a
+    # long time or getting rejected."
+    correction = check_ranking_claim(path, question)
+    if correction:
+        said.append(correction)
+        seen.add(correction)
     # The whole message is tried too: a clause split can lose context another
     # clause carried, and the common case is one question anyway.
     for candidate in ([question] if not asked else [*asked, question]):
