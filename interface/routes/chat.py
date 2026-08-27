@@ -8941,6 +8941,19 @@ def _evaluate_reply_topicality(
     if answers_polar_question(user_message, reply):
         return False, ""
 
+    if _asked_about_her_own_workings(user_message):
+        # A reply about the runtime's own operation is what this block exists
+        # to catch, and it is the answer when the question was about her own
+        # operation. LIVE 2026-08-26: "what are you actually able to do on
+        # this machine that you could not do a month ago" — she wrote five
+        # hundred and ninety characters about exactly that, the block called
+        # it a foreign topic, and the person got "I couldn't get a clear
+        # enough answer together."
+        #
+        # The drift check is given the reply alone and cannot know what was
+        # asked, so the question has to be read here or not at all.
+        return False, ""
+
     drift = assess_subject_drift(reply)
     if not drift.drifted:
         return False, ""
@@ -8953,6 +8966,22 @@ def _evaluate_reply_topicality(
         return False, ""
 
     return True, "foreign_topic_burst"
+
+
+#: Somebody asking her about herself, where a reply about her own workings is
+#: the answer rather than a wandering.
+_ABOUT_HER_OWN_WORKINGS = re.compile(
+    r"\byou(?:'|\u2019)?r?e?\b[^.?!]{0,80}\b(?:able|can|could|do|doing|able\s+to|"
+    r"capab\w+|built|made|work\w*|run\w*|learn\w*|chang\w+|improv\w+|"
+    r"handle|manage|reach|know|remember)\b"
+    r"|\b(?:what|how|why|when)\b[^.?!]{0,40}\byour\b",
+    re.IGNORECASE,
+)
+
+
+def _asked_about_her_own_workings(user_message: str) -> bool:
+    """Whether the person asked about her, rather than about something else."""
+    return bool(_ABOUT_HER_OWN_WORKINGS.search(str(user_message or "")))
 
 
 async def _realize_expressive_affordances(
