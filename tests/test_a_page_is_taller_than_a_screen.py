@@ -129,3 +129,44 @@ async def test_hands_that_will_not_scroll_are_not_fatal(monkeypatch):
         "core.capabilities.host_automation.get_host_automation", missing, raising=False
     )
     assert await _bring_it_into_view(page.look, page.read) == 0
+
+
+# ── and a screenful is the size of the screen ────────────────────────────
+
+def test_a_screenful_is_measured_from_the_display():
+    from core.capabilities.host_automation import get_host_automation
+    from core.skills.screen_pursuit import A_SCREENFUL_AT_LEAST, _a_screenful
+
+    here = _a_screenful(get_host_automation())
+    assert here >= A_SCREENFUL_AT_LEAST
+
+
+def test_it_moves_most_of_a_screen_and_not_all_of_it():
+    """Something sitting across the fold must not fall between two readings."""
+    from core.skills.screen_pursuit import MOST_OF_A_SCREEN, _a_screenful
+
+    class Display:
+        @staticmethod
+        def _main_screen_visible_frame():
+            return (0, 0, 1920, 1080)
+
+    assert _a_screenful(Display()) == int(1080 * MOST_OF_A_SCREEN)
+    assert _a_screenful(Display()) < 1080
+
+
+@pytest.mark.parametrize("hands", [object(), None])
+def test_a_screen_that_cannot_be_measured_falls_back(hands):
+    from core.skills.screen_pursuit import A_SCREENFUL_AT_LEAST, _a_screenful
+
+    assert _a_screenful(hands) == A_SCREENFUL_AT_LEAST
+
+
+def test_and_so_does_one_that_raises():
+    from core.skills.screen_pursuit import A_SCREENFUL_AT_LEAST, _a_screenful
+
+    class Broken:
+        @staticmethod
+        def _main_screen_visible_frame():
+            raise RuntimeError("macOS did not report a primary screen")
+
+    assert _a_screenful(Broken()) == A_SCREENFUL_AT_LEAST

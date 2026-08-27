@@ -18,7 +18,9 @@ assumed from the click. A destination she cannot justify is not opened.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -126,6 +128,55 @@ def _remember_arrival(wanted: str, url: str, *, graph: Any = None) -> None:
         graph.record_outcome(_remember_key(wanted), "getting to where a task happens", url, True)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("reach_place", exc, severity="info", action="remember where she went")
+
+
+#: How long to let a page settle before reading back where she is. Long
+#: enough for a browser to replace the tab it was showing, short enough that
+#: a slow site costs a moment rather than the run.
+SETTLING_SECONDS = 4.0
+
+#: How often to look while it settles.
+LOOK_EVERY_S = 0.2
+
+
+async def _once_it_has_settled(browser: Any, going_to: str) -> dict[str, str]:
+    """Where the browser is, once it has stopped being where it was.
+
+    Waits for the tab to show the URL that was asked for — or anything the
+    server redirected it to — with a title on it. Gives up and reports what it
+    can see, because a page that never settles is a fact worth reading too.
+    """
+    asked_host = host_of(going_to)
+    page: dict[str, str] = {}
+    until = time.monotonic() + SETTLING_SECONDS
+    while True:
+        try:
+            page = await browser.current_page()
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
+            page = {}
+        landed = str(page.get("url") or "")
+        arrived_here = landed == going_to or (bool(asked_host) and host_of(landed) == asked_host)
+        if arrived_here and str(page.get("title") or "").strip():
+            return page
+        if time.monotonic() >= until:
+            return page
+        await asyncio.sleep(LOOK_EVERY_S)
+
+
+def _forget_arrival(wanted: str, url: str, *, graph: Any = None) -> None:
+    """Unfile a place that turned out not to be there."""
+    if not url:
+        return
+    try:
+        if graph is None:
+            from core.world_model.acg import acg as graph  # noqa: PLC0415
+        graph.record_outcome(
+            _remember_key(wanted), "getting to where a task happens", url, False
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "reach_place", exc, severity="info", action="forget a place that is not there"
+        )
 
 
 async def _choose_destination(
@@ -337,14 +388,14 @@ async def reach(
             outcome.reason = f"the page would not open ({type(exc).__name__})"
             continue
 
-        # Arrival is read back, never assumed. A navigation that reported
-        # success and left the browser somewhere else is one failure this
-        # checks for; a server that answered with a page saying the thing is
-        # not there is the other.
-        try:
-            page = await browser.current_page()
-        except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
-            page = {}
+        # Arrival is read back, never assumed — and a read-back that happens
+        # before the page arrives is not a read-back. Opening returns as soon
+        # as the browser accepts the request, so reading straight away gets
+        # whatever tab was showing a moment ago: the previous page's title
+        # passes every check, and she anchors a whole run to a URL that is
+        # about to render an error. LIVE 2026-08-27, twice, on the same
+        # remembered dead link.
+        page = await _once_it_has_settled(browser, going_to)
         landed = str(page.get("url") or "")
         outcome.url = landed or going_to
         outcome.title = str(page.get("title") or row.get("title") or "")
@@ -354,6 +405,11 @@ async def reach(
             outcome.reason = f"the browser is on {host_of(landed) or 'nothing'}, not {wanted_host}"
             continue
         if _says_it_is_not_there(outcome.title):
+            # And a place she remembered getting to, which is not there any
+            # more, has to stop being the place she goes first. Left in, it
+            # sends her to the same dead link every run, and the search she
+            # would have done instead never happens.
+            _forget_arrival(wanted, going_to, graph=graph)
             # Getting to the right server is not getting to the thing.
             #
             # Arrival was judged on the host alone, so a page that answered

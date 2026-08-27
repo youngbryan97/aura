@@ -148,3 +148,72 @@ async def test_a_url_given_outright_is_still_checked(choosing):
 def test_a_title_that_is_only_a_status_number_is_still_a_missing_page():
     assert _says_it_is_not_there("404") is True
     assert _says_it_is_not_there(" 404 ") is True
+
+
+# ── and a read-back before the page arrives is not a read-back ───────────
+
+class SlowBrowser(Browser):
+    """A browser that keeps showing the old page for a few looks."""
+
+    def __init__(self, serves, results=None, lag: int = 3):
+        super().__init__(serves, results)
+        self.lag = lag
+        self.pending = ""
+        self.looks = 0
+        self._at = "https://old.example/previous"
+        self.serves.setdefault("https://old.example/previous", "Something Else Entirely")
+
+    async def open_url(self, url: str, new_tab: bool = False) -> None:
+        self.opened.append(url)
+        self.pending = url
+        self.looks = 0
+
+    async def current_page(self) -> dict[str, str]:
+        self.looks += 1
+        if self.pending and self.looks > self.lag:
+            self._at = self.pending
+            self.pending = ""
+        return {"url": self._at, "title": self.serves.get(self._at, "")}
+
+
+@pytest.mark.asyncio
+async def test_she_waits_for_the_page_before_reading_it_back(choosing):
+    """Opening returns as soon as the browser accepts the request."""
+    browser = SlowBrowser(
+        serves={"https://games.example/sliding": "The page could not be found"},
+        results=[{"url": "https://games.example/sliding", "title": "Sliding Puzzle"}],
+    )
+    got = await reach("sliding puzzle", browser=browser)
+    assert got.arrived is False, "the previous page's title passed the check"
+    assert "could not be found" in got.reason
+
+
+@pytest.mark.asyncio
+async def test_a_page_that_never_settles_is_read_as_it_is(choosing, monkeypatch):
+    monkeypatch.setattr("core.agency.reach_place.SETTLING_SECONDS", 0.3)
+    monkeypatch.setattr("core.agency.reach_place.LOOK_EVERY_S", 0.05)
+    browser = SlowBrowser(
+        serves={"https://games.example/sliding": "Sliding Puzzle"},
+        results=[{"url": "https://games.example/sliding", "title": "Sliding Puzzle"}],
+        lag=10_000,
+    )
+    got = await reach("sliding puzzle", browser=browser)
+    assert got.arrived is False
+
+
+@pytest.mark.asyncio
+async def test_a_remembered_place_that_is_gone_is_forgotten(choosing, monkeypatch):
+    forgotten: list[tuple[str, str, bool]] = []
+
+    class Graph:
+        def query_consequences(self, key):
+            return [{"outcome": "https://games.example/sliding", "success": True}]
+
+        def record_outcome(self, key, action, outcome, ok):
+            forgotten.append((key, outcome, ok))
+
+    browser = Browser(serves={"https://games.example/sliding": "404 Not Found"})
+    await reach("sliding puzzle", browser=browser, graph=Graph())
+    assert any(ok is False for _key, _url, ok in forgotten), (
+        "a dead link she remembers keeps sending her back to it every run"
+    )

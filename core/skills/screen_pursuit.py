@@ -927,7 +927,7 @@ async def _bring_it_into_view(look: Any, read: Any) -> int:
                 logger.info("what she came for was %d screenful(s) down", down)
             return down
         try:
-            await hands.scroll(dy=-A_SCREENFUL)
+            await hands.scroll(dy=-_a_screenful(hands))
         except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("screen_pursuit", exc, action="scroll to find the thing")
             return down
@@ -935,11 +935,33 @@ async def _bring_it_into_view(look: Any, read: Any) -> int:
     return SCREENFULS_TO_LOOK
 
 
-#: How far one scroll goes. A screenful, so a thing is never stepped over.
-A_SCREENFUL = 600
+#: What one scroll goes if the screen cannot be measured. Small enough that
+#: nothing is stepped over on any display anyone still uses.
+A_SCREENFUL_AT_LEAST = 400
+
+#: The share of a screen one scroll moves. Not the whole of it, so a thing
+#: sitting across the fold is never skipped between two readings.
+MOST_OF_A_SCREEN = 0.8
 
 #: Long enough for a page to finish moving before it is read again.
 SETTLE_AFTER_SCROLL_S = 0.35
+
+
+def _a_screenful(hands: Any) -> int:
+    """How far one scroll should go, from the screen she is actually looking at.
+
+    A number picked in advance is wrong on every display but one. Most of a
+    screen rather than all of it, so something sitting across the fold is not
+    skipped between two readings.
+    """
+    measure = getattr(hands, "_main_screen_visible_frame", None)
+    if not callable(measure):
+        return A_SCREENFUL_AT_LEAST
+    try:
+        height = int(measure()[3])
+    except (RuntimeError, OSError, ImportError, TypeError, ValueError, IndexError):
+        return A_SCREENFUL_AT_LEAST
+    return max(A_SCREENFUL_AT_LEAST, int(height * MOST_OF_A_SCREEN))
 
 
 def _what_there_is_to_aim_at(reading: Any) -> str:
