@@ -27,7 +27,12 @@ from __future__ import annotations
 import logging
 import re
 
-__all__ = ["asks_to_exercise_software", "asks_for_an_aggregate", "needs_computation"]
+__all__ = [
+    "asks_to_exercise_software",
+    "asks_for_an_aggregate",
+    "needs_computation",
+    "needs_computation_plainly",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -90,10 +95,23 @@ def _names_something_to_work_on(text: str) -> bool:
         return False
 
 
+#: How far the inputs may sit from the verb that runs something. "Run the
+#: parser OVER those two examples" is one phrase; "use my computer to resize
+#: the window and arrange it ON THE left side of the screen" is a verb and a
+#: location thirty words apart, and reading those as one phrase held a plain
+#: desktop instruction out of the only lane that could do it.
+_INPUTS_WITHIN = 34
+
+
 def _exercise_floor(text: str) -> bool | None:
-    if not _EXERCISE_IT.search(text):
+    match = _EXERCISE_IT.search(text)
+    if not match:
         return None
-    if _A_PIECE_OF_SOFTWARE.search(text) or _ON_SOME_INPUTS.search(text):
+    if _A_PIECE_OF_SOFTWARE.search(text):
+        return True
+    # The inputs have to belong to the verb that runs something.
+    nearby = text[match.end() : match.end() + _INPUTS_WITHIN]
+    if _ON_SOME_INPUTS.search(nearby):
         return True
     return None
 
@@ -183,3 +201,22 @@ def needs_computation(message: object) -> bool:
     if settled is None:
         settled = _aggregate_floor(text)
     return _decide(text, settled)
+
+
+def needs_computation_plainly(message: object) -> bool:
+    """Only what the words settle, with no learned judgement.
+
+    For a caller whose wrong answer is expensive in one direction. Routing a
+    turn AWAY from the actuation lane on a maybe costs a whole capability:
+    "Open a browser window, search for climate news, and show me the articles"
+    was held back from the lane that can do it, because the surface had learned
+    something adjacent. The floor is conservative by construction, so this is
+    what a routing guard asks.
+    """
+    text = str(message or "").strip()
+    if not text or _ABOUT_IT.match(text):
+        return False
+    settled = _exercise_floor(text)
+    if settled is None:
+        settled = _aggregate_floor(text)
+    return bool(settled)

@@ -450,6 +450,36 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     if asks_to_build_software(user_message):
         return False
 
+    # Working something out from a named file is not driving the screen.
+    #
+    # Same rule as the two above, a third time: the actuation lane is for what
+    # a screen shows, and an average over a spreadsheet shows nothing on one.
+    #
+    # LIVE 2026-08-27: "Since West came out top on average approved deal size
+    # in <path>/deals.csv, what's West doing that the other regions should
+    # copy?" was routed here and came back "OS automation refused to act
+    # because the objective has no complete observable acceptance contract.
+    # Completed 0/1 steps." It never could have one — and the tabular reader
+    # settles the premise of that question exactly.
+    #
+    # A turn that also asks for a change is not one of these: "count the .py
+    # files in <dir> and write the number into <file>" needs both, and only
+    # the lane that can write can finish it. The read guard above draws the
+    # same line for the same reason.
+    try:
+        # Only what the words settle. Routing away from the lane that can act
+        # is expensive when it is wrong, so a learned maybe is not enough:
+        # "open a browser window, search for climate news, and show me the
+        # articles" was held back from the lane that can do it.
+        from core.intent.needs_computation import needs_computation_plainly
+
+        if needs_computation_plainly(user_message) and not _asks_to_change_a_file(
+            user_message
+        ):
+            return False
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+
     try:
         from core.conversation.page_interaction import asks_to_act_on_a_page
 
@@ -781,6 +811,33 @@ def _looking_surface() -> Any:
     return _WANTS_TO_LOOK
 
 
+#: A place a change could land, close enough after the verb to be its object.
+_SOMETHING_TO_CHANGE = re.compile(
+    r"(?:~?/[\w.\-~/]+|\b\w+\.[a-z0-9]{1,5}\b|\bfile\b|\bfolder\b|"
+    r"\bdirectory\b|\bnote\b|\bdocument\b)",
+    re.IGNORECASE,
+)
+
+
+def _asks_to_change_a_file(user_message: str) -> bool:
+    """Whether a mutation verb here has something to mutate.
+
+    LIVE, 2026-08-27: "what's West doing that the other regions should COPY?"
+    counted as a file mutation, because "copy" is on the list of things that
+    change what is on disk. It is also an ordinary English verb, and the same
+    shape as `\boff\b` matching inside "off-the-shelf" — a word read out of
+    prose that was never about a file.
+
+    A change needs somewhere to land, so the verb has to be followed by one.
+    """
+    text = strip_negated_action_spans(normalize_memory_intent_text(user_message)).lower()
+    for match in _FILESYSTEM_MUTATION_RE.finditer(text):
+        after = text[match.end() : match.end() + 48]
+        if _SOMETHING_TO_CHANGE.search(after):
+            return True
+    return False
+
+
 def looks_like_filesystem_observation(user_message: str) -> bool:
     """True when the turn asks to READ something on disk and report back.
 
@@ -913,6 +970,22 @@ def asks_about_screens_in_general(user_message: str) -> bool:
         return True
     if _ABOUT_HER_METHOD_RE.search(text):
         return True
+    # An instruction is not a question about a class.
+    #
+    # The article rule reads "a screen" and "a window" as naming the kind, and
+    # that holds for questions — which is what this predicate is for, per the
+    # docstring above: "a question about how she works cannot be answered by
+    # looking at anything". It does not hold for an imperative. LIVE
+    # 2026-08-27: "Open A BROWSER WINDOW, search for climate news, and show me
+    # the articles" was read as a question about windows in general and held
+    # back from the only lane that could do it.
+    try:
+        from core.conversation.request_mood import assess_request_mood
+
+        if assess_request_mood(user_message).asks_for_action:
+            return False
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
     # The class, and nothing definite alongside it to look at.
     if not _SCREENS_IN_GENERAL_RE.search(text):
         return False
