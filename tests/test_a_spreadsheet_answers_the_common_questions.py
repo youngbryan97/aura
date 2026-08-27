@@ -141,3 +141,30 @@ def test_a_value_in_two_columns_is_too_ambiguous_to_filter(tmp_path: Path) -> No
     )
     answer = answer_tabular_question(path, "How many are approved?")
     assert answer is None or not answer.filters
+
+
+def test_a_message_asking_two_things_gets_two_readings(deals: Path) -> None:
+    """LIVE, 2026-08-27: the regional means came back and the count did not.
+
+    One reading resolved, the other was never attempted, and nothing said that
+    half the message went unanswered.
+    """
+    from interface.routes.chat import _tabular_readings
+
+    readings = _tabular_readings(
+        deals,
+        "how many of those are approved, and which region has the highest "
+        "average approved amount_gbp?",
+    )
+    assert len(readings) >= 2
+    joined = "\n".join(readings)
+    assert "status is approved" in joined
+    assert "By region" in joined
+
+
+def test_the_same_figure_is_not_said_twice(deals: Path) -> None:
+    """Two clauses often resolve alike, and a repeat reads as two findings."""
+    from interface.routes.chat import _tabular_readings
+
+    readings = _tabular_readings(deals, "how many are approved? how many approved deals?")
+    assert len(readings) == len(set(readings))

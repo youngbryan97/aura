@@ -15908,6 +15908,32 @@ def _serve_repo_diagnosis(reply: object) -> object:
     return reply
 
 
+def _tabular_readings(path: object, question: str) -> list[str]:
+    """One reading per question the message asks that this table can settle.
+
+    A message asking two things gets two readings. Duplicates are dropped,
+    because two clauses often resolve to the same column and the same figure
+    said twice reads as two findings.
+    """
+    from core.conversation.tabular_answer import (
+        answer_tabular_question,
+        describe_tabular_answer,
+    )
+    from core.language.asking_clauses import asking_clauses
+
+    asked = [clause for clause in asking_clauses(question) if clause.strip()]
+    said: list[str] = []
+    seen: set[str] = set()
+    # The whole message is tried too: a clause split can lose context another
+    # clause carried, and the common case is one question anyway.
+    for candidate in ([question] if not asked else [*asked, question]):
+        described = describe_tabular_answer(answer_tabular_question(path, candidate))
+        if described and described not in seen:
+            seen.add(described)
+            said.append(described)
+    return said
+
+
 def _tables_named_in(question: str, *, already: list) -> list:
     """CSV and TSV files the person named that are actually on this disk."""
     seen = {str(path) for path in already}
@@ -15968,16 +15994,19 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
         # all — this waited for somebody else to have opened it.
         tables.extend(_tables_named_in(question, already=tables))
         for path in tables[:3]:
-            computed = answer_tabular_question(path, question)
-            described = describe_tabular_answer(computed)
-            if described:
+            # Every question the table can answer, not the first one.
+            #
+            # LIVE, 2026-08-27: "how many of those are approved, and which
+            # region has the highest average approved amount_gbp?" came back
+            # with the regional means and nothing about the count — one
+            # reading resolved, the other never attempted, and no mention that
+            # half the message went unanswered.
+            readings = _tabular_readings(path, question)
+            if readings:
                 logger.info(
-                    "📊 Served a computed reading of %s (%d of %d rows).",
-                    path,
-                    computed.rows_used,
-                    computed.rows_total,
+                    "📊 Served %d computed reading(s) of %s.", len(readings), path
                 )
-                return described
+                return "\n\n".join(readings)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.tabular_answer",
