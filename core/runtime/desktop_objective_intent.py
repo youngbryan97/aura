@@ -384,6 +384,16 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # A question about how she works is not work.
+    #
+    # It cannot be answered by doing anything, so routing it to a lane that
+    # acts makes her act on the world to answer a question about herself.
+    # LIVE 2026-08-27: "What are the three biggest weaknesses in how you
+    # currently decide what to do on a screen? Be blunt." went to the desktop
+    # lane, tried to read the screen, was refused by the executive for want of
+    # scoped authority, and came back as a failure report instead of an answer.
+    if asks_about_screens_in_general(text):
+        return False
     # A goal to be kept at until a condition holds is a desktop objective by
     # definition: it names something to keep doing on the machine and the
     # thing on screen that means it is finished.
@@ -815,6 +825,66 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
         return False
 
 
+#: A screen referred to as a KIND of thing rather than as the one in front of
+#: her. "A screen" and "screens" are the class; "my screen", "the screen" and
+#: "this screen" are the one she could look at.
+_SCREENS_IN_GENERAL_RE = re.compile(
+    r"\b(?:a|an|any|some|every|each)\s+(?:\w+\s+){0,2}"
+    r"(?:screen|display|monitor|window|desktop)\b"
+    r"|\b(?:screens|displays|monitors|windows|desktops)\b",
+    re.IGNORECASE,
+)
+
+#: Ways of asking about her method rather than about the world. The subject is
+#: her — how she does a thing, what her approach is, where she is weak — and
+#: none of them can be answered by looking at anything.
+_ABOUT_HER_METHOD_RE = re.compile(
+    r"\bhow\s+(?:do|does|did|would|will|can|are)\s+you\b"
+    r"|\bhow\s+you\s+(?:currently\s+)?(?:decide|choose|work|handle|approach|do)\b"
+    r"|\bwhat(?:'s| is| are)?\s+your\s+(?:approach|method|process|strategy|weakness|strength)"
+    r"|\b(?:weaknesses|strengths|limitations|shortcomings)\b[^.?!]{0,40}\byou\b"
+    r"|\byou\b[^.?!]{0,40}\b(?:weaknesses|strengths|limitations|shortcomings)\b"
+    r"|\bin\s+general\b",
+    re.IGNORECASE,
+)
+
+
+def asks_about_screens_in_general(user_message: str) -> bool:
+    """True when the request is about screens as a kind, not about this one.
+
+    A question about how she works cannot be answered by looking at anything,
+    and routing it to a lane that looks makes her act on the world to answer a
+    question about herself.
+
+    LIVE 2026-08-27: "What are the three biggest weaknesses in how you
+    currently decide what to do on a screen? Be blunt." was routed to the
+    desktop lane, tried to read the screen, was refused by the executive for
+    want of scoped authority, and came back as a failure report instead of an
+    answer.
+
+    Two things mark it, and either will do. The article: "a screen" and
+    "screens" name the class, where "my screen", "the screen" and "this
+    screen" name the one she could look at. And the subject: "how do you...",
+    "what is your approach", "your weaknesses" are questions about her, which
+    no reading answers.
+    """
+    text = str(user_message or "").lower()
+    if not text:
+        return False
+    if _ABOUT_HER_METHOD_RE.search(text):
+        return True
+    # The class, and nothing definite alongside it to look at.
+    if not _SCREENS_IN_GENERAL_RE.search(text):
+        return False
+    # A plural can still be definite: "my monitors" and "these windows" are
+    # the ones in front of her, however many there are.
+    return not re.search(
+        r"\b(?:my|the|this|that|these|those|current|your)\s+(?:\w+\s+){0,2}"
+        r"(?:screens?|displays?|monitors?|windows?|desktops?)\b",
+        text,
+    )
+
+
 def looks_like_screen_observation(user_message: str) -> bool:
     """True when the request is to READ the screen and report, not to act on it.
 
@@ -841,6 +911,8 @@ def looks_like_screen_observation(user_message: str) -> bool:
         return False
     if _PAST_SCREEN_NARRATION_RE.search(sanitized_text):
         # Recounting what was on screen earlier is conversation, not a look.
+        return False
+    if asks_about_screens_in_general(sanitized_text):
         return False
     # "Look at the screen and close the window" observes AND acts; only the
     # actuation lane can finish it.
