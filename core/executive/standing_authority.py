@@ -1350,13 +1350,28 @@ class StandingAuthorityManager:
         # was supplied — normalize_risk("") returns a default rather than an
         # empty string, so testing the normalised value never finds a gap.
         raw_risk = str(risk_level or ctx.get("risk_level") or "").strip()
-        risk = (
-            normalize_risk(raw_risk)
-            if raw_risk
-            else normalize_risk(
-                classify_execution_risk(name, dict(arguments or {}), effect_scope=scope)
+        if raw_risk:
+            risk = normalize_risk(raw_risk)
+        elif arguments:
+            risk = normalize_risk(
+                classify_execution_risk(name, dict(arguments), effect_scope=scope)
             )
-        )
+        else:
+            # Nothing to derive from, so nothing is derived.
+            #
+            # The comment above says the fallback "can only reproduce the
+            # recorded value for the same tool and the same arguments the lease
+            # was issued for" — which is true when there ARE arguments and
+            # false when there are none. Rating a call from an empty dict
+            # produces the worst case for want of anything to read, and then
+            # refuses the lease for disagreeing with it.
+            #
+            # LIVE, 2026-08-27: code_repl leased at medium against a snippet
+            # that only computes, checked with no arguments in hand, derived
+            # critical, and was refused — twice, in opposite directions, as the
+            # rating on each side got better. The arguments are separately
+            # bound above, so the record's own rating is the honest answer here.
+            risk = record.risk_level
         if risk != record.risk_level and not risk_at_most(risk, record.risk_level):
             # A call no riskier than its lease is within it.
             #

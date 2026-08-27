@@ -66,3 +66,29 @@ def test_the_refusal_names_both_risks() -> None:
 
     source = inspect.getsource(standing_authority)
     assert 'standing_authority_risk_mismatch (lease={record.risk_level!r},' in source
+
+
+def test_a_check_with_no_arguments_does_not_invent_a_rating() -> None:
+    """Rating a call from an empty dict produces the worst case for want of input.
+
+    LIVE, 2026-08-27: code_repl was leased at medium against a snippet that only
+    computes; the lease check ran with no arguments in hand, derived critical
+    from nothing, and refused the lease for disagreeing with it. The same turn
+    had already failed the other way round the hour before, as the rating on
+    each side got better independently.
+
+    The comment above the fallback claims it "can only reproduce the recorded
+    value for the same tool and the same arguments the lease was issued for" —
+    true when there are arguments, false when there are none.
+    """
+    import inspect
+
+    from core.executive import standing_authority
+
+    source = inspect.getsource(standing_authority)
+    assert "elif arguments:" in source, (
+        "the lease check re-derives risk without checking it has anything to read"
+    )
+    assert "risk = record.risk_level" in source, (
+        "with nothing to derive from, the record's own rating is the answer"
+    )
