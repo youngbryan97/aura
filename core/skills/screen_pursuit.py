@@ -829,6 +829,38 @@ def _within_the_run(think: Any, ends_at: float) -> Any:
     return bounded
 
 
+def _say_what_kind_of_problem(
+    knows: Any, acts: Any, state: Any, toward: str, said_already: dict[str, bool]
+) -> None:
+    """Name the shape of what she is in, once she has worked out enough to name it.
+
+    Recognising the kind of problem is the general part; what it calls for is
+    allowed to be as specialised as the problem is. Said out loud because a
+    watcher cannot otherwise tell a mind that recognised its situation from
+    one that got lucky in it.
+    """
+    if said_already.get("shape"):
+        return
+    try:
+        from core.agency.what_kind_of_problem import recognise  # noqa: PLC0415
+
+        suits = recognise(
+            acts=[getattr(option, "name", str(option)) for option in acts or ()],
+            knows_how_it_moves=getattr(knows, "rules", knows),
+            state=state,
+            toward=toward,
+        )
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="acted without naming the problem"
+        )
+        return
+    if not suits.shape.transition_known:
+        return
+    said_already["shape"] = True
+    _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
+
+
 def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
     """Say it the once, when she first works out how a thing moves."""
     rules = getattr(knows, "rules", None)
@@ -1551,6 +1583,9 @@ async def pursue_on_screen(
             ):
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 _say_what_she_worked_out(knows, foreseen)
+                _say_what_kind_of_problem(
+                    knows, screen_options(move_keys), laid_out, success_when, foreseen
+                )
                 if len(moves) % 6 == 0 and knows.rules is not None:
                     logger.info(
                         "after %d move(s): %s | reading %dx%d",

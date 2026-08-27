@@ -174,6 +174,8 @@ class HowItMoves:
     recent: list[tuple[str, frozenset[str]]] = field(default_factory=list)
     #: Pairs of readings that could not be compared at all.
     unreadable: int = 0
+    #: Times something turned up that she did not put there.
+    arrivals: int = 0
     #: Places that sit still and change what they say — a score, a clock, a
     #: count of moves. They answer to her, so they are inside the part of the
     #: screen that responds, and no rule about what her act MOVES can predict
@@ -274,6 +276,7 @@ class HowItMoves:
         if not here.cells or (here.rows, here.columns) != (there.rows, there.columns):
             self.unreadable += 1
             return
+        self._note_arrivals(here, there)
         agreed: set[str] = set()
         for rule in RULES:
             predicted = rule.apply(here, action)
@@ -313,6 +316,30 @@ class HowItMoves:
         tried = self.tried.get(rule.name, 0)
         return (self.right.get(rule.name, 0) / tried) if tried else 0.0
 
+    def _note_arrivals(self, before: Arrangement, after: Arrangement) -> None:
+        """Whether anything turned up that she did not put there.
+
+        A rule about what her own act moves is not wrong because something
+        arrived it never claimed to know about, and this already allows for
+        that when scoring one. Allowing for a thing is not the same as knowing
+        it: whether the world puts something new in front of her between her
+        acts is a fact about the world, and it decides what kind of problem
+        she is in.
+        """
+        if after.occupied() > before.occupied():
+            self.arrivals += 1
+
+    def world_adds_things(self) -> bool:
+        """Whether the world puts something new in front of her between acts.
+
+        Not how often. A world either does this or it does not, and the share
+        is misleading where her own acts take things away at the same time: on
+        a board that merges two things into one and is then dealt a third, the
+        count comes back level and nothing looks to have arrived. Twice is the
+        world; once could be a misreading.
+        """
+        return self.arrivals >= TWICE_IS_THE_WORLD
+
     def the_thing(self, arrangement: Arrangement) -> Arrangement:
         """The part of a reading that behaves like one thing.
 
@@ -351,7 +378,12 @@ class HowItMoves:
 
     def as_memory(self) -> dict[str, Any]:
         """What she worked out, in a form that survives the process."""
-        return {"right": dict(self.right), "tried": dict(self.tried), "seen": self.seen}
+        return {
+            "right": dict(self.right),
+            "tried": dict(self.tried),
+            "seen": self.seen,
+            "arrivals": self.arrivals,
+        }
 
     @classmethod
     def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> "HowItMoves":
@@ -380,6 +412,7 @@ class HowItMoves:
             right=carried(held.get("right")),
             tried=tried,
             seen=int(round(float(held.get("seen") or 0) * share)),
+            arrivals=int(round(float(held.get("arrivals") or 0) * share)),
         )
 
     def says(self) -> str:
@@ -416,6 +449,9 @@ def _near_enough(
     # world's business, a disappearance would be the rule's mistake.
     return True
 
+
+#: Once could be a misreading of a faint thing. Twice is the world.
+TWICE_IS_THE_WORLD = 2
 
 #: The least number of looks before anything can be called furniture, for a
 #: thing so small that its own size would be a lower bar.
