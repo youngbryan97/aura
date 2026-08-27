@@ -34,7 +34,7 @@ def test_the_permission_model_is_told_what_was_asked_for() -> None:
 def test_consent_covers_only_the_effect_that_was_named() -> None:
     """Writing a file was asked for. Sending, deleting and spending were not."""
     body = _handoff_body()
-    assert '_ceiling == "read_write_artifacts"' in body
+    assert 'ceiling == "read_write_artifacts"' in body
     assert '"external_io"' not in body
     assert '"privileged_mutation"' not in body
 

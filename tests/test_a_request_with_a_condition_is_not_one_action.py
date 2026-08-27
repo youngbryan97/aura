@@ -35,10 +35,27 @@ def test_a_condition_with_nothing_to_keep_doing_is_not_one_either():
     assert read_watched_goal("open Chrome until it opens") is None
 
 
-def test_keeping_going_with_no_end_is_refused():
-    """A run that cannot finish is not a run."""
-    assert read_watched_goal("keep going") is None
-    assert read_watched_goal("just keep playing forever") is None
+def test_keeping_going_with_no_end_is_bounded_rather_than_refused():
+    """A run that names no finish is bounded by the budget instead.
+
+    This asserted None. Requiring a named finish made "find a sliding puzzle
+    and work out how it moves by playing it" structurally unplannable — no
+    number, no quoted phrase, nothing a screen could be matched against — so it
+    fell through to the one-shot verbs and was answered "Done — opened Safari,
+    and opened Safari." (LIVE 2026-08-27, and the same shape recorded against
+    this module on 2026-08-19 with a different phrasing.)
+
+    Not naming an end does not make a request one-shot. What has to stay true
+    is that it cannot run forever, and that is the budget's job — so the
+    property is asserted here rather than the refusal.
+    """
+    for asked in ("keep going", "just keep playing forever"):
+        goal = read_watched_goal(asked)
+        assert goal is not None, asked
+        assert not goal.success_when, "no finish was named, so none may be claimed"
+        assert 0 < goal.max_seconds < 24 * 3600, (
+            f"{asked!r} was accepted with no bound on how long it may run"
+        )
 
 
 @pytest.mark.parametrize(
