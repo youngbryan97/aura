@@ -20,43 +20,64 @@ is worth more than she thought. Where it was not, it is worth less.
 Nothing about this knows what a world is. It reads the same terms any laid-out
 thing produces and moves numbers toward what actually happened.
 
-**Measured 2026-08-27, and it does not help yet.** Eight games each, run to a
-dead board, depth held fixed so the arms differ only in the weights:
+**Measured 2026-08-27, five ways, and it does not help here.** Eight games each,
+run to a dead board, depth held fixed so the arms differ only in the weights.
+Every grader gave 768 / 2048 / 1747 — the same as not learning at all — except
+the first, which was worse:
 
-    not learning at all           median best 512   total 1144
-    graded by what the world counts    "     512     "   1144
-    graded by the measure being learned  "   512     "   1123
+    graded by the measure being learned    a loop. A weight that grows makes
+                                           more moves look good, which grows
+                                           it again; order hit its ceiling in
+                                           a thousand moves and her best tile
+                                           fell from 1024 to 768.
+    graded by whether the goal got nearer  too sparse. Nearness moves only on
+                                           a new best, so almost nothing is
+                                           graded and the weights sit still.
+    graded by whether the count rose       no contrast. Something is dealt
+                                           after nearly every act, so "it went
+                                           up" is true of everything.
+    graded on a window of later moves      misattributed. One window's gain
+                                           spread over eight moves taught the
+                                           opposite: in a fixture where room
+                                           plainly mattered, room went to the
+                                           floor.
+    graded by gaining more than the        correct, contrastive, and weight
+    typical move                           free — and the weights still do not
+                                           move.
 
-Two earlier runs appeared to show large gains in both directions. Both were
-the depth confound: how deep she can afford tracks what a level costs, an arm
-that does more work per move searches shallower, and the comparison becomes
-one of speed. With depth fixed the difference disappears entirely.
+The last one works on a fixture where the association is real, so the
+machinery is right. What it says about this world is the useful part: **the
+terms describe a position and the grade describes a move.** How much a move
+gained is about whether it merged, which is a fact about the transition, not
+about the arrangement it left behind. Associating the two needs good positions
+to follow good moves within a step, and here they do not.
 
-The two graders tried both fail, for opposite reasons. Grading by the measure
-being learned is a loop — a weight that grows makes more moves look good,
-which grows it again, and `order` reached its ceiling inside a thousand moves.
-Grading by what the world counts has no contrast, because something is dealt
-after nearly every move, so almost everything reads as better and nothing
-moves.
+Two earlier runs appeared to show large gains in both directions. Both were the
+depth confound: how deep she can afford tracks what a level costs, so an arm
+doing more work per move searches shallower and the comparison becomes one of
+speed. `look_ahead` takes an explicit depth now, which is the only reason this
+was catchable.
 
 So this is not wired into the pursuit. It is kept, with its tests and this
-record, because the machinery is right and the missing piece is named: a grade
-that is dense enough to have contrast and independent of the weights it
-teaches. Credit assigned over several moves rather than one would be that,
-and is the next thing to try.
+record, because the machinery is sound and the negative is worth more than the
+five re-runs it would otherwise cost somebody. What it would take is a grade
+attached to the transition rather than to the position — which is what the
+action-value model already does, in a different place, for a different
+question.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from statistics import median
 from typing import Any, Mapping
 
 from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
 
 __all__ = [
     "ENOUGH_TO_REWEIGH",
-    "LONG_ENOUGH_TO_TELL",
+    "HOW_MUCH_IS_TYPICAL",
     "HOW_FAST_SHE_CHANGES_HER_MIND",
     "LEAST_A_THING_CAN_BE_WORTH",
     "MOST_A_THING_CAN_BE_WORTH",
@@ -81,13 +102,12 @@ LEAST_A_THING_CAN_BE_WORTH = 0.05
 #: Nor can one thing swamp everything else on the strength of a good spell.
 MOST_A_THING_CAN_BE_WORTH = 3.0
 
-#: How many moves to wait before saying how one turned out.
-#:
-#: A move that opens a line pays several moves later, and one that takes an
-#: easy merge costs later. Judged on the step it was made on, the first reads
-#: as bad and the second as good. Long enough for the consequence to have
-#: happened, short enough that it is still this move's consequence.
-LONG_ENOUGH_TO_TELL = 8
+#: How many recent moves a move is compared against. Enough to have a typical
+#: one, few enough that it is the run of play now rather than an hour ago.
+HOW_MUCH_IS_TYPICAL = 60
+
+#: Below this there is no run of play to compare a move to.
+TOO_FEW_TO_COMPARE = 12
 
 
 @dataclass
@@ -104,33 +124,46 @@ class WhatMakesItGoodHere:
     _when_it_did_not: dict[str, float] = field(default_factory=dict)
     _went_well: int = 0
     _did_not: int = 0
-    #: Moves made but not yet graded, because what came of them has not
-    #: happened yet.
-    _waiting: list[tuple[dict[str, float], float]] = field(default_factory=list)
+    #: What the recent moves gained, so this one can be compared to them.
+    _gains: list[float] = field(default_factory=list)
 
     # ── learning ─────────────────────────────────────────────────────────
 
-    def what_came_of_it(self, after: Mapping[str, float], stood_at: float) -> None:
-        """One move, and where the world's own count stood after it.
+    def what_came_of_it(self, after: Mapping[str, float], gained: float) -> None:
+        """One move, what it left behind, and how much the world's count rose.
 
-        The grade a move deserves is not visible when it is made. A move that
-        opens a line pays several moves later; one that takes an easy merge
-        costs later. Judged on the step alone, the first reads as bad and the
-        second as good, and the weights learn the opposite of what is true.
+        Two things have to be true of a grade for it to teach anything, and
+        every simpler one tried here failed one of them.
 
-        So a move is held until enough has happened to say how it turned out,
-        and graded on whether the world's own count is higher by then. That
-        count is not something any weight of hers can move, and it changes
-        often enough to tell one move from another — which is what the two
-        graders tried before it each lacked.
+        It has to be independent of the weights. Grading by the measure being
+        learned is a loop: a weight that grows makes more moves look good,
+        which grows it again — order reached its ceiling inside a thousand
+        moves and her best tile fell from 1024 to 768.
+
+        And it has to discriminate. In a world that gives something after
+        nearly every act the count almost never falls, so "did it go up" is
+        true of everything: measured twice, against two weight-free signals,
+        and the weights did not move at all.
+
+        What is left is how this move compares to the others. A move that
+        gained more than the typical one was a good move here; one that gained
+        less was not, however far it was from losing ground. The count is the
+        world's own and no weight of hers can shift it, and the comparison is
+        contrastive by construction.
+
+        Attributed to the move that earned it. An earlier version held a move
+        back for several before grading it, which spread one window's gain
+        across eight different moves and taught the opposite of what was
+        true — in a fixture where room plainly mattered, room went to the
+        floor.
         """
         if not after:
             return
-        self._waiting.append((dict(after), float(stood_at)))
-        if len(self._waiting) <= LONG_ENOUGH_TO_TELL:
+        self._gains.append(float(gained))
+        del self._gains[:-HOW_MUCH_IS_TYPICAL]
+        if len(self._gains) < TOO_FEW_TO_COMPARE:
             return
-        was, stood = self._waiting.pop(0)
-        self.watched(was, stood_at >= stood)
+        self.watched(after, float(gained) > median(self._gains))
 
     def watched(self, after: Mapping[str, float], better: bool) -> None:
         """One move: what the situation it led to was like, and whether it helped.

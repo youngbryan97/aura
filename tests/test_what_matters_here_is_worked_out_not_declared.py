@@ -153,45 +153,74 @@ def test_rubbish_is_not_a_memory():
     assert WhatMakesItGoodHere.from_memory({"worth": "bad"}).worth == AS_GOOD_A_GUESS_AS_ANY
 
 
-# ── the grade a move deserves is not visible when it is made ─────────────
+# ── the grade has to discriminate, and be the move's own ────────────────
 
-def test_a_move_is_held_until_enough_has_happened_to_judge_it():
-    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
+from core.agency.what_makes_it_good_here import (  # noqa: E402
+    HOW_MUCH_IS_TYPICAL,
+    TOO_FEW_TO_COMPARE,
+)
 
+
+def played(matters: WhatMakesItGoodHere, moves: int, *, room_gains_more: bool) -> None:
+    """Moves where roomy ones gain more than the rest, or where nothing does."""
+    for turn in range(moves):
+        roomy = turn % 2 == 0
+        matters.what_came_of_it(
+            {"nearness": 0.5, "line": 0.0, "room": 0.9 if roomy else 0.1, "order": 0.5},
+            (6.0 if roomy else 2.0) if room_gains_more else 4.0,
+        )
+
+
+def test_nothing_is_graded_before_there_is_a_run_of_play_to_compare_to():
     matters = WhatMakesItGoodHere()
-    for turn in range(LONG_ENOUGH_TO_TELL):
-        matters.what_came_of_it({"nearness": 0.5, "room": 0.5}, float(turn))
-    assert matters.seen == 0, "graded a move before anything came of it"
+    played(matters, TOO_FEW_TO_COMPARE - 1, room_gains_more=True)
+    assert matters.seen == 0
 
 
-def test_and_graded_once_it_has():
-    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
-
+def test_the_thing_the_better_gaining_moves_had_more_of_is_worth_more():
     matters = WhatMakesItGoodHere()
-    for turn in range(LONG_ENOUGH_TO_TELL + 5):
-        matters.what_came_of_it({"nearness": 0.5, "room": 0.5}, float(turn))
-    assert matters.seen == 5
+    played(matters, 400, room_gains_more=True)
+    assert matters.worth["room"] > AS_GOOD_A_GUESS_AS_ANY["room"]
 
 
-def test_what_it_is_graded_on_is_where_things_stood_later():
-    """A move that opens a line pays several moves later, and one that takes
-    an easy merge costs later. Judged on its own step, both read backwards."""
-    from core.agency.what_makes_it_good_here import LONG_ENOUGH_TO_TELL
-
+def test_and_the_rest_are_left_alone():
     matters = WhatMakesItGoodHere()
-    # A move that looks poor now — no room — but is followed by things going
-    # well; and one that looks fine now and is followed by things going badly.
-    for _ in range(30):
-        matters.what_came_of_it({"nearness": 0.5, "line": 0.0, "room": 0.1, "order": 0.5}, 0.0)
-        for _ in range(LONG_ENOUGH_TO_TELL):
-            matters.what_came_of_it({"nearness": 0.5, "line": 0.0, "room": 0.5, "order": 0.5}, 100.0)
-    assert matters.seen > 0
-    # The room-poor move was followed by a rise, so having little room is not
-    # what the bad moves had.
-    assert matters.worth["room"] <= MOST_A_THING_CAN_BE_WORTH
+    played(matters, 400, room_gains_more=True)
+    for name in ("nearness", "line", "order"):
+        assert matters.worth[name] == pytest.approx(AS_GOOD_A_GUESS_AS_ANY[name])
 
 
-def test_a_move_with_nothing_in_it_waits_for_nothing():
+def test_where_every_move_gains_the_same_nothing_is_learned():
+    """"Did it go up" is true of everything in a world that keeps giving."""
     matters = WhatMakesItGoodHere()
-    matters.what_came_of_it({}, 1.0)
+    played(matters, 400, room_gains_more=False)
+    assert matters.worth == pytest.approx(AS_GOOD_A_GUESS_AS_ANY)
+
+
+def test_a_move_is_graded_on_its_own_gain_and_not_a_window_of_them():
+    """Spread across several moves, one window's gain teaches the opposite.
+
+    LIVE fixture 2026-08-27: holding a move back for eight before grading it
+    put room on the floor in a world where room plainly mattered.
+    """
+    matters = WhatMakesItGoodHere()
+    for turn in range(400):
+        roomy = turn % 2 == 0
+        matters.what_came_of_it(
+            {"nearness": 0.5, "line": 0.0, "room": 0.9 if roomy else 0.1, "order": 0.5},
+            6.0 if roomy else 2.0,
+        )
+    assert matters.worth["room"] > 1.0
+
+
+def test_only_the_run_of_play_now_counts():
+    """A move is compared to recent ones, not to an hour ago."""
+    matters = WhatMakesItGoodHere()
+    played(matters, HOW_MUCH_IS_TYPICAL * 3, room_gains_more=True)
+    assert len(matters._gains) == HOW_MUCH_IS_TYPICAL
+
+
+def test_a_move_with_nothing_in_it_is_not_a_move():
+    matters = WhatMakesItGoodHere()
+    matters.what_came_of_it({}, 10.0)
     assert matters.seen == 0
