@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shlex
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from core.skills.catalog_policy import resolve_skill_policy
+
+logger = logging.getLogger(__name__)
 
 #: The registry is absent in tests and in tools that never build a container.
 _REGISTRY_LOOKUP_FAILURES = (ImportError, AttributeError, KeyError, RuntimeError, TypeError)
@@ -607,6 +610,15 @@ def classify_execution_risk(
         snippet = _snippet_in(arguments)
         if snippet and reach_of(snippet).only_computes:
             return "medium"
+        if not snippet:
+            # Rated as the worst case for want of a snippet. Say what arrived,
+            # because "there was no code" and "the code was somewhere this did
+            # not look" are different problems with the same rating.
+            logger.info(
+                "risk: %s rated without a snippet; arguments carried %s",
+                name,
+                sorted(str(key) for key in (arguments or {}))[:8] or "nothing",
+            )
         return "critical" if stateful else "high"
     if name == "auto_refactor":
         if scope == "privileged_mutation":
