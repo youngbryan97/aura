@@ -15738,8 +15738,15 @@ class MLXLocalClient:
             # identically to a success. Telemetry that cannot tell refusal from
             # execution is worse than absent: it reads as proof the tool ran.
             outcome = _tool_turn_outcome(raw_result)
+            # Name the arguments too. A call with none and a call whose
+            # arguments went missing on the way to dispatch logged identically,
+            # and telling them apart took three live turns.
             logger.info(
-                "[think_and_act] turn=%d tool=%s %s", turn + 1, tool_name, outcome
+                "[think_and_act] turn=%d tool=%s args=%s %s",
+                turn + 1,
+                tool_name,
+                sorted(str(key) for key in (tool_args or {}))[:6] or "none",
+                outcome,
             )
 
             # ── Feed result back into history ─────────────────────────
