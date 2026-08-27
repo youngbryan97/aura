@@ -1365,6 +1365,14 @@ async def pursue_on_screen(
             ):
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 _say_what_she_worked_out(knows, foreseen)
+                if len(moves) % 6 == 0 and knows.rules is not None:
+                    logger.info(
+                        "after %d move(s): %s | reading %dx%d",
+                        len(moves),
+                        knows.rules.says(),
+                        laid_out.rows,
+                        laid_out.columns,
+                    )
             # Learned from the same measurement. A move that changed nothing
             # is the control: whatever still changed across it was changing
             # on its own, and a page whose advertising animates as often as
