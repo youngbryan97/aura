@@ -3147,6 +3147,26 @@ def _apply_memory_pressure_generation_controls(
     return options
 
 
+def _carry_decode_rate_across(receipt: dict[str, Any]) -> None:
+    """Record the worker's measured decode rate in this process."""
+
+    verified = receipt.get("worker_verified")
+    if not isinstance(verified, dict):
+        return
+    try:
+        rate = float(verified.get("decode_tokens_per_second") or 0.0)
+    except (TypeError, ValueError):
+        return
+    if not (rate > 0.0):
+        return
+    try:
+        from core.brain.llm.thinking_reserve import record_decode_rate
+
+        record_decode_rate(generated_tokens=int(rate * 10), elapsed_s=10.0)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
@@ -3154,6 +3174,7 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "enabled",
         "live_mind_controls_bound",
         "clean_user_surface_contract",
+        "decode_tokens_per_second",
         "surface_validation_prompt_present",
         "strict_answer_contract",
         "strict_value_contract",
@@ -5845,6 +5866,11 @@ class MLXLocalClient:
         self._set_task_surface_control_receipt(receipt)
         if receipt:
             self._last_surface_control_receipt = receipt
+            # The worker measures how fast it decodes; this process sizes the
+            # deadline. Without carrying the number across, the deadline is
+            # derived from the origin and the tier and can be shorter than the
+            # budget the same request just computed.
+            _carry_decode_rate_across(receipt)
 
     def _bind_surface_receipt_provenance(
         self, receipt: dict[str, Any], response: Any

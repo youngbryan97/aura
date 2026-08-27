@@ -44,6 +44,11 @@ _observed: deque[int] = deque(maxlen=_WINDOW)
 #: no percentile applies.
 _proved_insufficient = 0
 
+#: Observed decode rates in tokens per second, so the time a budget needs can
+#: be worked out rather than assumed. The rate moves with the model, the
+#: quantisation and what else is on the GPU, none of which a constant tracks.
+_rates: deque[float] = deque(maxlen=_WINDOW)
+
 _lock = threading.Lock()
 
 
@@ -110,6 +115,45 @@ def reserve_tokens() -> int:
     return max(measured, proved)
 
 
+def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
+    """Log how fast this generation actually decoded."""
+
+    try:
+        tokens = int(generated_tokens)
+        seconds = float(elapsed_s)
+    except (TypeError, ValueError):
+        return
+    if tokens <= 0 or not (seconds > 0.0) or seconds != seconds:
+        return
+    with _lock:
+        _rates.append(tokens / seconds)
+
+
+def seconds_to_decode(tokens: int) -> float:
+    """How long a budget of this many tokens takes, or 0.0 when unmeasured.
+
+    Deliberately pessimistic: the tenth-percentile rate, because a deadline
+    sized on the typical rate misses every generation slower than typical, and
+    those are the long ones a deadline is about.
+    """
+
+    try:
+        wanted = int(tokens)
+    except (TypeError, ValueError):
+        return 0.0
+    if wanted <= 0:
+        return 0.0
+    with _lock:
+        seen = sorted(_rates)
+    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0.0
+    index = min(len(seen) - 1, int((1.0 - _PERCENTILE) * len(seen)))
+    rate = seen[index]
+    if not (rate > 0.0):
+        return 0.0
+    return wanted / rate
+
+
 def observations() -> int:
     """How many generations the reserve is learned from."""
 
@@ -123,4 +167,5 @@ def forget() -> None:
     global _proved_insufficient
     with _lock:
         _observed.clear()
+        _rates.clear()
         _proved_insufficient = 0

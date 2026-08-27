@@ -565,6 +565,17 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
         return
 
 
+def _record_decode_rate(generated_tokens: int, elapsed_s: float) -> None:
+    """Tell the reserve how fast this generation decoded."""
+
+    try:
+        from core.brain.llm.thinking_reserve import record_decode_rate
+
+        record_decode_rate(generated_tokens=generated_tokens, elapsed_s=elapsed_s)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _reasoning_reserve_tokens() -> int:
     """Tokens the private reasoning channel has been costing, or 0."""
 
@@ -1024,6 +1035,12 @@ def _surface_generation_control_receipt(
                 0,
                 _safe_int(state.get("native_thinking_private_chars"), 0),
             ),
+            # The rate is measured here and needed in the parent process,
+            # which sizes the deadline. This receipt is the channel that
+            # already crosses that boundary.
+            "decode_tokens_per_second": float(
+                state.get("decode_tokens_per_second") or 0.0
+            ),
         }
     except (AttributeError, RuntimeError, TypeError) as verify_exc:
         receipt["worker_verified"] = {
@@ -1040,6 +1057,12 @@ def _surface_generation_control_receipt(
             "native_thinking_private_chars": max(
                 0,
                 _safe_int(state.get("native_thinking_private_chars"), 0),
+            ),
+            # The rate is measured here and needed in the parent process,
+            # which sizes the deadline. This receipt is the channel that
+            # already crosses that boundary.
+            "decode_tokens_per_second": float(
+                state.get("decode_tokens_per_second") or 0.0
             ),
         }
     receipt_hooks = list(getattr(receipt_engine, "_hooks", []) or []) if receipt_engine is not None else []
@@ -9106,6 +9129,17 @@ def _mlx_worker_loop(
                                             )
                                             response_text = trimmed_response
                                     total_generated_tokens = token_count
+                                    # How fast this actually decoded. A deadline that cannot deliver
+                                    # the budget it was given is a contradiction between two derived
+                                    # numbers, and neither side could see the other without this.
+                                    _elapsed_decode_s = (
+                                        time.perf_counter() - generation_stream_started_at
+                                    )
+                                    _record_decode_rate(token_count, _elapsed_decode_s)
+                                    if token_count > 0 and _elapsed_decode_s > 0.0:
+                                        surface_control_state[
+                                            "decode_tokens_per_second"
+                                        ] = token_count / _elapsed_decode_s
 
                                     if soft_cancelled or deadline_hit:
                                         # Preempted or deadline-stopped turn: retries

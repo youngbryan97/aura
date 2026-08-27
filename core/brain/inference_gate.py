@@ -2384,6 +2384,23 @@ def fit_the_answer_to_the_time(
     return budget, wanted
 
 
+#: What the request needs beyond decoding: dispatch, validation and delivery.
+#: Taken from the gate's own existing reserve for the same work, where the
+#: primary attempt is given the request timeout less this.
+_DELIVERY_MARGIN_S = 4.0
+
+
+def _seconds_to_decode(tokens: int) -> float:
+    """How long this budget takes at the measured rate, or 0.0 if unmeasured."""
+
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+
+        return float(seconds_to_decode(tokens))
+    except (ImportError, TypeError, ValueError):
+        return 0.0
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -13518,6 +13535,37 @@ class InferenceGate:
                 )
                 max_tokens = _answer_floor_final
                 context["max_tokens"] = max_tokens
+
+            # A deadline that cannot deliver the budget the same request just
+            # computed is two derived numbers contradicting each other, and
+            # neither side could see the other.
+            #
+            # LIVE, 2026-08-27: the floor asked for 896 tokens and the
+            # deliberate lane allowed about 150 seconds. The observed decode
+            # rate made 896 tokens roughly 150 seconds of decoding on its own,
+            # so the generation was cut mid-thought every time and the turn
+            # served nothing. Raising the budget alone made it worse: 1,792
+            # tokens were granted and the clock ended it at 43 seconds.
+            #
+            # The extension is bounded by the two measured quantities that
+            # caused it — the floor and the observed rate — so there is no
+            # invented number here and no open-ended wait. An unmeasured rate
+            # extends nothing.
+            if 0 < _answer_floor_final:
+                _decode_s = _seconds_to_decode(max_tokens)
+                if _decode_s > 0.0:
+                    _needed = _decode_s + _DELIVERY_MARGIN_S
+                    if _needed > float(timeout_val):
+                        logger.info(
+                            "🧠 [ANSWER CLOCK] %d tokens decode in about %.0fs at "
+                            "the measured rate; deadline %.0fs → %.0fs.",
+                            max_tokens,
+                            _decode_s,
+                            float(timeout_val),
+                            _needed,
+                        )
+                        timeout_val = _needed
+                        primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
