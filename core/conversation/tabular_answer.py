@@ -40,7 +40,8 @@ _MAX_BYTES = 32 * 1024 * 1024
 
 #: What the question is asking the numbers to do.
 _AGGREGATIONS: tuple[tuple[str, str], ...] = (
-    ("total", r"\b(?:total|sum|altogether|combined|spend|spent)\b"),
+    ("total", r"\b(?:total|sum|summed|altogether|combined|spend|spent|"
+              r"adds?\s+up\s+to|added\s+up|come\s+to|comes\s+to)\b"),
     ("mean", r"\b(?:average|mean|typical|per\s+\w+\s+average)\b"),
     ("count", r"\b(?:how\s+many|count|number\s+of)\b"),
     ("max", r"\b(?:most|highest|largest|biggest|top|max(?:imum)?)\b"),
@@ -208,7 +209,37 @@ def _filters(
         affirmative = _affirmative_value(values)
         if affirmative and not _negated_near(question, column):
             found.append((column, affirmative))
-    return found
+    if found:
+        return found
+    # A value names its own column.
+    #
+    # Everything above needs the COLUMN in the question, and people do not
+    # write "where status is approved" — they write "approved deals". LIVE,
+    # 2026-08-27: "how many of them are approved" filtered nothing and the
+    # answer covered all 83 rows when 30 were approved.
+    #
+    # Only when exactly one column can mean it. A word that is a value in two
+    # columns is ambiguous, and an ambiguous filter is the wrong rows served
+    # with authority.
+    return _filter_named_only_by_value(header, rows, question, exclude)
+
+
+def _filter_named_only_by_value(
+    header: list[str], rows: list[dict[str, str]], question: str, exclude: set[str]
+) -> list[tuple[str, str]]:
+    """A single column/value pair identified by the value alone, or nothing."""
+    asked = _words(question)
+    candidates: list[tuple[str, str]] = []
+    for column in header:
+        if column in exclude:
+            continue
+        values = {str(row.get(column, "")).strip() for row in rows}
+        if not 2 <= len(values) <= 12:
+            continue
+        matched = [value for value in values if value and _words(value) <= asked]
+        if len(matched) == 1 and not _negated_near(question, matched[0]):
+            candidates.append((column, matched[0]))
+    return candidates if len(candidates) == 1 else []
 
 
 #: Columns that answer yes or no, in the spellings data uses.
@@ -355,14 +386,79 @@ def _negated_near(question: str, column: str) -> bool:
 
 
 def _aggregation(question: str) -> str:
+    """Which figure the question asks for.
+
+    A superlative says which END of the ranking to read, not what to compute,
+    and the ranking is already sorted. "Which region has the highest AVERAGE"
+    means the mean per region, read from the top — checking max first made it
+    the largest single row instead, and labelled the answer "total".
+
+    So a named measure wins over a superlative, and a superlative alone still
+    means the extreme value.
+    """
     lowered = str(question or "").lower()
+    measures = {"total", "mean", "count"}
     for name, pattern in _AGGREGATIONS:
-        if name in {"max", "min"} and re.search(pattern, lowered):
+        if name in measures and re.search(pattern, lowered):
             return name
     for name, pattern in _AGGREGATIONS:
         if re.search(pattern, lowered):
             return name
     return "total"
+
+
+#: The row that stands for "all of them" when there is no breakdown.
+_WHOLE_TABLE = "all rows"
+
+
+def _whole_table_answer(
+    target: Path,
+    header: list[str],
+    rows: list[dict[str, str]],
+    question: str,
+    value_column: str,
+) -> TabularAnswer | None:
+    """One figure over the whole table, filtered by what the question restricts."""
+    applied = _filters(header, rows, question, {value_column})
+    kept = [
+        row
+        for row in rows
+        if all(str(row.get(column, "")).strip() == value for column, value in applied)
+    ]
+    if not kept:
+        return None
+    aggregation = _aggregation(question)
+    amounts = (
+        [amount for row in kept if (amount := _numeric(row.get(value_column))) is not None]
+        if value_column
+        else []
+    )
+    if aggregation == "count":
+        figure = float(len(kept))
+    elif not amounts:
+        return None
+    elif aggregation == "total":
+        figure = sum(amounts)
+    elif aggregation == "mean":
+        figure = sum(amounts) / len(amounts)
+    elif aggregation == "max":
+        figure = max(amounts)
+    elif aggregation == "min":
+        figure = min(amounts)
+    else:
+        # No aggregation named and no breakdown asked for: there is no single
+        # reading here, and inventing one is the thing this module refuses.
+        return None
+    return TabularAnswer(
+        path=str(target),
+        group_column=_WHOLE_TABLE,
+        value_column=value_column,
+        aggregation=aggregation,
+        ranking=((_WHOLE_TABLE, figure),),
+        filters=tuple(applied),
+        rows_used=len(kept),
+        rows_total=len(rows),
+    )
 
 
 def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | None:
@@ -385,11 +481,32 @@ def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | 
         proposed = _contrast_column(header, rows, question, set())
         reserved = {proposed[0]} if proposed else set()
         value_column = _value_column(header, rows, question, reserved)
-        if not value_column:
+        aggregation_asked = _aggregation(question)
+        # "Which rep has the most deals" names no measure, and the only thing
+        # that can be ranked without one is how often each key appears.
+        counting = aggregation_asked == "count" or (
+            aggregation_asked in {"max", "min"} and not value_column
+        )
+        if not value_column and not counting:
             return None
-        group_column = _group_column(header, rows, question, value_column, reserved)
+        # Counting rows needs no number to add up, so a count may still be
+        # broken down by a column: "which rep has the most deals" is a count
+        # per rep, and requiring a measure made it unanswerable.
+        group_column = _group_column(header, rows, question, value_column or "", reserved)
+        if not value_column and not group_column:
+            return _whole_table_answer(target, header, rows, question, "")
         if not group_column:
-            return None
+            # An aggregate over the whole table, which is what most questions
+            # about a spreadsheet actually are.
+            #
+            #
+            # LIVE, 2026-08-27: "how many of them are approved, and what do
+            # they add up to?" resolved to nothing, because a breakdown column
+            # was required and there is no breakdown in that question. The
+            # model then answered from a file it had not read, was correctly
+            # rejected for having no numbers, and the turn ended in an apology
+            # — for two figures this file settles exactly.
+            return _whole_table_answer(target, header, rows, question, value_column)
         split = _contrast_column(header, rows, question, {value_column, group_column})
 
         applied = _filters(header, rows, question, {value_column, group_column})
@@ -404,16 +521,20 @@ def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | 
         totals: dict[str, float] = defaultdict(float)
         counts: dict[str, int] = defaultdict(int)
         for row in kept:
+            key = str(row.get(group_column, "")).strip() or "(blank)"
+            if not value_column:
+                counts[key] += 1
+                totals[key] += 0.0
+                continue
             amount = _numeric(row.get(value_column))
             if amount is None:
                 continue
-            key = str(row.get(group_column, "")).strip() or "(blank)"
             totals[key] += amount
             counts[key] += 1
         if not totals:
             return None
 
-        aggregation = _aggregation(question)
+        aggregation = "count" if counting else aggregation_asked
         if aggregation == "mean":
             scored = {key: totals[key] / max(1, counts[key]) for key in totals}
         elif aggregation == "count":
@@ -455,6 +576,25 @@ def describe_tabular_answer(answer: TabularAnswer | None) -> str:
         return ""
     if answer.contrast:
         return _describe_contrast(answer)
+    if answer.group_column == _WHOLE_TABLE:
+        _leader, figure = answer.ranking[0]
+        said = (
+            f"{int(figure)}"
+            if answer.aggregation == "count"
+            else f"{figure:,.2f}"
+        )
+        restriction = ""
+        if answer.filters:
+            restriction = " where " + ", ".join(
+                f"{column} is {value}" for column, value in answer.filters
+            )
+        subject = (
+            "rows" if answer.aggregation == "count" else f"{answer.aggregation} {answer.value_column}"
+        )
+        return (
+            f"{subject.capitalize()}{restriction}: {said} "
+            f"({answer.rows_used} of {answer.rows_total} rows)."
+        )
     leader, amount = answer.ranking[0]
     unit = "" if answer.aggregation == "count" else ""
     lines = [
@@ -471,8 +611,9 @@ def describe_tabular_answer(answer: TabularAnswer | None) -> str:
         restriction = " where " + ", ".join(
             f"{column} is {value}" for column, value in answer.filters
         )
+    measured = answer.value_column or "rows"
     head = (
-        f"By {answer.group_column}, {answer.aggregation} {answer.value_column}"
+        f"By {answer.group_column}, {answer.aggregation} {measured}"
         f"{restriction} ({answer.rows_used} of {answer.rows_total} rows):"
     )
     return head + "\n- " + "\n- ".join(lines)

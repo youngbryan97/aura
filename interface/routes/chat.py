@@ -15908,6 +15908,25 @@ def _serve_repo_diagnosis(reply: object) -> object:
     return reply
 
 
+def _tables_named_in(question: str, *, already: list) -> list:
+    """CSV and TSV files the person named that are actually on this disk."""
+    seen = {str(path) for path in already}
+    found: list = []
+    try:
+        from core.language.named_paths import named_paths
+
+        for candidate in named_paths(question):
+            if not candidate.lower().endswith((".csv", ".tsv")):
+                continue
+            resolved = Path(candidate).expanduser()
+            if resolved.is_file() and str(resolved) not in seen:
+                seen.add(str(resolved))
+                found.append(resolved)
+    except (ImportError, OSError, ValueError, TypeError):
+        return found
+    return found
+
+
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
     """Answer a quantitative question about a data file by computing it.
 
@@ -15937,6 +15956,17 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
             for path in files_already_read()
             if str(path).lower().endswith((".csv", ".tsv"))
         ]
+        # A table the PERSON named is a table, whether or not anything read it
+        # first.
+        #
+        # LIVE, 2026-08-27: "I've got a deals export at <path>. How many are
+        # approved, what do they add up to, which region has the highest
+        # average?" The model was offered a file reader and a REPL, called
+        # neither, and answered from nothing; the draft was correctly rejected
+        # for having no numbers and the turn ended in a canned apology. The
+        # file was named in the sentence and the arithmetic needs no model at
+        # all — this waited for somebody else to have opened it.
+        tables.extend(_tables_named_in(question, already=tables))
         for path in tables[:3]:
             computed = answer_tabular_question(path, question)
             described = describe_tabular_answer(computed)
