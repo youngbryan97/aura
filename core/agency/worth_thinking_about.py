@@ -42,19 +42,33 @@ def worth_a_pass(
     since_words: int = 0,
     horizon: int = 5,
     unusual: bool = False,
+    recognised: str = "",
 ) -> tuple[bool, str]:
     """Whether to spend a language pass on this decision, and why.
 
     Returns the reason as well as the answer, because a decision about how to
     decide is a decision, and one nobody can account for is indistinguishable
     from a habit.
+
+    ``recognised`` is what has worked before from a position of this kind, if
+    anything has. Recognition is what frees her from deciding — and where it
+    disagrees with the arithmetic, that disagreement is the surest sign this
+    position is not the routine one it looked like.
     """
     if unusual:
         return True, "this is not a routine moment"
+    best = _the_best(ahead)
+    if recognised and best and recognised != best:
+        # What worked here before and what looking ahead says now do not
+        # agree. One of them is wrong about this position, and finding out
+        # which is exactly what thinking is for.
+        return True, f"{recognised} has worked from positions like this, but {best} looks better now"
     if float(stakes) >= WORTH_A_PASS:
         return True, "there is enough riding on this to be sure"
     if since_words >= max(1, int(horizon)):
         return True, f"{since_words} move(s) without saying anything"
+    if recognised and recognised == best:
+        return False, f"a position of a kind she has met, where {recognised} has been working"
     if not ahead:
         return True, "she cannot see where these lead"
     scores = sorted((score for score, _why in ahead.values()), reverse=True)
@@ -64,3 +78,10 @@ def worth_a_pass(
     if gap < TOO_CLOSE_TO_CALL:
         return True, f"the best two are {gap:.2f} apart, too close to call"
     return False, f"the best is {gap:.2f} clear, and words would not change it"
+
+
+def _the_best(ahead: Mapping[str, tuple[float, str]] | None) -> str:
+    """Whichever move looking ahead puts first, if it puts anything first."""
+    if not ahead:
+        return ""
+    return max(ahead.items(), key=lambda move: move[1][0])[0]

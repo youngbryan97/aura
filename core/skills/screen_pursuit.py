@@ -861,6 +861,25 @@ def _say_what_kind_of_problem(
     _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
 
 
+def _left_her_better_off(
+    before: Any, after: Any, toward: str, approach: str
+) -> bool:
+    """Whether the move improved the situation, by the measure she is using.
+
+    The same measure that ranks futures ranks what actually happened, so what
+    she gets good at is what her own judgement says was worth doing rather
+    than a separate opinion about it.
+    """
+    try:
+        from core.agency.how_good_is_this import how_good
+
+        was = how_good(before, toward=toward, approach=approach)
+        now = how_good(after, toward=toward, approach=approach)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+    return now >= was
+
+
 def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
     """Say it the once, when she first works out how a thing moves."""
     rules = getattr(knows, "rules", None)
@@ -1116,6 +1135,7 @@ async def pursue_on_screen(
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
+    from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.where_it_responds import (
@@ -1170,6 +1190,10 @@ async def pursue_on_screen(
     knows = UnifiedWorldModel(
         rules=HowItMoves.from_memory(knew.get("moves") or {}, TRUST_CARRIED_OVER)
     )
+    # And what she has got GOOD at here, which is a different thing from what
+    # she has worked out. Knowing exactly how a world moves and still paying
+    # the full price of deciding every time is what she was doing.
+    skilled = WhatWorkedBefore.from_memory(knew.get("skill") or {}, TRUST_CARRIED_OVER)
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1596,6 +1620,21 @@ async def pursue_on_screen(
                 and band is not None
             ):
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
+                # And whether it left her better off, against the kind of
+                # position it was made from. This is experience turning into
+                # skill: the same triple she learns the world's rules from
+                # also says which move is worth making again from a shape
+                # like that one.
+                skilled.learned(
+                    pending["arranged"].as_shape(),
+                    previous.chosen.name,
+                    _left_her_better_off(
+                        pending["arranged"],
+                        laid_out,
+                        success_when,
+                        plan["held"].approach if plan["held"] is not None else "",
+                    ),
+                )
                 _say_what_she_worked_out(knows, foreseen)
                 _say_what_kind_of_problem(
                     knows, screen_options(move_keys), laid_out, success_when, foreseen
@@ -1859,13 +1898,28 @@ async def pursue_on_screen(
             # last one. A counter cannot tell a forced move from the one that
             # decides the shape of the next thirty, so it spends the same on
             # both and is wrong about both.
+            # What has worked before from a position of this kind, if anything.
+            #
+            # Recognition is what frees her from deciding. Where it disagrees
+            # with the arithmetic, that disagreement is the surest sign this
+            # position is not the routine one it looked like, and it buys a
+            # thought rather than saving one.
+            kind = laid_out.as_shape() if laid_out is not None else ""
+            recognised = (
+                skilled.suggests(kind, tuple(option.name for option in available))
+                if kind
+                else ""
+            )
             asking, because_of = worth_a_pass(
                 ahead,
                 stakes=weight,
                 since_words=len(moves) - asked["at"],
                 horizon=LANGUAGE_EVERY,
                 unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
+                recognised=recognised,
             )
+            if recognised and not asking:
+                skilled.took(kind)
             if asking != last_call["asked"] or last_call["why"] != because_of:
                 last_call.update({"asked": asking, "why": because_of})
                 logger.info("%s: %s", "thinking about this one" if asking else "no need to think", because_of)
@@ -2252,6 +2306,7 @@ async def pursue_on_screen(
             "responds": responds["state"].as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
+            "skill": skilled.as_memory(),
             "approach": plan["held"].approach if plan["held"] is not None else "",
         },
     )
