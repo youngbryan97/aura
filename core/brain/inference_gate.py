@@ -2219,25 +2219,54 @@ def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
     return risk in {"high", "critical"}
 
 
-def _long_enough_to_answer(prompt: Any, max_tokens: Any, asked_for: float) -> float:
-    """A budget at least as long as this machine has been measured needing.
+#: The shortest thing worth calling an answer. Below this what comes back is
+#: a fragment, which is what a deadline stopping mid-decode produces anyway.
+A_REAL_ANSWER = 128
 
-    A question's deadline belongs to the question. Given fifty seconds for a
-    prompt that takes longer than that to read and answer, the decode stops
-    politely part way and a real reply is thrown away for an apology: LIVE
-    2026-08-26, "Request deadline reached at token 207", and what the person
-    got was "I couldn't get a clear enough answer together."
 
-    Only ever lengthens what the caller asked for, and never past the ceiling
-    the gate already enforces.
+def fit_the_answer_to_the_time(
+    prompt: Any, max_tokens: Any, asked_for: float
+) -> tuple[float, int]:
+    """A budget and a length that fit each other, and fit what the caller waits.
+
+    A question's deadline belongs to the question, and so does its length.
+    Given fifty seconds for a prompt that takes longer than that to read and
+    answer, the decode stops part way and a real reply is thrown away for an
+    apology: LIVE 2026-08-26, "Request deadline reached at token 207", and
+    what the person got was "I couldn't get a clear enough answer together."
+
+    Lifting the clock alone is the other half of the same mistake. Asked for
+    everything it wanted, the same question came back with a budget of five
+    hundred and seventy-eight seconds — longer than anyone waits, and longer
+    than the caller itself would wait, so the answer never arrived at all.
+
+    Reading the question is not optional and cannot be made shorter. Writing
+    the answer can. So the time is stretched only as far as reading needs, and
+    what does not fit after that comes out of the length.
     """
+    wanted = max(0, int(max_tokens or 0))
+    budget = float(asked_for)
     try:
-        from core.brain.llm.mlx_client import time_a_prompt_needs
+        from core.brain.llm.mlx_client import observed_rates, time_a_prompt_needs
 
-        needed = time_a_prompt_needs(len(str(prompt or "")), int(max_tokens or 0))
+        reading = time_a_prompt_needs(len(str(prompt or "")), 0)
+        writing_rate = float(observed_rates().get("decode") or 0.0)
     except (ImportError, AttributeError, TypeError, ValueError):
-        return float(asked_for)
-    return max(float(asked_for), min(float(InferenceGate._MAX_REQUEST_TIMEOUT_S), needed))
+        return budget, wanted
+    if writing_rate <= 0.0 or not wanted:
+        return budget, wanted
+
+    # Long enough to read the question and write something worth reading back.
+    least = min(
+        float(InferenceGate._MAX_REQUEST_TIMEOUT_S), reading + A_REAL_ANSWER / writing_rate
+    )
+    budget = max(budget, least)
+
+    # And a length that fits what is left after the reading.
+    affordable = int(max(0.0, budget - reading) * writing_rate)
+    if affordable < wanted:
+        wanted = max(A_REAL_ANSWER, affordable)
+    return budget, wanted
 
 
 class InferenceGate:
@@ -11864,7 +11893,9 @@ class InferenceGate:
                 stakes_token_ceiling=stakes_token_ceiling,
                 surface_completion_floor=surface_completion_floor,
             )
-            timeout_val = _long_enough_to_answer(prompt, max_tokens, timeout_val)
+            timeout_val, max_tokens = fit_the_answer_to_the_time(
+                prompt, max_tokens, timeout_val
+            )
         except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
             record_degradation(
                 "inference_gate",

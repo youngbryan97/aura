@@ -1,17 +1,25 @@
-"""A budget at least as long as this machine has been measured needing.
+"""A budget and a length that fit each other, and fit what the caller waits.
 
-A question's deadline belongs to the question. Given fifty seconds for a
-prompt that takes longer than that to read and answer, the decode stops
-politely part way and a real reply is thrown away for an apology. Measured
-live 2026-08-26: "Request deadline reached at token 207", and what the person
-got was "I couldn't get a clear enough answer together."
+Given fifty seconds for a prompt that takes longer than that to read and
+answer, the decode stops part way and a real reply is thrown away for an
+apology. Measured live 2026-08-26: "Request deadline reached at token 207",
+and what the person got was "I couldn't get a clear enough answer together."
+
+Lifting the clock alone is the other half of the same mistake. Asked for
+everything it wanted, the same question came back with a budget of five
+hundred and seventy-eight seconds — longer than anyone waits, and longer than
+the caller itself would wait, so the answer never arrived at all.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from core.brain.inference_gate import InferenceGate, _long_enough_to_answer
+from core.brain.inference_gate import (
+    A_REAL_ANSWER,
+    InferenceGate,
+    fit_the_answer_to_the_time,
+)
 from core.brain.llm import mlx_client
 
 
@@ -21,38 +29,50 @@ def measured(monkeypatch):
     monkeypatch.setitem(mlx_client._HOST_RATES, "decode", 9.0)
 
 
-def test_a_question_that_needs_longer_gets_longer():
-    assert _long_enough_to_answer("x" * 6000, 512, 50.0) > 50.0
+def test_a_question_that_already_fits_is_left_alone():
+    assert fit_the_answer_to_the_time("hi", 64, 50.0) == (50.0, 64)
 
 
-def test_a_question_that_fits_is_left_alone():
-    assert _long_enough_to_answer("hi", 64, 50.0) == 50.0
+def test_what_does_not_fit_comes_out_of_the_length_not_the_clock():
+    budget, tokens = fit_the_answer_to_the_time("x" * 6000, 512, 50.0)
+    assert budget == 50.0
+    assert tokens < 512
 
 
-def test_a_caller_that_allowed_more_keeps_it():
-    assert _long_enough_to_answer("hi", 8, 120.0) == 120.0
+def test_and_what_is_left_is_still_worth_reading():
+    _budget, tokens = fit_the_answer_to_the_time("x" * 6000, 512, 50.0)
+    assert tokens >= A_REAL_ANSWER
+
+
+def test_reading_the_question_is_not_optional_so_the_clock_gives_way_to_it():
+    """Where reading alone outlasts the budget, there is nothing to trim."""
+    budget, tokens = fit_the_answer_to_the_time("x" * 60_000, 2000, 50.0)
+    assert budget > 50.0
+    assert tokens == A_REAL_ANSWER
 
 
 def test_nobody_waits_past_the_ceiling_the_gate_already_enforces():
-    asked = _long_enough_to_answer("x" * 900_000, 4000, 50.0)
-    assert asked == InferenceGate._MAX_REQUEST_TIMEOUT_S
+    budget, _tokens = fit_the_answer_to_the_time("x" * 9_000_000, 4000, 50.0)
+    assert budget <= InferenceGate._MAX_REQUEST_TIMEOUT_S
 
 
-def test_writing_the_answer_is_charged_as_well_as_reading_the_question():
-    reading_only = _long_enough_to_answer("x" * 6000, 0, 1.0)
-    with_answer = _long_enough_to_answer("x" * 6000, 512, 1.0)
-    assert with_answer - reading_only == pytest.approx(512 / 9.0, abs=1.0)
+def test_a_caller_that_allowed_more_keeps_it():
+    assert fit_the_answer_to_the_time("hi", 8, 120.0) == (120.0, 8)
 
 
-def test_a_machine_that_cannot_be_asked_leaves_the_budget_alone(monkeypatch):
+def test_a_machine_that_cannot_be_asked_changes_nothing(monkeypatch):
     monkeypatch.delattr(mlx_client, "time_a_prompt_needs")
-    assert _long_enough_to_answer("x" * 900_000, 4000, 50.0) == 50.0
+    assert fit_the_answer_to_the_time("x" * 60_000, 2000, 50.0) == (50.0, 2000)
 
 
-def test_it_is_applied_where_the_prompt_and_the_token_budget_are_both_known():
+def test_asking_for_no_answer_at_all_is_left_as_it_is():
+    assert fit_the_answer_to_the_time("x" * 6000, 0, 50.0) == (50.0, 0)
+
+
+def test_it_is_applied_where_the_prompt_and_the_length_are_both_known():
     import inspect
 
     from core.brain import inference_gate
 
     source = inspect.getsource(inference_gate)
-    assert "timeout_val = _long_enough_to_answer(prompt, max_tokens, timeout_val)" in source
+    assert "timeout_val, max_tokens = fit_the_answer_to_the_time(" in source
