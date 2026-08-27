@@ -56,9 +56,15 @@ def test_a_situation_that_has_it_scores_the_most_it_can_for_nearness():
 
 
 def test_nearness_is_counted_in_doublings_not_in_ratio():
-    """Halfway to 256 is a 16, not a 128, in anything built by combining."""
-    half = board([["16", "2"], ["4", "8"]])
-    assert how_good(half, toward="256") == pytest.approx(0.5, abs=0.12)
+    """Halfway to 256 is a 16, not a 128, in anything built by combining.
+
+    Asked of the term rather than of the total, which carries the affordances
+    too and moves whenever one of them is added.
+    """
+    from core.agency.how_good_is_this import _nearness
+
+    assert _nearness(board([["16", "2"], ["4", "8"]]), "256") == pytest.approx(0.5)
+    assert _nearness(board([["128", "2"], ["4", "8"]]), "256") == pytest.approx(0.875)
 
 
 def test_a_goal_that_names_nothing_measurable_scores_no_nearness():
@@ -119,3 +125,50 @@ def test_a_situation_that_has_the_target_says_so():
 
 def test_something_that_is_not_an_arrangement_is_not_scored_wrongly():
     assert how_good(object(), toward="256", approach=LINE) == 0.0
+
+
+# ── order, the other affordance ──────────────────────────────────────────
+
+TIDY = board([["64", "32", "16", "8"], ["32", "16", "8", "4"],
+              ["16", "8", "4", "2"], ["8", "4", "2", "2"]])
+JUMBLED = board([["8", "64", "4", "32"], ["32", "2", "16", "4"],
+                 ["4", "16", "2", "64"], ["16", "8", "32", "2"]])
+
+
+def test_a_thing_that_runs_in_order_is_easier_to_act_in():
+    assert how_good(TIDY) > how_good(JUMBLED)
+
+
+def test_order_is_read_off_the_thing_rather_than_assumed():
+    from core.agency.how_good_is_this import _order
+
+    assert _order(TIDY) == pytest.approx(1.0)
+    assert _order(JUMBLED) < 1.0
+
+
+def test_which_end_the_big_end_is_makes_no_difference():
+    """Ascending and descending are both order. Which end is hers to say."""
+    from core.agency.how_good_is_this import _order
+
+    other_way = board([["2", "4", "8", "16"], ["4", "8", "16", "32"],
+                       ["8", "16", "32", "64"], ["16", "32", "64", "128"]])
+    assert _order(other_way) == pytest.approx(_order(TIDY))
+
+
+def test_order_is_worth_about_what_room_is_worth():
+    from core.agency.how_good_is_this import ORDER_MATTERS, ROOM_MATTERS
+
+    assert ORDER_MATTERS == ROOM_MATTERS
+
+
+def test_neither_of_them_outweighs_the_line_she_is_holding():
+    from core.agency.how_good_is_this import LINE_MATTERS, ORDER_MATTERS, ROOM_MATTERS
+
+    assert LINE_MATTERS > ORDER_MATTERS + ROOM_MATTERS
+
+
+def test_something_with_no_numbers_in_it_is_not_scored_for_order():
+    from core.agency.how_good_is_this import _order
+
+    words = board([["Mon", "Tue"], ["Wed", "Thu"]])
+    assert _order(words) == 0.0

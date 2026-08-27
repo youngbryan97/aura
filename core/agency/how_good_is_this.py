@@ -15,9 +15,16 @@ something that can be checked against a state. Scoring a future by whether it
 satisfies the line she is holding is what makes the plan cause the moves
 rather than accompany them.
 
-A third term is smaller and older than either: room to act. A situation with
-more space left in it affords more of whatever comes next. That is true of a
-board, a form, a queue, and a disk.
+Two smaller terms are older than either, and both are about what a situation
+affords rather than about what is wanted from it. Room to act: a situation
+with more space left in it affords more of whatever comes next — true of a
+board, a form, a queue and a disk. And order: a thing whose contents run in
+order along a line is easier to act in than one where they are jumbled,
+because what goes with what is already next to it. A sorted list, a stacked
+shelf, a tidy desk.
+
+Neither is a strategy. Both are properties of a laid-out thing that make the
+next act easier whatever the next act turns out to be.
 
 Nothing here encodes a strategy. Where she has stated no line and the goal
 names nothing measurable, this says so, and the caller falls back to acting
@@ -35,6 +42,11 @@ __all__ = ["ROOM_MATTERS", "how_good", "worth_comparing"]
 #: and beside holding the line she said she would hold. Small on purpose: room
 #: is what lets a plan continue, not a reason to do anything in particular.
 ROOM_MATTERS = 0.15
+
+#: What running in order is worth. Level with room, because the two are the
+#: same kind of thing: a situation is easier to work in for having either, and
+#: neither says anything about what she is trying to do.
+ORDER_MATTERS = 0.15
 
 #: What holding her own stated line is worth. Level with nearness to the goal,
 #: because a line she is holding is her judgement about how the goal is reached
@@ -85,6 +97,7 @@ def how_good(
         _nearness(state, toward)
         + LINE_MATTERS * _holds_her_line(state, approach)
         + ROOM_MATTERS * _room(state)
+        + ORDER_MATTERS * _order(state)
     )
 
 
@@ -187,6 +200,56 @@ def _holds_her_line(state: Any, approach: str) -> float:
         return 1.0 if ok else 0.0
     except (ImportError, AttributeError, TypeError, ValueError):
         return 0.0
+
+
+def _order(state: Any) -> float:
+    """How much of this runs in order along its lines, either way.
+
+    Read off the thing rather than assumed about it: every row and every
+    column is a line, and a line is orderly to the extent that consecutive
+    things along it do not reverse direction. Ascending and descending count
+    alike — which end is the big end is not this function's business, and on a
+    board it is whichever end she said she was keeping things at.
+    """
+    lines = _lines_of(state)
+    if not lines:
+        return 0.0
+    scored = [_runs_one_way(line) for line in lines if len(line) > 1]
+    return sum(scored) / len(scored) if scored else 0.0
+
+
+def _runs_one_way(values: Sequence[float]) -> float:
+    """The share of steps along a line that go the same way as the rest."""
+    steps = [b - a for a, b in zip(values, values[1:]) if b != a]
+    if not steps:
+        return 1.0
+    up = sum(1 for step in steps if step > 0)
+    return max(up, len(steps) - up) / len(steps)
+
+
+def _lines_of(state: Any) -> list[list[float]]:
+    """Every row and column of a laid-out thing, as the numbers along it."""
+    rows = int(getattr(state, "rows", 0) or 0)
+    columns = int(getattr(state, "columns", 0) or 0)
+    row_at = getattr(state, "row_at", None)
+    column_at = getattr(state, "column_at", None)
+    if not rows or not columns or not callable(row_at) or not callable(column_at):
+        return []
+    lines: list[list[float]] = []
+    for index in range(rows):
+        lines.append(_numbers_along(row_at(index)))
+    for index in range(columns):
+        lines.append(_numbers_along(column_at(index)))
+    return [line for line in lines if line]
+
+
+def _numbers_along(cells: Sequence[Any]) -> list[float]:
+    found: list[float] = []
+    for cell in cells:
+        value = cell.number() if cell is not None and hasattr(cell, "number") else None
+        if value is not None:
+            found.append(value)
+    return found
 
 
 def _room(state: Any) -> float:
