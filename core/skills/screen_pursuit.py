@@ -1138,6 +1138,7 @@ async def pursue_on_screen(
     from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
+    from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import (
         Responsive,
         describe,
@@ -1194,6 +1195,10 @@ async def pursue_on_screen(
     # she has worked out. Knowing exactly how a world moves and still paying
     # the full price of deciding every time is what she was doing.
     skilled = WhatWorkedBefore.from_memory(knew.get("skill") or {}, TRUST_CARRIED_OVER)
+    # And what the world does between her acts, which she was tolerating
+    # without ever learning. A future worked out as if the world sits still is
+    # a future that cannot happen.
+    world = WhatTheWorldDoes.from_memory(knew.get("world") or {}, TRUST_CARRIED_OVER)
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
@@ -1619,6 +1624,11 @@ async def pursue_on_screen(
                 and previous.chosen is not None
                 and band is not None
             ):
+                # What a rule said would happen, before it is folded in. The
+                # difference between that and what she actually saw is the
+                # world's doing, and it is free at exactly this moment.
+                foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
+                world.watched(foretold, knows.rules.the_thing(laid_out))
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 # And whether it left her better off, against the kind of
                 # position it was made from. This is experience turning into
@@ -1891,6 +1901,7 @@ async def pursue_on_screen(
                     toward=success_when,
                     approach=held_line,
                     budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
+                    world=world,
                 )
             # And a routine move in a fast loop does not always need words.
             #
@@ -2307,6 +2318,7 @@ async def pursue_on_screen(
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
+            "world": world.as_memory(),
             "approach": plan["held"].approach if plan["held"] is not None else "",
         },
     )

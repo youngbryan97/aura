@@ -72,12 +72,19 @@ def look_ahead(
     toward: str = "",
     approach: str = "",
     budget_s: float = 0.5,
+    world: Any = None,
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
 
     ``knows`` is anything that can say what a state would become — the rules
     she worked out by watching. When it cannot, this returns nothing, which is
     the honest answer and not a failure.
+
+    ``world`` is what the world does on its own between her acts, if she has
+    worked that out. Without it, the search takes the best continuation at
+    every level — which quietly assumes the world will cooperate, and plans a
+    future that cannot happen. With it, each level averages over what the
+    world might do instead, which is the difference between a plan and a wish.
     """
     if not actions or state is None or knows is None:
         return {}
@@ -107,8 +114,9 @@ def look_ahead(
             # to try a move without making it.
             continue
         here = how_good(future, toward=toward, approach=approach)
-        onward = _best_from(
-            expect, future, actions, depth - 1, toward=toward, approach=approach, trust=trust
+        onward = _after_the_world(
+            expect, future, actions, depth - 1,
+            toward=toward, approach=approach, trust=trust, world=world,
         )
         scored[action] = (here + trust * onward, why(future, toward=toward, approach=approach))
 
@@ -117,6 +125,47 @@ def look_ahead(
         _a_level_took(spent / float(depth))
     logger.debug("looked %d ahead over %d move(s) in %.3fs", depth, len(actions), spent)
     return scored
+
+
+def _after_the_world(
+    expect: Any,
+    state: Any,
+    actions: Sequence[str],
+    depth: int,
+    *,
+    toward: str,
+    approach: str,
+    trust: float,
+    world: Any = None,
+) -> float:
+    """What this comes to once the world has had its turn, and she has hers.
+
+    Her own move is the best she can find. What the world does is not hers to
+    pick, so it is averaged over rather than chosen — which is the whole
+    difference between working out what will happen and hoping.
+    """
+    if depth <= 0:
+        return 0.0
+    ways = ()
+    might = getattr(world, "might_do", None)
+    if callable(might):
+        try:
+            ways = might(state)
+        except (AttributeError, TypeError, ValueError):
+            ways = ()
+    if not ways:
+        return _best_from(
+            expect, state, actions, depth,
+            toward=toward, approach=approach, trust=trust, world=world,
+        )
+    return sum(
+        share
+        * _best_from(
+            expect, way, actions, depth,
+            toward=toward, approach=approach, trust=trust, world=world,
+        )
+        for way, share in ways
+    )
 
 
 def _best_from(
@@ -128,6 +177,7 @@ def _best_from(
     toward: str,
     approach: str,
     trust: float,
+    world: Any = None,
 ) -> float:
     """The best this could still come to, that many levels on."""
     if depth <= 0:
@@ -139,8 +189,9 @@ def _best_from(
         if future is None or _reading(future) == here_now:
             continue
         here = how_good(future, toward=toward, approach=approach)
-        onward = _best_from(
-            expect, future, actions, depth - 1, toward=toward, approach=approach, trust=trust
+        onward = _after_the_world(
+            expect, future, actions, depth - 1,
+            toward=toward, approach=approach, trust=trust, world=world,
         )
         best = max(best, here + trust * onward)
     return best

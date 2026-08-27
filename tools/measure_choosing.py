@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.agency.how_good_is_this import how_good  # noqa: E402
 from core.agency.looking_ahead import look_ahead  # noqa: E402
+from core.perception.what_the_world_does import WhatTheWorldDoes  # noqa: E402
 from core.perception.how_it_moves import (  # noqa: E402
     HowItMoves,
     shifted_and_combined,
@@ -79,6 +80,10 @@ def play(
     """One game, played the named way, in a world she is told nothing about."""
     rng = random.Random(seed)
     knows = HowItMoves()
+    # What the world does between her acts, worked out the same way as what
+    # her own acts do — from the difference between what a rule said would
+    # happen and what she actually saw.
+    world = WhatTheWorldDoes()
     state = arrives(arrives(empty_board(), rng), rng)
     played = 0
     wasted = 0
@@ -93,8 +98,11 @@ def play(
         if how == "random":
             move = rng.choice(MOVES)
         else:
-            line = approach if how == "her line" else ""
-            ahead = look_ahead(knows, state, list(MOVES), toward=toward, approach=line)
+            line = approach if how in ("her line", "and the world") else ""
+            ahead = look_ahead(
+                knows, state, list(MOVES), toward=toward, approach=line,
+                world=world if how == "and the world" else None,
+            )
             if ahead:
                 move = max(ahead.items(), key=lambda row: row[1][0])[0]
             else:
@@ -106,7 +114,9 @@ def play(
         if not landed:
             wasted += 1
         else:
-            after = arrives(after, rng)
+            dealt = arrives(after, rng)
+            world.watched(after, dealt)
+            after = dealt
         state = after
         played += 1
 
@@ -121,7 +131,7 @@ def play(
 
 
 def measure(games: int, moves: int, approach: str) -> None:
-    ways = ("random", "her scoring", "her line")
+    ways = ("random", "her scoring", "her line", "and the world")
     print(f"{games} games, up to {moves} moves each, same world and same perception\n")
     print(f"{'how she chose':<14} {'best tile':>11} {'total':>9} {'moves':>7} {'wasted':>8} {'learned':>8}")
     print("-" * 62)
