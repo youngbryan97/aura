@@ -75,3 +75,48 @@ def test_an_unclosed_boundary_is_written_down() -> None:
     start = body.index("Generation ended inside the private channel")
     window = body[start - 700 : start + 400]
     assert "not native_channels.boundary_closed" in window
+
+
+_CORTEX = "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
+_BRAINSTEM = "models--mlx-community--Qwen3.5-9B-4bit/snapshots/8b2b98c0"
+
+
+def test_a_derived_answer_asks_explicitly_rather_than_shrugging() -> None:
+    """None means "the artifact's default", and every reader treats it as no.
+
+    LIVE, 2026-08-27: the channel resolved to None, the splitter was told there
+    was no private channel, the budget ran out before the closing marker, and
+    the whole of "We need answer user's puzzle. Need use tool?" was handed over
+    as the answer. The surface validator rejected it, correctly.
+    """
+
+    assert (
+        thinking_enabled_for_generation(
+            _CORTEX, final_user_surface=True, answer_is_derived_here=True
+        )
+        is True
+    )
+
+
+def test_a_render_on_the_same_model_stays_closed() -> None:
+    assert (
+        thinking_enabled_for_generation(
+            _CORTEX, final_user_surface=True, answer_is_derived_here=False
+        )
+        is False
+    )
+
+
+def test_a_pinned_fast_lane_stays_closed_even_for_a_derivation() -> None:
+    assert (
+        thinking_enabled_for_generation(
+            _BRAINSTEM, final_user_surface=True, answer_is_derived_here=True
+        )
+        is False
+    )
+
+
+def test_a_generation_that_is_not_the_surface_is_left_alone() -> None:
+    assert (
+        thinking_enabled_for_generation(_CORTEX, final_user_surface=False) is None
+    )

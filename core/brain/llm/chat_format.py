@@ -637,10 +637,29 @@ def thinking_enabled_for_generation(
 
     if final_user_surface and not answer_is_derived_here:
         return False
-    return thinking_enabled_for_request(
+    resolved = thinking_enabled_for_request(
         model_name,
         cognitive_mode=cognitive_mode,
     )
+    if answer_is_derived_here and resolved is None:
+        # None means "whatever the artifact ships with", and every consumer
+        # downstream reads ``native_thinking is True``. So an unresolved
+        # request becomes a decoded private channel that nothing is told to
+        # split: the marker is authoritative, but when the budget runs out
+        # before ``</think>`` there is no marker, and the whole private
+        # channel is handed over as the answer.
+        #
+        # LIVE, 2026-08-27: "We need answer user's puzzle. Need use tool?
+        # User asks sequence: 45->15 ..." reached the surface validator, which
+        # rejected it, correctly, as an internal prompt leak. The turn had
+        # asked for the model's default and nobody resolved what that was.
+        #
+        # A turn where the answer is made here is asked explicitly. Then the
+        # splitter is told the truth, the reserve covers the channel, and a
+        # generation that ends mid-thought reports no surface instead of
+        # publishing the thinking.
+        return True
+    return resolved
 
 
 class NativeThinkingChannels(NamedTuple):
