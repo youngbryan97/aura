@@ -13672,6 +13672,25 @@ class MLXLocalClient:
                 livelock_ceiling = self._first_token_hard_ceiling(
                     foreground_request=foreground_request
                 )
+                # Reading a long question is not silence.
+                #
+                # The livelock ceiling asks how long a worker may go without
+                # producing a token before it is wedged, and it was answered
+                # without reference to how much there was to read. A prompt of
+                # 8,618 characters takes about eighteen seconds to prefill at
+                # the rate this host was measured at, and the ceiling was
+                # twenty: LIVE 2026-08-26, "Cortex still sending heartbeats
+                # (1.8s ago) but produced no token in 20.2s. Recycling the
+                # lane." Every large question recycled a warm 20GB model,
+                # which made the next one slower still.
+                #
+                # The same floor the request ceiling already uses. It only
+                # ever raises this, and only by what the reading actually
+                # costs.
+                livelock_ceiling = max(
+                    livelock_ceiling,
+                    self._prefill_floor_seconds(self._current_prompt_chars),
+                )
                 hard_first_token_ceiling = livelock_ceiling
                 request_hard_ceiling = float(
                     getattr(self, "_current_first_token_hard_ceiling_s", 0.0) or 0.0
