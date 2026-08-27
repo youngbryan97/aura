@@ -7341,6 +7341,19 @@ def _has_internal_task_prompt_leak(reply_text: Any) -> bool:
     if _INTERNAL_TASK_PROMPT_RE.search(body):
         return True
     try:
+        from core.utils.an_answer import talks_about_the_asking
+
+        if talks_about_the_asking(body):
+            # Commentary about answering, arriving where an answer should be.
+            # Fluent, on topic and well formed, so nothing measuring shape
+            # catches it. LIVE 2026-08-27, in full, to "What is 17 times 23?":
+            # "We need answer user's current message ... Previous draft failed
+            # for missing numeric answer. We must return only requested
+            # user-facing content?"
+            return True
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass  # no-op: the detectors below remain authoritative
+    try:
         from core.language.answer_surface import has_private_planning_prefix
 
         return has_private_planning_prefix(body)

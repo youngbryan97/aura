@@ -1,0 +1,92 @@
+"""A model handed a scaffold and a failed draft sometimes writes about the job.
+
+What the user asked, why the last attempt was rejected, what the contract
+requires. Every word of it is fluent, on topic and well formed, so nothing
+that measures shape catches it — and it arrives where an answer should be.
+
+LIVE 2026-08-27, in full, to "What is 17 times 23?":
+
+    We need answer user's current message: "What is 17 times 23?" Need direct
+    arithmetic. Previous draft failed for missing numeric answer. We must
+    return only requested user-facing content? User asks simple math. Need
+    maybe just "391". But contract says direct first-person continuity...
+
+The test is grammatical rather than topical. A reply speaks TO a person: there
+is no third party in it called "the user", and nothing in an answer needs to
+report what the user asked, because the user knows. The same goes for its own
+earlier attempts, which the reader was never shown.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from core.conversation.response_reliability import internal_leak_reasons
+from core.utils.an_answer import talks_about_the_asking
+
+LEAKED = (
+    'We need answer user\'s current message: "What is 17 times 23?" Need direct '
+    "arithmetic. Previous draft failed for missing numeric answer. We must return "
+    "only requested user-facing content? User asks simple math. Need maybe just "
+    '"391". But contract says direct first-person continuity, warmth concrete '
+    "attention ordinary conversation."
+)
+
+
+# ── the thing that shipped ───────────────────────────────────────────────
+
+def test_the_reply_that_reached_a_person():
+    assert talks_about_the_asking(LEAKED) is True
+
+
+def test_and_it_is_treated_as_an_internal_leak():
+    assert "internal_task_prompt_leak" in internal_leak_reasons(LEAKED)
+
+
+# ── what marks it ────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "The user asked for three sentences.",
+        "The user wants a number.",
+        "I'll answer the user directly.",
+        "user's current message is about arithmetic",
+        "User asks simple math.",
+        "Previous draft failed for missing numeric answer.",
+        "The contract says first-person continuity.",
+        "We must return only the requested content.",
+    ],
+)
+def test_commentary_about_the_exchange_is_recognised(said):
+    assert talks_about_the_asking(said) is True
+
+
+# ── and ordinary sentences are not ───────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "391",
+        "It is 391.",
+        "The user interface is on the left.",
+        "The user account settings live under Preferences.",
+        "The user experience of that page is poor.",
+        "Your users will expect a fast reply.",
+        "A sliding puzzle moves one tile at a time.",
+        "I could not work that out, and I would rather say so.",
+        "Users of the old version will need to migrate.",
+    ],
+)
+def test_an_ordinary_sentence_is_left_alone(said):
+    assert talks_about_the_asking(said) is False
+
+
+@pytest.mark.parametrize("said", ["", "   ", "\n"])
+def test_nothing_is_not_commentary(said):
+    assert talks_about_the_asking(said) is False
+
+
+def test_a_real_answer_carries_no_leak_reasons():
+    assert internal_leak_reasons("It is 391.") == ()
+    assert internal_leak_reasons("The user interface is on the left.") == ()

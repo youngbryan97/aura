@@ -1,8 +1,8 @@
 """What separates an answer from text that arrived where an answer should be.
 
-Two things come back from a model that are not answers, and both pass every
-test of shape: the question handed back, and a passage that stopped in the
-middle. Measured live on 2026-08-26, both were used as if they were answers —
+Three things come back from a model that are not answers, and all of them pass
+every test of shape: the question handed back, a passage that stopped in the
+middle, and the model's own commentary about answering. Measured live on 2026-08-26, both were used as if they were answers —
 one was held as her plan for a whole game of 2048, and the other became the
 question a deeper pass then went off and answered.
 
@@ -14,7 +14,12 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["adds_nothing_to", "content_words", "was_cut_off"]
+__all__ = [
+    "adds_nothing_to",
+    "content_words",
+    "talks_about_the_asking",
+    "was_cut_off",
+]
 
 #: The least a line can add and still have added something. Below this an
 #: answer is a rearrangement of the question.
@@ -65,3 +70,59 @@ def was_cut_off(said: str) -> bool:
     if text[-1] in _ENDS:
         return False
     return any(mark in text[:-1] for mark in ".!?。！？")
+
+
+#: How a passage refers to the person it is supposed to be addressing.
+#:
+#: A reply speaks TO someone. There is no third party in it called "the user",
+#: and nothing in an answer needs to say what the user asked — the user knows.
+#: Text that does is commentary about the exchange rather than the exchange.
+_ABOUT_THE_ASKING = re.compile(
+    # "the user" as a PARTICIPANT: followed by something it does, or by the
+    # end of its clause. "The user interface is on the left" is followed by a
+    # noun, and is an ordinary sentence about a thing.
+    r"\bthe\s+user\s+(?:is|was|has|had|will|would|asks?|asked|wants?|wanted"
+    r"|says?|said|needs?|expects?|means?|meant)\b"
+    r"|\bthe\s+user\s*[,.;?!]"
+    # "the user's message", which is only ever said about an exchange.
+    r"|\buser's\s+(?:current\s+)?"
+    r"(?:message|question|request|query|words|input|prompt|turn)\b"
+    r"|\buser\s+(?:asks?|asked|wants?|says?|is\s+asking)\b"
+    r"|\b(?:answer|reply\s+to|respond\s+to|address)\s+(?:the\s+)?user\b",
+    re.IGNORECASE,
+)
+
+#: And how it refers to its own attempts, which a reader was never shown.
+_ABOUT_ITS_OWN_ATTEMPTS = re.compile(
+    r"\b(?:previous|earlier|last|first)\s+(?:draft|attempt|response|reply|answer)\b"
+    r"|\bdraft\s+(?:failed|was\s+rejected|did\s+not)\b"
+    r"|\b(?:the\s+)?contract\s+(?:says|requires|demands)\b"
+    r"|\bwe\s+(?:need|must)\s+(?:to\s+)?(?:answer|return|produce|give|reply)\b",
+    re.IGNORECASE,
+)
+
+
+def talks_about_the_asking(said: str) -> bool:
+    """Whether this is commentary about answering rather than an answer.
+
+    A model that has been handed a scaffold and a failed draft will sometimes
+    write about the job instead of doing it: what the user asked, why the last
+    attempt was rejected, what the contract requires. Every word of it is
+    fluent, on topic and well formed, so nothing that measures shape catches
+    it — and it arrives where an answer should be.
+
+    LIVE 2026-08-27, in full, to "What is 17 times 23?":
+
+        We need answer user's current message: "What is 17 times 23?" Need
+        direct arithmetic. Previous draft failed for missing numeric answer.
+        We must return only requested user-facing content? ...
+
+    The test is grammatical rather than topical. A reply speaks TO a person:
+    there is no third party in it called "the user", and nothing in an answer
+    needs to report what the user asked, because the user knows. The same goes
+    for its own earlier attempts, which the reader was never shown.
+    """
+    body = str(said or "")
+    if not body.strip():
+        return False
+    return bool(_ABOUT_THE_ASKING.search(body) or _ABOUT_ITS_OWN_ATTEMPTS.search(body))
