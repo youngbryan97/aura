@@ -100,7 +100,12 @@ class ScreenPursuitInput(BaseModel):
     #: Text that appearing on screen means the goal is reached. Matched
     #: case-insensitively against the reading, as a regular expression when it
     #: is one and as plain text otherwise.
-    success_when: str = Field(..., min_length=1, max_length=200)
+    #:
+    #: Allowed to be empty, because a request can name a process without
+    #: naming an end — "play it and work out how it moves". Then the screen
+    #: never says finished, ``goal_reached`` never fires, and the run ends on
+    #: the cycle count and the clock it was given, which it always had.
+    success_when: str = Field(default="", max_length=200)
     #: Restrict the match to a horizontal band of the screen, top-down, 0..1.
     #:
     #: Needed the moment this meets a real page. On play2048.co the word "2048"
@@ -869,16 +874,28 @@ def _what_there_is_to_aim_at(reading: Any) -> str:
     so she acts and looks for as long as the budget lasts and never uses the
     model she is building. That is a waste of the thing she just worked out.
 
-    What she can read off the world instead is whether it counts. Where the
-    things in front of her are numbers, more is the direction the world itself
-    is pointing, and "the largest" is a goal her own measure already
-    understands. Where they are not numbers, nothing here invents a purpose:
-    it says so, and she goes back to acting and looking.
+    What she can read off the world instead is whether it counts, and how far
+    it could go. A laid-out thing that combines equal pairs cannot exceed one
+    doubling per place it has: sixteen places cannot hold more than two to the
+    sixteenth however well it is played. That ceiling is a fact about the thing
+    in front of her rather than a number anybody picked, and it is far enough
+    above where she is that being nearer to it stays worth something all the
+    way through — which a nearer goal does not, because arriving at one makes
+    every situation after it look equally good.
+
+    Where the things in front of her are not numbers, nothing here invents a
+    purpose: it says so, and she goes back to acting and looking.
     """
     numbers = getattr(reading, "numbers", None)
-    if not callable(numbers):
+    places = getattr(reading, "places", None)
+    if not callable(numbers) or not callable(places):
         return ""
-    return "the largest" if numbers() else ""
+    if not numbers():
+        return ""
+    room = int(places() or 0)
+    if room <= 0:
+        return ""
+    return f"{2 ** room}"
 
 
 def _left_her_better_off(

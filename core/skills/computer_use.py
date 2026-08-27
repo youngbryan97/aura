@@ -1994,12 +1994,16 @@ end tell
         success_when = str(payload.get("success_when") or payload.get("until") or "").strip()
         if not goal:
             return {"ok": False, "action": "pursue_on_screen", "error": "no goal was given to pursue"}
-        if not success_when:
-            return {
-                "ok": False,
-                "action": "pursue_on_screen",
-                "error": "no finishing condition was given, so the run could never end",
-            }
+        # A run with no finishing condition ends on its bounds, which it has.
+        #
+        # Refusing one was guarding against a loop that could never stop, but
+        # the loop has always stopped: it runs to a cycle count and a clock,
+        # both of them arguments to it. What the refusal actually blocked was
+        # every request that names a process without naming an end — "play it
+        # and work out how it moves" — which is most of the ways a person asks
+        # for one. LIVE 2026-08-27: the goal reached this line correctly
+        # parsed, with the page to open and the keys to press, and was turned
+        # away in 417ms.
 
         keys = payload.get("move_keys") or payload.get("moves") or list(DEFAULT_MOVES)
         result = await pursue_on_screen(
