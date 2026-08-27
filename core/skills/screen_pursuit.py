@@ -1348,7 +1348,21 @@ async def pursue_on_screen(
             # Her own move, and what it did. Three things she already had and
             # threw away after one glance, which is why she could never try a
             # move without making it.
-            if pending["arranged"] is not None and previous.chosen is not None:
+            # Learned from the part that answers to her, once she knows which
+            # part that is.
+            #
+            # Before the band settles a reading is the whole page — the tabs,
+            # the address, the score, a Give Feedback button — and no rule
+            # about what her own act moves can match one. Learning from it
+            # anyway fills the counters with failures that then take longer to
+            # recover from than starting clean. LIVE 2026-08-26: nineteen
+            # moves in, every hypothesis discredited, and she was choosing
+            # blind on a board she could read perfectly well.
+            if (
+                pending["arranged"] is not None
+                and previous.chosen is not None
+                and band is not None
+            ):
                 knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 _say_what_she_worked_out(knows, foreseen)
             # Learned from the same measurement. A move that changed nothing

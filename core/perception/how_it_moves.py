@@ -172,12 +172,23 @@ class HowItMoves:
     seen: int = 0
     #: The last few moves, so a rule that stops working is noticed.
     recent: list[tuple[str, frozenset[str]]] = field(default_factory=list)
+    #: Pairs of readings that could not be compared at all.
+    unreadable: int = 0
 
     # ── learning ─────────────────────────────────────────────────────────
 
     def watched(self, before: Arrangement, action: str, after: Arrangement) -> None:
         """One of her own moves, and what it did."""
         if not before.cells and not after.cells:
+            return
+        if (before.rows, before.columns) != (after.rows, after.columns):
+            # Two readings that disagree about the shape of the thing cannot
+            # be compared, and a comparison that cannot be made is not
+            # evidence against anything. Scored as a miss, one reading that
+            # dropped a faint tile discredits every hypothesis at once and the
+            # model never forms. LIVE 2026-08-26: nineteen moves in, nothing
+            # worked out, on a board she was reading perfectly well.
+            self.unreadable += 1
             return
         agreed: set[str] = set()
         for rule in RULES:
@@ -279,7 +290,8 @@ class HowItMoves:
         """What she has worked out, in a line, for whoever has to answer for it."""
         rule = self.rule()
         if rule is None:
-            return f"how this moves is not worked out yet ({self.seen} move(s) watched)"
+            said = f"how this moves is not worked out yet ({self.seen} move(s) watched"
+            return f"{said}, {self.unreadable} unreadable)" if self.unreadable else f"{said})"
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
 
 

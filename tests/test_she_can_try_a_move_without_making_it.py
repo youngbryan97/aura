@@ -176,3 +176,34 @@ def test_watching_nothing_happen_in_an_empty_world_teaches_nothing():
     knows = HowItMoves()
     knows.watched(arranged([]), "left", arranged([]))
     assert knows.seen == 0
+
+
+def test_two_readings_that_disagree_on_the_shape_are_not_evidence():
+    """A comparison that cannot be made says nothing about any hypothesis."""
+    knows = HowItMoves()
+    wider = board([["2", "4", "8", "16"], ["4", "8", "16", "2"]])
+    narrower = board([["2", "4"], ["4", "8"]])
+    for _ in range(10):
+        knows.watched(wider, "left", narrower)
+    assert knows.seen == 0
+    assert knows.unreadable == 10
+    assert knows.rule() is None
+
+
+def test_a_reading_she_could_not_use_is_said_out_loud():
+    knows = HowItMoves()
+    knows.watched(board([["2", "4", "8"]]), "left", board([["2", "4"]]))
+    assert "unreadable" in knows.says()
+
+
+def test_unusable_readings_do_not_stop_her_working_it_out():
+    """One dropped tile between two readings used to discredit everything."""
+    knows = HowItMoves()
+    state = START
+    for index in range(12):
+        move = ("left", "up", "right", "down")[index % 4]
+        after = shifted_and_combined(state, move)
+        knows.watched(state, move, after)
+        knows.watched(state, move, board([["2", "4"]]))
+        state = after
+    assert knows.rule() is not None
