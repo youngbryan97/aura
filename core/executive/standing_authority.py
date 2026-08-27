@@ -1357,8 +1357,30 @@ class StandingAuthorityManager:
                 classify_execution_risk(name, dict(arguments or {}), effect_scope=scope)
             )
         )
-        if risk != record.risk_level:
-            return False, "standing_authority_risk_mismatch", record
+        if risk != record.risk_level and not risk_at_most(risk, record.risk_level):
+            # A call no riskier than its lease is within it.
+            #
+            # This was an exact equality, while the scope test one field above
+            # already allowed a narrower call and the grant ceiling below uses
+            # risk_at_most. So authority to do something risky did not include
+            # authority to do something safer.
+            #
+            # LIVE, 2026-08-27: the lease was taken before there was a snippet
+            # to read, so code_repl was leased at critical; the call itself
+            # carried a snippet that only computes and rated medium. Rating the
+            # call MORE precisely made it fail, which is backwards.
+            logger.warning(
+                "Standing authority risk mismatch for %s: lease held %r, this call derived %r",
+                name,
+                record.risk_level,
+                risk,
+            )
+            return (
+                False,
+                f"standing_authority_risk_mismatch (lease={record.risk_level!r},"
+                f" call={risk!r})",
+                record,
+            )
         if not self._matches(grant.allowed_origins, record.origin):
             return False, "standing_authority_origin_out_of_grant", record
         if not self._matches(grant.allowed_tools, record.tool_name):

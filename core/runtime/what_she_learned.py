@@ -66,7 +66,7 @@ def remember(world: str, what: dict[str, Any]) -> bool:
         if len(body) > _MOST_KEPT:
             logger.info("what she learned about %r is too big to keep (%d)", key, len(body))
             return False
-        _KEPT_IN.mkdir(parents=True, exist_ok=True)
+        get_file_write_gateway().ensure_directory(_KEPT_IN, source="what_she_learned")
         with local_internal_governed_scope(
             "what_she_learned.remember",
             domain="state_mutation",
@@ -95,8 +95,12 @@ def recall(world: str) -> dict[str, Any]:
 
 def forget(world: str) -> bool:
     """Drop what she knew about a thing, for a caller that has reason to."""
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
     try:
-        (_KEPT_IN / f"{named(world)}.json").unlink()
+        get_file_write_gateway().delete_file(
+            _KEPT_IN / f"{named(world)}.json", source="what_she_learned"
+        )
         return True
-    except OSError:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return False

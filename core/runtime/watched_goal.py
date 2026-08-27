@@ -135,7 +135,9 @@ def _write_down(seconds: float) -> None:
             domain="state_mutation",
             constraints={"path": str(_MEASURED_AT)},
         ):
-            _MEASURED_AT.parent.mkdir(parents=True, exist_ok=True)
+            get_file_write_gateway().ensure_directory(
+                _MEASURED_AT.parent, source="watched_goal"
+            )
             get_file_write_gateway().write_text(
                 _MEASURED_AT,
                 json.dumps({"seconds": round(float(seconds), 3)}),

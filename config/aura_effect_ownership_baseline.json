@@ -4137,6 +4137,14 @@
       "scope": "<module>.MinorityReportStore.record_dissent"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/diagnosis/value_trace.py",
+      "scope": "<module>._traced_in"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -5599,6 +5607,46 @@
       "count": 1,
       "path": "core/runtime/update_manager.py",
       "scope": "<module>.UpdateManager._record"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/watched_goal.py",
+      "scope": "<module>._write_down"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/watched_goal.py",
+      "scope": "<module>._write_down"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/what_she_learned.py",
+      "scope": "<module>.forget"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/what_she_learned.py",
+      "scope": "<module>.remember"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/what_she_learned.py",
+      "scope": "<module>.remember"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -14497,6 +14545,14 @@
       "scope": "<module>.observe"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/diagnosis/value_trace.py",
+      "scope": "<module>._traced_in"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_shell_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -15914,6 +15970,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "4c2ccb0d077547e0e0a5f9995aba07d4cdc52fe4a5b98247bbd402f205925691",
+  "inventory_sha256": "8730077be8d60ecb0ede2095cf5fb701820cf4b8f450abb537d6a945b1886e36",
   "schema_version": 1
 }

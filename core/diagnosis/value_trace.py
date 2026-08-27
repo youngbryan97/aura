@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tempfile
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -294,15 +295,34 @@ def _readable(arguments: str) -> str:
 
 def trace_run(root: str | Path, entry: str) -> TracedRun:
     """Run one entry point under the tracer and report what disagreed."""
+    base = Path(str(root)).expanduser()
+    # The tracer does not live in somebody else's project.
+    #
+    # It was written beside their code and deleted afterwards, which put two
+    # raw file mutations inside a directory this tool was asked to look at, not
+    # to touch. A temporary directory holds it instead; the project stays the
+    # working directory, so imports resolve exactly as they would for them.
+    with tempfile.TemporaryDirectory(prefix="aura-value-trace-") as workspace:
+        return _traced_in(base, entry, Path(workspace))
+
+
+def _traced_in(base: Path, entry: str, workspace: Path) -> TracedRun:
+    """Run the entry point with the tracer kept outside the project."""
+    import sys
+
     from core.governance_context import local_internal_governed_scope
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-    base = Path(str(root)).expanduser()
-    tracer = base / "_aura_value_trace.py"
-    record = base / "_aura_value_trace.json"
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    tracer = workspace / "aura_value_trace.py"
+    record = workspace / "aura_value_trace.json"
     try:
-        tracer.write_text(_TRACER, encoding="utf-8")
-    except OSError as exc:
+        with local_internal_governed_scope("diagnosis.value_trace"):
+            get_file_write_gateway().write_text(
+                tracer, _TRACER, source="diagnosis.value_trace"
+            )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return TracedRun(ran=entry, error=f"{type(exc).__name__}: {exc}")
     try:
         with local_internal_governed_scope("diagnosis.value_trace"):
@@ -320,12 +340,6 @@ def trace_run(root: str | Path, entry: str) -> TracedRun:
         calls = json.loads(record.read_text(encoding="utf-8")) if record.exists() else []
     except (OSError, subprocess.SubprocessError, RuntimeError, ImportError, ValueError) as exc:
         return TracedRun(ran=entry, error=f"{type(exc).__name__}: {exc}"[:300])
-    finally:
-        for path in (tracer, record):
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     return TracedRun(
         ran=f"python {entry} (traced)",
