@@ -10235,6 +10235,14 @@ def _mlx_worker_loop(
                         semantic_completion_state["semantic_completion_satisfied"]
                     )
                     surface_control_state.update(semantic_completion_state)
+                    _budget_applied = _safe_int(
+                        surface_control_state.get("generation_max_tokens_applied"),
+                        max_tokens,
+                    )
+                    _spent_the_whole_budget = (
+                        _budget_applied > 0
+                        and int(total_generated_tokens) >= _budget_applied
+                    )
                     if (
                         semantic_completion_state["semantic_completion_incomplete"]
                         and not expected_empty_precompile
@@ -10266,7 +10274,7 @@ def _mlx_worker_loop(
                             ],
                             total_generated_tokens,
                             repr(configured_stop_sequence) if configured_stop_sequence else "none",
-                            bool(hard_token_limit_hit),
+                            bool(_spent_the_whole_budget),
                             native_thinking,
                         )
                         # And the reserve learns from it. It was learning only
@@ -10285,15 +10293,18 @@ def _mlx_worker_loop(
                         # Only where the budget was actually spent. An answer
                         # that stopped early for some other reason is not
                         # evidence about the size of anything.
-                        if native_thinking is True and hard_token_limit_hit:
-                            _record_budget_that_ran_out_thinking(
-                                _safe_int(
-                                    surface_control_state.get(
-                                        "generation_max_tokens_applied"
-                                    ),
-                                    max_tokens,
-                                )
-                            )
+                        #
+                        # "Spent" means it produced everything it was allowed
+                        # to. `hard_token_limit_hit` looks like the flag for
+                        # that and is not: it means the absolute 8,192-token
+                        # safety cap was reached, so a generation given 1,024
+                        # and using all 1,024 leaves it False. This guard was
+                        # written against it and could not fire for any
+                        # ordinary turn — the diagnostic above is what showed
+                        # it, reporting tokens=1024 and limit_hit=False in the
+                        # same line.
+                        if native_thinking is True and _spent_the_whole_budget:
+                            _record_budget_that_ran_out_thinking(_budget_applied)
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
