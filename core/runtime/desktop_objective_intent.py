@@ -845,6 +845,90 @@ def _asks_to_change_a_file(user_message: str) -> bool:
     return False
 
 
+#: How far after a verb its object can sit before it belongs to another clause.
+#: A verb and its object are adjacent or nearly so; past that the reader is
+#: joining two clauses, which is the mistake being fixed.
+_WITHIN_REACH = 6
+
+#: Standing in for the named thing once it has been named: "read the log, then
+#: delete it" changes the log, and says so with a pronoun.
+_STANDS_FOR_THE_THING = re.compile(
+    r"\b(?:it|them|that|this|those|these)\b"
+    r"|\bthe\s+(?:file|files|directory|folder|log|logs|script|copy)\b",
+    re.IGNORECASE,
+)
+
+
+#: A word introducing where something goes or comes from. When one of these
+#: sits between the verb and its object, the operation is aimed somewhere other
+#: than the thing that was named.
+_AIMED_ELSEWHERE = re.compile(
+    r"^\s*(?:from|into|onto|towards?|out\s+of|across|between)\b",
+    re.IGNORECASE,
+)
+
+#: Whose verb it is. A request asks HER to do something, so a verb whose
+#: subject is the person speaking or a third party is a report of what someone
+#: else does — "what approach THEY copy", "what I should copy", "I might copy
+#: their layout". Modal words are here because they are how a subject reaches
+#: across one: "I might copy" is still I doing it.
+_SOMEBODY_ELSE_IS_DOING_IT = re.compile(
+    r"\b(?:i|we|they|he|she|someone|somebody|people|users?)\b"
+    r"(?:\s+(?:might|may|could|would|should|will|can|do|did|have|had|often|"
+    r"usually|already|just|then)){0,3}\s*$",
+    re.IGNORECASE,
+)
+
+#: What turns the next word into a thing rather than an action. A word after
+#: one of these is being named, not done.
+_A_THING_FOLLOWS = re.compile(r"(?:^|\s)(?:the|a|an|these|those|this|that|its|their|my|your)\s*$", re.IGNORECASE)
+
+
+def _asks_to_change_the_named_thing(sanitized: str, original: str) -> bool:
+    """Whether a change is being asked FOR, rather than mentioned.
+
+    Four facts about the sentence, none of them a list of words.
+
+    A word after a determiner is a thing, not an action: "the WRITE targets"
+    names some targets. A word with no determiner after it is part of a fixed
+    expression rather than an operation on something: "does it MAKE sense" acts
+    on nothing. A preposition of direction aims the operation somewhere other
+    than what was named: "COPY from elsewhere", "COPY into my own project". And
+    what is left — a verb with an object and no other place to send it — is a
+    change, whether the object is the file itself, a pronoun for it, or
+    something inside it: "read it and FIX the bug" changes the file.
+    """
+
+    for hit in _FILESYSTEM_MUTATION_RE.finditer(sanitized):
+        before = sanitized[: hit.start()]
+        if _A_THING_FOLLOWS.search(before[-24:]):
+            continue
+        if _SOMEBODY_ELSE_IS_DOING_IT.search(before[-40:]):
+            continue
+        after = sanitized[hit.end() :]
+        # A verb does not reach past a clause boundary to find its object.
+        stop = re.search(r"[.?!;]|\bthen\b|\bbut\b|\bwhile\b", after)
+        reach = after[: stop.start()] if stop else after
+        if _AIMED_ELSEWHERE.match(reach):
+            continue
+        words = reach.split()[:_WITHIN_REACH]
+        if not words:
+            continue
+        window = " ".join(words)
+        if _CONCRETE_PATH_RE.search(window) or _NAMED_ON_SURFACE_RE.search(window):
+            return True
+        if _STANDS_FOR_THE_THING.search(window) and _CONCRETE_PATH_RE.search(before):
+            return True
+        # An object that is a named thing rather than a bare word. "fix THE
+        # bug" acts on something; "make sense" does not.
+        if re.match(
+            r"\s*(?:the|a|an|this|that|these|those|its|their|my|your|all|every)\b",
+            reach,
+        ):
+            return True
+    return False
+
+
 def looks_like_filesystem_observation(user_message: str) -> bool:
     """True when the turn asks to READ something on disk and report back.
 
@@ -877,8 +961,20 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
     if not _CONCRETE_PATH_RE.search(text) and not _NAMED_ON_SURFACE_RE.search(text):
         return False
     sanitized = strip_negated_action_spans(text).lower()
-    # Asking for a change is not observing, whichever way it is phrased.
-    if _FILESYSTEM_MUTATION_RE.search(sanitized):
+    # Asking for a change is not observing, whichever way it is phrased — but
+    # the verb alone does not say a change was asked for. It says a change was
+    # MENTIONED.
+    #
+    # LIVE, 2026-08-28: four ordinary read requests were classified as changes
+    # by one word each. "read <path>/README.md and tell me what approach they
+    # COPY from elsewhere"; "go through <path>/Makefile and explain what the
+    # WRITE targets do"; "what's in <path>/CLAUDE.md that I should COPY into my
+    # own project"; "look at <path>/README.md — does it MAKE sense?". In every
+    # one the verb belongs to something other than the thing named.
+    #
+    # What separates a request to change from a mention of changing is what the
+    # verb acts ON. A mutation counts when the thing named is its object.
+    if _asks_to_change_the_named_thing(sanitized, text):
         return False
     settled = bool(
         _FILESYSTEM_OBSERVATION_RE.search(sanitized)

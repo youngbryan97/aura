@@ -50,8 +50,15 @@ struck through on the strength of an argument.
   told — "down", and the words the review named: copy, move, open, read.
 - [x] **C4** The concept names patterns that have never failed.
 - [x] **C5** The concept is enforced by a ratchet that only shrinks.
-- [ ] **C6** The concept CHANGES BEHAVIOUR — a decision that would have been
-  taken from one token is deferred to something that reads the sentence.
+- [x] **C6** The concept changed behaviour. It named _FILESYSTEM_MUTATION_RE
+  as deciding from bare copy/move/write/make; probing that site turned up four
+  live read requests classified as changes by one word each. The repair is the
+  sentence the review asked for — infer the operation from its causal object —
+  and it is four facts of grammar, no word lists: a word after a determiner is
+  a thing not an action; a verb whose subject is the person is a report not a
+  request; a preposition of direction aims the operation elsewhere; what is
+  left acts on the named thing. Violations 246 -> 110 -> 24 -> 20, each fall
+  from a measurement rather than a decision.
 - [ ] **C7** A second concept, formed the same way from a different signature.
 
 ## D. Competence without the foundation model

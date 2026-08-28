@@ -89,11 +89,28 @@ def asks_for_a_role(pattern: re.Pattern[str], token: str) -> bool:
     alternation and nothing else does not.
     """
 
-    source = str(getattr(pattern, "pattern", "") or "")
     word = str(token or "").strip().lower()
-    if not word or not _names_the_token(source, word):
+    if not word or not _fires_on_the_token_alone(pattern, word):
         return True
+    source = str(getattr(pattern, "pattern", "") or "")
     return any(mark in source for mark in _ASKS_FOR_MORE)
+
+
+def _fires_on_the_token_alone(pattern: re.Pattern[str], word: str) -> bool:
+    """Whether the pattern accepts this token with nothing else present.
+
+    Asked by running it, not by reading its source. Reading the source said
+    _ABOUT_HER decides from "what", because the word appears in it — inside
+    "what are you", which the pattern requires in full and which is a role. The
+    same mistake the constraint is about, made a third time while checking for
+    it: first as a substring of a word, then as a word in a source, and the fix
+    both times was to ask the thing itself instead of reading around it.
+    """
+
+    try:
+        return pattern.search(word) is not None
+    except (re.error, TypeError):
+        return False
 
 
 def _names_the_token(source: str, word: str) -> bool:
@@ -156,9 +173,7 @@ class FormedConstraint:
                 if name not in alone:
                     continue
                 for token in tokens:
-                    if not _names_the_token(
-                        str(getattr(pattern, "pattern", "")), token
-                    ):
+                    if not _fires_on_the_token_alone(pattern, token):
                         continue
                     if not asks_for_a_role(pattern, token):
                         offending.add(

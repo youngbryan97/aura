@@ -104,3 +104,61 @@ def test_a_pursuit_with_no_path_is_untouched() -> None:
         "find a sliding puzzle and work out how it moves by playing it",
     ):
         assert read_watched_goal(asked) is not None, asked
+
+
+# ------------------------- the operation is inferred from its causal object
+
+
+def _here() -> str:
+    import os
+
+    return os.getcwd()
+
+
+def test_a_change_mentioned_is_not_a_change_asked_for() -> None:
+    """Found by the formed concept, not by somebody noticing four failures.
+
+    "a token is not a decision" named _FILESYSTEM_MUTATION_RE as deciding from
+    the bare words copy, move, write and make. Probing the site it named turned
+    up four ordinary read requests classified as changes by one word each, in
+    every case a word belonging to something other than the thing named.
+    """
+
+    here = _here()
+    for asked in (
+        f"read {here}/README.md and tell me what approach they copy from elsewhere",
+        f"go through {here}/Makefile and explain what the write targets do",
+        f"what's in {here}/CLAUDE.md that I should copy into my own project",
+        f"look at {here}/README.md - does it make sense?",
+    ):
+        assert looks_like_filesystem_observation(asked), asked
+
+
+def test_a_change_asked_for_is_still_a_change() -> None:
+    here = _here()
+    for asked in (
+        f"write hello into {here}/x.txt",
+        f"delete {here}/x.txt",
+        f"move {here}/a.py to {here}/b.py",
+        f"copy {here}/a.py to my desktop",
+    ):
+        assert not looks_like_filesystem_observation(asked), asked
+
+
+def test_a_pronoun_carries_the_thing_that_was_named() -> None:
+    """"Read the log, then delete it" changes the log, and says so with "it"."""
+
+    here = _here()
+    assert not looks_like_filesystem_observation(
+        f"read {here}/README.md and then delete it"
+    )
+    # And a pronoun with nothing named before it reaches nothing.
+    assert not looks_like_filesystem_observation("delete it")
+
+
+def test_the_verb_does_not_reach_past_a_clause_boundary() -> None:
+    here = _here()
+    # The copying is something the READER would do, in another clause.
+    assert looks_like_filesystem_observation(
+        f"tell me what {here}/README.md says, but I might copy their layout"
+    )
