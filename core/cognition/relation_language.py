@@ -93,6 +93,7 @@ class RelationLanguage:
         transitions: Sequence[Transition],
         *,
         held_out: Sequence[Transition] = (),
+        without: frozenset[str] = frozenset(),
     ) -> InventedRelation | None:
         """The relation these transitions need, preferring a shape seen before.
 
@@ -109,7 +110,11 @@ class RelationLanguage:
                 for description, (family, rule) in self.forms.items()
             ]
         return invent_relation(
-            transitions, held_out=held_out, prefer=prior, known_forms=known
+            transitions,
+            held_out=held_out,
+            prefer={} if "prior" in without else prior,
+            known_forms=known,
+            without=without,
         )
 
     def save(self) -> None:

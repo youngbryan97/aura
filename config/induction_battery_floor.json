@@ -1,8 +1,31 @@
 {
-  "solved": 77,
-  "attempted": 100,
-  "solved_expressible": 76,
-  "attempted_expressible": 80,
+  "fingerprint": "503f29f1331c01f0",
+  "attempted": 120,
+  "attempted_expressible": 100,
+  "solved": 101,
+  "solved_expressible": 100,
+  "ablations": {
+    "nothing_removed": {
+      "solved": 101,
+      "expressible": 100
+    },
+    "no_composition": {
+      "solved": 81,
+      "expressible": 80
+    },
+    "no_learned_forms": {
+      "solved": 77,
+      "expressible": 76
+    },
+    "no_prior": {
+      "solved": 101,
+      "expressible": 100
+    },
+    "no_language_at_all": {
+      "solved": 77,
+      "expressible": 76
+    }
+  },
   "recorded": "2026-08-28",
-  "note": "Only rises. No language model, embedding or stored answer is in the scoring path."
+  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. A changed fingerprint means the problems changed, so the number is not comparable and the floor does not apply."
 }

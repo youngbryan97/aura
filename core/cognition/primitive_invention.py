@@ -225,6 +225,8 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
 def _forms_that_fit(
     options: Sequence[Sequence[int]],
     known: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
+    *,
+    compose: bool = True,
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape whose answer is among the possibilities at every position.
 
@@ -249,7 +251,7 @@ def _forms_that_fit(
         for family, description, rule in singles
         if _fits(rule, options, size)
     ]
-    if fitting:
+    if fitting or not compose:
         return fitting
     for _fa, first_text, first in singles:
         for _fb, second_text, second in singles:
@@ -348,6 +350,7 @@ def invent_relation(
     held_out: Sequence[Transition] = (),
     prefer: dict[str, int] | None = None,
     known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
+    without: frozenset[str] = frozenset(),
 ) -> InventedRelation | None:
     """Work out the relation these transitions need, or return None.
 
@@ -375,7 +378,15 @@ def invent_relation(
     # Did anything move, or did the values themselves change?
     possibilities = [_possible_sources(item.before, item.after) for item in observed]
     if all(item is not None for item in possibilities):
-        fitted = [_forms_that_fit(item, known_forms or ()) for item in possibilities if item]
+        fitted = [
+            _forms_that_fit(
+                item,
+                () if "known_forms" in without else (known_forms or ()),
+                compose="composition" not in without,
+            )
+            for item in possibilities
+            if item
+        ]
         # A shape has to fit EVERY observation. With one observation several
         # will; with two of different lengths, usually one.
         shared: dict[str, tuple[str, Callable[[int, int], int]]] = {}

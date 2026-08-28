@@ -33,7 +33,13 @@ from typing import Any
 from core.cognition.primitive_invention import Transition, invent_relation
 from core.cognition.relation_language import RelationLanguage
 
-__all__ = ["Problem", "Report", "generate_battery", "score_battery"]
+__all__ = [
+    "Problem",
+    "Report",
+    "battery_fingerprint",
+    "generate_battery",
+    "score_battery",
+]
 
 
 @dataclass(frozen=True)
@@ -200,6 +206,54 @@ _SHAPES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
 #: wrong" from "was never able to say it", which are different facts.
 BEYOND_THE_LANGUAGE = frozenset({"odd positions first", "reordered by the cells"})
 
+#: Shapes three transformations deep. Unreachable from the basis alone however
+#: many observations are offered, and reachable once a two-deep shape has been
+#: learned somewhere else.
+#:
+#: These exist because the ablation said so. With only the shapes above, turning
+#: OFF the learned library and the prior changed the score by nothing: every
+#: problem showed the same shape at two lengths, which pins it without help, so
+#: the battery measured induction and not transfer while being described as
+#: measuring both. A component that cannot change a score is not being measured
+#: by it.
+_DEEP: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
+    "three deep: mirror, rotate, ends": _then(
+        _then(_mirror, _rotate(1)), _exchange(0, -1)
+    ),
+    "three deep: rotate, ends, mirror": _then(
+        _then(_rotate(2), _exchange(0, -1)), _mirror
+    ),
+}
+
+#: What has to be learned first for a deep shape to be reachable at all.
+_TEACHES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
+    "three deep: mirror, rotate, ends": _then(_mirror, _rotate(1)),
+    "three deep: rotate, ends, mirror": _then(_rotate(2), _exchange(0, -1)),
+}
+
+NEEDS_A_LEARNED_FORM = frozenset(_DEEP)
+
+
+def battery_fingerprint(*, seed: int = 20260828, per_cell: int = 2) -> str:
+    """A hash of the problems themselves, so a changed battery is visible.
+
+    The score is only evidence while the problems are fixed. Whoever owns the
+    generator can raise the number by making the problems easier, and would not
+    have to mean to: widening the solver's basis and widening its battery are
+    two edits in the same file. The literature on measuring self-improvement is
+    largely about this — held-out sets that leak, evaluators that can be gamed —
+    so the floor records what it was measured on and not only what was scored.
+    """
+
+    import hashlib
+
+    digest = hashlib.sha256()
+    for problem in generate_battery(seed=seed, per_cell=per_cell):
+        digest.update(problem.name.encode())
+        digest.update(repr(problem.shown).encode())
+        digest.update(repr(problem.held_out).encode())
+    return digest.hexdigest()[:16]
+
 
 def generate_battery(*, seed: int = 20260828, per_cell: int = 2) -> list[Problem]:
     """The frozen set: every shape, in every representation, at several lengths.
@@ -210,7 +264,7 @@ def generate_battery(*, seed: int = 20260828, per_cell: int = 2) -> list[Problem
 
     rng = random.Random(seed)
     problems: list[Problem] = []
-    for shape_name, shape in _SHAPES.items():
+    for shape_name, shape in {**_SHAPES, **_DEEP}.items():
         for rep_name, build in _REPRESENTATIONS.items():
             for _ in range(per_cell):
                 lengths = rng.sample([4, 5, 6, 7, 8], 3)
@@ -231,11 +285,48 @@ def generate_battery(*, seed: int = 20260828, per_cell: int = 2) -> list[Problem
     return problems
 
 
-def _solve(problem: Problem, language: RelationLanguage | None) -> bool:
-    """Work out the relation and predict the case that was held back."""
+def teach_the_language(
+    problems: Sequence[Problem],
+    *,
+    language: RelationLanguage,
+) -> int:
+    """Show the language the shapes the deep problems are built from.
 
-    speaker = language.explain if language is not None else invent_relation
-    found = speaker(list(problem.shown))
+    Taught on worlds of its own, at lengths the deep problems do not use, so
+    what carries across is the shape and not the instance.
+    """
+
+    learned = 0
+    for name, build in _TEACHES.items():
+        if not any(problem.shape == name for problem in problems):
+            continue
+        world = [
+            Transition(tuple(range(n)), build(tuple(range(n)))) for n in (9, 11, 13)
+        ]
+        found = invent_relation(world)
+        if found is not None:
+            language.admit(found)
+            learned += 1
+    return learned
+
+
+def _solve(
+    problem: Problem,
+    language: RelationLanguage | None,
+    *,
+    without: frozenset[str] = frozenset(),
+) -> bool:
+    """Work out the relation and predict the case that was held back.
+
+    ``without`` names parts of the mechanism to switch off, so the contribution
+    of each can be measured rather than assumed. A researcher asks for this
+    first and the numbers are cheap.
+    """
+
+    if language is not None:
+        found = language.explain(list(problem.shown), without=without)
+    else:
+        found = invent_relation(list(problem.shown), without=without)
     if found is None:
         return False
     try:
@@ -250,13 +341,14 @@ def score_battery(
     problems: Sequence[Problem] | None = None,
     *,
     language: RelationLanguage | None = None,
+    without: frozenset[str] = frozenset(),
 ) -> Report:
     """Run the battery and report the score, with the misses named."""
 
     material = list(problems if problems is not None else generate_battery())
     report = Report()
     for problem in material:
-        got = _solve(problem, language)
+        got = _solve(problem, language, without=without)
         report.attempted += 1
         report.solved += int(got)
         if problem.shape not in BEYOND_THE_LANGUAGE:
