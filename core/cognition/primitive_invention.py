@@ -535,6 +535,54 @@ def _fits(
         return False
 
 
+def _affine_value_map(
+    changed: Sequence[tuple[Any, Any]],
+) -> tuple[str, str, Callable[[Any], Any]] | None:
+    """``v -> a*v + b`` fitted from two pairs and checked against the rest.
+
+    Exact arithmetic only. A slope that does not divide evenly is not a slope
+    these cells have, and rounding it would be inventing a rule that nearly
+    works — which is worse here than none, because nearly is indistinguishable
+    from right on the examples it was fitted to.
+    """
+
+    pairs = [(a, b) for a, b in changed if isinstance(a, int) and isinstance(b, int)]
+    if len(pairs) != len(changed) or len(pairs) < 2:
+        return None
+    apart = next(
+        (
+            (one, other)
+            for index, one in enumerate(pairs)
+            for other in pairs[index + 1 :]
+            if one[0] != other[0]
+        ),
+        None,
+    )
+    if apart is None:
+        return None
+    (x1, y1), (x2, y2) = apart
+    rise, run = y2 - y1, x2 - x1
+    if run == 0 or rise % run:
+        return None
+    slope = rise // run
+    if slope in (0, 1):
+        # A constant or a plain offset, which are said better above.
+        return None
+    shift = y1 - slope * x1
+    if any(slope * a + shift != b for a, b in pairs):
+        return None
+    said = f"every value becomes {slope} times itself"
+    if shift > 0:
+        said += f", plus {shift}"
+    elif shift < 0:
+        said += f", minus {abs(shift)}"
+    return (
+        "value scaling",
+        said,
+        lambda x, _s=slope, _b=shift: _s * x + _b,
+    )
+
+
 def _value_map(
     transitions: Sequence[Transition],
 ) -> tuple[str, str, Callable[[Any], Any]] | None:
@@ -559,6 +607,16 @@ def _value_map(
     if len(offsets) == 1:
         delta = next(iter(offsets))
         return "value offset", f"every value gains {delta}", lambda x, _d=delta: x + _d
+    # v -> a*v + b, solved for rather than listed.
+    #
+    # The value side had "becomes a constant" and "gains k" and nothing else,
+    # so doubling every cell — as plain a rule as either of them — was silent.
+    # Adding "times k" beside them would have been the third entry in a list
+    # that has no end; these are three members of one family and the family is
+    # two points and a check, the same argument as the positional one.
+    fitted = _affine_value_map(changed)
+    if fitted is not None:
+        return fitted
     substitution: dict[Any, Any] = {}
     for a, b in pairs:
         if a in substitution and substitution[a] != b:
