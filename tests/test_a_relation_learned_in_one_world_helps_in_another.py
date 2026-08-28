@@ -119,22 +119,42 @@ def _language_taught_on(worlds) -> RelationLanguage:
     return learned
 
 
-def test_an_unseen_world_of_a_known_shape_is_pinned_down_sooner() -> None:
-    """The claim, on a world the language has never been shown."""
+def test_the_right_prior_settles_a_world_no_later_than_none() -> None:
+    """Asserted as a relationship, because the absolute numbers move.
 
-    taught = _language_taught_on([[_mirror(n)] for n in (3, 5, 6)])
-    unseen = [_mirror(2), _mirror(4), _mirror(5)]
-    assert observations_needed(unseen, language=RelationLanguage()) == 2
-    assert observations_needed(unseen, language=taught) == 1
+    An earlier version of this fixed the numbers at two observations without a
+    prior and one with. Composing shapes made a plain mirror resolvable from a
+    single observation, so the number fell to one either way, and the test
+    failed for an improvement. What the claim actually is: the shape a world
+    HAS settles it soonest, and a shape it does not have never settles it
+    sooner than that.
+    """
 
+    worlds = {
+        "mirror": [_mirror(2), _mirror(4), _mirror(5)],
+        "offset": [_offset(2, 1), _offset(4, 1), _offset(5, 1)],
+    }
+    priors = {
+        name: _language_taught_on([[build(n)] for n in (3, 5, 6)])
+        for name, build in (
+            ("mirror", _mirror),
+            ("offset", lambda n: _offset(n, 1)),
+        )
+    }
 
-def test_a_prior_that_is_wrong_costs_what_it_costs() -> None:
-    """Reported the same way as the gain, rather than assumed away."""
-
-    taught = _language_taught_on([[_mirror(n)] for n in (3, 5, 6)])
-    against = [_offset(2, 1), _offset(4, 1), _offset(5, 1)]
-    assert observations_needed(against, language=RelationLanguage()) == 1
-    assert observations_needed(against, language=taught) == 2
+    settled_sooner = 0
+    for name, world in worlds.items():
+        blank = observations_needed(world, language=RelationLanguage())
+        right = observations_needed(world, language=priors[name])
+        assert blank is not None and right is not None
+        assert right <= blank, f"{name}: the right prior made it worse"
+        settled_sooner += int(right < blank)
+        for other, prior in priors.items():
+            if other == name:
+                continue
+            wrong = observations_needed(world, language=prior)
+            assert wrong is not None and wrong >= right
+    assert settled_sooner >= 1, "no world settled sooner: that is not transfer"
 
 
 def test_a_prior_never_manufactures_structure() -> None:

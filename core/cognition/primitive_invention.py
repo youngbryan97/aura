@@ -111,85 +111,163 @@ def language_is_sufficient(
     return any(explains(operator, observed) for operator in operators)
 
 
-def _positional_source(before: Sequence[Any], after: Sequence[Any]) -> tuple[int, ...] | None:
-    """For each position after, which position it took its value from.
+def _possible_sources(
+    before: Sequence[Any], after: Sequence[Any]
+) -> tuple[tuple[int, ...], ...] | None:
+    """For each position after, EVERY position it could have taken its value from.
 
-    Identity is preferred wherever it holds, so the correspondence names the
-    smallest movement that accounts for the change rather than an arbitrary one
-    among many. Returns None when some value in ``after`` is not in ``before``
-    at all — that is not a rearrangement and a different question applies.
+    Not one correspondence but all of them. Committing to a single one needs a
+    tie-break when values repeat, and the tie-break was "prefer identity",
+    which is a guess: a grid whose rows repeat had positions assigned to
+    themselves and the shape that actually held could not be seen through it.
+    Keeping the candidates lets a form be tested exactly — it holds if its
+    answer is among the possibilities at every position — and no choice is
+    made that the data does not force.
+
+    None when some value in ``after`` does not occur in ``before``: that is not
+    a rearrangement and a different question applies.
     """
 
     if len(before) != len(after):
         return None
-    unused: dict[Any, list[int]] = {}
+    where: dict[Any, list[int]] = {}
     for index, value in enumerate(before):
-        unused.setdefault(value, []).append(index)
-    source: list[int | None] = [None] * len(after)
-    # Identity first, so an unchanged position claims itself.
-    for index, value in enumerate(after):
-        candidates = unused.get(value)
-        if candidates and index in candidates:
-            candidates.remove(index)
-            source[index] = index
-    for index, value in enumerate(after):
-        if source[index] is not None:
-            continue
-        candidates = unused.get(value)
-        if not candidates:
+        try:
+            where.setdefault(value, []).append(index)
+        except TypeError:  # an unhashable cell is not a value we can trace
             return None
-        source[index] = candidates.pop(0)
-    return tuple(int(item) for item in source if item is not None) or None
+    options: list[tuple[int, ...]] = []
+    for value in after:
+        try:
+            found = where.get(value)
+        except TypeError:
+            return None
+        if not found:
+            return None
+        options.append(tuple(found))
+    return tuple(options)
 
 
-def _closed_forms_over_indices(
-    source: Sequence[int],
-) -> list[tuple[str, str, Callable[[int, int], int]]]:
-    """Every rule for "position i took from f(i)" that fits, not just the first.
+def _a_consistent_source(options: Sequence[Sequence[int]]) -> tuple[int, ...] | None:
+    """One correspondence the possibilities allow, identity where it can be."""
 
-    Tried as forms rather than as names: an offset that wraps, the mirror, and
-    a correspondence that exchanges positions pairwise while leaving the rest
-    alone. A transposition is the two-position case of the last and is not
-    special-cased.
+    taken: set[int] = set()
+    chosen: list[int] = []
+    for index, candidates in enumerate(options):
+        if index in candidates and index not in taken:
+            taken.add(index)
+            chosen.append(index)
+            continue
+        chosen.append(-1)
+    for index, candidates in enumerate(options):
+        if chosen[index] != -1:
+            continue
+        free = [item for item in candidates if item not in taken]
+        if not free:
+            return None
+        taken.add(free[0])
+        chosen[index] = free[0]
+    return tuple(chosen)
 
-    More than one shape usually fits a single observation — (1,2) -> (2,1) is a
-    pairwise exchange AND a mirror AND an offset of one — and which of them is
-    the right reading is not decidable from that observation. Returning only
-    the first made the choice silently, by the order the branches happen to be
-    written in. Returning all of them lets a prior over shapes decide, and lets
-    a second observation decide when there is no prior.
+
+def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
+    """Every shape of "position i takes from f(i)" this can express, at this size.
+
+    Generated from the size rather than listed as named operators. The offsets
+    are every offset a state of this length has; the exchanges are every pair
+    of positions, and every pair expressed relative to the ends so that "the
+    ends exchange" means the same thing at length four and length eight.
+
+    Length-relative pairs are here because an absolute one cannot say it. A
+    world exchanging its first and last cells produced {0<->3} at length four,
+    which is false at length eight, and the whole shape scored zero.
     """
 
-    size = len(source)
-    fitting: list[tuple[str, str, Callable[[int, int], int]]] = []
-    if size == 0:
-        return fitting
-    if all(source[i] == i for i in range(size)):
-        fitting.append(("identity", "identity", lambda i, _n: i))
-    offset = (source[0] - 0) % size
-    if all(source[i] == (i + offset) % size for i in range(size)):
-        fitting.append(
+    forms: list[tuple[str, str, Callable[[int, int], int]]] = [
+        ("identity", "identity", lambda i, _n: i),
+        ("mirror", "position i takes from n-1-i", lambda i, n: n - 1 - i),
+    ]
+    for step in range(1, max(2, size)):
+        forms.append(
             (
                 "offset",
-                f"position i takes from i+{offset} (mod n)",
-                lambda i, n, _o=offset: (i + _o) % n,
+                f"position i takes from i+{step} (mod n)",
+                lambda i, n, _k=step: (i + _k) % n,
             )
         )
-    if all(source[i] == size - 1 - i for i in range(size)):
-        fitting.append(("mirror", "position i takes from n-1-i", lambda i, n: n - 1 - i))
-    moved = [i for i in range(size) if source[i] != i]
-    if moved and all(source[source[i]] == i for i in moved):
-        pairs = sorted({tuple(sorted((i, source[i]))) for i in moved})
-        exchanged = ", ".join(f"{a}<->{b}" for a, b in pairs)
-        mapping = {i: source[i] for i in moved}
-        fitting.append(
+    for left in range(size):
+        for right in range(left + 1, size):
+            forms.append(
+                (
+                    "pairwise exchange",
+                    f"positions exchange in pairs ({left}<->{right})",
+                    lambda i, _n, _a=left, _b=right: (
+                        _b if i == _a else (_a if i == _b else i)
+                    ),
+                )
+            )
+    for depth in range(max(1, size // 2)):
+        forms.append(
             (
                 "pairwise exchange",
-                f"positions exchange in pairs ({exchanged})",
-                lambda i, _n, _m=mapping: _m.get(i, i),
+                f"the cells {depth} in from each end exchange",
+                lambda i, n, _d=depth: (
+                    n - 1 - _d if i == _d else (_d if i == n - 1 - _d else i)
+                ),
             )
         )
+    return forms
+
+
+def _forms_that_fit(
+    options: Sequence[Sequence[int]],
+) -> list[tuple[str, str, Callable[[int, int], int]]]:
+    """Every shape whose answer is among the possibilities at every position.
+
+    Single shapes first, then one shape after another. A composition is a shape
+    the observations never show either half of — "mirror then rotate" looks
+    like neither a mirror nor a rotation — and without composing, twenty of a
+    hundred battery problems were unreachable however many observations were
+    offered.
+
+    The simpler description is kept ahead of the compound one, so a world that
+    IS a plain mirror is never explained as two things.
+    """
+
+    size = len(options)
+    singles = _index_forms(size)
+    fitting = [
+        (family, description, rule)
+        for family, description, rule in singles
+        if _fits(rule, options, size)
+    ]
+    if fitting:
+        return fitting
+    for _fa, first_text, first in singles:
+        for _fb, second_text, second in singles:
+            def composed(i: int, n: int, _a=first, _b=second) -> int:
+                return _a(_b(i, n), n)
+
+            if _fits(composed, options, size):
+                fitting.append(
+                    (
+                        "composition",
+                        f"{second_text}, then {first_text}",
+                        composed,
+                    )
+                )
     return fitting
+
+
+def _fits(
+    rule: Callable[[int, int], int],
+    options: Sequence[Sequence[int]],
+    size: int,
+) -> bool:
+    try:
+        return all(rule(index, size) in options[index] for index in range(size))
+    except (IndexError, TypeError, ZeroDivisionError):
+        return False
 
 
 def _value_map(
@@ -281,24 +359,19 @@ def invent_relation(
         return None
 
     # Did anything move, or did the values themselves change?
-    correspondences = [
-        _positional_source(item.before, item.after) for item in observed
-    ]
-    if all(item is not None for item in correspondences):
-        # Compared by the form itself. Comparing (description, rule) pairs put
-        # a fresh closure in every element, so no two transitions ever agreed
-        # and every world came back as a rule for one state length.
-        fitted = [_closed_forms_over_indices(item) for item in correspondences if item]
-        # A shape has to fit EVERY observation to be a candidate. With one
-        # observation several will; with two of different lengths, usually one.
+    possibilities = [_possible_sources(item.before, item.after) for item in observed]
+    if all(item is not None for item in possibilities):
+        fitted = [_forms_that_fit(item) for item in possibilities if item]
+        # A shape has to fit EVERY observation. With one observation several
+        # will; with two of different lengths, usually one.
         shared: dict[str, tuple[str, Callable[[int, int], int]]] = {}
         if fitted and all(fitted):
             common = set.intersection(
-                *({family for family, _d, _r in options} for options in fitted)
+                *({description for _f, description, _r in options} for options in fitted)
             )
             for family, description, rule in fitted[0]:
-                if family in common:
-                    shared[family] = (description, rule)
+                if description in common and description not in shared:
+                    shared[description] = (family, rule)
         first = None
         if shared:
             # The prior chooses among shapes the observations do not separate.
@@ -306,9 +379,13 @@ def invent_relation(
             # which is what the measurement compares against.
             chosen = max(
                 shared,
-                key=lambda name: (int((prefer or {}).get(name, 0)), -list(shared).index(name)),
+                key=lambda text: (
+                    int((prefer or {}).get(shared[text][0], 0)),
+                    -list(shared).index(text),
+                ),
             )
-            first = (chosen, *shared[chosen])
+            family, rule = shared[chosen]
+            first = (family, chosen, rule)
         if first is not None:
             family, description, rule = first
             operator = _permutation_operator(rule)
@@ -318,20 +395,23 @@ def invent_relation(
                     form=description,
                     generalises=True,
                     apply=operator,
+                    family=family,
                     learned_from=len(observed),
                     held_out_checked=len(held_out),
-                    family=family,
-                    detail={"correspondences": [list(c) for c in correspondences if c]},
+                    detail={"fitting_shapes": sorted(shared)},
                 )
                 if not held_out or explains(operator, held_out):
                     return relation
                 return None
-        # No closed form: the correspondence is still real, and still explains
-        # these states. It is reported as what it is — a rule for this length.
+        # No shape fits every observation. A single correspondence still
+        # explains these states, and is reported as what it is: a rule for
+        # this length.
         one_length = {len(item.before) for item in observed}
-        if len(one_length) == 1 and correspondences[0] is not None:
-            fixed = correspondences[0]
-            if all(item == fixed for item in correspondences):
+        if len(one_length) == 1 and possibilities[0] is not None:
+            fixed = _a_consistent_source(possibilities[0])
+            if fixed is not None and all(
+                _a_consistent_source(item) == fixed for item in possibilities if item
+            ):
                 operator = _permutation_operator(lambda i, _n, _f=fixed: _f[i])
                 if explains(operator, observed) and (
                     not held_out or explains(operator, held_out)
@@ -341,6 +421,7 @@ def invent_relation(
                         form=f"positions take from {list(fixed)}",
                         generalises=False,
                         apply=operator,
+                        family="fixed correspondence",
                         learned_from=len(observed),
                         held_out_checked=len(held_out),
                         detail={"length": next(iter(one_length))},
