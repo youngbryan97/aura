@@ -36,6 +36,33 @@ from typing import Any, Sequence
 __all__ = ["LanguageVerdict", "certify"]
 
 
+def _what_the_rule_writes(observed: list[tuple[tuple, tuple]]) -> str:
+    """Which of the three things a rule does, from the multisets alone.
+
+    A cell either survives, disappears, or arrives. Comparing what went in with
+    what came out settles which, and the three cases are exhaustive because
+    there is nowhere else for a cell to have come from. Nothing here recognises
+    a family or matches a name, so there is no fourth case for a later one to
+    be missing from.
+    """
+
+    from collections import Counter
+
+    creates = drops = False
+    for before, after in observed:
+        went_in = Counter(map(repr, before))
+        came_out = Counter(map(repr, after))
+        if came_out - went_in:
+            creates = True
+        if went_in - came_out:
+            drops = True
+    if creates:
+        return "creates"
+    if drops:
+        return "drops"
+    return "reorders"
+
+
 def _matches_one_to_one(allowed: list[set[int]], sources: int) -> bool:
     """Whether every position can take from a DIFFERENT place.
 
@@ -83,6 +110,18 @@ class LanguageVerdict:
     #: the contradiction without trusting this code.
     position: int | None = None
     length: int | None = None
+    #: What the rule WRITES, decided by comparing multisets rather than by
+    #: recognising a family.
+    #:
+    #: "reorders" — the same cells, moved. "drops" — the cells that come out
+    #: are among the cells that went in, and fewer. "creates" — a cell comes
+    #: out that never went in. Three cases, exhaustive, and arithmetic decides
+    #: which: nothing here is a list of transformation names somebody wrote
+    #: down, and there is no fourth case for a later one to be missing from.
+    #:
+    #: "creates" is the one nothing here can express, and saying so exactly is
+    #: better than a general refusal — it names what would have to be built.
+    writes: str = "unknown"
     #: Whether the proof survives dropping any single observation.
     #:
     #: One corrupted transition empties an intersection on its own, and the
@@ -149,6 +188,9 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
     if not observed:
         return LanguageVerdict("undecided", "nothing was observed")
 
+    # What the rule writes, before any verdict, so every verdict can say it.
+    writes = _what_the_rule_writes(observed)
+
     for before, after in observed:
         if len(before) != len(after):
             return LanguageVerdict(
@@ -159,6 +201,7 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
                     "of a state the same length as the one it read"
                 ),
                 length=len(before),
+                writes=writes,
             )
 
     # The cells have to be the SAME cells for the rest of this to mean
@@ -174,16 +217,20 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
     # So: where the cells were transformed, this proof does not apply and does
     # not get claimed. Saying nothing is the correct output of a test whose
     # premise does not hold.
-    for before, after in observed:
-        if sorted(map(repr, before)) != sorted(map(repr, after)):
-            return LanguageVerdict(
-                "undecided",
-                (
-                    "the cells themselves changed, so where each one came from "
-                    "cannot be read off the values, and nothing here is proved "
-                    "either way"
-                ),
-            )
+    if writes != "reorders":
+        # Cells that never went in came out. No rule about where each cell CAME
+        # FROM can produce that — but a rule about what each cell BECOMES can,
+        # and there is one. So this is not a proof of anything; it is a
+        # statement that the question belongs to the other side.
+        return LanguageVerdict(
+            "undecided",
+            (
+                "the cells themselves changed, so where each one came from "
+                "cannot be read off the values, and nothing here is proved "
+                "either way"
+            ),
+            writes=writes,
+        )
 
     by_length: dict[int, list[tuple[tuple, tuple]]] = defaultdict(list)
     for before, after in observed:
@@ -212,6 +259,7 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
                     position=place,
                     length=length,
                     robust=_holds_without_any_one(group, length),
+                    writes=writes,
                 )
             every.append(set(allowed))
             loose += len(allowed) - 1
@@ -226,6 +274,7 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
                 ),
                 length=length,
                 robust=_holds_without_any_one(group, length),
+                writes=writes,
             )
 
     if loose:
@@ -240,6 +289,7 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
                 "from, so more than one rule still fits everything shown — "
                 "another example would settle it and a wider language would not"
             ),
+            writes=writes,
         )
 
     return LanguageVerdict(
@@ -249,4 +299,5 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
             "that will not solve is a search question rather than a language "
             "one"
         ),
+        writes=writes,
     )

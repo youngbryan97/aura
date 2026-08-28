@@ -263,3 +263,51 @@ def test_the_interpreter_and_the_reader_agree_on_what_a_kind_is() -> None:
     for _family, _said, rule in _index_forms(6):
         assert rule.kind in _KINDS_THIS_BUILD_INTERPRETS, rule.kind
     assert "affine" in _KINDS_THIS_BUILD_INTERPRETS
+
+
+def test_what_the_rule_writes_is_arithmetic_not_recognition() -> None:
+    """A cell survives, disappears, or arrives. Three cases, and no fourth.
+
+    Comparing what went in with what came out settles which. Nothing here
+    recognises a family or matches a name, so there is no fourth case for a
+    later one to be missing from — which is the property a list of
+    transformation names never has.
+    """
+
+    reorders = certify([Transition((1, 2, 3), (3, 2, 1)), Transition((4, 5, 6), (6, 5, 4))])
+    drops = certify([Transition((1, 2, 3, 4), (2, 4))])
+    creates = certify([Transition((1, 2, 3), (2, 4, 6)), Transition((4, 5, 6), (8, 10, 12))])
+
+    assert reorders.writes == "reorders"
+    assert drops.writes == "drops"
+    assert creates.writes == "creates"
+
+
+def test_creating_cells_is_not_a_proof_of_anything() -> None:
+    """No rule about where a cell CAME FROM can do it. One about what it BECOMES can.
+
+    "Every value becomes 2 times itself" creates cells that never went in, and
+    the solver has it. Reading the multiset as a refutation would have called
+    an expressible world impossible.
+    """
+
+    from core.cognition.primitive_invention import invent_relation
+
+    doubled = [Transition((1, 2, 3), (2, 4, 6)), Transition((4, 5, 6), (8, 10, 12))]
+    verdict = certify(doubled)
+    assert verdict.writes == "creates"
+    assert not verdict.proven_outside
+    found = invent_relation(doubled)
+    assert found is not None and "2 times itself" in found.form
+
+
+def test_every_verdict_says_what_the_rule_writes() -> None:
+    """Including the ones that return early, which is where it was missing."""
+
+    for world in (
+        [Transition((1, 2, 3, 4), (2, 4))],
+        [Transition((1, 2, 3), (1, 2, 3, 0))],
+        [Transition((3, 1, 2), (1, 2, 3)), Transition((1, 3, 2), (1, 2, 3))],
+        [Transition((1, 2, 3), (3, 2, 1)), Transition((4, 5, 6), (6, 5, 4))],
+    ):
+        assert certify(world).writes in {"reorders", "drops", "creates"}
