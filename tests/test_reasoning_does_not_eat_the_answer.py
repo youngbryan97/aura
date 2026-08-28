@@ -171,3 +171,35 @@ def test_an_answer_that_died_part_way_through_teaches_the_reserve() -> None:
     # A later, smaller failure does not lower what has already been proved.
     thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=512)
     assert thinking_reserve.reserve_tokens() == 1024
+
+
+def test_a_proof_written_by_another_process_reaches_this_one() -> None:
+    """The runtime runs more than one worker, each its own process.
+
+    The store was read once at startup and never again, so a proof paid for
+    by a failed generation in one worker never reached the worker beside it
+    — and never reached anything already running, which is every process that
+    matters: the proof is written the moment a turn fails and wanted on the
+    turn after. Live on 2026-08-28 the store held 1,024 and the generation
+    that needed it was still budgeted at 1,024.
+    """
+
+    import json
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    assert thinking_reserve.reserve_tokens() == 0
+
+    target = thinking_reserve._store_path()
+    assert target is not None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"proved_insufficient": 2048}))
+
+    # No restart, no reload call: asking is enough.
+    assert thinking_reserve.reserve_tokens() == 2048
+
+    # And a store that has not changed is not read again for nothing.
+    before = thinking_reserve._last_seen_store_mtime
+    assert thinking_reserve.reserve_tokens() == 2048
+    assert thinking_reserve._last_seen_store_mtime == before

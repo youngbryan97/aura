@@ -125,6 +125,10 @@ def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
 #: rates because they are the same kind of fact about the same generations.
 _read_rates: list[tuple[int, float]] = []
 
+#: When the store was last read, so a proof another process wrote is taken
+#: back without re-reading a file that has not changed.
+_last_seen_store_mtime: int = -1
+
 
 def _restore_once() -> None:
     """Take back what earlier processes measured, the first time anyone asks."""
@@ -150,6 +154,43 @@ def _written_down() -> None:
         save()
 
 
+def _take_back_any_newer_proof() -> None:
+    """Re-read a proof another process has written since this one started.
+
+    The runtime runs more than one worker, each its own process with its own
+    copy of this module, and the store was read once at startup and never
+    again. So a proof paid for by a failed generation in one worker never
+    reached the worker beside it, and never reached anything already running
+    — which is every process that matters, since the proof is written the
+    moment a turn fails and read on the turn after.
+
+    Cheap and safe to repeat: the file is consulted only when it has changed,
+    and what comes back is folded in as a maximum, so the same proof read
+    twice says the same thing.
+    """
+
+    global _last_seen_store_mtime
+    target = _store_path()
+    if target is None:
+        return
+    try:
+        stamp = target.stat().st_mtime_ns
+    except OSError:
+        return
+    with _lock:
+        if stamp == _last_seen_store_mtime:
+            return
+        _last_seen_store_mtime = stamp
+    try:
+        stored = json.loads(target.read_text())
+        found = int(stored.get("proved_insufficient") or 0)
+    except (OSError, ValueError, TypeError):
+        return
+    global _proved_insufficient
+    with _lock:
+        _proved_insufficient = max(_proved_insufficient, found)
+
+
 def reserve_tokens() -> int:
     """Tokens to add to an answer budget so reasoning does not eat it.
 
@@ -159,6 +200,7 @@ def reserve_tokens() -> int:
     """
 
     _restore_once()
+    _take_back_any_newer_proof()
     with _lock:
         seen = sorted(_observed)
         proved = _proved_insufficient
@@ -332,12 +374,14 @@ def observations() -> int:
 def forget() -> None:
     """Drop what has been learned. For tests and for a model swap."""
 
-    global _proved_insufficient, _restored
+    global _proved_insufficient, _restored, _last_seen_store_mtime
     with _lock:
         _observed.clear()
         _rates.clear()
         _read_rates.clear()
         _proved_insufficient = 0
+        # And forget having read the store, or a re-read would take it back.
+        _last_seen_store_mtime = -1
         # Stops THIS process taking the readings back on the next call.
         _restored = True
     # And removes them, which the line above does not do and the comment here
