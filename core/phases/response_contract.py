@@ -444,6 +444,34 @@ _SENSITIVE_PROCESS_DESCRIPTION_PATTERNS = tuple(
 )
 
 
+#: What the model cannot work out for itself, and therefore has to be told.
+#:
+#: Named exactly rather than matched by shape: a heuristic here would quietly
+#: reclassify a line the next time somebody edited its wording.
+_FACT_PREFIXES = (
+    "## RESPONSE CONTRACT",
+    "- Current local date:",
+    "- Current local time:",
+    "- Tool evidence available right now:",
+    "- Preferred search target:",
+    "- Exact format instruction:",
+    "- Memory evidence available right now:",
+    "- Continuity/self evidence available right now:",
+    "- Tool/function-call budget for this reply:",
+    "- Read as a capability inventory",
+)
+
+
+def _facts_among(directives: list[str]) -> list[str]:
+    """The lines that state something, in the order they were built."""
+
+    return [
+        line
+        for line in directives
+        if any(line.startswith(prefix) for prefix in _FACT_PREFIXES)
+    ]
+
+
 @dataclass(frozen=True)
 class ResponseContract:
     is_user_facing: bool = False
@@ -509,8 +537,10 @@ class ResponseContract:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    def to_prompt_block(self) -> str:
-        directives = []
+    def _all_directives(self) -> list[str]:
+        """Every line this contract would say, facts and rules together."""
+
+        directives: list[str] = []
         reasons = self.reason or "state-derived dialogue contract"
         directives.append(f"## RESPONSE CONTRACT\n- Reason: {reasons}")
 
@@ -617,9 +647,17 @@ class ResponseContract:
             )
 
         if self.requires_capability_inventory:
+            # The classification is a fact the runtime worked out and the model
+            # cannot: asking what something CAN do reads much like asking it to
+            # do it. What follows from that is a rule, and the effect ceiling
+            # already holds it — nothing above the ceiling can run whatever the
+            # prompt says.
             directives.append(
-                "- This is a capability inventory/status question, not a request to execute tools. "
-                "Answer from the active governed capability catalog at a bounded, category-level summary. "
+                "- Read as a capability inventory/status question, not a request "
+                "to execute tools."
+            )
+            directives.append(
+                "- Answer from the active governed capability catalog at a bounded, category-level summary. "
                 "Do not start browser, desktop, terminal, file, network, or self-modification actions unless the user explicitly asks for execution."
             )
 
@@ -663,7 +701,43 @@ class ResponseContract:
                 "- Do not dodge by ending on a generic question. Answer, relate, and advance."
             )
 
-        return "\n".join(directives) + "\n"
+        return directives
+
+    def to_prompt_block(self) -> str:
+        directives = self._all_directives()
+        # Facts reach the model. Rules reach the gates.
+        #
+        # Every line below that begins "Do not", "Never", "Answer every" or
+        # "Self-report from" is an instruction about how to reply, and each one
+        # has a check that already enforces it on the way out: generic
+        # assistant language, unanswered question parts, ungrounded continuity,
+        # question-fishing. A rule stated in the prompt AND enforced at the gate
+        # is the same judgement in two places, and the prompt copy is the one
+        # that cannot be measured.
+        #
+        # LIVE, 2026-08-28: a 213-character question arrived under a
+        # 5,180-character scaffold — a ratio of 24 — and the reply that came
+        # back did not answer it. Most of that scaffold was this block telling
+        # the model what kind of reply to write.
+        #
+        # What stays is what the model cannot work out for itself: today's
+        # date, whether evidence is actually available, the format the person
+        # asked for, and the budgets this turn is held to. Facts, not manners.
+        return "\n".join(_facts_among(directives)) + "\n"
+
+    def to_rule_block(self) -> str:
+        """The instructions, for anything that still wants to read them.
+
+        Nothing in the prompt path does. Kept because deleting them outright
+        would lose the record of what was once being asked for, and because a
+        rule with no gate should be found and given one rather than quietly
+        dropped.
+        """
+
+        directives = self._all_directives()
+        return "\n".join(
+            line for line in directives if line not in set(_facts_among(directives))
+        )
 
 
 def _matches_any(text: str, patterns: tuple[re.Pattern, ...] | tuple[str, ...]) -> bool:

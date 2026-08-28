@@ -90,8 +90,14 @@ def test_response_contract_treats_external_tool_inventory_as_bounded_self_report
     assert contract.max_tools == 0
     assert "capability_inventory" in contract.reason
     prompt_block = contract.to_prompt_block()
-    assert "capability inventory/status question" in prompt_block
+    # The classification reaches the model, because asking what something CAN
+    # do reads much like asking it to do it and only the runtime has worked out
+    # which this was. What follows from the classification is a rule the effect
+    # ceiling already holds, and it is no longer recited in the prompt.
+    assert "capability inventory" in prompt_block
     assert "at most 0 tool turns" in prompt_block
+    assert "Do not start browser" not in prompt_block
+    assert "Do not start browser" in contract.to_rule_block()
 
 
 def test_response_contract_does_not_treat_desktop_execution_as_tool_inventory():

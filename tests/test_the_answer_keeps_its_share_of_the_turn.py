@@ -16,19 +16,19 @@ from __future__ import annotations
 import pytest
 
 from core.brain.inference_gate import (
-    _ANSWER_RESERVE_S,
+    _ANSWER_RESERVE_FALLBACK_S,
     _TOOL_LOOP_FLOOR_S,
     _tool_loop_budget,
 )
 
 
 def test_a_long_turn_keeps_time_back_for_the_answer() -> None:
-    assert _tool_loop_budget(148.0) == 148.0 - _ANSWER_RESERVE_S
+    assert _tool_loop_budget(148.0) == 148.0 - _ANSWER_RESERVE_FALLBACK_S
 
 
 def test_the_reserve_is_enough_to_write_over_an_evidence_block() -> None:
     """The live failure had 0 seconds left; anything under a few is the same bug."""
-    assert _ANSWER_RESERVE_S >= 30.0
+    assert _ANSWER_RESERVE_FALLBACK_S >= 30.0
 
 
 @pytest.mark.parametrize("budget", [60.0, 45.0, 20.0, 5.0, 0.0, -3.0])
