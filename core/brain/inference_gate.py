@@ -4857,6 +4857,24 @@ class InferenceGate:
     on_stop = cleanup
 
 
+
+    @staticmethod
+    def _reasoning_reserve() -> int:
+        """What the worker will add to this turn's budget for thinking.
+
+        Read here so the clock covers the same number of tokens the worker
+        will actually decode. Zero where nothing has been measured, and zero
+        where the reserve cannot be reached, which is the same silence every
+        other unmeasured quantity keeps.
+        """
+
+        try:
+            from core.brain.llm.thinking_reserve import reserve_tokens
+
+            return max(0, int(reserve_tokens()))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0
+
     @staticmethod
     def _tokens_the_clock_can_deliver(max_tokens: Any, *, seconds: float) -> int:
         """Cut a token budget the clock cannot pay for at the measured rate.
@@ -13804,7 +13822,13 @@ class InferenceGate:
             # clock checked against what it had been asked to produce, which
             # is every conversational turn there is.
             if _is_user_facing or 0 < _answer_floor_final or _generations > 1:
-                _decode_s = _seconds_to_decode(max_tokens)
+                # The budget this clock has to cover is not the one the gate
+                # asked for. On a thinking model the worker adds the reasoning
+                # reserve to it, on the far side of this calculation, so the
+                # clock was sized for 1,024 tokens while up to 2,048 were
+                # decoded against it — and the extra was exactly the room the
+                # reserve had been raised to provide.
+                _decode_s = _seconds_to_decode(max_tokens + self._reasoning_reserve())
                 # Reading the prompt is the other half of a generation, and
                 # on this hardware it is the larger half. A turn was given time
                 # to SAY its answer and none to read the question.

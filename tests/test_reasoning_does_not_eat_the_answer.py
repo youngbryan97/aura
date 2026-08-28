@@ -286,3 +286,22 @@ def test_an_unmeasured_rate_cuts_nothing() -> None:
 
     thinking_reserve.forget()
     assert InferenceGate._tokens_the_clock_can_deliver(4096, seconds=1.0) == 4096
+
+
+def test_the_clock_covers_the_reserve_the_worker_will_add() -> None:
+    """The gate sizes the clock; the worker adds the reserve afterwards.
+
+    So the clock was priced for the budget the gate asked for while up to
+    twice that many tokens were decoded against it, and the extra was exactly
+    the room the reserve had been raised to provide. Live on 2026-08-28 the
+    answer arrived correct and stopped at "1." — the first list item.
+    """
+
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    assert InferenceGate._reasoning_reserve() == 0
+
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=1024)
+    assert InferenceGate._reasoning_reserve() == 1024
