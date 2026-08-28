@@ -99,6 +99,13 @@ long-horizon goals under interruption; unfamiliar professional domain; infer an
 unfamiliar visual environment; generalise from sparse examples; frozen
 unseen-task battery.
 
+## H. Found and not yet fixed
+
+- [ ] **H1** The answer clock extends `timeout_val` after `request_deadline` was
+  already built from the old value, so the extension is computed, logged, and
+  then not honoured. LIVE 2026-08-28: "deadline 96s → 217s" and the request
+  expired at 98s.
+
 ## G. Standing
 
 - Live, in the browser, as a user types. Never curl.
