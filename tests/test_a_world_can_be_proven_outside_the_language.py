@@ -149,3 +149,44 @@ def test_a_shortage_of_evidence_is_told_apart_from_both() -> None:
     )
     assert verdict.standing == "undecided"
     assert "another example" in verdict.reason
+
+
+def test_the_proof_actually_fires_on_the_battery() -> None:
+    """The test that was missing, and its absence is the whole lesson.
+
+    The proof was written, tested against worlds built by hand for it, and
+    passed. On the one battery that exists it fired on zero problems out of a
+    hundred and twenty — including all ten it was written for — because every
+    problem showed its two states at two DIFFERENT lengths. Each length was seen
+    once, there was nothing to intersect, and a correct mechanism sat inert
+    behind a green suite.
+
+    Repetition within a length is what makes a language refutable. Variation
+    across lengths is what makes a rule identifiable. A battery needs both.
+    """
+
+    from core.cognition.induction_battery import generate_battery
+
+    battery = generate_battery()
+    outside = [p for p in battery if p.shape == "reordered by the cells"]
+    inside = [p for p in battery if p.shape != "reordered by the cells"]
+    assert len(outside) == 10
+
+    proved = [p for p in outside if certify(list(p.shown)).proven_outside]
+    assert len(proved) >= 8, f"only {len(proved)}/10 refuted"
+
+    # And never on a shape that is expressible. A proof that fires where a rule
+    # exists is worse than no proof.
+    assert not [p for p in inside if certify(list(p.shown)).proven_outside]
+
+
+def test_a_length_is_shown_twice() -> None:
+    """The property the battery has to have for any of that to be possible."""
+
+    from core.cognition.induction_battery import generate_battery
+
+    for problem in generate_battery():
+        lengths = [len(item.before) for item in problem.shown]
+        assert len(lengths) > len(set(lengths)), problem.name
+        # And still more than one length, or nothing is identifiable.
+        assert len(set(lengths)) >= 2, problem.name

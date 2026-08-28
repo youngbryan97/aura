@@ -572,7 +572,14 @@ def _value_map(
     # form of that: some value has to have been seen twice and behaved the same
     # way both times. Then the table is a claim about that value rather than a
     # record of one occasion.
-    if len(substitution) >= len(pairs):
+    #
+    # One value repeating is not enough of that. Asking only for FEWER entries
+    # than pairs let a single fixed point — 5 becoming 5, seen twice — license
+    # ten arbitrary entries beside it, and the table then fired as a fallback
+    # and answered confidently wrong. Half is the honest reading of "smaller
+    # than what it accounts for": every entry carries two observations on
+    # average, not one plus a rounding error.
+    if len(substitution) * 2 > len(pairs):
         return None
     shown = ", ".join(f"{a!r}->{b!r}" for a, b in sorted(changed, key=repr)[:4])
     return (

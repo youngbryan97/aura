@@ -284,10 +284,32 @@ def generate_battery(*, seed: int = 20260828, per_cell: int = 2) -> list[Problem
                 for length in lengths[:2]:
                     before = build(length, rng.randrange(1000))
                     shown.append(Transition(before, shape(before)))
+                # A second state at a length already shown.
+                #
+                # Every problem used to show its two states at two DIFFERENT
+                # lengths, so each length was seen exactly once and there was
+                # never anything to intersect. That makes a rule identifiable —
+                # one length cannot separate a mirror from an exchange — and it
+                # makes the language unrefutable: the proof that no value-blind
+                # rule exists compares what one position had to take from on
+                # two occasions, and there were never two occasions.
+                #
+                # The detector was correct and could not fire on a single one
+                # of the 120, including all ten it was written for. Repetition
+                # within a length is what makes a language refutable; variation
+                # across lengths is what makes a rule identifiable, and a
+                # battery needs both or it measures only one of them.
+                again = build(lengths[0], rng.randrange(1000))
+                shown.append(Transition(again, shape(again)))
                 held_before = build(lengths[2], rng.randrange(1000))
                 problems.append(
                     Problem(
-                        name=f"{shape_name} / {rep_name} / {lengths}",
+                        # The index is in the name because the lengths are not
+                        # enough to tell two problems apart: the generator drew
+                        # the same triple twice and produced 120 problems under
+                        # 119 names, so Report.missed lost one of them into the
+                        # other and nobody could have noticed from the score.
+                        name=f"{shape_name} / {rep_name} / {lengths} #{len(problems)}",
                         shown=tuple(shown),
                         held_out=Transition(held_before, shape(held_before)),
                         shape=shape_name,

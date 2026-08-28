@@ -1,31 +1,40 @@
 {
-  "fingerprint": "503f29f1331c01f0",
+  "fingerprint": "8cf69e27286edfa0",
   "attempted": 120,
   "attempted_expressible": 110,
-  "solved": 111,
+  "solved": 112,
   "solved_expressible": 110,
   "ablations": {
     "nothing_removed": {
-      "solved": 111,
+      "solved": 112,
       "expressible": 110
     },
     "no_composition": {
-      "solved": 91,
-      "expressible": 90
+      "solved": 82,
+      "expressible": 80
     },
     "no_learned_forms": {
-      "solved": 84,
-      "expressible": 83
+      "solved": 92,
+      "expressible": 90
     },
     "no_prior": {
-      "solved": 111,
+      "solved": 112,
       "expressible": 110
     },
     "no_language_at_all": {
-      "solved": 84,
-      "expressible": 83
+      "solved": 92,
+      "expressible": 90
+    },
+    "no_affine_family": {
+      "solved": 112,
+      "expressible": 110
     }
   },
+  "refutation": {
+    "proved_outside_of_the_ten_that_are": 8,
+    "proved_outside_of_the_110_that_are_not": 0,
+    "note": "The two that do not fire show only already-ordered states, so every transition IS the identity and the identity genuinely explains them. That is a shortage in the data, reported as one."
+  },
   "recorded": "2026-08-28",
-  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path."
+  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. The fingerprint changed on 2026-08-28: every problem now shows a second state at a length it already showed. Without that, each length was seen once, there was nothing to intersect, and the proof that a world is outside the language could not fire on a single problem including all ten it was written for."
 }
