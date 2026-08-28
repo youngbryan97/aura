@@ -8090,6 +8090,7 @@ class InferenceGate:
         evidence: Any = None,
         completed_capability_evidence: Any = None,
         allow_tools: bool = True,
+        decode_budget: int = 0,
     ) -> str | None:
         """Answer by running the capability the request needs, or return None.
 
@@ -8188,6 +8189,25 @@ class InferenceGate:
             result = await asyncio.wait_for(
                 client.think_and_act(
                     objective=text,
+                    # The budget this turn decided on, not the client's default.
+                    #
+                    # LIVE, 2026-08-28: "read the docs, then use it" read three
+                    # files, said "Running it now:", and emitted a code_repl
+                    # call whose argument was cut off mid-import. The turn's
+                    # clock had allocated 1536 tokens and every generation in
+                    # the loop got 399, so the narration and the opening of the
+                    # program together reached the ceiling and the call was
+                    # never a call — it arrived as prose, was judged prose
+                    # containing prompt scaffolding, and was correctly refused.
+                    #
+                    # She decided to run the code. The room to say so was the
+                    # thing missing, and the room had already been worked out
+                    # one function up.
+                    **(
+                        {"max_tokens": int(decode_budget)}
+                        if int(decode_budget or 0) > 0
+                        else {}
+                    ),
                     # An execution turn is not a conversation turn.
                     #
                     # The foreground system prompt is the full conversational
@@ -13933,6 +13953,7 @@ class InferenceGate:
                             completed_capability_evidence=context.get(
                                 "completed_capability_evidence"
                             ),
+                            decode_budget=int(max_tokens or 0),
                             allow_tools=(
                                 bool(context.get("allow_tools", True))
                                 and not bool(
