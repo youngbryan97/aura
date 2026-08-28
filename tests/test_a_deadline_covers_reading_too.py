@@ -83,3 +83,53 @@ def test_forgetting_forgets_the_read_rate_too() -> None:
     assert seconds_to_read(6298) > 0.0
     forget()
     assert seconds_to_read(6298) == 0.0
+
+
+def test_the_reading_rate_survives_a_restart(monkeypatch, tmp_path) -> None:
+    """A measurement that does not survive is a measurement nobody has.
+
+    The recorder was added and its persistence was not, so the rate was learned
+    in one process, could not be read from any other, and every restart began
+    knowing nothing about how long a prompt takes to read — on a runtime that
+    restarts whenever the model changes.
+    """
+
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path))
+    from core.brain.llm import thinking_reserve as reserve
+
+    reserve.forget()
+    for _ in range(12):
+        reserve.record_read_rate(prompt_chars=6000, elapsed_s=110.0)
+    learned = reserve.seconds_to_read(6298)
+    assert learned > 0.0
+    assert reserve.save()
+
+    # A fresh process: memory empty, the file still there.
+    reserve._read_rates.clear()
+    reserve._restored = False
+    assert reserve.seconds_to_read(6298) == pytest.approx(learned)
+    reserve.forget()
+
+
+def test_a_corrupt_row_on_disk_does_not_take_the_rest_with_it(
+    monkeypatch, tmp_path
+) -> None:
+    """The file is read by a later process, so it is where corruption arrives."""
+
+    import json
+
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path))
+    from core.brain.llm import thinking_reserve as reserve
+
+    reserve.forget()
+    rows = [[6000, 54.5] for _ in range(12)]
+    rows.insert(4, ["not a number", "nor this"])
+    rows.insert(9, [0, -1.0])
+    (tmp_path / "decode_measurements.json").write_text(
+        json.dumps({"read_rates": rows, "rates": [], "reasoning_tokens": []})
+    )
+
+    reserve._read_rates.clear()
+    reserve._restored = False
+    assert reserve.seconds_to_read(6298) > 0.0
+    reserve.forget()

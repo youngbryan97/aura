@@ -115,6 +115,11 @@ def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
     save()
 
 
+#: Prefill rates, as (prompt_chars, chars_per_second) pairs. Beside the decode
+#: rates because they are the same kind of fact about the same generations.
+_read_rates: list[tuple[int, float]] = []
+
+
 def _restore_once() -> None:
     """Take back what earlier processes measured, the first time anyone asks."""
 
@@ -207,8 +212,7 @@ def seconds_to_decode(tokens: int) -> float:
     return wanted / rate
 
 
-#: Prefill rates, as (prompt_chars, chars_per_second) pairs.
-_read_rates: list[tuple[int, float]] = []
+
 
 
 def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
@@ -346,6 +350,14 @@ def save() -> bool:
                 "reasoning_tokens": list(_observed),
                 "proved_insufficient": _proved_insufficient,
                 "rates": [[length, rate] for length, rate in _rates],
+                # Reading rates as well as decoding ones.
+                #
+                # The measurement was added and its persistence was not, so it
+                # was learned in one process and could not be read from any
+                # other, and every restart began knowing nothing about how long
+                # a prompt takes to read. A measurement that does not survive
+                # is a measurement nobody has.
+                "read_rates": [[size, rate] for size, rate in _read_rates],
             }
         )
     try:
@@ -389,6 +401,14 @@ def load() -> int:
                 length, rate = row
                 if int(length) > 0 and float(rate) > 0.0:
                     _rates.append((int(length), float(rate)))
+                    taken += 1
+            except (TypeError, ValueError):
+                continue
+        for row in raw.get("read_rates") or ():
+            try:
+                size, rate = row
+                if int(size) > 0 and float(rate) > 0.0:
+                    _read_rates.append((int(size), float(rate)))
                     taken += 1
             except (TypeError, ValueError):
                 continue
