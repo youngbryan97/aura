@@ -149,3 +149,39 @@ def test_a_budget_proved_unable_to_close_the_channel_keeps_it_shut() -> None:
 
 def test_a_job_with_no_budget_is_left_to_the_floor_alone() -> None:
     assert _answer_is_derived_here({"user_surface_completion_floor": 896})
+
+
+def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
+    """The clock spent proving it will not close is spent for nothing.
+
+    LIVE, 2026-08-27: the first attempt burned 98 of a 148-second turn
+    discovering the channel would not close, and the retry that did answer had
+    50 seconds and produced 85 characters.
+    """
+
+    import time as _time
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    try:
+        def job(seconds_left: float) -> dict[str, object]:
+            return {
+                "user_surface_completion_floor": 896,
+                "max_tokens": 896,
+                "deadline_unix": _time.time() + seconds_left,
+            }
+
+        # An unmeasured rate cannot refuse anything.
+        assert _answer_is_derived_here(job(30))
+        for _ in range(20):
+            thinking_reserve.record_decode_rate(generated_tokens=60, elapsed_s=10.0)
+        # 896 tokens at six a second is about 149 seconds.
+        assert not _answer_is_derived_here(job(30))
+        assert _answer_is_derived_here(job(300))
+        # A job that states no deadline is left to the other tests.
+        assert _answer_is_derived_here(
+            {"user_surface_completion_floor": 896, "max_tokens": 896}
+        )
+    finally:
+        thinking_reserve.forget()

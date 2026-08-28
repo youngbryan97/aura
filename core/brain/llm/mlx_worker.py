@@ -564,7 +564,45 @@ def _answer_is_derived_here(job: dict[str, Any]) -> bool:
     # question with the channel closed had served a real partial derivation.
     if 0 < budget <= proved:
         return False
+    # And do not open a channel there is not time to close. A generation that
+    # ends inside it has no surface, so the clock spent proving that is spent
+    # for nothing — and the retry inherits whatever is left of the turn.
+    #
+    # LIVE, 2026-08-27: the first attempt burned 98 of a 148-second turn
+    # discovering the channel would not close, and the retry that did answer
+    # had 50 seconds and produced 85 characters. The token proof survives only
+    # in memory, so every restart paid that 98 seconds again. The decode rate
+    # does not need to survive anything: it is measured on every generation,
+    # including the background ones.
+    _remaining = _seconds_left_on(job)
+    if _remaining > 0.0 and budget > 0:
+        _needed = _seconds_to_decode(budget)
+        if 0.0 < _remaining < _needed:
+            return False
     return True
+
+
+def _seconds_left_on(job: dict[str, Any]) -> float:
+    """Wall clock still available to this generation, or 0.0 if unstated."""
+
+    try:
+        deadline = float(job.get("deadline_unix") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if not (deadline > 0.0):
+        return 0.0
+    return max(0.0, deadline - time.time())
+
+
+def _seconds_to_decode(tokens: int) -> float:
+    """How long this budget takes at the measured rate, or 0.0 if unmeasured."""
+
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+
+        return float(seconds_to_decode(tokens))
+    except (ImportError, TypeError, ValueError):
+        return 0.0
 
 
 def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
