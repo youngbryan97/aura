@@ -2989,6 +2989,27 @@ def _tool_call_budget(requested: Any, configured: Any, tools: Any) -> int:
     return granted
 
 
+def _offered_for_budgeting(options: Mapping[str, Any]) -> Any:
+    """The tools this generation may call, whichever protocol it speaks.
+
+    ``tools`` carries the definitions only when the model's NATIVE tool
+    template is in use. A model whose template has no tool support, or one
+    whose native attempt came back empty, is served the same call through a
+    JSON contract in the prompt — and that path set ``tools`` to None, so every
+    protection written for tool calls stopped applying to it.
+
+    The protections are about what the turn is doing. A call expressed as JSON
+    in the text needs MORE room than a native one, not less, because the whole
+    envelope is generated rather than templated.
+
+    LIVE, 2026-08-28: "read the docs, then use it" was cut off inside
+    ``from ledgerkit imp`` at a 399-token pressure cap, on a turn that had been
+    granted 2048 and whose tools included one taking a program as an argument.
+    """
+
+    return options.get("tools") or options.get("tool_budget_definitions")
+
+
 def _tools_can_carry_a_document(tools: Any) -> bool:
     """Whether any offered tool takes an argument the size of a file."""
     if not tools:
@@ -3066,7 +3087,7 @@ def _apply_memory_pressure_generation_controls(
         # `<script type=`, because a 4096-token default had been scaled to 970
         # — a fair size for prose and half a page.
         effective_cap = max(pressure_cap, requested_max_tokens)
-    elif options.get("tools"):
+    elif _offered_for_budgeting(options):
         # A tool call is an execution turn, and the paragraph above applies to
         # it word for word: clamped below the size of a call, she cannot
         # express the call, so nothing runs.
@@ -3093,7 +3114,7 @@ def _apply_memory_pressure_generation_controls(
             pressure_cap,
             int(options.get("tool_call_token_floor", 0) or _TOOL_CALL_TOKEN_FLOOR),
         )
-        if _tools_can_carry_a_document(options.get("tools")):
+        if _tools_can_carry_a_document(_offered_for_budgeting(options)):
             effective_cap = max(effective_cap, requested_max_tokens)
     elif clean_user_surface and completion_floor > 0 and pressure_cap >= 192:
         # The resident model's normal RSS places the process-ratio probe in its
@@ -10362,6 +10383,20 @@ class MLXLocalClient:
                 if type(requested_tokens_raw) is int and requested_tokens_raw > 0
                 else 0
             )
+            # The last number before the worker, beside the one the client
+            # granted. A budget that shrinks somewhere between them is
+            # invisible from either end: the client's log says 2048 and the
+            # worker's says 399, and nothing says which layer took the
+            # difference.
+            if int(requested_tokens or 0) and int(requested_tokens) < int(
+                getattr(self, "max_tokens", 0) or 0
+            ):
+                logger.info(
+                    "🔧 Decode budget on the wire: %d, against a client ceiling "
+                    "of %d — something between them reduced it.",
+                    int(requested_tokens),
+                    int(getattr(self, "max_tokens", 0) or 0),
+                )
             prompt_chars = len(prompt or "") + sum(
                 len(str(message.get("content") or ""))
                 for message in (messages or [])
@@ -14572,6 +14607,7 @@ class MLXLocalClient:
                 memory_snapshot,
                 default_max_tokens=self.max_tokens,
             )
+            kwargs.pop("tool_budget_definitions", None)
             if memory_snapshot.should_gc:
                 gc.collect()
             # Consume the override only when the refusal it would bypass is
@@ -15580,6 +15616,11 @@ class MLXLocalClient:
                 "",
                 messages=messages,
                 tools=native_tools,
+                # What this turn may call, for budgeting, whichever protocol it
+                # speaks. `tools` above is the native template's channel and is
+                # None on the JSON contract; the budget must not depend on
+                # which of the two is in use.
+                tool_budget_definitions=template_tools or None,
                 # A call is not a reply, and inheriting the reply's budget cut
                 # one in half.
                 #
