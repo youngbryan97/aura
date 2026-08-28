@@ -305,3 +305,35 @@ def test_the_clock_covers_the_reserve_the_worker_will_add() -> None:
 
     thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=1024)
     assert InferenceGate._reasoning_reserve() == 1024
+
+
+def test_a_long_budget_is_priced_on_long_runs() -> None:
+    """Decoding slows as it goes, so short runs are the wrong evidence.
+
+    The fallback pooled every run long enough to time, on the reasoning that a
+    short one amortises its prefill over fewer tokens and is therefore the
+    slower per token. This runtime measures the opposite: short runs reach
+    eleven to thirty-five tokens a second and a thousand-token run managed
+    ten, because the cache being attended over keeps growing.
+
+    Live on 2026-08-28 that put 1,536 tokens at 95 seconds, the deadline was
+    set to 99, and the generation was cut at 1,182 with the answer half
+    written.
+    """
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    # Plenty of fast short runs, and a handful of slow long ones — the shape
+    # this runtime actually has.
+    for _ in range(30):
+        thinking_reserve.record_decode_rate(generated_tokens=50, elapsed_s=2.0)
+    for _ in range(4):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+
+    # Nothing is comparable to 1,536 tokens, so the fallback decides. It must
+    # answer with the ten-a-second the long runs measured, not the
+    # twenty-five-a-second of the short ones.
+    priced = thinking_reserve.seconds_to_decode(1536)
+    assert priced > 0
+    assert 9.0 <= 1536 / priced <= 11.0, f"{1536 / priced:.1f} tok/s"

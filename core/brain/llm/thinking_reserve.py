@@ -268,13 +268,34 @@ def seconds_to_decode(tokens: int) -> float:
             # exists to protect, and they are rare partly BECAUSE the deadline
             # it could not extend kept cancelling them.
             #
-            # Safe in the direction a deadline needs. A short run amortises its
-            # prefill over fewer tokens, so its per-token rate is the worse one:
-            # using it for a long budget over-estimates the time and asks for
-            # more deadline, never less.
-            comparable = sorted(
-                rate for length, rate in _rates if length >= _LONG_ENOUGH_TO_TIME
-            )
+            # The longest runs there are, rather than every run there is.
+            #
+            # The reasoning here used to be that a short run amortises its
+            # prefill over fewer tokens and is therefore the slower per token,
+            # so borrowing its rate would over-estimate and ask for more
+            # deadline than needed. That is not what this runtime measures.
+            # Decoding gets SLOWER as it goes, because the cache it attends
+            # over keeps growing: short runs here reach eleven to thirty-five
+            # tokens a second and a thousand-token run managed ten.
+            #
+            # So pooling them all under-priced exactly the budgets this is
+            # asked about. Live on 2026-08-28 it put 1,536 tokens at 95
+            # seconds — sixteen a second — the deadline was set to 99, and the
+            # generation was cut at 1,182 tokens with the answer half-written.
+            #
+            # Taking the longest runs on record keeps the evidence as close to
+            # the question as the readings allow, and the slow-end percentile
+            # below still applies within them.
+            longest = sorted(
+                (
+                    (length, rate)
+                    for length, rate in _rates
+                    if length >= _LONG_ENOUGH_TO_TIME
+                ),
+                key=lambda row: row[0],
+                reverse=True,
+            )[:_ENOUGH_TO_EXPRESS_A_PERCENTILE]
+            comparable = sorted(rate for _length, rate in longest)
     if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         return 0.0
     index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
