@@ -4212,7 +4212,10 @@ def _authored_answer_can_serve_unfinished(contract: Any) -> bool:
 
     return bool(
         isinstance(contract, dict)
-        and contract.get("authentic_cognitive_reply")
+        # Whose words these are, not whether the engine liked them. This site
+        # is reached only when it did not, so asking for its approval here
+        # asks for the one thing that cannot be true.
+        and contract.get("engine_authored_the_text")
         and contract.get("final_requested_output_contract_proven")
         and not contract.get("authorship_replacement_applied")
         and not contract.get("legacy_fallback_used")

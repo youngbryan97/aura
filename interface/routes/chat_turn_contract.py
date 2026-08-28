@@ -962,6 +962,25 @@ def _build_live_turn_contract_payload(
             and protected_foreground_generation_proven
         )
     )
+    # Whose words these are, apart from whether they were good enough.
+    #
+    # `authored_generation_source_proven` requires the engine to have ACCEPTED
+    # the reply, so authorship and quality are one flag. They are different
+    # facts, and the last-resort salvage site needs the first: it exists
+    # because of the second.
+    #
+    # LIVE, 2026-08-28: twelve reasoning questions came back with the canned
+    # apology. The engine had run, written a real partial answer, judged it not
+    # good enough, and the salvage refused to serve it for want of a proof that
+    # said "the engine accepted this" — at a site reached only when it did not.
+    engine_authored_the_text = bool(
+        engine_think_invoked
+        and not engine_reply_failed
+        and not bounded_contract_used
+        and not legacy_fallback_used
+        and not authorship_replacement_applied
+        and single_owner_model_generation_proven
+    )
     authentic_cognitive_reply = bool(
         authored_generation_source_proven
         and not engine_reply_failed
@@ -1137,6 +1156,7 @@ def _build_live_turn_contract_payload(
         "repair_retry_attempt_count": repair_retry_attempt_count,
         "single_owner_model_generation_proven": single_owner_model_generation_proven,
         "cognitive_engine_reply_accepted": engine_reply_accepted,
+        "engine_authored_the_text": engine_authored_the_text,
         "cognitive_engine_reply_failed": engine_reply_failed,
         "bounded_contract_used": bounded_contract_used,
         "legacy_fallback_used": legacy_fallback_used,
