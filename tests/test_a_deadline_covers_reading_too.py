@@ -133,3 +133,38 @@ def test_a_corrupt_row_on_disk_does_not_take_the_rest_with_it(
     reserve._restored = False
     assert reserve.seconds_to_read(6298) > 0.0
     reserve.forget()
+
+
+def test_the_reading_rate_can_speak_for_a_large_prompt() -> None:
+    """The same blind spot the decode rate had, on the other axis.
+
+    Readings cluster at the sizes a runtime actually generates, and the prompt
+    sizes worth asking about are far above them — so a 47,000-character prompt
+    cost nothing as far as any budget could tell.
+    """
+
+    from core.brain.llm.thinking_reserve import _BIG_ENOUGH_TO_TIME
+
+    reserve = __import__(
+        "core.brain.llm.thinking_reserve", fromlist=["thinking_reserve"]
+    )
+    reserve.forget()
+    for _ in range(14):
+        reserve.record_read_rate(prompt_chars=5000, elapsed_s=6.0)
+    got = reserve.seconds_to_read(47_000)
+    assert got > 0.0
+    # About 830 chars a second over 47,000.
+    assert 40.0 < got < 80.0, got
+    assert _BIG_ENOUGH_TO_TIME > 1
+    reserve.forget()
+
+
+def test_a_prompt_too_small_to_time_is_still_excluded() -> None:
+    reserve = __import__(
+        "core.brain.llm.thinking_reserve", fromlist=["thinking_reserve"]
+    )
+    reserve.forget()
+    for _ in range(30):
+        reserve.record_read_rate(prompt_chars=20, elapsed_s=1.0)
+    assert reserve.seconds_to_read(47_000) == 0.0
+    reserve.forget()

@@ -893,6 +893,22 @@ class ContextAssembler:
 
     @classmethod
     def _elasticity_level(cls, state: AuraState) -> int:
+        # A fraction of the WINDOW is not the only cost.
+        #
+        # The docstring above says a count is not a cost, and replaced counting
+        # turns with a fraction of the window. Measured live on 2026-08-28, a
+        # fraction of the window is not a cost either: a 50,500-character
+        # prompt sat at a fifth of a 32,768-token window — elasticity 0, not a
+        # character trimmed — while the model spent 191.6 seconds reading it,
+        # which was the whole turn.
+        #
+        # The missing term is time, and both rates are measured now
+        # (thinking_reserve.seconds_to_read and seconds_to_decode). What is
+        # missing to USE them is a reference: expensive compared to what. The
+        # honest reference is this turn's own deadline, and it does not reach
+        # here. Wiring it through is the work; a threshold picked without it
+        # would be a number chosen to make the arithmetic come out, which is
+        # what the two previous versions of this rule already were.
         pressure = cls._transcript_pressure(state)
         level = 0
         for step in cls._PRESSURE_STEPS:

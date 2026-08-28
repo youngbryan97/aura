@@ -253,6 +253,11 @@ def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
     _written_down()
 
 
+#: Below this a prompt is mostly fixed overhead and its per-character rate says
+#: more about starting up than about reading.
+_BIG_ENOUGH_TO_TIME = 400
+
+
 def seconds_to_read(prompt_chars: int) -> float:
     """How long a prompt of this size takes to read, or 0.0 when unmeasured.
 
@@ -278,6 +283,23 @@ def seconds_to_read(prompt_chars: int) -> float:
         comparable = sorted(
             rate for size, rate in _read_rates if size * 2 >= wanted
         )
+        if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+            # Nothing comparable, so anything big enough to time.
+            #
+            # The same blind spot the decode rate had: readings cluster at the
+            # sizes a runtime actually generates, and the prompt sizes worth
+            # asking about are far above them. Silence here meant a 47,000
+            # character prompt cost nothing as far as any budget could tell.
+            #
+            # A smaller prompt spreads its fixed overhead over fewer
+            # characters, so its per-character rate is the worse one and this
+            # over-estimates rather than under-estimates. For a decision about
+            # whether to TRIM that is the cautious side while the alternative
+            # is three minutes of reading, and the levels are graded rather
+            # than all-or-nothing.
+            comparable = sorted(
+                rate for size, rate in _read_rates if size >= _BIG_ENOUGH_TO_TIME
+            )
     if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         return 0.0
     index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
