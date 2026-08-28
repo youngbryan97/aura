@@ -14192,6 +14192,12 @@ class InferenceGate:
                                     "surface_quality_gate_reasons",
                                     "semantic_completion_quality_reasons",
                                     "telemetry_sanitizer_reasons",
+                                    # The fourth. The gate that keeps the best
+                                    # rejected draft records its objections
+                                    # here, and this is the one that carries
+                                    # them on the path a simple "read this file
+                                    # and tell me what it says" takes.
+                                    "surface_quality_rejected_reasons",
                                 )
                                 for reason in (
                                     primary_surface_receipt.get(key) or ()
@@ -14199,13 +14205,31 @@ class InferenceGate:
                                 if str(reason).strip()
                             )
                         )
+                        # And when there are none, the draft itself.
+                        #
+                        # Four keys hold reasons and a path was found tonight
+                        # that populates none of them. A refusal that can name
+                        # neither its objection nor what it objected to is the
+                        # least diagnosable thing in the runtime, and it sits
+                        # one step before the one canned reply that must never
+                        # be reachable. The draft is already kept for the
+                        # repair path; nothing was reading it here.
+                        _rejected_draft = ""
+                        if not _quality_reasons:
+                            _rejected_draft = str(
+                                primary_surface_receipt.get(
+                                    "surface_quality_rejected_text"
+                                )
+                                or ""
+                            ).strip()[:220]
                         logger.warning(
                             "🧠 %s exhausted its worker-owned semantic quality retries; "
                             "preserving the lane and refusing a duplicate inference-gate "
-                            "retry. rejected_for=%s",
+                            "retry. rejected_for=%s%s",
                             local_label,
                             ",".join(str(reason) for reason in _quality_reasons)
                             or "no_reasons_reported",
+                            f" draft={_rejected_draft!r}" if _rejected_draft else "",
                         )
                         return self._refuse_generation(
                             self.REFUSAL_EXHAUSTED,

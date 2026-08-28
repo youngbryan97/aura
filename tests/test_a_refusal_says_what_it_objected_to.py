@@ -23,11 +23,12 @@ _GATE = Path("core/brain/inference_gate.py")
 def test_the_refusal_reads_every_key_a_reason_is_kept_under() -> None:
     body = _GATE.read_text()
     start = body.index("_quality_reasons = tuple(")
-    window = body[start : start + 700]
+    window = body[start : start + 1200]
     for key in (
         "surface_quality_gate_reasons",
         "semantic_completion_quality_reasons",
         "telemetry_sanitizer_reasons",
+        "surface_quality_rejected_reasons",
     ):
         assert key in window, key
 
@@ -48,3 +49,26 @@ def test_reasons_are_deduplicated_and_bounded() -> None:
     window = body[start : start + 700]
     assert "dict.fromkeys" in window
     assert "[:120]" in window
+
+
+def test_when_there_is_no_reason_it_shows_the_draft() -> None:
+    """Four keys hold reasons and a path populates none of them.
+
+    A refusal that can name neither its objection nor what it objected to is
+    the least diagnosable thing in the runtime, and it sits one step before the
+    one canned reply that must never be reachable. The draft is already kept
+    for the repair path; nothing was reading it here.
+    """
+
+    body = _GATE.read_text()
+    assert "surface_quality_rejected_text" in body
+    start = body.index("_rejected_draft = \"\"")
+    window = body[start : start + 420]
+    assert "if not _quality_reasons:" in window
+    assert "[:220]" in window
+
+
+def test_the_worker_keeps_the_draft_the_gate_now_reads() -> None:
+    worker = Path("core/brain/llm/mlx_worker.py").read_text()
+    assert 'state["surface_quality_rejected_text"] = body' in worker
+    assert 'state["surface_quality_rejected_reasons"] = list(reasons)[:8]' in worker
