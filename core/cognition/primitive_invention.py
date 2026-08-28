@@ -979,4 +979,147 @@ def invent_relation(
                 learned_from=len(observed),
                 held_out_checked=len(held_out),
             )
+
+    # A move AND a map, where neither alone accounts for it.
+    #
+    # The two sides were solved separately and could not meet. "Mirror, then
+    # add one to every cell" is not a rearrangement, because no cell that came
+    # out ever went in; and it is not a value map, because the cells also
+    # moved. Between them they say it exactly.
+    #
+    # Undoing the map is what makes this cheap. A map that can be inverted
+    # turns the observed states back into the ones the move produced, and the
+    # move is then an ordinary positional world, solved by everything above.
+    together = (
+        None
+        if "value_map_composition" in without
+        else _map_then_move(observed, held_out, prefer, known_forms or (), without)
+    )
+    if together is not None:
+        return together
     return None
+
+
+def _map_then_move(
+    observed: list[Transition],
+    held_out: Sequence[Transition],
+    prefer: dict[str, int] | None,
+    known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]],
+    without: frozenset[str],
+) -> InventedRelation | None:
+    """A positional rule and a value map, when neither alone explains it."""
+
+    if any(len(item.before) != len(item.after) for item in observed):
+        return None
+    # Pair the SORTED states, not the positions.
+    #
+    # The map is applied to what the move produced, so before[i] and after[i]
+    # are not a pair of the map's — they are a pair of the composition's, and
+    # reading them as the map's gave four different offsets for one offset.
+    # A move is a permutation, so the two multisets are related by the map
+    # alone, and sorting both recovers the pairs it was actually applied to.
+    changed: list[tuple[Any, Any]] = []
+    for item in observed:
+        try:
+            went_in = sorted(item.before)
+            came_out = sorted(item.after)
+        except TypeError:
+            return None
+        if len(went_in) != len(came_out):
+            return None
+        changed.extend(zip(went_in, came_out, strict=True))
+    for said, undo in _invertible_value_maps(changed):
+        try:
+            undone = [
+                Transition(item.before, tuple(undo(cell) for cell in item.after))
+                for item in observed
+            ]
+        except (ArithmeticError, TypeError, ValueError):
+            continue
+        moved = invent_relation(
+            undone,
+            prefer=prefer,
+            known_forms=known_forms,
+            without=without | {"value_map_composition"},
+        )
+        if moved is None or moved.kind != "rearrangement":
+            continue
+        rule = moved.index_rule
+        if rule is None:
+            continue
+
+        def apply(state: Sequence[Any], _r=rule, _said=said) -> tuple[Any, ...]:
+            size = len(state)
+            moved_state = tuple(state[_r(place, size)] for place in range(size))
+            return tuple(_said[1](cell) for cell in moved_state)
+
+        if not explains(apply, observed):
+            continue
+        if held_out and not explains(apply, held_out):
+            continue
+        return InventedRelation(
+            kind="rearrangement and substitution",
+            family="move and map",
+            form=f"{moved.form}, and then {said[0]}",
+            generalises=True,
+            apply=apply,
+            learned_from=len(observed),
+            held_out_checked=len(held_out),
+            index_rule=rule,
+        )
+    return None
+
+
+def _invertible_value_maps(
+    changed: list[tuple[Any, Any]],
+) -> list[tuple[tuple[str, Callable[[Any], Any]], Callable[[Any], Any]]]:
+    """Value maps that can be undone, so the move underneath can be seen.
+
+    A constant is not here: it destroys what it was applied to, and a state it
+    produced cannot be turned back into the one the move made. Only maps that
+    keep the information are usable this way, which is a property rather than a
+    list somebody chose.
+    """
+
+    numbers = [(a, b) for a, b in changed if isinstance(a, int) and isinstance(b, int)]
+    if len(numbers) < 2:
+        return []
+    found: list[tuple[tuple[str, Callable[[Any], Any]], Callable[[Any], Any]]] = []
+    offsets = {b - a for a, b in numbers}
+    if len(offsets) == 1:
+        delta = next(iter(offsets))
+        if delta:
+            found.append(
+                (
+                    (f"every value gains {delta}", lambda v, _d=delta: v + _d),
+                    lambda v, _d=delta: v - _d,
+                )
+            )
+    apart = next(
+        (
+            (one, other)
+            for index, one in enumerate(numbers)
+            for other in numbers[index + 1 :]
+            if one[0] != other[0]
+        ),
+        None,
+    )
+    if apart is not None:
+        (x1, y1), (x2, y2) = apart
+        rise, run = y2 - y1, x2 - x1
+        if run and rise % run == 0:
+            slope = rise // run
+            shift = y1 - slope * x1
+            if slope not in (0, 1) and all(
+                slope * a + shift == b for a, b in numbers
+            ):
+                said = f"every value becomes {slope} times itself"
+                if shift:
+                    said += f", plus {shift}" if shift > 0 else f", minus {abs(shift)}"
+                found.append(
+                    (
+                        (said, lambda v, _s=slope, _b=shift: _s * v + _b),
+                        lambda v, _s=slope, _b=shift: (v - _b) // _s,
+                    )
+                )
+    return found
