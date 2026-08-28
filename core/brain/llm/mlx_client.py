@@ -10446,6 +10446,48 @@ class MLXLocalClient:
                         prompt_chars,
                         "; ".join(parts)[:900],
                     )
+                    # And inside the biggest one, its sections.
+                    #
+                    # Knowing a system message is 46,665 characters says only
+                    # that something is large. The sections are what somebody
+                    # can act on, and they are marked in the text already.
+                    biggest = max(
+                        (
+                            str((m or {}).get("content") or "")
+                            for m in (messages or [])
+                            if isinstance(m, dict)
+                        ),
+                        key=len,
+                        default="",
+                    )
+                    if len(biggest) > 20_000:
+                        import re as _re
+
+                        marks = [
+                            (found.start(), found.group(0).strip())
+                            for found in _re.finditer(
+                                r"^(?:##+ [^\n]{0,60}|\[[A-Z][A-Z _-]{2,60}\])",
+                                biggest,
+                                _re.MULTILINE,
+                            )
+                        ]
+                        if marks:
+                            bounds = [m[0] for m in marks] + [len(biggest)]
+                            sized = sorted(
+                                (
+                                    (bounds[i + 1] - bounds[i], marks[i][1])
+                                    for i in range(len(marks))
+                                ),
+                                reverse=True,
+                            )
+                            logger.info(
+                                "📏 [MLX] largest message %d chars, biggest "
+                                "sections: %s",
+                                len(biggest),
+                                "; ".join(
+                                    f"{name}={size}" for size, name in sized[:12]
+                                )[:700],
+                            )
                 except (AttributeError, TypeError, ValueError):
                     pass
             self._mark_generation_started(
