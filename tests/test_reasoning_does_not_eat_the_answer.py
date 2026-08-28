@@ -203,3 +203,50 @@ def test_a_proof_written_by_another_process_reaches_this_one() -> None:
     before = thinking_reserve._last_seen_store_mtime
     assert thinking_reserve.reserve_tokens() == 2048
     assert thinking_reserve._last_seen_store_mtime == before
+
+
+def test_a_process_that_learned_nothing_cannot_erase_a_proof() -> None:
+    """Every process holds the whole document and rewrites all of it.
+
+    So the last writer won, and live on 2026-08-28 the last writer was a
+    worker that had just started: proved_insufficient went from 1,024 back to
+    zero across a restart, and the next thinking generation died the same way
+    the proof had been paid for.
+    """
+
+    import json
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    target = thinking_reserve._store_path()
+    assert target is not None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"proved_insufficient": 1024, "rates": [[64, 9.0]]}))
+
+    # A process that has learned nothing saves. It must not lower the proof.
+    assert thinking_reserve.save()
+    assert json.loads(target.read_text())["proved_insufficient"] == 1024
+
+    # And the readings it did not take are still there behind its own.
+    thinking_reserve.record_decode_rate(generated_tokens=100, elapsed_s=10.0)
+    assert thinking_reserve.save()
+    stored = json.loads(target.read_text())
+    assert [64, 9.0] in stored["rates"]
+    assert [100, 10.0] in stored["rates"]
+
+
+def test_a_higher_proof_still_wins_over_the_stored_one() -> None:
+    """Merging is a maximum, not a preference for whatever was on disk."""
+
+    import json
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    target = thinking_reserve._store_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"proved_insufficient": 512}))
+
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
+    assert json.loads(target.read_text())["proved_insufficient"] == 2048

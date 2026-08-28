@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import threading
 from collections import deque
+from typing import Any
 from pathlib import Path
 
 #: The smallest window in which a 90th percentile is a real observation rather
@@ -433,12 +434,81 @@ def _store_path() -> Path | None:
         return None
 
 
+
+def _merge_in_what_is_already_stored(target: Path) -> None:
+    """Fold the stored document into this process before overwriting it."""
+
+    global _proved_insufficient
+    try:
+        stored = json.loads(target.read_text())
+    except (OSError, ValueError, TypeError):
+        return
+    if not isinstance(stored, dict):
+        return
+    with _lock:
+        try:
+            _proved_insufficient = max(
+                _proved_insufficient, int(stored.get("proved_insufficient") or 0)
+            )
+        except (TypeError, ValueError):
+            pass
+        _put_older_readings_first(_observed, stored.get("reasoning_tokens"), _one_int)
+        _put_older_readings_first(_rates, stored.get("rates"), _one_pair)
+        _read_rates[:0] = [
+            row
+            for row in (_one_pair(item) for item in (stored.get("read_rates") or ()))
+            if row is not None and row not in _read_rates
+        ]
+        del _read_rates[: max(0, len(_read_rates) - _WINDOW)]
+
+
+def _one_int(item: Any) -> int | None:
+    try:
+        return int(item)
+    except (TypeError, ValueError):
+        return None
+
+
+def _one_pair(item: Any) -> tuple[int, float] | None:
+    try:
+        first, second = item
+        return (int(first), float(second))
+    except (TypeError, ValueError):
+        return None
+
+
+def _put_older_readings_first(window: deque, stored: Any, read_one) -> None:
+    """Push what was on disk in behind what this process has measured."""
+
+    known = set(window)
+    older = [
+        value
+        for value in (read_one(item) for item in (stored or ()))
+        if value is not None and value not in known
+    ]
+    if not older:
+        return
+    mine = list(window)
+    window.clear()
+    window.extend(older + mine)
+
+
 def save() -> bool:
-    """Write the measurements down, through the runtime's own write path."""
+    """Write the measurements down, through the runtime's own write path.
+
+    Merged with what is already there rather than written over it. Every
+    process holds the whole document and each save rewrites all of it, so the
+    last writer won — and live on 2026-08-28 the last writer was a worker that
+    had just started and learned nothing, which put a zero over a proof
+    another process had paid a failed turn for. The proof only ever rises, and
+    the measurement windows keep the older readings behind the newer ones up
+    to the same bound they always had.
+    """
 
     target = _store_path()
     if target is None:
         return False
+    _merge_in_what_is_already_stored(target)
     with _lock:
         payload = json.dumps(
             {
