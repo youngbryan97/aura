@@ -107,7 +107,12 @@ def read_sequence_question(text: Any) -> SequenceQuestion | None:
         between = body[start_a:start_b]
         if not _BECOMES.search(between):
             return None
-        if len(before) != len(after):
+        if len(after) > len(before):
+            # Cells appearing from nowhere is not something anything here can
+            # say. Fewer is fine now and was not: every filter was thrown out
+            # by this line before it reached inference, so the one family that
+            # CHANGES the length could never be read as a question about
+            # length.
             return None
         shown.append(Transition(before, after))
     if not shown:
@@ -167,6 +172,20 @@ def answer_sequence_question(text: Any) -> str:
                         f"The rule, worked out from the examples: "
                         f"{ordering.describe()}."
                     )
+                # The rule was worked out and this case is outside what it
+                # covers. Saying no rule exists would be the wrong reason, and
+                # a wrong reason is worse than no reason: it sends the person
+                # looking for better examples of the wrong thing.
+                return (
+                    "I worked the rule out — "
+                    f"{ordering.describe()} — and I still cannot answer this "
+                    "one.\n\n"
+                    "The order came from the cells you showed me, and "
+                    f"{list(question.asked)} holds cells that were not among "
+                    "them, so I have nothing that says where they go. Ask me "
+                    "about cells from your examples and I can, or show me one "
+                    "more example using these."
+                )
             return (
                 "I cannot work this one out, and I can say why rather than "
                 "just that.\n\n"
@@ -183,7 +202,7 @@ def answer_sequence_question(text: Any) -> str:
         result = tuple(found.apply(tuple(question.asked)))
     except Exception:  # noqa: BLE001 - a relation that throws has not answered
         return ""
-    if len(result) != len(question.asked):
+    if len(result) > len(question.asked):
         return ""
 
     language.admit(found)

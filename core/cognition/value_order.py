@@ -81,8 +81,10 @@ class Ordering:
         """
 
         if self.kind == "filtered":
-            kept = "cells are kept or dropped by a property of their values"
-            return kept if self.natural is None else f"{kept} ({self.natural})"
+            # Which cells survive is the claim here. Whether the survivors also
+            # came out in the order the values carry is true and is not what
+            # was asked, and naming it read as part of the rule.
+            return "cells are kept or dropped by a property of their values"
         if self.natural is not None:
             return f"the cells are put in {self.natural} order of their values"
         if self.levels >= 3:
@@ -113,9 +115,25 @@ class Ordering:
             if any(cell not in known for cell in state):
                 return None
         kept = [cell for cell in state if cell not in self.drops]
-        if self.natural is None and self.group and all(
-            cell in self.group for cell in kept
-        ):
+        if self.natural is not None:
+            # The checked order wins over the table.
+            #
+            # The table has a level for every value seen, so it answered first
+            # and answered from levels that are only meaningful inside a chain
+            # the evidence built: 4 and 6 were never seen in an order relative
+            # to each other, and the table put 6 first. The natural order was
+            # tested against every constraint before it was believed, and it
+            # covers the pairs the observations left open.
+            try:
+                ranked = sorted(
+                    enumerate(kept),
+                    key=lambda pair: (pair[1], pair[0]),
+                    reverse=self.natural == "descending",
+                )
+            except TypeError:
+                return None
+            return tuple(cell for _place, cell in ranked)
+        if self.group and all(cell in self.group for cell in kept):
             groups = {self.group[cell] for cell in kept}
             for one in groups:
                 for other in groups:
@@ -134,20 +152,9 @@ class Ordering:
                 enumerate(kept), key=lambda pair: (self.level[pair[1]], pair[0])
             )
             return tuple(cell for _place, cell in ranked)
-        if self.natural is None:
-            # A learned table says nothing about a value it never saw, and
-            # putting one somewhere would be inventing the part that was not
-            # observed.
-            return None
-        try:
-            ranked = sorted(
-                enumerate(kept),
-                key=lambda pair: (pair[1], pair[0]),
-                reverse=self.natural == "descending",
-            )
-        except TypeError:
-            return None
-        return tuple(cell for _place, cell in ranked)
+        # A learned table says nothing about a value it never saw, and putting
+        # one somewhere would be inventing the part that decides the answer.
+        return None
 
 
 def _stable_sources(before: Sequence[Any], after: Sequence[Any]) -> list[int] | None:

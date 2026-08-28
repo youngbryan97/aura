@@ -165,15 +165,18 @@ def test_the_proof_actually_fires_on_the_battery() -> None:
     across lengths is what makes a rule identifiable. A battery needs both.
     """
 
-    from core.cognition.induction_battery import generate_battery
+    from core.cognition.induction_battery import (
+        BEYOND_THE_LANGUAGE,
+        generate_battery,
+    )
 
     battery = generate_battery()
-    outside = [p for p in battery if p.shape == "reordered by the cells"]
-    inside = [p for p in battery if p.shape != "reordered by the cells"]
-    assert len(outside) == 10
+    outside = [p for p in battery if p.shape in BEYOND_THE_LANGUAGE]
+    inside = [p for p in battery if p.shape not in BEYOND_THE_LANGUAGE]
+    assert len(outside) == 20
 
     proved = [p for p in outside if certify(list(p.shown)).proven_outside]
-    assert len(proved) >= 8, f"only {len(proved)}/10 refuted"
+    assert len(proved) >= 16, f"only {len(proved)}/{len(outside)} refuted"
 
     # And never on a shape that is expressible. A proof that fires where a rule
     # exists is worse than no proof.
