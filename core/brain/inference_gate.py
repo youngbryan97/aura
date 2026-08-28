@@ -219,6 +219,11 @@ _FLAG_SAFE_BOOT_BACKGROUND_GUARD_SECS = _declare_flag(
 )
 
 
+from core.brain.context_budget import (
+    CRITICAL_FOREGROUND_HEADERS as _CRITICAL_FOREGROUND_HEADERS,
+    FOREGROUND_SECTION_VOLATILITY,
+)
+
 logger = logging.getLogger("Aura.InferenceGate")
 _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT = 0.0
 
@@ -10609,28 +10614,7 @@ class InferenceGate:
     # design (mood, tone, unity, somatic readings). Emission is sorted by this
     # so the cacheable prefix is as long as possible; Python's sort is stable,
     # so sections of equal volatility keep their priority order.
-    _FOREGROUND_SECTION_VOLATILITY: tuple[tuple[str, int], ...] = (
-        ("## USER-FACING CONVERSATION RELIABILITY CONTRACT", 0),
-        ("## LIVE DESKTOP RESPONSE CONTRACT", 0),
-        ("## CONTINUITY SUMMARY", 1),
-        ("## GOALS", 1),
-        ("## HELD POSITION", 1),
-        ("## TEMPORAL OBLIGATIONS", 1),
-        ("## CONVERSATIONAL INTENT", 1),
-        ("[LIVE MIND CONTEXT]", 1),
-        ("## IMAGINATION WORKSPACE", 1),
-        ("## BICAMERAL ADVISORY", 1),
-        ("[LIVE SPEECH GROUNDING]", 2),
-        ("## DERIVED RUNTIME SIGNALS", 2),
-        ("## FUNCTIONAL STATE SIGNALS", 2),
-        ("## PRESENT MOMENT", 2),
-        ("## YOUR OWN INSTRUMENTS", 2),
-        ("## WHAT YOU ACTUALLY JUST DID", 2),
-        ("## SOMATIC STATE", 2),
-        ("## STATE", 2),
-        ("## LIVE TONE", 2),
-        ("## UNITY", 2),
-    )
+    _FOREGROUND_SECTION_VOLATILITY = FOREGROUND_SECTION_VOLATILITY
 
     @staticmethod
     def _foreground_section_volatility(section: str) -> int:
@@ -10639,6 +10623,11 @@ class InferenceGate:
             if text.startswith(header):
                 return rank
         return 1
+    #: The sections a foreground turn is grounded by, kept whatever else
+    #: is trimmed. One list, because the deep prompt builder trims against
+    #: it too and two copies of a list like this drift apart quietly.
+    CRITICAL_FOREGROUND_HEADERS = _CRITICAL_FOREGROUND_HEADERS
+
 
     @staticmethod
     def _critical_foreground_system_excerpt(content: str, *, budget: int) -> str:
@@ -10646,28 +10635,7 @@ class InferenceGate:
 
         if budget <= 0:
             return ""
-        important_headers = (
-            "## PRESENT MOMENT",
-            "## YOUR OWN INSTRUMENTS",
-            "## WHAT YOU ACTUALLY JUST DID",
-            "[LIVE MIND CONTEXT]",
-            "## DERIVED RUNTIME SIGNALS",
-            "[LIVE SPEECH GROUNDING]",
-            "## LIVE TONE",
-            "## UNITY",
-            "## FUNCTIONAL STATE SIGNALS",
-            "## GOALS",
-            "## HELD POSITION",
-            "## SOMATIC STATE",
-            "## STATE",
-            "## CONTINUITY SUMMARY",
-            "## TEMPORAL OBLIGATIONS",
-            "## CONVERSATIONAL INTENT",
-            "## IMAGINATION WORKSPACE",
-            "## BICAMERAL ADVISORY",
-            "## LIVE DESKTOP RESPONSE CONTRACT",
-            "## USER-FACING CONVERSATION RELIABILITY CONTRACT",
-        )
+        important_headers = InferenceGate.CRITICAL_FOREGROUND_HEADERS
         sections: list[str] = []
         for header in important_headers:
             # At a LINE START only. Searching anywhere in the text meant a

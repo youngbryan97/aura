@@ -99,6 +99,53 @@ _COGNITIVE_ENGINE_RECOVERABLE_ERRORS = (
 _DEFAULT_COGNITIVE_CYCLE_MAX_S = 240.0
 
 
+
+def _fit_prompt_to_what_the_turn_can_read(
+    system_prompt: str, *, request: str, max_tokens: int
+) -> str:
+    """Trim an assembled system prompt to what this turn can afford to read.
+
+    Kept out of the assembly path's way when anything is missing. A budget
+    that cannot be worked out is no budget, and the turn goes out whole
+    rather than being cut by a guess.
+    """
+
+    body = str(system_prompt or "")
+    try:
+        from core.brain.context_budget import (
+            CRITICAL_FOREGROUND_HEADERS,
+            budget_for_answer,
+            fit_to_budget,
+            section_volatility,
+        )
+
+        budget = budget_for_answer(max_tokens)
+        if budget <= 0 or len(body) <= budget:
+            return body
+        trimmed = fit_to_budget(
+            body,
+            request,
+            budget=budget,
+            always=CRITICAL_FOREGROUND_HEADERS,
+            volatility=section_volatility,
+        )
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "cognitive_engine",
+            exc,
+            action="left the assembled system prompt untrimmed for this turn",
+        )
+        return body
+    if not trimmed:
+        return body
+    logger.info(
+        "✂️ [CONTEXT] system prompt %d → %d chars for a %d-token answer.",
+        len(body),
+        len(trimmed),
+        int(max_tokens),
+    )
+    return trimmed
+
 class _RuntimeServiceAdapter:
     """Small compatibility layer for legacy phase constructors expecting container.get."""
 
@@ -5247,6 +5294,23 @@ class CognitiveEngine:
         try:
             from core.utils.injected_blocks import stamp_grounding
 
+            # The other prompt builder has a budget table and trims to it.
+            # This one is the builder every desktop conversation goes through
+            # and it had none: measured live on 2026-08-28, a turn whose
+            # question was 213 characters carried a 96,430-character system
+            # message — 28,147 tokens, ~46 seconds of reading before a token —
+            # to serve an answer of fifty.
+            #
+            # The budget is not a number chosen here. It is what the turn can
+            # afford to read given what its own answer costs to write, from
+            # rates the reserve measured on this hardware and kept across
+            # restarts. A thousand-token answer buys more prompt than the
+            # assembler produces and is not trimmed at all.
+            system_prompt = _fit_prompt_to_what_the_turn_can_read(
+                system_prompt,
+                request=visible_user_message or objective,
+                max_tokens=max_tokens,
+            )
             messages = [stamp_grounding({"role": "system", "content": system_prompt})]
             if history_messages:
                 messages.append(

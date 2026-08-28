@@ -464,3 +464,37 @@ def load() -> int:
         except (TypeError, ValueError):
             pass
     return taken
+
+
+def chars_readable_in(seconds: float, *, ceiling: int = 1_000_000) -> int:
+    """How long a prompt may be to be read in this much time.
+
+    The same question as :func:`seconds_to_read` asked from the other end. A
+    turn has to read and to answer, and the reserve already works out what
+    answering costs; what is left is what reading may cost, and this says how
+    many characters that buys.
+
+    Answered by searching the forward function rather than by inverting its
+    arithmetic, so the two can never disagree about the same rates, and so
+    the graded fallbacks it uses when nothing comparable has been timed
+    apply here unchanged. Returns ``ceiling`` only where the forward
+    function is silent altogether, since a rate nobody has measured
+    constrains nothing.
+    """
+
+    try:
+        allowed = float(seconds)
+    except (TypeError, ValueError):
+        return int(ceiling)
+    if allowed <= 0:
+        return 0
+    if seconds_to_read(int(ceiling)) <= allowed:
+        return int(ceiling)
+    low, high = 0, int(ceiling)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if seconds_to_read(middle) <= allowed:
+            low = middle
+        else:
+            high = middle - 1
+    return low
