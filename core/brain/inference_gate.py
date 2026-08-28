@@ -13677,26 +13677,39 @@ class InferenceGate:
             # caused it — the floor and the observed rate — so there is no
             # invented number here and no open-ended wait. An unmeasured rate
             # extends nothing.
-            if 0 < _answer_floor_final:
-                _decode_s = _seconds_to_decode(max_tokens)
-                # A turn that has to go and fetch something spends a whole
-                # generation on the call before the answer is even started.
-                #
-                # LIVE, 2026-08-28: a diagnosis turn was offered the right
-                # tool, spent forty-five seconds emitting one call, and the
-                # request deadline expired fifty seconds later with nothing
-                # said about what came back. The clock covered one generation
-                # and the turn needed two.
-                _generations = 1
-                try:
-                    from core.intent.capability_selection import (
-                        points_at_something_real,
-                    )
+            # A turn that has to go and fetch something spends a whole
+            # generation on the call before the answer is even started.
+            #
+            # LIVE, 2026-08-28: a diagnosis turn was offered the right tool,
+            # spent forty-five seconds emitting one call, and the request
+            # deadline expired fifty seconds later with nothing said about what
+            # came back. The clock covered one generation and the turn needed
+            # two.
+            _generations = 1
+            try:
+                from core.intent.capability_selection import (
+                    points_at_something_real,
+                )
 
-                    if points_at_something_real(initial_visible_user_prompt):
-                        _generations = 2
-                except (ImportError, AttributeError, OSError, TypeError, ValueError):
-                    _generations = 1
+                if points_at_something_real(initial_visible_user_prompt):
+                    _generations = 2
+            except (ImportError, AttributeError, OSError, TypeError, ValueError):
+                _generations = 1
+
+            # Two entitlements, and only one of them had a clock.
+            #
+            # This whole block sat behind a completion floor, which says "this
+            # ANSWER must be long". Needing two generations says "this TURN has
+            # two phases", which is a different fact about a different thing,
+            # and a turn that had the second without the first was timed as
+            # though it had one phase.
+            #
+            # LIVE, 2026-08-28: the same request ran twice. With a floor it was
+            # given 516 seconds and read three files; without one it was given
+            # 148, and the answer — over a prompt its own worker measured at
+            # 120 seconds to read — was cancelled with nothing said.
+            if 0 < _answer_floor_final or _generations > 1:
+                _decode_s = _seconds_to_decode(max_tokens)
                 if _decode_s > 0.0:
                     _needed = (_decode_s * _generations) + _DELIVERY_MARGIN_S
                     if _needed > float(timeout_val):
