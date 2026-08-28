@@ -229,10 +229,19 @@ def forget() -> None:
         _observed.clear()
         _rates.clear()
         _proved_insufficient = 0
-        # Forgetting means forgetting, including what is on disk: a test that
-        # cleared the window and then measured would otherwise take the
-        # runtime's own readings back in on the next call.
+        # Stops THIS process taking the readings back on the next call.
         _restored = True
+    # And removes them, which the line above does not do and the comment here
+    # used to claim it did. A test named for forgetting the disk was checking
+    # that one process refrained from reloading, while the file sat there for
+    # the next process to find.
+    target = _store_path()
+    if target is None:
+        return
+    try:
+        target.unlink()
+    except (OSError, ValueError):
+        return
 
 
 # ------------------------------------------------------------- across restarts

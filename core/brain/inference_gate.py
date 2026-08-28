@@ -483,10 +483,21 @@ _FOREGROUND_CONTEXT_WINDOW_FLOOR = 4096
 #: identified, so it goes through the governed lane instead.
 _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 
+#: Every channel by which a subsystem moves the sampler. A subsystem that
+#: publishes a bias and is not named here has no reader: the gate filters
+#: kwargs to the declared request fields and logs the rest at debug, so the
+#: bias is computed on every turn and dropped in silence.
+#:
+#: LIVE, 2026-08-28: the cognitive-situation frame was the fourth such channel
+#: and was in neither this tuple nor the request schema. Its test proved the
+#: engine handed the bias to a stub router and stopped there, which is the
+#: shape of a half-wired channel — a writer, a test of the writer, and no
+#: reader.
 _SAMPLING_BIAS_KEYS = (
     "sampling_bias",
     "imagination_sampling_bias",
     "bicameral_sampling_bias",
+    "cognitive_situation_sampling_bias",
 )
 
 _INFERENCE_RECOVERABLE_ERRORS = (

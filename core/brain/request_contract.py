@@ -177,6 +177,7 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
     "bicameral_sampling_bias": Field_(Kind.OPAQUE),
+    "cognitive_situation_sampling_bias": Field_(Kind.OPAQUE),
     "clean_user_surface_steering_alpha": Field_(Kind.UNIT_FLOAT),
     "clean_user_surface_recurrent_loops": Field_(Kind.POSITIVE_INT, minimum=1, maximum=64),
     # ── routing and lane policy (authority-relevant) ────────────────────

@@ -155,25 +155,49 @@ def test_what_was_measured_survives_a_restart(tmp_path, monkeypatch) -> None:
     assert before > 100.0
     assert thinking_reserve.save()
 
-    thinking_reserve.forget()
-    assert thinking_reserve.seconds_to_decode(896) == 0.0
-    assert thinking_reserve.load() >= 20
+    # A new process, simulated honestly: empty memory, the file still there.
+    # Calling forget() here would delete the file, which is what forget() is
+    # for and the opposite of what a restart does.
+    _as_if_restarted()
+    # No explicit load: a restarted process takes the readings back on the
+    # first question it is asked, which is the whole point of the lazy restore.
     assert thinking_reserve.seconds_to_decode(896) == pytest.approx(before, abs=1.0)
     assert thinking_reserve.reserve_tokens() == 896
     thinking_reserve.forget()
 
 
-def test_forgetting_forgets_the_disk_too(tmp_path, monkeypatch) -> None:
-    """Otherwise a cleared window quietly takes the runtime's readings back."""
+def _as_if_restarted() -> None:
+    """Empty memory, disk untouched. What a new process actually sees."""
 
-    monkeypatch.setattr(
-        thinking_reserve, "_store_path", lambda: tmp_path / "decode.json"
-    )
+    thinking_reserve._observed.clear()
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient = 0
+    thinking_reserve._restored = False
+
+
+def test_forgetting_removes_the_file_and_not_only_the_memory(
+    tmp_path, monkeypatch
+) -> None:
+    """It said it forgot the disk and it did not.
+
+    forget() cleared the queues and set _restored, which stops THIS process
+    reloading and leaves the file for the next one. The test named for
+    forgetting the disk was checking that one process refrained from reloading.
+    """
+
+    store = tmp_path / "decode.json"
+    monkeypatch.setattr(thinking_reserve, "_store_path", lambda: store)
     thinking_reserve.forget()
     for _ in range(20):
         thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
     thinking_reserve.save()
+    assert store.exists()
+
     thinking_reserve.forget()
+    assert not store.exists(), "forgetting left the readings on disk"
+    # And a fresh process finds nothing, which is the thing that was untrue.
+    _as_if_restarted()
+    assert thinking_reserve.load() == 0
     assert thinking_reserve.seconds_to_decode(896) == 0.0
 
 
