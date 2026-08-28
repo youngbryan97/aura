@@ -10,7 +10,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 41.8
+      "seconds": 40.5
     },
     {
       "problem": "rotate by one / integers / [6, 5, 7]",
@@ -18,7 +18,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 41.8
+      "seconds": 75.8
     },
     {
       "problem": "rotate by two / integers / [7, 5, 6]",
@@ -26,7 +26,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 83.9
+      "seconds": 39.0
     },
     {
       "problem": "exchange the ends / integers / [8, 4, 7]",
@@ -34,7 +34,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 106.3
+      "seconds": 40.1
     },
     {
       "problem": "exchange the middle / integers / [6, 4, 7]",
@@ -42,7 +42,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 38.3
+      "seconds": 41.1
     },
     {
       "problem": "identity / integers / [6, 4, 8]",
@@ -50,7 +50,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 96.2
+      "seconds": 106.7
     },
     {
       "problem": "mirror then rotate / integers / [5, 8, 7]",
@@ -58,7 +58,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 105.3
+      "seconds": 74.8
     },
     {
       "problem": "rotate then exchange the ends / integers / [5, 8, 6]",
@@ -66,7 +66,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 80.6
+      "seconds": 106.1
     },
     {
       "problem": "odd positions first / integers / [8, 6, 4]",
@@ -74,7 +74,7 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 78.7
+      "seconds": 79.6
     },
     {
       "problem": "reordered by the cells / integers / [8, 6, 5]",
@@ -82,15 +82,15 @@
       "native": false,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 80.6
+      "seconds": 105.0
     },
     {
       "problem": "three deep: mirror, rotate, ends / integers / [8, 6, 4]",
       "shape": "three deep: mirror, rotate, ends",
       "native": true,
       "model": false,
-      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 105.4
+      "model_said": "I've analyzed the transformation pattern in the provided examples:\n- The last element of the original list is moved to the end of the new list.\n- All other elements are reversed in order, excluding that final element which gets appended at the very end.\n\nLet's apply this rule to `[48, 49, 50, 51]`:\n",
+      "seconds": 29.0
     },
     {
       "problem": "three deep: rotate, ends, mirror / integers / [4, 7, 8]",
@@ -98,8 +98,10 @@
       "native": true,
       "model": false,
       "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
-      "seconds": 83.8
+      "seconds": 171.5
     }
   ],
-  "note": "Same problems, same observations, both sides. The model is told nothing about shapes or families and its answer is parsed leniently. Sampled because each turn takes minutes on this hardware."
+  "note": "THIS IS NOT A MEASUREMENT OF THE MODEL. Of 12 questions, 11 came back as the runtime's canned failure rather than as an answer, so the 0 is the stack refusing to deliver rather than the model getting it wrong. Kept because what it found is worth more than what it was for: twelve straightforward list-transformation questions, a 100% failure rate, and four separate gates each independently withholding a real partial answer. Three are fixed. The comparison is only valid once the canned count is zero.",
+  "model_solved_is_not_a_model_score": true,
+  "canned_failures": 11
 }

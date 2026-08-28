@@ -267,8 +267,17 @@ visible as a change to the problems.
    with no other shape moving. 101 to 111 of 120. What remains is objecthood in
    the second sense: cells as objects with orderable properties, which
    "reordered by the cells" needs and which is a different primitive. (3.4)
-5. **D2: score the battery with the resident model** for the comparison that
-   makes the 77/100 mean something.
+5. **D2** — attempted, and it found something worth more than it was for. Of
+   twelve questions put to the runtime, eleven came back as the canned failure
+   rather than as answers, so the model's 0/12 measures the stack refusing to
+   deliver and NOT the model getting them wrong. It must never be cited as a
+   model score. Four separate gates were each independently withholding a real
+   partial answer: a bare "Output:" label read as a fabricated tool receipt, an
+   incompleteness proof at the site that exists for incomplete drafts, an
+   acceptance proof at a site reached only when acceptance failed, and a
+   duplicate-generation proof that a retry trips. Three are fixed and one
+   question now serves her working instead of an apology. The comparison is
+   valid only once the canned count is zero.
 6. **Latency and streaming** — the casual user's defect, and the one nobody in
    Part 1 is helped by. Currently the largest product-level failure.
 7. **Inverse models** for the action side. (3.5, A7)
