@@ -1621,6 +1621,9 @@ async def _admit_the_foreground_request(
                         requested_tier=requested_tier,
                         is_background=is_background,
                     )
+                max_tokens = self._tokens_the_clock_can_deliver(
+                    max_tokens, seconds=float(primary_timeout or timeout_val)
+                )
                 admission_snapshot = await self._enforce_foreground_admission(
                     requested_tier,
                     protected_foreground=protected_foreground_lane,
@@ -4855,6 +4858,53 @@ class InferenceGate:
         self._initialized = False
 
     on_stop = cleanup
+
+
+    @staticmethod
+    def _tokens_the_clock_can_deliver(max_tokens: Any, *, seconds: float) -> int:
+        """Cut a token budget the clock cannot pay for at the measured rate.
+
+        The timeout and the token budget come from two separate tables keyed
+        on the origin, and nothing compared them. On this hardware the model
+        decodes about ten tokens a second, so a 1,024-token budget wants a
+        hundred seconds of decoding before prefill, and it was being handed
+        out beside a deadline of about half that.
+
+        The turn then ends the way it did live on 2026-08-28: "Request
+        deadline reached at token 1188; stopping decode cooperatively", a
+        truncated answer, and a runtime that reported the token budget as the
+        thing that ran out. Promising more tokens than the clock can pay for
+        is a promise that always breaks in the middle of a sentence.
+
+        Silent when the rate has not been measured — an unmeasured rate cuts
+        nothing — and it only ever lowers the budget, so nothing here can
+        hand a lane more room than its own table allowed.
+        """
+
+        try:
+            wanted = int(max_tokens)
+            allowed = float(seconds)
+        except (TypeError, ValueError):
+            return int(max_tokens or 0)
+        if wanted <= 0 or allowed <= 0:
+            return wanted
+        try:
+            from core.brain.llm.thinking_reserve import seconds_to_decode
+        except ImportError:
+            return wanted
+        needed = seconds_to_decode(wanted)
+        if needed <= 0 or needed <= allowed:
+            return wanted
+        fits = max(1, int(wanted * (allowed / needed)))
+        logger.info(
+            "⏱️ [GATE] %d tokens need %.0fs to decode and the turn has %.0fs; "
+            "asking for %d instead.",
+            wanted,
+            needed,
+            allowed,
+            fits,
+        )
+        return fits
 
     async def _enforce_foreground_admission(
         self,

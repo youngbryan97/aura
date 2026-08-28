@@ -250,3 +250,39 @@ def test_a_higher_proof_still_wins_over_the_stored_one() -> None:
 
     thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
     assert json.loads(target.read_text())["proved_insufficient"] == 2048
+
+
+def test_a_token_budget_the_clock_cannot_pay_for_is_cut() -> None:
+    """The timeout and the budget came from two tables and were never compared.
+
+    On this hardware the model decodes about ten tokens a second, so a
+    1,024-token budget wants a hundred seconds before prefill and was handed
+    out beside a deadline of about half that. The turn ended live as "Request
+    deadline reached at token 1188", a sentence stopped in the middle, and a
+    runtime that named the token budget as the thing that ran out.
+    """
+
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    # Ten tokens a second, measured.
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=100, elapsed_s=10.0)
+
+    # A hundred seconds of work into a hundred seconds of clock: untouched.
+    assert InferenceGate._tokens_the_clock_can_deliver(1000, seconds=100.0) == 1000
+    # Into half that clock: halved.
+    assert InferenceGate._tokens_the_clock_can_deliver(1000, seconds=50.0) == 500
+    # It only ever lowers: a generous clock does not raise the lane's budget.
+    assert InferenceGate._tokens_the_clock_can_deliver(1000, seconds=10_000.0) == 1000
+
+
+def test_an_unmeasured_rate_cuts_nothing() -> None:
+    """A budget cut on a rate nobody measured is a guess with a number on it."""
+
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    assert InferenceGate._tokens_the_clock_can_deliver(4096, seconds=1.0) == 4096
