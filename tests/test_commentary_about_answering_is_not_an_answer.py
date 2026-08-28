@@ -90,3 +90,38 @@ def test_nothing_is_not_commentary(said):
 def test_a_real_answer_carries_no_leak_reasons():
     assert internal_leak_reasons("It is 391.") == ()
     assert internal_leak_reasons("The user interface is on the left.") == ()
+
+
+# ── announcing an answer, versus saying what she does ────────────────────
+
+
+def test_the_announcement_alone_is_still_commentary():
+    """"I'll answer the user directly." is the whole reply, and that is the fault."""
+
+    assert talks_about_the_asking("I'll answer the user directly.") is True
+
+
+def test_the_same_phrase_inside_a_real_answer_is_not():
+    """Asked how she handles a turn, saying so IS the answer.
+
+    Live 2026-08-28: a substantive draft was dropped as an internal prompt leak
+    for containing "answer the user" — in a sentence that went on to name three
+    other things she would do. Banning the phrase banned her from describing
+    how she works, which is a thing people ask her about.
+
+    The mark is not the subject and not the phrase. It is whether anything else
+    was said.
+    """
+
+    said = (
+        "I would answer the user directly, preserve the current thread, and "
+        "keep the live lane moving instead of detonating a long retry cascade."
+    )
+    assert talks_about_the_asking(said) is False
+
+
+def test_a_plural_or_absent_subject_is_still_a_plan():
+    """The exemption is first person singular, because a plan is not."""
+
+    assert talks_about_the_asking("We must answer the user with the requested content.") is True
+    assert talks_about_the_asking("Need to answer the user before the contract expires.") is True

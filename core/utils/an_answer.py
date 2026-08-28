@@ -87,10 +87,38 @@ _ABOUT_THE_ASKING = re.compile(
     # "the user's message", which is only ever said about an exchange.
     r"|\buser's\s+(?:current\s+)?"
     r"(?:message|question|request|query|words|input|prompt|turn)\b"
-    r"|\buser\s+(?:asks?|asked|wants?|says?|is\s+asking)\b"
-    r"|\b(?:answer|reply\s+to|respond\s+to|address)\s+(?:the\s+)?user\b",
+    r"|\buser\s+(?:asks?|asked|wants?|says?|is\s+asking)\b",
     re.IGNORECASE,
 )
+
+#: "answer the user" — the task named, which a private plan does and a reply
+#: does not.
+_DOING_THE_JOB = re.compile(
+    r"\b(?:answer|reply\s+to|respond\s+to|address)\s+(?:the\s+)?user\b",
+    re.IGNORECASE,
+)
+
+#: Unless she is saying it about herself AND then saying the rest.
+#:
+#: "I'll answer the user directly." is the whole reply, and announcing an answer
+#: is not one. "I would answer the user directly, preserve the current thread,
+#: and keep the live lane moving instead of detonating a long retry cascade" is
+#: an answer to a question about how she works, and the phrase is one item in
+#: it.
+#:
+#: So the mark is not the subject and not the phrase. It is whether anything
+#: else was said. Banning the phrase outright banned her from describing how she
+#: works, which is a thing people ask her about; exempting it whenever she is
+#: the subject would let the announcement stand alone as a reply.
+_SHE_IS_THE_SUBJECT = re.compile(
+    r"\bi(?:'d|'ll|'m)?\s+(?:\w+\s+){0,3}$",
+    re.IGNORECASE,
+)
+
+#: How much has to follow before an announcement is a clause rather than a
+#: reply. Five words is one more clause, which is the smallest thing that can
+#: carry content.
+_ENOUGH_TO_BE_MORE_THAN_AN_ANNOUNCEMENT = 5
 
 #: And how it refers to its own attempts, which a reader was never shown.
 _ABOUT_ITS_OWN_ATTEMPTS = re.compile(
@@ -125,4 +153,14 @@ def talks_about_the_asking(said: str) -> bool:
     body = str(said or "")
     if not body.strip():
         return False
-    return bool(_ABOUT_THE_ASKING.search(body) or _ABOUT_ITS_OWN_ATTEMPTS.search(body))
+    if _ABOUT_THE_ASKING.search(body) or _ABOUT_ITS_OWN_ATTEMPTS.search(body):
+        return True
+    for found in _DOING_THE_JOB.finditer(body):
+        if not _SHE_IS_THE_SUBJECT.search(body[: found.start()]):
+            return True
+        rest = body[found.end() :]
+        if len(rest.split()) < _ENOUGH_TO_BE_MORE_THAN_AN_ANNOUNCEMENT:
+            # She said she would answer, and stopped. That is the announcement
+            # standing where the answer goes.
+            return True
+    return False
