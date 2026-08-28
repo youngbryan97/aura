@@ -106,3 +106,67 @@ def test_a_relative_clause_is_not_another_ask(said):
 def test_a_single_question_needs_no_coverage_check():
     assert shape("What is 2^20?").requires_single_reply_coverage is False
     assert unanswered_question_parts("1,048,576.", shape("What is 2^20?")) == []
+
+
+# ── the same sentence with an imperative second half ─────────────────────
+
+CONJOINED_IMPERATIVE = (
+    "Design me the experiment that would actually tell us, and say what "
+    "result would prove your friend wrong."
+)
+
+
+def test_a_conjoined_imperative_is_two_asks():
+    """LIVE, 2026-08-28: the second half was never answered.
+
+    The reply designed the experiment, stopped, and said nothing about what
+    result would settle it. Coverage had nothing to compare against because
+    the sentence arrived as one segment — `design` was a directive verb and
+    `say` was not, so the splitter matched once and never split.
+
+    `say` is as ordinary a way to ask for something as `tell`, which was
+    already in the list. The list had grown one live failure at a time.
+    """
+
+    assert len(shape(CONJOINED_IMPERATIVE).question_segments) == 2
+
+
+def test_coverage_names_the_half_that_was_dropped():
+    reply = (
+        "Here is a clean experiment. Day 0: feed your starter and bake a "
+        "control loaf. Day 1-2: prepare a second batch with commercial yeast, "
+        "everything else identical, and bake it the same way."
+    )
+    missing = unanswered_question_parts(reply, shape(CONJOINED_IMPERATIVE))
+    assert missing
+    assert any("prove your friend wrong" in part for part in missing)
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "Give me the trial balance and say whether it is consistent.",
+        "Explain the cause and suggest a fix.",
+        "Walk me through the setup, and confirm the totals.",
+    ],
+)
+def test_other_ordinary_two_part_requests(said):
+    assert len(shape(said).question_segments) == 2
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "Compare the two designs and their costs.",
+        "I said it was fine and then it broke.",
+        "Tell me about the say-do gap.",
+        "The quote and the citation are both wrong.",
+    ],
+)
+def test_the_direction_of_the_trade_is_held(said):
+    """A false split costs a correct answer; a missed one costs a check.
+
+    So a word that only looks like a request verb must not split a sentence.
+    """
+
+    assert len(shape(said).question_segments) <= 1

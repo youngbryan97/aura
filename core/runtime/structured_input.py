@@ -43,7 +43,18 @@ _COORDINATED_DIRECTIVE_RE = re.compile(
     r"derive|describe|design|diagnose|discuss|download|enumerate|evaluate|explain|include|cover|address|"
     r"export|find|fix|give|identify|implement|inspect|justify|list|name|open|outline|"
     r"plan|prove|provide|read|recommend|remember|report|review|save|select|set|show|"
-    r"state|summarize|tell|test|trace|validate|verify|write"
+    r"state|summarize|tell|test|trace|validate|verify|write|"
+    # LIVE, 2026-08-28. "Design me the experiment that would tell us, and SAY
+    # what result would prove your friend wrong" split into one segment, so
+    # coverage had nothing to compare against and the reply stopped after the
+    # experiment. "Give me the trial balance and SAY whether it's consistent"
+    # is the same sentence with different nouns.
+    #
+    # `say` is as ordinary a way to ask for something as `tell`, which was
+    # already here. The rest below are the same kind of word and were missing
+    # for the same reason: the list grew one live failure at a time.
+    r"say|walk|confirm|mention|suggest|propose|estimate|sketch|draft|rank|"
+    r"convert|translate|quote|cite"
     r")\b",
     re.IGNORECASE | re.MULTILINE,
 )
