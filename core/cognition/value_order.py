@@ -72,6 +72,98 @@ class Ordering:
     #: module that was not read off the observations.
     natural: str | None = None
 
+    def _named(self, cell: Any) -> Any:
+        """The cell as this ordering names it.
+
+        A written ordering keys its cells by repr, because a cell is anything
+        hashable and JSON keys are strings. A restored one therefore knows
+        "'blue'" and is asked about "blue", and every lookup misses — the
+        ordering survives the restart and stops working at it, which is the
+        same as not surviving.
+        """
+
+        if cell in self.level or cell in self.drops:
+            return cell
+        written = repr(cell)
+        if written in self.level or written in self.drops:
+            return written
+        return cell
+
+    def to_json(self) -> dict[str, Any]:
+        """A structured value, for the same reason index programs are.
+
+        An ordering worked out on Tuesday and thrown away answers Tuesday's
+        question. Written down, it is a piece of language the next world can be
+        read in — which is the whole difference between using a thing and
+        having learned it.
+
+        Keys are repr'd because the values themselves are anything hashable and
+        JSON keys are not.
+        """
+
+        return {
+            "level": {repr(value): rank for value, rank in self.level.items()},
+            "levels": self.levels,
+            "kind": self.kind,
+            "drops": sorted(repr(value) for value in self.drops),
+            "group": {repr(value): where for value, where in (self.group or {}).items()},
+            "ranked": sorted([one, other] for one, other in self.ranked),
+            "natural": self.natural,
+        }
+
+    @classmethod
+    def from_json(cls, raw: Any) -> "Ordering | None":
+        if not isinstance(raw, dict):
+            return None
+        level = raw.get("level")
+        if not isinstance(level, dict) or not level:
+            return None
+        try:
+            return cls(
+                level={str(key): int(rank) for key, rank in level.items()},
+                levels=int(raw.get("levels") or 0),
+                kind=str(raw.get("kind") or ""),
+                drops=frozenset(str(item) for item in (raw.get("drops") or ())),
+                group={
+                    str(key): int(where)
+                    for key, where in (raw.get("group") or {}).items()
+                },
+                ranked=frozenset(
+                    (int(pair[0]), int(pair[1]))
+                    for pair in (raw.get("ranked") or ())
+                    if isinstance(pair, (list, tuple)) and len(pair) == 2
+                ),
+                natural=raw.get("natural") or None,
+            )
+        except (TypeError, ValueError):
+            return None
+
+    def keyed_by_repr(self) -> "Ordering":
+        """The same ordering with cells named the way the written form names them.
+
+        A restored ordering has repr'd keys and the cells it is asked about do
+        not, so a level lookup that worked before a restart misses after one.
+        """
+
+        return Ordering(
+            level={repr(value): rank for value, rank in self.level.items()},
+            levels=self.levels,
+            kind=self.kind,
+            drops=frozenset(repr(value) for value in self.drops),
+            group={repr(value): where for value, where in (self.group or {}).items()},
+            ranked=self.ranked,
+            natural=self.natural,
+        )
+
+    def explains(self, transitions: Sequence[Any]) -> bool:
+        """Whether this ordering accounts for every one of these transitions."""
+
+        for item in transitions:
+            got = self.apply(tuple(item.before))
+            if got is None or tuple(got) != tuple(item.after):
+                return False
+        return True
+
     def describe(self) -> str:
         """What was worked out, at the strength it was worked out to.
 
@@ -105,6 +197,7 @@ class Ordering:
         inventing the part that was not observed.
         """
 
+        state = tuple(state)
         if self.drops:
             # Whether a cell is dropped was learned as a list of the cells that
             # were, so a cell never shown has no answer. Filtering by "not in
@@ -112,8 +205,16 @@ class Ordering:
             # whole state — an answer, confidently wrong, where a refusal was
             # the only honest output.
             known = set(self.drops) | set(self.level)
-            if any(cell not in known for cell in state):
+            if any(self._named(cell) not in known for cell in state):
                 return None
+        named = tuple(self._named(cell) for cell in state)
+        # Answer with the cells the caller handed over, never with their names.
+        original = [
+            cell
+            for cell, key in zip(state, named, strict=True)
+            if key not in self.drops
+        ]
+        state = named
         kept = [cell for cell in state if cell not in self.drops]
         if self.natural is not None:
             # The checked order wins over the table.
@@ -126,7 +227,7 @@ class Ordering:
             # covers the pairs the observations left open.
             try:
                 ranked = sorted(
-                    enumerate(kept),
+                    enumerate(original),
                     key=lambda pair: (pair[1], pair[0]),
                     reverse=self.natural == "descending",
                 )
@@ -149,9 +250,9 @@ class Ordering:
                         return None
         if all(cell in self.level for cell in kept):
             ranked = sorted(
-                enumerate(kept), key=lambda pair: (self.level[pair[1]], pair[0])
+                range(len(kept)), key=lambda place: (self.level[kept[place]], place)
             )
-            return tuple(cell for _place, cell in ranked)
+            return tuple(original[place] for place in ranked)
         # A learned table says nothing about a value it never saw, and putting
         # one somewhere would be inventing the part that decides the answer.
         return None

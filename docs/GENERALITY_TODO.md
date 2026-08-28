@@ -9,9 +9,20 @@ struck through on the strength of an argument.
 - [x] **A1** The hypothesis language can be found insufficient — a world outside
   the family is recognised as outside it, not forced into it.
   `tests/test_a_relation_learned_in_one_world_helps_in_another.py`
-- [x] **A2** A new relation is constructed from the observations, with no named
-  operators anywhere in the mechanism. Swap, rotation, mirror and value offset
-  fall out of one solve; the module names none of them.
+- [x] **A2** A new relation is constructed from the observations, without the
+  request naming what it wants. Swap, rotation, mirror and value offset fall
+  out of one solve, and nobody has to say "rotate".
+
+  Corrected 2026-08-28. This said "no named operators anywhere in the
+  mechanism", which is false and was false when it was written:
+  `IndexProgram` has kinds called `identity`, `mirror`, `offset`, `exchange`,
+  `ends`, `grouping`, `affine` and `compose`, and `_index_forms` builds them by
+  name. What is true is narrower and is the thing worth claiming: the shape is
+  inferred from examples rather than selected from a label in the request. The
+  families themselves are authored, and that distinction is the whole
+  metalanguage question — see [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md)
+  and the ablation in `tests/test_whether_an_abstraction_is_downstream_of_experience.py`,
+  which the learned library passes and the authored families do not.
 - [x] **A3** A constructed relation is validated on transitions it was not built
   from, and refused when it fails them.
 - [x] **A4** An abstraction must compress. A substitution table with one entry

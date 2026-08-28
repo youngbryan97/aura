@@ -156,6 +156,19 @@ def answer_sequence_question(text: Any) -> str:
         # nothing, so neither could be answered honestly and neither could be
         # acted on.
         verdict = certify(list(question.shown))
+        # An ordering already learned is consulted whenever the positional
+        # language came up empty, not only where it is proved impossible. The
+        # proof needs two states of one length; a person showing one example of
+        # something they have shown before should not have to.
+        known = language.order_that_explains(list(question.shown))
+        if known is not None:
+            answer = known.apply(tuple(question.asked))
+            if answer is not None:
+                return (
+                    f"{list(answer)}\n\n"
+                    f"The rule, from a shape worked out earlier: "
+                    f"{known.describe()}."
+                )
         if verdict.proven_outside:
             # The proof says a rule reading only positions cannot do this. That
             # is the one place it is right to look at the cells: a wider net is
@@ -163,10 +176,17 @@ def answer_sequence_question(text: Any) -> str:
             # mirror is explained by descending order just as well, and letting
             # that compete would lose the simpler answer that was already
             # right.
+            # Something already known first. That is what makes the second
+            # question of a kind cheaper than the first.
             ordering = solve_ordering(list(question.shown))
             if ordering is not None:
                 answer = ordering.apply(tuple(question.asked))
                 if answer is not None:
+                    language.admit_order(ordering)
+                    target = _language_path()
+                    if target is not None:
+                        language.path = target
+                        language.save()
                     return (
                         f"{list(answer)}\n\n"
                         f"The rule, worked out from the examples: "

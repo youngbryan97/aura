@@ -62,8 +62,45 @@ class RelationLanguage:
     #: every boot and the one thing that had been learned was the one thing
     #: lost.
     forms: dict[str, tuple[str, object, tuple[str, ...]]] = field(default_factory=dict)
+    #: Orderings over the CELLS, kept for the same reason the shapes above are.
+    #:
+    #: These were being worked out and thrown away. A world proved outside the
+    #: positional language had its ordering solved for, applied once, and
+    #: dropped — so the shapes learned yesterday were in the language today and
+    #: the orderings were not, and the same question a week later cost the same
+    #: examples it cost the first time. Using a thing and having learned it are
+    #: different, and only one of them survives a restart.
+    orders: dict[str, object] = field(default_factory=dict)
     path: Path | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def admit_order(self, ordering: object | None) -> None:
+        """Keep an ordering over the cells, by what it says rather than by when."""
+
+        if ordering is None or not hasattr(ordering, "describe"):
+            return
+        with self._lock:
+            self.orders[str(ordering.describe())] = ordering
+            self.counts["ordering"] = self.counts.get("ordering", 0) + 1
+
+    def order_that_explains(self, transitions: Sequence[Any]) -> object | None:
+        """An ordering already known that accounts for all of these.
+
+        This is what makes the second question of a kind cheaper than the
+        first. An ordering worked out from three examples last week settles a
+        world showing one, because the language it is read in is wider than it
+        was.
+        """
+
+        with self._lock:
+            known = list(self.orders.values())
+        for ordering in known:
+            try:
+                if ordering.explains(transitions):  # type: ignore[attr-defined]
+                    return ordering
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return None
 
     def admit(self, relation: InventedRelation | None) -> None:
         """Record that this shape accounted for a world."""
@@ -187,6 +224,11 @@ class RelationLanguage:
             payload = json.dumps(
                 {
                     "counts": dict(self.counts),
+                    "orders": {
+                        description: ordering.to_json()
+                        for description, ordering in self.orders.items()
+                        if hasattr(ordering, "to_json")
+                    },
                     "forms": {
                         description: {
                             "family": family,
@@ -239,9 +281,18 @@ class RelationLanguage:
                 program,
                 tuple(str(part) for part in (row.get("parts") or ())),
             )
+        from core.cognition.value_order import Ordering
+
+        orders: dict[str, object] = {}
+        for description, row in (raw.get("orders") or {}).items():
+            restored = Ordering.from_json(row)
+            if restored is not None:
+                orders[str(description)] = restored
+
         return cls(
             counts={str(k): int(v) for k, v in counts.items() if str(k)},
             forms=forms,
+            orders=orders,
             path=target,
         )
 
