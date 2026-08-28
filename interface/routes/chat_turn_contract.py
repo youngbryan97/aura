@@ -973,13 +973,27 @@ def _build_live_turn_contract_payload(
     # apology. The engine had run, written a real partial answer, judged it not
     # good enough, and the salvage refused to serve it for want of a proof that
     # said "the engine accepted this" — at a site reached only when it did not.
+    # `single_owner_model_generation_proven` is deliberately NOT required here,
+    # and the reason is what that proof is for. It answers "which of several
+    # answers is being served as the one" — it enumerates the retry paths and
+    # their exact generation counts, and a gate-level retry matches none of
+    # them, so an ordinary second attempt reads as two owners.
+    #
+    # The salvage site does not choose between answers. It serves the single
+    # preserved draft or nothing. What it needs to know is that those words
+    # came from the engine rather than from repair machinery, a legacy
+    # fallback, or runtime substitution, and the conditions below say exactly
+    # that.
+    #
+    # LIVE, 2026-08-28: eleven of twelve reasoning questions came back with the
+    # canned apology, the last gate being duplicate_foreground_model_generation
+    # on a turn whose only duplication was retrying once.
     engine_authored_the_text = bool(
         engine_think_invoked
         and not engine_reply_failed
         and not bounded_contract_used
         and not legacy_fallback_used
         and not authorship_replacement_applied
-        and single_owner_model_generation_proven
     )
     authentic_cognitive_reply = bool(
         authored_generation_source_proven

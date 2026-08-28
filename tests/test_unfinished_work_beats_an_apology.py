@@ -97,3 +97,48 @@ def test_the_full_delivery_test_is_untouched() -> None:
     full = body[start : start + 600]
     assert 'contract.get("answer_delivery_proven")' in full
     assert 'contract.get("authentic_cognitive_reply")' in full
+
+
+def test_a_retry_is_not_two_owners_at_the_salvage_site() -> None:
+    """The single-owner proof answers a question this site does not ask.
+
+    It decides which of several answers is served as the one, by enumerating
+    the retry paths and their exact generation counts. A gate-level retry
+    matches none of them, so an ordinary second attempt reads as two owners.
+    The salvage site does not choose between answers: it serves the single
+    preserved draft or nothing.
+
+    LIVE, 2026-08-28: eleven of twelve reasoning questions came back with the
+    canned apology, the last gate being duplicate_foreground_model_generation
+    on a turn whose only duplication was retrying once.
+    """
+
+    retried = dict(_HERS_BUT_UNFINISHED)
+    retried["full_mind_missing_proofs"] = (
+        "authored_answer_incomplete",
+        "duplicate_foreground_model_generation",
+    )
+    assert _authored_answer_can_serve_unfinished(retried)
+
+
+def test_repair_machinery_is_still_refused_however_many_owners() -> None:
+    for spoiled in (
+        {"authorship_replacement_applied": True},
+        {"legacy_fallback_used": True},
+        {"bounded_contract_used": True},
+        {"engine_authored_the_text": False},
+    ):
+        contract = dict(_HERS_BUT_UNFINISHED)
+        contract.update(spoiled)
+        assert not _authored_answer_can_serve_unfinished(contract), spoiled
+
+
+def test_the_single_owner_proof_still_guards_full_delivery() -> None:
+    """Narrowed at one site, untouched where it decides what is authoritative."""
+
+    from pathlib import Path
+
+    contract = Path("interface/routes/chat_turn_contract.py").read_text()
+    assert "single_owner_model_generation_proven" in contract
+    start = contract.index("authentic_cognitive_reply = bool(")
+    assert "single_owner_model_generation_proven" in contract[start : start + 500]
