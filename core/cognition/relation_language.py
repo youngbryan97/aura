@@ -29,6 +29,7 @@ is.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -43,6 +44,31 @@ from core.cognition.primitive_invention import (
 )
 
 __all__ = ["RelationLanguage", "observations_needed"]
+
+logger = logging.getLogger(__name__)
+
+
+def _can_be_written_down(entry: Any, description: str) -> bool:
+    """Whether this learned thing can be saved, said out loud when it cannot.
+
+    The filter here was ``hasattr(entry, "to_json")``, which is true of most
+    things and silently false of a new one. So the newest kind of learned thing
+    was admitted, held for the turn, and dropped at the file, every time,
+    without a line anywhere.
+
+    A thing that cannot be written down is a thing that will be learned again
+    tomorrow, so it is worth a log even though it is not worth an exception.
+    """
+
+    if hasattr(entry, "to_json"):
+        return True
+    logger.warning(
+        "A learned relation cannot be written down and will not survive this "
+        "process: %s (%s has no to_json)",
+        str(description)[:80],
+        type(entry).__name__,
+    )
+    return False
 
 
 @dataclass
@@ -227,7 +253,7 @@ class RelationLanguage:
                     "orders": {
                         description: ordering.to_json()
                         for description, ordering in self.orders.items()
-                        if hasattr(ordering, "to_json")
+                        if _can_be_written_down(ordering, description)
                     },
                     "forms": {
                         description: {
@@ -281,11 +307,13 @@ class RelationLanguage:
                 program,
                 tuple(str(part) for part in (row.get("parts") or ())),
             )
-        from core.cognition.value_order import Ordering
+        from core.cognition.value_order import Composed, Ordering
 
         orders: dict[str, object] = {}
         for description, row in (raw.get("orders") or {}).items():
-            restored = Ordering.from_json(row)
+            # Every kind that can be written down can be read back. A reader
+            # that knows one of them turns the others into silence.
+            restored = Composed.from_json(row) or Ordering.from_json(row)
             if restored is not None:
                 orders[str(description)] = restored
 

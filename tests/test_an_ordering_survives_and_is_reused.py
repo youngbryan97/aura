@@ -147,3 +147,67 @@ def test_a_pinned_positional_world_is_not_hijacked(monkeypatch, tmp_path) -> Non
         assert wanted in said
         assert rule in said
         assert "worked out earlier" not in said
+
+
+def test_the_composed_representation_survives_too() -> None:
+    """The newest kind of learned thing was the one that could not be kept.
+
+    An ordering followed by a move was admitted, held for the turn, and dropped
+    at the file — every time, without a line anywhere — because the language's
+    save filtered on ``hasattr(entry, "to_json")`` and Composed had none. A
+    filter that silently discards is how a representation gets learned every
+    time and never once kept.
+    """
+
+    from core.cognition.primitive_invention import _index_forms
+    from core.cognition.value_order import Composed, solve_ordering_then_move
+
+    def sorted_then_rotated(row: tuple) -> tuple:
+        ordered = tuple(sorted(row))
+        return ordered[1:] + ordered[:1]
+
+    world = [T(row, sorted_then_rotated(row)) for row in ((3, 1, 2), (9, 5, 7), (2, 8, 4))]
+    composed = solve_ordering_then_move(world, _index_forms(3))
+    assert composed is not None
+
+    home = _somewhere()
+    language = RelationLanguage(path=home)
+    language.admit_order(composed)
+    language.save()
+
+    restored = RelationLanguage.load(home)
+    assert len(restored.orders) == 1
+    kept = next(iter(restored.orders.values()))
+    assert isinstance(kept, Composed)
+    assert kept.apply((40, 11, 27)) == sorted_then_rotated((40, 11, 27))
+    assert "then" in kept.describe()
+
+
+def test_a_kind_that_cannot_be_written_down_says_so(caplog) -> None:
+    """It is not worth an exception, and it is worth a line.
+
+    A thing that cannot be saved is a thing that will be learned again
+    tomorrow, and the way to find out was to notice it missing.
+    """
+
+    import logging
+
+    class _Unwritable:
+        def describe(self) -> str:
+            return "something learned that cannot be written down"
+
+    home = _somewhere()
+    language = RelationLanguage(path=home)
+    language.admit_order(_Unwritable())
+    with caplog.at_level(logging.WARNING):
+        language.save()
+    assert any("cannot be written down" in record.message for record in caplog.records)
+
+
+def test_both_kinds_are_read_back_not_just_one() -> None:
+    """A reader that knows one kind turns the others into silence."""
+
+    from pathlib import Path
+
+    body = Path("core/cognition/relation_language.py").read_text()
+    assert "Composed.from_json(row) or Ordering.from_json(row)" in body

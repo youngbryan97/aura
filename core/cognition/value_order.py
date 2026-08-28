@@ -491,6 +491,42 @@ class Composed:
     def describe(self) -> str:
         return f"{self.ordering.describe()}, then {self.move_said}"
 
+    def to_json(self) -> dict[str, Any]:
+        """Written down like everything else that was learned.
+
+        It was not, and nothing said so: the language's save filtered on
+        ``hasattr(entry, "to_json")``, so the newest kind of learned thing —
+        the one that took two axes to reach — was admitted, held for the turn,
+        and dropped at the file. A filter that silently discards is how a
+        representation gets learned every time and never once kept.
+        """
+
+        return {
+            "kind": "ordering_then_move",
+            "ordering": self.ordering.to_json(),
+            "move_said": self.move_said,
+            "move": (
+                self.move.to_json() if hasattr(self.move, "to_json") else None
+            ),
+        }
+
+    @classmethod
+    def from_json(cls, raw: Any) -> "Composed | None":
+        if not isinstance(raw, dict) or raw.get("kind") != "ordering_then_move":
+            return None
+        ordering = Ordering.from_json(raw.get("ordering"))
+        if ordering is None:
+            return None
+        from core.cognition.primitive_invention import IndexProgram
+
+        move = IndexProgram.from_json(raw.get("move"))
+        if move is None:
+            return None
+        said = str(raw.get("move_said") or "").strip()
+        if not said:
+            return None
+        return cls(ordering=ordering, move=move, move_said=said)
+
     def apply(self, state: Sequence[Any]) -> tuple[Any, ...] | None:
         ordered = self.ordering.apply(tuple(state))
         if ordered is None:
