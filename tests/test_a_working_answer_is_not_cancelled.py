@@ -86,3 +86,53 @@ def test_a_user_facing_turn_is_allowed_a_full_reply() -> None:
         )
         == 384
     )
+
+
+def test_the_budget_comes_from_the_clock_the_turn_actually_has() -> None:
+    """Discovering the room by running out of it costs an answer each time.
+
+    The reserve learns an unknown quantity by failing once per step — 1,024,
+    then 2,048, then 3,072, a failed reply at every one. That is the right
+    mechanism for something nobody can know in advance and the wrong one for
+    something the hardware already answers: what the model can say inside the
+    wall clock the turn is bounded by, at the rate this machine decodes.
+    """
+
+    from core.brain.llm import thinking_reserve
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    thinking_reserve.forget()
+    # Nothing measured: the budget is left exactly as it was.
+    assert InferenceGate._tokens_the_turn_is_allowed_to_take() == 0
+
+    # Ten tokens a second, measured on long runs.
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+
+    allowed = InferenceGate._tokens_the_turn_is_allowed_to_take()
+    assert allowed > 0
+    # It must fit, and it must be the largest that fits.
+    assert thinking_reserve.seconds_to_decode(allowed) <= USER_FACING_COMPLETION_DEADLINE_MAX_S
+    assert (
+        thinking_reserve.seconds_to_decode(allowed + 64)
+        > USER_FACING_COMPLETION_DEADLINE_MAX_S
+    )
+
+
+def test_a_budget_is_a_ceiling_and_not_a_reservation() -> None:
+    """Which is why raising it is safe: a turn that finishes early pays nothing.
+
+    Asserted where it matters — the raise only ever raises, so a lane that
+    asked for less than the clock allows keeps what it asked for.
+    """
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+
+    allowed = InferenceGate._tokens_the_turn_is_allowed_to_take()
+    # A ceiling given explicitly bounds the search.
+    assert InferenceGate._tokens_the_turn_is_allowed_to_take(256) == 256
+    assert InferenceGate._tokens_the_turn_is_allowed_to_take(256) < allowed

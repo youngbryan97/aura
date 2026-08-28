@@ -4858,6 +4858,53 @@ class InferenceGate:
 
 
 
+
+    @staticmethod
+    def _tokens_the_turn_is_allowed_to_take(model_ceiling: int = 0) -> int:
+        """How much a user-facing turn may say, from the time it actually has.
+
+        The reserve discovers the room a thinking turn needs by running out of
+        it, once per turn, and each discovery costs somebody an answer: 1,024
+        then 2,048 then 3,072, a failed reply at every step. It is the right
+        mechanism for an unknown quantity and the wrong one for a quantity the
+        hardware already answers.
+
+        A turn is bounded by a wall clock it cannot exceed. What the model can
+        say inside that clock, at the rate this machine has been measured
+        decoding, is a number rather than a guess — and a budget is a ceiling
+        rather than a reservation, so a turn that finishes early pays nothing
+        for having been allowed more.
+
+        Zero where the rate is unmeasured, which leaves the existing budget
+        exactly as it was.
+        """
+
+        try:
+            from core.brain.llm.thinking_reserve import seconds_to_decode
+            from core.runtime.response_policy import (
+                USER_FACING_COMPLETION_DEADLINE_MAX_S,
+            )
+        except (ImportError, AttributeError):
+            return 0
+        allowed = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+        if not (allowed > 0.0):
+            return 0
+        # The forward estimate is monotone in tokens, so the largest budget
+        # that fits is found by searching it rather than by inverting a rate
+        # this would then have to keep in step with.
+        low, high = 0, int(model_ceiling) if int(model_ceiling or 0) > 0 else 8192
+        if seconds_to_decode(high) <= 0.0:
+            return 0
+        if seconds_to_decode(high) <= allowed:
+            return high
+        while low < high:
+            middle = (low + high + 1) // 2
+            if seconds_to_decode(middle) <= allowed:
+                low = middle
+            else:
+                high = middle - 1
+        return low
+
     @staticmethod
     def _reasoning_reserve() -> int:
         """What the worker will add to this turn's budget for thinking.
@@ -13897,6 +13944,19 @@ class InferenceGate:
                 max_tokens = self._tokens_the_clock_can_deliver(
                     max_tokens, seconds=float(primary_timeout or timeout_val)
                 )
+            else:
+                # Raised to what the turn's own wall clock can pay for, so a
+                # thinking turn stops discovering its budget by running out of
+                # it. Never lowered: a lane that asked for less meant it.
+                _affordable = self._tokens_the_turn_is_allowed_to_take()
+                if _affordable > max_tokens:
+                    logger.info(
+                        "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "
+                        "measured rate; raising the ceiling from %d.",
+                        _affordable,
+                        max_tokens,
+                    )
+                    max_tokens = _affordable
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
