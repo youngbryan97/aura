@@ -6135,7 +6135,19 @@ _TOOL_EXECUTION_CLAIM_RE = re.compile(
     r"|(?:^|[.!?:\n]\s*)(?:so\s+|ok(?:ay)?,?\s+)?(?:running|executing|invoking)\s+"
     r"(?:the|this|that|your|a|an|it)\b"
     # Presenting a result as obtained.
-    r"|\boutput:\s*\S"
+    #
+    # "output:" is not here, and the reason is written four lines below for
+    # "the result is": that is how anyone states a conclusion, and this reason
+    # DESTROYS a reply rather than repairing it. The same lesson was learned
+    # there and left unlearned here.
+    #
+    # LIVE, 2026-08-28: twelve list-transformation questions in a row came back
+    # "I couldn't get to an answer I'd stand behind on that one", every one
+    # rejected for claiming an execution, and the claim was the word "Output:"
+    # in a reply that had worked the answer out in the open. A labelled value
+    # is a receipt when something is named as having produced it, which
+    # `_quotes_a_result` asks. "stdout" stays: it names a channel, and nobody
+    # writes it by accident.
     r"|\bstdout:\s*\S"
     r"|\bhere(?:'s|\s+is)\s+what\s+i\s+(?:got|got back|received)\b"
     r"|\bhere(?:'s|\s+is)\s+the\s+(?:actual\s+)?(?:output|result)\b"
@@ -6228,7 +6240,17 @@ _QUOTED_OUTPUT_CLAIM_RE = re.compile(
     # the small model wrote "The code executed successfully, and the output
     # is: 5" with nothing dispatched — the strongest possible claim, and it
     # matched nothing.
-    r"\b(?:output|stdout|stderr)\s*[:=]\s*\S"
+    # "stdout" and "stderr" name an instrument's own channels and cannot be
+    # said by accident. A bare "Output:" is ordinary English for "here is what
+    # I got", and it is what somebody writes when showing their own working, so
+    # it needs an instrument named somewhere before it is a receipt.
+    #
+    # LIVE, 2026-08-28: twelve list-transformation questions in a row came back
+    # "I couldn't get to an answer I'd stand behind on that one". Every one was
+    # rejected as truncated_tail plus unfounded_tool_execution_claim, and the
+    # claim was the word "Output:" in a reply that had reasoned the answer out
+    # in the open. Nothing had claimed to run anything.
+    r"\b(?:stdout|stderr)\s*[:=]\s*\S"
     r"|\bit\s+printed\b"
     r"|\bhere(?:'s|\s+is)\s+(?:the\s+)?(?:actual\s+)?(?:output|stdout)\b"
     r"|\bthe\s+(?:output|result)\s+(?:of|from)\s+(?:running|executing)\b"
@@ -6267,11 +6289,23 @@ _EXECUTION_CONTEXT_RE = re.compile(
 )
 
 
+#: A bare label introducing a value. Says one follows; says nothing about what
+#: produced it.
+_BARE_OUTPUT_LABEL_RE = re.compile(r"\boutput\s*[:=]\s*\S", re.IGNORECASE)
+
+
 def _quotes_a_result(raw: str) -> re.Match[str] | None:
     """A claim that a value came back from something that ran."""
     direct = _QUOTED_OUTPUT_CLAIM_RE.search(raw)
     if direct:
         return direct
+    # A bare "Output:" is a receipt only when something is named as having run.
+    # Read over the whole reply rather than one sentence, so "Python: ...
+    # Output: 5" still counts while a reply that worked the answer out in the
+    # open does not.
+    labelled = _BARE_OUTPUT_LABEL_RE.search(raw)
+    if labelled and _EXECUTION_CONTEXT_RE.search(raw):
+        return labelled
     attributed = _VALUE_ATTRIBUTED_RE.search(raw)
     if not attributed:
         return None

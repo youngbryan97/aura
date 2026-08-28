@@ -1,0 +1,105 @@
+{
+  "sampled": 12,
+  "per_shape": 1,
+  "native_solved": 11,
+  "model_solved": 0,
+  "rows": [
+    {
+      "problem": "mirror / integers / [6, 8, 4]",
+      "shape": "mirror",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 41.8
+    },
+    {
+      "problem": "rotate by one / integers / [6, 5, 7]",
+      "shape": "rotate by one",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 41.8
+    },
+    {
+      "problem": "rotate by two / integers / [7, 5, 6]",
+      "shape": "rotate by two",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 83.9
+    },
+    {
+      "problem": "exchange the ends / integers / [8, 4, 7]",
+      "shape": "exchange the ends",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 106.3
+    },
+    {
+      "problem": "exchange the middle / integers / [6, 4, 7]",
+      "shape": "exchange the middle",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 38.3
+    },
+    {
+      "problem": "identity / integers / [6, 4, 8]",
+      "shape": "identity",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 96.2
+    },
+    {
+      "problem": "mirror then rotate / integers / [5, 8, 7]",
+      "shape": "mirror then rotate",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 105.3
+    },
+    {
+      "problem": "rotate then exchange the ends / integers / [5, 8, 6]",
+      "shape": "rotate then exchange the ends",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 80.6
+    },
+    {
+      "problem": "odd positions first / integers / [8, 6, 4]",
+      "shape": "odd positions first",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 78.7
+    },
+    {
+      "problem": "reordered by the cells / integers / [8, 6, 5]",
+      "shape": "reordered by the cells",
+      "native": false,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 80.6
+    },
+    {
+      "problem": "three deep: mirror, rotate, ends / integers / [8, 6, 4]",
+      "shape": "three deep: mirror, rotate, ends",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 105.4
+    },
+    {
+      "problem": "three deep: rotate, ends, mirror / integers / [4, 7, 8]",
+      "shape": "three deep: rotate, ends, mirror",
+      "native": true,
+      "model": false,
+      "model_said": "I couldn't get to an answer I'd stand behind on that one, and I won't send you a thinner one and pass it off as the real thing. Ask me again in a moment and I should have it.",
+      "seconds": 83.8
+    }
+  ],
+  "note": "Same problems, same observations, both sides. The model is told nothing about shapes or families and its answer is parsed leniently. Sampled because each turn takes minutes on this hardware."
+}
