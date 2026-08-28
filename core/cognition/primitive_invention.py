@@ -41,11 +41,99 @@ from typing import Any
 __all__ = [
     "InventedRelation",
     "Transition",
+    "IndexProgram",
     "rule_for_description",
     "explains",
     "invent_relation",
     "language_is_sufficient",
 ]
+
+
+@dataclass(frozen=True)
+class IndexProgram:
+    """A rule over positions, written down rather than closed over.
+
+    Every shape here used to be a lambda. A lambda cannot be saved, so a
+    library of learned shapes could persist how OFTEN each kind had worked and
+    not the shapes themselves: after a restart the counts came back and the
+    expanded language contracted to the basis it started from. What had been
+    learned was the one thing that did not survive.
+
+    So a shape is a small structured value that happens to be callable. It
+    interprets itself, it compares by value, and it goes to JSON and back
+    without losing anything. Callers that only wanted a function still get one.
+
+    ``kind`` names the rule, ``args`` are its numbers, and ``parts`` are the
+    programs it is built from — which is what makes a composition a value too,
+    and what lets refactoring take one apart.
+    """
+
+    kind: str
+    args: tuple[int, ...] = ()
+    parts: tuple["IndexProgram", ...] = ()
+
+    def __call__(self, index: int, size: int) -> int:
+        kind = self.kind
+        if kind == "identity":
+            return index
+        if kind == "mirror":
+            return size - 1 - index
+        if kind == "offset":
+            step = self.args[0] if self.args else 0
+            return (index + step) % size if size else index
+        if kind == "exchange":
+            first, second = self.args[0], self.args[1]
+            if index == first:
+                return second
+            if index == second:
+                return first
+            return index
+        if kind == "ends":
+            depth = self.args[0] if self.args else 0
+            far = size - 1 - depth
+            if index == depth:
+                return far
+            if index == far:
+                return depth
+            return index
+        if kind == "grouping":
+            span = self.args[0] if self.args else 1
+            first = self.args[1] if len(self.args) > 1 else 0
+            return _grouped_source(index, size, span, first)
+        if kind == "compose":
+            # Innermost first: the parts are applied in the order they were
+            # composed, which is the order refactoring reads them in.
+            position = index
+            for part in reversed(self.parts):
+                position = part(position, size)
+            return position
+        return index
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "args": list(self.args),
+            "parts": [part.to_json() for part in self.parts],
+        }
+
+    @classmethod
+    def from_json(cls, raw: Any) -> "IndexProgram | None":
+        if not isinstance(raw, dict):
+            return None
+        kind = str(raw.get("kind") or "").strip()
+        if not kind:
+            return None
+        try:
+            args = tuple(int(value) for value in (raw.get("args") or ()))
+        except (TypeError, ValueError):
+            return None
+        parts: list[IndexProgram] = []
+        for item in raw.get("parts") or ():
+            built = cls.from_json(item)
+            if built is None:
+                return None
+            parts.append(built)
+        return cls(kind=kind, args=args, parts=tuple(parts))
 
 
 @dataclass(frozen=True)
@@ -76,7 +164,7 @@ class InventedRelation:
     family: str = ""
     #: The rule over indices, when there is one, so a language can offer this
     #: shape to the next world as a member rather than as a preference.
-    index_rule: Callable[[int, int], int] | None = None
+    index_rule: IndexProgram | None = None
     #: The parts this shape is made of, innermost first. A library that only
     #: keeps whole winners can never find structure that several solutions
     #: share without any of them being it — which is the step that keeps
@@ -192,16 +280,16 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     which is false at length eight, and the whole shape scored zero.
     """
 
-    forms: list[tuple[str, str, Callable[[int, int], int]]] = [
-        ("identity", "identity", lambda i, _n: i),
-        ("mirror", "position i takes from n-1-i", lambda i, n: n - 1 - i),
+    forms: list[tuple[str, str, IndexProgram]] = [
+        ("identity", "identity", IndexProgram("identity")),
+        ("mirror", "position i takes from n-1-i", IndexProgram("mirror")),
     ]
     for step in range(1, max(2, size)):
         forms.append(
             (
                 "offset",
                 f"position i takes from i+{step} (mod n)",
-                lambda i, n, _k=step: (i + _k) % n,
+                IndexProgram("offset", (step,)),
             )
         )
     for left in range(size):
@@ -210,9 +298,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                 (
                     "pairwise exchange",
                     f"positions exchange in pairs ({left}<->{right})",
-                    lambda i, _n, _a=left, _b=right: (
-                        _b if i == _a else (_a if i == _b else i)
-                    ),
+                    IndexProgram("exchange", (left, right)),
                 )
             )
     for depth in range(max(1, size // 2)):
@@ -220,9 +306,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
             (
                 "pairwise exchange",
                 f"the cells {depth} in from each end exchange",
-                lambda i, n, _d=depth: (
-                    n - 1 - _d if i == _d else (_d if i == n - 1 - _d else i)
-                ),
+                IndexProgram("ends", (depth,)),
             )
         )
     # Cells fall into groups, and the groups move together.
@@ -242,7 +326,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                 (
                     "grouping",
                     f"cells are grouped every {span}, the group at {first} first",
-                    lambda i, n, _k=span, _f=first: _grouped_source(i, n, _k, _f),
+                    IndexProgram("grouping", (span, first)),
                 )
             )
     return forms
@@ -317,9 +401,7 @@ def _forms_that_fit(
         return fitting
     for _fa, first_text, first in singles:
         for _fb, second_text, second in singles:
-            def composed(i: int, n: int, _a=first, _b=second) -> int:
-                return _a(_b(i, n), n)
-
+            composed = IndexProgram("compose", (), (first, second))
             if _fits(composed, options, size):
                 fitting.append(
                     (
@@ -406,7 +488,7 @@ def _value_operator(rule: Callable[[Any], Any]) -> Callable[[tuple[Any, ...]], t
     return operator
 
 
-def rule_for_description(description: str) -> Callable[[int, int], int] | None:
+def rule_for_description(description: str) -> IndexProgram | None:
     """The rule a basis shape's description names, or None if it names none.
 
     Refactoring works over descriptions, because that is what a shared

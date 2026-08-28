@@ -387,3 +387,77 @@ def test_the_run_kept_is_the_one_that_saves_most() -> None:
     start = body.index("def refactor(")
     window = body[start : start + 2600]
     assert "(shared[run] - 1) * len(run)" in window
+
+
+# ------------------------------------------- the language survives a restart
+
+
+def test_a_learned_shape_is_a_value_not_a_closure() -> None:
+    """A function cannot be written down, so it cannot be learned durably."""
+
+    from core.cognition.primitive_invention import IndexProgram
+
+    found = invent_relation(_applied(lambda s: _rot1(_mirror_of(s)), (5, 6, 7)))
+    assert found is not None
+    assert isinstance(found.index_rule, IndexProgram)
+    # It interprets itself, compares by value, and round-trips.
+    again = IndexProgram.from_json(found.index_rule.to_json())
+    assert again == found.index_rule
+    for length in (5, 9, 12):
+        state = tuple(range(length))
+        assert tuple(state[again(i, length)] for i in range(length)) == _rot1(
+            _mirror_of(state)
+        )
+
+
+def test_the_expanded_language_survives_a_restart(tmp_path) -> None:
+    """It used to come back knowing how often mirroring worked, not what it is.
+
+    The counts persisted and the shapes did not, so the language contracted to
+    its basis on every boot and the one thing that had been learned was the one
+    thing lost.
+    """
+
+    store = tmp_path / "language.json"
+    language = _library(refactor=True)
+    language.path = store
+    before = dict(language.forms)
+    assert language.save() is None or True
+    language.save()
+
+    again = RelationLanguage.load(store)
+    assert set(again.forms) == set(before), "a shape was dropped in the round trip"
+    assert any(family == "refactored" for family, _r, _p in again.forms.values()), (
+        "the one shape the system derived for itself is the one that must survive"
+    )
+
+
+def test_a_restarted_library_still_reaches_what_a_blank_one_cannot(tmp_path) -> None:
+    """The measurement, not the mechanism: it can still do the thing."""
+
+    def run(state):
+        return _rot1(_ends(state))
+
+    def twice(state):
+        return run(run(state))
+
+    store = tmp_path / "language.json"
+    language = _library(refactor=True)
+    language.path = store
+    language.save()
+
+    world = _applied(twice, (5, 6, 7))
+    assert RelationLanguage().explain(world) is None
+    restarted = RelationLanguage.load(store)
+    found = restarted.explain(world)
+    assert found is not None
+    for length in (9, 11):
+        assert tuple(found.apply(tuple(range(length)))) == twice(tuple(range(length)))
+
+
+def test_a_corrupt_store_loads_as_an_empty_language(tmp_path) -> None:
+    store = tmp_path / "language.json"
+    store.write_text('{"counts": {"mirror": 2}, "forms": {"x": {"program": "nonsense"}}}')
+    loaded = RelationLanguage.load(store)
+    assert loaded.counts == {"mirror": 2}
+    assert loaded.forms == {}

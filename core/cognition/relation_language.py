@@ -55,8 +55,12 @@ class RelationLanguage:
 
     counts: dict[str, int] = field(default_factory=dict)
     #: The shapes themselves, by their description, so the next world can
-    #: compose with them. Held in memory: a rule over indices is a function and
-    #: the counts above are what survive a restart.
+    #: compose with them — and so they survive a restart. They used to be
+    #: functions, which meant only the counts above could be written down: the
+    #: library came back knowing that mirroring had worked nine times and not
+    #: what mirroring was, so the expanded language contracted to its basis on
+    #: every boot and the one thing that had been learned was the one thing
+    #: lost.
     forms: dict[str, tuple[str, object, tuple[str, ...]]] = field(default_factory=dict)
     path: Path | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -180,7 +184,22 @@ class RelationLanguage:
         if self.path is None:
             return
         with self._lock:
-            payload = json.dumps({"counts": dict(self.counts)}, indent=2, sort_keys=True)
+            payload = json.dumps(
+                {
+                    "counts": dict(self.counts),
+                    "forms": {
+                        description: {
+                            "family": family,
+                            "program": rule.to_json() if hasattr(rule, "to_json") else None,
+                            "parts": list(parts),
+                        }
+                        for description, (family, rule, parts) in self.forms.items()
+                        if hasattr(rule, "to_json")
+                    },
+                },
+                indent=2,
+                sort_keys=True,
+            )
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -206,8 +225,23 @@ class RelationLanguage:
         counts = raw.get("counts") if isinstance(raw, dict) else None
         if not isinstance(counts, dict):
             return cls(path=target)
+        from core.cognition.primitive_invention import IndexProgram
+
+        forms: dict[str, tuple[str, object, tuple[str, ...]]] = {}
+        for description, row in (raw.get("forms") or {}).items():
+            if not isinstance(row, dict):
+                continue
+            program = IndexProgram.from_json(row.get("program"))
+            if program is None:
+                continue
+            forms[str(description)] = (
+                str(row.get("family") or ""),
+                program,
+                tuple(str(part) for part in (row.get("parts") or ())),
+            )
         return cls(
             counts={str(k): int(v) for k, v in counts.items() if str(k)},
+            forms=forms,
             path=target,
         )
 
@@ -224,19 +258,21 @@ def _apply_in_order(
     since been dropped.
     """
 
-    from core.cognition.primitive_invention import rule_for_description
+    from core.cognition.primitive_invention import (
+        IndexProgram,
+        rule_for_description,
+    )
 
     found = [rules.get(part) or rule_for_description(part) for part in parts]
     if any(rule is None for rule in found):
         return None
-
-    def rule(index: int, size: int, _chain=tuple(found)) -> int:
-        position = index
-        for step in reversed(_chain):
-            position = step(position, size)
-        return position
-
-    return rule
+    if not all(isinstance(rule, IndexProgram) for rule in found):
+        return None
+    # A composition of programs is a program. Built as a closure, the ONE form
+    # the system derives for itself was the one form that could not be written
+    # down: everything from the basis survived a restart and the refactored
+    # entry did not.
+    return IndexProgram("compose", (), tuple(found))
 
 
 def observations_needed(

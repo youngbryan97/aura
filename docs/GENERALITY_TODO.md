@@ -39,10 +39,18 @@ struck through on the strength of an argument.
   different world taught the two-deep shape — then predicts lengths it never
   saw. Shapes are members of the language, not a preference over it. A language
   taught something unhelpful adds nothing.
-- [x] **B6** Persistence across processes. The decode measurements survive a
-  restart: the machine and the model outlive the process, and held only in
-  memory the turn that most needed the measurement was the one that never had
-  it. Forgetting forgets the disk too.
+- [x] **B6** Persistence across processes, for the LANGUAGE. This was marked
+  done on the strength of the decode measurements persisting, which is a
+  different thing from what B1-B5 are about and was an overclaim. What actually
+  persisted was `counts`: the library came back knowing mirroring had worked
+  nine times and not what mirroring was, so the expanded language contracted to
+  its basis on every boot and the one thing learned was the one thing lost. A
+  shape is a structured program now rather than a closure — it interprets
+  itself, compares by value and round-trips through JSON — and a restarted
+  library still reaches a four-deep world a blank one cannot. The self-derived
+  refactored form was the last closure and the last thing to be dropped.
+- [x] **B6a** The decode measurements persist too, which is the separate and
+  smaller claim originally made here.
 
 - [x] **B7** Refactoring. The library finds structure several solutions share
   that none of them is, chosen by what it saves rather than by taste, and it
