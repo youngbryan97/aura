@@ -16280,6 +16280,43 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
     return reply
 
 
+def _serve_worked_out_sequence(user_message: object, reply: object) -> object:
+    """Answer a "what does this become" question by working the rule out.
+
+    The induction machinery had no consumer outside its own battery. It could
+    learn a transformation from a few examples, keep it, compose with it and
+    carry it to the next problem, and none of that ever met a person: the
+    architecture had the mechanism and the live agent did not use it. This is
+    the seam.
+
+    Where the rule accounts for every example shown, there is nothing to
+    generate — the same as a seating arrangement or a product of two numbers.
+    The shape is kept afterwards, so the next question of the kind is settled
+    from fewer examples, which is the point of the library being in the live
+    path rather than beside it.
+
+    Quiet on single values: "45 becomes 15" is a relation between numbers, not
+    a rearrangement of positions, and answering it would mean guessing.
+    """
+    try:
+        from core.cognition.sequence_induction import answer_sequence_question
+
+        worked_out = answer_sequence_question(str(user_message or ""))
+        if not worked_out:
+            return reply
+        logger.info("🔁 Served a sequence question from the rule it worked out.")
+        return worked_out
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.worked_out_sequence",
+            exc,
+            severity="debug",
+            action="left the sequence question to the model",
+            enforce_failure_policy=False,
+        )
+        return reply
+
+
 def _serve_positional_solution(user_message: object, reply: object) -> object:
     """Answer a seating or order problem from the enumeration.
 
@@ -18254,6 +18291,7 @@ async def _recorded_answer_corrections(
     corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
     corrected = str(await _save_requested_artifact(user_message, corrected) or corrected)
     corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
+    corrected = str(_serve_worked_out_sequence(user_message, corrected) or corrected)
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
     corrected = str(await _serve_solved_game(user_message, corrected) or corrected)
