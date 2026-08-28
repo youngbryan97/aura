@@ -41,6 +41,7 @@ draft is kept, and it is the floor nothing is allowed to fall below.
 from __future__ import annotations
 
 import contextvars
+import logging
 import re
 import time
 import uuid
@@ -140,6 +141,9 @@ def begin_turn_tool_receipts() -> None:
         custody.clear_receipts()
 
 
+_logger = logging.getLogger(__name__)
+
+
 def record_tool_receipt(
     tool_name: Any,
     *,
@@ -165,6 +169,21 @@ def record_tool_receipt(
 
     custody = current_turn_evidence_custody()
     if custody is None:
+        _logger.info(
+            "🧾 tool receipt for %s dropped: no turn custody in this execution", name
+        )
+        return False
+    if not custody.admits_current_execution():
+        # Written by a child the turn never admitted, so nothing downstream can
+        # read it. That is the rule working, and it has been silent about it:
+        # the fallback that reports what the tools found had nothing to report,
+        # twice, and both times the receipts looked as though they had never
+        # been taken rather than as though they had been refused.
+        _logger.info(
+            "🧾 tool receipt for %s refused: this execution is not an admitted "
+            "participant of the turn holding the evidence",
+            name,
+        )
         return False
     return custody.append_receipt(
         {

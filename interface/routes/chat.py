@@ -16092,6 +16092,27 @@ def _what_the_tools_found() -> str:
         receipts = turn_tool_receipts()
     except _CHAT_RECOVERABLE_ERRORS:
         return ""
+    if not receipts:
+        # Why there are none, rather than only that there are none.
+        #
+        # This returned "" for a turn whose tools had run and returned, and the
+        # log said nothing at all — so the same investigation had to be done
+        # from scratch to find out whether the tools had not run, had not
+        # recorded, or had recorded somewhere this execution may not read.
+        try:
+            from core.conversation.turn_evidence_custody import (
+                current_turn_evidence_custody,
+            )
+
+            custody = current_turn_evidence_custody()
+            logger.info(
+                "🧾 nothing to report from this turn's tools: custody=%s admits=%s",
+                "present" if custody is not None else "absent",
+                custody.admits_current_execution() if custody is not None else "n/a",
+            )
+        except _CHAT_RECOVERABLE_ERRORS:
+            logger.info("🧾 nothing to report from this turn's tools.")
+        return ""
     said: list[str] = []
     for receipt in receipts:
         if not isinstance(receipt, dict) or not receipt.get("ok"):
