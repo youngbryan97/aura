@@ -9171,12 +9171,26 @@ def _mlx_worker_loop(
                                         # there is no surface at all. That is a budget failure and not
                                         # a model failure, and it read downstream as producing nothing.
                                         # The flag was recorded here and nothing ever read it.
+                                        # With the end of it, because two very
+                                        # different faults look the same from
+                                        # out here. A tail that trails off
+                                        # mid-sentence is a model that had more
+                                        # to say and no budget to say it. A
+                                        # tail that reads like a finished
+                                        # answer means the answer was written
+                                        # and then filed as reasoning, because
+                                        # the "</think>" this split depends on
+                                        # never appeared in the decoded text —
+                                        # and widening the budget would never
+                                        # have fixed that one.
                                         logger.warning(
                                             "🧠 [WORKER] Generation ended inside the private channel: "
                                             "%d reasoning chars, no answer. The decode budget of %d "
-                                            "tokens did not cover the thinking this question needed.",
+                                            "tokens did not cover the thinking this question needed. "
+                                            "It ends: %r",
                                             len(native_channels.reasoning),
                                             max_tokens,
+                                            native_channels.reasoning[-220:],
                                         )
                                         _record_budget_that_ran_out_thinking(max_tokens)
                                     response_text = (
