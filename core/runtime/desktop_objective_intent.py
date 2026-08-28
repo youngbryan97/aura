@@ -714,7 +714,14 @@ _MUTATING_ACTION_TERMS: tuple[str, ...] = tuple(
 #: to the actuation lane and refused. The same mistake, one surface over.
 _FILESYSTEM_OBSERVATION_RE = re.compile(
     r"\b(?:read|list|show|display|inspect|examine|count|check|look\s+at|"
-    r"cat|view|open)\b",
+    r"cat|view|open|go\s+through|walk\s+through|step\s+through|trace|"
+    r"review|explain|diagnose|figure\s+out|work\s+out)\b"
+    # Asking somebody to TELL you about a thing is asking them to look at it,
+    # and it needs no anchor because the form is unambiguous. The opening
+    # question forms below have to sit at the start of the turn or "what"
+    # would match nearly everything; this one carries its own subject.
+    r"|\b(?:tell|show|walk)\s+me\b[^.?!]{0,40}?"
+    r"\b(?:what|where|why|how|which|through)\b",
     re.IGNORECASE,
 )
 
@@ -853,6 +860,16 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
     no verb in them at all — went to the screen driver, while "list the
     contents of ~/Documents" did not. A question about a path is a request to
     look at it, whether or not it names the looking.
+
+    LIVE, 2026-08-28: "Something's off in <path> ... Go through the code and
+    tell me what's actually happening, with the file and line" was routed to
+    the desktop lane, which planned it as WRITING A DOCUMENT and came back "I
+    could not write the words you asked for, so I have not made the file."
+    Nothing had asked for a file. The question forms above are anchored to the
+    start of the turn, and this one asks in its last clause; none of the listed
+    verbs covered going through code and reporting back. The diagnosis engine
+    that owns this had the answer — invoice.py:4, a mutable default, with the
+    remedy — and was never reached.
     """
     text = normalize_memory_intent_text(user_message).lower()
     if not text:

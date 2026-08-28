@@ -496,6 +496,36 @@ _SUBJECT_RE = re.compile(
 )
 
 
+def _nothing_to_watch(text: str) -> bool:
+    """True when the request has no screen for a watched goal to be watched on.
+
+    Every field of this type is about a screen — the app, where it happens, the
+    keys to press, the band of the display to check the finish against. A goal
+    is pursued by looking at something and acting on it, and a request whose
+    subject is a file on disk offers nothing to look at: the readers go
+    straight at the bytes.
+
+    LIVE, 2026-08-28: "step through /tmp/proj and tell me where it goes wrong"
+    matched the "step through" continuation cue, which was written for stepping
+    through a game, and became a watched goal with no finishing condition, no
+    app and the four arrow keys. That routed a request to read code into the
+    lane that drives the screen.
+
+    Naming an app or a URL puts a screen back in the request, so "step through
+    the code in /tmp/proj in VS Code" is a screen pursuit again.
+    """
+
+    try:
+        from core.language.named_paths import named_paths
+    except (ImportError, AttributeError):
+        return False
+    if not named_paths(text):
+        return False
+    if "://" in text:
+        return False
+    return not _named_app(text)
+
+
 def read_watched_goal(objective: str) -> WatchedGoal | None:
     """A watched goal, when the request is one. Otherwise nothing."""
     text = str(objective or "").strip()
@@ -503,6 +533,8 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         return None
     cue = _continuation(text)
     if not cue:
+        return None
+    if _nothing_to_watch(text):
         return None
     # A process that never says when to stop is still a process.
     #
