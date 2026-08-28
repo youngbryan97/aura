@@ -175,3 +175,19 @@ def test_forgetting_forgets_the_disk_too(tmp_path, monkeypatch) -> None:
     thinking_reserve.save()
     thinking_reserve.forget()
     assert thinking_reserve.seconds_to_decode(896) == 0.0
+
+
+def test_the_extension_reaches_the_clock_it_is_extending() -> None:
+    """A number raised beside the object that holds it changes nothing.
+
+    LIVE, 2026-08-28: "deadline 96s → 217s" was computed, logged, and the
+    request expired at 98 seconds, because request_deadline was built when the
+    request was admitted and never rebuilt.
+    """
+
+    body = _GATE.read_text()
+    start = body.index("[ANSWER CLOCK]")
+    window = body[start : start + 2200]
+    assert "timeout_val = _needed" in window
+    assert "request_deadline = get_deadline(float(timeout_val))" in window
+    assert 'context["request_deadline_s"] = float(timeout_val)' in window

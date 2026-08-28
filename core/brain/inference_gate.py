@@ -13586,6 +13586,14 @@ class InferenceGate:
                         )
                         timeout_val = _needed
                         primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
+                        # The clock is one object, built when the request was
+                        # admitted. Raising the number beside it computed an
+                        # extension, logged it, and did not honour it.
+                        #
+                        # LIVE, 2026-08-28: "deadline 96s to 217s" and the
+                        # request expired at 98 seconds.
+                        request_deadline = get_deadline(float(timeout_val))
+                        context["request_deadline_s"] = float(timeout_val)
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
