@@ -148,8 +148,41 @@ def test_the_violations_only_go_down(formed) -> None:
     )
 
 
-def test_the_named_example_from_the_outside_review_is_caught(formed) -> None:
-    """"Copy only means a filesystem operation under certain conditions.\""""
+def test_a_conjoined_decision_already_asks_for_the_role(formed) -> None:
+    """The review's own example turns out to be handled, and that is the finding.
 
-    violations = formed[0].violations()
-    assert any("decides from 'copy'" in line for line in violations)
+    _FOREGROUND_ACTION_VERB_RE fires on "copy their approach" and on "that move
+    was a good one", so the pattern is under-determined. Its caller conjoins it
+    with a surface word, so the DECISION asks for the role even though the
+    pattern does not, and all nine probes come out right. Counting patterns put
+    that site in the list and inflated the number from 63 to 246; the
+    constraint is about decisions.
+    """
+
+    from core.brain.inference_gate import (
+        _FOREGROUND_ACTION_SURFACE_RE,
+        _FOREGROUND_ACTION_VERB_RE,
+    )
+
+    for text in (
+        "what's West doing that the other regions should copy?",
+        "that move was a good one in the game",
+        "open question: why did revenue dip?",
+    ):
+        assert _FOREGROUND_ACTION_VERB_RE.search(text)
+        assert not _FOREGROUND_ACTION_SURFACE_RE.search(text)
+    for text in ("copy the report to my desktop", "move report.pdf into Documents"):
+        assert _FOREGROUND_ACTION_VERB_RE.search(text)
+        assert _FOREGROUND_ACTION_SURFACE_RE.search(text)
+
+    assert not any("_FOREGROUND_ACTION_VERB_RE" in line for line in formed[0].violations())
+
+
+def test_a_decision_with_nothing_beside_it_is_what_counts(formed) -> None:
+    """Read from the source: a call site cannot be asked at runtime."""
+
+    from core.language.formed_constraints import _consulted_alone
+
+    alone = _consulted_alone(Path("core/conversation/asks_about_the_world.py"))
+    assert alone, "a module that tests patterns alone must report them"
+    assert any("decides from" in line for line in formed[0].violations())

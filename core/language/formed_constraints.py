@@ -126,11 +126,17 @@ class FormedConstraint:
         return f"{self.name}: {self.statement}"
 
     def violations(self) -> list[str]:
-        """Patterns this concept covers that do not honour it.
+        """Decisions this concept covers that do not honour it.
 
-        The point of forming a concept rather than fixing a case: it names
-        every pattern with the property, including the ones nobody has seen
-        fail. What comes back is a list to shorten.
+        Measured at the decision, not at the pattern. A pattern that names an
+        under-determined token is not yet a fault: _FOREGROUND_ACTION_VERB_RE
+        fires on "copy their approach" and on "that move was a good one", and
+        its caller conjoins it with a surface word, so the decision asks for
+        the role even though the pattern does not. Counting patterns put that
+        site in the list and inflated the number from 63 to 246.
+
+        A fault is a pattern that names such a token AND is consulted somewhere
+        as the whole of a decision, with nothing beside it.
         """
 
         # Only the tokens that MADE the cluster. A token that decided one
@@ -143,7 +149,12 @@ class FormedConstraint:
         tokens = sorted(token for token, where in seen.items() if len(where) >= 2)
         offending: set[str] = set()
         for failure in self.formed_from:
+            alone = _consulted_alone(failure.module)
+            if not alone:
+                continue
             for name, pattern in _patterns_in(failure.module):
+                if name not in alone:
+                    continue
                 for token in tokens:
                     if not _names_the_token(
                         str(getattr(pattern, "pattern", "")), token
@@ -154,6 +165,59 @@ class FormedConstraint:
                             f"{failure.module.as_posix()}:{name} decides from {token!r}"
                         )
         return sorted(offending)
+
+
+def _consulted_alone(module: Path) -> set[str]:
+    """Patterns this module tests as the whole of a decision, with nothing beside.
+
+    A pattern conjoined with something else has already asked for more than the
+    token, whatever the pattern itself says. Read from the source, because a
+    call site cannot be asked at runtime whether it was the only condition.
+    """
+
+    import ast
+
+    try:
+        tree = ast.parse(module.read_text())
+    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
+        return set()
+
+    def named(node: ast.AST) -> str:
+        # PATTERN.search(x) / PATTERN.match(x) / PATTERN.fullmatch(x)
+        if not isinstance(node, ast.Call):
+            return ""
+        func = node.func
+        if not isinstance(func, ast.Attribute):
+            return ""
+        if func.attr not in {"search", "match", "fullmatch"}:
+            return ""
+        holder = func.value
+        return holder.id if isinstance(holder, ast.Name) else ""
+
+    def unwrap(node: ast.AST) -> ast.AST:
+        while isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            node = node.operand
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == "bool" and node.args:
+                return unwrap(node.args[0])
+        return node
+
+    alone: set[str] = set()
+    for node in ast.walk(tree):
+        tests: list[ast.AST] = []
+        if isinstance(node, (ast.If, ast.While)):
+            tests.append(node.test)
+        elif isinstance(node, ast.Return) and node.value is not None:
+            tests.append(node.value)
+        for test in tests:
+            settled = unwrap(test)
+            if isinstance(settled, ast.BoolOp):
+                # Conjoined or alternated with something: more was asked for.
+                continue
+            found = named(settled)
+            if found:
+                alone.add(found)
+    return alone
 
 
 def _clean(note: str) -> str:
