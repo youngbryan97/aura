@@ -150,25 +150,46 @@ def answer_sequence_question(text: Any) -> str:
         return ""
     language = _language()
     found = language.explain(list(question.shown))
+
+    # A shape already learned, where the observations do not pin the positional
+    # answer.
+    #
+    # LIVE, 2026-08-28: a turn taught "ascending order", and the next one,
+    # showing a single example, was answered "position i takes from i+1 (mod
+    # n)". The answer was right by luck — a rotation and an ordering agree on
+    # that one state — and the ordering that had just been learned was never
+    # consulted, because the positional path had found something and something
+    # was enough.
+    #
+    # A form fitting one example is the thin evidence the probe exists to flag.
+    # Where a rival survives, a shape that has accounted for a world before
+    # beats one that has accounted for this one.
+    #
+    # Thin means what it says: one example, or more than one positional form
+    # still fitting. The rival here is the ORDERING, and the probe only ever
+    # compared positional forms to each other — so it saw no rival on a world
+    # whose only rival was of the other kind, and reported the evidence as
+    # settled when it was one example.
+    thin = (
+        len(question.shown) < 2
+        or discriminating_probe(list(question.shown), known_forms=language.forms)
+        is not None
+    )
+    known = language.order_that_explains(list(question.shown))
+    if known is not None and (found is None or thin):
+        answer = known.apply(tuple(question.asked))
+        if answer is not None:
+            return (
+                f"{list(answer)}\n\n"
+                f"The rule, from a shape worked out earlier: {known.describe()}."
+            )
+
     if found is None:
         # Two failures wore the same face. A world one example short of being
         # settled and a world no rule of this shape can ever say both returned
         # nothing, so neither could be answered honestly and neither could be
         # acted on.
         verdict = certify(list(question.shown))
-        # An ordering already learned is consulted whenever the positional
-        # language came up empty, not only where it is proved impossible. The
-        # proof needs two states of one length; a person showing one example of
-        # something they have shown before should not have to.
-        known = language.order_that_explains(list(question.shown))
-        if known is not None:
-            answer = known.apply(tuple(question.asked))
-            if answer is not None:
-                return (
-                    f"{list(answer)}\n\n"
-                    f"The rule, from a shape worked out earlier: "
-                    f"{known.describe()}."
-                )
         if verdict.proven_outside:
             # The proof says a rule reading only positions cannot do this. That
             # is the one place it is right to look at the cells: a wider net is
