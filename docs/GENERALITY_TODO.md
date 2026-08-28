@@ -57,6 +57,14 @@ struck through on the strength of an argument.
   reaches a world the winners could not. This is the step Soar and ACT-R lacked,
   which is why symbolic learning stopped in both.
 
+- [x] **B8** The machinery is in the live path. Its only consumers were its own
+  battery, a comparison tool and tests — the architecture had the mechanism and
+  the agent did not use it. A sequence question is now worked out by the
+  runtime, the rule is said, and the shape is kept.
+- [x] **B9** The loop, live, in two consecutive turns. A two-deep shape learned
+  in one turn made a three-deep question answerable in the next — a question
+  unreachable from a blank language however many examples are offered.
+
 ## C. Novel abstraction from failure
 
 - [x] **C1** Failures are data. 422 dated notes across 146 files, read.

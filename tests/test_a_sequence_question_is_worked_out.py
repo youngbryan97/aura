@@ -83,3 +83,61 @@ def test_the_live_route_consults_it() -> None:
     start = body.index("def _serve_worked_out_sequence(")
     window = body[start : start + 1800]
     assert "answer_sequence_question" in window
+
+
+def test_one_turn_makes_the_next_one_possible(tmp_path, monkeypatch) -> None:
+    """The loop, end to end: experience, representation, reuse.
+
+    LIVE, 2026-08-28, two consecutive turns in the window. The first showed a
+    two-deep composition and was answered. The second showed a three-deep one —
+    UNREACHABLE from a blank language however many examples are offered — and
+    was answered [36, 34, 33, 32, 31, 30, 35], naming all three parts, because
+    the turn before it had left the two-deep shape behind.
+    """
+
+    import core.cognition.sequence_induction as seam
+
+    store = tmp_path / "relation_language.json"
+    monkeypatch.setattr(seam, "_language_path", lambda: store)
+
+    def mirror(row):
+        return tuple(reversed(row))
+
+    def rot1(row):
+        return row[1:] + row[:1]
+
+    def ends(row):
+        out = list(row)
+        out[0], out[-1] = out[-1], out[0]
+        return tuple(out)
+
+    def two(row):
+        return rot1(mirror(row))
+
+    def three(row):
+        return ends(rot1(mirror(row)))
+
+    def asked(rule, lengths, query_length):
+        parts = []
+        for length in lengths:
+            row = tuple(range(1, length + 1))
+            parts.append(f"{list(row)} becomes {list(rule(row))}")
+        query = tuple(range(30, 30 + query_length))
+        parts.append(f"What does {list(query)} become?")
+        return ". ".join(parts), rule(query)
+
+    deep_question, deep_answer = asked(three, (5, 6), 7)
+
+    # Cold: the three-deep shape is out of reach.
+    assert seam.answer_sequence_question(deep_question) == ""
+
+    # One ordinary turn, showing the two-deep shape.
+    shallow_question, shallow_answer = asked(two, (5, 6), 7)
+    served = seam.answer_sequence_question(shallow_question)
+    assert served.startswith(str(list(shallow_answer)))
+    assert store.exists(), "the shape has to outlive the turn that learned it"
+
+    # And now the harder question is answerable, in a fresh read of the store.
+    served = seam.answer_sequence_question(deep_question)
+    assert served.startswith(str(list(deep_answer)))
+    assert "then" in served, "the rule it names is a composition"
