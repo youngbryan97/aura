@@ -161,3 +161,55 @@ unseen-task battery.
 - Never accept a gap: install, build or fix rather than report.
 - Every claim carries the test that checks it.
 - Commit and push every checkpoint.
+
+## The clock chain, traced end to end (2026-08-28)
+
+One request — "read this API.md and tell me what these two functions do" — was
+followed from the canned refusal back to its causes. Fourteen defects, each
+committed with a test. They are listed because the shape repeats: every layer
+had its own copy of a judgement, and each one that was fixed revealed the next.
+
+- A word in the request conjured an effect the tool could not perform: "post an
+  invoice" refused as `network_write` on a sandbox.
+- The tool loop was given exactly as many turns as calls, so answering was
+  itself a call.
+- The consent a request carries was set only for the artifact ceiling, leaving
+  the self-service ceiling asking for a confirmation nobody can give.
+- The protection that stops a tool call being clamped below the size of a call
+  read `options["tools"]`, which is None on the JSON contract — the path that
+  needs it most.
+- A tool call was sized by felt vitality. Half a call is no call.
+- The time kept back for the answer was a constant while the thing it reserves
+  for grows with what the tools return.
+- A turn with two phases was timed as though it had one, because the clock sat
+  behind an entitlement about answer LENGTH.
+- The clock's arithmetic had no term for reading the prompt.
+- The read rate was measured and never persisted.
+- `seconds_to_decode` could not speak for any budget worth extending: forty
+  readings, zero comparable to 1536 tokens, because long generations are rare —
+  partly because the deadline it could not extend kept cancelling them.
+- A gate that never ran was reported as a gate that said no, because
+  `passed` starts false. Every failure became `surface_quality_rejected` and
+  sent every investigation to the wrong subsystem.
+- Four keys hold quality reasons and the refusal read one, then three.
+- The refusal could name neither its objection nor the draft it objected to.
+- A tool receipt refused for want of turn custody left the same trace as a tool
+  that never ran, which is none.
+
+**Where it stands.** The clock now fires — "1536 tokens decode in about 305s and
+the prompt takes about 7s to read; deadline 305s → 628s" — the tool call
+succeeds, the file is read, and the tool-result rescue serves what was found
+rather than a canned line.
+
+**H3 is the live blocker, and this is the evidence for it.** The last generation
+produced 1186 characters carrying `unanswered_question_part`, and the prompt it
+answered was `scaffold=5180 request=213`, a ratio of 24. The gate was right to
+withhold it. The question is why a model given a file and a plain question about
+it writes something that does not answer the question, and the scaffold is the
+first place to look.
+
+**A fifth clock exists and is not a defect.** The route holds a wall-clock UI
+deadline (`_foreground_timeout_for_lane`) that the gate's extension does not
+reach. The model wanted 628 seconds and the UI allows about 180. That is a real
+conflict rather than a bug, and it should be decided rather than discovered.
+
