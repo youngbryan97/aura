@@ -13642,11 +13642,25 @@ class InferenceGate:
         # gives the two conditions somewhere to drift apart — and they did: the
         # turn that carried floor=896 to the worker did not satisfy a second
         # copy of the test, and was dispatched with 375.
-        if (
-            not bool(context.get("hard_output_token_ceiling", False))
-            and not bool(context.get("resource_stakes_blocked", False))
-            and not bool(context.get("desktop_execution_contract", False))
-        ):
+        _clock_blocked_by = [
+            name
+            for name in (
+                "hard_output_token_ceiling",
+                "resource_stakes_blocked",
+                "desktop_execution_contract",
+            )
+            if bool(context.get(name, False))
+        ]
+        if _clock_blocked_by:
+            # Why the deadline was never reconsidered. Three conditions can
+            # skip this and the log said nothing about any of them, so a turn
+            # cancelled mid-prefill looked identical to one the clock had
+            # examined and left alone.
+            logger.info(
+                "🧠 [ANSWER CLOCK] not consulted for this turn: %s",
+                ",".join(_clock_blocked_by),
+            )
+        else:
             try:
                 _answer_floor_final = int(
                     context.get("user_surface_completion_floor") or 0
