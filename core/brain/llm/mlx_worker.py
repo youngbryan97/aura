@@ -8313,6 +8313,14 @@ def _mlx_worker_loop(
                                     previous_cache_rollback = None
                                     continuation_cache_rollback = None
                                     deadline_hit = False
+                                    deadline_passed_while_working = False
+                                    # A turn somebody is waiting for is allowed to
+                                    # take the time it takes. Background work still
+                                    # yields on its deadline, so a dream cycle
+                                    # cannot sit on the one GPU while a person waits.
+                                    keep_going_while_it_is_working = bool(
+                                        job.get("foreground_request")
+                                    )
                                     semantic_terminal_grace_active = False
                                     semantic_terminal_grace_deadline_unix = 0.0
                                     semantic_terminal_grace_token_ceiling = 0
@@ -8995,6 +9003,50 @@ def _mlx_worker_loop(
                                                 < semantic_terminal_grace_token_ceiling
                                             ):
                                                 pass
+                                            elif keep_going_while_it_is_working:
+                                                # Still producing, so it is not
+                                                # stuck — it is taking longer than
+                                                # somebody guessed it would.
+                                                #
+                                                # This check is inside the token
+                                                # loop, and the loop only turns when
+                                                # a token arrives, so reaching the
+                                                # deadline here ALWAYS means one just
+                                                # did. The cancel could therefore
+                                                # only ever fire on a healthy
+                                                # generation. A wedged one never gets
+                                                # here at all and is caught from
+                                                # outside, by the first-token and
+                                                # livelock ceilings, and a degenerate
+                                                # one is caught above by the token
+                                                # sentinel, which reads the output
+                                                # rather than the clock.
+                                                #
+                                                # What is left for a deadline to stop
+                                                # is a working generation that has
+                                                # taken longer than expected, and
+                                                # this runtime serves one person on
+                                                # one laptop: nothing is queued
+                                                # behind it and nothing is being
+                                                # billed. Half an answer on time is
+                                                # worth less than a whole one late.
+                                                #
+                                                # It stays bounded by what it is
+                                                # allowed to SAY rather than how long
+                                                # it may take: the absolute token
+                                                # ceiling above, the sentinel, and
+                                                # the semantic contract that stops it
+                                                # the moment the answer is complete.
+                                                if not deadline_passed_while_working:
+                                                    deadline_passed_while_working = True
+                                                    logger.info(
+                                                        "⏳ [WORKER] Past the deadline at token "
+                                                        "%d and still producing; letting it "
+                                                        "finish. Bounded by the token ceiling, "
+                                                        "the loop sentinel and the semantic "
+                                                        "contract, not by the clock.",
+                                                        token_count,
+                                                    )
                                             else:
                                                 logger.warning(
                                                     "⏱️ [WORKER] Request deadline reached at "

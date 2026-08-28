@@ -13675,6 +13675,34 @@ class MLXLocalClient:
         """Returns True if the worker process is running and initialized."""
         return self._process is not None and self._process.is_alive() and self._init_done
 
+
+    def _still_producing(self, *, within_s: float, foreground_request: bool) -> bool:
+        """True when tokens have arrived recently enough to call this alive.
+
+        The question a deadline should have been asking. A generation that is
+        emitting tokens is working; one that has gone quiet is the thing worth
+        stopping, and that is what the stall checks are for.
+
+        Only for a turn somebody is waiting on. Background work keeps its
+        deadline, so a dream cycle cannot hold the one GPU while a person waits
+        for an answer.
+        """
+
+        if not foreground_request:
+            return False
+        last = float(getattr(self, "_last_token_progress_at", 0.0) or 0.0)
+        if last <= 0.0:
+            # Nothing has arrived at all, so this is not a slow answer. It is
+            # a silent one, and the first-token ceiling owns that case.
+            return False
+        try:
+            window = float(within_s)
+        except (TypeError, ValueError):
+            return False
+        if not (window > 0.0):
+            return False
+        return (time.time() - last) <= window
+
     async def _wait_for_generation_result(
         self,
         req_id: str,
@@ -13690,6 +13718,7 @@ class MLXLocalClient:
         first_token_sla = self._first_token_sla(foreground_request=foreground_request)
         token_stall_after = self._token_stall_after(foreground_request=foreground_request)
         wait_started = time.monotonic()
+        self._said_it_is_taking_longer = False
         # Finite-bounded: a malformed value previously RAISED through the
         # generation wait path, and infinity disabled the hard cap entirely.
         hard_cap = _generation_wait_hard_cap_s(
@@ -13699,7 +13728,33 @@ class MLXLocalClient:
         while (time.monotonic() - wait_started) <= hard_cap:
             remaining = deadline.remaining
             if remaining is not None and remaining <= 0.0:
-                raise TimeoutError
+                if not self._still_producing(
+                    within_s=token_stall_after, foreground_request=foreground_request
+                ):
+                    raise TimeoutError
+                # Tokens are still arriving, so the answer is being written.
+                # Cancelling here throws away work that is going fine, and
+                # what comes back instead is half a reply or an apology.
+                #
+                # This runtime serves one person on one laptop. Nothing is
+                # queued behind this turn and nothing is being billed, so the
+                # only thing a deadline buys is the illusion of control over
+                # something that is already working. What actually needs
+                # catching — a wedged worker, a decode looping forever — is
+                # caught by the stall checks below and by the sentinel that
+                # reads the output, neither of which asks what time it is.
+                #
+                # Still bounded: the hard cap above ends the wait for anything
+                # pathological, and a generation that goes quiet fails on the
+                # very next slice.
+                if not self._said_it_is_taking_longer:
+                    self._said_it_is_taking_longer = True
+                    logger.info(
+                        "⏳ [MLX] Past the deadline and still producing tokens; "
+                        "waiting for the answer rather than cancelling it "
+                        "(bounded at %.0fs).",
+                        hard_cap,
+                    )
 
             slice_timeout = min(2.0, remaining) if remaining is not None else 2.0
             try:
@@ -15138,6 +15193,12 @@ class MLXLocalClient:
             requested_output_contract=requested_output_contract,
             self=self,
         )
+        # Whether somebody is waiting for this one. The worker lets a
+        # foreground generation that is still producing tokens run past its
+        # deadline rather than cancelling a working answer; background work
+        # still yields, so a dream cycle cannot sit on the one GPU while a
+        # person waits.
+        req["foreground_request"] = bool(foreground_request)
 
         # CP126 cac5c1a3: normalise the sampling parameters BEFORE the
         # mandatory stop sequences are appended, so the caller's list is

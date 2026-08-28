@@ -12358,8 +12358,23 @@ class InferenceGate:
                 # Scale token budget for background requests only:
                 # When Φ is high, allow full budget. When Φ is low, scale down
                 # but never below 60% — the old 20% floor was destructive.
+                #
+                # "Background only" is what this always said and never did.
+                # There was no background check in the condition, so a
+                # background budget control was trimming the answers people
+                # were waiting for, and the signal it scales on is registered
+                # under the name "background_token_budget" a dozen lines above.
+                #
+                # It matters more than a percentage looks. A token budget is a
+                # ceiling and not a reservation: the model stops when it has
+                # finished, so a generous ceiling costs nothing on a turn that
+                # ends early, while a tight one costs the end of a sentence on
+                # the turn that needed the room. Guessing low and guessing high
+                # are not symmetric, and on one laptop serving one person
+                # there is nothing on the other side of the trade.
                 if (
                     phi_val < 0.8
+                    and is_background
                     and not strict_answer_contract
                     and not health_probe
                     and not isolated_generation_contract
@@ -13872,12 +13887,16 @@ class InferenceGate:
                         request_deadline = get_deadline(float(timeout_val))
                         context["request_deadline_s"] = float(timeout_val)
 
-            # Only now, against the clock this turn actually has. Cutting the
-            # budget before the extension was decided threw away tokens the
-            # extension had just paid for.
-            max_tokens = self._tokens_the_clock_can_deliver(
-                max_tokens, seconds=float(primary_timeout or timeout_val)
-            )
+            # Only where the clock still has the last word. A turn somebody is
+            # waiting for is no longer cancelled while it is producing tokens,
+            # so trimming its answer to fit a deadline would be shortening it
+            # to meet a limit that has stopped applying. Background work does
+            # still yield on its deadline, and there an oversized budget buys
+            # nothing but a decode cut off part-way.
+            if not _is_user_facing:
+                max_tokens = self._tokens_the_clock_can_deliver(
+                    max_tokens, seconds=float(primary_timeout or timeout_val)
+                )
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
