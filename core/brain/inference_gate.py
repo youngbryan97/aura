@@ -1621,9 +1621,6 @@ async def _admit_the_foreground_request(
                         requested_tier=requested_tier,
                         is_background=is_background,
                     )
-                max_tokens = self._tokens_the_clock_can_deliver(
-                    max_tokens, seconds=float(primary_timeout or timeout_val)
-                )
                 admission_snapshot = await self._enforce_foreground_admission(
                     requested_tier,
                     protected_foreground=protected_foreground_lane,
@@ -13794,7 +13791,19 @@ class InferenceGate:
             # given 516 seconds and read three files; without one it was given
             # 148, and the answer — over a prompt its own worker measured at
             # 120 seconds to read — was cancelled with nothing said.
-            if 0 < _answer_floor_final or _generations > 1:
+            _is_user_facing = (
+                not benchmark_request
+                and not web_interlocutor_contract
+                and (self._origin_is_user_facing(origin) or requested_tier == "primary")
+                and not health_probe
+                and not proof_evaluation_contract
+            )
+            # Anyone waiting for this answer, or a turn with a floor or a
+            # second pass. The two special cases were the whole condition, so
+            # an ordinary question — no floor, one generation — never had its
+            # clock checked against what it had been asked to produce, which
+            # is every conversational turn there is.
+            if _is_user_facing or 0 < _answer_floor_final or _generations > 1:
                 _decode_s = _seconds_to_decode(max_tokens)
                 # Reading the prompt is the other half of a generation, and
                 # on this hardware it is the larger half. A turn was given time
@@ -13834,6 +13843,13 @@ class InferenceGate:
                         # request expired at 98 seconds.
                         request_deadline = get_deadline(float(timeout_val))
                         context["request_deadline_s"] = float(timeout_val)
+
+            # Only now, against the clock this turn actually has. Cutting the
+            # budget before the extension was decided threw away tokens the
+            # extension had just paid for.
+            max_tokens = self._tokens_the_clock_can_deliver(
+                max_tokens, seconds=float(primary_timeout or timeout_val)
+            )
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
@@ -13899,13 +13915,6 @@ class InferenceGate:
                 ),
             )
 
-        _is_user_facing = (
-            not benchmark_request
-            and not web_interlocutor_contract
-            and (self._origin_is_user_facing(origin) or requested_tier == "primary")
-            and not health_probe
-            and not proof_evaluation_contract
-        )
         if (
             _is_user_facing
             and requested_tier == "primary"
