@@ -106,10 +106,20 @@ unseen-task battery.
 
 ## H. Found and not yet fixed
 
-- [ ] **H1** The answer clock extends `timeout_val` after `request_deadline` was
-  already built from the old value, so the extension is computed, logged, and
-  then not honoured. LIVE 2026-08-28: "deadline 96s → 217s" and the request
-  expired at 98s.
+- [x] **H1** The answer clock extension reached `timeout_val` and not the
+  deadline object built from it. Fixed.
+- [x] **H2** Twelve straightforward reasoning questions, a 100% canned-failure
+  rate, four independent gates each withholding a real partial answer. All four
+  fixed; canned 12/12 to 6/12 and the salvage now serves her working.
+- [ ] **H3** The remaining six produce nothing at all: Cortex fails, and the
+  desktop contract forbids a lower lane, so there is no draft to salvage. The
+  scaffold is 8,112 characters against a 250-character question. None of the
+  eight instruction directives fire on these prompts — the bulk is standing
+  injected context, and that is the next root cause.
+- [ ] **H4** Eight `engine_directives` are English instruction prose telling
+  the model which phrases to use. Dormant on these turns, and still the thing
+  that is explicitly banned. Each was presumably added to fix a specific
+  failure, so removing them needs those failures identified first.
 
 ## G. Standing
 
