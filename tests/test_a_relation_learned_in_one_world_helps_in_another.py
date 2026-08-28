@@ -292,3 +292,98 @@ def test_a_language_that_learned_nothing_useful_adds_nothing() -> None:
     unhelpful = RelationLanguage()
     unhelpful.admit(invent_relation(_applied(lambda s: s, (4, 5))))
     assert unhelpful.explain(_applied(three_deep, (5, 6, 7))) is None
+
+
+# ------------------------------------------------- structure nobody solved whole
+
+
+def _rot1(state):
+    return state[1:] + state[:1]
+
+
+def _ends(state):
+    row = list(state)
+    row[0], row[-1] = row[-1], row[0]
+    return tuple(row)
+
+
+def _library(*, refactor: bool) -> RelationLanguage:
+    language = RelationLanguage()
+    language.admit(invent_relation(_applied(lambda s: _rot1(_mirror_of(s)), (5, 6, 7))))
+    language.admit(
+        language.explain(_applied(lambda s: _ends(_rot1(_mirror_of(s))), (5, 6, 7)))
+    )
+    language.admit(
+        language.explain(
+            _applied(lambda s: _mirror_of(_ends(_rot1(_mirror_of(s)))), (5, 6, 7))
+        )
+    )
+    if refactor:
+        language.refactor()
+    return language
+
+
+def test_the_library_finds_structure_none_of_its_solutions_is() -> None:
+    """A library that only keeps whole winners can hold nothing new.
+
+    The long-term studies of chunking in Soar and ACT-R report where that ends:
+    symbolic learning eventually stopped in both. What keeps DreamCoder's
+    library growing is refactoring the solutions and admitting the structure
+    common across them, which is what this does.
+    """
+
+    language = _library(refactor=False)
+    before = set(language.forms)
+    extracted = language.refactor()
+    assert extracted, "nothing was shared, so nothing was learned"
+    assert extracted not in before, "a whole winner is not a refactoring"
+    assert set(language.forms) - before == {extracted}
+
+
+def test_the_extracted_run_is_a_real_relation() -> None:
+    """Rebuilt from its parts, it does what those parts do."""
+
+    from core.cognition.primitive_invention import _permutation_operator
+
+    language = _library(refactor=False)
+    extracted = language.refactor()
+    _family, rule, parts = language.forms[extracted]
+    assert len(parts) >= 2
+    state = tuple(range(6))
+    assert _permutation_operator(rule)(state) == _rot1(_ends(state))
+
+
+def test_refactoring_reaches_a_world_the_winners_could_not() -> None:
+    """The point of the step, measured: unreachable, then reachable."""
+
+    def run(state):
+        return _rot1(_ends(state))
+
+    def twice(state):
+        return run(run(state))
+
+    world = _applied(twice, (5, 6, 7))
+    assert _library(refactor=False).explain(world) is None
+    found = _library(refactor=True).explain(world)
+    assert found is not None
+    for length in (9, 11):
+        assert tuple(found.apply(tuple(range(length)))) == twice(tuple(range(length)))
+
+
+def test_nothing_is_extracted_from_one_solution() -> None:
+    """Shared means shared. One shape has nothing to share with."""
+
+    alone = RelationLanguage()
+    alone.admit(invent_relation(_applied(lambda s: _rot1(_mirror_of(s)), (5, 6, 7))))
+    assert alone.refactor() == ""
+
+
+def test_the_run_kept_is_the_one_that_saves_most() -> None:
+    """Counting, not taste: occurrences beyond the first, times its length."""
+
+    from pathlib import Path
+
+    body = Path("core/cognition/relation_language.py").read_text()
+    start = body.index("def refactor(")
+    window = body[start : start + 2600]
+    assert "(shared[run] - 1) * len(run)" in window

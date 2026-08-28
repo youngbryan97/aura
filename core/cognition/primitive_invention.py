@@ -41,6 +41,7 @@ from typing import Any
 __all__ = [
     "InventedRelation",
     "Transition",
+    "rule_for_description",
     "explains",
     "invent_relation",
     "language_is_sufficient",
@@ -76,6 +77,11 @@ class InventedRelation:
     #: The rule over indices, when there is one, so a language can offer this
     #: shape to the next world as a member rather than as a preference.
     index_rule: Callable[[int, int], int] | None = None
+    #: The parts this shape is made of, innermost first. A library that only
+    #: keeps whole winners can never find structure that several solutions
+    #: share without any of them being it — which is the step that keeps
+    #: DreamCoder's library growing and the one an accumulating library lacks.
+    components: tuple[str, ...] = ()
     learned_from: int = 0
     held_out_checked: int = 0
     detail: dict[str, Any] = field(default_factory=dict)
@@ -222,9 +228,20 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     return forms
 
 
+def _parts_of(
+    known: Sequence[Any], description: str
+) -> tuple[str, ...]:
+    """The components a form is made of, from the library if it is a learned one."""
+
+    for entry in known:
+        if len(entry) >= 4 and entry[1] == description:
+            return tuple(entry[3])
+    return (description,)
+
+
 def _forms_that_fit(
     options: Sequence[Sequence[int]],
-    known: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
+    known: Sequence[Any] = (),
     *,
     compose: bool = True,
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
@@ -245,7 +262,7 @@ def _forms_that_fit(
     # only a preference over it. That is what makes a NEW shape cheaper to
     # learn as more shapes are known: a composition of one learned form and one
     # base form is reachable, and was not before the first world taught it.
-    singles = list(known) + _index_forms(size)
+    singles = [tuple(entry)[:3] for entry in known] + _index_forms(size)
     fitting = [
         (family, description, rule)
         for family, description, rule in singles
@@ -344,6 +361,48 @@ def _value_operator(rule: Callable[[Any], Any]) -> Callable[[tuple[Any, ...]], t
     return operator
 
 
+def rule_for_description(description: str) -> Callable[[int, int], int] | None:
+    """The rule a basis shape's description names, or None if it names none.
+
+    Refactoring works over descriptions, because that is what a shared
+    sub-sequence is made of, and the parts of a learned shape are mostly BASIS
+    atoms rather than library entries. Without a way back from a description to
+    its rule, a shared run could be found and never rebuilt.
+
+    A generous size is used to generate the basis, so the pairwise forms that
+    only exist at larger sizes are reachable; the rules themselves take the
+    size as an argument and do not depend on the one used to make them.
+    """
+
+    wanted = str(description or "").strip()
+    if not wanted:
+        return None
+    for size in (12, 8, 4):
+        for _family, said, rule in _index_forms(size):
+            if said == wanted:
+                return rule
+    return None
+
+
+def _components_of(description: str, known: Sequence[Any]) -> tuple[str, ...]:
+    """The parts of this shape, innermost first, resolving learned ones.
+
+    A composition is described "B, then A". Splitting on that and resolving
+    each half through the library gives the flat sequence of parts, which is
+    what a refactoring step needs: shared structure is a shared SUB-SEQUENCE,
+    and a description string cannot be searched for one.
+    """
+
+    parts: list[str] = []
+    for piece in str(description).split(", then "):
+        piece = piece.strip()
+        if not piece:
+            continue
+        resolved = _parts_of(known, piece)
+        parts.extend(resolved if resolved != (piece,) else [piece])
+    return tuple(parts)
+
+
 def invent_relation(
     transitions: Sequence[Transition],
     *,
@@ -424,6 +483,7 @@ def invent_relation(
                     learned_from=len(observed),
                     held_out_checked=len(held_out),
                     index_rule=rule,
+                    components=_components_of(description, known_forms or ()),
                     detail={"fitting_shapes": sorted(shared)},
                 )
                 if not held_out or explains(operator, held_out):

@@ -44,6 +44,11 @@ struck through on the strength of an argument.
   memory the turn that most needed the measurement was the one that never had
   it. Forgetting forgets the disk too.
 
+- [x] **B7** Refactoring. The library finds structure several solutions share
+  that none of them is, chosen by what it saves rather than by taste, and it
+  reaches a world the winners could not. This is the step Soar and ACT-R lacked,
+  which is why symbolic learning stopped in both.
+
 ## C. Novel abstraction from failure
 
 - [x] **C1** Failures are data. 422 dated notes across 146 files, read.

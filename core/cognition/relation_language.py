@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,7 +57,7 @@ class RelationLanguage:
     #: The shapes themselves, by their description, so the next world can
     #: compose with them. Held in memory: a rule over indices is a function and
     #: the counts above are what survive a restart.
-    forms: dict[str, tuple[str, object]] = field(default_factory=dict)
+    forms: dict[str, tuple[str, object, tuple[str, ...]]] = field(default_factory=dict)
     path: Path | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -69,7 +69,11 @@ class RelationLanguage:
         with self._lock:
             self.counts[relation.family] = self.counts.get(relation.family, 0) + 1
             if relation.index_rule is not None and relation.form:
-                self.forms[relation.form] = (relation.family, relation.index_rule)
+                self.forms[relation.form] = (
+                    relation.family,
+                    relation.index_rule,
+                    tuple(relation.components) or (relation.form,),
+                )
 
     def families(self) -> list[str]:
         """The shapes, most often useful first."""
@@ -106,8 +110,8 @@ class RelationLanguage:
         with self._lock:
             prior = dict(self.counts)
             known = [
-                (family, description, rule)
-                for description, (family, rule) in self.forms.items()
+                (family, description, rule, parts)
+                for description, (family, rule, parts) in self.forms.items()
             ]
         return invent_relation(
             transitions,
@@ -116,6 +120,59 @@ class RelationLanguage:
             known_forms=known,
             without=without,
         )
+
+    def refactor(self) -> str:
+        """Admit structure several solved shapes share, which none of them is.
+
+        A library that only keeps whole winners can hold nothing it has not
+        already seen entire, and the long-term studies of chunking in Soar and
+        ACT-R report where that ends: symbolic learning eventually stops. What
+        keeps DreamCoder's library growing is this step — refactor the
+        solutions, find the sub-structure common across them, and admit that.
+
+        The sub-sequence chosen is the one that saves most: a run appearing in
+        several shapes is worth (occurrences - 1) x (its length), because each
+        occurrence after the first collapses to one part. That is the
+        description-length argument, done by counting rather than by taste.
+
+        Returns the description admitted, or "" when nothing is shared.
+        """
+
+        with self._lock:
+            structures = [parts for _f, _r, parts in self.forms.values()]
+            rules = {
+                description: rule for description, (_f, rule, _p) in self.forms.items()
+            }
+        if len(structures) < 2:
+            return ""
+        counts: dict[tuple[str, ...], int] = {}
+        for parts in structures:
+            seen_here: set[tuple[str, ...]] = set()
+            for start in range(len(parts)):
+                for stop in range(start + 2, len(parts) + 1):
+                    run = tuple(parts[start:stop])
+                    if run in seen_here:
+                        continue
+                    seen_here.add(run)
+                    counts[run] = counts.get(run, 0) + 1
+        shared = {
+            run: count
+            for run, count in counts.items()
+            if count >= 2 and run not in {tuple(p) for p in structures}
+        }
+        if not shared:
+            return ""
+        best = max(shared, key=lambda run: ((shared[run] - 1) * len(run), -len(run)))
+        rebuilt = _apply_in_order(best, rules)
+        if rebuilt is None:
+            return ""
+        description = ", then ".join(best)
+        with self._lock:
+            if description in self.forms:
+                return ""
+            self.forms[description] = ("refactored", rebuilt, tuple(best))
+            self.counts["refactored"] = self.counts.get("refactored", 0) + 1
+        return description
 
     def save(self) -> None:
         """Write the shapes down, through the runtime's own write path."""
@@ -153,6 +210,33 @@ class RelationLanguage:
             counts={str(k): int(v) for k, v in counts.items() if str(k)},
             path=target,
         )
+
+
+def _apply_in_order(
+    parts: Sequence[str],
+    rules: Mapping[str, Any],
+) -> Any:
+    """One rule over indices for these parts applied innermost first.
+
+    Parts are resolved from the library first and from the basis second, since
+    most parts of a learned shape are basis atoms. None when a part names
+    neither, which happens when a run crosses into a learned shape that has
+    since been dropped.
+    """
+
+    from core.cognition.primitive_invention import rule_for_description
+
+    found = [rules.get(part) or rule_for_description(part) for part in parts]
+    if any(rule is None for rule in found):
+        return None
+
+    def rule(index: int, size: int, _chain=tuple(found)) -> int:
+        position = index
+        for step in reversed(_chain):
+            position = step(position, size)
+        return position
+
+    return rule
 
 
 def observations_needed(

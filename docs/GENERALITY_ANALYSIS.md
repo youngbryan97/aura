@@ -248,14 +248,17 @@ visible as a change to the problems.
 
 ## Part 4 — What this changes, in order
 
-1. **Hash the battery generator into the floor file.** Otherwise the number is
-   not evidence. (3.7)
-2. **Ablations**: score with composition off, with `known_forms` off, with the
-   prior off. Three numbers, cheap, and the researcher asks for them first. (2.3)
-3. **Refactoring / compression step** — find sub-structure common across solved
-   worlds and admit *that*, rather than only admitting whole winners. This is the
-   difference between this work and DreamCoder, and the reason a
-   keep-what-worked library saturates. (3.1, 3.6)
+1. ~~Hash the battery generator into the floor file~~ **done**. (3.7)
+2. ~~Ablations~~ **done**, and they changed the battery: with the original
+   problems, turning the learned library off changed nothing, because every
+   problem showed one shape at two lengths. The battery measured induction while
+   being described as measuring transfer. It now carries twenty problems that
+   are unreachable from the basis. Composition is worth 20, the library 24, the
+   prior nothing. (2.3)
+3. ~~Refactoring / compression step~~ **done**. The library extracts a run
+   appearing inside two solutions and equal to neither, chosen by
+   `(occurrences - 1) x length`, and a four-deep world unreachable from the
+   winners becomes reachable. (3.1, 3.6)
 4. **Objectness primitives** — grouping and cell-properties, justified by core
    knowledge rather than taste, with the prediction stated in advance that they
    lift exactly the two failing shapes. (3.4)
