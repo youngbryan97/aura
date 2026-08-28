@@ -181,6 +181,21 @@ _VERB_CLASSES: tuple[frozenset[str], ...] = (
             "analyzing", "check", "checks", "checking", "test", "tests",
             "testing", "verify", "verifies", "verifying", "audit", "audits",
             "measure", "measures", "measuring", "diagnose", "diagnoses",
+            # What a person says when they hand somebody a fault to account
+            # for. The class had only the words an engineer writes in a tool
+            # description, so a skill declaring analysis was reachable by
+            # "diagnose" and not by any of the ways the same job is asked for.
+            #
+            # LIVE, 2026-08-28: "something is misbehaving in <path>, work out
+            # what" and "there's a bug somewhere in <path> and I can't find
+            # it" ranked no skill at all, and the turn was handed the generic
+            # readers while the skill that answers both sat unoffered.
+            "debug", "debugs", "debugging", "investigate", "investigates",
+            "investigating", "troubleshoot", "troubleshoots",
+            "troubleshooting", "examine", "examines", "examining",
+            "review", "reviews", "reviewing", "trace", "traces", "tracing",
+            "assess", "assesses", "assessing", "explain", "explains",
+            "explaining",
         }
     ),
 )

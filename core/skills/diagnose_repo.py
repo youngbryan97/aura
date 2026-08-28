@@ -24,11 +24,27 @@ class DiagnoseRepoInput(BaseModel):
 
 class DiagnoseRepoSkill(BaseSkill):
     name = "diagnose_repo"
+    # What the skill DOES, which the router matches a request against. It had
+    # said "why code in a directory is failing", and the engine grew past that:
+    # when the suite passes it runs the project the way a person runs it, under
+    # a tracer, and reports state that outlives the call that touches it.
+    #
+    # LIVE, 2026-08-28: "Something's off in <path> ... No error, nothing
+    # crashes, the tests such as they are pass. But when I build two invoices
+    # in a row the second one comes out wrong." — a request this skill answers
+    # completely, and the only description of it on file began by requiring a
+    # failure. The router offered code_repl and file_operation instead, and the
+    # turn ended with no answer. The engine had invoice.py:4, the mutable
+    # default, the surrounding source and the remedy.
     description = (
-        "Run a project's own tests and report what actually failed: the failing test, the "
+        "Find out what a project actually does by running it. Reports the failing test, the "
         "assertion the runner printed, the file and line, the source around it, what that "
-        "line calls, and what the project's README says it should do. Use for any question "
-        "about why code in a directory is failing."
+        "line calls, and what the project's README says it should do. When nothing fails, "
+        "runs the project the way a person runs it and reports what survives a call: state "
+        "left behind by one call that the next one starts from. Use to investigate, debug or "
+        "explain any question about why code in a directory misbehaves, has a bug, gives the "
+        "wrong answer, or is not doing what it should — including when there is no error and "
+        "the tests pass."
     )
     input_model = DiagnoseRepoInput
 
