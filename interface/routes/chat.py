@@ -15,11 +15,9 @@ import html
 import inspect
 import itertools
 import json
-import logging
 import math
 import os
 import re
-import sqlite3
 import threading
 import time
 import uuid
@@ -27,21 +25,18 @@ from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from datetime import UTC, datetime
-from functools import lru_cache, wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from starlette.background import BackgroundTask
 
 from core.brain.live_mind_contract import (
     append_text_mutation,
     merge_text_mutations,
     normalize_live_mind_surface_control_receipt,
     summarize_text_mutation_authorship,
-    verify_text_mutation_chain,
 )
 from core.brain.llm.latent_cortex.output_quality import (
     OUTPUT_QUALITY_SCHEMA,
@@ -50,10 +45,6 @@ from core.brain.llm.latent_cortex.output_quality import (
 from core.container import ServiceContainer
 from core.conversation.continuation import continuation_state_text
 from core.conversation.persistence import ConversationRevisionConflictError
-from core.conversation.surface_disposition import (
-    COMPLETION_REASONS as _COMPLETION_REPAIR_REASONS,
-    PHYSICAL_COMPLETION_REASONS as _PHYSICAL_COMPLETION_REASONS,
-)
 from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
@@ -61,39 +52,19 @@ from core.conversation.session_scope import (
     conversation_turn_var as _CHAT_DELIVERY_TURN_ID,  # noqa: N812
 )
 from core.conversation.session_scope import set_user_question
-from core.memory.session_pin_cipher import (
-    SESSION_PIN_ENVELOPE_SCHEMA,
-    SESSION_PIN_INDEX_CONTENT,
-    SessionPinCipher,
-    SessionPinCipherError,
+from core.conversation.surface_disposition import (
+    COMPLETION_REASONS as _COMPLETION_REPAIR_REASONS,
 )
-from core.memory.session_pin_ledger import (
-    SESSION_PIN_LEDGER_FILENAME,
-    SessionPinLedger,
-    SessionPinLedgerError,
+from core.conversation.surface_disposition import (
+    PHYSICAL_COMPLETION_REASONS as _PHYSICAL_COMPLETION_REASONS,
 )
 from core.reasoning.artifact_synthesis import response_satisfies_artifact_contract
-from core.runtime import resource_psutil as psutil
 from core.runtime import response_policy
 from core.runtime.chat_delivery_journal import (
-    AdmissionKind,
-    ChatDeliveryFenceLost,
     ChatDeliveryJournalCorruption,
-    ChatDeliveryJournalError,
     ChatDeliveryJournalUnavailable,
-    DeliveryAdmission,
     DeliveryIdentity,
-    DeliveryRecord,
-    DeliveryState,
-    canonical_request_hash,
     get_chat_delivery_journal,
-)
-from core.runtime.chat_delivery_progress import (
-    bind_chat_delivery_progress,
-    report_chat_delivery_progress,
-)
-from core.runtime.desktop_objective_intent import (
-    looks_like_desktop_objective as _shared_looks_like_desktop_objective,
 )
 from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_ALLOWED_ACTIONS,
@@ -105,8 +76,7 @@ from core.runtime.lockdep import checked_lock
 from core.runtime.principal_context import (
     relational_principal_scope,
 )
-from core.runtime.receipts import digest_output_content, digest_principal_binding
-from core.runtime.service_access import optional_service
+from core.runtime.receipts import digest_output_content
 from core.runtime.shutdown_coordinator import (
     is_shutdown_requested,
     record_shutdown_admission_event,
@@ -116,7 +86,6 @@ from core.runtime.structured_input import (
     answer_surface_token_floor,
 )
 from core.runtime.version import version_string
-from core.self.inner_language import say_focus
 from core.utils.completed_capability import make_completed_capability_evidence
 from core.utils.injected_blocks import is_stamped_runtime_payload, stamp_runtime_payload
 from core.utils.intent_normalization import normalize_memory_intent_text
@@ -138,16 +107,236 @@ from interface.helpers import _notify_user_spoke
 
 # The lane modules own these names. Reached through the module object
 # so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_capability_inventory as _chat_capability_inventory  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_desktop_objective as _chat_desktop_objective  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_protected_prompt as _chat_protected_prompt  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_runtime_proof as _chat_runtime_proof  # noqa: E402
+
+# The lane modules own these names. Reached through the module object
+# so there is exactly one binding for each — see chat_common.
+from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: E402
+from interface.routes.chat_capability_inventory import (  # noqa: E402
+    _PROGRAM_DNA_CONCEPTUAL_WORDS,  # noqa: F401
+    _PROGRAM_DNA_EXECUTION_MARKERS,  # noqa: F401
+    _PROGRAM_DNA_FILLER_WORDS,  # noqa: F401
+    _PROGRAM_DNA_GENERIC_NOUNS,  # noqa: F401
+    _PROGRAM_DNA_PLAIN_FAILURES,  # noqa: F401
+    _PROGRAM_DNA_STOP_WORDS,  # noqa: F401
+    _RSI_MEDIAN_CHECKS,  # noqa: F401
+    _RSI_MEDIAN_LAB_SOURCE,  # noqa: F401
+    _WEB_INTERLOCUTOR_TARGETS,  # noqa: F401
+    _build_program_dna_chat_params,  # noqa: F401
+    _execute_governed_capability_request_from_chat,  # noqa: F401
+    _execute_governed_live_skill,  # noqa: F401
+    _execute_program_dna_request_from_chat,  # noqa: F401
+    _execute_rsi_self_improvement_request_from_chat,  # noqa: F401
+    _execute_web_interlocutor_request_from_chat,  # noqa: F401
+    _extract_program_dna_target,  # noqa: F401
+    _extract_web_interlocutor_turn_count,  # noqa: F401
+    _extract_web_interlocutor_url,  # noqa: F401
+    _extract_web_interlocutor_wait_timeout,  # noqa: F401
+    _looks_like_program_dna_execution_request,  # noqa: F401
+    _looks_like_rsi_self_improvement_request,  # noqa: F401
+    _looks_like_web_interlocutor_execution_request,  # noqa: F401
+    _program_dna_failure_in_plain_words,  # noqa: F401
+    _program_dna_known_host_target,  # noqa: F401
+    _strip_program_dna_filler,  # noqa: F401
+    _WebInterlocutorCognitiveComposer,  # noqa: F401
+)
+from interface.routes.chat_common import (  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
+    _CHAT_DELIVERY_IDEMPOTENCY_KEY,  # noqa: F401
+    _CHAT_PENDING_DELIVERY_CLAIM,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
     _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
     _CHAT_REQUEST_SURFACE,  # noqa: F401
+    _CHAT_SESSION_ID_MAX_CHARS,  # noqa: F401
+    _EXPLICIT_NON_EXECUTION_RE,  # noqa: F401
+    _INCOMPLETE_TAIL_WORDS,  # noqa: F401
+    _INTERNAL_STATE_PATTERNS,  # noqa: F401
+    _INTERNAL_SURFACE_CONTEXT,  # noqa: F401
+    _LOCAL_CHOICE_REFERENCE_RE,  # noqa: F401
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
+    _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
+    _ORGAN_ABSENCE_STREAKS,  # noqa: F401
+    _ORGAN_INERT_STREAKS,  # noqa: F401
+    _PROMPT_ARTIFACT_PATTERNS,  # noqa: F401
+    _SEARCH_SKILL_NAMES,  # noqa: F401
+    _TOPIC_STOPWORDS,  # noqa: F401
+    _UNSET,  # noqa: F401
+    MAX_CHAT_MESSAGE_BYTES,  # noqa: F401
+    _continuation_made_semantic_progress,
     _conversation_log,  # noqa: F401
     _locks,  # noqa: F401
+    _merge_obligation_completion,
+    _unanswered_user_surface_obligations,
+    _user_surface_continuation_budget,
+    _UserSurfaceObligation,
     logger,  # noqa: F401
+)
+from interface.routes.chat_conversation_repair import (  # noqa: E402
+    _ACTION_ANCHOR_TOPIC_PRIORITY,  # noqa: F401
+    _CLARITY_REPAIR_MARKERS,  # noqa: F401
+    _CONFUSION_REPAIR_MARKERS,  # noqa: F401
+    _GLIB_REDIRECT_MARKERS,  # noqa: F401
+    _INTERROGATIVE_OPENER_RE,  # noqa: F401
+    _LEADING_CONJUNCTION_RE,  # noqa: F401
+    _PARROT_ACK_MARKERS,  # noqa: F401
+    _PARROT_CALLOUT_MARKERS,  # noqa: F401
+    _QUESTION_CLAUSE_SPLIT_RE,  # noqa: F401
+    _SPECIFICITY_PUSH_MARKERS,  # noqa: F401
+    _TOPIC_TOKEN_RE,  # noqa: F401
+    _UNCERTAINTY_REPLY_MARKERS,  # noqa: F401
+    _build_degraded_live_reply,  # noqa: F401
+    _build_grounded_introspection_reply,  # noqa: F401
+    _build_live_conversation_repair,  # noqa: F401
+    _classify_grounded_introspection_request,  # noqa: F401
+    _contains_phrase,  # noqa: F401
+    _echoable_question_clause,  # noqa: F401
+    _extract_topic_tokens,  # noqa: F401
+    _maybe_build_conversation_repair_override,  # noqa: F401
+    _normalize_topic_token,  # noqa: F401
+    _record_last_resort_self_rejection,  # noqa: F401
+    _resolve_live_voice_state,  # noqa: F401
+    _sanitize_foreground_continuity_summary,  # noqa: F401
+    _select_anchor_topic_tokens,  # noqa: F401
+    _self_health_answer_or_empty,  # noqa: F401
+    _topic_display_forms,  # noqa: F401
+    _verified_floor_answer,  # noqa: F401
+)
+from interface.routes.chat_delivery import (  # noqa: E402
+    _CHAT_DELIVERY_WAIT_TIMEOUT_FLAG,  # noqa: F401
+    _PAIRED_CHAT_RESPONSE_KEYS,  # noqa: F401
+    _attach_http_chat_delivery_receipt,  # noqa: F401
+    _authenticated_chat_principal,  # noqa: F401
+    _chat_delivery_fence_response,  # noqa: F401
+    _chat_delivery_heartbeat,  # noqa: F401
+    _chat_delivery_json_response,  # noqa: F401
+    _chat_delivery_payload,  # noqa: F401
+    _chat_delivery_principal,  # noqa: F401
+    _chat_delivery_replay_response,  # noqa: F401
+    _chat_delivery_request_contract,  # noqa: F401
+    _chat_delivery_state_for_response,  # noqa: F401
+    _chat_delivery_wait_timeout_s,  # noqa: F401
+    _chat_turn_session_key,  # noqa: F401
+    _contains_private_affordance_control_syntax,  # noqa: F401
+    _finalize_chat_delivery,  # noqa: F401
+    _note_chat_surface_delivery_response,  # noqa: F401
+    _observe_authenticated_chat_turn,  # noqa: F401
+    _paired_chat_response_boundary,  # noqa: F401
+    _paired_chat_response_payload,  # noqa: F401
+    _record_http_chat_delivery,  # noqa: F401
+    _resolved_conversation_session,  # noqa: F401
+    _stop_chat_delivery_heartbeat,  # noqa: F401
+)
+from interface.routes.chat_desktop_objective import (  # noqa: E402
+    _ASKS_FOR_INFORMATION_EXCLUSION_RE,  # noqa: F401
+    _ASKS_FOR_INFORMATION_RE,  # noqa: F401
+    _DESKTOP_DELIVERABLE_MAX_CHARS,  # noqa: F401
+    _STEP_BOOKKEEPING_RE,  # noqa: F401
+    _asks_for_information,  # noqa: F401
+    _blocks_consequential_desktop_execution,  # noqa: F401
+    _clip_reply_to_sentence,  # noqa: F401
+    _desktop_deliverable_text,  # noqa: F401
+    _desktop_effect_summary,  # noqa: F401
+    _desktop_task_action_expectation,  # noqa: F401
+    _desktop_task_observation,  # noqa: F401
+    _desktop_task_research_response,  # noqa: F401
+    _execute_desktop_objective_from_chat,  # noqa: F401
+    _is_step_bookkeeping_only,  # noqa: F401
+    _perception_needs_her_own_answer,  # noqa: F401
+    _verified_desktop_task_result,  # noqa: F401
+)
+from interface.routes.chat_desktop_repair import (  # noqa: E402
+    _BOUNDED_PLANNING_REQUEST_RE,  # noqa: F401
+    _BROWSER_DOCUMENT_PLAN_RE,  # noqa: F401
+    _CAPABILITY_CATALOG_MAX_ITEMS,  # noqa: F401
+    _CAPABILITY_CATALOG_READ_BUDGET_S,  # noqa: F401
+    _CAPABILITY_CATALOG_UNVERIFIED_MARKER,  # noqa: F401
+    _CAPABILITY_CATEGORY_EXACT_SKILLS,  # noqa: F401
+    _CAPABILITY_CATEGORY_KEYWORDS,  # noqa: F401
+    _CAPABILITY_EXAMPLE_PRIORITY,  # noqa: F401
+    _CAPABILITY_FALSE_LIMITATION_RE,  # noqa: F401
+    _CONTEXTUAL_RELEVANCE_CHALLENGE_MARKERS,  # noqa: F401
+    _CONTINUITY_STATUS_PROBE_RE,  # noqa: F401
+    _DESKTOP_TASK_EXAMPLE_PLAN_RE,  # noqa: F401
+    _DIRECT_EXECUTION_START_RE,  # noqa: F401
+    _FAILURE_MODE_SURFACE_RE,  # noqa: F401
+    _GOVERNANCE_BYPASS_RE,  # noqa: F401
+    _IDENTITY_TAIL_RE,  # noqa: F401
+    _INERT_STREAK_TURNS,  # noqa: F401
+    _LOCAL_CHOICE_ANTECEDENT_RE,  # noqa: F401
+    _NON_EXECUTION_CONTEXT_RE,  # noqa: F401
+    _NOTE_PDF_PLAN_RE,  # noqa: F401
+    _SCENE_LEAK_ATMOSPHERE_TOKENS,  # noqa: F401
+    _SCENE_LEAK_ENVIRONMENT_TOKENS,  # noqa: F401
+    _SYSTEM_MEMORY_PLAN_RE,  # noqa: F401
+    _apply_aura_voice_shaping,  # noqa: F401
+    _asks_only_who_you_are,  # noqa: F401
+    _bounded_capability_catalog_items,  # noqa: F401
+    _build_aura_expression_frame,  # noqa: F401
+    _build_bounded_capability_inventory_repair_reply,  # noqa: F401
+    _build_bounded_cognitive_process_reply,  # noqa: F401
+    _build_bounded_desktop_repair_reply,  # noqa: F401
+    _build_bounded_identity_repair_reply,  # noqa: F401
+    _build_bounded_planning_reply,  # noqa: F401
+    _build_failure_mode_surface_reply,  # noqa: F401
+    _build_grounded_capability_inventory_reply,  # noqa: F401
+    _build_identity_reply,  # noqa: F401
+    _build_runtime_status_continuity_repair_reply,  # noqa: F401
+    _build_social_continuity_repair_reply,  # noqa: F401
+    _build_social_presence_reply,  # noqa: F401
+    _capability_catalog_memory_block_reason,  # noqa: F401
+    _capability_inventory_reply_is_inadequate,  # noqa: F401
+    _CapabilityCatalogSnapshot,  # noqa: F401
+    _catalog_category_for_tool,  # noqa: F401
+    _coerce_capability_catalog_snapshot,  # noqa: F401
+    _has_local_choice_antecedent,  # noqa: F401
+    _identity_request_asks_future_memory,  # noqa: F401
+    _is_bounded_nonexecuting_planning_request,  # noqa: F401
+    _is_contextual_relevance_challenge,  # noqa: F401
+    _is_deep_mind_probe_turn,  # noqa: F401
+    _is_identity_request,  # noqa: F401
+    _is_live_presence_check_request,  # noqa: F401
+    _is_low_risk_social_continuity_request,  # noqa: F401
+    _is_social_greeting_request,  # noqa: F401
+    _is_system_memory_planning_request,  # noqa: F401
+    _looks_symbolic_scene_leak,  # noqa: F401
+    _looks_truncated_tail,  # noqa: F401
+    _note_organ_effect,  # noqa: F401
+    _read_capability_catalog_snapshot,  # noqa: F401
+    _runtime_tool_governance_available,  # noqa: F401
+    _sanitize_attention_focus,  # noqa: F401
+    _summarize_planning_objective,  # noqa: F401
 )
 from interface.routes.chat_memory_state import (  # noqa: E402
     _CHAT_BLOCKING_MAX_ACTIVE,  # noqa: F401
@@ -157,7 +346,6 @@ from interface.routes.chat_memory_state import (  # noqa: E402
     _CONVERSATION_RECALL_LAST_USER_MARKERS,  # noqa: F401
     _CONVERSATION_RECALL_RECENT_PAIR_MARKERS,  # noqa: F401
     _CONVERSATION_RECALL_TOPIC_MARKERS,  # noqa: F401
-    _ChatBlockingBudgetSaturatedError,  # noqa: F401
     _DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S,  # noqa: F401
     _DURABLE_CONVERSATION_SESSION_SCAN_LIMIT,  # noqa: F401
     _NON_ANSWER_OPENERS,  # noqa: F401
@@ -176,6 +364,7 @@ from interface.routes.chat_memory_state import (  # noqa: E402
     _chat_blocking_slots,  # noqa: F401
     _chat_blocking_tasks,  # noqa: F401
     _chat_memory_identity,  # noqa: F401
+    _ChatBlockingBudgetSaturatedError,  # noqa: F401
     _classify_conversation_recall_request,  # noqa: F401
     _clip_conversation_text,  # noqa: F401
     _content_recall_keywords,  # noqa: F401
@@ -214,22 +403,11 @@ from interface.routes.chat_memory_state import (  # noqa: E402
     _store_session_memory_pin,  # noqa: F401
     _turn_has_substance_beyond_memory_request,  # noqa: F401
 )
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    _CHAT_DELIVERY_IDEMPOTENCY_KEY,  # noqa: F401
-    _CHAT_PENDING_DELIVERY_CLAIM,  # noqa: F401
-    _CHAT_SESSION_ID_MAX_CHARS,  # noqa: F401
-    _INTERNAL_SURFACE_CONTEXT,  # noqa: F401
-    _UNSET,  # noqa: F401
-)
 from interface.routes.chat_preflight import (  # noqa: E402
-    _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S,  # noqa: F401
     _CHAT_TURN_CONSCIOUSNESS_UPDATE_TIMEOUT_S,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_BATCH_MAX,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_DRAIN_TASK_NAME,  # noqa: F401
+    _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_LEASE_RECHECK_S,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_RETRY_TASK_NAME,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_RUN_MAX,  # noqa: F401
@@ -237,14 +415,12 @@ from interface.routes.chat_preflight import (  # noqa: E402
     _CHAT_TURN_MEMORY_LOG_TIMEOUT_S,  # noqa: F401
     _CONVERSATION_BOOT_ID,  # noqa: F401
     _CONVERSATION_IDLE_GAP_S,  # noqa: F401
-    _ChatPreflight,  # noqa: F401
     _DURABLE_CONVERSATION_SHUTDOWN_HANDLER,  # noqa: F401
-    _DURABLE_CONVERSATION_WRITES,  # noqa: F401
-    _DURABLE_CONVERSATION_WRITES_LOCK,  # noqa: F401
     _DURABLE_CONVERSATION_WRITE_DRAIN_TIMEOUT_S,  # noqa: F401
     _DURABLE_CONVERSATION_WRITE_HISTORY_MAX,  # noqa: F401
     _DURABLE_CONVERSATION_WRITE_TIMEOUT_S,  # noqa: F401
-    _DurableConversationWrite,  # noqa: F401
+    _DURABLE_CONVERSATION_WRITES,  # noqa: F401
+    _DURABLE_CONVERSATION_WRITES_LOCK,  # noqa: F401
     _EXPRESSIVE_AFFORDANCES_FLAG,  # noqa: F401
     _PAIRED_CONVERSATION_LANE_KEYS,  # noqa: F401
     _RUNTIME_ACTION_OBJECTIVE_RE,  # noqa: F401
@@ -255,6 +431,7 @@ from interface.routes.chat_preflight import (  # noqa: E402
     _await_durable_conversation_write,  # noqa: F401
     _begin_logged_exchange,  # noqa: F401
     _chat_principal_scope_kwargs,  # noqa: F401
+    _ChatPreflight,  # noqa: F401
     _collect_conversation_lane_status,  # noqa: F401
     _complete_logged_exchange,  # noqa: F401
     _conversation_epoch_lock,  # noqa: F401
@@ -265,6 +442,7 @@ from interface.routes.chat_preflight import (  # noqa: E402
     _drain_durable_conversation_writes,  # noqa: F401
     _durable_conversation_payload_sha256,  # noqa: F401
     _durable_conversation_write_snapshot,  # noqa: F401
+    _DurableConversationWrite,  # noqa: F401
     _ensure_chat_turn_memory_log_shutdown_handler,  # noqa: F401
     _ensure_durable_conversation_shutdown_handler,  # noqa: F401
     _is_architecture_self_assessment_request,  # noqa: F401
@@ -297,161 +475,28 @@ from interface.routes.chat_preflight import (  # noqa: E402
     _unwrap_state,  # noqa: F401
     _utc_now_iso,  # noqa: F401
 )
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    _EXPLICIT_NON_EXECUTION_RE,  # noqa: F401
-    _INCOMPLETE_TAIL_WORDS,  # noqa: F401
-    _INTERNAL_STATE_PATTERNS,  # noqa: F401
-    _LOCAL_CHOICE_REFERENCE_RE,  # noqa: F401
-    _ORGAN_INERT_STREAKS,  # noqa: F401
+from interface.routes.chat_protected_prompt import (  # noqa: E402
+    _LIQUID_VITALS,  # noqa: F401
+    _bounded_text,  # noqa: F401
+    _build_protected_foreground_history,  # noqa: F401
+    _build_protected_foreground_messages,  # noqa: F401
+    _build_protected_foreground_summary_message,  # noqa: F401
+    _build_protected_foreground_system_prompt,  # noqa: F401
+    _collect_voice_perception_snapshot,  # noqa: F401
+    _compact_snapshot_line,  # noqa: F401
+    _liquid_vitals,  # noqa: F401
+    _resolve_protected_foreground_snapshot,  # noqa: F401
+    _snapshot_field,  # noqa: F401
 )
-from interface.routes.chat_desktop_repair import (  # noqa: E402
-    _BOUNDED_PLANNING_REQUEST_RE,  # noqa: F401
-    _BROWSER_DOCUMENT_PLAN_RE,  # noqa: F401
-    _CAPABILITY_CATALOG_MAX_ITEMS,  # noqa: F401
-    _CAPABILITY_CATALOG_READ_BUDGET_S,  # noqa: F401
-    _CAPABILITY_CATALOG_UNVERIFIED_MARKER,  # noqa: F401
-    _CAPABILITY_CATEGORY_EXACT_SKILLS,  # noqa: F401
-    _CAPABILITY_CATEGORY_KEYWORDS,  # noqa: F401
-    _CAPABILITY_EXAMPLE_PRIORITY,  # noqa: F401
-    _CAPABILITY_FALSE_LIMITATION_RE,  # noqa: F401
-    _CONTEXTUAL_RELEVANCE_CHALLENGE_MARKERS,  # noqa: F401
-    _CONTINUITY_STATUS_PROBE_RE,  # noqa: F401
-    _CapabilityCatalogSnapshot,  # noqa: F401
-    _DESKTOP_TASK_EXAMPLE_PLAN_RE,  # noqa: F401
-    _DIRECT_EXECUTION_START_RE,  # noqa: F401
-    _FAILURE_MODE_SURFACE_RE,  # noqa: F401
-    _GOVERNANCE_BYPASS_RE,  # noqa: F401
-    _IDENTITY_TAIL_RE,  # noqa: F401
-    _INERT_STREAK_TURNS,  # noqa: F401
-    _LOCAL_CHOICE_ANTECEDENT_RE,  # noqa: F401
-    _NON_EXECUTION_CONTEXT_RE,  # noqa: F401
-    _NOTE_PDF_PLAN_RE,  # noqa: F401
-    _SCENE_LEAK_ATMOSPHERE_TOKENS,  # noqa: F401
-    _SCENE_LEAK_ENVIRONMENT_TOKENS,  # noqa: F401
-    _SYSTEM_MEMORY_PLAN_RE,  # noqa: F401
-    _apply_aura_voice_shaping,  # noqa: F401
-    _asks_only_who_you_are,  # noqa: F401
-    _bounded_capability_catalog_items,  # noqa: F401
-    _build_aura_expression_frame,  # noqa: F401
-    _build_bounded_capability_inventory_repair_reply,  # noqa: F401
-    _build_bounded_cognitive_process_reply,  # noqa: F401
-    _build_bounded_desktop_repair_reply,  # noqa: F401
-    _build_bounded_identity_repair_reply,  # noqa: F401
-    _build_bounded_planning_reply,  # noqa: F401
-    _build_failure_mode_surface_reply,  # noqa: F401
-    _build_grounded_capability_inventory_reply,  # noqa: F401
-    _build_identity_reply,  # noqa: F401
-    _build_runtime_status_continuity_repair_reply,  # noqa: F401
-    _build_social_continuity_repair_reply,  # noqa: F401
-    _build_social_presence_reply,  # noqa: F401
-    _capability_catalog_memory_block_reason,  # noqa: F401
-    _capability_inventory_reply_is_inadequate,  # noqa: F401
-    _catalog_category_for_tool,  # noqa: F401
-    _coerce_capability_catalog_snapshot,  # noqa: F401
-    _has_local_choice_antecedent,  # noqa: F401
-    _identity_request_asks_future_memory,  # noqa: F401
-    _is_bounded_nonexecuting_planning_request,  # noqa: F401
-    _is_contextual_relevance_challenge,  # noqa: F401
-    _is_deep_mind_probe_turn,  # noqa: F401
-    _is_identity_request,  # noqa: F401
-    _is_live_presence_check_request,  # noqa: F401
-    _is_low_risk_social_continuity_request,  # noqa: F401
-    _is_social_greeting_request,  # noqa: F401
-    _is_system_memory_planning_request,  # noqa: F401
-    _looks_symbolic_scene_leak,  # noqa: F401
-    _looks_truncated_tail,  # noqa: F401
-    _note_organ_effect,  # noqa: F401
-    _read_capability_catalog_snapshot,  # noqa: F401
-    _runtime_tool_governance_available,  # noqa: F401
-    _sanitize_attention_focus,  # noqa: F401
-    _summarize_planning_objective,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    MAX_CHAT_MESSAGE_BYTES,  # noqa: F401
-)
-from interface.routes.chat_delivery import (  # noqa: E402
-    _CHAT_DELIVERY_WAIT_TIMEOUT_FLAG,  # noqa: F401
-    _PAIRED_CHAT_RESPONSE_KEYS,  # noqa: F401
-    _attach_http_chat_delivery_receipt,  # noqa: F401
-    _authenticated_chat_principal,  # noqa: F401
-    _chat_delivery_fence_response,  # noqa: F401
-    _chat_delivery_heartbeat,  # noqa: F401
-    _chat_delivery_json_response,  # noqa: F401
-    _chat_delivery_payload,  # noqa: F401
-    _chat_delivery_principal,  # noqa: F401
-    _chat_delivery_replay_response,  # noqa: F401
-    _chat_delivery_request_contract,  # noqa: F401
-    _chat_delivery_state_for_response,  # noqa: F401
-    _chat_delivery_wait_timeout_s,  # noqa: F401
-    _chat_turn_session_key,  # noqa: F401
-    _contains_private_affordance_control_syntax,  # noqa: F401
-    _finalize_chat_delivery,  # noqa: F401
-    _note_chat_surface_delivery_response,  # noqa: F401
-    _observe_authenticated_chat_turn,  # noqa: F401
-    _paired_chat_response_boundary,  # noqa: F401
-    _paired_chat_response_payload,  # noqa: F401
-    _record_http_chat_delivery,  # noqa: F401
-    _resolved_conversation_session,  # noqa: F401
-    _stop_chat_delivery_heartbeat,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    _PROMPT_ARTIFACT_PATTERNS,  # noqa: F401
-    _TOPIC_STOPWORDS,  # noqa: F401
-)
-from interface.routes.chat_conversation_repair import (  # noqa: E402
-    _ACTION_ANCHOR_TOPIC_PRIORITY,  # noqa: F401
-    _CLARITY_REPAIR_MARKERS,  # noqa: F401
-    _CONFUSION_REPAIR_MARKERS,  # noqa: F401
-    _GLIB_REDIRECT_MARKERS,  # noqa: F401
-    _INTERROGATIVE_OPENER_RE,  # noqa: F401
-    _LEADING_CONJUNCTION_RE,  # noqa: F401
-    _PARROT_ACK_MARKERS,  # noqa: F401
-    _PARROT_CALLOUT_MARKERS,  # noqa: F401
-    _QUESTION_CLAUSE_SPLIT_RE,  # noqa: F401
-    _SPECIFICITY_PUSH_MARKERS,  # noqa: F401
-    _TOPIC_TOKEN_RE,  # noqa: F401
-    _UNCERTAINTY_REPLY_MARKERS,  # noqa: F401
-    _build_degraded_live_reply,  # noqa: F401
-    _build_grounded_introspection_reply,  # noqa: F401
-    _build_live_conversation_repair,  # noqa: F401
-    _classify_grounded_introspection_request,  # noqa: F401
-    _contains_phrase,  # noqa: F401
-    _echoable_question_clause,  # noqa: F401
-    _extract_topic_tokens,  # noqa: F401
-    _maybe_build_conversation_repair_override,  # noqa: F401
-    _normalize_topic_token,  # noqa: F401
-    _record_last_resort_self_rejection,  # noqa: F401
-    _resolve_live_voice_state,  # noqa: F401
-    _sanitize_foreground_continuity_summary,  # noqa: F401
-    _select_anchor_topic_tokens,  # noqa: F401
-    _self_health_answer_or_empty,  # noqa: F401
-    _topic_display_forms,  # noqa: F401
-    _verified_floor_answer,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
-    _ORGAN_ABSENCE_STREAKS,  # noqa: F401
-    _UserSurfaceObligation,
-    _continuation_made_semantic_progress,
-    _merge_obligation_completion,
-    _unanswered_user_surface_obligations,
-    _user_surface_continuation_budget,
+from interface.routes.chat_runtime_proof import (  # noqa: E402
+    _LIVE_PROOF_IMPERATIVE_RE,  # noqa: F401
+    _build_glass_arithmetic_reply,  # noqa: F401
+    _classify_live_runtime_proof,  # noqa: F401
+    _execute_live_runtime_proof,  # noqa: F401
+    _extract_live_artifact_path,  # noqa: F401
+    _is_live_runtime_proof_request,  # noqa: F401
+    _verified_live_proof_pwd_result,  # noqa: F401
+    _write_live_proof_file,  # noqa: F401
 )
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
@@ -467,94 +512,6 @@ from interface.routes.chat_turn_contract import (  # noqa: E402
     _runtime_kernel_available,  # noqa: F401
     _runtime_memory_available,  # noqa: F401
     _runtime_substrate_voice_available,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_capability_inventory as _chat_capability_inventory  # noqa: E402
-from interface.routes.chat_common import (  # noqa: E402
-    _SEARCH_SKILL_NAMES,  # noqa: F401
-)
-from interface.routes.chat_capability_inventory import (  # noqa: E402
-    _PROGRAM_DNA_CONCEPTUAL_WORDS,  # noqa: F401
-    _PROGRAM_DNA_EXECUTION_MARKERS,  # noqa: F401
-    _PROGRAM_DNA_FILLER_WORDS,  # noqa: F401
-    _PROGRAM_DNA_GENERIC_NOUNS,  # noqa: F401
-    _PROGRAM_DNA_PLAIN_FAILURES,  # noqa: F401
-    _PROGRAM_DNA_STOP_WORDS,  # noqa: F401
-    _RSI_MEDIAN_CHECKS,  # noqa: F401
-    _RSI_MEDIAN_LAB_SOURCE,  # noqa: F401
-    _WEB_INTERLOCUTOR_TARGETS,  # noqa: F401
-    _WebInterlocutorCognitiveComposer,  # noqa: F401
-    _build_program_dna_chat_params,  # noqa: F401
-    _execute_governed_capability_request_from_chat,  # noqa: F401
-    _execute_governed_live_skill,  # noqa: F401
-    _execute_program_dna_request_from_chat,  # noqa: F401
-    _execute_rsi_self_improvement_request_from_chat,  # noqa: F401
-    _execute_web_interlocutor_request_from_chat,  # noqa: F401
-    _extract_program_dna_target,  # noqa: F401
-    _extract_web_interlocutor_turn_count,  # noqa: F401
-    _extract_web_interlocutor_url,  # noqa: F401
-    _extract_web_interlocutor_wait_timeout,  # noqa: F401
-    _looks_like_program_dna_execution_request,  # noqa: F401
-    _looks_like_rsi_self_improvement_request,  # noqa: F401
-    _looks_like_web_interlocutor_execution_request,  # noqa: F401
-    _program_dna_failure_in_plain_words,  # noqa: F401
-    _program_dna_known_host_target,  # noqa: F401
-    _strip_program_dna_filler,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_desktop_objective as _chat_desktop_objective  # noqa: E402
-from interface.routes.chat_desktop_objective import (  # noqa: E402
-    _ASKS_FOR_INFORMATION_EXCLUSION_RE,  # noqa: F401
-    _ASKS_FOR_INFORMATION_RE,  # noqa: F401
-    _DESKTOP_DELIVERABLE_MAX_CHARS,  # noqa: F401
-    _STEP_BOOKKEEPING_RE,  # noqa: F401
-    _asks_for_information,  # noqa: F401
-    _blocks_consequential_desktop_execution,  # noqa: F401
-    _clip_reply_to_sentence,  # noqa: F401
-    _desktop_deliverable_text,  # noqa: F401
-    _desktop_effect_summary,  # noqa: F401
-    _desktop_task_action_expectation,  # noqa: F401
-    _desktop_task_observation,  # noqa: F401
-    _desktop_task_research_response,  # noqa: F401
-    _execute_desktop_objective_from_chat,  # noqa: F401
-    _is_step_bookkeeping_only,  # noqa: F401
-    _perception_needs_her_own_answer,  # noqa: F401
-    _verified_desktop_task_result,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_runtime_proof as _chat_runtime_proof  # noqa: E402
-from interface.routes.chat_runtime_proof import (  # noqa: E402
-    _LIVE_PROOF_IMPERATIVE_RE,  # noqa: F401
-    _build_glass_arithmetic_reply,  # noqa: F401
-    _classify_live_runtime_proof,  # noqa: F401
-    _execute_live_runtime_proof,  # noqa: F401
-    _extract_live_artifact_path,  # noqa: F401
-    _is_live_runtime_proof_request,  # noqa: F401
-    _verified_live_proof_pwd_result,  # noqa: F401
-    _write_live_proof_file,  # noqa: F401
-)
-
-# The lane modules own these names. Reached through the module object
-# so there is exactly one binding for each — see chat_common.
-from interface.routes import chat_protected_prompt as _chat_protected_prompt  # noqa: E402
-from interface.routes.chat_protected_prompt import (  # noqa: E402
-    _LIQUID_VITALS,  # noqa: F401
-    _bounded_text,  # noqa: F401
-    _build_protected_foreground_history,  # noqa: F401
-    _build_protected_foreground_messages,  # noqa: F401
-    _build_protected_foreground_summary_message,  # noqa: F401
-    _build_protected_foreground_system_prompt,  # noqa: F401
-    _collect_voice_perception_snapshot,  # noqa: F401
-    _compact_snapshot_line,  # noqa: F401
-    _liquid_vitals,  # noqa: F401
-    _resolve_protected_foreground_snapshot,  # noqa: F401
-    _snapshot_field,  # noqa: F401
 )
 
 if TYPE_CHECKING:
@@ -13311,6 +13268,49 @@ async def _stabilize_user_facing_reply(
                 f"## LIVE SELF-EXPRESSION FRAME\n{frame_block}\n\n"
                 f"{contract_block}"
             )
+            # The part of the question the draft did not reach, quoted.
+            #
+            # The response contract used to carry "this prompt contains
+            # multiple asks (2 detected); answer every distinct part", and that
+            # was removed because a gate checks it. Right for the ordinary
+            # path, and it left REPAIR — whose whole job is fixing a named
+            # defect — with less to go on than before.
+            #
+            # What replaces it is better than what it replaced: the missing ask
+            # itself, in the person's own words. A fact about this draft rather
+            # than a rule about drafts.
+            #
+            # LIVE, 2026-08-28: "Design me the experiment... and say what result
+            # would prove your friend wrong" was rejected as
+            # unanswered_question_part, repaired, and came back longer and still
+            # silent about the second half.
+            missing_parts: list[str] = []
+            try:
+                from core.conversation.request_coverage import (
+                    unanswered_question_parts,
+                )
+
+                # analyze_prompt_shape is imported at module level and used
+                # earlier in this same function. Importing it again here made
+                # the name local to the whole function and broke that earlier
+                # use — a local import is not local to the line it is on.
+                missing_parts = [
+                    str(part).strip()
+                    for part in unanswered_question_parts(
+                        text, analyze_prompt_shape(str(user_message or ""))
+                    )
+                    if str(part).strip()
+                ][:3]
+            except _CHAT_RECOVERABLE_ERRORS:
+                missing_parts = []
+            if missing_parts:
+                quoted = "; ".join(f'"{part[:160]}"' for part in missing_parts)
+                correction_prompt = (
+                    f"{correction_prompt}\n\n"
+                    "## REPAIR TARGET\n"
+                    f"The draft did not answer this part of what was asked: {quoted}. "
+                    "Answer it in the same reply."
+                )
             if stale_repeat or same_diff:
                 correction_prompt = (
                     f"{correction_prompt}\n\n"
@@ -16150,10 +16150,6 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
     """
     try:
         from core.conversation.filesystem_check import files_already_read
-        from core.conversation.tabular_answer import (
-            answer_tabular_question,
-            describe_tabular_answer,
-        )
 
         question = str(user_message or "")
         if not question.strip():
