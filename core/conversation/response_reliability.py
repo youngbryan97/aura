@@ -9467,15 +9467,28 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
             )
     if instruction_notes:
         extra = f"{extra}\n- " + "\n- ".join(instruction_notes)
-    return (
-        "## USER-FACING CONVERSATION RELIABILITY CONTRACT\n"
-        "- A completed chat turn must be coherent, complete, on-topic ordinary English.\n"
-        "- Preserve turn identity: answer the current user message, not a late response from an older request.\n"
-        "- Treat base-model self-identification as a failed draft: never claim to be Claude, ChatGPT, Anthropic/OpenAI-developed, or a generic helpful assistant.\n"
-        "- Do not emit prompt artifacts, role labels, corrupted words, escaped control characters, unexplained foreign names, semantic loops, or vague invented referents.\n"
-        "- If the heavy local lane is slow or recovering, keep working or fail cleanly; do not present filler as the final answer."
-        f"{extra}"
-    )
+    # Five rules, and a gate for each of them.
+    #
+    # "Coherent, complete, on-topic English" is what assess_user_facing_reply
+    # measures. "Preserve turn identity" is the staleness check. "Never claim to
+    # be Claude or ChatGPT" is _RAW_MODEL_IDENTITY_LEAK_RE, which catches all
+    # three phrasings and lets "I am Aura" through. "No prompt artifacts, role
+    # labels, corrupted words" is contains_prompt_artifact and _KNOWN_CORRUPT_RE.
+    # "No filler while the lane recovers" is _BROKEN_LANE_BOILERPLATE_RE. Every
+    # one of them runs on every user-facing reply, in this file.
+    #
+    # Reciting them at the model as well cost 2,780 characters of a 5,393
+    # character prompt, in front of a 213-character question — and a rule stated
+    # in the prompt AND enforced at the gate is the same judgement twice, where
+    # only the gate's copy can be measured.
+    #
+    # What remains is the per-turn part: the facets this particular request
+    # asked for, and the topic it named. Those are things about THIS turn that
+    # the model cannot work out from a standing rule.
+    body = str(extra or "").strip()
+    if not body:
+        return ""
+    return "## USER-FACING CONVERSATION RELIABILITY CONTRACT\n" + body.lstrip("\n")
 
 
 def reliability_floor_for_user(user_message: Any) -> str:
