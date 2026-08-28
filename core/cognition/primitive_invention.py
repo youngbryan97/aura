@@ -45,6 +45,8 @@ __all__ = [
     "rule_for_description",
     "explains",
     "invent_relation",
+    "Probe",
+    "discriminating_probe",
     "language_is_sufficient",
 ]
 
@@ -637,6 +639,88 @@ def _components_of(description: str, known: Sequence[Any]) -> tuple[str, ...]:
         resolved = _parts_of(known, piece)
         parts.extend(resolved if resolved != (piece,) else [piece])
     return tuple(parts)
+
+
+@dataclass(frozen=True)
+class Probe:
+    """A case that would tell the surviving rules apart."""
+
+    state: tuple[Any, ...]
+    rivals: tuple[tuple[str, tuple[Any, ...]], ...]
+
+    def asked(self) -> str:
+        """The question, as a person would put it."""
+
+        names = " or ".join(f"{text}" for text, _r in self.rivals[:2])
+        return (
+            f"More than one rule fits everything you have shown: {names}. "
+            f"What does {list(self.state)} become? That case separates them."
+        )
+
+
+def discriminating_probe(
+    transitions: Sequence[Transition],
+    *,
+    known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
+) -> Probe | None:
+    """A state whose answer would settle which surviving rule is right.
+
+    "More observations would settle it" was the honest verdict and a useless
+    one: it named a shortage without naming what would end it, so the only move
+    left was to wait. The rules that survive are known, and two rules that
+    disagree somewhere disagree on a state that can be constructed.
+
+    Distinct cells, so the probe cannot be ambiguous about where anything came
+    from, and the shortest length that separates them, because a person has to
+    answer it.
+    """
+
+    observed = [
+        Transition(tuple(item.before), tuple(item.after))
+        for item in transitions
+        if item is not None
+    ]
+    if not observed:
+        return None
+    possibilities = [_possible_sources(item.before, item.after) for item in observed]
+    if not all(item is not None for item in possibilities):
+        return None
+
+    surviving: dict[str, Callable[[int, int], int]] = {}
+    fitted = [
+        _forms_that_fit(item, known_forms or (), compose=True)
+        for item in possibilities
+        if item
+    ]
+    if not fitted or not all(fitted):
+        return None
+    common = set.intersection(
+        *({description for _f, description, _r in each} for each in fitted)
+    )
+    for _family, description, rule in fitted[0]:
+        if description in common and description not in surviving:
+            surviving[description] = rule
+    if len(surviving) < 2:
+        return None
+
+    seen_lengths = {len(item.before) for item in observed}
+    for length in sorted(set(range(2, 10)) | seen_lengths):
+        state = tuple(range(1, length + 1))
+        answers: dict[tuple[Any, ...], str] = {}
+        for description, rule in surviving.items():
+            try:
+                result = tuple(state[rule(place, length)] for place in range(length))
+            except (IndexError, ValueError, ZeroDivisionError):
+                continue
+            answers.setdefault(result, description)
+        if len(answers) >= 2:
+            return Probe(
+                state=state,
+                rivals=tuple(
+                    (description, result) for result, description in answers.items()
+                ),
+            )
+    return None
 
 
 def invent_relation(

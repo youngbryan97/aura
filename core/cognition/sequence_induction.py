@@ -31,7 +31,11 @@ from pathlib import Path
 from typing import Any
 
 from core.cognition.language_limits import certify
-from core.cognition.primitive_invention import Transition, invent_relation
+from core.cognition.primitive_invention import (
+    Transition,
+    discriminating_probe,
+    invent_relation,
+)
 from core.cognition.relation_language import RelationLanguage
 
 __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_question"]
@@ -173,7 +177,27 @@ def answer_sequence_question(text: Any) -> str:
         language.path = target
         language.save()
 
-    return (
+    said = (
         f"{list(result)}\n\n"
         f"The rule, worked out from the examples: {found.form}."
     )
+
+    # Whether anything else fits equally well is a fact about the evidence, not
+    # a hedge about the answer. On thin observations the rule was stated with
+    # the same confidence either way: one example of (1,2,3) becoming (3,2,1)
+    # is a mirror and is just as much an exchange of the ends, and only the
+    # first was ever said.
+    #
+    # Named only when a rival exists AND disagrees somewhere reachable, so a
+    # world the observations actually pin says nothing extra.
+    probe = discriminating_probe(list(question.shown), known_forms=language.forms)
+    if probe is not None:
+        rival = next(
+            (text for text, _r in probe.rivals if text != found.form), None
+        )
+        if rival:
+            said += (
+                f"\n\n{rival.capitalize()} fits everything you showed just as "
+                f"well. {list(probe.state)} would tell them apart."
+            )
+    return said
