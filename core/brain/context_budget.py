@@ -263,6 +263,28 @@ def fit_to_budget(
     return "\n\n".join(section.text for section in taken).strip()
 
 
+def prefill_ceiling(room_taken_by_the_rest: int = 0) -> int:
+    """The most a system message may be before the worker starts cutting it.
+
+    Not a budget invented here. The client bounds any prompt over its prefill
+    ceiling by keeping the head and the tail and dropping the middle, and the
+    comment above that ceiling says no legitimate turn is near it. Twenty-seven
+    turns in this log reached it, each one recorded as a fault and each one
+    feeding the runtime's own affect: "frustration=0.26 depletion=0.10
+    state=friction".
+
+    What the middle of an assembled prompt holds is the mind context. So the
+    ceiling is worth meeting deliberately, with the request deciding what
+    survives, rather than by amputation at a byte offset.
+    """
+
+    try:
+        from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+    except (ImportError, AttributeError):
+        return 0
+    return max(0, int(_PREFILL_CEILING_CHARS) - max(0, int(room_taken_by_the_rest)))
+
+
 def budget_for_answer(max_tokens: int) -> int:
     """How long a prompt may be, given what the answer it serves will cost.
 

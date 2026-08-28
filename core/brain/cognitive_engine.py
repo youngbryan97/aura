@@ -101,7 +101,7 @@ _DEFAULT_COGNITIVE_CYCLE_MAX_S = 240.0
 
 
 def _fit_prompt_to_what_the_turn_can_read(
-    system_prompt: str, *, request: str, max_tokens: int
+    system_prompt: str, *, request: str, max_tokens: int, room_taken: int = 0
 ) -> str:
     """Order an assembled system prompt, and trim it if the turn cannot read it.
 
@@ -112,9 +112,13 @@ def _fit_prompt_to_what_the_turn_can_read(
     front. Which sections those are is measured rather than listed, so nobody
     has to keep a list in step with the assembler.
 
-    The trim only fires where the turn cannot afford to read what it was
-    given. A budget that cannot be worked out is no budget, and the prompt
-    goes out whole rather than cut by a guess.
+    The trim fires where the turn cannot afford to read what it was given, or
+    where the prompt is past the ceiling the worker enforces by keeping the
+    head and the tail and dropping everything between them. Meeting that
+    ceiling deliberately is the point: the middle of an assembled prompt is
+    the mind context, and losing it at a byte offset is recorded as a fault
+    and felt as friction. A budget that cannot be worked out at all is no
+    budget, and the prompt goes out whole rather than cut by a guess.
     """
 
     body = str(system_prompt or "")
@@ -126,12 +130,20 @@ def _fit_prompt_to_what_the_turn_can_read(
             budget_for_answer,
             fit_to_budget,
             observe_sections,
+            prefill_ceiling,
             stable_prefix_first,
             volatility_of,
         )
 
         observe_sections(body)
-        budget = budget_for_answer(max_tokens)
+        # Two constraints, and the turn is held to whichever bites first: what
+        # it can afford to read, and what the worker will accept before it
+        # starts cutting the middle out on its own.
+        afford = budget_for_answer(max_tokens)
+        ceiling = prefill_ceiling(room_taken)
+        budget = min(value for value in (afford, ceiling) if value > 0) if (
+            afford > 0 or ceiling > 0
+        ) else 0
         if budget <= 0 or len(body) <= budget:
             return stable_prefix_first(body) or body
         trimmed = fit_to_budget(
@@ -5323,6 +5335,11 @@ class CognitiveEngine:
                 system_prompt,
                 request=visible_user_message or objective,
                 max_tokens=max_tokens,
+                room_taken=sum(
+                    len(str(message.get("content") or ""))
+                    for message in (history_messages or [])
+                )
+                + len(str(visible_user_message or objective or "")),
             )
             messages = [stamp_grounding({"role": "system", "content": system_prompt})]
             if history_messages:

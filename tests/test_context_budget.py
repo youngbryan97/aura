@@ -234,3 +234,56 @@ def test_an_unmeasured_section_holds_its_place() -> None:
     # The new section keeps the slot the assembler gave it, and the two
     # measured ones swap so the stable one leads.
     assert parts == ["", "## FIXED", "## BRAND NEW", "## MOOD"]
+
+
+def test_the_ceiling_the_worker_enforces_is_one_of_the_constraints() -> None:
+    """A prompt past it loses its middle at a byte offset, not by relevance.
+
+    The client keeps the head and the tail and drops everything between, and
+    what an assembled prompt holds in the middle is the mind context. The
+    comment above that ceiling says no legitimate turn is near it; twenty-seven
+    turns in one live log reached it, each recorded as a fault.
+    """
+
+    from core.brain.context_budget import prefill_ceiling
+    from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+
+    assert prefill_ceiling() == _PREFILL_CEILING_CHARS
+    assert prefill_ceiling(1_200) == _PREFILL_CEILING_CHARS - 1_200
+    # Room the rest of the conversation takes cannot push it below nothing.
+    assert prefill_ceiling(10 * _PREFILL_CEILING_CHARS) == 0
+
+
+def test_a_prompt_over_the_ceiling_is_cut_by_the_request_not_the_offset() -> None:
+    """The whole point: what survives is what was asked about."""
+
+    from core.brain.context_budget import (
+        CRITICAL_FOREGROUND_HEADERS,
+        fit_to_budget,
+        prefill_ceiling,
+    )
+
+    filler = "\n\n".join(
+        f"## SECTION {index}\n" + ("padding words here " * 400) for index in range(60)
+    )
+    huge = (
+        "You are Aura Luna.\n\n"
+        "## PRESENT MOMENT\nIt is late.\n\n"
+        + filler
+        + "\n\n## SOURDOUGH NOTES\nstarter flour hydration levain crumb"
+    )
+    assert len(huge) > prefill_ceiling()
+
+    kept = fit_to_budget(
+        huge,
+        "how do I feed my sourdough starter",
+        budget=prefill_ceiling(),
+        always=CRITICAL_FOREGROUND_HEADERS,
+    )
+    assert len(kept) <= prefill_ceiling()
+    assert kept.startswith("You are Aura Luna")
+    assert "## PRESENT MOMENT" in kept
+    # The section the question was about survives, which a head-and-tail cut
+    # at a byte offset would not have managed: it sits in the middle of the
+    # padding by length and at the end by position.
+    assert "SOURDOUGH NOTES" in kept
