@@ -47,7 +47,11 @@ _proved_insufficient = 0
 #: Observed decode rates in tokens per second, so the time a budget needs can
 #: be worked out rather than assumed. The rate moves with the model, the
 #: quantisation and what else is on the GPU, none of which a constant tracks.
-_rates: deque[float] = deque(maxlen=_WINDOW)
+#: Each entry is (tokens generated, tokens per second). The length is kept
+#: because a short generation does not predict a long one: it decodes over a
+#: shorter context, spends proportionally more of its time on the prompt, and
+#: reads faster per token than the run it is being used to size.
+_rates: deque[tuple[int, float]] = deque(maxlen=_WINDOW)
 
 _lock = threading.Lock()
 
@@ -126,7 +130,7 @@ def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
     if tokens <= 0 or not (seconds > 0.0) or seconds != seconds:
         return
     with _lock:
-        _rates.append(tokens / seconds)
+        _rates.append((tokens, tokens / seconds))
 
 
 def seconds_to_decode(tokens: int) -> float:
@@ -135,6 +139,10 @@ def seconds_to_decode(tokens: int) -> float:
     Deliberately pessimistic: the tenth-percentile rate, because a deadline
     sized on the typical rate misses every generation slower than typical, and
     those are the long ones a deadline is about.
+
+    Only generations of a comparable length count. Pooling them all lets a
+    window full of short background prompts report a rate no long foreground
+    turn reaches, which is a deadline sized on the wrong evidence.
     """
 
     try:
@@ -144,11 +152,15 @@ def seconds_to_decode(tokens: int) -> float:
     if wanted <= 0:
         return 0.0
     with _lock:
-        seen = sorted(_rates)
-    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        # Only runs of a comparable size. Half the wanted length is the
+        # boundary because below it the prompt dominates the measurement.
+        comparable = sorted(
+            rate for length, rate in _rates if length * 2 >= wanted
+        )
+    if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         return 0.0
-    index = min(len(seen) - 1, int((1.0 - _PERCENTILE) * len(seen)))
-    rate = seen[index]
+    index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
+    rate = comparable[index]
     if not (rate > 0.0):
         return 0.0
     return wanted / rate

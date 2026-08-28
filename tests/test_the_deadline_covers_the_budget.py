@@ -27,14 +27,33 @@ def _clean() -> None:
 
 def test_an_unmeasured_rate_extends_nothing() -> None:
     assert thinking_reserve.seconds_to_decode(896) == 0.0
-    thinking_reserve.record_decode_rate(generated_tokens=600, elapsed_s=100.0)
+    thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=100.0)
     assert thinking_reserve.seconds_to_decode(896) == 0.0
 
 
 def test_the_time_a_budget_needs_comes_from_the_measured_rate() -> None:
     for _ in range(20):
-        thinking_reserve.record_decode_rate(generated_tokens=100, elapsed_s=10.0)
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
     assert thinking_reserve.seconds_to_decode(1000) == pytest.approx(100.0)
+
+
+def test_only_runs_of_a_comparable_length_are_used() -> None:
+    """A window of short prompts reports a rate no long turn reaches.
+
+    LIVE, 2026-08-27: pooling them let 896 tokens look affordable inside a
+    148-second turn, and the generation was cut at 98 seconds.
+    """
+
+    for _ in range(40):
+        thinking_reserve.record_decode_rate(generated_tokens=40, elapsed_s=1.0)
+    # Forty fast short runs and nothing long: no comparable evidence at all.
+    assert thinking_reserve.seconds_to_decode(896) == 0.0
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
+    assert thinking_reserve.seconds_to_decode(896) == pytest.approx(149.0, abs=2.0)
+    # A short estimate gets to use everything it has, and the slow end of
+    # that pool is still the slow long runs.
+    assert thinking_reserve.seconds_to_decode(60) == pytest.approx(10.0, abs=1.0)
 
 
 def test_the_slow_end_is_used_rather_than_the_typical_one() -> None:
@@ -43,7 +62,7 @@ def test_the_slow_end_is_used_rather_than_the_typical_one() -> None:
     for _ in range(18):
         thinking_reserve.record_decode_rate(generated_tokens=400, elapsed_s=10.0)
     for _ in range(2):
-        thinking_reserve.record_decode_rate(generated_tokens=50, elapsed_s=10.0)
+        thinking_reserve.record_decode_rate(generated_tokens=500, elapsed_s=100.0)
     # 5 tok/s is the slow end; the typical rate is 40.
     assert thinking_reserve.seconds_to_decode(500) > 90.0
 

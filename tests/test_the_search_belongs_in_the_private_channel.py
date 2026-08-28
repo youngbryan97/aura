@@ -174,8 +174,11 @@ def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
 
         # An unmeasured rate cannot refuse anything.
         assert _answer_is_derived_here(job(30))
+        # Runs of a comparable length, at six tokens a second.
         for _ in range(20):
-            thinking_reserve.record_decode_rate(generated_tokens=60, elapsed_s=10.0)
+            thinking_reserve.record_decode_rate(
+                generated_tokens=900, elapsed_s=150.0
+            )
         # 896 tokens at six a second is about 149 seconds.
         assert not _answer_is_derived_here(job(30))
         assert _answer_is_derived_here(job(300))
