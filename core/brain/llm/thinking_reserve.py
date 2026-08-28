@@ -207,6 +207,59 @@ def seconds_to_decode(tokens: int) -> float:
     return wanted / rate
 
 
+#: Prefill rates, as (prompt_chars, chars_per_second) pairs.
+_read_rates: list[tuple[int, float]] = []
+
+
+def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
+    """Log how fast this generation actually read its prompt."""
+
+    try:
+        chars = int(prompt_chars)
+        seconds = float(elapsed_s)
+    except (TypeError, ValueError):
+        return
+    if chars <= 0 or not (seconds > 0.0) or seconds != seconds:
+        return
+    with _lock:
+        _read_rates.append((chars, chars / seconds))
+    _written_down()
+
+
+def seconds_to_read(prompt_chars: int) -> float:
+    """How long a prompt of this size takes to read, or 0.0 when unmeasured.
+
+    The other half of a generation, and on this hardware the larger half. A
+    deadline built from decoding alone gives a turn time to say its answer and
+    none to read the question: live on 2026-08-28 a six-kilobyte prompt was
+    cancelled at 119.5 seconds of a 120-second prefill, having produced no
+    tokens at all.
+
+    Pessimistic in the same way and for the same reason as the decode rate, and
+    silent in the same way when it has not been measured: an unmeasured rate
+    extends no deadline.
+    """
+
+    try:
+        wanted = int(prompt_chars)
+    except (TypeError, ValueError):
+        return 0.0
+    if wanted <= 0:
+        return 0.0
+    _restore_once()
+    with _lock:
+        comparable = sorted(
+            rate for size, rate in _read_rates if size * 2 >= wanted
+        )
+    if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0.0
+    index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
+    rate = comparable[index]
+    if not (rate > 0.0):
+        return 0.0
+    return wanted / rate
+
+
 def proved_insufficient() -> int:
     """The largest budget a generation ran out of while still thinking."""
 
@@ -228,6 +281,7 @@ def forget() -> None:
     with _lock:
         _observed.clear()
         _rates.clear()
+        _read_rates.clear()
         _proved_insufficient = 0
         # Stops THIS process taking the readings back on the next call.
         _restored = True

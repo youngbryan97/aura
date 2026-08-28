@@ -629,6 +629,23 @@ def _record_decode_rate(generated_tokens: int, elapsed_s: float) -> None:
         return
 
 
+def _record_read_rate(prompt_chars: int, elapsed_s: float) -> None:
+    """Tell the reserve how fast this generation READ its prompt.
+
+    The decode rate was measured and the prefill rate was not, so every
+    deadline built from these numbers covered the half of a generation that
+    produces tokens and none of the half that consumes them. On this hardware
+    the second half is the larger one.
+    """
+
+    try:
+        from core.brain.llm.thinking_reserve import record_read_rate
+
+        record_read_rate(prompt_chars=prompt_chars, elapsed_s=elapsed_s)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _reasoning_reserve_tokens() -> int:
     """Tokens the private reasoning channel has been costing, or 0."""
 
@@ -8774,6 +8791,14 @@ def _mlx_worker_loop(
                                     draft_accepted_tokens = 0
                                     generation_stream_started_at = time.perf_counter()
                                     first_token_latency_s: float | None = None
+                                    # How much there was to read, kept beside
+                                    # how long the first token took, so the two
+                                    # can be recorded as one rate.
+                                    _prompt_chars_for_rate = len(str(prompt or "")) + sum(
+                                        len(str((m or {}).get("content") or ""))
+                                        for m in (messages or [])
+                                        if isinstance(m, dict)
+                                    )
                                     final_generation_response = None
 
                                     for response in _gen_stream(
@@ -9189,6 +9214,20 @@ def _mlx_worker_loop(
                                         time.perf_counter() - generation_stream_started_at
                                     )
                                     _record_decode_rate(token_count, _elapsed_decode_s)
+                                    # And how long it took to READ, which is
+                                    # the same kind of fact and was never
+                                    # written down anywhere a deadline could
+                                    # read it.
+                                    try:
+                                        _first_token_s = float(
+                                            first_token_latency_s or 0.0
+                                        )
+                                    except (TypeError, ValueError):
+                                        _first_token_s = 0.0
+                                    if _first_token_s > 0.0:
+                                        _record_read_rate(
+                                            _prompt_chars_for_rate, _first_token_s
+                                        )
                                     if token_count > 0 and _elapsed_decode_s > 0.0:
                                         surface_control_state[
                                             "decode_tokens_per_second"

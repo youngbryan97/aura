@@ -2452,6 +2452,31 @@ def fit_the_answer_to_the_time(
 _DELIVERY_MARGIN_S = 4.0
 
 
+def _seconds_to_read(prompt_chars: int) -> float:
+    """How long this prompt takes to READ, before a token is decoded.
+
+    The answer clock counted decoding and nothing else, so a turn was given
+    time to say its answer and none to read the question. On the resident model
+    a six-kilobyte prompt takes about two minutes to prefill; the whole turn
+    was 148 seconds.
+
+    LIVE, 2026-08-28: three files read, then the answer generation cancelled
+    at 119.5 seconds of a 120-second prefill, having produced no tokens at all.
+    Everything the loop found was correct and the turn had never been given
+    time to look at it.
+    """
+
+    chars = max(0, int(prompt_chars or 0))
+    if not chars:
+        return 0.0
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_read
+
+        return max(0.0, float(seconds_to_read(chars)))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0.0
+
+
 def _seconds_to_decode(tokens: int) -> float:
     """How long this budget takes at the measured rate, or 0.0 if unmeasured."""
 
@@ -13724,15 +13749,30 @@ class InferenceGate:
             # 120 seconds to read — was cancelled with nothing said.
             if 0 < _answer_floor_final or _generations > 1:
                 _decode_s = _seconds_to_decode(max_tokens)
+                # Reading the prompt is the other half of a generation, and
+                # on this hardware it is the larger half. A turn was given time
+                # to SAY its answer and none to read the question.
+                _read_s = _seconds_to_read(
+                    len(str(system_prompt or ""))
+                    + sum(
+                        len(str((msg or {}).get("content") or ""))
+                        for msg in (messages or [])
+                        if isinstance(msg, dict)
+                    ),
+                )
                 if _decode_s > 0.0:
-                    _needed = (_decode_s * _generations) + _DELIVERY_MARGIN_S
+                    _needed = (
+                        (_decode_s + _read_s) * _generations
+                    ) + _DELIVERY_MARGIN_S
                     if _needed > float(timeout_val):
                         logger.info(
-                            "🧠 [ANSWER CLOCK] %d tokens decode in about %.0fs at "
-                            "the measured rate, and this turn needs %d of them; "
+                            "🧠 [ANSWER CLOCK] %d tokens decode in about %.0fs and "
+                            "the prompt takes about %.0fs to read, at the measured "
+                            "rates, and this turn needs %d of them; "
                             "deadline %.0fs → %.0fs.",
                             max_tokens,
                             _decode_s,
+                            _read_s,
                             _generations,
                             float(timeout_val),
                             _needed,
