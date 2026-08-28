@@ -103,37 +103,49 @@ _DEFAULT_COGNITIVE_CYCLE_MAX_S = 240.0
 def _fit_prompt_to_what_the_turn_can_read(
     system_prompt: str, *, request: str, max_tokens: int
 ) -> str:
-    """Trim an assembled system prompt to what this turn can afford to read.
+    """Order an assembled system prompt, and trim it if the turn cannot read it.
 
-    Kept out of the assembly path's way when anything is missing. A budget
-    that cannot be worked out is no budget, and the turn goes out whole
-    rather than being cut by a guess.
+    Two things happen here and the ordering is the one that pays. A cached
+    prompt is the KV for a byte-identical prefix, and this runtime was reusing
+    558 tokens of 27,298 — two per cent, about forty-six seconds of prefill
+    thrown away per turn — because whatever changed between turns sat near the
+    front. Which sections those are is measured rather than listed, so nobody
+    has to keep a list in step with the assembler.
+
+    The trim only fires where the turn cannot afford to read what it was
+    given. A budget that cannot be worked out is no budget, and the prompt
+    goes out whole rather than cut by a guess.
     """
 
     body = str(system_prompt or "")
+    if not body:
+        return body
     try:
         from core.brain.context_budget import (
             CRITICAL_FOREGROUND_HEADERS,
             budget_for_answer,
             fit_to_budget,
-            section_volatility,
+            observe_sections,
+            stable_prefix_first,
+            volatility_of,
         )
 
+        observe_sections(body)
         budget = budget_for_answer(max_tokens)
         if budget <= 0 or len(body) <= budget:
-            return body
+            return stable_prefix_first(body) or body
         trimmed = fit_to_budget(
             body,
             request,
             budget=budget,
             always=CRITICAL_FOREGROUND_HEADERS,
-            volatility=section_volatility,
+            volatility=volatility_of,
         )
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         record_degradation(
             "cognitive_engine",
             exc,
-            action="left the assembled system prompt untrimmed for this turn",
+            action="left the assembled system prompt as the assembler built it",
         )
         return body
     if not trimmed:
@@ -145,6 +157,7 @@ def _fit_prompt_to_what_the_turn_can_read(
         int(max_tokens),
     )
     return trimmed
+
 
 class _RuntimeServiceAdapter:
     """Small compatibility layer for legacy phase constructors expecting container.get."""

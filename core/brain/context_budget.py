@@ -29,10 +29,16 @@ here: grounding a turn cannot depend on the turn happening to mention it.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import json
 import math
 import re
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+
+from core.runtime.errors import record_degradation
 
 __all__ = [
     "CRITICAL_FOREGROUND_HEADERS",
@@ -40,7 +46,10 @@ __all__ = [
     "Section",
     "budget_for_answer",
     "fit_to_budget",
+    "observe_sections",
+    "save_volatility",
     "section_volatility",
+    "stable_prefix_first",
     "sections_of",
 ]
 
@@ -303,3 +312,223 @@ def section_volatility(section: str) -> int:
         if text.startswith(header):
             return rank
     return max(rank for _header, rank in FOREGROUND_SECTION_VOLATILITY) + 1
+
+
+# --------------------------------------------------------------- what changes
+
+#: How often each section's text has differed from the last turn that carried
+#: it: header -> (times seen again, times it had changed). Volatility is a fact
+#: about a running system, and the table above is a prior over twenty headers
+#: an assembled prompt of forty does not fit inside.
+_CHANGED: dict[str, list[int]] = {}
+_LAST_SEEN: dict[str, str] = {}
+_VOLATILITY_STORE = "section_volatility.json"
+
+#: Below this a change-rate is one or two turns of coincidence. The authored
+#: prior answers until there is enough to beat it.
+_ENOUGH_TURNS_TO_RANK = 6
+
+#: Turns between writes. Every turn would be a write on the answer path;
+#: never would be a measurement that does not survive a restart.
+_WRITE_EVERY = 20
+_since_write = 0
+
+
+def observe_sections(prompt: str) -> None:
+    """Note which sections of this prompt differ from the last one carrying them.
+
+    Called with each assembled prompt. What it learns is which parts of the
+    context are the same turn after turn, which is the only thing that decides
+    whether a cached prefix is worth anything: a cache entry is the KV for a
+    byte-identical prefix, and measured live on 2026-08-28 the runtime was
+    reusing 558 tokens of 27,298 — two per cent — and prefilling the rest at a
+    cost of about forty-six seconds a turn.
+
+    Nobody has to keep a list in step with the assembler for this to work, and
+    a section nothing has been learned about yet falls back to the prior.
+    """
+
+    for section in sections_of(prompt):
+        header = section.header or "<identity>"
+            # A digest rather than the text, and a stable one: the built-in
+        # hash is salted per process, which is invisible while nothing
+        # crosses a restart and wrong the moment something does.
+        digest = hashlib.blake2b(
+            section.text.encode("utf-8", "replace"), digest_size=8
+        ).hexdigest()
+        seen_before = _LAST_SEEN.get(header)
+        if seen_before is not None:
+            counts = _CHANGED.setdefault(header, [0, 0])
+            counts[0] += 1
+            counts[1] += int(seen_before != digest)
+        _LAST_SEEN[header] = digest
+    _written_down()
+
+
+
+def _written_down() -> None:
+    """Persist every so often, off the event loop when there is one.
+
+    An fsync on the loop froze the live runtime for twenty minutes once, and
+    this runs on the path that assembles every turn's prompt. Where a loop is
+    running the write is handed to it as a task; where there is not one — a
+    test, a tool — it is written straight out.
+    """
+
+    global _since_write
+    _since_write += 1
+    if _since_write < _WRITE_EVERY:
+        return
+    _since_write = 0
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        save_volatility()
+        return
+    loop.create_task(save_volatility_async())
+
+
+def _volatility_payload() -> tuple[Path, str] | None:
+    try:
+        from core.runtime.state_ownership import state_root
+
+        return Path(state_root()) / _VOLATILITY_STORE, json.dumps({"changed": _CHANGED})
+    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+        return None
+
+
+async def save_volatility_async() -> bool:
+    """:func:`save_volatility` for the lane that has an event loop to protect."""
+
+    made = _volatility_payload()
+    if made is None:
+        return False
+    target, payload = made
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "brain.context_budget", domain="state_mutation"
+        ):
+            await get_file_write_gateway().write_text_async(
+                target, payload, source="brain.context_budget"
+            )
+        return True
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "context_budget",
+            exc,
+            action="kept this run's section volatility in memory only",
+        )
+        return False
+
+
+def measured_volatility(header: str) -> float | None:
+    """How often this section has changed, or None while that is not known."""
+
+    counts = _CHANGED.get(str(header or "").strip())
+    if not counts or counts[0] < _ENOUGH_TURNS_TO_RANK:
+        return None
+    return counts[1] / counts[0]
+
+
+def volatility_of(section: str) -> float:
+    """Where this section belongs in a prompt, stable parts first.
+
+    What has been watched changing is ranked on what it did. What has not is
+    ranked by the authored prior, which covers the sections the gate names and
+    orders them the same way it always has. Anything in neither sorts last,
+    because a section nobody has looked at is the one most likely to be a
+    reading taken this turn.
+    """
+
+    text = str(section or "")
+    header = text.split("\n", 1)[0].strip() or "<identity>"
+    seen = measured_volatility(header)
+    if seen is not None:
+        return seen
+    for known, rank in FOREGROUND_SECTION_VOLATILITY:
+        if text.startswith(known):
+            # The prior's ranks are 0, 1 and 2 over a scale that now runs 0 to
+            # 1. Mapped onto it rather than left beside it, so one comparison
+            # orders both kinds.
+            return rank / 3.0
+    return 1.0
+
+
+def stable_prefix_first(prompt: str) -> str:
+    """The same prompt with what changes every turn moved to the end.
+
+    No content is added or dropped: this is the order alone, and the order is
+    what decides whether the previous turn's prefill can be reused. Sorting is
+    stable, so sections that have changed equally often keep the order the
+    assembler gave them.
+    """
+
+    parts = sections_of(prompt)
+    if len(parts) < 2:
+        return str(prompt or "")
+    head = parts[0] if not parts[0].header else None
+    rest = parts[1:] if head is not None else parts
+    ordered = sorted(rest, key=volatility_of_section)
+    kept = ([head] if head is not None else []) + ordered
+    return "\n\n".join(section.text for section in kept).strip()
+
+
+def volatility_of_section(section: Section) -> float:
+    """:func:`volatility_of` for a parsed section."""
+
+    return volatility_of(section.text)
+
+
+def save_volatility() -> bool:
+    """Write down what has been learned, through the runtime's own write path."""
+
+    made = _volatility_payload()
+    if made is None:
+        return False
+    target, payload = made
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "brain.context_budget", domain="state_mutation"
+        ):
+            get_file_write_gateway().write_text(
+                target, payload, source="brain.context_budget"
+            )
+        return True
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "context_budget",
+            exc,
+            action="kept this run's section volatility in memory only",
+        )
+        return False
+
+
+def load_volatility() -> int:
+    """Take back what earlier runs measured. Returns how many headers."""
+
+    try:
+        import json
+
+        from core.runtime.state_ownership import state_root
+
+        target = Path(state_root()) / _VOLATILITY_STORE
+        stored = json.loads(target.read_text())
+    except (OSError, ValueError, ImportError, AttributeError, TypeError):
+        return 0
+    changed = stored.get("changed")
+    if not isinstance(changed, dict):
+        return 0
+    for header, counts in changed.items():
+        if (
+            isinstance(counts, list)
+            and len(counts) == 2
+            and all(isinstance(part, int) for part in counts)
+        ):
+            _CHANGED[str(header)] = [counts[0], counts[1]]
+    return len(_CHANGED)

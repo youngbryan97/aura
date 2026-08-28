@@ -157,3 +157,45 @@ def test_an_unmeasured_rate_imposes_no_budget() -> None:
     thinking_reserve.forget()
     assert budget_for_answer(0) == 0
     assert budget_for_answer(-5) == 0
+
+
+def test_what_changes_between_turns_is_measured_not_listed() -> None:
+    """The authored table covers twenty headers; a prompt carries forty.
+
+    Ranking by hand is the thing that cannot keep up with an assembler, so
+    volatility is learned from the prompts themselves: a section holding the
+    same text turn after turn is stable however nobody named it.
+    """
+
+    import core.brain.context_budget as budget
+
+    budget._CHANGED.clear()
+    budget._LAST_SEEN.clear()
+    steady = "head\n\n## NEVER NAMED\nthe same every turn\n\n## MOOD\n{}"
+    for turn in range(8):
+        budget.observe_sections(steady.format(turn))
+
+    assert budget.measured_volatility("## NEVER NAMED") == 0.0
+    assert budget.measured_volatility("## MOOD") == 1.0
+    # And a header nothing has been seen of yet has no measurement at all.
+    assert budget.measured_volatility("## UNSEEN") is None
+
+
+def test_the_stable_part_is_emitted_first_without_a_trim() -> None:
+    """Reordering costs nothing and is what the cache is actually about."""
+
+    import core.brain.context_budget as budget
+
+    budget._CHANGED.clear()
+    budget._LAST_SEEN.clear()
+    shape = "head\n\n## MOOD\n{}\n\n## NEVER NAMED\nthe same every turn"
+    for turn in range(8):
+        budget.observe_sections(shape.format(turn))
+
+    ordered = budget.stable_prefix_first(shape.format(99))
+    assert ordered.startswith("head")
+    assert ordered.index("## NEVER NAMED") < ordered.index("## MOOD")
+    # No content is added or dropped by an ordering.
+    assert sorted(part.text for part in budget.sections_of(ordered)) == sorted(
+        part.text for part in budget.sections_of(shape.format(99))
+    )
