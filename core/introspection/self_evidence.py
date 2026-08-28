@@ -72,10 +72,29 @@ __all__ = [
 #: Something of hers that can be in a state, paired below with a word for being
 #: in a bad one. Both halves are required, so "how are the kids" and "my server
 #: is degraded" do not resolve her health, and "is anything failing?" does.
+#: The things of hers a question can be about. Named once, and used both to
+#: recognise them on their own and to decide what a "your" is attached to.
+_HER_PARTS = (
+    r"subsystems?|substrate|runtime|internals?|faculties|organs?|"
+    r"heartbeats?|degradations?|telemetry|jobs?|cycles?|loops?|"
+    r"lanes?|memory|processor|state|health|status|load"
+)
+#: "your" on its own is not about her.
+#:
+#: LIVE, 2026-08-28: "Something's off with my sourdough... My friend says the
+#: starter has gone weak. Design me the experiment, and say what result would
+#: prove your friend wrong." was answered "The machine is at 9.5% processor and
+#: 66.5% memory." The bare "your" matched on "your friend" and the trouble word
+#: matched on "something's off", and between them a baking question became a
+#: request for telemetry.
+#:
+#: A possessive says what it is attached to, and the list of what she has is
+#: already here. She has subsystems and lanes and a runtime. She does not have
+#: a friend, a sourdough, or a deploy.
 _SELF_SUBJECT_RE = re.compile(
-    r"\b(?:your|you'?re|yours|of\s+yours|are\s+you)\b|"
-    r"\b(?:subsystem|substrate|runtime|internals?|faculties|organs?|"
-    r"heartbeats?|degradations?|telemetry|jobs?|cycles?|loops?)\b",
+    r"\b(?:you'?re|yours|of\s+yours|are\s+you)\b|"
+    rf"\byour\s+(?:\w+\s+){{0,2}}(?:{_HER_PARTS})\b|"
+    rf"\b(?:{_HER_PARTS})\b",
     re.IGNORECASE,
 )
 #: LIVE, 2026-08-22: "off-the-shelf assistants" matched `\boff\b` and a request

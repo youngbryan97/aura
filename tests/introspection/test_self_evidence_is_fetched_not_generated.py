@@ -213,7 +213,12 @@ def test_the_refusal_path_asks_whether_the_runtime_holds_the_answer() -> None:
 
     # Anchor on the assignment that BUILDS the refusal, not on the sentence —
     # which also appears in comments describing past defects.
-    marker = "failure_reply = (\n"
+    #
+    # The refusal is a named constant now rather than a parenthesised literal,
+    # so anchoring on its spelling stopped finding any site at all and the test
+    # passed its first assertion while measuring nothing. What it is for is
+    # that every place which gives up asks first.
+    marker = "failure_reply = THE_HONEST_FAILURE"
     sites = _positions(source, marker)
     assert sites, "the refusal is no longer built where this test expects"
     # The window has to cover every reading the site consults before giving
@@ -221,8 +226,15 @@ def test_the_refusal_path_asks_whether_the_runtime_holds_the_answer() -> None:
     # now comes first, because it needs no channel at all. What matters is
     # that the health reading is still ASKED at each site, not where in the
     # queue it sits.
+    # Both sites, and the tool results as well as the health reading: two
+    # places build this reply and a fix applied to one of them leaves the other
+    # saying "I couldn't get to an answer" on top of a result it is holding.
+    assert len(sites) >= 2, f"expected both giving-up sites, found {len(sites)}"
     for index in sites:
         window = source[index : index + 2600]
+        assert "_what_the_tools_found" in window, (
+            "a site that gives up without asking what its tools returned"
+        )
         assert "_self_health_answer_or_empty" in window, (
             "a refusal site stopped asking whether the runtime holds the answer"
         )
