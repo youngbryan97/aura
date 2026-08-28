@@ -166,8 +166,8 @@ def as_node(rule: Any) -> Node | None:
         move = as_node(rule.move)
         if ordering is None or move is None:
             return None
-        # The pair that needed its own type is a node with two children now,
-        # which is the whole point: the next pair will not need a third type.
+        # The pair that needed its own type is a node with two children now.
+        # The next pair will not need a third type.
         return Node(kind=THEN, parts=(ordering, move))
     # A solved relation wraps the program it found.
     inner = getattr(rule, "program", None) or getattr(rule, "index_program", None)
