@@ -458,21 +458,37 @@ def volatility_of(section: str) -> float:
 
 
 def stable_prefix_first(prompt: str) -> str:
-    """The same prompt with what changes every turn moved to the end.
+    """The same prompt with what is known to change moved behind what does not.
 
     No content is added or dropped: this is the order alone, and the order is
-    what decides whether the previous turn's prefill can be reused. Sorting is
-    stable, so sections that have changed equally often keep the order the
-    assembler gave them.
+    what decides whether the previous turn's prefill can be reused.
+
+    A section only moves once it has been watched long enough to have a
+    measurement. The others hold their place — the sections that have been
+    measured are sorted among themselves and written back into the positions
+    they already occupied. The authored prior orders the twenty headers the
+    gate names and says nothing about the rest, and a prompt of forty
+    sections reordered on the strength of a list covering half of them is a
+    guess dressed as a policy. So the ordering warms up over the first few
+    turns instead, and does nothing at all until it knows something.
     """
 
     parts = sections_of(prompt)
     if len(parts) < 2:
         return str(prompt or "")
-    head = parts[0] if not parts[0].header else None
-    rest = parts[1:] if head is not None else parts
-    ordered = sorted(rest, key=volatility_of_section)
-    kept = ([head] if head is not None else []) + ordered
+    movable = [
+        index
+        for index, section in enumerate(parts)
+        if section.header and measured_volatility(section.header) is not None
+    ]
+    if len(movable) < 2:
+        return str(prompt or "")
+    ordered = sorted(
+        (parts[index] for index in movable), key=volatility_of_section
+    )
+    kept = list(parts)
+    for index, section in zip(movable, ordered):
+        kept[index] = section
     return "\n\n".join(section.text for section in kept).strip()
 
 

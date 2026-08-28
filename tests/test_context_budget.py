@@ -199,3 +199,38 @@ def test_the_stable_part_is_emitted_first_without_a_trim() -> None:
     assert sorted(part.text for part in budget.sections_of(ordered)) == sorted(
         part.text for part in budget.sections_of(shape.format(99))
     )
+
+
+def test_nothing_moves_until_something_has_been_measured() -> None:
+    """A cold start reorders nothing.
+
+    The prior covers the twenty headers the gate names, and an assembled deep
+    prompt carries about forty. Reordering all of them on the strength of a
+    list covering half is a guess, so the ordering warms up instead.
+    """
+
+    import core.brain.context_budget as budget
+
+    budget._CHANGED.clear()
+    budget._LAST_SEEN.clear()
+    cold = "head\n\n## LIVE TONE\nwarm\n\n## SOMETHING NEW\nx\n\n## GOALS\ng"
+    assert budget.stable_prefix_first(cold) == cold
+
+
+def test_an_unmeasured_section_holds_its_place() -> None:
+    """Only what has been watched moves; the rest stays where it was put."""
+
+    import core.brain.context_budget as budget
+
+    budget._CHANGED.clear()
+    budget._LAST_SEEN.clear()
+    shape = "head\n\n## MOOD\n{}\n\n## UNWATCHED\nhere\n\n## FIXED\nsame"
+    for turn in range(8):
+        budget.observe_sections(shape.format(turn))
+    # UNWATCHED has been seen too, so make one that genuinely has not.
+    fresh = shape.format(99).replace("## UNWATCHED\nhere", "## BRAND NEW\nhere")
+    ordered = budget.stable_prefix_first(fresh)
+    parts = [part.header for part in budget.sections_of(ordered)]
+    # The new section keeps the slot the assembler gave it, and the two
+    # measured ones swap so the stable one leads.
+    assert parts == ["", "## FIXED", "## BRAND NEW", "## MOOD"]
