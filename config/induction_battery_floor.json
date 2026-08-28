@@ -1,40 +1,98 @@
 {
-  "fingerprint": "8cf69e27286edfa0",
-  "attempted": 120,
+  "fingerprint": "cdcd314a38e8f0a6",
+  "attempted": 130,
   "attempted_expressible": 110,
-  "solved": 112,
+  "solved": 124,
   "solved_expressible": 110,
   "ablations": {
     "nothing_removed": {
-      "solved": 112,
+      "solved": 124,
       "expressible": 110
     },
     "no_composition": {
-      "solved": 82,
+      "solved": 94,
       "expressible": 80
     },
     "no_learned_forms": {
-      "solved": 92,
+      "solved": 104,
       "expressible": 90
     },
     "no_prior": {
+      "solved": 124,
+      "expressible": 110
+    },
+    "no_value_order": {
       "solved": 112,
+      "expressible": 110
+    },
+    "no_affine_family": {
+      "solved": 124,
       "expressible": 110
     },
     "no_language_at_all": {
-      "solved": 92,
+      "solved": 104,
       "expressible": 90
-    },
-    "no_affine_family": {
-      "solved": 112,
-      "expressible": 110
     }
   },
+  "by_shape": {
+    "exchange the ends": [
+      10,
+      10
+    ],
+    "exchange the middle": [
+      10,
+      10
+    ],
+    "identity": [
+      10,
+      10
+    ],
+    "mirror": [
+      10,
+      10
+    ],
+    "mirror then rotate": [
+      10,
+      10
+    ],
+    "odd positions first": [
+      10,
+      10
+    ],
+    "reordered by a secret key": [
+      4,
+      10
+    ],
+    "reordered by the cells": [
+      10,
+      10
+    ],
+    "rotate by one": [
+      10,
+      10
+    ],
+    "rotate by two": [
+      10,
+      10
+    ],
+    "rotate then exchange the ends": [
+      10,
+      10
+    ],
+    "three deep: mirror, rotate, ends": [
+      10,
+      10
+    ],
+    "three deep: rotate, ends, mirror": [
+      10,
+      10
+    ]
+  },
   "refutation": {
-    "proved_outside_of_the_ten_that_are": 8,
-    "proved_outside_of_the_110_that_are_not": 0,
-    "note": "The two that do not fire show only already-ordered states, so every transition IS the identity and the identity genuinely explains them. That is a shortage in the data, reported as one."
+    "proved_outside_of_those_that_are": 18,
+    "of": 20,
+    "proved_outside_of_those_that_are_not": 0
   },
   "recorded": "2026-08-28",
-  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. The fingerprint changed on 2026-08-28: every problem now shows a second state at a length it already showed. Without that, each length was seen once, there was nothing to intersect, and the proof that a world is outside the language could not fire on a single problem including all ten it was written for."
+  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. Two deliberate changes on 2026-08-28: every problem now shows a second state at a length it already showed, without which the proof that a world is outside the language could not fire on any problem including all ten it was written for; and 'reordered by the cells' became expressible because the ordering can be solved for, so a shape only a table reaches went in beside it to keep the battery failable."
 }

@@ -25,13 +25,16 @@ are counted rather than removed.
 
 from __future__ import annotations
 
+import hashlib
 import random
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.cognition.language_limits import certify
 from core.cognition.primitive_invention import Transition, invent_relation
 from core.cognition.relation_language import RelationLanguage
+from core.cognition.value_order import solve_ordering
 
 __all__ = [
     "Problem",
@@ -189,6 +192,30 @@ def _sorted_by_repr(state: tuple[Any, ...]) -> tuple[Any, ...]:
 #: shapes it must find without either half being given. The last two are
 #: outside what it can express at all, and are here so the number means
 #: something: a battery a mechanism cannot fail is not a measurement of it.
+def _sorted_by_a_secret_key(state: tuple[Any, ...]) -> tuple[Any, ...]:
+    """Ordered by a property of each cell that nothing can recover.
+
+    The battery needs a shape it cannot do or it measures nothing. Ordering by
+    the values themselves stopped being that once the ordering could be solved
+    for, so here is one that is still out of reach: the key is a hash of the
+    cell, so it is a genuine function of the value — the right KIND of rule —
+    and it is not the order the values carry.
+
+    The score on this is not expected to be zero, and saying it should be would
+    be the dishonest version. Where the held-out state happens to hold only
+    values the examples showed, a table over those values genuinely answers it,
+    and a table over values that were actually observed is a real thing that
+    was really learned. What cannot be done is the case that matters: a value
+    never shown has no place in a learned order, and the mechanism refuses
+    rather than putting it somewhere.
+
+    So this measures how far a table reaches, and the part that is out of reach
+    stays out of reach. Both numbers are recorded.
+    """
+
+    return tuple(sorted(state, key=lambda cell: hashlib.sha256(repr(cell).encode()).hexdigest()))
+
+
 _SHAPES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
     "mirror": _mirror,
     "rotate by one": _rotate(1),
@@ -200,6 +227,7 @@ _SHAPES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
     "rotate then exchange the ends": _then(_rotate(2), _exchange(0, -1)),
     "odd positions first": _every_other,
     "reordered by the cells": _sorted_by_repr,
+    "reordered by a secret key": _sorted_by_a_secret_key,
 }
 
 #: Shapes nothing in the solver can say. Named so a report can separate "got it
@@ -216,7 +244,21 @@ _SHAPES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
 #:
 #: What is left needs cells to be objects with properties that can be ordered,
 #: which is objecthood in a second sense and a different primitive.
-BEYOND_THE_LANGUAGE = frozenset({"reordered by the cells"})
+#: Shapes no rule reading only positions can express. The proof in
+#: core.cognition.language_limits fires on these and on nothing else.
+BEYOND_THE_LANGUAGE = frozenset(
+    {"reordered by the cells", "reordered by a secret key"}
+)
+
+#: Ordered by a genuine property of the cells that is not the order the cells
+#: carry, so only a table over values actually seen can answer it.
+#:
+#: "Reordered by the cells" left the unreachable set on 2026-08-28: the
+#: ordering behind it can be solved for from the observations rather than
+#: searched for, so it is expressible now and it was not before. A battery
+#: whose unreachable shape becomes reachable has stopped measuring anything,
+#: so this went in with the same edit.
+ONLY_A_TABLE_REACHES = frozenset({"reordered by a secret key"})
 
 #: Shapes three transformations deep. Unreachable from the basis alone however
 #: many observations are offered, and reachable once a two-deep shape has been
@@ -368,7 +410,20 @@ def _solve(
     else:
         found = invent_relation(list(problem.shown), without=without)
     if found is None:
-        return False
+        if "value_order" in without:
+            return False
+        # Only where a rule reading positions is PROVEN not to exist. Offered
+        # beside the index language it would explain a mirror as descending
+        # order, which fits every observation and is the wrong answer.
+        if not certify(list(problem.shown)).proven_outside:
+            return False
+        ordering = solve_ordering(list(problem.shown))
+        if ordering is None:
+            return False
+        answered = ordering.apply(problem.held_out.before)
+        return answered is not None and tuple(answered) == tuple(
+            problem.held_out.after
+        )
     try:
         return tuple(found.apply(problem.held_out.before)) == tuple(
             problem.held_out.after

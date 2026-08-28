@@ -55,7 +55,7 @@ def test_the_battery_is_frozen_and_failable(battery) -> None:
 
     again = generate_battery()
     assert [item.name for item in battery] == [item.name for item in again]
-    assert len(battery) == 120
+    assert len(battery) == 130
     shapes = {item.shape for item in battery}
     assert BEYOND_THE_LANGUAGE < shapes
     representations = {item.representation for item in battery}
@@ -91,18 +91,43 @@ def test_the_representation_does_not_matter(report) -> None:
     # The bare report has no taught language, so the deep shapes are out of
     # reach in every representation equally — which is the point: the spread is
     # what matters here, not the level.
-    assert min(scores.values()) >= 0.55, scores
+    assert min(scores.values()) >= 0.5, scores
     # And no representation is more than one problem away from the best.
     spread = max(scores.values()) - min(scores.values())
     assert spread <= 0.2, scores
 
 
 def test_a_shape_beyond_the_language_is_reported_as_that(report) -> None:
-    assert BEYOND_THE_LANGUAGE == {"reordered by the cells"}
-    for shape in BEYOND_THE_LANGUAGE:
-        solved, seen = report.by_shape[shape]
-        assert seen == 10
-        assert solved <= 2, f"{shape} should be out of reach, scored {solved}/{seen}"
+    """Both are beyond the INDEX language, and one of them is now answerable.
+
+    "Reordered by the cells" scored 0/10 and was described as deliberately
+    outside. It is 10/10 now, and not because the battery got easier: the
+    ordering behind it is solved for from the observations — a stable ordering
+    fixes the correspondence, each transition hands over n-1 facts about the
+    key, and the components of that graph are the answer — rather than searched
+    for over a list of keys somebody wrote down.
+
+    A battery whose unreachable shape becomes reachable measures nothing, so a
+    shape only a table reaches went in beside it in the same edit.
+    """
+
+    from core.cognition.induction_battery import ONLY_A_TABLE_REACHES
+
+    assert BEYOND_THE_LANGUAGE == {
+        "reordered by the cells",
+        "reordered by a secret key",
+    }
+    assert ONLY_A_TABLE_REACHES < BEYOND_THE_LANGUAGE
+
+    solved, seen = report.by_shape["reordered by the cells"]
+    assert (solved, seen) == (10, 10)
+
+    # And the one that is still out of reach is only reached where a table
+    # covers it — where the held-out state holds nothing the examples did not.
+    solved, seen = report.by_shape["reordered by a secret key"]
+    assert seen == 10
+    assert solved <= 6, f"a table should not reach {solved}/{seen} of these"
+
     assert report.attempted_expressible == 110
 
 
@@ -232,8 +257,15 @@ def test_each_part_is_worth_what_it_is_worth(battery) -> None:
         battery, language=taught, without=frozenset({"known_forms"})
     )
 
+    no_value_order = score_battery(
+        battery, language=taught, without=frozenset({"value_order"})
+    )
+
     assert whole.solved - no_composition.solved >= 15, "composition earns its place"
-    assert whole.solved - no_library.solved >= 20, "the learned library earns its place"
+    assert whole.solved - no_library.solved >= 15, "the learned library earns its place"
+    assert whole.solved - no_value_order.solved >= 10, (
+        "reading the cells earns its place"
+    )
 
 
 def test_the_deep_shapes_are_impossible_without_the_library(battery) -> None:

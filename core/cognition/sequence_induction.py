@@ -37,6 +37,7 @@ from core.cognition.primitive_invention import (
     invent_relation,
 )
 from core.cognition.relation_language import RelationLanguage
+from core.cognition.value_order import solve_ordering
 
 __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_question"]
 
@@ -151,6 +152,21 @@ def answer_sequence_question(text: Any) -> str:
         # acted on.
         verdict = certify(list(question.shown))
         if verdict.proven_outside:
+            # The proof says a rule reading only positions cannot do this. That
+            # is the one place it is right to look at the cells: a wider net is
+            # offered where the language is PROVEN to fail, never beside it. A
+            # mirror is explained by descending order just as well, and letting
+            # that compete would lose the simpler answer that was already
+            # right.
+            ordering = solve_ordering(list(question.shown))
+            if ordering is not None:
+                answer = ordering.apply(tuple(question.asked))
+                if answer is not None:
+                    return (
+                        f"{list(answer)}\n\n"
+                        f"The rule, worked out from the examples: "
+                        f"{ordering.describe()}."
+                    )
             return (
                 "I cannot work this one out, and I can say why rather than "
                 "just that.\n\n"
