@@ -415,6 +415,17 @@ def _parts_the_request_counted(text: str) -> int:
 A_CLOSED_QUESTIONS_FLOOR = 256
 
 
+def _the_answer_is_somewhere_else(text: str) -> bool:
+    """Whether answering means fetching something the request does not carry."""
+
+    try:
+        from core.intent.capability_selection import points_at_something_real
+
+        return bool(points_at_something_real(text))
+    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+        return False
+
+
 def answer_surface_token_floor(text: str) -> int:
     """Minimum decode capacity needed to answer the visible request once.
 
@@ -440,6 +451,21 @@ def answer_surface_token_floor(text: str) -> int:
         or re.search(r"\b(?:time|space|runtime|computational)\s+complexit(?:y|ies)\b", lowered)
         or re.search(r"\b(?:correct|proper|recommended)\s+alternative\b", lowered)
     )
+    # Going to fetch the material is work the answer is built from, and it is
+    # not in the grammar. A request that names a path on this disk or an
+    # address has to look, then say what it found: two things through one
+    # surface, where a closed question has one.
+    #
+    # LIVE, 2026-08-28: "Something's off in <path> ... Go through the code and
+    # tell me what's actually happening, with the file and line" carried the
+    # closed-question floor of 256 tokens. It was handed diagnose_repo, spent
+    # the budget reaching the tool, and the request deadline expired before
+    # anything could be said about what came back.
+    #
+    # Counted as an obligation rather than added as a number, so it uses the
+    # accounting this function already does.
+    if _the_answer_is_somewhere_else(text):
+        obligations += 1
     if not (
         shape.prefers_extended_answer
         or shape.requires_single_reply_coverage
