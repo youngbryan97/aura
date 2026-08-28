@@ -10239,10 +10239,19 @@ def _mlx_worker_loop(
                         semantic_completion_state["semantic_completion_incomplete"]
                         and not expected_empty_precompile
                     ):
+                        # Why it ended, beside the fact that it did. The
+                        # matched stop sequence and the token limit were both
+                        # recorded and neither was reported, so an answer that
+                        # stopped because the model wrote "\nUser:" inside its
+                        # own reasoning and an answer that ran out of budget
+                        # arrived here looking identical — and the first was
+                        # being read as the second, which is a budget problem
+                        # that widening the budget cannot fix.
                         logger.warning(
                             "User-surface generation ended before semantic completion: "
                             "missing_parts=%s quality=%s epistemic_covered=%s "
-                            "terminal_boundary=%s tokens=%d",
+                            "terminal_boundary=%s tokens=%d stop=%s limit_hit=%s "
+                            "thinking=%s",
                             semantic_completion_state[
                                 "semantic_completion_missing_part_indexes"
                             ],
@@ -10256,6 +10265,9 @@ def _mlx_worker_loop(
                                 "semantic_completion_terminal_boundary"
                             ],
                             total_generated_tokens,
+                            repr(configured_stop_sequence) if configured_stop_sequence else "none",
+                            bool(hard_token_limit_hit),
+                            native_thinking,
                         )
                         # And the reserve learns from it. It was learning only
                         # from the total failure — a generation that never left
