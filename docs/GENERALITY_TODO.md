@@ -257,3 +257,42 @@ The next step is not to delete sections by taste. It is to give the deep path
 the same budget the gate already has, and to let what survives be decided by
 the request rather than by what happened to be assembled.
 
+## The ledgerkit item, and where it actually stands (2026-08-28)
+
+"Read the docs at this path, then use the library" — teach herself a tool from
+its documentation — was followed all night. Every blocker found was real and is
+fixed:
+
+- "post an invoice" refused as a network write, on a sandbox that cannot reach
+  a network
+- the tool loop given as many turns as calls, so answering was itself a call
+- consent set only for the artifact ceiling, leaving the self-service ceiling
+  asking for a confirmation nobody can give
+- the tool-call protection reading a field that is None on the JSON contract
+- a call sized by felt vitality
+- the answer's reserve a constant while what it reserves for grows
+- a two-phase turn timed as one phase
+- the clock with no term for reading the prompt
+- the read rate measured and never persisted
+- the decode estimator unable to speak for any budget worth extending
+- a gate that never ran reported as a gate that said no
+- and finally: `sys` banned in the sandbox, which is right, with sys.path the
+  only way to import a directory — so using a named library was impossible by
+  construction
+
+**The capability itself now works.** In the sandbox, end to end, the ledger
+posts both entries, reverses one, and returns Accounts Receivable 25000,
+Revenue −25000, Hosting Expense 0, Accounts Payable 0, summing to zero. That is
+asserted in `tests/test_a_library_the_person_named_can_be_run.py`.
+
+**What it does not do is fit in a desktop turn.** The last live run read three
+files cleanly, and the answer clock asked for 818 seconds — 1,536 tokens at the
+measured decode rate is 404 seconds on its own, twice for a turn that fetches
+then answers. The route holds a wall-clock UI deadline of about 180.
+
+That is not a defect to find. It is the fifth clock, and it is a decision:
+either the desktop turn gets longer for requests that fetch and then answer, or
+the answer for those requests gets shorter, or the work moves off the turn and
+comes back when it is done. The measurements to make that decision are all in
+the log now, and none of them were before tonight.
+
