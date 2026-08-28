@@ -2193,22 +2193,62 @@ async def _refuse_a_cold_protected_lane(
     return _seam_early_response
 
 
-#: What a turn keeps back so it can say what the tools found. Sized for a short
-#: answer over an evidence block on the resident model, not for a fresh essay.
-_ANSWER_RESERVE_S = 45.0
+#: What a turn keeps back so it can say what the tools found, when nothing
+#: better is known. A last resort: the real reserve is measured from the prompt
+#: the answer will actually be read from, at the rate this worker has actually
+#: been measured at.
+#:
+#: LIVE, 2026-08-28: three files read, and the answer generation was given a
+#: 36.2s first-token budget for a 6,298-char prompt that takes about 120s to
+#: read. Everything the loop found was correct and none of it could be said.
+#: The reserve was a constant while the thing it reserves for grows with what
+#: the tools return — the more it finds, the longer the prompt, and the number
+#: never moved.
+_ANSWER_RESERVE_FALLBACK_S = 45.0
 
 #: Below this the tool loop cannot complete a single call, so squeezing it
 #: further trades one failure for another.
 _TOOL_LOOP_FLOOR_S = 20.0
 
 
-def _tool_loop_budget(timeout_s: Any) -> float:
+def _answer_reserve_seconds(client: Any, prompt_chars: Any) -> float:
+    """The time the answer needs, measured rather than assumed.
+
+    Reading the prompt is most of it, and the prompt is the scaffold plus
+    everything the tools returned. The worker knows its own prefill rate and
+    already computes this to raise its first-token ceiling; the reserve is the
+    same quantity, asked one layer up and before the time is spent.
+    """
+
+    try:
+        chars = max(0, int(prompt_chars or 0))
+    except (TypeError, ValueError):
+        chars = 0
+    if not chars:
+        return _ANSWER_RESERVE_FALLBACK_S
+    try:
+        needed = float(client._prefill_floor_seconds(chars))
+    except (AttributeError, TypeError, ValueError, ZeroDivisionError):
+        return _ANSWER_RESERVE_FALLBACK_S
+    if not (needed > 0.0):
+        return _ANSWER_RESERVE_FALLBACK_S
+    # Reading it, and then saying something short about it.
+    return needed + _ANSWER_RESERVE_FALLBACK_S
+
+
+def _tool_loop_budget(timeout_s: Any, reserve_s: Any = None) -> float:
     """How long the tool loop may run, leaving enough to report what it found."""
     try:
         whole = float(timeout_s)
     except (TypeError, ValueError):
         return _TOOL_LOOP_FLOOR_S
-    return max(_TOOL_LOOP_FLOOR_S, whole - _ANSWER_RESERVE_S)
+    try:
+        reserve = float(reserve_s)
+    except (TypeError, ValueError):
+        reserve = _ANSWER_RESERVE_FALLBACK_S
+    if not (reserve > 0.0):
+        reserve = _ANSWER_RESERVE_FALLBACK_S
+    return max(_TOOL_LOOP_FLOOR_S, whole - reserve)
 
 
 #: Fields a tool result carries that a person would want to read.
@@ -8300,7 +8340,20 @@ class InferenceGate:
                 # before dispatch, "because the request budget was already
                 # spent". The answer was in hand and there was no time left to
                 # say it.
-                timeout=_tool_loop_budget(timeout_s),
+                timeout=_tool_loop_budget(
+                    timeout_s,
+                    _answer_reserve_seconds(
+                        client,
+                        # What the answer will be read from: everything handed
+                        # to the loop, because that is what comes back with it.
+                        len(str(text or ""))
+                        + sum(
+                            len(str((item or {}).get("content") or ""))
+                            for item in (evidence or [])
+                            if isinstance(item, dict)
+                        ),
+                    ),
+                ),
             )
         except (TimeoutError, asyncio.CancelledError) as exc:
             record_degradation(
