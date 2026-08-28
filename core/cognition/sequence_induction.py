@@ -131,8 +131,7 @@ def answer_sequence_question(text: Any) -> str:
     """The answer and the rule behind it, or "" when there is nothing to say.
 
     The shape is kept afterwards, so a later question of the same kind is
-    settled from fewer examples — which is the whole point of the library being
-    in the live path rather than beside it.
+    settled from fewer examples. A library beside the live path cannot do that.
     """
 
     question = read_sequence_question(text)
