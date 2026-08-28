@@ -3729,6 +3729,22 @@
       "scope": "<module>.save_fit"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/thinking_reserve.py",
+      "scope": "<module>.forget"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/thinking_reserve.py",
+      "scope": "<module>.save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
       "canonical_owner": true,
       "category": "file_write_gateway",
@@ -3855,6 +3871,14 @@
       "count": 1,
       "path": "core/capabilities/web_asset_handler.py",
       "scope": "<module>.WebAssetHandler.download_image"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/cognition/relation_language.py",
+      "scope": "<module>.RelationLanguage.save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -15970,6 +15994,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8730077be8d60ecb0ede2095cf5fb701820cf4b8f450abb537d6a945b1886e36",
+  "inventory_sha256": "9bc32ef8b0baeabf5ca3b5590287e46846f73aa2801f5af62864194e7279b154",
   "schema_version": 1
 }

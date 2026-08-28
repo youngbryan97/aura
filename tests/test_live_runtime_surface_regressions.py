@@ -3198,7 +3198,7 @@ def test_desktop_self_sufficient_classifier_distinguishes_status_report_from_pro
         'Open my Notes app and write a note saying "Hello :)"'
     )
     assert _desktop_objective_self_sufficient_without_cognitive_text(
-        "Use /Users/bryan/Documents/blue_whale_wallpaper.jpg as my desktop wallpaper."
+        f"Use {Path.home()}/Documents/blue_whale_wallpaper.jpg as my desktop wallpaper."
     )
     assert _desktop_objective_self_sufficient_without_cognitive_text(
         "Set system volume to 30%."

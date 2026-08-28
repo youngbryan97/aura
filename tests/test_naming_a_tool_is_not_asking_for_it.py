@@ -26,6 +26,8 @@ sentence about a colleague, and a sentence about a file.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.conversation.request_mood import (
@@ -50,7 +52,7 @@ DIRECTIVES = [
     "Maybe you could inspect the current device state first.",
     "The next useful step is to connect to the lab sensor.",
     "Tomorrow, create a reminder after the training run finishes.",
-    "Use /Users/bryan/Pictures/whale.jpg as my desktop wallpaper.",
+    f"Use {Path.home()}/Pictures/whale.jpg as my desktop wallpaper.",
     "Set the system volume to 30%.",
 ]
 

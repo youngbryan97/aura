@@ -19,6 +19,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+#: A picture somewhere under the home directory, built rather than spelled:
+#: an absolute path written into a test is a machine written into a test.
+_A_PICTURE = str(Path.home() / "Documents" / "blue_whale_wallpaper.jpg")
+
 import pytest
 
 from core.intent.declared_capability import object_class_of as declared_object_class_of
@@ -139,8 +143,8 @@ def test_photograph_wallpaper_request_compiles_the_complete_effect_chain():
     "objective,path",
     [
         (
-            "Use /Users/bryan/Documents/blue_whale_wallpaper.jpg as my desktop wallpaper.",
-            "/Users/bryan/Documents/blue_whale_wallpaper.jpg",
+            f"Use {_A_PICTURE} as my desktop wallpaper.",
+            _A_PICTURE,
         ),
         (
             "Please apply ~/Pictures/saturn.png as the desktop background",

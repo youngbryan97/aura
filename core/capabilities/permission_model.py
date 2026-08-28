@@ -452,7 +452,7 @@ class PermissionRiskModel:
             effect_scope=effect_scope,
             execution_risk=execution_risk,
         )
-        modality = self._detect_modality(action, target)
+        modality = self._detect_modality(action, target, effect_scope=effect_scope)
         user_presence_verified = bool(context.get("user_presence_verified"))
         if user_presence_verified:
             reason = f"{reason}; verified user presence observed"
@@ -529,11 +529,45 @@ class PermissionRiskModel:
         self._record_decision(decision)
         return decision
 
-    def _detect_modality(self, action: str, target: str) -> str:
-        """Detect which modality an action touches."""
+    #: What each effect scope can actually reach.
+    #:
+    #: A scope names what a capability may DO. Detecting the modality from the
+    #: words of the request and then refusing on it, without asking whether the
+    #: capability could perform that effect at all, refuses things that were
+    #: never possible in the first place.
+    #:
+    #: LIVE, 2026-08-28: "post a 25000-cent consulting invoice, debit Accounts
+    #: Receivable, credit Revenue" was refused with "Modality 'network_write'
+    #: is disabled". The pattern for network_write is the bare word "post", and
+    #: posting an entry to a ledger is the older sense of the word. The tool
+    #: was code_repl, whose scope is sandboxed_compute — declared, where it is
+    #: defined, to "calculate anything and change nothing outside its own
+    #: sandbox". It could not have reached a network if it had tried.
+    _REACHABLE_BY_SCOPE: dict[str, frozenset[str]] = {
+        "status": frozenset(),
+        "read_only": frozenset({"network_read", "screen_recording"}),
+        "pure_compute": frozenset(),
+        "sandboxed_compute": frozenset({"file_write"}),
+        "read_write_artifacts": frozenset({"file_write", "clipboard"}),
+    }
+
+    def _detect_modality(
+        self, action: str, target: str, effect_scope: str = ""
+    ) -> str:
+        """Detect which modality an action touches.
+
+        Bounded by what the scope can reach, so a word in the request cannot
+        conjure an effect the capability has no way to perform.
+        """
+
+        reachable = self._REACHABLE_BY_SCOPE.get(str(effect_scope or ""))
         combined = f"{action} {target}".lower()
         for modality, patterns in _MODALITY_PATTERNS.items():
             if any(re.search(pattern, combined, re.IGNORECASE) for pattern in patterns):
+                if reachable is not None and modality not in reachable:
+                    # The words say one thing and the capability cannot do it.
+                    # The words are the weaker evidence.
+                    continue
                 if modality == "file_delete" and _is_own_capture_artifact(target):
                     # Removing a screen capture Aura took herself is not the
                     # act file_delete exists to prevent. See

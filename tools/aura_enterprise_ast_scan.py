@@ -196,6 +196,62 @@ def raised_exception_name(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str |
     return None
 
 
+def is_retirement_tombstone(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, module: ast.Module | None
+) -> bool:
+    """A retired entry point that raises and names its replacement.
+
+    Not an unwritten function. The module keeps the old name importable so a
+    caller gets a pointer instead of an ImportError, and the raise IS the
+    behaviour. Three of these were reported as unfinished work while carrying,
+    in the message, the path of the thing that replaced them.
+
+    Machine-checked and not writable by accident: the module has to declare a
+    ``RETIRED_FOR`` naming what replaced it, or a ``RETIRED_REASON`` saying why
+    nothing did, and the raise has to mention whichever it declared. Both are
+    real — one of these was retired because the thing it measured has no honest
+    measure yet, and there is nothing to point at.
+    """
+
+    if module is None:
+        return False
+    declared: dict[str, str] = {}
+    for statement in module.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        for target in statement.targets:
+            if (
+                isinstance(target, ast.Name)
+                and target.id in {"RETIRED_FOR", "RETIRED_REASON"}
+                and isinstance(statement.value, ast.Constant)
+                and isinstance(statement.value.value, str)
+                and statement.value.value.strip()
+            ):
+                declared[target.id] = statement.value.value
+    if not declared:
+        return False
+    said = ast.dump(node)
+    return any(name in said or value in said for name, value in declared.items())
+
+
+def is_test_double_method(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, rel: str, enclosing: object
+) -> bool:
+    """A stand-in object's method that does nothing, inside the tests.
+
+    A pass-only function in product code is scaffolding nobody finished. In a
+    test double it is the entire point: the double exists to satisfy an
+    interface without behaving, and every method it does not care about has to
+    be exactly this. The same reasoning already excludes tests from the
+    raise-only rule.
+
+    Methods only. A pass-only function at module level in a test is still a
+    test somebody stopped writing, and is still reported.
+    """
+
+    return bool(rel.startswith("tests/") and enclosing is not None)
+
+
 def is_deliberate_refusal(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """A raise-only function that refuses on purpose, rather than one nobody
     finished writing.
@@ -546,6 +602,7 @@ class AstGate(ast.NodeVisitor):
             and isinstance(body[0], ast.Pass)
             and not is_abstract_function(node)
             and not is_deliberate_constructor_override(node, self._enclosing)
+            and not is_test_double_method(node, self.rel, self._enclosing)
         ):
             self.add(
                 "high" if is_production(self.rel) else "medium",
@@ -563,6 +620,7 @@ class AstGate(ast.NodeVisitor):
             )
             and not is_serialization_guard(node)
             and not is_deliberate_refusal(node)
+            and not is_retirement_tombstone(node, self._module)
             and not self.rel.startswith("tests/")
         ):
             self.add(
@@ -584,6 +642,7 @@ class AstGate(ast.NodeVisitor):
             and isinstance(body[0], ast.Pass)
             and not is_abstract_function(node)
             and not is_deliberate_constructor_override(node, self._enclosing)
+            and not is_test_double_method(node, self.rel, self._enclosing)
         ):
             self.add(
                 "high" if is_production(self.rel) else "medium",
@@ -601,6 +660,7 @@ class AstGate(ast.NodeVisitor):
             )
             and not is_serialization_guard(node)
             and not is_deliberate_refusal(node)
+            and not is_retirement_tombstone(node, self._module)
             and not self.rel.startswith("tests/")
         ):
             self.add(

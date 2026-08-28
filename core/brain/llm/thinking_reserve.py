@@ -238,9 +238,20 @@ def forget() -> None:
     target = _store_path()
     if target is None:
         return
+    # Through the gateway, like every other consequential write here. A raw
+    # unlink is a file mutation nothing owns, and the readings this removes are
+    # state the runtime is answerable for.
     try:
-        target.unlink()
-    except (OSError, ValueError):
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "brain.thinking_reserve", domain="state_mutation"
+        ):
+            get_file_write_gateway().delete_file(
+                target, source="brain.thinking_reserve"
+            )
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return
 
 

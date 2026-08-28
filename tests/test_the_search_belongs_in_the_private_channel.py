@@ -13,6 +13,8 @@ before a conclusion.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from core.brain.llm.chat_format import thinking_enabled_for_generation
 from core.brain.llm.mlx_worker import _answer_is_derived_here
 from core.runtime.structured_input import (
@@ -77,7 +79,7 @@ def test_an_unclosed_boundary_is_written_down() -> None:
     assert "not native_channels.boundary_closed" in window
 
 
-_CORTEX = "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
+_CORTEX = f"{Path.home()}/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
 _BRAINSTEM = "models--mlx-community--Qwen3.5-9B-4bit/snapshots/8b2b98c0"
 
 
