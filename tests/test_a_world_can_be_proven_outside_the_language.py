@@ -240,3 +240,26 @@ def test_a_refutation_says_whether_it_survives_a_bad_observation() -> None:
     )
     assert thin.proven_outside
     assert not thin.robust
+
+
+def test_the_interpreter_and_the_reader_agree_on_what_a_kind_is() -> None:
+    """A kind the interpreter cannot run must not be read back as a program.
+
+    from_json accepted any non-empty string, so anything written by a later
+    build — or by another kind of learned relation entirely — came back as an
+    IndexProgram that raised the first time it was asked for a position.
+    """
+
+    from core.cognition.primitive_invention import (
+        _KINDS_THIS_BUILD_INTERPRETS,
+        IndexProgram,
+        _index_forms,
+    )
+
+    assert IndexProgram.from_json({"kind": "a_kind_from_a_later_build"}) is None
+    assert IndexProgram.from_json({"kind": "mirror"}) is not None
+
+    # And every kind the forms actually build is one the reader accepts.
+    for _family, _said, rule in _index_forms(6):
+        assert rule.kind in _KINDS_THIS_BUILD_INTERPRETS, rule.kind
+    assert "affine" in _KINDS_THIS_BUILD_INTERPRETS

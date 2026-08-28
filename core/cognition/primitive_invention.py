@@ -51,6 +51,23 @@ __all__ = [
 ]
 
 
+#: The kinds __call__ knows how to interpret. Read from one place so a kind
+#: added to the interpreter and forgotten here cannot be written down and then
+#: refused on the way back in.
+_KINDS_THIS_BUILD_INTERPRETS = frozenset(
+    {
+        "identity",
+        "mirror",
+        "offset",
+        "exchange",
+        "ends",
+        "grouping",
+        "affine",
+        "compose",
+    }
+)
+
+
 @dataclass(frozen=True)
 class IndexProgram:
     """A rule over positions, written down rather than closed over.
@@ -147,7 +164,15 @@ class IndexProgram:
         if not isinstance(raw, dict):
             return None
         kind = str(raw.get("kind") or "").strip()
-        if not kind:
+        if kind not in _KINDS_THIS_BUILD_INTERPRETS:
+            # A kind this build cannot run is not a program.
+            #
+            # This accepted any non-empty string, so anything written by a
+            # later build — or by another kind of learned relation entirely —
+            # came back as an IndexProgram that raised the first time it was
+            # asked for a position. Refusing here makes it a relation that was
+            # not recognised, which the reader above can say out loud, instead
+            # of a program that fails somewhere else later.
             return None
         try:
             args = tuple(int(value) for value in (raw.get("args") or ()))

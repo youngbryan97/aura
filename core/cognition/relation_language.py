@@ -48,6 +48,44 @@ __all__ = ["RelationLanguage", "observations_needed"]
 logger = logging.getLogger(__name__)
 
 
+def _learned_relation_readers() -> tuple[Any, ...]:
+    """Every kind of learned relation that can be read back, most specific first.
+
+    A list rather than a chain of ``or``s, because the failure this replaces was
+    a reader that knew one kind: the newest thing learned was written down and
+    then silently not restored, and adding a kind meant remembering to edit a
+    line somewhere else. Adding one here is adding one entry.
+
+    Most specific first: a composed relation's JSON carries an ordering inside
+    it, and a reader for the ordering alone would happily return the half.
+    """
+
+    from core.cognition.primitive_invention import IndexProgram
+    from core.cognition.value_order import Composed, Ordering
+
+    return (Composed, Ordering, IndexProgram)
+
+
+def _read_a_learned_relation(row: Any) -> Any:
+    """The first reader that recognises this, or None."""
+
+    for reader in _learned_relation_readers():
+        try:
+            restored = reader.from_json(row)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if restored is not None:
+            return restored
+    if isinstance(row, dict) and row:
+        logger.warning(
+            "A written relation was not recognised by any reader and is lost: "
+            "kind=%s keys=%s",
+            str(row.get("kind") or "unnamed")[:60],
+            ",".join(sorted(map(str, row))[:8]),
+        )
+    return None
+
+
 def _can_be_written_down(entry: Any, description: str) -> bool:
     """Whether this learned thing can be saved, said out loud when it cannot.
 
@@ -307,13 +345,9 @@ class RelationLanguage:
                 program,
                 tuple(str(part) for part in (row.get("parts") or ())),
             )
-        from core.cognition.value_order import Composed, Ordering
-
         orders: dict[str, object] = {}
         for description, row in (raw.get("orders") or {}).items():
-            # Every kind that can be written down can be read back. A reader
-            # that knows one of them turns the others into silence.
-            restored = Composed.from_json(row) or Ordering.from_json(row)
+            restored = _read_a_learned_relation(row)
             if restored is not None:
                 orders[str(description)] = restored
 

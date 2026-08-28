@@ -231,10 +231,25 @@ def test_a_kind_that_cannot_be_written_down_says_so(caplog) -> None:
     assert any("cannot be written down" in record.message for record in caplog.records)
 
 
-def test_both_kinds_are_read_back_not_just_one() -> None:
-    """A reader that knows one kind turns the others into silence."""
+def test_every_kind_is_read_back_not_just_one() -> None:
+    """A reader that knows one kind turns the others into silence.
 
-    from pathlib import Path
+    A list rather than a chain of ``or``s, because adding a kind meant
+    remembering to edit a line somewhere else — which is how the newest thing
+    learned came to be written down and never restored.
+    """
 
-    body = Path("core/cognition/relation_language.py").read_text()
-    assert "Composed.from_json(row) or Ordering.from_json(row)" in body
+    from core.cognition.relation_language import (
+        _learned_relation_readers,
+        _read_a_learned_relation,
+    )
+    from core.cognition.value_order import Composed, Ordering
+
+    readers = _learned_relation_readers()
+    assert Composed in readers and Ordering in readers
+    # Most specific first: a composed relation carries an ordering inside it,
+    # and a reader for the ordering alone would happily return the half.
+    assert readers.index(Composed) < readers.index(Ordering)
+
+    # And something no reader knows is not turned into something one does.
+    assert _read_a_learned_relation({"kind": "a_kind_from_a_later_build"}) is None
