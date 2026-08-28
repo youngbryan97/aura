@@ -225,7 +225,52 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                 ),
             )
         )
+    # Cells fall into groups, and the groups move together.
+    #
+    # The basis had order, symmetry and adjacency — geometry and number, in the
+    # core-knowledge sense — and nothing for OBJECTHOOD: no way to say that some
+    # cells belong together and travel as a set. That omission is not a taste
+    # call, it is the one system of the four that applies here which was left
+    # out, and it predicts exactly which battery shapes fail.
+    #
+    # Grouping by residue is the smallest form of it: positions belong to a
+    # class by where they fall in a repeating count, and the classes are laid
+    # out one after another. At k=2 that is "the odd ones, then the even ones".
+    for span in range(2, max(3, (size // 2) + 1)):
+        for first in range(span):
+            forms.append(
+                (
+                    "grouping",
+                    f"cells are grouped every {span}, the group at {first} first",
+                    lambda i, n, _k=span, _f=first: _grouped_source(i, n, _k, _f),
+                )
+            )
     return forms
+
+
+def _grouped_source(index: int, size: int, span: int, first: int = 0) -> int:
+    """Which position the cell at ``index`` comes from, when cells are grouped.
+
+    Positions are dealt into ``span`` classes by residue, the classes are laid
+    end to end, and this is the inverse: given a place in the result, which
+    place in the original it took.
+
+    ``first`` is which class leads, and it is a degree of freedom rather than a
+    detail: the prediction that grouping would reach "odd positions first" was
+    made and failed, because the form as first written laid the even class down
+    first and there was no way to say the other one. A grouping with no say in
+    which group leads is half a grouping.
+    """
+
+    if span <= 1 or size <= 0:
+        return index
+    classes = [(residue + first) % span for residue in range(span)]
+    order = [
+        position for residue in classes for position in range(residue, size, span)
+    ]
+    if index < 0 or index >= len(order):
+        return index
+    return order[index]
 
 
 def _parts_of(

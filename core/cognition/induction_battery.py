@@ -204,7 +204,19 @@ _SHAPES: dict[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]] = {
 
 #: Shapes nothing in the solver can say. Named so a report can separate "got it
 #: wrong" from "was never able to say it", which are different facts.
-BEYOND_THE_LANGUAGE = frozenset({"odd positions first", "reordered by the cells"})
+#:
+#: "Odd positions first" was here and is not any more, and how it left is the
+#: point. The basis had order, symmetry and adjacency and nothing for cells
+#: BELONGING together — the one core-knowledge system of the four that applies
+#: here which was missing — so the prediction was made in advance that adding
+#: grouping would lift exactly this shape and nothing else. It lifted nothing at
+#: first, because the form as written laid the even class down first and could
+#: not say the other order; with that fixed the shape went 0/10 to 10/10 and no
+#: other shape moved.
+#:
+#: What is left needs cells to be objects with properties that can be ordered,
+#: which is objecthood in a second sense and a different primitive.
+BEYOND_THE_LANGUAGE = frozenset({"reordered by the cells"})
 
 #: Shapes three transformations deep. Unreachable from the basis alone however
 #: many observations are offered, and reachable once a two-deep shape has been

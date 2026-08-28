@@ -95,11 +95,12 @@ def test_the_representation_does_not_matter(report) -> None:
 
 
 def test_a_shape_beyond_the_language_is_reported_as_that(report) -> None:
+    assert BEYOND_THE_LANGUAGE == {"reordered by the cells"}
     for shape in BEYOND_THE_LANGUAGE:
         solved, seen = report.by_shape[shape]
         assert seen == 10
         assert solved <= 2, f"{shape} should be out of reach, scored {solved}/{seen}"
-    assert report.attempted_expressible == 100
+    assert report.attempted_expressible == 110
 
 
 def test_composition_is_found_without_either_half_being_given(report) -> None:
@@ -274,3 +275,42 @@ def test_the_prior_contributes_nothing_here_and_that_is_reported(battery) -> Non
 
     recorded = json.loads(_FLOOR.read_text())["ablations"]
     assert recorded["no_prior"]["solved"] == recorded["nothing_removed"]["solved"]
+
+
+def test_the_missing_core_system_was_predicted_before_it_was_added(report) -> None:
+    """Objecthood was the one core-knowledge system the basis omitted.
+
+    The basis had order, symmetry and adjacency — geometry and number — and no
+    way to say that some cells belong together and travel as a set. The
+    prediction was made in advance that adding grouping would lift exactly the
+    shape needing it and nothing else.
+
+    It lifted nothing at first: the form laid the even class down first and
+    could not say the other order. With that fixed it went 0/10 to 10/10 and no
+    other shape moved. The prediction failing first, for a findable reason, is
+    worth more than it working immediately.
+    """
+
+    solved, seen = report.by_shape["odd positions first"]
+    assert (solved, seen) == (10, 10)
+    for shape in (
+        "mirror",
+        "rotate by one",
+        "exchange the ends",
+        "identity",
+        "mirror then rotate",
+    ):
+        got, of = report.by_shape[shape]
+        assert got == of, f"{shape} moved: {got}/{of}"
+
+
+def test_grouping_can_say_which_group_leads() -> None:
+    """A grouping with no say in which group leads is half a grouping."""
+
+    from core.cognition.primitive_invention import _grouped_source
+
+    six = 6
+    assert [_grouped_source(i, six, 2, 0) for i in range(six)] == [0, 2, 4, 1, 3, 5]
+    assert [_grouped_source(i, six, 2, 1) for i in range(six)] == [1, 3, 5, 0, 2, 4]
+    # A span of one is not a grouping.
+    assert [_grouped_source(i, six, 1) for i in range(six)] == list(range(six))
