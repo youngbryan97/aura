@@ -14231,8 +14231,20 @@ class InferenceGate:
                             logger.warning(
                                 "🧠 the refusing receipt carries no reasons and no "
                                 "draft; it holds: %s",
-                                ",".join(sorted(map(str, primary_surface_receipt))[:40])
-                                or "nothing at all",
+                                ",".join(
+                                    f"{name}={primary_surface_receipt.get(name)!r}"[:90]
+                                    for name in sorted(map(str, primary_surface_receipt))
+                                    if any(
+                                        word in name
+                                        for word in (
+                                            "quality",
+                                            "reason",
+                                            "rejected",
+                                            "surface",
+                                        )
+                                    )
+                                )
+                                or "nothing about quality at all",
                             )
                         logger.warning(
                             "🧠 %s exhausted its worker-owned semantic quality retries; "
