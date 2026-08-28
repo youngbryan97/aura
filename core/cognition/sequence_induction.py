@@ -33,11 +33,12 @@ from typing import Any
 from core.cognition.language_limits import certify
 from core.cognition.primitive_invention import (
     Transition,
+    _index_forms,
     discriminating_probe,
     invent_relation,
 )
 from core.cognition.relation_language import RelationLanguage
-from core.cognition.value_order import solve_ordering
+from core.cognition.value_order import solve_ordering, solve_ordering_then_move
 
 __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_question"]
 
@@ -200,6 +201,30 @@ def answer_sequence_question(text: Any) -> str:
             # Something already known first. That is what makes the second
             # question of a kind cheaper than the first.
             ordering = solve_ordering(list(question.shown))
+            if ordering is None or ordering.apply(tuple(question.asked)) is None:
+                # An ordering and a move, where neither alone says it.
+                #
+                # "Sorted, then rotated" is proved outside the positional
+                # language — the sources genuinely contradict — and the
+                # ordering alone cannot say it either, because the cells do not
+                # come out in the order the values carry. The two axes were
+                # solved separately and had no way to meet.
+                composed = solve_ordering_then_move(
+                    list(question.shown), _index_forms(len(question.asked))
+                )
+                if composed is not None:
+                    answer = composed.apply(tuple(question.asked))
+                    if answer is not None:
+                        language.admit_order(composed)
+                        target = _language_path()
+                        if target is not None:
+                            language.path = target
+                            language.save()
+                        return (
+                            f"{list(answer)}\n\n"
+                            f"The rule, worked out from the examples: "
+                            f"{composed.describe()}."
+                        )
             if ordering is not None:
                 answer = ordering.apply(tuple(question.asked))
                 if answer is not None:

@@ -43,7 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-__all__ = ["Ordering", "solve_ordering"]
+__all__ = ["Composed", "Ordering", "solve_ordering", "solve_ordering_then_move"]
 
 
 @dataclass(frozen=True)
@@ -478,3 +478,93 @@ def solve_ordering(transitions: Sequence[Any]) -> Ordering | None:
         ranked=frozenset(ranked),
         natural=natural,
     )
+
+
+@dataclass(frozen=True)
+class Composed:
+    """An ordering of the cells, and then a move of the positions."""
+
+    ordering: Ordering
+    move: Any
+    move_said: str
+
+    def describe(self) -> str:
+        return f"{self.ordering.describe()}, then {self.move_said}"
+
+    def apply(self, state: Sequence[Any]) -> tuple[Any, ...] | None:
+        ordered = self.ordering.apply(tuple(state))
+        if ordered is None:
+            return None
+        size = len(ordered)
+        try:
+            return tuple(ordered[self.move(place, size)] for place in range(size))
+        except (IndexError, TypeError, ValueError, ZeroDivisionError):
+            return None
+
+    def explains(self, transitions: Sequence[Any]) -> bool:
+        for item in transitions:
+            got = self.apply(tuple(item.before))
+            if got is None or tuple(got) != tuple(item.after):
+                return False
+        return True
+
+
+def solve_ordering_then_move(
+    transitions: Sequence[Any], forms: Sequence[tuple[str, str, Any]]
+) -> Composed | None:
+    """An ordering of the cells followed by a rearrangement of the positions.
+
+    The two axes were solved separately and could not meet. "Sorted, then
+    rotated" is proved outside the positional language — correctly, the sources
+    contradict — and the ordering alone cannot say it either, because the cells
+    do not come out in the order the values carry. Between them they say it
+    exactly, and neither of them alone says anything.
+
+    Undoing the move is what makes this cheap. If ``after[i] = mid[f(i, n)]``
+    then ``mid`` is determined by ``after`` and ``f``, so for each candidate
+    move there is exactly one intermediate state to solve the ordering of. The
+    search is over the moves already known, not over pairs.
+
+    Only an ordering that extrapolates counts. A table would fit whatever
+    intermediate a move happened to produce, and would then be a table of that
+    move's arithmetic rather than a claim about the cells.
+    """
+
+    observed = [
+        (tuple(item.before), tuple(item.after))
+        for item in transitions
+        if item is not None
+    ]
+    if not observed or any(len(b) != len(a) for b, a in observed):
+        return None
+
+    for _family, said, move in forms:
+        rebuilt: list[Any] = []
+        for before, after in observed:
+            size = len(after)
+            middle: list[Any] = [None] * size
+            try:
+                places = [move(place, size) for place in range(size)]
+            except (IndexError, TypeError, ValueError, ZeroDivisionError):
+                break
+            if sorted(places) != list(range(size)):
+                break
+            for place, source in enumerate(places):
+                middle[source] = after[place]
+            rebuilt.append(_Pair(before, tuple(middle)))
+        else:
+            ordering = solve_ordering(rebuilt)
+            if ordering is None or ordering.natural is None:
+                continue
+            found = Composed(ordering=ordering, move=move, move_said=said)
+            if found.explains([_Pair(b, a) for b, a in observed]):
+                return found
+    return None
+
+
+@dataclass(frozen=True)
+class _Pair:
+    """A transition, for handing rebuilt states back to the solver."""
+
+    before: tuple[Any, ...]
+    after: tuple[Any, ...]
