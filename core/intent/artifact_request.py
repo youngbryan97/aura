@@ -89,16 +89,40 @@ _ASKS_ABOUT = re.compile(
 )
 
 
+#: Designing one of these produces instructions, not a thing.
+#:
+#: A category rather than a list of nouns somebody thought of: what separates
+#: them is that you cannot be handed one. A page, a bracket, a deck and a
+#: schematic all exist afterwards and can be pointed at. An experiment, a
+#: protocol, a strategy and a curriculum are things you DO, and designing one
+#: is describing it.
+#:
+#: LIVE, 2026-08-28: "Design me the experiment that would actually tell us, and
+#: say what result would prove your friend wrong" — a question about sourdough
+#: — was routed as a request to build something, and a file called
+#: something-s-off-with-my-sourdough.html was written to disk.
+_A_PROCEDURE_RE = re.compile(
+    r"\b(?:experiment|protocol|procedure|method|methodology|process|"
+    r"approach|strategy|regimen|routine|curriculum|syllabus|"
+    r"trial|study|test\s+plan|workflow)\b",
+    re.IGNORECASE,
+)
+
+
 def names_an_artifact(message: object) -> bool:
     """Whether the request names a thing that would exist afterwards."""
     text = str(message or "")
     if not text.strip():
         return False
-    return bool(
-        _ASKS_FOR.search(text)
-        or _COUNTED_ARTIFACT.search(text)
-        or _ASKS_TO_DESIGN.search(text)
-    )
+    if _ASKS_FOR.search(text) or _COUNTED_ARTIFACT.search(text):
+        return True
+    design = _ASKS_TO_DESIGN.search(text)
+    if not design:
+        return False
+    # What is being designed decides. Reading only as far as the determiner
+    # made "design me the experiment" identical to "design me the bracket".
+    after = text[design.end() : design.end() + 60]
+    return not _A_PROCEDURE_RE.search(after)
 
 
 #: Whether the person wants a thing or an answer.
