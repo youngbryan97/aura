@@ -96,5 +96,13 @@
     "note": "The one that does not refute shows only already-ordered states, so every transition IS the identity and the identity genuinely explains it. A shortage in the data, reported as one."
   },
   "recorded": "2026-08-28",
-  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. Three deliberate changes on 2026-08-28. Every problem shows THREE states at a length it already showed, because with one per length there was nothing to intersect and the proof could not fire on any problem, and with two the proof could not be leave-one-out tested \u2014 one corrupted transition empties an intersection on its own. 'Reordered by the cells' became expressible because the ordering can be solved for rather than searched. A shape only a table reaches went in beside it, because a battery whose unreachable shape becomes reachable measures nothing."
+  "note": "Only rises, and only against this fingerprint. No language model, embedding or stored answer is in the scoring path. Three deliberate changes on 2026-08-28. Every problem shows THREE states at a length it already showed, because with one per length there was nothing to intersect and the proof could not fire on any problem, and with two the proof could not be leave-one-out tested \u2014 one corrupted transition empties an intersection on its own. 'Reordered by the cells' became expressible because the ordering can be solved for rather than searched. A shape only a table reaches went in beside it, because a battery whose unreachable shape becomes reachable measures nothing.",
+  "null": {
+    "rounds": 20,
+    "problems_per_round": 130,
+    "any_answer_produced": 7,
+    "worst_single_round": 2,
+    "answered_correctly": 1,
+    "note": "Every route the live path can take, run against shuffled answers, with the worst round taken \u2014 a p-value for the winner ignores that the winner was chosen from thousands. Not zero and it should not be: a shuffle of four cells lands on the identity one time in twenty-four, and a question whose answer accidentally became 'nothing moved' has a real answer. On the real battery something is found for 107 of 130."
+  }
 }
