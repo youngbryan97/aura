@@ -14222,6 +14222,18 @@ class InferenceGate:
                                 )
                                 or ""
                             ).strip()[:220]
+                        if not _quality_reasons and not _rejected_draft:
+                            # Four keys and a draft, and this receipt has none
+                            # of them. Then the question is no longer what the
+                            # gate objected to but whether this is the receipt
+                            # the gate wrote, and the only way to tell is to
+                            # see what it does carry.
+                            logger.warning(
+                                "🧠 the refusing receipt carries no reasons and no "
+                                "draft; it holds: %s",
+                                ",".join(sorted(map(str, primary_surface_receipt))[:40])
+                                or "nothing at all",
+                            )
                         logger.warning(
                             "🧠 %s exhausted its worker-owned semantic quality retries; "
                             "preserving the lane and refusing a duplicate inference-gate "
