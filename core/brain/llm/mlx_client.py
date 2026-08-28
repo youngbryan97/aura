@@ -2970,13 +2970,23 @@ def _tool_call_budget(requested: Any, configured: Any, tools: Any) -> int:
         asked = max(1, int(requested or 0))
     except (TypeError, ValueError):
         asked = 1
-    if not _tools_can_carry_a_document(tools):
-        return asked
+    carries = _tools_can_carry_a_document(tools)
     try:
         ceiling = max(1, int(configured or 0))
     except (TypeError, ValueError):
         ceiling = asked
-    return max(asked, ceiling)
+    granted = max(asked, ceiling) if carries else asked
+    # Said out loud, because a call cut off mid-argument and a model that
+    # declined to call look identical from everywhere downstream, and the
+    # number that decides between them was never written anywhere.
+    logger.info(
+        "🔧 Tool-call budget: asked=%d configured=%d carries_a_document=%s → %d",
+        asked,
+        ceiling,
+        carries,
+        granted,
+    )
+    return granted
 
 
 def _tools_can_carry_a_document(tools: Any) -> bool:
