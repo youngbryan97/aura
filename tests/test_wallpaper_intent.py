@@ -19,10 +19,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-#: A picture somewhere under the home directory, built rather than spelled:
-#: an absolute path written into a test is a machine written into a test.
-_A_PICTURE = str(Path.home() / "Documents" / "blue_whale_wallpaper.jpg")
-
 import pytest
 
 from core.intent.declared_capability import object_class_of as declared_object_class_of
@@ -93,6 +89,12 @@ def test_wallpaper_requests_are_recognised(objective, topic):
 def test_non_requests_do_not_change_anything(objective):
     """Asking ABOUT the wallpaper must never change it."""
     assert detect_os_settings(objective) == [], objective
+
+
+#: A picture under the home directory, built rather than spelled: an
+#: absolute path written into a test is a machine written into a test, and
+#: this one is only about a path being recognised as one.
+_A_PICTURE = str(Path.home() / "Documents" / "blue_whale_wallpaper.jpg")
 
 
 def test_a_bare_pronoun_with_no_referent_is_not_invented():
