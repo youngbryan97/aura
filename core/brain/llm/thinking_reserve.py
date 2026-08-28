@@ -23,8 +23,10 @@ the runtime generates often enough that the window fills within minutes.
 
 from __future__ import annotations
 
+import json
 import threading
 from collections import deque
+from pathlib import Path
 
 #: The smallest window in which a 90th percentile is a real observation rather
 #: than a restatement of the largest sample.
@@ -55,6 +57,16 @@ _rates: deque[tuple[int, float]] = deque(maxlen=_WINDOW)
 
 _lock = threading.Lock()
 
+#: Taking back earlier measurements happens once, on first use, because the
+#: state root is not ready at import time.
+_restored = False
+
+#: How many new readings before they are written down again. Every reading is
+#: cheap and the write is not, and losing the last few costs a few seconds of
+#: cold start rather than anything a person sees.
+_WRITE_EVERY = 25
+_since_write = 0
+
 
 def record_reasoning_cost(
     *,
@@ -80,6 +92,7 @@ def record_reasoning_cost(
     spent = int(round(tokens * (reasoning / total_chars)))
     with _lock:
         _observed.append(max(0, spent))
+    _written_down()
 
 
 def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
@@ -99,6 +112,31 @@ def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
         return
     with _lock:
         _proved_insufficient = max(_proved_insufficient, spent)
+    save()
+
+
+def _restore_once() -> None:
+    """Take back what earlier processes measured, the first time anyone asks."""
+
+    global _restored
+    with _lock:
+        if _restored:
+            return
+        _restored = True
+    load()
+
+
+def _written_down() -> None:
+    """Write the measurements out every so often, not on every reading."""
+
+    global _since_write
+    with _lock:
+        _since_write += 1
+        due = _since_write >= _WRITE_EVERY
+        if due:
+            _since_write = 0
+    if due:
+        save()
 
 
 def reserve_tokens() -> int:
@@ -109,6 +147,7 @@ def reserve_tokens() -> int:
     carry a percentile; the proof needs one.
     """
 
+    _restore_once()
     with _lock:
         seen = sorted(_observed)
         proved = _proved_insufficient
@@ -131,6 +170,7 @@ def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
         return
     with _lock:
         _rates.append((tokens, tokens / seconds))
+    _written_down()
 
 
 def seconds_to_decode(tokens: int) -> float:
@@ -151,6 +191,7 @@ def seconds_to_decode(tokens: int) -> float:
         return 0.0
     if wanted <= 0:
         return 0.0
+    _restore_once()
     with _lock:
         # Only runs of a comparable size. Half the wanted length is the
         # boundary because below it the prompt dominates the measurement.
@@ -183,8 +224,104 @@ def observations() -> int:
 def forget() -> None:
     """Drop what has been learned. For tests and for a model swap."""
 
-    global _proved_insufficient
+    global _proved_insufficient, _restored
     with _lock:
         _observed.clear()
         _rates.clear()
         _proved_insufficient = 0
+        # Forgetting means forgetting, including what is on disk: a test that
+        # cleared the window and then measured would otherwise take the
+        # runtime's own readings back in on the next call.
+        _restored = True
+
+
+# ------------------------------------------------------------- across restarts
+#
+# What was measured is about the machine and the model, not about the session,
+# and both outlive the process. Held only in memory, the window emptied on every
+# restart and the first long generation after a boot was sized on nothing — so
+# the deadline that should have covered it was never extended, and the turn that
+# needed the measurement most was the one that never had it.
+#
+# LIVE, 2026-08-28: a diagnosis turn was sized for one generation because the
+# rate window had no runs long enough to speak about a 640-token one. The
+# runtime had been up eleven minutes and had generated dozens of times.
+
+#: Where the measurements live between processes.
+_STORE = "decode_measurements.json"
+
+
+def _store_path() -> Path | None:
+    try:
+        from core.runtime.state_ownership import state_root
+
+        return Path(state_root()) / _STORE
+    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+        return None
+
+
+def save() -> bool:
+    """Write the measurements down, through the runtime's own write path."""
+
+    target = _store_path()
+    if target is None:
+        return False
+    with _lock:
+        payload = json.dumps(
+            {
+                "reasoning_tokens": list(_observed),
+                "proved_insufficient": _proved_insufficient,
+                "rates": [[length, rate] for length, rate in _rates],
+            }
+        )
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope(
+            "llm.thinking_reserve", domain="state_mutation"
+        ):
+            get_file_write_gateway().write_text(
+                target, payload, source="llm.thinking_reserve"
+            )
+        return True
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def load() -> int:
+    """Take back what earlier processes measured. Returns how many readings."""
+
+    global _proved_insufficient
+    target = _store_path()
+    if target is None:
+        return 0
+    try:
+        raw = json.loads(target.read_text())
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(raw, dict):
+        return 0
+    taken = 0
+    with _lock:
+        for value in raw.get("reasoning_tokens") or ():
+            try:
+                _observed.append(max(0, int(value)))
+                taken += 1
+            except (TypeError, ValueError):
+                continue
+        for row in raw.get("rates") or ():
+            try:
+                length, rate = row
+                if int(length) > 0 and float(rate) > 0.0:
+                    _rates.append((int(length), float(rate)))
+                    taken += 1
+            except (TypeError, ValueError):
+                continue
+        try:
+            _proved_insufficient = max(
+                _proved_insufficient, int(raw.get("proved_insufficient") or 0)
+            )
+        except (TypeError, ValueError):
+            pass
+    return taken

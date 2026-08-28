@@ -131,3 +131,47 @@ def test_the_generation_count_falls_back_to_one() -> None:
     start = body.index("A turn that has to go and fetch something")
     window = body[start : start + 1200]
     assert window.count("_generations = 1") >= 2
+
+
+def test_what_was_measured_survives_a_restart(tmp_path, monkeypatch) -> None:
+    """The machine and the model outlive the process; the readings should too.
+
+    LIVE, 2026-08-28: a diagnosis turn was sized for one generation because the
+    rate window held no runs long enough to speak about a 640-token one. The
+    runtime had been up eleven minutes and had generated dozens of times — all
+    of them short, and the window is bucketed by length on purpose. Held only in
+    memory, the turn that most needed the measurement was the one that never
+    had it.
+    """
+
+    monkeypatch.setattr(
+        thinking_reserve, "_store_path", lambda: tmp_path / "decode.json"
+    )
+    thinking_reserve.forget()
+    for _ in range(20):
+        thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=896)
+    before = thinking_reserve.seconds_to_decode(896)
+    assert before > 100.0
+    assert thinking_reserve.save()
+
+    thinking_reserve.forget()
+    assert thinking_reserve.seconds_to_decode(896) == 0.0
+    assert thinking_reserve.load() >= 20
+    assert thinking_reserve.seconds_to_decode(896) == pytest.approx(before, abs=1.0)
+    assert thinking_reserve.reserve_tokens() == 896
+    thinking_reserve.forget()
+
+
+def test_forgetting_forgets_the_disk_too(tmp_path, monkeypatch) -> None:
+    """Otherwise a cleared window quietly takes the runtime's readings back."""
+
+    monkeypatch.setattr(
+        thinking_reserve, "_store_path", lambda: tmp_path / "decode.json"
+    )
+    thinking_reserve.forget()
+    for _ in range(20):
+        thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
+    thinking_reserve.save()
+    thinking_reserve.forget()
+    assert thinking_reserve.seconds_to_decode(896) == 0.0

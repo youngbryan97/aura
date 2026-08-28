@@ -39,7 +39,10 @@ struck through on the strength of an argument.
   different world taught the two-deep shape — then predicts lengths it never
   saw. Shapes are members of the language, not a preference over it. A language
   taught something unhelpful adds nothing.
-- [ ] **B6** Persistence across processes, so a restart does not start cold.
+- [x] **B6** Persistence across processes. The decode measurements survive a
+  restart: the machine and the model outlive the process, and held only in
+  memory the turn that most needed the measurement was the one that never had
+  it. Forgetting forgets the disk too.
 
 ## C. Novel abstraction from failure
 
