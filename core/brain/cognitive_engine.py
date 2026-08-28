@@ -4883,23 +4883,26 @@ class CognitiveEngine:
                 "with the requested conclusion. Prefer a concise complete "
                 "answer over an unfinished exhaustive one."
             )
-        neurodynamic_directive = _compact_spiking_active_inference_directive(advice)
-        if neurodynamic_directive:
-            turn_dynamic_contracts.append(neurodynamic_directive)
-        if isinstance(imagination_frame, dict):
-            imagination_directive = _compact_imagination_directive(imagination_frame)
-            if imagination_directive:
-                turn_dynamic_contracts.append(imagination_directive)
-        if isinstance(bicameral_frame, dict):
-            bicameral_directive = _compact_bicameral_directive(bicameral_frame)
-            if bicameral_directive:
-                turn_dynamic_contracts.append(bicameral_directive)
-        if isinstance(cognitive_situation_frame, dict):
-            situation_directive = _compact_cognitive_situation_directive(
-                cognitive_situation_frame
-            )
-            if situation_directive:
-                turn_dynamic_contracts.append(situation_directive)
+        # Four subsystems used to speak to the model in English here, and all
+        # four already actuate for real: the neurodynamics, imagination,
+        # bicameral and cognitive-situation frames each publish a sampling bias
+        # that moves temperature, top-p and the token budget inside bounds the
+        # affective controls respect.
+        #
+        # The argument against the sentences is written forty lines above
+        # `_apply_neurodynamic_sampling_bias`, about the same subsystem: its
+        # only actuator was a sentence, and "asking the model nicely is not a
+        # mechanism". The mechanism was built. The sentences were left beside
+        # it, so every turn carried both — a real bias AND a weaker duplicate
+        # of it in prose.
+        #
+        # LIVE, 2026-08-28: a 192-character question was sent with 8,049
+        # characters of system prompt, in three blocks, all of them
+        # instruction prose. Cortex produced nothing on half of twelve such
+        # turns and the person got a canned apology.
+        #
+        # What each subsystem does is unchanged. What it stopped doing is
+        # asking.
         # The desktop conversation lane builds its own system prompt, so the
         # grounding wired into inference_gate never reached the turns people
         # actually take: after that fix landed and the runtime restarted, "what

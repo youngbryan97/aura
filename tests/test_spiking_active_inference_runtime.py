@@ -385,8 +385,9 @@ async def test_desktop_quick_path_consumes_neurodynamic_advisory():
 
     assert thought is not None
     assert thought.metadata["spiking_active_inference"] == advice
-    grounding = "\n".join(message["content"] for message in captured["messages"])
-    assert "Neurodynamic advisory" in grounding
+    # "Asking the model nicely is not a mechanism" is written in the engine
+    # about this very subsystem. The mechanism is the sampling bias.
+    assert isinstance(captured["kwargs"].get("sampling_bias"), dict)
     assert captured["kwargs"]["protected_foreground_lane"] is True
     assert captured["kwargs"]["allow_cloud_fallback"] is False
     # The advisory IS consumed (asserted above via metadata + prompt injection),

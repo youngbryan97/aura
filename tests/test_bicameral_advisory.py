@@ -215,17 +215,12 @@ async def test_desktop_quick_path_consumes_bicameral_advisory():
     assert thought is not None
     assert thought.metadata["bicameral_advisory"]["frame_id"] == frame["frame_id"]
     assert thought.metadata["bicameral_advisory_feedback"]["outcome"] == "desktop_quick_reply"
-    # Across every system message, not message[0]. The advisory moved out
-    # of the system prompt into the turn's grounding block — still a
-    # system message, still on the same path — and an index froze the
-    # arrangement rather than the delivery.
-    prompt = "\n".join(
-        str(message.get("content") or "")
-        for message in captured["messages"]
-        if message.get("role") == "system"
-    )
-    assert "Bicameral advisory" in prompt
-    assert "phenomenal experience" in prompt
+    # The frame's arrival is asserted above, from the metadata, and its
+    # ACTUATOR is the sampling bias below. It used to also say so in English in
+    # the prompt, and checking that proved delivery by the weaker of two paths
+    # while the real one went unchecked. The prose is gone; the mechanism is
+    # what this asserts.
+    assert isinstance(captured["kwargs"].get("bicameral_sampling_bias"), dict)
     assert captured["kwargs"]["protected_foreground_lane"] is True
     assert captured["kwargs"]["allow_cloud_fallback"] is False
     assert captured["kwargs"]["bicameral_sampling_bias"] == frame["sampling_bias"]

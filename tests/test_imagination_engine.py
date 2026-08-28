@@ -398,10 +398,8 @@ async def test_desktop_quick_path_consumes_imagination_workspace():
     assert thought is not None
     assert thought.metadata["imagination_workspace"]["frame_id"] == frame["frame_id"]
     assert thought.metadata["imagination_workspace_feedback"]["outcome"] == "desktop_quick_reply"
-    grounding = "\n".join(message["content"] for message in captured["messages"])
-    assert "Imagination workspace" in grounding
-    assert "Mental canvas" in grounding
-    assert "Novel thought candidates" in grounding
+    # Arrival is asserted above from the metadata; the actuator is the bias.
+    assert isinstance(captured["kwargs"].get("imagination_sampling_bias"), dict)
     assert captured["kwargs"]["protected_foreground_lane"] is True
     assert captured["kwargs"]["allow_cloud_fallback"] is False
     assert captured["kwargs"]["imagination_sampling_bias"] == frame["sampling_bias"]
