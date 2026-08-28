@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from core.capability_engine import CapabilityEngine
-from core.intent.capability_selection import _points_at_something_real, select_capabilities
+from core.intent.capability_selection import points_at_something_real, select_capabilities
 from core.intent.declared_capability import requested_foundational_domains
 from core.phases.response_contract import requested_effect_ceiling
 
@@ -40,12 +40,12 @@ def offered(text: str, skills) -> list[str]:
 def test_a_path_that_exists_is_something_real(tmp_path: Path):
     project = tmp_path / "ledger"
     project.mkdir()
-    assert _points_at_something_real(f"why is the test failing in {project}")
-    assert not _points_at_something_real(f"why is the test failing in {tmp_path / 'nowhere'}")
+    assert points_at_something_real(f"why is the test failing in {project}")
+    assert not points_at_something_real(f"why is the test failing in {tmp_path / 'nowhere'}")
 
 
 def test_an_address_is_something_real():
-    assert _points_at_something_real("read https://example.invalid/paper and summarise it")
+    assert points_at_something_real("read https://example.invalid/paper and summarise it")
 
 
 def test_both_natural_phrasings_reach_the_code_lane(tmp_path: Path, skills):

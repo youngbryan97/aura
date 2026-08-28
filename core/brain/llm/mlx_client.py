@@ -17033,8 +17033,24 @@ def _native_xml_tool_payload(
     suffix = candidate[match.end() :].strip()
     if suffix.startswith("</tool_call>"):
         suffix = suffix[len("</tool_call>") :].strip()
-    if suffix:
-        return None, "native XML envelope contained material after the function"
+    # The envelope ends at </function>. What the model says afterwards is the
+    # model carrying on talking, and it does not make the call before it
+    # invalid — material INSIDE the function is ambiguous in a way material
+    # after it is not.
+    #
+    # LIVE, 2026-08-28: a request to work out what was wrong with a project
+    # produced a correct diagnose_repo call with prose behind it, the whole
+    # envelope was refused, the body was empty, and the turn ended with no
+    # answer. The tool that had the answer was called and the call was thrown
+    # away for the sentence after it.
+    #
+    # A second call in the tail is a different matter: taking the first and
+    # dropping the rest silently would be worse than refusing, because nothing
+    # downstream would ever learn the model asked for two things.
+    if suffix and any(
+        marker in suffix for marker in ("<function", "<parameter", "tool_call")
+    ):
+        return None, "native XML envelope carried more markup after the function"
 
     function_name = match.group("name")
     if _NATIVE_XML_NAME_RE.fullmatch(function_name) is None:

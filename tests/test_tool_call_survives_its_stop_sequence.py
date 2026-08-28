@@ -239,6 +239,30 @@ def test_malformed_or_unadvertised_native_xml_is_not_an_effect(text: str) -> Non
     [
         "arbitrary prose",
         "</tool_call>arbitrary prose",
+    ],
+)
+def test_qwen38_native_xml_keeps_the_call_when_the_model_talks_on(suffix: str) -> None:
+    """The envelope ends at </function>. Prose after it is the model talking.
+
+    LIVE, 2026-08-28: a correct diagnose_repo call with a sentence behind it
+    was refused whole, the body was empty, and the turn ended with no answer.
+    The tool that had the answer was called and the call was thrown away for
+    the sentence after it.
+    """
+
+    text = (
+        "<tool_call><function=web_search>"
+        "<parameter=query>orca cognition</parameter>"
+        f"</function>{suffix}"
+    )
+    call = extract_typed(text)
+    assert call is not None
+    assert call["tool"] == "web_search"
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
         "</tool_call></tool_call>",
         "</tool_call extra>",
         "<function=file_operation></function>",

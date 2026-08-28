@@ -71,14 +71,14 @@ def test_trimming_leaves_a_bare_path_alone() -> None:
     assert trim_sentence_punctuation("/etc/hosts.") == "/etc/hosts"
 
 
-def test_the_request_points_at_something_real_again(project: Path) -> None:
+def test_the_requestpoints_at_something_real_again(project: Path) -> None:
     """The site the live failure ran through."""
-    from core.intent.capability_selection import _points_at_something_real
+    from core.intent.capability_selection import points_at_something_real
 
     asked = (
         f"Something weird is happening in a little project of mine at {project}. "
         "There's no error and no failing test, but the second invoice comes out "
         "with the first one's lines in it. What's actually going on?"
     )
-    assert _points_at_something_real(asked) is True
-    assert _points_at_something_real("what is the capital of Peru") is False
+    assert points_at_something_real(asked) is True
+    assert points_at_something_real("what is the capital of Peru") is False
