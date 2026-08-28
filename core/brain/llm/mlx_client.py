@@ -2843,8 +2843,22 @@ def _bounded_generation_max_tokens(
     *,
     user_surface_completion_floor: Any = None,
     preserve_user_surface_completion_floor: bool = False,
+    tool_call_floor: Any = None,
 ) -> int:
-    """Apply adaptive shrinkage without making an admitted contract impossible."""
+    """Apply adaptive shrinkage without making an admitted contract impossible.
+
+    A CALL is one of those contracts, and it had no floor.
+
+    The adaptive suggestion scales a generation by felt vitality, which is
+    right for prose — she says less when depleted — and wrong for a structured
+    call, which is a fixed-size object. Half a call is not a shorter call; it
+    is no call, and the loop reports "none called" while the model had emitted
+    exactly the right thing.
+
+    LIVE, 2026-08-28: "read the docs, then use it" was granted 2048 tokens by
+    its own clock and generated with 399, because vitality had scaled it down.
+    The argument stopped inside ``from ledgerkit imp``.
+    """
 
     bounded = _bounded_max_tokens(requested, bridged, fallback)
     if hard_output_ceiling is not None and hard_output_ceiling != "":
@@ -2857,7 +2871,12 @@ def _bounded_generation_max_tokens(
             surface_floor = max(0, int(user_surface_completion_floor or 0))
         except (TypeError, ValueError, OverflowError):
             surface_floor = 0
-    completion_floor = max(contract_floor, surface_floor)
+    tool_floor = 0
+    try:
+        tool_floor = max(0, int(tool_call_floor or 0))
+    except (TypeError, ValueError, OverflowError):
+        tool_floor = 0
+    completion_floor = max(contract_floor, surface_floor, tool_floor)
     if completion_floor <= 0:
         return bounded
 
@@ -15024,6 +15043,13 @@ class MLXLocalClient:
             ),
             preserve_user_surface_completion_floor=bool(
                 kwargs.get("clean_user_surface_contract", False)
+            ),
+            # A call that carries a program is sized by what it has to say,
+            # not by how depleted she is.
+            tool_call_floor=(
+                kwargs.get("max_tokens")
+                if _tools_can_carry_a_document(_offered_for_budgeting(kwargs))
+                else None
             ),
         )
 

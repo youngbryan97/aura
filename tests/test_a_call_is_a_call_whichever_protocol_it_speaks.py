@@ -88,3 +88,50 @@ def test_the_budget_reads_either_source() -> None:
     assert _offered_for_budgeting({"tool_budget_definitions": _CARRIES_A_PROGRAM})
     assert not _offered_for_budgeting({"tools": None})
     assert not _offered_for_budgeting({})
+
+
+def test_a_call_is_not_sized_by_how_depleted_she_feels() -> None:
+    """The adaptive suggestion scales a generation by felt vitality.
+
+    Right for prose — she says less when depleted. Wrong for a structured
+    call, which is a fixed-size object: half a call is not a shorter call, it
+    is no call, and the loop reports "none called" while the model had emitted
+    exactly the right thing.
+
+    LIVE, 2026-08-28: granted 2048 tokens by its own clock, generated with 399,
+    and the argument stopped inside `from ledgerkit imp`. Three layers had
+    already written this rule down for their own clamp; this was the fourth and
+    it had no floor at all.
+    """
+
+    from core.brain.llm.mlx_client import _bounded_generation_max_tokens
+
+    scaled_down_by_vitality = 399
+    asked = 2048
+
+    assert (
+        _bounded_generation_max_tokens(
+            asked, scaled_down_by_vitality, None, asked, None, tool_call_floor=asked
+        )
+        == asked
+    )
+    # And prose still yields to the same suggestion.
+    assert (
+        _bounded_generation_max_tokens(
+            asked, scaled_down_by_vitality, None, asked, None, tool_call_floor=None
+        )
+        == scaled_down_by_vitality
+    )
+
+
+def test_the_floor_only_applies_to_calls_that_carry_something() -> None:
+    """A call with no document argument does not need the whole budget."""
+
+    from pathlib import Path
+
+    body = Path("core/brain/llm/mlx_client.py").read_text()
+    start = body.index("tool_call_floor=(")
+    window = body[start : start + 200]
+    assert "_tools_can_carry_a_document" in window
+    assert "_offered_for_budgeting" in window
+    assert "else None" in window
