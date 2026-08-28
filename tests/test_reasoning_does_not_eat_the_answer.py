@@ -141,3 +141,33 @@ def test_only_a_generation_that_thought_teaches_the_window() -> None:
     start = body.index("reasoning_chars=len(native_channels.reasoning),")
     window = body[start - 700 : start]
     assert "if native_thinking is True:" in window
+
+
+def test_an_answer_that_died_part_way_through_teaches_the_reserve() -> None:
+    """The commoner failure, which taught it nothing for a long time.
+
+    A generation can run out of budget while still inside the private channel
+    and return no answer at all — that was recorded. It can also close the
+    channel, start the answer, and die part-way through it, which is what
+    happens to most questions worth thinking about. Live on 2026-08-28 a
+    thinking generation spent all 1,024 of its tokens, covered neither part of
+    a two-part question, and returned 1,058 characters; the reserve that
+    exists to widen the budget for exactly that stood at zero.
+
+    One proof is enough, because the generations that open the channel are the
+    ones the reserve is for: waiting for a window of them means every one of
+    them fails first.
+    """
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    assert thinking_reserve.reserve_tokens() == 0
+
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=1024)
+    assert thinking_reserve.reserve_tokens() == 1024
+    assert thinking_reserve.proved_insufficient() == 1024
+
+    # A later, smaller failure does not lower what has already been proved.
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=512)
+    assert thinking_reserve.reserve_tokens() == 1024

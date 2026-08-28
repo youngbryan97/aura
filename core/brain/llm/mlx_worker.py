@@ -10257,6 +10257,31 @@ def _mlx_worker_loop(
                             ],
                             total_generated_tokens,
                         )
+                        # And the reserve learns from it. It was learning only
+                        # from the total failure — a generation that never left
+                        # the private channel and produced no surface at all —
+                        # so the far commoner failure taught it nothing: the
+                        # boundary closes, the answer starts, and the budget
+                        # dies part-way through it. Live on 2026-08-28 a
+                        # thinking generation spent all 1,024 of its tokens and
+                        # covered neither part of a two-part question,
+                        # returning 1,058 characters. Reasoning had taken the
+                        # rest, and the reserve that exists to widen the budget
+                        # for exactly that stood at zero, because zero is what
+                        # it learns from failures it is never shown.
+                        #
+                        # Only where the budget was actually spent. An answer
+                        # that stopped early for some other reason is not
+                        # evidence about the size of anything.
+                        if native_thinking is True and hard_token_limit_hit:
+                            _record_budget_that_ran_out_thinking(
+                                _safe_int(
+                                    surface_control_state.get(
+                                        "generation_max_tokens_applied"
+                                    ),
+                                    max_tokens,
+                                )
+                            )
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.

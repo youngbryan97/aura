@@ -96,13 +96,19 @@ def record_reasoning_cost(
 
 
 def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
-    """A generation ended still inside the private channel.
+    """A thinking generation spent this budget and still had not finished.
 
-    That is not a sample of what reasoning costs, it is a proof that reasoning
-    cost more than this. It needs no percentile and no second opinion, which
-    matters because the only generations that open the channel are the ones
-    this reserve exists to rescue — so waiting for a window of them to
-    accumulate means every one of them fails first.
+    Two shapes of the same failure. The budget can run out while the model is
+    still inside the private channel, leaving no answer at all; or the channel
+    can close, the answer start, and the budget die part-way through it. The
+    second is much the commoner and was not recorded for a long time, so the
+    reserve learned nothing from the failures it exists to prevent.
+
+    Either way this is not a sample of what reasoning costs. It is a proof
+    that reasoning cost more than this, and a proof needs no percentile and no
+    second opinion — which matters, because the generations that open the
+    channel are the ones this reserve is for, and waiting for a window of them
+    to accumulate means every one of them fails first.
     """
 
     global _proved_insufficient
