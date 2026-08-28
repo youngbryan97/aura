@@ -493,6 +493,17 @@ _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 #: engine handed the bias to a stub router and stopped there, which is the
 #: shape of a half-wired channel — a writer, a test of the writer, and no
 #: reader.
+#: The two ceilings a request can establish for itself, read from the one place
+#: that decides them rather than spelled again here.
+try:  # pragma: no cover - import shape only
+    from core.phases.response_contract import (
+        _REQUESTED_ARTIFACT_CEILING as _REQUESTED_ARTIFACT_EFFECT_CEILING,
+        _SELF_SERVICE_CEILING as _SELF_SERVICE_EFFECT_CEILING,
+    )
+except ImportError:  # pragma: no cover - the gate still runs without them
+    _SELF_SERVICE_EFFECT_CEILING = "sandboxed_compute"
+    _REQUESTED_ARTIFACT_EFFECT_CEILING = "read_write_artifacts"
+
 _SAMPLING_BIAS_KEYS = (
     "sampling_bias",
     "imagination_sampling_bias",
@@ -8194,7 +8205,18 @@ class InferenceGate:
                     # something else because of it — three is one attempt with
                     # no room to be wrong. Scaled to the working set so a
                     # single-capability turn stays cheap.
-                    max_turns=max(3, 2 * len(tools) + 1),
+                    #
+                    # And one more than the calls, because the last turn has to
+                    # be free to WRITE. Two tools gave five turns; a turn that
+                    # was refused twice and then read three files used all five
+                    # on calls, and the person got a list of what ran instead of
+                    # an answer.
+                    #
+                    # LIVE, 2026-08-28: "read the docs, then actually use it"
+                    # spent turns on a denied path, a refused execution, and
+                    # three successful reads. Nothing was left to say what it
+                    # had found.
+                    max_turns=max(4, 2 * len(tools) + 2),
                     context={
                         "required_skills": list(required),
                         "foreground_request": True,
@@ -8212,15 +8234,35 @@ class InferenceGate:
                         # confirmation" — a confirmation prompt for the thing
                         # that had just been asked for in those words.
                         #
-                        # Deliberately narrow. This is set only when the
-                        # request raised the ceiling to writing an artifact,
-                        # which is the one effect it named. It does not
-                        # authorise external_io, privileged mutation, deleting
-                        # anything, sending anything, or spending anything —
-                        # those still require their own consent, because
+                        # Deliberately narrow, and it was narrower than the
+                        # thing it was arguing for.
+                        #
+                        # Set only for the artifact ceiling, it left the
+                        # SELF-SERVICE ceiling asking for a confirmation
+                        # nobody can give — and that ceiling is defined, where
+                        # it is declared, as "the most a turn may do without
+                        # the person having asked for that effect... it can
+                        # calculate anything and change nothing outside its own
+                        # sandbox". Something that by definition needs no
+                        # permission was being refused for want of one.
+                        #
+                        # LIVE, 2026-08-28: "read the docs, then actually use
+                        # it" reached code_repl and came back "Permission
+                        # denied: Requires user confirmation: Typed execution
+                        # contract: scope=sandboxed_compute". She read the
+                        # library three times over and never ran it.
+                        #
+                        # Still narrow: these are the two ceilings a request
+                        # can establish for itself. Nothing here authorises
+                        # external_io, privileged mutation, deleting, sending
+                        # or spending — those need their own consent, because
                         # nobody asked for them.
                         "user_explicitly_authorized": (
-                            ceiling == "read_write_artifacts"
+                            ceiling
+                            in {
+                                _SELF_SERVICE_EFFECT_CEILING,
+                                _REQUESTED_ARTIFACT_EFFECT_CEILING,
+                            }
                         ),
                     },
                     # What the turn has already read. Without it the loop
