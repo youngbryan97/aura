@@ -9166,7 +9166,12 @@ def _mlx_worker_loop(
                                             surface_chars=len(current_response or ""),
                                             generated_tokens=token_count,
                                         )
-                                    if native_thinking is True and not native_channels.boundary_closed:
+                                    if (
+                                        native_thinking is True
+                                        and not native_channels.boundary_closed
+                                        and not deadline_hit
+                                        and token_count >= max_tokens
+                                    ):
                                         # The budget ran out while the model was still thinking, so
                                         # there is no surface at all. That is a budget failure and not
                                         # a model failure, and it read downstream as producing nothing.
@@ -9185,11 +9190,14 @@ def _mlx_worker_loop(
                                         # have fixed that one.
                                         logger.warning(
                                             "🧠 [WORKER] Generation ended inside the private channel: "
-                                            "%d reasoning chars, no answer. The decode budget of %d "
-                                            "tokens did not cover the thinking this question needed. "
+                                            "%d reasoning chars, no answer, %d of %d tokens spent%s. "
                                             "It ends: %r",
                                             len(native_channels.reasoning),
+                                            token_count,
                                             max_tokens,
+                                            " — the request DEADLINE ended it, not the budget"
+                                            if deadline_hit
+                                            else "",
                                             native_channels.reasoning[-220:],
                                         )
                                         _record_budget_that_ran_out_thinking(max_tokens)
@@ -10272,8 +10280,8 @@ def _mlx_worker_loop(
                         logger.warning(
                             "User-surface generation ended before semantic completion: "
                             "missing_parts=%s quality=%s epistemic_covered=%s "
-                            "terminal_boundary=%s tokens=%d stop=%s limit_hit=%s "
-                            "thinking=%s",
+                            "terminal_boundary=%s tokens=%d stop=%s spent_budget=%s "
+                            "thinking=%s deadline=%s",
                             semantic_completion_state[
                                 "semantic_completion_missing_part_indexes"
                             ],
@@ -10290,6 +10298,7 @@ def _mlx_worker_loop(
                             repr(configured_stop_sequence) if configured_stop_sequence else "none",
                             bool(_spent_the_whole_budget),
                             native_thinking,
+                            bool(deadline_hit),
                         )
                         # And the reserve learns from it. It was learning only
                         # from the total failure — a generation that never left
@@ -10317,7 +10326,11 @@ def _mlx_worker_loop(
                         # ordinary turn — the diagnostic above is what showed
                         # it, reporting tokens=1024 and limit_hit=False in the
                         # same line.
-                        if native_thinking is True and _spent_the_whole_budget:
+                        if (
+                            native_thinking is True
+                            and _spent_the_whole_budget
+                            and not deadline_hit
+                        ):
                             _record_budget_that_ran_out_thinking(_budget_applied)
 
                     # Tag with action: "generate" so client can distinguish
