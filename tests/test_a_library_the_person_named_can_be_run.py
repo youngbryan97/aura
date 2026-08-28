@@ -74,12 +74,10 @@ def test_the_path_is_taken_from_the_request_when_none_was_given() -> None:
     assert named_by_a_file.endswith("ledgerkit")
 
     assert _a_library_the_person_named({"objective": "what is 2 plus 2"}) == ""
-    assert (
-        _a_library_the_person_named(
-            {"objective": "look at /Users/bryan/.aura/live-source/core"}
-        )
-        == ""
-    )
+    # The runtime's own source, built rather than spelled: a machine written
+    # into a test is a test that only runs on that machine.
+    own_source = Path(__file__).resolve().parents[1] / "core"
+    assert _a_library_the_person_named({"objective": f"look at {own_source}"}) == ""
 
 
 def test_the_runner_actually_runs_it() -> None:
