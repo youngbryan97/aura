@@ -96,6 +96,24 @@ class IndexProgram:
             if index == far:
                 return depth
             return index
+        if kind == "affine":
+            # (a*i + b) mod m, with anything past m standing still.
+            #
+            # The family the other forms are members of: identity is (1,0,n),
+            # mirror is (-1,-1,n), offset k is (1,k,n), and dealing six cells
+            # into two classes is (2,0,n-1) — the shuffle a person had to add
+            # by hand, and the classical riffle.
+            # Stated RELATIVE to the length, the way "the cells d in from each
+            # end" is. An absolute modulus cannot say a shape: dealing into two
+            # classes is mod 5 at length six and mod 7 at length eight, so the
+            # same shape seen at two lengths would be two different shapes and
+            # would intersect to nothing. The same mistake the exchange forms
+            # made, made again here, and found the same way — by the score.
+            a, b, delta = self.args[0], self.args[1], self.args[2]
+            m = size + delta
+            if m < 2 or index >= m:
+                return index
+            return (a * index + b) % m
         if kind == "grouping":
             span = self.args[0] if self.args else 1
             first = self.args[1] if len(self.args) > 1 else 0
@@ -368,11 +386,79 @@ def _parts_of(
     return (description,)
 
 
+def _affine_forms_that_fit(
+    options: Sequence[Sequence[int]],
+) -> list[tuple[str, str, IndexProgram]]:
+    """The members of the affine family that land inside the possibilities.
+
+    Fitted, not enumerated. Every other form in this module is a list somebody
+    wrote down; this one is solved for from what was observed, which is why it
+    reaches shapes nobody wrote down. At length six the authored positional
+    forms reach fifteen permutations and this family reaches forty-four.
+
+    The cost is a search over the modulus and the multiplier, which is O(n^2)
+    in the length of the state and does not grow with how much the family can
+    say. That is the whole argument for it: a basis a person extends one form
+    at a time is a family somebody can fit in a loop.
+    """
+
+    size = len(options)
+    if size < 2:
+        return []
+
+    def signed(value: int, modulus: int) -> int:
+        """The residue written the short way round, so -1 is not n-1.
+
+        This is what makes a member of the family mean the same thing at two
+        lengths. A mirror is "minus one" at every length; it is n-1 at none of
+        them twice.
+        """
+
+        return value if value <= modulus // 2 else value - modulus
+
+    found: list[tuple[str, str, IndexProgram]] = []
+    seen: set[tuple[int, ...]] = set()
+    for delta in (0, -1, 1):
+        modulus = size + delta
+        if modulus < 2:
+            continue
+        # Anything at or past the modulus stands still, so it has to be
+        # standing still in the observations too.
+        if any(place not in options[place] for place in range(modulus, size)):
+            continue
+        for multiplier in range(modulus):
+            for shift in range(modulus):
+                a, b = signed(multiplier, modulus), signed(shift, modulus)
+                rule = IndexProgram("affine", (a, b, delta))
+                landing = tuple(rule(place, size) for place in range(size))
+                if landing in seen:
+                    continue
+                if sorted(landing) != list(range(size)):
+                    continue
+                if any(
+                    landing[place] not in options[place] for place in range(size)
+                ):
+                    continue
+                seen.add(landing)
+                where = "n" if not delta else f"n{delta:+d}"
+                found.append(
+                    (
+                        "affine",
+                        f"position i takes from {a}i{b:+d} (mod {where})",
+                        rule,
+                    )
+                )
+    return found
+
+
 def _forms_that_fit(
     options: Sequence[Sequence[int]],
     known: Sequence[Any] = (),
     *,
     compose: bool = True,
+    without: frozenset[str] = frozenset(),
+    force_compose: bool = False,
+    reach_for_the_family: bool = False,
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape whose answer is among the possibilities at every position.
 
@@ -391,13 +477,30 @@ def _forms_that_fit(
     # only a preference over it. That is what makes a NEW shape cheaper to
     # learn as more shapes are known: a composition of one learned form and one
     # base form is reachable, and was not before the first world taught it.
-    singles = [tuple(entry)[:3] for entry in known] + _index_forms(size)
+    if "authored_positional" in without:
+        # The transpositions are genuinely a different kind — identity with two
+        # positions swapped is not an affine map — so they stay when the rest
+        # of the authored basis is taken away. What this ablation removes is
+        # exactly what the family claims to subsume.
+        authored = [
+            entry
+            for entry in _index_forms(size)
+            if entry[2].kind in {"exchange", "ends"}
+        ]
+    else:
+        authored = _index_forms(size)
+    family = (
+        _affine_forms_that_fit(options)
+        if reach_for_the_family and "affine" not in without
+        else []
+    )
+    singles = [tuple(entry)[:3] for entry in known] + authored + family
     fitting = [
         (family, description, rule)
         for family, description, rule in singles
         if _fits(rule, options, size)
     ]
-    if fitting or not compose:
+    if not compose or (fitting and not force_compose):
         return fitting
     for _fa, first_text, first in singles:
         for _fb, second_text, second in singles:
@@ -564,58 +667,97 @@ def invent_relation(
     # Did anything move, or did the values themselves change?
     possibilities = [_possible_sources(item.before, item.after) for item in observed]
     if all(item is not None for item in possibilities):
-        fitted = [
-            _forms_that_fit(
-                item,
-                () if "known_forms" in without else (known_forms or ()),
-                compose="composition" not in without,
+        def read(*, force_compose: bool, family: bool = False) -> list:
+            return [
+                _forms_that_fit(
+                    item,
+                    () if "known_forms" in without else (known_forms or ()),
+                    compose="composition" not in without,
+                    without=without,
+                    force_compose=force_compose,
+                    reach_for_the_family=family,
+                )
+                for item in possibilities
+                if item
+            ]
+
+        def agreed(options: list) -> dict[str, tuple[str, Callable[[int, int], int]]]:
+            """The shapes every observation admits, in generation order."""
+
+            out: dict[str, tuple[str, Callable[[int, int], int]]] = {}
+            if not options or not all(options):
+                return out
+            common = set.intersection(
+                *({description for _f, description, _r in each} for each in options)
             )
-            for item in possibilities
-            if item
-        ]
+            for family, description, rule in options[0]:
+                if description in common and description not in out:
+                    out[description] = (family, rule)
+            return out
+
         # A shape has to fit EVERY observation. With one observation several
         # will; with two of different lengths, usually one.
-        shared: dict[str, tuple[str, Callable[[int, int], int]]] = {}
-        if fitted and all(fitted):
-            common = set.intersection(
-                *({description for _f, description, _r in options} for options in fitted)
-            )
-            for family, description, rule in fitted[0]:
-                if description in common and description not in shared:
-                    shared[description] = (family, rule)
-        first = None
-        if shared:
-            # The prior chooses among shapes the observations do not separate.
-            # With no prior this is the order the shapes are generated in,
-            # which is what the measurement compares against.
-            chosen = max(
-                shared,
-                key=lambda text: (
-                    int((prefer or {}).get(shared[text][0], 0)),
-                    -list(shared).index(text),
-                ),
-            )
-            family, rule = shared[chosen]
-            first = (family, chosen, rule)
-        if first is not None:
-            family, description, rule = first
+        fitted = read(force_compose=False)
+        shared = agreed(fitted)
+        if not shared and "composition" not in without:
+            # Whether a world needs two shapes is not a fact about one
+            # observation. It was being decided inside each one, before
+            # anything could see whether they AGREE: a single form fitting
+            # length six on its own stopped the composition that was the only
+            # thing fitting six and eight together, and the world scored zero
+            # with the answer never generated.
+            fitted = read(force_compose=True)
+            shared = agreed(fitted)
+        if not shared and "affine" not in without:
+            # Only now. The affine family is a wider net than the written-down
+            # forms and it catches things they would have caught, so offering
+            # it alongside them changes answers that were already right — three
+            # groupings went from found to lost that way, and the family had
+            # not gained a single problem to pay for them.
+            #
+            # A language is extended where it fails, not where it works.
+            for compose_too in (False, True):
+                fitted = read(force_compose=compose_too, family=True)
+                shared = agreed(fitted)
+                if shared:
+                    break
+        # The prior chooses among shapes the observations do not separate.
+        # With no prior this is the order the shapes are generated in, which is
+        # what the measurement compares against.
+        #
+        # In preference ORDER, not one pick. One shape was chosen and then
+        # checked, and a shape that fit the observations but failed the
+        # held-out case ended the world — with a shape that would have passed
+        # sitting unexamined in the same set. Choosing before checking is only
+        # safe when the check cannot fail.
+        order = sorted(
+            shared,
+            key=lambda text: (
+                -int((prefer or {}).get(shared[text][0], 0)),
+                list(shared).index(text),
+            ),
+        )
+        for description in order:
+            family, rule = shared[description]
             operator = _permutation_operator(rule)
-            if explains(operator, observed):
-                relation = InventedRelation(
-                    kind="rearrangement",
-                    form=description,
-                    generalises=True,
-                    apply=operator,
-                    family=family,
-                    learned_from=len(observed),
-                    held_out_checked=len(held_out),
-                    index_rule=rule,
-                    components=_components_of(description, known_forms or ()),
-                    detail={"fitting_shapes": sorted(shared)},
-                )
-                if not held_out or explains(operator, held_out):
-                    return relation
-                return None
+            if not explains(operator, observed):
+                continue
+            if held_out and not explains(operator, held_out):
+                continue
+            return InventedRelation(
+                kind="rearrangement",
+                form=description,
+                generalises=True,
+                apply=operator,
+                family=family,
+                learned_from=len(observed),
+                held_out_checked=len(held_out),
+                index_rule=rule,
+                components=_components_of(description, known_forms or ()),
+                detail={"fitting_shapes": sorted(shared)},
+            )
+        if shared:
+            return None
         # No shape fits every observation. A single correspondence still
         # explains these states, and is reported as what it is: a rule for
         # this length.

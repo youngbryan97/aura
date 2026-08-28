@@ -301,11 +301,17 @@ def teach_the_language(
     problems: Sequence[Problem],
     *,
     language: RelationLanguage,
+    without: frozenset[str] = frozenset(),
 ) -> int:
     """Show the language the shapes the deep problems are built from.
 
     Taught on worlds of its own, at lengths the deep problems do not use, so
     what carries across is the shape and not the instance.
+
+    ``without`` is honoured here as well as at scoring time. Teaching a shape
+    with a part switched on and then scoring with it switched off measures
+    neither condition, and read as an ablation it flatters whichever side did
+    the teaching.
     """
 
     learned = 0
@@ -315,7 +321,7 @@ def teach_the_language(
         world = [
             Transition(tuple(range(n)), build(tuple(range(n)))) for n in (9, 11, 13)
         ]
-        found = invent_relation(world)
+        found = invent_relation(world, without=without)
         if found is not None:
             language.admit(found)
             learned += 1
