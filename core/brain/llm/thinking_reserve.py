@@ -178,6 +178,11 @@ def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
     _written_down()
 
 
+#: Below this a generation is mostly its prompt, and its per-token rate says
+#: more about prefill than about decoding.
+_LONG_ENOUGH_TO_TIME = 32
+
+
 def seconds_to_decode(tokens: int) -> float:
     """How long a budget of this many tokens takes, or 0.0 when unmeasured.
 
@@ -203,6 +208,24 @@ def seconds_to_decode(tokens: int) -> float:
         comparable = sorted(
             rate for length, rate in _rates if length * 2 >= wanted
         )
+        if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+            # Nothing comparable, so anything not dominated by its prompt.
+            #
+            # This returned 0.0 — "unmeasured, extend nothing" — for every
+            # budget worth extending. Measured live: forty readings held, and
+            # ZERO of them comparable to a 1536-token budget, because this
+            # runtime's generations are mostly nineteen to ninety-nine tokens.
+            # The estimator was permanently silent for exactly the turns it
+            # exists to protect, and they are rare partly BECAUSE the deadline
+            # it could not extend kept cancelling them.
+            #
+            # Safe in the direction a deadline needs. A short run amortises its
+            # prefill over fewer tokens, so its per-token rate is the worse one:
+            # using it for a long budget over-estimates the time and asks for
+            # more deadline, never less.
+            comparable = sorted(
+                rate for length, rate in _rates if length >= _LONG_ENOUGH_TO_TIME
+            )
     if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         return 0.0
     index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
