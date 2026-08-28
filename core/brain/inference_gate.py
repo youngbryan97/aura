@@ -13641,6 +13641,23 @@ class InferenceGate:
             origin or "unknown",
             max_tokens,
         )
+        # What the scaffold IS, when it dwarfs the question.
+        #
+        # A ratio is a number nobody can act on. Eight thousand characters of
+        # scaffold against two hundred and fifty of question is the shape of a
+        # real defect, and the log said only that it was thirty-two to one —
+        # so which part of it was eight thousand characters could not be found
+        # without adding this line first.
+        if request_chars and scaffold_chars > (8 * request_chars):
+            logger.info(
+                "🧠 [ZENITH] Scaffold breakdown: %s",
+                "; ".join(
+                    f"{str(msg.get('role', '?'))}={len(str(msg.get('content', '') or ''))}"
+                    f":{str(msg.get('content', '') or '')[:70]!r}"
+                    for msg in messages
+                    if isinstance(msg, dict)
+                ),
+            )
 
         _is_user_facing = (
             not benchmark_request
