@@ -436,7 +436,28 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
         )
         logger.debug("Learning self-report injection failed: %s", exc)
 
-    return priority_blocks + blocks
+    # One section per header.
+    #
+    # Two subsystems can inject the same kind of block — the goal engine is
+    # asked for its execution state by more than one assembler — and the prompt
+    # then carried "## GOAL EXECUTION STATE" twice, at 1,966 and 1,078
+    # characters, in a 46,996-character system message. Neither copy was wrong
+    # and the second cost a thousand characters of a prompt the model reads at
+    # about twelve tokens a second.
+    #
+    # The first wins: priority blocks are assembled first and are the ones
+    # chosen for this objective.
+    seen: set[str] = set()
+    kept: list[str] = []
+    for block in priority_blocks + blocks:
+        header = str(block or "").lstrip().split("\n", 1)[0].strip()
+        if header and header in seen:
+            logger.debug("Dropped a repeated context section: %s", header[:60])
+            continue
+        if header:
+            seen.add(header)
+        kept.append(block)
+    return kept
 
 
 async def update_conversational_intelligence(
