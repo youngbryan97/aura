@@ -2956,10 +2956,34 @@ class InferenceGate:
             ):
                 if source_key in receipt:
                     metadata[metadata_key] = receipt[source_key]
+            # A gate that never ran is not a gate that said no.
+            #
+            # ``surface_quality_gate_passed`` starts as ``not enabled``, so with
+            # the gate enabled and no draft ever examined it is False — and this
+            # attributed EVERY failure to the quality gate: a deadline, an empty
+            # generation, a cancellation. The receipt says which happened, and
+            # nothing was asking.
+            #
+            # LIVE, 2026-08-28: "read this file and tell me what it says" ended
+            # in "Cortex exhausted its worker-owned semantic quality retries",
+            # on a receipt reading attempts=0, reasons=[],
+            # generation_stop_reason='deadline_exceeded'. The gate had examined
+            # nothing. Hours went into the quality path because the label sent
+            # them there, and the real cause was printed on the same receipt.
+            try:
+                _gate_examined_something = int(
+                    receipt.get("surface_quality_gate_attempts") or 0
+                ) > 0
+            except (TypeError, ValueError):
+                _gate_examined_something = False
             if (
                 not success
                 and bool(receipt.get("surface_quality_gate_enabled"))
                 and not bool(receipt.get("surface_quality_gate_passed"))
+                and (
+                    _gate_examined_something
+                    or bool(receipt.get("surface_quality_gate_reasons"))
+                )
             ):
                 metadata["error"] = "surface_quality_rejected"
                 raw_reasons = receipt.get("surface_quality_gate_reasons")
@@ -2969,6 +2993,11 @@ class InferenceGate:
                         for reason in raw_reasons
                         if str(reason).strip()
                     ][:8]
+            elif not success and not metadata.get("error"):
+                # What actually stopped it, from the receipt that knows.
+                stopped = str(receipt.get("generation_stop_reason") or "").strip()
+                if stopped:
+                    metadata["error"] = f"generation_{stopped}"
         self._publish_generation_metadata(metadata, receipt)
 
     #: Kinds of refusal a caller has to be able to tell apart. A bare None
