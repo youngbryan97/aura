@@ -213,3 +213,47 @@ deadline (`_foreground_timeout_for_lane`) that the gate's extension does not
 reach. The model wanted 628 seconds and the UI allows about 180. That is a real
 conflict rather than a bug, and it should be decided rather than discovered.
 
+## H3, measured (2026-08-28)
+
+The question was 213 characters. The prompt was **50,500**, and it took the
+resident model **191.6 seconds to read** — the whole turn — before it could
+produce a token.
+
+    system  46,996   "You are Aura Luna. Here's who you are..."
+    system     321   established world cascades
+    system   2,970   internal memory recall
+    user       213   the question
+
+Inside the largest message:
+
+    ## CAUSAL VALENCED WORKSPACE      5,568
+    ## INTRINSIC IDENTITY ANCHOR      4,528
+    ## LIVE MIND CONTEXT              3,410
+    ## IMAGINATION WORKSPACE          2,576
+    ## CODING WORKING SET             2,462
+    ## LIVE TOOL OPTIONS              2,080
+    ## GOAL EXECUTION STATE           1,966
+    ## DIALOGUE SOURCE ATTRACTORS     1,949
+    ## SELF-HONESTY REQUIREMENTS      1,172
+    [WORLD MODEL BELIEFS]             1,150
+    ## GOAL EXECUTION STATE           1,078   <- the same header, twice
+    ## TIMESCALE RECONCILIATION       1,039
+
+Two findings sit in that table.
+
+**The identity lock is 2,353 characters and the message is 46,996.** The rest is
+Aura's live inner state, assembled fresh and sent whole on every turn, whatever
+was asked. Reducing the two visible scaffold blocks — the response contract and
+the reliability contract, both of which recited rules that gates already enforce
+— saved about four kilobytes of fifty. Worth doing and not the lever.
+
+**The gate trims and the deep path does not.** The inference gate builds a
+prompt plan with a budget and an ordered list of important headers, logs
+`mode=compact` and a scaffold breakdown, and drops what does not fit. The deep
+cognitive path assembles its own prompt, sends everything, and logged nothing
+but a total until the breakdown above was added. That asymmetry is H3.
+
+The next step is not to delete sections by taste. It is to give the deep path
+the same budget the gate already has, and to let what survives be decided by
+the request rather than by what happened to be assembled.
+
