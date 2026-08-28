@@ -55,6 +55,16 @@ code = params.get("code", "")
 mem_bytes = params.get("mem_bytes", None)
 cpu_seconds = params.get("cpu_seconds", None)
 repo_root = params.get("repo_root", "")
+# One directory the person named, made importable while real imports still
+# exist, and handed over as ready-made names — the same treatment the
+# engineering primitives get and for the same reason.
+#
+# The sandbox bans `sys` by design, and sys.path is the only way to import a
+# module from a directory, so "read the docs at this path, then use it" was
+# impossible by construction. The path is checked before it gets here, and the
+# one line that uses the interpreter is this one rather than a line inside a
+# program nobody has read.
+library_root = params.get("library_root", "")
 resource_warning = None
 
 # Engineering primitives, imported HERE while real builtins still exist and
@@ -69,6 +79,26 @@ engineering_namespace = {}
 engineering_error = None
 if repo_root and repo_root not in sys.path:
     sys.path.insert(0, repo_root)
+library_namespace = {}
+library_error = None
+if library_root and library_root not in sys.path:
+    sys.path.insert(0, library_root)
+if library_root:
+    import importlib as _importlib
+    import os as _os
+
+    try:
+        for _entry in sorted(_os.listdir(library_root)):
+            if not _entry.endswith(".py") or _entry.startswith("_"):
+                continue
+            _name = _entry[:-3]
+            _module = _importlib.import_module(_name)
+            library_namespace[_name] = _module
+            for _attr in dir(_module):
+                if not _attr.startswith("_"):
+                    library_namespace.setdefault(_attr, getattr(_module, _attr))
+    except Exception as _exc:  # noqa: BLE001 - reported, never raised at the child
+        library_error = f"{type(_exc).__name__}: {_exc}"
 try:
     from core.engineering.geometry import (
         Box, Capsule, Cone, Cylinder, Dome, Ellipsoid, Frustum, Plate, Prism,
@@ -118,8 +148,8 @@ except (OSError, ValueError) as e:
 import builtins
 safe_builtins = {
     '__build_class__': builtins.__build_class__,
-	    'abs': builtins.abs, 'all': builtins.all, 'any': builtins.any, 'ascii': builtins.ascii,
-	    'bin': builtins.bin, 'bool': builtins.bool, 'bytearray': builtins.bytearray,
+        'abs': builtins.abs, 'all': builtins.all, 'any': builtins.any, 'ascii': builtins.ascii,
+        'bin': builtins.bin, 'bool': builtins.bool, 'bytearray': builtins.bytearray,
     'bytes': builtins.bytes, 'callable': builtins.callable, 'chr': builtins.chr,
     'complex': builtins.complex, 'dict': builtins.dict, 'dir': builtins.dir,
     'Exception': builtins.Exception,
@@ -143,6 +173,7 @@ safe_builtins = {
 try:
     globals_dict = {"__name__": "__main__", "__builtins__": safe_builtins}
     globals_dict.update(engineering_namespace)
+    globals_dict.update(library_namespace)
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
@@ -325,7 +356,10 @@ def _run_process_blocking(
 
 
 def run_untrusted(
-    code: str, timeout: int = DEFAULT_TIMEOUT, mem_bytes: int = DEFAULT_MEM_BYTES
+    code: str,
+    timeout: int = DEFAULT_TIMEOUT,
+    mem_bytes: int = DEFAULT_MEM_BYTES,
+    library_root: str = "",
 ) -> dict:
     """
     Executes an untrusted block of Python code in an isolated child process with strict safety limits.
@@ -359,6 +393,7 @@ def run_untrusted(
                 # this to find the engineering primitives it hands the
                 # sandboxed code; nothing else is read from the tree.
                 "repo_root": str(_REPO_ROOT),
+                "library_root": str(library_root or ""),
             }
         ).encode("utf-8")
 

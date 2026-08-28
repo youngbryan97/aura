@@ -17,7 +17,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -421,6 +421,78 @@ def _is_a_sandbox_limit(result: dict[str, Any]) -> bool:
     return any(marker in said for marker in _STRIPPED_BUILTINS)
 
 
+def _resolved(path: str) -> Callable[[], str]:
+    """The resolution, as work to hand to a thread."""
+
+    def _do() -> str:
+        return str(Path(path).expanduser().resolve())
+
+    return _do
+
+
+def _a_library_the_person_named(context: dict[str, Any] | None) -> str:
+    """A directory of Python named in the request, or "".
+
+    Read from the same place every other path in a request is read from, so a
+    directory that resolves here is one that resolved for the file reader too.
+    """
+
+    text = " ".join(
+        str((context or {}).get(key) or "")
+        for key in ("objective", "message", "prompt", "user_message")
+    ).strip()
+    if not text:
+        return ""
+    try:
+        from core.language.named_paths import named_paths
+    except ImportError:
+        return ""
+    try:
+        named = list(named_paths(text) or ())
+    except (OSError, TypeError, ValueError):
+        return ""
+    for candidate in named:
+        allowed, _why = _library_path_is_allowed(str(candidate))
+        if allowed:
+            return str(candidate)
+        # A file the person named sits in a directory that may be the library.
+        try:
+            parent = Path(str(candidate)).parent
+        except (OSError, ValueError):
+            continue
+        allowed, _why = _library_path_is_allowed(str(parent))
+        if allowed:
+            return str(parent)
+    return ""
+
+
+def _library_path_is_allowed(path: str) -> tuple[bool, str]:
+    """Whether this directory may be put on the import path.
+
+    A real directory, holding Python, and not a place that would import the
+    runtime's own code into a sandbox that is meant to be separate from it.
+    """
+
+    from pathlib import Path as _Path
+
+    try:
+        target = _Path(path).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        return False, f"unreadable ({type(exc).__name__})"
+    if not target.is_dir():
+        return False, "not a directory"
+    try:
+        modules = [item for item in target.iterdir() if item.suffix == ".py"]
+    except OSError as exc:
+        return False, f"unlistable ({type(exc).__name__})"
+    if not modules:
+        return False, "holds no Python modules"
+    here = _Path(__file__).resolve().parents[2]
+    if target == here or here in target.parents:
+        return False, "inside the runtime's own source"
+    return True, ""
+
+
 class CodeREPLInput(BaseModel):
     code: str = Field(..., description="Python code to execute in the REPL.")
     session_id: str | None = Field(
@@ -437,6 +509,14 @@ class CodeREPLInput(BaseModel):
     capture_files: bool = Field(
         True,
         description="Whether to capture any files generated in the working directory.",
+    )
+    library_path: str | None = Field(
+        None,
+        max_length=1024,
+        description=(
+            "A directory of Python modules to make importable, when the person "
+            "named a library to use. The code can then import it directly."
+        ),
     )
 
 
@@ -498,6 +578,40 @@ class CodeREPLSkill(BaseSkill):
         if not code:
             return {"ok": False, "error": "No code provided."}
 
+        # A library the person named, made importable.
+        #
+        # ``sys`` is banned in the sandbox and rightly so — it is the
+        # interpreter itself — but sys.path is the only way to import a module
+        # from a directory, so "read the docs at this path, then use it" was
+        # impossible by construction: every attempt came back "banned import or
+        # call" for doing the one thing the request asked for.
+        #
+        # Naming the directory as an argument makes it checkable in the way
+        # every other path this runtime accepts is checkable, instead of
+        # arriving inside a program nobody has read.
+        library = str(getattr(params, "library_path", "") or "").strip()
+        if not library:
+            # The directory the person named, which the runtime already read.
+            #
+            # A parameter only helps when the caller fills it. The path was in
+            # the request, this runtime resolves paths in requests for other
+            # reasons already, and "use the library at <path>" should not
+            # depend on the model remembering a field it has never seen before.
+            library = _a_library_the_person_named(context)
+            if library:
+                logger.info(
+                    "code_repl: importing from the directory named in the "
+                    "request: %s",
+                    library,
+                )
+        if library:
+            allowed, why = _library_path_is_allowed(library)
+            if not allowed:
+                return {"ok": False, "error": f"library_path refused: {why}"}
+            # Resolved off the event loop: a path lookup is a filesystem
+            # call, and this one runs inside an async handler.
+            library = await asyncio.to_thread(_resolved(library))
+
         session_id = params.session_id or self._generate_session_id()
         session_dir = await self._get_session_dir(session_id)
         timeout_s = params.timeout
@@ -512,7 +626,7 @@ class CodeREPLSkill(BaseSkill):
 
         # Strategy 1: Use core.sandbox.runner (preferred — full isolation)
         result = await self._execute_via_sandbox_runner(
-            code, timeout_s, session_dir
+            code, timeout_s, session_dir, library_root=library
         )
         # A strategy that CANNOT run this code has not run it.
         #
@@ -577,7 +691,7 @@ class CodeREPLSkill(BaseSkill):
         return result
 
     async def _execute_via_sandbox_runner(
-        self, code: str, timeout_s: int, cwd: Path
+        self, code: str, timeout_s: int, cwd: Path, library_root: str = ""
     ) -> dict[str, Any] | None:
         """Execute via core.sandbox.runner.run_untrusted (full isolation)."""
         try:
@@ -591,6 +705,7 @@ class CodeREPLSkill(BaseSkill):
                 code,
                 timeout=timeout_s,
                 mem_bytes=512 * 1024 * 1024,
+                library_root=library_root,
             )
 
             if not isinstance(raw, dict):
