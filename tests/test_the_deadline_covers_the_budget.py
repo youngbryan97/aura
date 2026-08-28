@@ -95,7 +95,7 @@ def test_the_gate_extends_only_when_a_floor_is_in_play() -> None:
 def test_the_extension_is_bounded_by_what_was_measured() -> None:
     body = _GATE.read_text()
     start = body.index("A deadline that cannot deliver the budget")
-    window = body[start : start + 2600]
+    window = body[start : start + 3200]
     assert "(_decode_s * _generations) + _DELIVERY_MARGIN_S" in window
     assert "timeout_val = _needed" in window
     assert "if _needed > float(timeout_val):" in window
