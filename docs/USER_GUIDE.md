@@ -27,8 +27,10 @@ instead of guessing at a spinner. When the parts you need are up, the chat
 input goes live.
 
 Type and press Enter. If a reply is taking a while you'll get a thinking
-indicator with an estimate. The first turn on a local 32B runs 15–40
-seconds. That's the model loading and thinking, not something being wrong.
+indicator with an estimate. A turn on the local 27B cortex takes about a
+hundred seconds — the median over twelve reasoning turns measured on
+2026-08-28 was 102, the fastest 34 and the slowest 122. That is the model
+thinking, not something being wrong.
 
 ## Manage Memory
 
