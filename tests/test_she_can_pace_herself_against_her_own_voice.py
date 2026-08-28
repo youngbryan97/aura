@@ -315,14 +315,21 @@ def test_language_is_asked_where_it_changes_the_answer():
     from core.skills import screen_pursuit
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
-    where = source.index("asking = (")
+    # Asserted as the property. This read the inline condition by the name
+    # "asking = (" and looked for LANGUAGE_EVERY inside it; the condition was
+    # renamed and its cadence moved into a helper, and the test failed for a
+    # rename while the behaviour was untouched.
+    where = source.index("time_to_ask = (")
     condition = source[where : where + 400]
+    # Periodically, and sooner once she has asked once.
+    assert "_ask_again_after(" in condition
+    assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
+    assert screen_pursuit._ask_again_after(-1) > screen_pursuit.LANGUAGE_EVERY
     # The first move, a run that has stopped getting anywhere, one weighing
-    # whether to start over, a fresh board, and periodically in between.
-    assert "unusual" in condition
-    assert "not moves" in condition
-    assert "restarts[" in condition
-    assert "LANGUAGE_EVERY" in condition
+    # whether to start over, a fresh board.
+    assert "unusual = stuck(history) or ended or offered_pacing" in source
+    assert "not moves" in source
+    assert "restarts[" in source
 
 
 @pytest.mark.asyncio
@@ -353,8 +360,16 @@ def test_a_live_decision_carries_its_own_deadline():
     from core.agency import her_reasoning
 
     source = inspect.getsource(her_reasoning)
-    assert "timeout=timeout_s" in source, "the model call has no deadline of its own"
+    # Asserted as the property rather than the spelling. This read
+    # "timeout=timeout_s" until the module started working out a per-question
+    # allowance instead of passing the caller's number straight down — a
+    # better deadline, and the test failed for the improvement.
     assert "asyncio.wait_for" in source, "a client that never returns would hang the loop"
+    for call in source.split("asyncio.wait_for")[1:]:
+        assert "timeout=" in call[:400], "a model call with no deadline of its own"
+    assert "time_this_question_needs" in source, (
+        "the deadline is a constant again rather than what this question needs"
+    )
     assert her_reasoning.DECISION_BUDGET_S <= 10.0
 
 
@@ -417,7 +432,11 @@ def test_a_pivot_is_immediate_and_a_first_attempt_is_not_retried_every_move():
     where = source.index("time_to_ask = (")
     condition = source[where : where + 300]
     assert 'plan["held"] is not None' in condition, "a real pivot is answered at once"
-    assert "LANGUAGE_EVERY" in condition, "a first attempt waits for the rhythm"
+    # The rhythm moved into a helper when the condition was rewritten. Asked of
+    # the helper, because that is where it lives now and a rename is not a
+    # regression.
+    assert "_ask_again_after(" in condition, "a first attempt waits for the rhythm"
+    assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
 
 
 def test_what_she_is_doing_is_held_where_the_rest_of_her_can_read_it():

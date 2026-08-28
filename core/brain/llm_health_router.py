@@ -576,6 +576,21 @@ def _endpoint_call_budgets(
                 )
             except (TypeError, ValueError, OverflowError):
                 cap_s = default_cap
+            # A cap shorter than the time the token budget needs makes that
+            # budget impossible to consume, which is the argument written four
+            # lines below for long answers. It is the same argument here: at
+            # the measured decode rate 1,024 tokens takes about 171 seconds,
+            # and this branch capped the call at 150.
+            #
+            # LIVE, 2026-08-28: a tool loop reached code_repl, the code raised
+            # NameError for a missing import, the error was handed back for the
+            # model to fix — and the endpoint aborted at 150 seconds before it
+            # could. The turn's own clock had been extended to 345.
+            #
+            # An unmeasured rate raises nothing, as everywhere else.
+            needed_s = _seconds_a_budget_needs(max_tokens)
+            if needed_s > 0.0:
+                cap_s = max(cap_s, needed_s + 2.0)
             wall_s = min(wall_s, cap_s)
             cooperative_s = min(cooperative_s, max(5.0, wall_s - 2.0))
         else:
@@ -586,6 +601,21 @@ def _endpoint_call_budgets(
             cooperative_s = min(cooperative_s, max(5.0, wall_s - 2.0))
 
     return cooperative_s, wall_s
+
+
+def _seconds_a_budget_needs(max_tokens: Any) -> float:
+    """How long this many tokens takes at the measured rate, or 0.0 unmeasured.
+
+    The same reading the answer clock uses, so the endpoint cap and the turn's
+    deadline cannot disagree about how long the same generation takes.
+    """
+
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+
+        return float(seconds_to_decode(int(max_tokens or 0)))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0.0
 
 
 def _proof_primary_lane_active(*, origin: str) -> bool:

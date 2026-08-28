@@ -1037,6 +1037,40 @@ def _record_objective_binding(
         logger.debug("Executive objective audit skipped for %s: %s", source, exc)
 
 
+def _time_the_answer_needs(objective: Any) -> float:
+    """Seconds to decode the answer this request needs, or 0.0 unmeasured.
+
+    The floor the request structurally needs, at the decode rate this machine
+    has actually been measured at, doubled when the answer has to be fetched
+    before it can be written — a call is a whole generation before the answer
+    is started.
+
+    Shared with the inference gate's clock and the endpoint cap, so the four
+    deadlines in a turn cannot disagree about how long the same generation
+    takes.
+    """
+
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+        from core.runtime.structured_input import answer_surface_token_floor
+
+        floor = int(answer_surface_token_floor(str(objective or "")))
+        needed = float(seconds_to_decode(floor))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0.0
+    if needed <= 0.0:
+        return 0.0
+    generations = 1
+    try:
+        from core.intent.capability_selection import points_at_something_real
+
+        if points_at_something_real(str(objective or "")):
+            generations = 2
+    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+        generations = 1
+    return (needed * generations) + 8.0
+
+
 def _compact_spiking_active_inference_directive(advice: dict[str, Any] | None) -> str:
     if not isinstance(advice, dict):
         return ""
@@ -3271,6 +3305,22 @@ class CognitiveEngine:
         cycle_timeout_cap = _DEFAULT_COGNITIVE_CYCLE_MAX_S
         if explicit_timeout is not None and self._is_user_facing_origin(origin):
             cycle_timeout_cap = response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+        # This is the clock that OWNS the turn, and it was a flat number chosen
+        # before anything knew what the answer would cost. Everything below it
+        # is nested inside it, so extending any of those could not help: the
+        # inference gate raised its own deadline to 345 seconds and the turn
+        # still ended at 186, because 180 was set here.
+        #
+        # LIVE, 2026-08-28: a tool loop reached code_repl, the code raised
+        # NameError for a missing import, the error was handed back for the
+        # model to fix, and the turn was cut before it could. Four clocks were
+        # involved and only one of them was the owner.
+        #
+        # It takes its floor from the same reading the others do now: what the
+        # answer this request needs costs to decode, at the rate this machine
+        # has been measured at. An unmeasured rate raises nothing.
+        if self._is_user_facing_origin(origin) and not is_background:
+            cycle_timeout = max(cycle_timeout, _time_the_answer_needs(objective))
         cycle_timeout = max(8.0, min(cycle_timeout_cap, cycle_timeout))
         cycle_deadline_at = time.monotonic() + cycle_timeout
         context["cognitive_cycle_deadline_monotonic"] = cycle_deadline_at
