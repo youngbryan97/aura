@@ -36,6 +36,38 @@ from typing import Any, Sequence
 __all__ = ["LanguageVerdict", "certify"]
 
 
+def _matches_one_to_one(allowed: list[set[int]], sources: int) -> bool:
+    """Whether every position can take from a DIFFERENT place.
+
+    Non-empty sets per position are necessary and are not sufficient. Two
+    positions whose only possible source is the same cell cannot both have it:
+    the rule would have to put one cell in two places, and a rearrangement does
+    not do that. Checking emptiness alone missed those, and missed them
+    silently — the world came back "inside the language" and then no form fit,
+    which is the failure this proof exists to replace.
+
+    Kuhn's augmenting path rather than a greedy pick: the sets are
+    intersections across observations, they overlap arbitrarily, and greedy
+    matching is incomplete on them.
+    """
+
+    if len(allowed) > sources:
+        return False
+    taken: dict[int, int] = {}
+
+    def augment(place: int, seen: set[int]) -> bool:
+        for source in sorted(allowed[place]):
+            if source in seen:
+                continue
+            seen.add(source)
+            if source not in taken or augment(taken[source], seen):
+                taken[source] = place
+                return True
+        return False
+
+    return all(augment(place, set()) for place in range(len(allowed)))
+
+
 @dataclass(frozen=True)
 class LanguageVerdict:
     """What the observations prove about the language, not about the search."""
@@ -51,6 +83,13 @@ class LanguageVerdict:
     #: the contradiction without trusting this code.
     position: int | None = None
     length: int | None = None
+    #: Whether the proof survives dropping any single observation.
+    #:
+    #: One corrupted transition empties an intersection on its own, and the
+    #: proof would then be about the corruption rather than about the language.
+    #: This is the cheapest defence that does not weaken the proof itself, and
+    #: it needs three observations at a length to mean anything.
+    robust: bool = False
 
     @property
     def proven_outside(self) -> bool:
@@ -66,6 +105,34 @@ def _sources(before: Sequence[Any], after: Sequence[Any], place: int) -> set[int
 
     wanted = after[place]
     return {index for index, value in enumerate(before) if value == wanted}
+
+
+def _holds_without_any_one(group: list[tuple[tuple, tuple]], length: int) -> bool:
+    """Whether the proof stands with each observation dropped in turn."""
+
+    if len(group) < 3:
+        return False
+    for drop in range(len(group)):
+        kept = group[:drop] + group[drop + 1 :]
+        still = _refutes(kept, length)
+        if not still:
+            return False
+    return True
+
+
+def _refutes(group: list[tuple[tuple, tuple]], length: int) -> bool:
+    """The bare proof, with no reasons and no recursion."""
+
+    every: list[set[int]] = []
+    for place in range(length):
+        allowed: set[int] | None = None
+        for before, after in group:
+            here = _sources(before, after, place)
+            allowed = here if allowed is None else (allowed & here)
+            if not allowed:
+                return True
+        every.append(set(allowed or ()))
+    return not _matches_one_to_one(every, length)
 
 
 def certify(transitions: Sequence[Any]) -> LanguageVerdict:
@@ -124,6 +191,7 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
 
     loose = 0
     for length, group in sorted(by_length.items()):
+        every: list[set[int]] = []
         for place in range(length):
             allowed: set[int] | None = None
             for before, after in group:
@@ -143,8 +211,22 @@ def certify(transitions: Sequence[Any]) -> LanguageVerdict:
                     ),
                     position=place,
                     length=length,
+                    robust=_holds_without_any_one(group, length),
                 )
+            every.append(set(allowed))
             loose += len(allowed) - 1
+        if not _matches_one_to_one(every, length):
+            return LanguageVerdict(
+                "outside",
+                (
+                    f"at length {length}, the places every position could have "
+                    "taken from cannot be handed out one each — two of them "
+                    "want the same cell and a rearrangement puts each cell "
+                    "somewhere once"
+                ),
+                length=length,
+                robust=_holds_without_any_one(group, length),
+            )
 
     if loose:
         # Every position still has more than one story that fits. That is not a

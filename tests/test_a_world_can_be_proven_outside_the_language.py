@@ -193,3 +193,50 @@ def test_a_length_is_shown_twice() -> None:
         assert len(lengths) > len(set(lengths)), problem.name
         # And still more than one length, or nothing is identifiable.
         assert len(set(lengths)) >= 2, problem.name
+
+
+def test_non_empty_sources_are_not_enough() -> None:
+    """Two positions wanting the same cell cannot both have it.
+
+    Emptiness per position is necessary and is not sufficient. A rearrangement
+    puts each cell somewhere once, so the possible sources have to be handed
+    out one each — and checking only for emptiness let a world through as
+    "inside the language" that no rearrangement can produce, where the next
+    thing that happened was no form fitting and no reason given.
+    """
+
+    from core.cognition.language_limits import _matches_one_to_one
+
+    # Every set non-empty, and both positions want the same single cell.
+    assert not _matches_one_to_one([{0}, {0}, {2}], 3)
+    # The same sets, made satisfiable.
+    assert _matches_one_to_one([{0}, {1}, {2}], 3)
+    # Overlapping but satisfiable, which a greedy pick can get wrong.
+    assert _matches_one_to_one([{0, 1}, {0}, {2}], 3)
+    # More positions than cells.
+    assert not _matches_one_to_one([{0}, {1}, {2}, {0, 1}], 3)
+
+
+def test_a_refutation_says_whether_it_survives_a_bad_observation() -> None:
+    """One corrupted transition empties an intersection on its own.
+
+    The proof would then be about the corruption rather than about the
+    language, and would read exactly the same either way.
+    """
+
+    solid = certify(
+        [
+            Transition((3, 1, 2), (1, 2, 3)),
+            Transition((1, 3, 2), (1, 2, 3)),
+            Transition((2, 1, 3), (1, 2, 3)),
+        ]
+    )
+    assert solid.proven_outside
+    assert solid.robust
+
+    # Two observations cannot be leave-one-out tested at all.
+    thin = certify(
+        [Transition((3, 1, 2), (1, 2, 3)), Transition((1, 3, 2), (1, 2, 3))]
+    )
+    assert thin.proven_outside
+    assert not thin.robust

@@ -341,8 +341,9 @@ def generate_battery(*, seed: int = 20260828, per_cell: int = 2) -> list[Problem
                 # within a length is what makes a language refutable; variation
                 # across lengths is what makes a rule identifiable, and a
                 # battery needs both or it measures only one of them.
-                again = build(lengths[0], rng.randrange(1000))
-                shown.append(Transition(again, shape(again)))
+                for _repeat in range(2):
+                    again = build(lengths[0], rng.randrange(1000))
+                    shown.append(Transition(again, shape(again)))
                 held_before = build(lengths[2], rng.randrange(1000))
                 problems.append(
                     Problem(
