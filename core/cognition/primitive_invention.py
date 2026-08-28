@@ -125,7 +125,13 @@ class IndexProgram:
             for part in reversed(self.parts):
                 position = part(position, size)
             return position
-        return index
+        # A kind this build does not know is not the identity.
+        #
+        # It returned `index` — and the identity FITS some worlds, so a program
+        # written by a later build and read back by this one would be reported
+        # as a relation that was found rather than one that could not be run.
+        # A silent wrong answer is worse than a loud missing one.
+        raise ValueError(f"no interpretation for index program kind {kind!r}")
 
     def to_json(self) -> dict[str, Any]:
         return {

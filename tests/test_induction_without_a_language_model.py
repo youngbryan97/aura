@@ -5,9 +5,12 @@ sharply narrower. That is a claim about a number and there was no number. This
 is the number, on a frozen battery, with nothing in the path that consults a
 model, an embedding or a stored answer.
 
-The battery is built to be failable. Two of its ten shapes are outside anything
-the mechanism can express, and they are named as such, because a battery a
-mechanism cannot fail measures nothing about it. The score on shapes it can
+The battery is built to be failable. One of its ten shapes is outside anything
+the mechanism can express, and it is named as such, because a battery a
+mechanism cannot fail measures nothing about it. It was two until grouping was
+added; the count here said two for as long as it took somebody reading the
+file to check it against BEYOND_THE_LANGUAGE, which is the assertion that
+actually holds. The score on shapes it can
 express is reported separately from the score on all of them: "got it wrong"
 and "was never able to say it" are different facts.
 """

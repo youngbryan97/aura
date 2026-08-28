@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.cognition.language_limits import certify
 from core.cognition.primitive_invention import Transition, invent_relation
 from core.cognition.relation_language import RelationLanguage
 
@@ -140,6 +141,23 @@ def answer_sequence_question(text: Any) -> str:
     language = _language()
     found = language.explain(list(question.shown))
     if found is None:
+        # Two failures wore the same face. A world one example short of being
+        # settled and a world no rule of this shape can ever say both returned
+        # nothing, so neither could be answered honestly and neither could be
+        # acted on.
+        verdict = certify(list(question.shown))
+        if verdict.proven_outside:
+            return (
+                "I cannot work this one out, and I can say why rather than "
+                "just that.\n\n"
+                f"{verdict.reason.capitalize()}.\n\n"
+                "Every rule I can form here says where a cell comes from using "
+                "its position and the length, never what the cells hold. "
+                "Composing those only ever makes another one of them, so no "
+                "amount of looking would find it — the rule you have in mind "
+                "reads the values themselves, and that is a kind of rule I "
+                "have no way to write."
+            )
         return ""
     try:
         result = tuple(found.apply(tuple(question.asked)))
