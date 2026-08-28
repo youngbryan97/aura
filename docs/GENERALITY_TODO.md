@@ -296,3 +296,28 @@ the answer for those requests gets shorter, or the work moves off the turn and
 comes back when it is done. The measurements to make that decision are all in
 the log now, and none of them were before tonight.
 
+## Where the answer actually stops (2026-08-28)
+
+Three runs of the same two-part question, and every reply ended mid-structure at
+about a thousand characters: after "Bake it the same way", after "look at that
+floating object", after "Label this Bowl A". The next line each time would have
+been the second half of the answer.
+
+It is not a harness cap. The generation had 1,024 tokens and used about 260. The
+stop sequences are chat-control tokens only — nothing that cuts inside a list.
+The model emits end-of-turn there.
+
+What the harness now does correctly around it:
+
+- The request is read as two asks. "Design me X, and say Y" split into one
+  segment because `design` was a directive verb and `say` was not, so coverage
+  had nothing to compare against.
+- The coverage gate fires on the short draft, live, as `unanswered_question_part`.
+- Repair is handed the missing text in the person's own words rather than a
+  generic instruction to answer every part.
+
+What remains is the model stopping early on a long scaffold, which is the same
+finding as H3 from the other end: 46,996 characters of system message before a
+213-character question, and an answer that gives up a quarter of the way into
+its own list.
+
