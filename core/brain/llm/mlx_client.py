@@ -17047,10 +17047,24 @@ def _native_xml_tool_payload(
     # A second call in the tail is a different matter: taking the first and
     # dropping the rest silently would be worse than refusing, because nothing
     # downstream would ever learn the model asked for two things.
-    if suffix and any(
-        marker in suffix for marker in ("<function", "<parameter", "tool_call")
-    ):
-        return None, "native XML envelope carried more markup after the function"
+    # A stray parameter after the close may have been meant for THIS call, so
+    # taking the call without it would change what was asked for.
+    if suffix and "<parameter" in suffix:
+        return None, "native XML envelope carried a parameter after the function"
+    # A second function is a second thing to do, and this loop takes more than
+    # one turn: the first call is run, and the model is asked again with the
+    # result in hand. Refusing both loses a turn to say nothing.
+    #
+    # LIVE, 2026-08-28: turn two of a diagnosis emitted a call with more markup
+    # behind it, both were refused, and the turn ended having run one tool and
+    # said nothing about it.
+    if suffix and ("<function" in suffix or "tool_call" in suffix):
+        logger.info(
+            "🔧 [TOOL CALL] took the first function and left %d chars of "
+            "markup behind it for the next turn: %r",
+            len(suffix),
+            suffix[:200],
+        )
 
     function_name = match.group("name")
     if _NATIVE_XML_NAME_RE.fullmatch(function_name) is None:

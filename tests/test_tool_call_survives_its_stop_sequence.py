@@ -239,6 +239,12 @@ def test_malformed_or_unadvertised_native_xml_is_not_an_effect(text: str) -> Non
     [
         "arbitrary prose",
         "</tool_call>arbitrary prose",
+        "</tool_call></tool_call>",
+        "</tool_call extra>",
+        # A second function is a second thing to do, and the loop that runs
+        # these takes more than one turn.
+        "<function=file_operation></function>",
+        "</tool_call><function=file_operation></function>",
     ],
 )
 def test_qwen38_native_xml_keeps_the_call_when_the_model_talks_on(suffix: str) -> None:
@@ -263,10 +269,6 @@ def test_qwen38_native_xml_keeps_the_call_when_the_model_talks_on(suffix: str) -
 @pytest.mark.parametrize(
     "suffix",
     [
-        "</tool_call></tool_call>",
-        "</tool_call extra>",
-        "<function=file_operation></function>",
-        "</tool_call><function=file_operation></function>",
         "<parameter=query>another value</parameter>",
     ],
 )

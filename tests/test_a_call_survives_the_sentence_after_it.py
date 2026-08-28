@@ -47,27 +47,27 @@ def test_the_closing_tool_call_tag_and_then_prose_is_fine() -> None:
     assert payload is not None, why
 
 
-def test_envelope_markup_in_the_tail_is_still_refused() -> None:
-    """Prose is the model talking on; markup is a second thing being asked for.
+def test_a_second_function_lets_the_first_one_run() -> None:
+    """The loop takes more than one turn; refusing both loses one to say nothing.
 
-    Taking the first call and dropping the rest silently would be worse than
-    refusing, because nothing downstream would learn what else was emitted. A
-    stray parameter is ambiguous the same way: it may have been meant for this
-    call.
+    LIVE, 2026-08-28: turn two of a diagnosis emitted a call with more markup
+    behind it. Both were refused, and the turn ended having run one tool and
+    said nothing about what it found.
     """
 
     for tail in (
         "<function=file_operation>\n</function>",
         "<tool_call>\nsomething else\n",
-        "<parameter=path>/somewhere/else</parameter>",
         "</tool_call extra>",
     ):
         payload, why = _parse(f"{_CALL}\n{tail}")
-        assert payload is None, tail
-        assert "markup after the function" in why
+        assert payload is not None, f"{tail}: {why}"
+        assert payload["name"] == "diagnose_repo"
 
 
-def test_an_unclosed_function_is_still_refused() -> None:
-    payload, why = _parse("<function=diagnose_repo>\n<parameter=path>/tmp/p</parameter>")
+def test_a_parameter_after_the_close_is_still_refused() -> None:
+    """It may have been meant for THIS call, so taking the call changes it."""
+
+    payload, why = _parse(f"{_CALL}\n<parameter=path>/somewhere/else</parameter>")
     assert payload is None
-    assert why
+    assert "parameter after the function" in why
