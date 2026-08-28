@@ -10421,6 +10421,33 @@ class MLXLocalClient:
                 for message in (messages or [])
                 if isinstance(message, dict)
             )
+            # What a large prompt is MADE of, at the one boundary every path
+            # crosses.
+            #
+            # The gate logs a breakdown for prompts it assembles; the deep
+            # cognitive path assembles its own and logged nothing. LIVE,
+            # 2026-08-28: a 213-character question was answered from a
+            # 50,359-character prompt that took 191.6 seconds to read — the
+            # whole turn — and there was no way to see what those characters
+            # were.
+            if prompt_chars > 20_000:
+                try:
+                    parts = [
+                        f"{str((m or {}).get('role') or '?')}"
+                        f"={len(str((m or {}).get('content') or ''))}"
+                        f":{str((m or {}).get('content') or '')[:60]!r}"
+                        for m in (messages or [])
+                        if isinstance(m, dict)
+                    ]
+                    if prompt:
+                        parts.insert(0, f"prompt={len(str(prompt))}")
+                    logger.info(
+                        "📏 [MLX] %d-char prompt: %s",
+                        prompt_chars,
+                        "; ".join(parts)[:900],
+                    )
+                except (AttributeError, TypeError, ValueError):
+                    pass
             self._mark_generation_started(
                 req_id,
                 prompt_chars=prompt_chars,
