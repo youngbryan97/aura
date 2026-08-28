@@ -7129,9 +7129,22 @@ async def _run_cognitive_engine_chat_turn(
                 if completion_only_retry
                 else "cognitive_engine_repair_retry"
             )
+            # A completion continues THIS turn's own generation. It probes
+            # the lane fresh, which is right — a lane can go unhealthy
+            # mid-turn — but probing fresh is also what turns on the "is
+            # anything generating?" check, so the one caller finishing an
+            # answer already in progress was the only caller measured against
+            # the generation it was finishing, and it lost to itself every
+            # time. It keeps the fresh probe and stops being its own rival.
+            #
+            # Live 2026-08-28: a 614-character answer stopped mid-sentence,
+            # the completion pass was refused with
+            # "continuation_admission_denied:conversation_generation_already_active",
+            # and the turn ended on the apology.
             allowed, block_reason = _desktop_secondary_model_repair_allowed(
                 reason=repair_reason,
                 lane_snapshot=None if completion_only_retry else lane,
+                continuing_this_turn=bool(completion_only_retry),
             )
             if not allowed:
                 logger.warning(
@@ -12479,6 +12492,7 @@ def _desktop_secondary_model_repair_allowed(
     reason: str,
     default_enabled: bool = True,
     lane_snapshot: dict[str, Any] | None = None,
+    continuing_this_turn: bool = False,
 ) -> tuple[bool, str]:
     """Allow bounded corrective generation on the loaded foreground worker.
 
@@ -12557,7 +12571,13 @@ def _desktop_secondary_model_repair_allowed(
             )
         if bool(lane.get("warmup_in_flight", False)):
             return False, "conversation_warmup_in_flight"
-        if lane_snapshot is None:
+        # These three ask whether somebody ELSE is using the lane. A turn
+        # finishing its own answer is not somebody else, and counting its own
+        # generation against it is how a half-written reply stayed half
+        # written. Everything above still applies to it — memory pressure,
+        # lane readiness, warmup — because those are about whether the lane
+        # can generate at all.
+        if lane_snapshot is None and not continuing_this_turn:
             if int(lane.get("active_generations", 0) or 0) > 0:
                 return False, "conversation_generation_already_active"
             if bool(lane.get("foreground_owned", False)):

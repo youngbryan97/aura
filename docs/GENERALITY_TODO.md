@@ -321,3 +321,142 @@ finding as H3 from the other end: 46,996 characters of system message before a
 213-character question, and an answer that gives up a quarter of the way into
 its own list.
 
+
+---
+
+# One theory of competence failure (added 2026-08-28)
+
+An external reading of the codebase, recorded here because the criticism is
+right and because it changes what the rest of this file is for.
+
+The claim: Aura has several genuine general learning mechanisms and no general
+process that decides *which one a failure calls for*. Different failures flow
+to different specialists — a transformation problem reaches relation
+induction, a named missing skill can reach Hephaestus, some patterns reach
+ontology discovery, some evidence reaches model adaptation — and nothing ever
+asks the question underneath all of them:
+
+> I tried to understand or solve this and failed. Which level failed: missing
+> knowledge, insufficient evidence, inadequate search, a missing procedure, a
+> missing concept, an inadequate representational language, or a missing
+> executable capability? What is the smallest change to myself that removes
+> that deficiency?
+
+The loop that would answer it:
+
+    observation → attempt → failure → diagnose which representational level
+    failed → propose the minimal cognitive change → validate it independently
+    → admit it → persist it → reuse it → compose it → measure transfer
+
+with the proposed change allowed to be any of: more evidence, more search, a
+new procedure, a new predicate, a **new representational primitive**, a new
+executable capability, or — rarely, and gated — an implementation change.
+
+## U1. The diagnosis that does not exist
+
+There is no `why_did_this_fail` that returns a *level*. Build one, and make
+every learning mechanism a subscriber to its verdict rather than an entry
+point of its own. This is the spine the rest of the items hang off.
+
+Falsifiable: a failing episode from each of the six levels, each routed to the
+mechanism that can remove it, none routed by hand.
+
+## U2. Where each mechanism is boxed in
+
+Named precisely, so each can be checked and each has its own exit:
+
+- Relation induction does genuine induction over a **constrained semantic
+  substrate**. (The metalanguage work in this file is the exit.)
+- The procedure inducer synthesises programs over a **supplied vocabulary**.
+- Ontology discovery creates predicates over **supplied features and supplied
+  logical operators** — so it invents within a language it did not choose.
+- Hephaestus writes arbitrary Python but is triggered by a **requested missing
+  capability**, not by representational insufficiency, and depends on LLM
+  generation.
+- Several concept/abstraction systems are templated, or are not demonstrably
+  inside a closed production loop.
+
+## U3. A synthesiser that is not fed
+
+The claim is specific and checkable: the recurring semantic-gap synthesiser
+that would connect experience to capability generation **has no input**. That
+is the half-wired class this codebase has produced before — a writer with no
+reader, a rule that could never match. Verify it, and either feed it or
+delete it.
+
+## U4. Authority when representations disagree
+
+The architectural transition this codebase is actually in. There are several
+legitimate ways to represent self, more than one moral system, several world
+models, several cognition loops. The question has stopped being "how do I
+build cognition" and become **"which representation has authority when they
+disagree?"**
+
+Consequence to take seriously: adding a locally excellent subsystem can now
+make her *less* coherent. Every major cognitive state should have one obvious
+reason to exist and one traceable causal consequence.
+
+## U5. A minimal causal spine
+
+Critical runtime complexity is concentrated in enormous functions — the chat
+route, the inference gate, the MLX worker, latent-cortex episodes, response
+generation, each thousands of lines. The profile is excellent defensive
+infrastructure around a core that is very hard to reason about. Not "more
+modular files": one spine, where a decision can be traced.
+
+## U6. Counterfactual causal tests, not consciousness scores
+
+The sharpest point, and it applies to work already published here. Define a
+sentience score as valence + self-model + integration + memory + agency, then
+engineer valence, self-model, integration, memory and agency, and the score is
+high. Nothing was discovered. The metric was implemented.
+
+What is worth more than any scalar Φ:
+
+- Lesion welfare — does decision behaviour change as predicted?
+- Lesion the functional self — does metacognitive caution disappear?
+- Sever workspace broadcasting — do globally dependent tasks degrade?
+- Randomise continuity — does identity-sensitive reasoning degrade?
+- Disable affective steering with the prompt text held fixed — does behaviour
+  change measurably?
+- Blind the evaluator.
+
+Each is an ablation with a prediction made in advance. `make` gates exist for
+ratchets; these want the same treatment.
+
+## U7. Every subsystem earns its existence by ablation
+
+The stated failure mode is cathedral accumulation: every paper becomes a
+module, nearly everything exists, nobody — including Aura — can say what
+caused a decision, and the architecture becomes *less* falsifiable as it looks
+more impressive. The counter is consolidation, and the mechanism is that a
+subsystem which cannot change a measurement does not stay.
+
+## U8. The test that would settle it
+
+> Does Aura repeatedly meet tasks from genuinely new distributions, fail
+> because she lacks a concept or a capability, autonomously construct what she
+> was missing, validate it without being given the answer, retain it, and then
+> measurably improve on later unrelated tasks?
+
+- Once — interesting.
+- Ten times inside one transformation grammar — a real result.
+- Across coding, visual interaction, scientific reasoning, language, software
+  operation, planning and unfamiliar professional work, with the new
+  representations and actions transferring between them — the strong claim.
+
+Crossed so far: composing and reusing learned structure, and solving for an
+ordering rather than searching a list of them. Not crossed: learning the
+**representational constructors themselves**, and the action-side equivalent.
+
+## U9. Prerequisites named in the same reading
+
+Close the reliability problems; finish learned action abstraction; let the
+metalanguage expand rather than only its library; establish repeated
+autonomous capability improvement on unseen classes; **make long tasks leave
+the foreground turn and persist as durable work**; improve multimodal and
+environment learning; keep swapping in stronger local cortices.
+
+The durable-work item connects directly to the clock work landed today: the
+answer to "this turn needs eight minutes" is not only a longer deadline, it is
+that the work stops being a turn.

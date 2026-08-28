@@ -368,6 +368,65 @@ class RecursiveSelfImprovementLoop:
 
         return result
 
+
+    @staticmethod
+    def _remember_the_gaps(signals: list) -> None:
+        """Tell the gap ledger about capability gaps this loop just observed.
+
+        The two halves of this were never joined. Gaps are recognised here, as
+        signals of kind capability_gap, tool_gap, missing_tool and
+        unmet_affordance. Counting them, and forging a skill for one seen
+        often enough, lives in :mod:`core.agi.skill_synthesizer`, whose
+        ``log_gap`` had no caller anywhere but a test — so the forge's tests
+        passed over a path nothing in the running system could reach, and
+        every gap Aura correctly noticed was forgotten as soon as she noticed
+        it.
+
+        Recording only. This counts what happened and decides nothing: the
+        forge keeps the gating it already has and nothing here proposes or
+        executes anything. What changes is that a recurring gap can now BE
+        recurring, which is the premise the ledger was built on.
+        """
+
+        if not signals:
+            return
+        try:
+            from core.agi.skill_synthesizer import get_skill_synthesizer
+
+            ledger = get_skill_synthesizer()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "recursive_self_improvement",
+                exc,
+                action="counted this cycle's capability gaps in memory only",
+            )
+            return
+        for signal in signals:
+            # What was missing, in words, because the ledger counts REPEATS of
+            # a description. Reading the signal's kind or metric would give
+            # every gap the same key — "capability" for all of them — and a
+            # ledger built to notice the same gap twice would see one gap
+            # forever.
+            evidence = getattr(signal, "evidence", None)
+            described = ""
+            if isinstance(evidence, dict):
+                for key in ("task", "detail", "description", "goal", "what"):
+                    described = str(evidence.get(key) or "").strip()
+                    if described:
+                        break
+            if not described:
+                described = str(getattr(signal, "source", "") or "").strip()
+            if not described:
+                continue
+            try:
+                ledger.log_gap(described, str(getattr(signal, "kind", "") or ""))
+            except (AttributeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "recursive_self_improvement",
+                    exc,
+                    action="skipped one capability gap the ledger would not accept",
+                )
+
     def _make_plan(
         self,
         objective: str,
@@ -394,11 +453,14 @@ class RecursiveSelfImprovementLoop:
             or s.metric in {"stability", "latency", "reliability"}
             for s in signals
         )
-        capability_gap_signal = any(
-            s.kind in {"capability_gap", "tool_gap", "missing_tool", "unmet_affordance"}
-            or s.metric in {"capability", "coverage"}
+        gaps_observed = [
+            s
             for s in signals
-        )
+            if s.kind in {"capability_gap", "tool_gap", "missing_tool", "unmet_affordance"}
+            or s.metric in {"capability", "coverage"}
+        ]
+        capability_gap_signal = bool(gaps_observed)
+        self._remember_the_gaps(gaps_observed)
 
         if allow_weight_update and self.live_learner and (force or weight_signal or self._buffer_size() > 0):
             actions.append("weight_update")

@@ -68,6 +68,24 @@ def _record_evolution_degradation(
     record_degradation("evolution_orchestrator", exc, severity=severity, action=action)
 
 
+
+def _has_actually_seen_a_gap(synthesizer: Any) -> bool:
+    """True when the gap ledger holds something it was told, not just exists."""
+
+    try:
+        status = synthesizer.get_status()
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    if not isinstance(status, dict):
+        return False
+    for key in ("gap_count", "gaps_at_threshold", "attempted"):
+        try:
+            if int(status.get(key) or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
 class EvolutionAxis(StrEnum):
     SELF_AWARENESS = "self_awareness"
     ETHICS = "ethics"
@@ -334,8 +352,15 @@ class EvolutionOrchestrator:
             milestones.append("genuine_learning_pipeline_active")
 
         # Skill synthesizer (autonomous capability creation)
+        #
+        # "Active" used to mean the service was registered in the container.
+        # Registration is not use, and this one was reachable by nothing: its
+        # gap ledger had no caller outside a test, so a fifth of an autonomy
+        # score was being awarded for a component that had never received a
+        # single input. A score anybody can raise by constructing an object is
+        # measuring the constructor.
         synth = ServiceContainer.get("skill_synthesizer", default=None)
-        if synth:
+        if synth is not None and _has_actually_seen_a_gap(synth):
             level += 0.2
             milestones.append("skill_synthesis_active")
 
