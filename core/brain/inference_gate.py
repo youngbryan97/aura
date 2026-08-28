@@ -13828,7 +13828,9 @@ class InferenceGate:
                 # clock was sized for 1,024 tokens while up to 2,048 were
                 # decoded against it — and the extra was exactly the room the
                 # reserve had been raised to provide.
-                _decode_s = _seconds_to_decode(max_tokens + self._reasoning_reserve())
+                _reserve_the_worker_adds = self._reasoning_reserve()
+                _tokens_to_pay_for = max_tokens + _reserve_the_worker_adds
+                _decode_s = _seconds_to_decode(_tokens_to_pay_for)
                 # Reading the prompt is the other half of a generation, and
                 # on this hardware it is the larger half. A turn was given time
                 # to SAY its answer and none to read the question.
@@ -13846,11 +13848,13 @@ class InferenceGate:
                     ) + _DELIVERY_MARGIN_S
                     if _needed > float(timeout_val):
                         logger.info(
-                            "🧠 [ANSWER CLOCK] %d tokens decode in about %.0fs and "
-                            "the prompt takes about %.0fs to read, at the measured "
-                            "rates, and this turn needs %d of them; "
-                            "deadline %.0fs → %.0fs.",
+                            "🧠 [ANSWER CLOCK] %d tokens (%d asked + %d reserve the "
+                            "worker adds) decode in about %.0fs and the prompt takes "
+                            "about %.0fs to read, at the measured rates, and this turn "
+                            "needs %d of them; deadline %.0fs → %.0fs.",
+                            _tokens_to_pay_for,
                             max_tokens,
+                            _reserve_the_worker_adds,
                             _decode_s,
                             _read_s,
                             _generations,
