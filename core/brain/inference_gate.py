@@ -13553,14 +13553,34 @@ class InferenceGate:
             # extends nothing.
             if 0 < _answer_floor_final:
                 _decode_s = _seconds_to_decode(max_tokens)
+                # A turn that has to go and fetch something spends a whole
+                # generation on the call before the answer is even started.
+                #
+                # LIVE, 2026-08-28: a diagnosis turn was offered the right
+                # tool, spent forty-five seconds emitting one call, and the
+                # request deadline expired fifty seconds later with nothing
+                # said about what came back. The clock covered one generation
+                # and the turn needed two.
+                _generations = 1
+                try:
+                    from core.intent.capability_selection import (
+                        points_at_something_real,
+                    )
+
+                    if points_at_something_real(initial_visible_user_prompt):
+                        _generations = 2
+                except (ImportError, AttributeError, OSError, TypeError, ValueError):
+                    _generations = 1
                 if _decode_s > 0.0:
-                    _needed = _decode_s + _DELIVERY_MARGIN_S
+                    _needed = (_decode_s * _generations) + _DELIVERY_MARGIN_S
                     if _needed > float(timeout_val):
                         logger.info(
                             "🧠 [ANSWER CLOCK] %d tokens decode in about %.0fs at "
-                            "the measured rate; deadline %.0fs → %.0fs.",
+                            "the measured rate, and this turn needs %d of them; "
+                            "deadline %.0fs → %.0fs.",
                             max_tokens,
                             _decode_s,
+                            _generations,
                             float(timeout_val),
                             _needed,
                         )

@@ -86,7 +86,7 @@ def test_forgetting_drops_the_rates() -> None:
 def test_the_gate_extends_only_when_a_floor_is_in_play() -> None:
     body = _GATE.read_text()
     start = body.index("A deadline that cannot deliver the budget")
-    window = body[start : start + 1800]
+    window = body[start : start + 2600]
     assert "if 0 < _answer_floor_final:" in window
     assert "_seconds_to_decode(max_tokens)" in window
     assert "if _decode_s > 0.0:" in window
@@ -95,8 +95,8 @@ def test_the_gate_extends_only_when_a_floor_is_in_play() -> None:
 def test_the_extension_is_bounded_by_what_was_measured() -> None:
     body = _GATE.read_text()
     start = body.index("A deadline that cannot deliver the budget")
-    window = body[start : start + 1800]
-    assert "_needed = _decode_s + _DELIVERY_MARGIN_S" in window
+    window = body[start : start + 2600]
+    assert "(_decode_s * _generations) + _DELIVERY_MARGIN_S" in window
     assert "timeout_val = _needed" in window
     assert "if _needed > float(timeout_val):" in window
 
@@ -107,3 +107,27 @@ def test_the_rate_crosses_the_process_boundary() -> None:
     assert '"decode_tokens_per_second"' in worker
     assert '"decode_tokens_per_second",' in client
     assert "_carry_decode_rate_across(receipt)" in client
+
+
+def test_a_turn_that_must_fetch_is_given_two_generations() -> None:
+    """The call is a whole generation before the answer is started.
+
+    LIVE, 2026-08-28: a diagnosis turn was offered the right tool, spent
+    forty-five seconds emitting one call, and the request deadline expired
+    fifty seconds later with nothing said about what came back. The clock
+    covered one generation and the turn needed two.
+    """
+
+    body = _GATE.read_text()
+    start = body.index("A turn that has to go and fetch something")
+    window = body[start : start + 1200]
+    assert "points_at_something_real(initial_visible_user_prompt)" in window
+    assert "_generations = 2" in window
+    assert "(_decode_s * _generations) + _DELIVERY_MARGIN_S" in window
+
+
+def test_the_generation_count_falls_back_to_one() -> None:
+    body = _GATE.read_text()
+    start = body.index("A turn that has to go and fetch something")
+    window = body[start : start + 1200]
+    assert window.count("_generations = 1") >= 2
