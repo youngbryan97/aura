@@ -153,6 +153,8 @@ def select_capabilities(
         return []
 
     from core.intent.declared_capability import (
+        asks_why_something_behaves,
+        behaviour_capabilities,
         computation_capabilities,
         declared_vocabulary,
         distinctive_objects,
@@ -191,6 +193,12 @@ def select_capabilities(
         for name in foundational_capabilities(catalogue, domains):
             if name not in ordered:
                 ordered.append(name)
+    if asks_why_something_behaves(text) and points_at_something_real(text):
+        # A cause is not in the request and not in memory. It is in the thing,
+        # and the only way to it is to run the thing and look.
+        for name in behaviour_capabilities(catalogue):
+            if name not in ordered:
+                ordered.insert(0, name)
     if _asks_for_a_thing(text):
         # A thing asked for by name. Not an `elif`: a request can both look
         # like a request and ask for something to exist, and the first

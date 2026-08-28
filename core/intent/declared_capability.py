@@ -637,6 +637,64 @@ def producing_capabilities(
     return [name for _overlap, name in scored]
 
 
+#: Asking why something behaves as it does. A small, general class of
+#: interrogatives, not a vocabulary of faults: whatever words a person reaches
+#: for to describe the trouble, the question they are asking has this shape.
+_ASKS_WHY_IT_BEHAVES = re.compile(
+    r"\bwhy\b"
+    r"|\bhow\s+come\b"
+    r"|\bwhat(?:'s|\s+is)\s+(?:going\s+on|happening|causing)\b"
+    r"|\b(?:can'?t|cannot|couldn'?t)\s+(?:see|find|spot|work\s+out|figure\s+out|tell)\b"
+    r"|\bdon'?t\s+(?:know|understand)\s+why\b"
+    r"|\bwhat\s+(?:is\s+)?(?:it|this|that)\s+(?:is\s+)?doing\b",
+    re.IGNORECASE,
+)
+
+
+def asks_why_something_behaves(message: object) -> bool:
+    """Whether the turn asks after a cause rather than after a fact.
+
+    LIVE, 2026-08-28: "Have a look through <path> — I keep getting a different
+    total on the second run and I can't see why" was offered grounded_search,
+    file_operation and code_repl. The skill that runs a project and reports
+    what survives a call was not offered, because the request shares no word
+    with any declaration: a person describes the trouble in whatever words the
+    trouble suggests, and "a different total on the second run" is not
+    vocabulary anybody can enumerate.
+
+    What IS enumerable is the shape of the question. Asking why something
+    behaves as it does is a small class of interrogatives and it does not vary
+    with the domain, so it reaches a skill that can run the thing and look.
+    """
+
+    return bool(_ASKS_WHY_IT_BEHAVES.search(str(message or "")))
+
+
+def behaviour_capabilities(
+    catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+) -> list[str]:
+    """The primitives that can answer a question about how something behaves.
+
+    Chosen by what each skill declares, like every other set here: a skill
+    joins by saying it runs something and reports what happened, so one
+    registered tomorrow joins by describing itself.
+    """
+
+    running = set(verb_class_of("run")) | {"run", "runs", "running"}
+    reporting = {"reports", "report", "prints", "printed", "says", "observed"}
+    scored: list[tuple[int, str]] = []
+    for name, (verbs, objects) in catalogue.items():
+        acts = {_fold(word) for word in verbs}
+        said = {_fold(word) for word in objects}
+        if not acts & {_fold(word) for word in running}:
+            continue
+        weight = len(said & {_fold(word) for word in reporting})
+        if weight:
+            scored.append((-weight, name))
+    scored.sort()
+    return [name for _weight, name in scored]
+
+
 def computation_capabilities(
     catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
 ) -> list[str]:

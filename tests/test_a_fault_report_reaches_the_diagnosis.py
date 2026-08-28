@@ -76,3 +76,92 @@ def test_the_engine_finds_the_fault_with_no_failing_test(tmp_path) -> None:
     described = describe_diagnosis(diagnose_repository(str(project)))
     assert "invoice.py:4" in described
     assert "lines=none" in described.lower() or "lines=None" in described
+
+
+# ---------------------------- a cause is not in the request or in memory
+
+
+def test_asking_why_something_behaves_is_a_shape_not_a_vocabulary() -> None:
+    """A person describes trouble in whatever words the trouble suggests.
+
+    LIVE, 2026-08-28: "Have a look through <path> — I keep getting a different
+    total on the second run and I can't see why" was offered grounded_search,
+    file_operation and code_repl. "A different total on the second run" is not
+    vocabulary anybody can enumerate. The shape of the question is.
+    """
+
+    from core.intent.declared_capability import asks_why_something_behaves
+
+    for asked in (
+        "I can't see why",
+        "why does it do that",
+        "how come the second one differs",
+        "what's going on here",
+        "there's a bug and I can't find it",
+        "I don't know why it changes",
+        "what is it doing on the second run",
+    ):
+        assert asks_why_something_behaves(asked), asked
+
+    for asked in (
+        "read the file to me",
+        "what is in that directory",
+        "list everything under there",
+        "tell me the total",
+    ):
+        assert not asks_why_something_behaves(asked), asked
+
+
+def test_a_why_question_alone_reaches_nothing() -> None:
+    """It has to be about something real, or it is a question for memory."""
+
+    from core.capability_engine import CapabilityEngine
+    from core.intent.capability_selection import select_capabilities
+    from core.phases.response_contract import requested_effect_ceiling
+
+    engine = CapabilityEngine()
+    skills = getattr(engine, "skills", None) or {}
+    for asked in ("why is the sky blue", "how come people yawn"):
+        ceiling, scopes = requested_effect_ceiling(asked)
+        chosen = select_capabilities(
+            asked, skills, ceiling=ceiling, admissible_scopes=scopes, limit=5
+        )
+        assert "diagnose_repo" not in chosen, asked
+
+
+def test_the_skill_joins_the_set_by_describing_itself() -> None:
+    """No skill is named in the selection: it declares that it runs and reports."""
+
+    from pathlib import Path
+
+    body = Path("core/intent/declared_capability.py").read_text()
+    start = body.index("def behaviour_capabilities(")
+    window = body[start : start + 1400]
+    assert "diagnose_repo" not in window
+    assert "verb_class_of(\"run\")" in window
+
+
+def test_a_fault_report_about_a_real_path_reaches_what_can_run_it() -> None:
+    import os
+
+    from core.capability_engine import CapabilityEngine
+    from core.intent.capability_selection import select_capabilities
+    from core.phases.response_contract import requested_effect_ceiling
+
+    engine = CapabilityEngine()
+    skills = getattr(engine, "skills", None) or {}
+    here = os.getcwd()
+    reached = 0
+    phrasings = (
+        f"Have a look through {here} — I keep getting a different total and I can't see why.",
+        f"there's a bug somewhere in {here} and I can't find it",
+        f"the second run from {here} comes out wrong and I don't know why",
+        f"why does the code in {here} give the wrong answer the second time round",
+    )
+    for asked in phrasings:
+        ceiling, scopes = requested_effect_ceiling(asked)
+        chosen = select_capabilities(
+            asked, skills, ceiling=ceiling, admissible_scopes=scopes, limit=5
+        )
+        reached += int("diagnose_repo" in chosen)
+    assert reached >= 3, f"only {reached} of {len(phrasings)} phrasings reached it"
