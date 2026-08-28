@@ -125,7 +125,7 @@ def _fit_prompt_to_what_the_turn_can_read(
     if not body:
         return body
     try:
-        from core.brain.context_budget import (
+        from core.brain.llm.context_budget import (
             CRITICAL_FOREGROUND_HEADERS,
             budget_for_answer,
             fit_to_budget,

@@ -219,7 +219,7 @@ _FLAG_SAFE_BOOT_BACKGROUND_GUARD_SECS = _declare_flag(
 )
 
 
-from core.brain.context_budget import (
+from core.brain.llm.context_budget import (
     CRITICAL_FOREGROUND_HEADERS as _CRITICAL_FOREGROUND_HEADERS,
     FOREGROUND_SECTION_VOLATILITY,
 )

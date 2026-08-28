@@ -8,7 +8,7 @@ question of 213.
 
 from __future__ import annotations
 
-from core.brain.context_budget import (
+from core.brain.llm.context_budget import (
     CRITICAL_FOREGROUND_HEADERS,
     budget_for_answer,
     fit_to_budget,
@@ -167,7 +167,7 @@ def test_what_changes_between_turns_is_measured_not_listed() -> None:
     same text turn after turn is stable however nobody named it.
     """
 
-    import core.brain.context_budget as budget
+    import core.brain.llm.context_budget as budget
 
     budget._CHANGED.clear()
     budget._LAST_SEEN.clear()
@@ -184,7 +184,7 @@ def test_what_changes_between_turns_is_measured_not_listed() -> None:
 def test_the_stable_part_is_emitted_first_without_a_trim() -> None:
     """Reordering costs nothing and is what the cache is actually about."""
 
-    import core.brain.context_budget as budget
+    import core.brain.llm.context_budget as budget
 
     budget._CHANGED.clear()
     budget._LAST_SEEN.clear()
@@ -209,7 +209,7 @@ def test_nothing_moves_until_something_has_been_measured() -> None:
     list covering half is a guess, so the ordering warms up instead.
     """
 
-    import core.brain.context_budget as budget
+    import core.brain.llm.context_budget as budget
 
     budget._CHANGED.clear()
     budget._LAST_SEEN.clear()
@@ -220,7 +220,7 @@ def test_nothing_moves_until_something_has_been_measured() -> None:
 def test_an_unmeasured_section_holds_its_place() -> None:
     """Only what has been watched moves; the rest stays where it was put."""
 
-    import core.brain.context_budget as budget
+    import core.brain.llm.context_budget as budget
 
     budget._CHANGED.clear()
     budget._LAST_SEEN.clear()
@@ -245,7 +245,7 @@ def test_the_ceiling_the_worker_enforces_is_one_of_the_constraints() -> None:
     turns in one live log reached it, each recorded as a fault.
     """
 
-    from core.brain.context_budget import prefill_ceiling
+    from core.brain.llm.context_budget import prefill_ceiling
     from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
 
     assert prefill_ceiling() == _PREFILL_CEILING_CHARS
@@ -257,7 +257,7 @@ def test_the_ceiling_the_worker_enforces_is_one_of_the_constraints() -> None:
 def test_a_prompt_over_the_ceiling_is_cut_by_the_request_not_the_offset() -> None:
     """The whole point: what survives is what was asked about."""
 
-    from core.brain.context_budget import (
+    from core.brain.llm.context_budget import (
         CRITICAL_FOREGROUND_HEADERS,
         fit_to_budget,
         prefill_ceiling,
@@ -287,3 +287,46 @@ def test_a_prompt_over_the_ceiling_is_cut_by_the_request_not_the_offset() -> Non
     # at a byte offset would not have managed: it sits in the middle of the
     # padding by length and at the end by position.
     assert "SOURDOUGH NOTES" in kept
+
+
+def test_a_prompt_with_no_sections_keeps_both_ends() -> None:
+    """Relevance needs sections to choose between.
+
+    A single block scored against a request is just a cut at the budget, and
+    it loses the tail for nothing. That was a live regression the moment this
+    replaced the head-and-tail fit: a caller supplying its own unsectioned
+    head got the head alone back.
+    """
+
+    from core.brain.llm.context_assembler import _fit_the_request
+
+    blob = "SYSTEM-HEAD\n" + ("s" * 20_000) + "\nSYSTEM-TAIL"
+
+    def keep_the_ends(text, limit, marker):
+        text = str(text)
+        if len(text) <= limit:
+            return text
+        room = limit - len(marker)
+        head = max(1, room * 2 // 3)
+        return f"{text[:head]}{marker}{text[-max(1, room - head):]}"
+
+    fitted = _fit_the_request(blob, "anything", 8_192, keep_the_ends=keep_the_ends)
+    assert fitted.startswith("SYSTEM-HEAD")
+    assert fitted.endswith("SYSTEM-TAIL")
+    assert len(fitted) <= 8_192
+
+
+def test_a_sectioned_prompt_is_cut_by_relevance_not_by_its_ends() -> None:
+    """And where there are sections, the ends stop being privileged."""
+
+    from core.brain.llm.context_assembler import _fit_the_request
+
+    body = (
+        "You are Aura Luna.\n\n"
+        "## SOURDOUGH NOTES\nstarter flour hydration levain crumb\n\n"
+        + "\n\n".join(f"## FILLER {n}\npadding " * 1 + "word " * 200 for n in range(20))
+        + "\n\n## LAST THING\nnothing to do with the question"
+    )
+    fitted = _fit_the_request(body, "sourdough starter hydration", 1_200)
+    assert "SOURDOUGH NOTES" in fitted
+    assert len(fitted) <= 1_200

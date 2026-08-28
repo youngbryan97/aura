@@ -29,6 +29,7 @@ import math
 import os
 import re
 import time
+from collections.abc import Callable
 from typing import Any
 
 from core.brain.aura_persona import AURA_BIG_FIVE, AURA_FEW_SHOT_EXAMPLES, AURA_IDENTITY
@@ -316,6 +317,65 @@ def _requirements_for_a_casual_turn(
         )
     return requirements
 
+
+
+def _fit_the_request(
+    system_prompt: str,
+    request: str,
+    budget: int,
+    *,
+    keep_the_ends: Callable[[Any, int, str], str] | None = None,
+) -> str:
+    """Trim and order an assembled system prompt around what was asked.
+
+    Choosing by relevance needs sections to choose between. A prompt with none
+    — a single block, which is what a caller supplying its own head gives —
+    goes back to keeping both ends, because a relevance score over one section
+    is just a cut at the budget and loses the tail for nothing.
+
+    Falls back to the prompt as built if anything is unavailable. A prompt
+    that cannot be fitted deliberately is still bounded downstream, and a
+    blind cut here on top of that would only lose more.
+    """
+
+    body = str(system_prompt or "")
+    try:
+        from core.brain.llm.context_budget import (
+            CRITICAL_FOREGROUND_HEADERS,
+            fit_to_budget,
+            observe_sections,
+            stable_prefix_first,
+            volatility_of,
+        )
+
+        observe_sections(body)
+        if len(body) <= int(budget):
+            return stable_prefix_first(body) or body
+        from core.brain.llm.context_budget import sections_of
+
+        if len(sections_of(body)) < 2 and keep_the_ends is not None:
+            return keep_the_ends(
+                body,
+                int(budget),
+                "\n\n[... optional system context omitted for budget ...]\n\n",
+            )
+        return (
+            fit_to_budget(
+                body,
+                request,
+                budget=int(budget),
+                always=CRITICAL_FOREGROUND_HEADERS,
+                volatility=volatility_of,
+            )
+            or body
+        )
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "context_assembler",
+            exc,
+            action="left the assembled system prompt as it was built",
+        )
+        return body
 
 class ContextAssembler:
     """Unified prompt construction from state."""
@@ -2457,6 +2517,26 @@ class ContextAssembler:
         # otherwise is a stated, deliberately low assumption that says so once.
         budget_ratio = chars_per_token()
         char_limit = max(2048, budget_ratio.tokens_to_chars(int(max_tokens)))
+        # Sized on the model's window above, which is not the constraint that
+        # bites. The client refuses to prefill more than its ceiling and cuts
+        # the middle out of anything longer, so a limit derived from a 262,144
+        # token window — about 980,000 characters — let this builder hand over
+        # prompts twenty times what would survive. Measured live: 96,233
+        # characters in, head and tail kept, the mind context in between
+        # dropped, and a fault recorded for it.
+        #
+        # Two budgets that disagree are one budget and one fiction. This is
+        # the smaller.
+        try:
+            from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+
+            char_limit = min(char_limit, int(_PREFILL_CEILING_CHARS))
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "context_assembler",
+                exc,
+                action="sized the prompt on the context window alone",
+            )
         messages = []
         current_chars = 0
 
@@ -2610,10 +2690,17 @@ class ContextAssembler:
                 action="built the prompt without this turn's capability-failure readings",
             )
 
-        dynamic_system = _fit_ends(
-            dynamic_system,
-            system_budget,
-            "\n\n[... optional system context omitted for budget ...]\n\n",
+        # What survives a budget should be what the turn is about. Keeping the
+        # two ends keeps the contract and whatever happens to be last, and
+        # drops the middle — which in an assembled prompt is the mind context.
+        # Scoring the sections against the request keeps a section wherever it
+        # sits, and the ends are no longer privileged for being the ends.
+        #
+        # The ordering matters as much as the trimming. A cache entry is the KV
+        # for a byte-identical prefix, and this runtime was reusing 558 tokens
+        # of 27,298 because what changes every turn sat near the front.
+        dynamic_system = _fit_the_request(
+            dynamic_system, objective_text, system_budget, keep_the_ends=_fit_ends
         )
 
         system_msg = {"role": "system", "content": dynamic_system}
