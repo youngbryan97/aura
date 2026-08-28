@@ -111,6 +111,12 @@ document/deck; debugging an unfamiliar repo; diagnosing an obscure issue with no
 error and no failing test; manipulating an unseen spreadsheet; a novel logic
 problem; correcting a mistaken premise.
 
+Proven by the induction work, live: generalise from sparse examples (two
+examples, the rule named, applied to an unseen case); improve measurably on
+related unseen tasks (a three-deep question answerable only because the
+previous turn happened); create and reuse a new procedure (the refactored run,
+derived from solutions, validated on held-out lengths, reused).
+
 Remaining: operate unfamiliar SaaS; book something free; teach herself a
 tool/API from docs; open-ended research project; scientific reasoning loop;
 novel computer task with no dedicated skill; multi-tool coordination on an

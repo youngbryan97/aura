@@ -10,6 +10,32 @@ last column of everything is whether it exists, measured, not argued.
 
 ---
 
+## Part 0 — The four qualifications, and where they stand
+
+An outside review named four facts as the line between what exists and the
+thing being built. Two are closed, one is narrowed, one is structural.
+
+1. **The metalanguage is human-designed.** Open, and the research says this is
+   where the field sits too: unconstrained predicate invention is intractable,
+   and metarules are what made it workable. Named in 3.2 and 3.3.
+2. **The teaching curriculum is evaluator-designed.** Narrowed. The battery
+   still hands the language a precursor through `_TEACHES`. But the live
+   demonstration used no such thing: two ordinary questions asked in sequence,
+   the second answerable only because the first happened. What remains open is
+   the harder form — recognising which precursor is missing and going to get
+   it.
+3. **The learned language does not survive a restart.** Closed. It was true and
+   B6 was an overclaim: only the counts persisted, so the library came back
+   knowing mirroring had worked nine times and not what mirroring was. A shape
+   is a structured program now, and a restarted library still solves a
+   four-deep world a blank one cannot.
+4. **It is not integrated into the live loop.** Closed. A sequence question is
+   worked out by the runtime with no model in the answer path, the rule is
+   said, and the shape is kept — and the loop was demonstrated live across two
+   consecutive turns in the window.
+
+---
+
 ## Part 1 — The goal, decomposed downward
 
 The goal, stated as Bryan states it: **experience → learn a new representation →
