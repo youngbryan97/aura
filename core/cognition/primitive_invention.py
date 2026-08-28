@@ -73,6 +73,9 @@ class InventedRelation:
     #: Transfer runs on families: a world that exchanges positions 0 and 2 is a
     #: different relation from one that exchanges 1 and 3, and the same shape.
     family: str = ""
+    #: The rule over indices, when there is one, so a language can offer this
+    #: shape to the next world as a member rather than as a preference.
+    index_rule: Callable[[int, int], int] | None = None
     learned_from: int = 0
     held_out_checked: int = 0
     detail: dict[str, Any] = field(default_factory=dict)
@@ -221,6 +224,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
 
 def _forms_that_fit(
     options: Sequence[Sequence[int]],
+    known: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape whose answer is among the possibilities at every position.
 
@@ -235,7 +239,11 @@ def _forms_that_fit(
     """
 
     size = len(options)
-    singles = _index_forms(size)
+    # Shapes worked out in earlier worlds are members of the language now, not
+    # only a preference over it. That is what makes a NEW shape cheaper to
+    # learn as more shapes are known: a composition of one learned form and one
+    # base form is reachable, and was not before the first world taught it.
+    singles = list(known) + _index_forms(size)
     fitting = [
         (family, description, rule)
         for family, description, rule in singles
@@ -339,6 +347,7 @@ def invent_relation(
     *,
     held_out: Sequence[Transition] = (),
     prefer: dict[str, int] | None = None,
+    known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
 ) -> InventedRelation | None:
     """Work out the relation these transitions need, or return None.
 
@@ -350,6 +359,11 @@ def invent_relation(
     ``prefer`` is a count per shape, from worlds already accounted for. It only
     ever decides between shapes that fit the observations equally well, so it
     can make an answer arrive sooner and cannot make a wrong answer pass.
+
+    ``known_forms`` are shapes worked out in earlier worlds, offered as members
+    of the language rather than as a preference over it. A shape reachable only
+    as a composition involving one of them was not expressible before that
+    world was seen, so what can be learned grows with what has been.
     """
 
     observed = [
@@ -361,7 +375,7 @@ def invent_relation(
     # Did anything move, or did the values themselves change?
     possibilities = [_possible_sources(item.before, item.after) for item in observed]
     if all(item is not None for item in possibilities):
-        fitted = [_forms_that_fit(item) for item in possibilities if item]
+        fitted = [_forms_that_fit(item, known_forms or ()) for item in possibilities if item]
         # A shape has to fit EVERY observation. With one observation several
         # will; with two of different lengths, usually one.
         shared: dict[str, tuple[str, Callable[[int, int], int]]] = {}
@@ -398,6 +412,7 @@ def invent_relation(
                     family=family,
                     learned_from=len(observed),
                     held_out_checked=len(held_out),
+                    index_rule=rule,
                     detail={"fitting_shapes": sorted(shared)},
                 )
                 if not held_out or explains(operator, held_out):

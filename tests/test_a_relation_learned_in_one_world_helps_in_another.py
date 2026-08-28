@@ -227,3 +227,68 @@ def test_an_absent_store_loads_as_an_empty_language() -> None:
     empty = RelationLanguage.load("/no/such/relations.json")
     assert empty.counts == {}
     assert empty.families() == []
+
+
+# ------------------------------------------------------- higher-order transfer
+
+
+def _applied(fn, lengths):
+    return [Transition(tuple(range(n)), fn(tuple(range(n)))) for n in lengths]
+
+
+def _mirror_of(state):
+    return tuple(reversed(state))
+
+
+def _rot1(state):
+    return state[1:] + state[:1]
+
+
+def _ends_of(state):
+    row = list(state)
+    row[0], row[-1] = row[-1], row[0]
+    return tuple(row)
+
+
+def test_what_can_be_learned_grows_with_what_has_been() -> None:
+    """A shape outside the language becomes inside it, because an earlier world
+    taught a member of it.
+
+    This is the higher-order claim, and it is not a reordering: the three-deep
+    world is UNREACHABLE with an empty language however many observations are
+    offered, and reachable after a different world taught the two-deep shape.
+    Shapes worked out earlier are members of the language, not a preference
+    over it.
+    """
+
+    def two_deep(state):
+        return _rot1(_mirror_of(state))
+
+    def three_deep(state):
+        return _ends_of(_rot1(_mirror_of(state)))
+
+    blank = RelationLanguage()
+    assert blank.explain(_applied(three_deep, (5, 6, 7))) is None
+
+    taught = RelationLanguage()
+    taught.admit(invent_relation(_applied(two_deep, (5, 6, 7))))
+    assert taught.forms, "a shape with a rule over indices is kept"
+
+    found = taught.explain(_applied(three_deep, (5, 6, 7)))
+    assert found is not None, "the taught shape did not make the new one reachable"
+    # And it is a relation, not a fit: it predicts lengths it never saw.
+    for length in (9, 11, 12):
+        assert tuple(found.apply(tuple(range(length)))) == three_deep(
+            tuple(range(length))
+        )
+
+
+def test_a_language_that_learned_nothing_useful_adds_nothing() -> None:
+    """The null: shapes that do not help must not help."""
+
+    def three_deep(state):
+        return _ends_of(_rot1(_mirror_of(state)))
+
+    unhelpful = RelationLanguage()
+    unhelpful.admit(invent_relation(_applied(lambda s: s, (4, 5))))
+    assert unhelpful.explain(_applied(three_deep, (5, 6, 7))) is None

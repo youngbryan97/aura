@@ -34,8 +34,11 @@ struck through on the strength of an argument.
   on average because one case is dramatic.
 - [x] **B4** Transfer across representation, not only across worlds: a shape
   learned on integers applies to strings, colours, anything with positions.
-- [ ] **B5** Higher-order — the number of observations a NEW shape takes to
-  learn falls as more shapes are known.
+- [x] **B5** Higher-order. A three-deep composition is UNREACHABLE with an
+  empty language however many observations are offered, and reachable after a
+  different world taught the two-deep shape — then predicts lengths it never
+  saw. Shapes are members of the language, not a preference over it. A language
+  taught something unhelpful adds nothing.
 - [ ] **B6** Persistence across processes, so a restart does not start cold.
 
 ## C. Novel abstraction from failure

@@ -54,6 +54,10 @@ class RelationLanguage:
     """
 
     counts: dict[str, int] = field(default_factory=dict)
+    #: The shapes themselves, by their description, so the next world can
+    #: compose with them. Held in memory: a rule over indices is a function and
+    #: the counts above are what survive a restart.
+    forms: dict[str, tuple[str, object]] = field(default_factory=dict)
     path: Path | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -64,6 +68,8 @@ class RelationLanguage:
             return
         with self._lock:
             self.counts[relation.family] = self.counts.get(relation.family, 0) + 1
+            if relation.index_rule is not None and relation.form:
+                self.forms[relation.form] = (relation.family, relation.index_rule)
 
     def families(self) -> list[str]:
         """The shapes, most often useful first."""
@@ -98,7 +104,13 @@ class RelationLanguage:
 
         with self._lock:
             prior = dict(self.counts)
-        return invent_relation(transitions, held_out=held_out, prefer=prior)
+            known = [
+                (family, description, rule)
+                for description, (family, rule) in self.forms.items()
+            ]
+        return invent_relation(
+            transitions, held_out=held_out, prefer=prior, known_forms=known
+        )
 
     def save(self) -> None:
         """Write the shapes down, through the runtime's own write path."""
