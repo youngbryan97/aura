@@ -46,6 +46,13 @@ from typing import Any, Sequence
 __all__ = ["Composed", "Ordering", "solve_ordering", "solve_ordering_then_move"]
 
 
+#: Distinct value pairs an order has to survive before it is believed past the
+#: cells that were shown. Each pair is one chance to be contradicted, so a wrong
+#: order gets through k of them about 2^-k of the time; five is about one in
+#: thirty-two, the standard the shuffle nulls here are held to.
+_ENOUGH_TO_HAVE_BEEN_RISKED = 5
+
+
 @dataclass(frozen=True)
 class Ordering:
     """A level for each value seen, and what kind of rule that turned out to be."""
@@ -436,7 +443,40 @@ def solve_ordering(transitions: Sequence[Any]) -> Ordering | None:
     # Checked, never assumed. A secret ordering over values that never recur
     # comes out as a table and refuses, which is the control that makes this an
     # assumption rather than an answer smuggled in.
+    # How many pairs the order was RISKED on, not how many it fits.
+    #
+    # A single observed pair claimed "ascending" and then extrapolated it to
+    # every value in existence — and a wrong order survives one test half the
+    # time. Fitting everything you were shown says nothing when you were shown
+    # one thing.
+    #
+    # Each distinct pair is one chance to be contradicted, so a wrong order
+    # survives k of them with probability about 2^-k. _ENOUGH_TO_HAVE_BEEN_RISKED
+    # is set from that: at five, a wrong order gets through about once in
+    # thirty-two, which is the same standard the shuffle nulls here are held
+    # to. The pairs are not fully independent — transitivity relates them — so
+    # this overstates the evidence rather than understating it, and the count
+    # is a floor rather than a proof.
+    tested = {
+        (repr(low), repr(high)) for low, high in atmost if repr(low) != repr(high)
+    }
     natural = None
+    if len(tested) < _ENOUGH_TO_HAVE_BEEN_RISKED:
+        # Not enough to have been risked. The levels still hold for the cells
+        # that were shown; what is refused is the claim that reaches past them.
+        return Ordering(
+            level=dict(level),
+            levels=distinct,
+            kind=kind,
+            drops=frozenset(dropped),
+            group={value: owner[value] for value in values},
+            ranked=frozenset(
+                (start, reached)
+                for start in range(len(groups))
+                for reached in above[start]
+            ),
+            natural=None,
+        )
     for name, backwards in (("ascending", False), ("descending", True)):
         def rises(low: Any, high: Any, _back: bool = backwards) -> bool | None:
             try:

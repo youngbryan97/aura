@@ -26,7 +26,14 @@ from core.cognition.value_order import solve_ordering
 
 
 def test_the_three_families_are_one_mechanism() -> None:
-    sortish = solve_ordering([T((3, 1, 2), (1, 2, 3)), T((5, 9, 7), (5, 7, 9))])
+    sortish = solve_ordering(
+        [
+            T((3, 1, 2), (1, 2, 3)),
+            T((5, 9, 7), (5, 7, 9)),
+            T((2, 8, 4), (2, 4, 8)),
+            T((6, 0, 3), (0, 3, 6)),
+        ]
+    )
     assert sortish is not None and sortish.natural == "ascending"
 
     split = solve_ordering(
@@ -53,7 +60,14 @@ def test_the_three_families_are_one_mechanism() -> None:
 def test_it_reaches_values_it_never_saw_and_says_when_it_cannot() -> None:
     """The order the values carry is a prior, so it is checked, not assumed."""
 
-    seen_order = solve_ordering([T((3, 1, 2), (1, 2, 3)), T((5, 9, 7), (5, 7, 9))])
+    seen_order = solve_ordering(
+        [
+            T((3, 1, 2), (1, 2, 3)),
+            T((5, 9, 7), (5, 7, 9)),
+            T((2, 8, 4), (2, 4, 8)),
+            T((6, 0, 3), (0, 3, 6)),
+        ]
+    )
     assert seen_order is not None
     assert seen_order.apply((40, 11, 27)) == (11, 27, 40)
 
@@ -62,6 +76,7 @@ def test_it_reaches_values_it_never_saw_and_says_when_it_cannot() -> None:
         [
             T(("pear", "fig", "date"), ("date", "fig", "pear")),
             T(("kiwi", "apple"), ("apple", "kiwi")),
+            T(("plum", "cherry", "berry"), ("berry", "cherry", "plum")),
         ]
     )
     assert words is not None
@@ -136,3 +151,20 @@ def test_the_live_path_answers_a_sort() -> None:
     )
     assert "[4, 7, 9]" in said
     assert "ascending" in said
+
+
+def test_a_thin_world_does_not_reach_past_the_cells_it_saw() -> None:
+    """Fitting everything you were shown says nothing when you were shown one thing.
+
+    A single observed pair claimed "ascending" and extrapolated it to every
+    value in existence, and a wrong order survives one test half the time. The
+    levels still hold for the cells that were shown; what is refused is the
+    claim that reaches past them.
+    """
+
+    thin = solve_ordering([T((2, 1), (1, 2))])
+    assert thin is not None
+    assert thin.natural is None
+    assert thin.apply((40, 11, 27)) is None
+    # And it still answers about the cells it actually saw.
+    assert thin.apply((2, 1)) == (1, 2)

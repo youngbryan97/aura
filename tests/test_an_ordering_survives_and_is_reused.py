@@ -27,7 +27,14 @@ def _somewhere() -> Path:
 def test_an_ordering_is_written_down_and_comes_back() -> None:
     home = _somewhere()
     language = RelationLanguage(path=home)
-    language.admit_order(solve_ordering([T((3, 1, 2), (1, 2, 3)), T((5, 9, 7), (5, 7, 9))]))
+    language.admit_order(solve_ordering(
+            [
+            T((3, 1, 2), (1, 2, 3)),
+            T((5, 9, 7), (5, 7, 9)),
+            T((2, 8, 4), (2, 4, 8)),
+            T((6, 0, 3), (0, 3, 6)),
+        ]
+        ))
     language.save()
 
     again = RelationLanguage.load(home)
@@ -51,6 +58,7 @@ def test_a_restored_ordering_still_knows_its_cells() -> None:
             [
                 T(("pear", "fig", "date"), ("date", "fig", "pear")),
                 T(("kiwi", "apple"), ("apple", "kiwi")),
+                T(("plum", "cherry", "berry"), ("berry", "cherry", "plum")),
             ]
         )
     )
@@ -65,7 +73,14 @@ def test_what_was_learned_settles_a_world_that_shows_less() -> None:
 
     home = _somewhere()
     language = RelationLanguage(path=home)
-    language.admit_order(solve_ordering([T((3, 1, 2), (1, 2, 3)), T((5, 9, 7), (5, 7, 9))]))
+    language.admit_order(solve_ordering(
+            [
+            T((3, 1, 2), (1, 2, 3)),
+            T((5, 9, 7), (5, 7, 9)),
+            T((2, 8, 4), (2, 4, 8)),
+            T((6, 0, 3), (0, 3, 6)),
+        ]
+        ))
     language.save()
 
     later = RelationLanguage.load(home)
@@ -78,7 +93,14 @@ def test_what_was_learned_settles_a_world_that_shows_less() -> None:
 def test_a_known_ordering_is_not_forced_onto_a_world_it_does_not_explain() -> None:
     home = _somewhere()
     language = RelationLanguage(path=home)
-    language.admit_order(solve_ordering([T((3, 1, 2), (1, 2, 3)), T((5, 9, 7), (5, 7, 9))]))
+    language.admit_order(solve_ordering(
+            [
+            T((3, 1, 2), (1, 2, 3)),
+            T((5, 9, 7), (5, 7, 9)),
+            T((2, 8, 4), (2, 4, 8)),
+            T((6, 0, 3), (0, 3, 6)),
+        ]
+        ))
 
     # A mirror is not this ordering, and must not be answered as one.
     assert language.order_that_explains([T((1, 2, 3), (3, 2, 1))]) is None
@@ -103,9 +125,13 @@ def test_what_was_learned_beats_a_form_that_fits_one_example(monkeypatch, tmp_pa
     monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path))
     from core.cognition.sequence_induction import answer_sequence_question
 
+    # Enough distinct pairs that the order was risked rather than merely
+    # fitted: three values seen three times is two pairs, and a wrong order
+    # survives two tests one time in four.
     taught = answer_sequence_question(
-        "[30, 10, 20] becomes [10, 20, 30]. [10, 30, 20] becomes [10, 20, 30]. "
-        "[20, 10, 30] becomes [10, 20, 30]. What does [70, 40, 90] become?"
+        "[30, 10, 20] becomes [10, 20, 30]. [50, 90, 70] becomes [50, 70, 90]. "
+        "[20, 80, 40] becomes [20, 40, 80]. [60, 0, 30] becomes [0, 30, 60]. "
+        "What does [70, 40, 90] become?"
     )
     assert "[40, 70, 90]" in taught
 
@@ -126,8 +152,9 @@ def test_a_pinned_positional_world_is_not_hijacked(monkeypatch, tmp_path) -> Non
     from core.cognition.sequence_induction import answer_sequence_question
 
     answer_sequence_question(
-        "[30, 10, 20] becomes [10, 20, 30]. [10, 30, 20] becomes [10, 20, 30]. "
-        "[20, 10, 30] becomes [10, 20, 30]. What does [70, 40, 90] become?"
+        "[30, 10, 20] becomes [10, 20, 30]. [50, 90, 70] becomes [50, 70, 90]. "
+        "[20, 80, 40] becomes [20, 40, 80]. [60, 0, 30] becomes [0, 30, 60]. "
+        "What does [70, 40, 90] become?"
     )
     for asked, wanted, rule in (
         (
