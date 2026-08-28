@@ -14056,9 +14056,28 @@ class InferenceGate:
                         # is exactly what distinguishes a model producing
                         # garbage from a gate that is too strict, and those want
                         # opposite fixes.
+                        # Every key the receipt keeps a reason under, not one.
+                        #
+                        # The fix above read surface_quality_gate_reasons, and
+                        # the worker writes its actual objections under
+                        # semantic_completion_quality_reasons — the first key is
+                        # only written on the telemetry-sanitizer path. Two
+                        # names for one fact, so the diagnosis that was added to
+                        # end "rejected_for=no_reasons_reported" reported
+                        # no_reasons_reported.
                         _quality_reasons = tuple(
-                            primary_surface_receipt.get("surface_quality_gate_reasons")
-                            or ()
+                            dict.fromkeys(
+                                str(reason).strip()[:120]
+                                for key in (
+                                    "surface_quality_gate_reasons",
+                                    "semantic_completion_quality_reasons",
+                                    "telemetry_sanitizer_reasons",
+                                )
+                                for reason in (
+                                    primary_surface_receipt.get(key) or ()
+                                )
+                                if str(reason).strip()
+                            )
                         )
                         logger.warning(
                             "🧠 %s exhausted its worker-owned semantic quality retries; "
