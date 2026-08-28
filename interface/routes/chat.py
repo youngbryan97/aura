@@ -3408,8 +3408,22 @@ def _the_answer_has_to_be_worked_out(
     if int(getattr(shape, "question_parts", 0) or 0) >= 3:
         return True
     try:
+        from core.intent.capability_selection import points_at_something_real
         from core.language.semantic_work import build_semantic_work_contract
 
+        # A path on this disk or an address is not in any snapshot, and the
+        # quick lane's whole justification is that a snapshot already holds
+        # the answer. The bytes are AT that place; the turn has to go and
+        # look, then work from what it found.
+        #
+        # LIVE, 2026-08-28: "Something's off in <path> ... Go through the code
+        # and tell me what's actually happening, with the file and line" is one
+        # long sentence with one question in it, so nothing about its shape
+        # asked for room. It went compact with 512 tokens, was handed
+        # diagnose_repo, and ran out of budget before it could say what the
+        # tool found.
+        if points_at_something_real(user_message):
+            return True
         return bool(build_semantic_work_contract(user_message).requires_deliberation)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)

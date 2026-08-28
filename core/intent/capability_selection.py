@@ -31,7 +31,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["DEFAULT_CAPABILITY_SET", "select_capabilities"]
+__all__ = [
+    "DEFAULT_CAPABILITY_SET",
+    "points_at_something_real",
+    "select_capabilities",
+]
 
 #: How many capabilities one turn may be handed at once. Every capacity
 #: offered is also context the model must hold, so this is a working set
@@ -58,7 +62,7 @@ def _wants_more_than_an_answer(text: str) -> bool:
     fluff" was read as a request for prose, so not one capability was offered
     and the model invented a tool to call.
     """
-    if _points_at_something_real(text):
+    if points_at_something_real(text):
         return True
     try:
         from core.intent.artifact_request import asks_for_an_artifact
@@ -68,7 +72,7 @@ def _wants_more_than_an_answer(text: str) -> bool:
         return False
 
 
-def _points_at_something_real(text: str) -> bool:
+def points_at_something_real(text: str) -> bool:
     """Whether the request names an artifact the answer depends on.
 
     A path that resolves on this disk, or an address. Both are already read

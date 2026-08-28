@@ -84,3 +84,36 @@ def test_the_quick_turns_keep_the_compact_contract(asked: str) -> None:
         desktop_execution_contract=False,
         capability_inventory_contract=False,
     )
+
+
+def test_a_named_path_is_not_in_any_snapshot() -> None:
+    """The quick lane reads a snapshot; the bytes are somewhere else.
+
+    LIVE, 2026-08-28: "Something's off in <path> ... Go through the code and
+    tell me what's actually happening, with the file and line" is one long
+    sentence with one question in it, so nothing about its shape asked for
+    room. It went compact with 512 tokens, was handed diagnose_repo, and ran
+    out of budget before it could say what the tool found.
+    """
+
+    import os
+
+    here = os.getcwd()
+    asked = (
+        f"Something's off in {here} and I can't put my finger on it. No error, "
+        "nothing crashes, the tests such as they are pass. Go through the code "
+        "and tell me what's actually happening, with the file and line."
+    )
+    assert _the_answer_has_to_be_worked_out(asked, analyze_prompt_shape(asked))
+
+
+def test_a_path_that_does_not_exist_is_not_a_place_to_look() -> None:
+    asked = "Something's off in /no/such/place/at/all, go through it"
+    assert not _the_answer_has_to_be_worked_out(asked, analyze_prompt_shape(asked))
+
+
+def test_one_reader_owns_pointing_at_something_real() -> None:
+    from core.intent import capability_selection
+
+    assert hasattr(capability_selection, "points_at_something_real")
+    assert "points_at_something_real" in capability_selection.__all__
