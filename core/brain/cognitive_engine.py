@@ -1127,7 +1127,14 @@ def _time_the_answer_needs(objective: Any) -> float:
         from core.runtime.structured_input import answer_surface_token_floor
 
         floor = int(answer_surface_token_floor(str(objective or "")))
-        needed = float(seconds_to_decode(floor))
+        # Plus what the worker adds for thinking. It is added on the far side
+        # of every deadline calculation in this runtime, so each of them was
+        # pricing a generation smaller than the one that actually runs — and
+        # this is the clock that owns the turn, so its underestimate is the
+        # one nothing below can recover from.
+        from core.brain.llm.thinking_reserve import reserve_tokens
+
+        needed = float(seconds_to_decode(floor + max(0, int(reserve_tokens()))))
     except (ImportError, AttributeError, TypeError, ValueError):
         return 0.0
     if needed <= 0.0:
@@ -3375,7 +3382,16 @@ class CognitiveEngine:
             else:
                 cycle_timeout = 240.0
         cycle_timeout_cap = _DEFAULT_COGNITIVE_CYCLE_MAX_S
-        if explicit_timeout is not None and self._is_user_facing_origin(origin):
+        if self._is_user_facing_origin(origin):
+            # The ceiling a turn somebody is waiting for may reach, whether or
+            # not the caller named a timeout. It used to depend on that, so an
+            # ordinary question — nobody passes a timeout for one — was held
+            # to 240 seconds while the machinery below it agreed the answer
+            # needed longer, and the wait it is nested in already allows 480.
+            #
+            # A ceiling, not a target: the floor below still decides what this
+            # particular turn asks for, and a turn that finishes sooner
+            # finishes sooner.
             cycle_timeout_cap = response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
         # This is the clock that OWNS the turn, and it was a flat number chosen
         # before anything knew what the answer would cost. Everything below it

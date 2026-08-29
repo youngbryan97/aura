@@ -182,3 +182,50 @@ def test_the_boundary_marker_has_to_be_in_what_the_model_reads() -> None:
     )
     assert stuck.boundary_closed is False
     assert stuck.surface == ""
+
+
+def test_the_owning_clock_prices_the_thinking_too() -> None:
+    """It is added on the far side of every deadline calculation here.
+
+    So each of them was pricing a generation smaller than the one that runs,
+    and this is the clock that owns the turn: its underestimate is the one
+    nothing below can recover from. Live on 2026-08-28 the gate raised its
+    deadline to 341 seconds, the worker was still writing at 17:10:58, and the
+    turn had already given up at 17:10:13.
+    """
+
+    from core.brain.cognitive_engine import _time_the_answer_needs
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+
+    question = "Walk me through reviving a sourdough starter and how to know it is ready."
+    without = _time_the_answer_needs(question)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
+    with_thinking = _time_the_answer_needs(question)
+
+    assert without > 0.0
+    assert with_thinking > without, (without, with_thinking)
+
+
+def test_a_user_facing_turn_may_reach_the_same_ceiling_as_the_wait() -> None:
+    """The cap depended on the caller having named a timeout.
+
+    Nobody names one for an ordinary question, so an ordinary question was
+    held to 240 seconds while the wait it is nested inside already allowed
+    480 and the machinery below it agreed the answer needed longer.
+    """
+
+    import inspect
+
+    from core.brain import cognitive_engine
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    source = inspect.getsource(cognitive_engine)
+    marker = "cycle_timeout_cap = response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S"
+    assert marker in source
+    condition = source[source.rindex("if ", 0, source.index(marker)) : source.index(marker)]
+    assert "explicit_timeout" not in condition, condition
+    assert USER_FACING_COMPLETION_DEADLINE_MAX_S > cognitive_engine._DEFAULT_COGNITIVE_CYCLE_MAX_S
