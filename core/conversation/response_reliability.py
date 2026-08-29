@@ -7404,14 +7404,16 @@ _INTERNAL_TASK_PROMPT_RE = re.compile(
 )
 
 
-def _has_internal_task_prompt_leak(reply_text: Any) -> bool:
+def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
     body = str(reply_text or "")
     if _INTERNAL_TASK_PROMPT_RE.search(body):
         return True
     try:
         from core.utils.an_answer import talks_about_the_asking
 
-        if talks_about_the_asking(body):
+        # The person's own words go with it. They can make a user the subject
+        # of the question, and then answering about that user is answering.
+        if talks_about_the_asking(body, str(asked or "")):
             # Commentary about answering, arriving where an answer should be.
             # Fluent, on topic and well formed, so nothing measuring shape
             # catches it. LIVE 2026-08-27, in full, to "What is 17 times 23?":
@@ -8104,7 +8106,7 @@ def _model_text_integrity_reasons(
             reasons.append("runtime_boilerplate")
         if _KNOWN_CORRUPT_RE.search(raw):
             reasons.append("corrupted_language")
-        if _has_internal_task_prompt_leak(raw):
+        if _has_internal_task_prompt_leak(raw, prompt):
             reasons.append("internal_task_prompt_leak")
         if _GENERIC_ASSISTANT_RE.search(raw):
             reasons.append("generic_assistant_language")
@@ -8178,7 +8180,7 @@ def _model_text_integrity_reasons(
         # sentence repeated word for word is the thing that separates them.
         # Paired with repair_verbatim_repeats, so the person keeps the answer.
         reasons.append("verbatim_statement_repeat")
-    if _has_internal_task_prompt_leak(raw) and not _matches_strict_answer_tag_request(
+    if _has_internal_task_prompt_leak(raw, prompt) and not _matches_strict_answer_tag_request(
         prompt, raw
     ):
         # An <answer> tag is protocol scaffolding when it leaks out of an

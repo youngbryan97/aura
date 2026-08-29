@@ -125,3 +125,92 @@ def test_a_plural_or_absent_subject_is_still_a_plan():
 
     assert talks_about_the_asking("We must answer the user with the requested content.") is True
     assert talks_about_the_asking("Need to answer the user before the contract expires.") is True
+
+
+class TestAPreviousReplyIsSomethingTheReaderSaw:
+    """The rule is about attempts nobody was shown, not about the conversation.
+
+    LIVE 2026-08-29: asked "Who needs to get their act together?" after a reply
+    with a vague referent, the runtime's own context repair answered by quoting
+    the exchange — "The last reply I need to account for was: ..." — because
+    when the question is who you meant, the previous turn IS the subject. That
+    was judged as commentary about answering, the repair returned None, and the
+    turn had nothing to serve.
+    """
+
+    def test_quoting_the_previous_turn_is_how_you_answer_who_did_you_mean(self):
+        assert (
+            talks_about_the_asking(
+                'The last reply I need to account for was: "Yeah, hopefully soon."'
+            )
+            is False
+        )
+        assert (
+            talks_about_the_asking(
+                "In my last answer I meant the people on your team, "
+                "not a separate group."
+            )
+            is False
+        )
+
+    def test_an_attempt_the_reader_never_saw_is_still_caught(self):
+        assert talks_about_the_asking("Previous draft failed for missing numeric answer.") is True
+        assert talks_about_the_asking("My earlier attempt was rejected.") is True
+
+    def test_a_reply_treated_as_a_failed_internal_one_is_caught(self):
+        """The word is innocent; what the sentence does with it is not."""
+
+        assert (
+            talks_about_the_asking("My last reply failed the contract, so here is another.")
+            is True
+        )
+
+
+class TestAUserThePersonPutInTheQuestion:
+    """They can make a user the subject, and then answering about one is answering.
+
+    LIVE 2026-08-29, to "In two sentences, describe how you'd decide whether to
+    use Notes or Google Docs for a user writing task": "I would use Google Docs
+    when the user needs cloud editing, sharing, or a polished longer document."
+    Read as a leak, it was repaired deterministically, the repair counted as
+    runtime-authored text, the full-mind contract failed on that, and the person
+    got "I couldn't get my full attention onto that one" instead of the two
+    sentences they had asked for.
+    """
+
+    QUESTION = (
+        "Don't execute tools. In two sentences, describe how you'd decide "
+        "whether to use Notes or Google Docs for a user writing task."
+    )
+    ANSWER = (
+        "I would use Google Docs when the user needs cloud editing, sharing, "
+        "or a polished longer document."
+    )
+
+    def test_the_question_licenses_the_noun(self):
+        assert talks_about_the_asking(self.ANSWER, self.QUESTION) is False
+
+    def test_without_that_question_the_same_sentence_is_still_a_leak(self):
+        """Nothing in the reply alone tells a hypothetical user from a leaked one."""
+
+        assert talks_about_the_asking(self.ANSWER, "What is 17 times 23?") is True
+        assert talks_about_the_asking(self.ANSWER) is True
+
+    def test_talk_about_this_exchange_is_caught_whatever_they_asked(self):
+        """No subject matter turns reporting the turn back into an answer."""
+
+        for said in (
+            'We need answer user\'s current message: "which one?"',
+            "The user asked about Notes, so I will answer that.",
+            "The user's request was for two sentences.",
+        ):
+            assert talks_about_the_asking(said, self.QUESTION) is True, said
+
+    def test_the_whole_assessment_passes_the_reply_now(self):
+        from core.conversation.response_reliability import assess_user_facing_reply
+
+        two_sentences = (
+            "I would use Notes for a quick local note. " + self.ANSWER
+        )
+        assessment = assess_user_facing_reply(self.QUESTION, two_sentences)
+        assert not getattr(assessment, "reasons", ())

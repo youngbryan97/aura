@@ -77,17 +77,42 @@ def was_cut_off(said: str) -> bool:
 #: A reply speaks TO someone. There is no third party in it called "the user",
 #: and nothing in an answer needs to say what the user asked — the user knows.
 #: Text that does is commentary about the exchange rather than the exchange.
-_ABOUT_THE_ASKING = re.compile(
-    # "the user" as a PARTICIPANT: followed by something it does, or by the
-    # end of its clause. "The user interface is on the left" is followed by a
-    # noun, and is an ordinary sentence about a thing.
-    r"\bthe\s+user\s+(?:is|was|has|had|will|would|asks?|asked|wants?|wanted"
-    r"|says?|said|needs?|expects?|means?|meant)\b"
-    r"|\bthe\s+user\s*[,.;?!]"
-    # "the user's message", which is only ever said about an exchange.
-    r"|\buser's\s+(?:current\s+)?"
+#: "the user" as a participant in THIS exchange, which is what a private plan
+#: writes and a reply never does. Split in two: one half survives the person
+#: making a user their subject, the other does not.
+#:
+#: Always: talk about the exchange. "The user's current message", "the user
+#: asked" — these report the turn back to the person who took it, and no
+#: subject matter makes that an answer.
+_ABOUT_THIS_EXCHANGE = re.compile(
+    r"\buser's\s+(?:current\s+)?"
     r"(?:message|question|request|query|words|input|prompt|turn)\b"
-    r"|\buser\s+(?:asks?|asked|wants?|says?|is\s+asking)\b",
+    r"|\bthe\s+user\s+(?:asks?|asked|says?|said|is\s+asking)\b"
+    r"|\buser\s+(?:asks?|asked|says?|is\s+asking)\b",
+    re.IGNORECASE,
+)
+
+#: Unless the person put a user there themselves: "the user" doing or wanting
+#: something, or ending its own clause.
+#:
+#: LIVE 2026-08-29, to "In two sentences, describe how you'd decide whether to
+#: use Notes or Google Docs for a user writing task": "I would use Google Docs
+#: when the user needs cloud editing, sharing, or a polished longer document."
+#: That is the question's own noun, answered. Read as a leak, it was repaired
+#: deterministically, the repair counted as runtime-authored text, the
+#: full-mind contract failed on that, and the person got "I couldn't get my
+#: full attention onto that one" instead of the two sentences they asked for.
+_ABOUT_A_USER = re.compile(
+    r"\bthe\s+user\s+(?:is|was|has|had|will|would|wants?|wanted"
+    r"|needs?|expects?|means?|meant)\b"
+    r"|\bthe\s+user\s*[,.;?!]"
+    r"|\buser\s+(?:wants?)\b",
+    re.IGNORECASE,
+)
+
+#: The person's own words making a user the subject rather than the addressee.
+_THEY_NAMED_A_USER = re.compile(
+    r"\b(?:a|an|the|any|each|every|some|another|end)\s+users?\b|\busers\b",
     re.IGNORECASE,
 )
 
@@ -120,9 +145,22 @@ _SHE_IS_THE_SUBJECT = re.compile(
 #: carry content.
 _ENOUGH_TO_BE_MORE_THAN_AN_ANNOUNCEMENT = 5
 
-#: And how it refers to its own attempts, which a reader was never shown.
+#: An attempt the reader was never shown, which is what this rule is for —
+#: and NOT a previous reply, which the reader watched arrive.
+#:
+#: "Previous draft failed for missing numeric answer" is internal bookkeeping.
+#: "The last reply I need to account for was ..." is how anyone answers "who
+#: did you mean?", and the runtime's own context repair is written that way:
+#: it quotes the exchange because the exchange is the subject. Judged as
+#: commentary, that repair returned None and the turn had nothing to serve.
+#:
+#: So draft and attempt are caught under any of the four adjectives, and a
+#: reply or answer only when the sentence goes on to treat it as a failed
+#: internal one.
 _ABOUT_ITS_OWN_ATTEMPTS = re.compile(
-    r"\b(?:previous|earlier|last|first)\s+(?:draft|attempt|response|reply|answer)\b"
+    r"\b(?:previous|earlier|last|first)\s+(?:draft|attempt)\b"
+    r"|\b(?:previous|earlier|last|first)\s+(?:response|reply|answer)\s+"
+    r"(?:failed|was\s+rejected|was\s+refused|did\s+not|was\s+missing)\b"
     r"|\bdraft\s+(?:failed|was\s+rejected|did\s+not)\b"
     r"|\b(?:the\s+)?contract\s+(?:says|requires|demands)\b"
     r"|\bwe\s+(?:need|must)\s+(?:to\s+)?(?:answer|return|produce|give|reply)\b",
@@ -130,7 +168,7 @@ _ABOUT_ITS_OWN_ATTEMPTS = re.compile(
 )
 
 
-def talks_about_the_asking(said: str) -> bool:
+def talks_about_the_asking(said: str, asked: str = "") -> bool:
     """Whether this is commentary about answering rather than an answer.
 
     A model that has been handed a scaffold and a failed draft will sometimes
@@ -149,11 +187,23 @@ def talks_about_the_asking(said: str) -> bool:
     there is no third party in it called "the user", and nothing in an answer
     needs to report what the user asked, because the user knows. The same goes
     for its own earlier attempts, which the reader was never shown.
+
+    ``asked`` is the person's own words, and it matters for one case: they can
+    put a user in the question themselves — "how would you decide, for a user
+    writing task" — and then a reply that says "when the user needs cloud
+    editing" is answering, not leaking. Talk about THIS exchange is caught
+    either way, because no subject matter turns "the user's current message"
+    into an answer.
     """
     body = str(said or "")
     if not body.strip():
         return False
-    if _ABOUT_THE_ASKING.search(body) or _ABOUT_ITS_OWN_ATTEMPTS.search(body):
+    if _ABOUT_THIS_EXCHANGE.search(body) or _ABOUT_ITS_OWN_ATTEMPTS.search(body):
+        return True
+    # A user the person themselves put in the question is subject matter, and
+    # answering about them is answering. Only they can license it: nothing in
+    # the reply alone tells a hypothetical user from a leaked one.
+    if _ABOUT_A_USER.search(body) and not _THEY_NAMED_A_USER.search(str(asked or "")):
         return True
     for found in _DOING_THE_JOB.finditer(body):
         if not _SHE_IS_THE_SUBJECT.search(body[: found.start()]):
