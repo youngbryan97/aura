@@ -1236,38 +1236,43 @@ async def _why_nothing_answers(
     return "Nothing I do is changing anything here — this attempt is over."
 
 
-def _covers(window: Any, over: tuple[float, float, float, float], screen: Any) -> bool:
-    """Whether a window actually overlaps the part of the screen she is using.
+def _covers(
+    window: Any, over: tuple[float, float, float, float], mine: tuple[int, int, int, int]
+) -> bool:
+    """Whether a window actually overlaps the part of her window she is using.
 
     Being above her window is not the same as being in her way. A notification
     banner sits in a corner; the thing she is acting on is somewhere else, and
     nothing about the banner stops her.
+
+    ``over`` is a band, and a band means a share of the WINDOW she is driving —
+    that is the space read_screen measures in, deliberately, so that a band is
+    portable across window sizes and monitors. So the overlay's rectangle,
+    which the window server gives in screen pixels, is put into that same space
+    before the two are compared. Measured against the screen instead, a banner
+    halfway down the display reads as sitting on a board halfway down a window
+    that starts lower, and the answer is wrong in both directions.
     """
     try:
-        import Quartz  # noqa: PLC0415
-
         bounds = window.get("kCGWindowBounds") or {}
         if not bounds:
             # No bounds is not a window of no size. It is a window she cannot
             # place, and she cannot place it in front of or beside anything.
             return True
-        box = Quartz.CGRectMake(
-            float(bounds.get("X", 0.0)), float(bounds.get("Y", 0.0)),
-            float(bounds.get("Width", 0.0)), float(bounds.get("Height", 0.0)),
-        )
-    except (ImportError, AttributeError, TypeError, ValueError, KeyError):
+        x, y = float(bounds.get("X", 0.0)), float(bounds.get("Y", 0.0))
+        wide, tall = float(bounds.get("Width", 0.0)), float(bounds.get("Height", 0.0))
+    except (AttributeError, TypeError, ValueError, KeyError):
         # Unreadable bounds mean she cannot tell, and cannot tell is in the way.
         return True
-    wide = float(screen.size.width or 0.0)
-    tall = float(screen.size.height or 0.0)
-    if wide <= 0.0 or tall <= 0.0:
+    ox, oy, ow, oh = (float(edge) for edge in mine)
+    if ow <= 0.0 or oh <= 0.0:
         return True
     left, top, right, bottom = over
     return not (
-        box.origin.x / wide >= right
-        or (box.origin.x + box.size.width) / wide <= left
-        or box.origin.y / tall >= bottom
-        or (box.origin.y + box.size.height) / tall <= top
+        (x - ox) / ow >= right
+        or (x + wide - ox) / ow <= left
+        or (y - oy) / oh >= bottom
+        or (y + tall - oy) / oh <= top
     )
 
 
@@ -1306,7 +1311,7 @@ async def _everything_on_top(
         windows = Quartz.CGWindowListCopyWindowInfo(
             Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID
         )
-        screen = Quartz.CGDisplayBounds(Quartz.CGMainDisplayID()) if over else None
+        hers = await window_bounds(mine) if over else None
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "screen_pursuit", exc, severity="info", action="could not see what is on top"
@@ -1324,7 +1329,7 @@ async def _everything_on_top(
         # including hers, whatever claims to be frontmost.
         if not (0 < layer < ABOVE_EVERYTHING and owner and owner.lower() != ours):
             continue
-        if over is not None and not _covers(window, over, screen):
+        if over is not None and hers and not _covers(window, over, hers):
             continue
         above.append(owner)
     return tuple(sorted(set(above), key=above.index))
