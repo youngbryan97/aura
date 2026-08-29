@@ -107,7 +107,7 @@ invisible to them. Latency is the single largest product defect in the system.
 
 | Scale | What they need | Holds? |
 |---|---|---|
-| Small | Tests with every change; no bare excepts; no dead code; typed | yes — 44k tests, ratchets, `make` gates |
+| Small | Tests with every change; no bare excepts; no dead code; typed | yes — ~40k tests, ratchets, `make` gates |
 | Medium | One owner per judgement; layering; observability; no duplicated logic | partly — layering gate exists; duplicated judgements were the top defect class all day |
 | Large | Can I reason about and safely change this? | **no** — `inference_gate.py` and `mlx_client.py` are both five figures of lines |
 

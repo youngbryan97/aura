@@ -179,7 +179,7 @@ question, and building all three doesn't adjudicate between them.
 What it tests is our *implementations*. Useful engineering. Settles no
 philosophy.
 
-The stack runs to 136 modules. Here are the ones holding weight:
+The stack runs to 157 modules. Here are the ones holding weight:
 
 ### Global workspace (attention)
 

@@ -1592,7 +1592,7 @@ partially applied.
 
 ## 9.23 Self-modification engine
 
-**Directory**: `core/self_modification/` (17 modules)
+**Directory**: `core/self_modification/` (36 modules)
 
 The autonomous self-improvement pipeline, gated by the Unified Will.
 
@@ -2532,7 +2532,7 @@ a claim about instrumentation coverage, not about capability.
 
 ## 19. Recursive Latent Cortex: compute the checkpoint does not have
 
-**Files**: `core/brain/llm/latent_cortex/` (150 modules, worker-side, pure MLX,
+**Files**: `core/brain/llm/latent_cortex/` (156 modules, worker-side, pure MLX,
 lazy imports), `core/learning/intrinsic_recurrence.py`,
 `core/learning/unified_intrinsic_recurrence.py`,
 `core/learning/recurrent_action_schema.py`, `tools/latent_cortex_lab.py`,

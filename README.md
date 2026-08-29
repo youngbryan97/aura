@@ -745,7 +745,7 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 140 modules in `core/consciousness/`. The ones that do most of the
+There are 157 modules in `core/consciousness/`. The ones that do most of the
 load-bearing work:
 
 | Module | What it does | File |
