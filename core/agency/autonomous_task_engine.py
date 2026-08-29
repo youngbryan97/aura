@@ -1342,13 +1342,28 @@ Respond ONLY with a JSON array, no other text:
                     )
                 raise ValueError("LLM returned empty or None response")
 
-            # Extract JSON from response
-            start_idx = raw.find("[")
-            end_idx = raw.rfind("]") + 1
-            if start_idx == -1 or end_idx == 0:
-                raise ValueError("No JSON array in response")
+            # The plan the model meant to write.
+            #
+            # This took the first "[" and the last "]" and hoped. A thinking
+            # block that mentions a bracket, prose around the JSON, a fenced
+            # block with a comment above it, a trailing comma — each one made
+            # the span wrong rather than absent, so the failure arrived as
+            # "Expecting ',' delimiter" at a column nobody could act on.
+            #
+            # From this planner's own log: 24 empty responses, 15 "No JSON
+            # array in response", and a run of delimiter errors at the same
+            # column. Every one fell through to a single generic step, and 102
+            # of 106 completed plans then read "Success=True (1/1 steps)"
+            # whatever the goal was.
+            #
+            # The runtime's own JSON reader, which already strips markdown,
+            # scans balanced spans and repairs smart quotes and trailing
+            # commas. A third parser here would drift from the two that exist.
+            from core.utils.json_utils import extract_json_list
 
-            steps_data = json.loads(raw[start_idx:end_idx])
+            steps_data = extract_json_list(raw)
+            if not steps_data:
+                raise ValueError("No JSON array in response")
             steps = []
             for i, s in enumerate(steps_data[: max_steps]):
                 tool_name = s.get("tool", "think")

@@ -23,6 +23,56 @@ def extract_json(text: Optional[str], brain: Any = None) -> Dict[str, Any]:
         return repairer.parse_sync(text)
 
 
+def extract_json_list(text: Optional[str]) -> List[Any]:
+    """The list a model meant to write, or an empty one.
+
+    ``extract_json`` returns an object, and some answers are a list: a plan is
+    a sequence of steps. The caller that needed one was finding the first "["
+    and the last "]" and hoping — which breaks on a thinking block, on prose
+    that mentions a bracket, and on a fenced block that puts a comment above
+    the JSON.
+
+    LIVE 2026-08-29, from the autonomous planner's own log: 24 empty responses,
+    15 "No JSON array in response", and a run of "Expecting ',' delimiter" at
+    the same column. Each one fell through to a single generic step, and 102
+    of 106 completed plans then read "Success=True (1/1 steps)" whatever the
+    goal was.
+
+    Same machinery as the object path — the markdown strip, the balanced-span
+    scan, the smart-quote and trailing-comma repair — so a third parser does
+    not drift away from the two that exist. A single object comes back as a
+    one-element list, because a model asked for a list of one usually writes
+    the one.
+    """
+
+    healer = SelfHealingJSON()
+    body = healer._strip_markdown(text)
+    if not body:
+        return []
+    for attempt in (body, healer._heuristic_repair(body)):
+        try:
+            found = json.loads(attempt)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(found, list):
+            return found
+        if isinstance(found, dict):
+            return [found]
+    # Longest balanced span first: a nested array inside the real one is a
+    # candidate too, and the outer one is the answer.
+    for candidate in sorted(healer._find_json_candidates(body), key=len, reverse=True):
+        for attempt in (candidate, healer._heuristic_repair(candidate)):
+            try:
+                found = json.loads(attempt)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(found, list):
+                return found
+            if isinstance(found, dict):
+                return [found]
+    return []
+
+
 class SelfHealingJSON:
     """Robust JSON Parser (The 'Optimizer').
     Pipeline: Standard -> Regex Heuristics -> LLM Reflection.
