@@ -128,8 +128,20 @@ related unseen tasks (a three-deep question answerable only because the
 previous turn happened); create and reuse a new procedure (the refactored run,
 derived from solutions, validated on held-out lengths, reused).
 
-Remaining: operate unfamiliar SaaS; book something free; teach herself a
-tool/API from docs; open-ended research project; scientific reasoning loop;
+Proven live 2026-08-29: **teach herself a tool/API from docs.** Given a path
+she had never seen, she listed it, read API.md, read the module, wrote code
+against the real signatures, corrected herself twice from the pre-flight's
+messages, ran it, and wrote the answer herself: "Posted the invoice:
+post(date="2026-03-01", debit="Accounts Receivable", credit="Revenue",
+amount_cents=25_000) → returned entry id 1 ... Accounts Receivable +25,000 /
+Revenue −25,000. Sum: 0 — the ledger balances, as trial_balance() promises for
+a consistent one. (Per the API docs, debits are positive and credits negative
+in signed cents.) One note: everything is in-memory per the docs — nothing was
+written to disk, so this ledger only exists for that run." The last clause was
+not asked for.
+
+Remaining: operate unfamiliar SaaS; book something free; open-ended research
+project; scientific reasoning loop;
 novel computer task with no dedicated skill; multi-tool coordination on an
 underspecified goal; recover from a mistaken assumption unaided; improve
 measurably on related unseen tasks; create and reuse a new procedure; competing
@@ -711,3 +723,39 @@ of the machine answering a question it had itself made unanswerable.
   the Cortex is resident — the floor is 22GB free and steady state is ~20GB. The
   gate is doing its job; the consequence is that every background thought is
   served by the smallest model on the machine, and nothing says so out loud.
+
+## The ledgerkit turn, closed (2026-08-29)
+
+Eleven breaks between "read these docs and use the library" and an answer on
+screen. Each one was found live, and every one of them was a mechanism that
+was right about its own scope and wrong about the whole.
+
+1. A fenced block sent to the interpreter is a syntax error.
+2. Syntax, undefined names and calls the library does not define each cost a
+   whole execution to discover.
+3. `import sys; sys.path.insert(...)` — the idiom everywhere except inside a
+   runner that had already made the library importable.
+4. That removal read only the top level, and the model had written the
+   preamble inside a try.
+5. Blanking the only statement in a block leaves an `if` with no body.
+6. Naming a library replaced the standard library instead of adding to it, so
+   a ledger script could not `import json`.
+7. The pre-flight called `Tube` and `Q` undefined on code whose whole purpose
+   was to use them.
+8. The dispatcher's flat 120s killed a sandbox allowed 180, returning neither
+   the output nor the reason.
+9. The salvage kept the first three receipts of five — the setup, not the
+   conclusion.
+10. A wait bounded at three times one step's budget cut a loop that was
+    producing 0.2s earlier; then a flat 480s ceiling cut one that was
+    composing its answer.
+11. The answer's authorship was published on the object that generated it and
+    checked on a different one, so the turn refused its own work — then, once
+    that was proven, refused it again on two bookkeeping proofs that the other
+    exit had always disclosed.
+
+**J1–J6 status.** J1 is closed by the sandbox's own refusal naming what is
+available. J3 is closed. J4's measured sites are closed (research_history's
+fsync off the loop; the lane-state guard names its caller and no longer logs
+under the lock). J5 is closed: `test_server_conversation_lane` is 382 passing.
+J2 and J6 remain.
