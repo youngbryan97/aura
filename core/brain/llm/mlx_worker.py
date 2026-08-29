@@ -9183,6 +9183,46 @@ def _mlx_worker_loop(
                                             ):
                                                 _answered += _piece.text
                                                 token_count += 1
+                                                # Say so, the way the first
+                                                # pass does.
+                                                #
+                                                # This loop writes the answer
+                                                # the person reads, and it
+                                                # counted its tokens without
+                                                # telling anyone. The parent
+                                                # watches token progress to
+                                                # tell a working generation
+                                                # from a wedged one, so the
+                                                # whole answer pass looked
+                                                # like silence — and at two
+                                                # thousand tokens on a 27B it
+                                                # is minutes of it.
+                                                #
+                                                # LIVE 2026-08-29: "Token
+                                                # progress stalled during
+                                                # generation (>40.0s)" beside
+                                                # "Cortex still sending
+                                                # heartbeats (2.2s ago)",
+                                                # twice, on a question about
+                                                # why turns were slow.
+                                                _second_pass_now = time.time()
+                                                if _should_emit_generation_progress(
+                                                    token_count,
+                                                    last_emit_at=last_progress_emit_at,
+                                                    now=_second_pass_now,
+                                                ):
+                                                    ipc_writer.put(
+                                                        {
+                                                            "id": job.get("id"),
+                                                            "action": "generate",
+                                                            "status": "progress",
+                                                            "tokens_generated": token_count,
+                                                            "timestamp": _second_pass_now,
+                                                        }
+                                                    )
+                                                    last_progress_emit_at = (
+                                                        _second_pass_now
+                                                    )
                                             current_response = (
                                                 f"{_reasoning_so_far}</think>\n{_answered}"
                                             )
