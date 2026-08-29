@@ -22813,21 +22813,39 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                     _live_turn_trace["desktop_internal_artifact_draft_path"] = str(
                                         candidate_contract.get("response_path") or reply_source
                                     )[:120]
-                                _owner_receipt: dict[str, Any] = {}
+                                # Every receipt ownership can be proven from,
+                                # and the token evidence each one carries.
+                                #
+                                # Naming only the first found reported "present,
+                                # tokens unset" while another receipt might have
+                                # held the count — which is the same ambiguity
+                                # this line exists to remove.
+                                _owner_evidence = []
                                 for _receipt_key in (
                                     "live_mind_surface_control_receipt",
                                     "surface_control_receipt",
+                                    "latent_cortex_receipt",
                                 ):
                                     _found = candidate_contract.get(_receipt_key)
-                                    if isinstance(_found, dict) and _found:
-                                        _owner_receipt = _found
-                                        break
+                                    if not isinstance(_found, dict) or not _found:
+                                        continue
+                                    _owner_evidence.append(
+                                        "{}(tokens={},decode={},attempts={},applied={})".format(
+                                            _receipt_key.replace(
+                                                "_surface_control_receipt", ""
+                                            ),
+                                            _found.get("generated_tokens", "-"),
+                                            _found.get("decode_generated_tokens", "-"),
+                                            _found.get("surface_quality_gate_attempts", "-"),
+                                            _found.get("applied", "-"),
+                                        )
+                                    )
                                 logger.error(
                                     "Desktop CognitiveEngine candidate did not prove authorship "
                                     "(missing: %s); failing closed instead of serving repair "
                                     "text as Aura speech. path=%s generations=%s "
                                     "completion_retries=%s repair_attempts=%s consumed=%s "
-                                    "receipt=%s tokens=%s",
+                                    "ownership_evidence=[%s] receipts=%d",
                                     ",".join(
                                         candidate_contract.get("full_mind_missing_proofs") or ()
                                     ),
@@ -22857,8 +22875,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                     # one that arrived empty read identically
                                     # without it, and they are different faults
                                     # with different fixes.
-                                    "present" if _owner_receipt else "absent",
-                                    _owner_receipt.get("generated_tokens", "unset"),
+                                    "; ".join(_owner_evidence) or "no receipt",
+                                    len(_owner_evidence),
                                 )
                                 reply_text = None
                                 reply_source = ""
