@@ -97,6 +97,10 @@ def look_ahead(
     if trust <= 0.0:
         return {}
 
+    # NOT bound to what the superlative names right now. Measured, and it
+    # costs half her play. See `bound_to` for the reasoning and the numbers
+    # that refute it: a superlative in a line is meant to float.
+
     started = time.monotonic()
     fixed_depth = bool(depth)
     depth = depth or how_deep_to_look(len(actions), budget_s, branching=max(2, len(actions)))

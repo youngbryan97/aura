@@ -37,7 +37,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Sequence
 
-__all__ = ["ROOM_MATTERS", "how_good", "worth_comparing"]
+__all__ = ["ROOM_MATTERS", "bound_to", "how_good", "worth_comparing"]
 
 #: What having somewhere left to act is worth, beside being closer to the goal
 #: and beside holding the line she said she would hold. Small on purpose: room
@@ -70,6 +70,46 @@ _A_SUPERLATIVE = re.compile(
     r"|(?P<least>smallest|lowest|least|fewest|min|minimum))\b",
     re.IGNORECASE,
 )
+
+
+def bound_to(approach: str, state: Any) -> str:
+    """The line she is holding, with any superlative bound to what it names here.
+
+    NOT USED BY THE SEARCH, and the reason is worth keeping.
+
+    The argument for it is good. "The largest" names a specific thing once she
+    has looked at a state — the one sitting in the corner right now, not
+    whichever turns out biggest in some future a search has only imagined.
+    Left unbound, a multi-step search re-reads the word against every state it
+    tries, so a merge that makes something bigger elsewhere reads as losing
+    the line rather than as leaving the thing she meant untouched.
+
+    Measured 2026-08-29, five games each run to a dead board, the same seeds:
+
+        her line + the world model      without binding      with binding
+        median best tile                       1024                  512
+        best seen                              2048                 1024
+        total                                  2142                 1658
+        moves                                  1069                  827
+
+    Half her play. In a world that combines, the superlative is MEANT to
+    float: a line about keeping the largest in a corner is about whatever is
+    largest as the game goes on, and binding it to the 128 that was there when
+    the line was formed means that the moment she merges past it, the line
+    names something that no longer exists and contributes nothing.
+
+    Kept, because the argument survives the measurement for worlds where the
+    extreme thing does not change — a seating plan, a price list, a leaderboard
+    between updates. Wire it there, measure it there, and do not assume.
+    """
+    said = str(approach or "")
+    found = _A_SUPERLATIVE.search(said)
+    if not found:
+        return said
+    wanted = _least(state) if found.group("least") else _biggest(state)
+    if wanted <= 0:
+        return said
+    return f"{said[:found.start()]}{wanted:g}{said[found.end():]}"
 
 
 def worth_comparing(toward: str, approach: str) -> bool:
