@@ -532,9 +532,22 @@ async def _await_while_it_is_working(
         quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
     except (ImportError, AttributeError, TypeError, ValueError):
         quiet_for = normal_gap_between_tokens()
-    ends_at = time.monotonic() + max(
-        0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s)
+    # How far past the budget this may go is proportional to the budget.
+    #
+    # It used to be "up to the user-facing ceiling", which is right for a turn
+    # and catastrophic for a probe: a two-second health check waited eight
+    # minutes, the inference probe never returned, and the runtime sat in
+    # CRITICAL with conversation recovering — blockers runtime_required_probes,
+    # probe:inference, critical:inference_gate.
+    #
+    # A caller that asked for two seconds is not asking to be waited on for
+    # eight minutes; one that asked for two minutes is. The ceiling still caps
+    # the whole thing.
+    overrun = min(
+        max(0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s)),
+        max(0.0, float(budget_s) * 3.0),
     )
+    ends_at = time.monotonic() + overrun
     said_it_once = False
     while time.monotonic() < ends_at:
         if not still_producing(within_s=quiet_for):

@@ -452,3 +452,39 @@ def test_the_cycle_clock_holds_a_started_turn_to_its_ceiling_only() -> None:
     assert asyncio.run(run(any_sign_of_work=True)) >= 1
     # A turn that has never produced anything is not this clock's to hold.
     assert asyncio.run(run(any_sign_of_work=False)) == 0
+
+
+def test_a_short_budget_is_not_waited_on_for_minutes() -> None:
+    """How far past the budget a wait may go is proportional to the budget.
+
+    It used to be "up to the user-facing ceiling", which is right for a turn
+    and catastrophic for a probe: a two-second health check waited eight
+    minutes, the inference probe never returned, and the runtime sat in
+    CRITICAL with conversation recovering — blockers runtime_required_probes,
+    probe:inference, critical:inference_gate.
+    """
+
+    import asyncio
+    import time as _time
+
+    import pytest
+
+    from core.brain.llm_health_router import _await_while_it_is_working
+
+    async def never_finishes_but_keeps_working() -> str:
+        while True:
+            await asyncio.sleep(0.05)
+            note_progress()
+
+    async def run() -> float:
+        forget_progress()
+        note_progress()
+        started = _time.monotonic()
+        with pytest.raises(TimeoutError):
+            await _await_while_it_is_working(
+                never_finishes_but_keeps_working(), budget_s=0.2, user_facing=True
+            )
+        return _time.monotonic() - started
+
+    # 0.2s asked for, so at most 0.2 + 3*0.2 plus a slice — not eight minutes.
+    assert asyncio.run(run()) < 10.0
