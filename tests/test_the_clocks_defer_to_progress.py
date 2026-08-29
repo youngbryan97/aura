@@ -257,3 +257,78 @@ def test_reading_the_prompt_counts_as_working() -> None:
         source.index("self._mark_prefill_progress(")
     ]
     assert "note_progress" in prefill_branch, prefill_branch
+
+
+def test_the_wall_clock_watchdog_re_arms_while_work_is_arriving() -> None:
+    """It exists for a blocked event loop, and a blocked loop reports nothing.
+
+    So the same signal that says a turn is alive is the one that says this
+    watchdog is needed, and firing on elapsed time alone could not tell the
+    two apart. The case it kept meeting was the healthy one.
+    """
+
+    import time as _time
+
+    from core.brain.llm_health_router import _start_endpoint_wall_clock_watchdog
+
+    class _Client:
+        def __init__(self) -> None:
+            self.aborted = False
+
+    client = _Client()
+    forget_progress()
+    note_progress()
+
+    fired, aborted, handle = _start_endpoint_wall_clock_watchdog(
+        client, reason="test", timeout_s=0.15, user_facing=True
+    )
+    try:
+        # Keep reporting work for longer than the original budget.
+        for _ in range(6):
+            _time.sleep(0.05)
+            note_progress()
+        assert fired.is_set() is False
+        assert aborted["value"] is False
+    finally:
+        handle.cancel()
+
+
+def test_it_still_aborts_a_turn_that_reports_nothing() -> None:
+    """The case it was written for survives."""
+
+    import time as _time
+
+    from core.brain.llm_health_router import _start_endpoint_wall_clock_watchdog
+
+    class _Client:
+        pass
+
+    forget_progress()
+    fired, _aborted, handle = _start_endpoint_wall_clock_watchdog(
+        _Client(), reason="test", timeout_s=0.05, user_facing=True
+    )
+    try:
+        _time.sleep(0.4)
+        assert fired.is_set() is True
+    finally:
+        handle.cancel()
+
+
+def test_background_work_keeps_the_plain_watchdog() -> None:
+    import time as _time
+
+    from core.brain.llm_health_router import _start_endpoint_wall_clock_watchdog
+
+    class _Client:
+        pass
+
+    forget_progress()
+    note_progress()
+    fired, _aborted, handle = _start_endpoint_wall_clock_watchdog(
+        _Client(), reason="test", timeout_s=0.05, user_facing=False
+    )
+    try:
+        _time.sleep(0.3)
+        assert fired.is_set() is True
+    finally:
+        handle.cancel()

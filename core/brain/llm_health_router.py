@@ -714,12 +714,37 @@ def _force_abort_endpoint_client(client: Any, *, reason: str) -> bool:
         return False
 
 
+class _WatchdogHandle:
+    """Cancels whichever timer is currently armed.
+
+    The watchdog re-arms itself while the turn is producing, so the object the
+    caller holds has to cancel the LATEST timer rather than the first one.
+    Handing back the first was how a rearming watchdog would have outlived the
+    request that started it.
+    """
+
+    def __init__(self, holder: dict[str, Any]) -> None:
+        self._holder = holder
+
+    def cancel(self) -> None:
+        self._holder["cancelled"] = True
+        timer = self._holder.get("timer")
+        if timer is not None:
+            timer.cancel()
+
+
+#: The longest a user-facing turn may run, mirrored here so the watchdog can be
+#: bounded without importing a policy module into a hot path.
+_USER_FACING_COMPLETION_CEILING_S = 480.0
+
+
 def _start_endpoint_wall_clock_watchdog(
     client: Any,
     *,
     reason: str,
     timeout_s: float,
-) -> tuple[threading.Event, dict[str, bool], threading.Timer]:
+    user_facing: bool = False,
+) -> tuple[threading.Event, dict[str, bool], "_WatchdogHandle"]:
     """Abort non-cooperative local inference on wall-clock time.
 
     ``asyncio.wait_for`` only fires when the awaited coroutine yields. The local
@@ -730,15 +755,44 @@ def _start_endpoint_wall_clock_watchdog(
 
     fired = threading.Event()
     aborted = {"value": False}
+    holder: dict[str, Any] = {}
+    ends_at = time.monotonic() + max(
+        float(timeout_s), float(_USER_FACING_COMPLETION_CEILING_S)
+    )
 
     def _abort() -> None:
+        # The reason this watchdog exists is a blocked event loop, and a
+        # blocked loop reports no tokens — so the same signal that says a
+        # turn is alive is exactly the one that says this watchdog is needed.
+        # Firing on elapsed time alone could not tell the two apart, and the
+        # case it kept meeting was the healthy one: a generation still writing
+        # the answer, killed for taking longer than a number set before anyone
+        # knew what the answer was.
+        if user_facing and time.monotonic() < ends_at:
+            try:
+                from core.runtime.turn_progress import (
+                    normal_gap_between_tokens,
+                    still_producing,
+                )
+
+                if still_producing(
+                    within_s=normal_gap_between_tokens()
+                ) and not holder.get("cancelled"):
+                    again = threading.Timer(5.0, _abort)
+                    again.daemon = True
+                    holder["timer"] = again
+                    again.start()
+                    return
+            except (ImportError, AttributeError, TypeError, ValueError):
+                pass
         fired.set()
         aborted["value"] = _force_abort_endpoint_client(client, reason=reason)
 
     watchdog = threading.Timer(max(0.01, float(timeout_s)), _abort)
     watchdog.daemon = True
+    holder["timer"] = watchdog
     watchdog.start()
-    return fired, aborted, watchdog
+    return fired, aborted, _WatchdogHandle(holder)
 
 
 _USER_FACING_ORIGINS = frozenset({
@@ -4076,6 +4130,7 @@ class HealthAwareLLMRouter:
                     ep.client,
                     reason=timeout_reason,
                     timeout_s=endpoint_budget,
+                    user_facing=not bool(is_bg),
                 )
                 try:
                     result = await _await_while_it_is_working(
