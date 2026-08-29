@@ -187,7 +187,9 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     return (x, y, width, height)
 
 
-async def read_screen(app_name: str = "") -> dict[str, Any]:
+async def read_screen(
+    app_name: str = "", over: tuple[float, float, float, float] | None = None
+) -> dict[str, Any]:
     """One reading: the words, and where they were.
 
     Scoped to `app_name`'s window when one is given, and this is not an
@@ -209,7 +211,19 @@ async def read_screen(app_name: str = "") -> dict[str, Any]:
     """
     from core.capabilities.host_automation import get_host_automation
 
-    bounds = await window_bounds(app_name) if app_name else None
+    window = await window_bounds(app_name) if app_name else None
+    # Read the thing at the size the thing is.
+    #
+    # A window is mostly not the task. Reading all of it spends the whole
+    # picture on tabs, an address bar, an advertising rail and a footer, and
+    # what is left for the part she is acting on is a few pixels a character —
+    # which is how a board drawn on a canvas comes back as scattered noise.
+    # LIVE 2026-08-29: 67 acts that moved something, and the best hypothesis
+    # got 5 of them right, on a board that was drawn perfectly well.
+    #
+    # Given the part she is using, only that part is read, so every pixel of
+    # the picture is spent on it.
+    bounds = _the_part_of(window, over) if (window and over) else window
     receipt = await get_host_automation().get_screen_text(
         region=bounds, retain_screenshot=False
     )
@@ -220,8 +234,26 @@ async def read_screen(app_name: str = "") -> dict[str, Any]:
         "error": str(getattr(receipt, "error", "") or ""),
         "scoped_to": app_name if bounds else "",
         "bounds": list(bounds) if bounds else [],
+        # What the positions in the layout are shares OF. A caller that asked
+        # for part of a window gets positions within that part, and saying so
+        # is what stops a band being applied twice.
+        "read_within": "the part" if (window and over) else "the window",
         "at": time.time(),
     }
+
+
+def _the_part_of(
+    window: tuple[int, int, int, int], over: tuple[float, float, float, float]
+) -> tuple[int, int, int, int]:
+    """The pixels of a window that a band names."""
+    x, y, wide, tall = (int(edge) for edge in window)
+    left, top, right, bottom = over
+    return (
+        x + int(left * wide),
+        y + int(top * tall),
+        max(1, int((right - left) * wide)),
+        max(1, int((bottom - top) * tall)),
+    )
 
 
 def _matches(pattern: str, text: str, *, whole_region: bool = False) -> bool:
@@ -1597,7 +1629,7 @@ async def pursue_on_screen(
                 )
         try:
             return await asyncio.wait_for(
-                read_screen(target_app), timeout=OBSERVE_TIMEOUT_S
+                read_screen(target_app, over=drawn["where"]), timeout=OBSERVE_TIMEOUT_S
             )
         except TimeoutError:
             # A wedged capture is not a reason to keep acting blind.
@@ -1870,7 +1902,11 @@ async def pursue_on_screen(
         # LIVE 2026-08-29: play2048.co draws its board on a canvas. She was
         # reading the whole screen and finding five of the sixteen places on
         # it, and no model ever formed.
-        band = drawn["where"] or responds["state"].band()
+        # Not applied twice. When the reading IS the part, every position in
+        # it is already a share of that part, and filtering again would cut
+        # the thing down by its own outline.
+        already = str(observation.get("read_within") or "") == "the part"
+        band = None if already else (drawn["where"] or responds["state"].band())
         seen = within(observation, band, responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
