@@ -112,6 +112,42 @@ def _nothing_has_ever_arrived() -> bool:
     except (ImportError, AttributeError, TypeError, ValueError):
         return False
 
+
+def _the_longest_this_turn_may_take(floor_s: float, *, user_facing: bool) -> float:
+    """The turn's ceiling, sized for this machine rather than fixed at 480.
+
+    The cycle already holds itself open while tokens are arriving; this is the
+    bound it stops at. A flat number cannot tell a turn that is running away
+    from one that is working, and on this host it stood below the cost of the
+    work: LIVE 2026-08-29, a turn dispatched code_repl seven minutes in and was
+    cut at exactly 480 seconds with the sandbox still running —
+    "reactive_recovery:timeout".
+
+    The same measurement the endpoint wait uses, so the two agree about how
+    long a turn of this shape costs here. It only ever raises the caller's
+    floor, and only for somebody who is waiting.
+    """
+
+    if not user_facing:
+        return float(floor_s)
+    try:
+        from core.brain.llm.mlx_client import longest_a_turn_may_take
+        from core.brain.llm_health_router import (
+            _A_TURNS_ANSWER_TOKENS,
+            _A_TURNS_PROMPT_CHARS,
+            _GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+        )
+
+        return longest_a_turn_may_take(
+            generations=_GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+            prompt_chars=_A_TURNS_PROMPT_CHARS,
+            max_tokens=_A_TURNS_ANSWER_TOKENS,
+            floor_s=float(floor_s),
+        )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return float(floor_s)
+
+
 async def _keep_the_cycle_open_while_it_is_working(
     clock: Any, *, ceiling_at: float, user_facing: bool
 ) -> None:
@@ -3580,8 +3616,14 @@ class CognitiveEngine:
                         _keep_the_cycle_open_while_it_is_working(
                             _cycle_clock,
                             ceiling_at=time.monotonic()
-                            + float(
-                                response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+                            + _the_longest_this_turn_may_take(
+                                float(
+                                    response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+                                ),
+                                user_facing=bool(
+                                    self._is_user_facing_origin(origin)
+                                    and not is_background
+                                ),
                             ),
                             user_facing=bool(
                                 self._is_user_facing_origin(origin) and not is_background

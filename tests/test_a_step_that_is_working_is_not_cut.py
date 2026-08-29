@@ -129,3 +129,49 @@ class TestTheCeilingIsMeasuredNotFlat:
         source = ast.unparse(_the_waiting_function())
         assert "still_producing" in source
         assert "break" in source
+
+
+class TestTheTurnsOwnCeilingIsMeasuredToo:
+    """The cycle holds itself open while working; this is where it stops.
+
+    LIVE 2026-08-29: a turn dispatched code_repl seven minutes in and was cut
+    at exactly 480 seconds with the sandbox still running —
+    "reactive_recovery:timeout". The endpoint wait had been taught to size its
+    ceiling from what this machine measures; the turn's own bound had not, so
+    the two disagreed about how long a turn of this shape costs here.
+    """
+
+    def test_a_waiting_person_gets_the_measured_ceiling(self) -> None:
+        from core.brain.cognitive_engine import _the_longest_this_turn_may_take
+
+        assert _the_longest_this_turn_may_take(480.0, user_facing=True) > 480.0
+
+    def test_background_keeps_the_floor(self) -> None:
+        from core.brain.cognitive_engine import _the_longest_this_turn_may_take
+
+        assert _the_longest_this_turn_may_take(480.0, user_facing=False) == 480.0
+
+    def test_it_only_ever_raises_the_callers_floor(self) -> None:
+        from core.brain.cognitive_engine import _the_longest_this_turn_may_take
+
+        assert _the_longest_this_turn_may_take(9000.0, user_facing=True) >= 9000.0
+
+    def test_both_clocks_size_it_the_same_way(self) -> None:
+        """The endpoint wait and the turn must not disagree about the cost."""
+
+        from core.brain.cognitive_engine import _the_longest_this_turn_may_take
+        from core.brain.llm.mlx_client import longest_a_turn_may_take
+        from core.brain.llm_health_router import (
+            _A_TURNS_ANSWER_TOKENS,
+            _A_TURNS_PROMPT_CHARS,
+            _GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+        )
+
+        assert _the_longest_this_turn_may_take(480.0, user_facing=True) == (
+            longest_a_turn_may_take(
+                generations=_GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+                prompt_chars=_A_TURNS_PROMPT_CHARS,
+                max_tokens=_A_TURNS_ANSWER_TOKENS,
+                floor_s=480.0,
+            )
+        )

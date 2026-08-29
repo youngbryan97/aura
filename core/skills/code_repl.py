@@ -681,6 +681,97 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
     return "\n".join(lines)
 
 
+def _without_a_path_preamble_for(code: str, library_root: str) -> str:
+    """Drop the two lines that ask for something the sandbox already did.
+
+    Importing from a directory means putting it on sys.path — everywhere in
+    Python except here, where the runner was given the library and made it
+    importable before the code ran. A model that has written Python before
+    writes the preamble anyway, because that is what the idiom is, and the
+    sandbox refuses ``sys`` for good reasons and takes the whole turn with it.
+
+    LIVE 2026-08-29: "'sys' is not part of the library this sandbox was given;
+    available: ledgerkit". The library was right there under the name the code
+    went on to import, and the request died on the line before.
+
+    Only the redundancy goes. A ``sys.path`` call naming the directory the
+    sandbox already loaded is a no-op, and ``import sys`` goes with it when
+    nothing else in the code uses the name. Any other use of ``sys`` is
+    untouched and still refused, which is what refusing it is for.
+    """
+
+    if "sys" not in code or not library_root:
+        return code
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return code
+
+    try:
+        root = str(Path(library_root).expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        root = str(library_root)
+
+    def _names_the_library_directory(node: ast.Call) -> bool:
+        for argument in node.args:
+            if not isinstance(argument, ast.Constant) or not isinstance(argument.value, str):
+                continue
+            try:
+                named = str(Path(argument.value).expanduser().resolve())
+            except (OSError, RuntimeError, ValueError):
+                named = argument.value
+            if named == root:
+                return True
+        return False
+
+    redundant: list[ast.stmt] = []
+    for node in tree.body:
+        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+            continue
+        called = node.value.func
+        if (
+            isinstance(called, ast.Attribute)
+            and called.attr in ("insert", "append")
+            and isinstance(called.value, ast.Attribute)
+            and called.value.attr == "path"
+            and isinstance(called.value.value, ast.Name)
+            and called.value.value.id == "sys"
+            and _names_the_library_directory(node.value)
+        ):
+            redundant.append(node)
+    if not redundant:
+        return code
+
+    dropped = {id(node) for node in redundant}
+    still_used = any(
+        isinstance(node, ast.Name)
+        and node.id == "sys"
+        and not any(node in ast.walk(gone) for gone in redundant)
+        for node in ast.walk(tree)
+    )
+    if not still_used:
+        for node in tree.body:
+            if isinstance(node, ast.Import) and [a.name for a in node.names] == ["sys"]:
+                dropped.add(id(node))
+                redundant.append(node)
+
+    # Blanked rather than unparsed: every other line keeps its number, so a
+    # traceback still points at what the model wrote.
+    lines = code.splitlines()
+    for node in redundant:
+        last = getattr(node, "end_lineno", node.lineno) or node.lineno
+        for number in range(node.lineno, last + 1):
+            if 1 <= number <= len(lines):
+                lines[number - 1] = ""
+    logger.info(
+        "code_repl: dropped %d redundant sys.path line(s) — the sandbox had "
+        "already made %s importable.",
+        len(redundant),
+        library_root,
+    )
+    return "\n".join(lines)
+
+
 def _what_will_not_work_in_this_code(code: str, library_root: str) -> list:
     """What reading this code decides, before any of it is run."""
 
@@ -887,6 +978,8 @@ class CodeREPLSkill(BaseSkill):
         # real API instead of an AttributeError. Nothing found here is a claim
         # that the code is right — only that nothing was decidably wrong.
         code = _without_a_path_preamble_for(code, library)
+        if library:
+            code = _without_a_path_preamble_for(code, library)
         if library:
             code = _without_a_path_preamble_for(code, library)
         if library:
