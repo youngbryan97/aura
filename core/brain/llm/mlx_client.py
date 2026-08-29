@@ -89,7 +89,21 @@ _PREFILL_HEADROOM = 3.0
 #: and it fits neither: measured live 2026-08-26, every approach question in
 #: a game timed out at eight seconds and she played the whole thing with no
 #: plan. These are rates this machine was seen working at, not guesses.
-_HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0}
+_HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0, "weight_load": 0.0}
+
+#: Gigabytes of weights a second, before this host has been seen loading any.
+#: Deliberately slow for the same reason the prefill default is: being
+#: generous with an unmeasured worker costs latency, being mean costs the
+#: answer — and here being mean costs the lane, which is recycled and comes
+#: back just as cold.
+_UNMEASURED_WEIGHT_LOAD_GB_S = 0.5
+
+#: Weight sizes are a property of the files, read once per path.
+_WEIGHT_SIZES: dict[str, float] = {}
+
+#: A cold lane's first token is late for a reason that is over once it
+#: happens. Room for that, on top of what loading measures at.
+_COLD_START_HEADROOM = 2.0
 
 #: Decode is slower and more variable than prefill, so an unmeasured worker
 #: is credited with little until it proves otherwise.
@@ -5013,6 +5027,9 @@ class MLXLocalClient:
         self._latent_progress_evicted = 0
         self._latent_progress_drop_reported = False
         self._last_ready_at = 0.0
+        #: Tokens this worker has produced since it was spawned. Zero means
+        #: its weights may still be loading, which is not the same as wedged.
+        self._tokens_since_spawn = 0
         self._last_generation_completed_at = 0.0
         #: Bumped on every worker reboot so a lane-owner id names the
         #: generation it belongs to (CP126 cdbb177d). Without it, a stale
@@ -6297,6 +6314,26 @@ class MLXLocalClient:
             pass
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
+            # What loading this model actually cost, from the one request
+            # that pays for it. Everything before the first token of a
+            # worker's life is weights coming off disk plus reading the
+            # prompt; the prompt's share is already measured, so the rest is
+            # the load. Averaged across workers, because the disk is one disk.
+            if int(getattr(self, "_tokens_since_spawn", 0) or 0) == 0:
+                gigabytes = self._weight_gigabytes()
+                started = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
+                spent = now - started if started > 0.0 else 0.0
+                loading = spent - (
+                    self._prefill_floor_seconds(self._current_prompt_chars)
+                    / _PREFILL_HEADROOM
+                )
+                if gigabytes > 0.0 and loading > 0.1:
+                    observed = gigabytes / loading
+                    previous = float(_HOST_RATES.get("weight_load") or 0.0)
+                    _HOST_RATES["weight_load"] = (
+                        observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
+                    )
+        self._tokens_since_spawn = int(getattr(self, "_tokens_since_spawn", 0) or 0) + 1
         self._mark_progress()
 
     def _clear_active_generation_tracking(self) -> None:
@@ -6610,6 +6647,57 @@ class MLXLocalClient:
             # Bounded above too: an absurd ceiling disables the watchdog.
             return min(3600.0, max(10.0, configured))
         return default
+
+    def _weight_gigabytes(self) -> float:
+        """How much this model has to be read off disk before it can speak."""
+
+        path = str(self.model_path or "")
+        if not path:
+            return 0.0
+        remembered = _WEIGHT_SIZES.get(path)
+        if remembered is not None:
+            return remembered
+        total = 0
+        try:
+            root = Path(path)
+            entries = root.iterdir() if root.is_dir() else [root]
+            for entry in entries:
+                if entry.suffix in (".safetensors", ".bin", ".gguf", ".npz"):
+                    total += entry.stat().st_size
+        except OSError:
+            total = 0
+        size = total / (1024.0**3)
+        _WEIGHT_SIZES[path] = size
+        return size
+
+    def _cold_lane_first_token_allowance(self) -> float:
+        """Extra time a lane gets for the first token of its life. Once.
+
+        A worker that has produced no token since it was spawned is not
+        distinguishable from a wedged one by silence alone, and the two calls
+        for opposite actions. Recycling resolves that ambiguity by killing —
+        which spawns another worker in exactly the same state, which is
+        silent for the same reason, which is recycled again.
+
+        LIVE 2026-08-29, four lines: "Spawning worker for
+        Qwen2.5-1.5B-Instruct-4bit" (02:27:07), "Worker ready" (:12),
+        "produced no token in 20.2s ... Recycling the lane" (:32), "Circuit
+        OPEN for Reflex". Her planner then got an empty answer and fell back
+        to canned text, and the feed recorded that as her failure.
+
+        Weights have to be read before anything is generated, and how long
+        that takes is a fact about this host and this model, measured the way
+        prefill and decode already are. Once a token has arrived the lane is
+        warm and this is zero — the allowance covers the state, not the lane.
+        """
+
+        if int(getattr(self, "_tokens_since_spawn", 0) or 0) > 0:
+            return 0.0
+        gigabytes = self._weight_gigabytes()
+        if gigabytes <= 0.0:
+            return 0.0
+        rate = float(_HOST_RATES.get("weight_load") or 0.0) or _UNMEASURED_WEIGHT_LOAD_GB_S
+        return (gigabytes / rate) * _COLD_START_HEADROOM
 
     def _measured_prefill_rate(self) -> float:
         """Tokens a second this worker reads a prompt at, as measured.
@@ -13340,6 +13428,8 @@ class MLXLocalClient:
                 init_future = _new_shared_future()
                 self._init_future = init_future
                 self._set_lane_state("spawning")
+                # A new worker is cold, whatever the last one had done.
+                self._tokens_since_spawn = 0
                 logger.info("📡 [MLX] Spawning worker for %s...", os.path.basename(self.model_path))
                 try:
                     self._process = await self._spawn_worker()
@@ -13925,6 +14015,9 @@ class MLXLocalClient:
                 livelock_ceiling = max(
                     livelock_ceiling,
                     self._prefill_floor_seconds(self._current_prompt_chars),
+                    # A lane that has never produced a token is still reading
+                    # its weights. Silence there is the load, not a wedge.
+                    self._cold_lane_first_token_allowance(),
                 )
                 hard_first_token_ceiling = livelock_ceiling
                 request_hard_ceiling = float(

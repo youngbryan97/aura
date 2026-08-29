@@ -64,3 +64,53 @@ def test_a_fence_reaching_the_sandbox_unwrapped_would_fail() -> None:
         "```python\nprint(6 * 7)\n```", timeout=6, mem_bytes=256 * 1024 * 1024
     )
     assert out["status"] != "ok"
+
+
+class TestThePathPreambleTheSandboxAlreadyDid:
+    """Importing from a directory means sys.path — except here, where it is done."""
+
+    LIBRARY = "/tmp/ledgerkit"
+
+    def _drop(self, code: str) -> str:
+        from core.skills.code_repl import _without_a_path_preamble_for
+
+        return _without_a_path_preamble_for(code, self.LIBRARY)
+
+    def test_the_preamble_the_runner_already_performed_is_dropped(self) -> None:
+        left = self._drop(
+            "import sys\n"
+            f"sys.path.insert(0, '{self.LIBRARY}')\n"
+            "from ledgerkit import Ledger\n"
+        )
+        assert "sys" not in left
+        assert "from ledgerkit import Ledger" in left
+
+    def test_append_is_the_same_no_op(self) -> None:
+        assert "sys" not in self._drop(
+            f"import sys\nsys.path.append('{self.LIBRARY}')\nimport ledgerkit\n"
+        )
+
+    def test_a_real_use_of_sys_is_left_to_be_refused(self) -> None:
+        left = self._drop(
+            "import sys\n"
+            f"sys.path.insert(0, '{self.LIBRARY}')\n"
+            "print(sys.version)\n"
+        )
+        assert "import sys" in left, "the name is still needed and still banned"
+
+    def test_another_directory_is_not_this_functions_business(self) -> None:
+        code = "import sys\nsys.path.insert(0, '/etc')\nimport ledgerkit\n"
+        assert self._drop(code) == code
+
+    def test_line_numbers_survive_so_a_traceback_still_points_at_the_code(self) -> None:
+        left = self._drop(
+            "import sys\n"
+            f"sys.path.insert(0, '{self.LIBRARY}')\n"
+            "from ledgerkit import Ledger\n"
+            "raise ValueError('here')\n"
+        )
+        assert left.splitlines()[3] == "raise ValueError('here')"
+
+    def test_code_that_never_mentions_sys_is_returned_unchanged(self) -> None:
+        code = "from ledgerkit import Ledger\nprint(Ledger('a'))\n"
+        assert self._drop(code) == code

@@ -25,8 +25,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -230,6 +232,63 @@ EXECUTIVE_ADMISSION = FeatureSchema(
 
 
 _SCHEMAS: dict[str, FeatureSchema] = {EXECUTIVE_ADMISSION.control_point: EXECUTIVE_ADMISSION}
+
+
+#: Computed once per process. The code a running process executes does not
+#: change under it — an edit reaches the runtime only through a restart — so a
+#: revision pinned at first use is the revision the evidence is actually about.
+_REVISIONS: dict[str, str] = {}
+_REVISIONS_LOCK = threading.Lock()
+
+
+def decision_revision(control_point: str, *, fallback: str) -> str:
+    """What could change this control point's decisions, as one identity.
+
+    Calibration evidence is grouped into cohorts and a cohort begins again
+    whenever its revision changes, because a decision made by different code
+    is not more evidence about the old code. Keying that on the whole repo
+    makes every commit anywhere retire every cohort — and on a machine where
+    the source changes several times an hour, no control point ever reaches
+    the fifty graded episodes support requires. A correct mechanism that
+    cannot fire.
+
+    Editing a writing linter cannot change whether executive.admission is
+    calibrated. Editing the module that computes its features can. Each
+    schema already declares where its features come from, for exactly this
+    invalidation sweep, so the revision is the schema plus the content of the
+    code it names — and nothing else.
+
+    A control point that declares no sources keeps the coarse revision it had.
+    Unknown provenance is not an argument for keeping evidence.
+    """
+
+    key = f"{control_point}|{fallback}"
+    with _REVISIONS_LOCK:
+        remembered = _REVISIONS.get(key)
+    if remembered is not None:
+        return remembered
+
+    schema = _SCHEMAS.get(control_point)
+    declared = sorted({str(v).split(":", 1)[0] for v in (schema.sources.values() if schema else ())})
+    if not schema or not declared:
+        revision = fallback
+    else:
+        root = Path(__file__).resolve().parents[2]
+        payload = [f"schema={schema.schema_id}"]
+        for relative in declared:
+            source = root / relative
+            try:
+                digest = hashlib.sha256(source.read_bytes()).hexdigest()[:16]
+            except OSError:
+                # A declared source that is not there is itself a fact about
+                # this control point, and a stable one.
+                digest = "absent"
+            payload.append(f"{relative}={digest}")
+        revision = hashlib.sha256("|".join(payload).encode("utf-8")).hexdigest()[:16]
+
+    with _REVISIONS_LOCK:
+        _REVISIONS.setdefault(key, revision)
+        return _REVISIONS[key]
 
 
 def register_schema(schema: FeatureSchema) -> FeatureSchema:

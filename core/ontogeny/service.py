@@ -303,6 +303,21 @@ class OntogenyCore(AuthorityObservationMixin):
             self._control_points[control_point.name] = control_point
         return control_point
 
+    def _revision_for(self, control_point: str) -> str:
+        """The source identity this control point's evidence belongs to.
+
+        Not the whole repo's. A cohort starts again when its revision changes,
+        and keying that on every commit anywhere means no control point on
+        this machine reaches the fifty graded episodes support needs — the
+        source changes several times an hour and the evidence is discarded
+        each time. What can change a decision is the code that computes it,
+        which each schema already declares.
+        """
+
+        from core.ontogeny.features import decision_revision
+
+        return decision_revision(control_point, fallback=self._runtime_revision)
+
     @staticmethod
     def _head_version(cp: ControlPoint) -> int:
         """A single version number for the whole control point's model set."""
@@ -458,7 +473,9 @@ class OntogenyCore(AuthorityObservationMixin):
 
         head_version = self._head_version(cp)
         episode_context = dict(context or {})
-        episode_context.setdefault("runtime_revision", self._runtime_revision)
+        episode_context.setdefault(
+            "runtime_revision", self._revision_for(control_point)
+        )
         episode_context.setdefault("ontogeny_head_version", head_version)
         episode = Episode(
             control_point=control_point,
@@ -610,7 +627,8 @@ class OntogenyCore(AuthorityObservationMixin):
             predicted_success=(probability >= 0.5 if probability is not None else None),
             decided_at=episode.decided_at,
             runtime_revision=str(
-                (episode.context or {}).get("runtime_revision") or self._runtime_revision
+                (episode.context or {}).get("runtime_revision")
+                or self._revision_for(episode.control_point)
             ),
             head_version=int(episode.shadow_version or 0),
         )
@@ -685,7 +703,7 @@ class OntogenyCore(AuthorityObservationMixin):
             )
             self._operational_calibration.activate(
                 cp.name,
-                runtime_revision=self._runtime_revision,
+                runtime_revision=self._revision_for(cp.name),
                 head_version=self._head_version(cp),
                 provenance=OPERATIONAL_SHADOW,
             )
@@ -788,7 +806,7 @@ class OntogenyCore(AuthorityObservationMixin):
                 self._save_head(cp)
                 self._operational_calibration.activate(
                     cp.name,
-                    runtime_revision=self._runtime_revision,
+                    runtime_revision=self._revision_for(cp.name),
                     head_version=self._head_version(cp),
                     provenance=OPERATIONAL_SHADOW,
                 )
@@ -936,7 +954,7 @@ class OntogenyCore(AuthorityObservationMixin):
         for cp in control_points:
             self._operational_calibration.activate(
                 cp.name,
-                runtime_revision=self._runtime_revision,
+                runtime_revision=self._revision_for(cp.name),
                 head_version=self._head_version(cp),
                 provenance=OPERATIONAL_SHADOW,
             )
