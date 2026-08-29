@@ -140,50 +140,56 @@ from core.perception.what_the_page_says import (  # noqa: E402
     where_the_drawing_is,
 )
 
-SCREEN = (1600.0, 1000.0)
-
-
-def drawing(left=500, top=150, width=520, height=660, page=1500 * 900):
+def drawing(left=0.31, top=0.15, right=0.65, bottom=0.81, share=0.25):
     return Page(json.dumps(
-        {"left": left, "top": top, "width": width, "height": height, "page": page}
+        {"left": left, "top": top, "right": right, "bottom": bottom, "share": share}
     ))
 
 
 @pytest.mark.asyncio
 async def test_the_page_says_where_it_is_drawing():
-    band = await where_the_drawing_is(drawing(), screen=SCREEN)
-    assert band == pytest.approx((500 / 1600, 150 / 1000, 1020 / 1600, 810 / 1000))
+    assert await where_the_drawing_is(drawing()) == pytest.approx((0.31, 0.15, 0.65, 0.81))
+
+
+@pytest.mark.asyncio
+async def test_it_answers_in_the_space_read_screen_measures_in():
+    """A band means part of the WINDOW she is driving, not part of a display.
+
+    read_screen scopes its reading to that window and normalises against it, so
+    a band in screen coordinates filters the wrong space and lets everything
+    through — which is what happened on the first attempt.
+    """
+    band = await where_the_drawing_is(drawing())
+    assert all(0.0 <= edge <= 1.0 for edge in band)
 
 
 @pytest.mark.asyncio
 async def test_a_page_that_draws_nothing_says_nothing():
-    assert await where_the_drawing_is(Page(""), screen=SCREEN) is None
+    assert await where_the_drawing_is(Page("")) is None
 
 
 @pytest.mark.asyncio
 async def test_an_icon_is_not_the_thing_she_came_for():
-    small = drawing(width=20, height=20)
-    assert await where_the_drawing_is(small, screen=SCREEN) is None
+    assert await where_the_drawing_is(drawing(share=0.001)) is None
 
 
 @pytest.mark.asyncio
 async def test_something_big_enough_is():
-    big = drawing(width=400, height=400, page=1000 * 800)
-    assert (400 * 400) / (1000 * 800) >= BIG_ENOUGH_TO_BE_THE_THING
-    assert await where_the_drawing_is(big, screen=SCREEN) is not None
+    assert await where_the_drawing_is(drawing(share=BIG_ENOUGH_TO_BE_THE_THING)) is not None
 
 
 @pytest.mark.asyncio
-async def test_a_drawing_off_the_screen_is_not_a_band():
-    assert await where_the_drawing_is(drawing(left=1500, width=900), screen=SCREEN) is None
+async def test_a_band_that_is_not_a_rectangle_is_not_a_band():
+    assert await where_the_drawing_is(drawing(left=0.7, right=0.3)) is None
+    assert await where_the_drawing_is(drawing(top=0.9, bottom=0.2)) is None
 
 
 @pytest.mark.asyncio
-async def test_a_screen_of_no_size_gives_no_band():
-    assert await where_the_drawing_is(drawing(), screen=(0.0, 0.0)) is None
+async def test_a_band_off_the_window_is_not_one_either():
+    assert await where_the_drawing_is(drawing(right=1.4)) is None
 
 
 @pytest.mark.asyncio
 async def test_rubbish_is_not_a_place():
-    assert await where_the_drawing_is(Page("not json"), screen=SCREEN) is None
-    assert await where_the_drawing_is(Page('{"left": 1}'), screen=SCREEN) is None
+    assert await where_the_drawing_is(Page("not json")) is None
+    assert await where_the_drawing_is(Page('{"left": 1}')) is None

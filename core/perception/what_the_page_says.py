@@ -138,10 +138,16 @@ BIG_ENOUGH_TO_BE_THE_THING = 0.05
 
 #: What the page is asked about a thing it draws rather than writes.
 #:
-#: Where it is, in screen coordinates, because that is the question the screen
-#: reader needs answered. A page knows its own position: screenX and screenY
-#: are the window's place on the desktop, and the difference between the outer
-#: and inner heights is the browser's own furniture above the page.
+#: Where it is WITHIN THE BROWSER WINDOW, because that is the coordinate space
+#: everything else uses: read_screen scopes its reading to the window it is
+#: driving and normalises against that, so a band means "part of the thing I
+#: am driving" rather than "part of whatever display it sits on". A band in
+#: screen coordinates filters the wrong space entirely and lets everything
+#: through.
+#:
+#: The page knows its own geometry: outerWidth and outerHeight are the window,
+#: innerWidth and innerHeight are the page inside it, and the difference in
+#: height is the browser's own furniture above the page.
 _WHERE_IS_IT = """
 (function () {
   var best = null;
@@ -154,54 +160,57 @@ _WHERE_IS_IT = """
     }
   }
   if (!best) return '';
-  var chrome = (window.outerHeight || 0) - (window.innerHeight || 0);
+  var W = window.outerWidth || window.innerWidth || 1;
+  var H = window.outerHeight || window.innerHeight || 1;
+  var above = H - (window.innerHeight || H);
+  var side = (W - (window.innerWidth || W)) / 2;
   return JSON.stringify({
-    left: (window.screenX || 0) + best.l,
-    top: (window.screenY || 0) + chrome + best.t,
-    width: best.w, height: best.h,
-    page: (window.innerWidth || 1) * (window.innerHeight || 1)
+    left: (best.l + side) / W,
+    top: (best.t + above) / H,
+    right: (best.l + best.w + side) / W,
+    bottom: (best.t + above + best.h) / H,
+    share: (best.w * best.h) / ((window.innerWidth || 1) * (window.innerHeight || 1))
   });
 })()
 """
 
 
 async def where_the_drawing_is(
-    browser: Any = None, screen: tuple[float, float] | None = None
+    browser: Any = None,
 ) -> tuple[float, float, float, float] | None:
-    """Where on the SCREEN the page is drawing something, if it is.
+    """Where in the browser WINDOW the page is drawing something, if it is.
 
     A page that draws rather than writes cannot say what it is showing — the
     numbers on a canvas are pixels and nothing else. It can say exactly where
     it is showing it, and that is the other half of the question: she can look
-    at the right part of the screen instead of the whole of it.
+    at the right part of the window instead of the whole of it.
 
     LIVE 2026-08-29: play2048.co draws its board on a canvas 576 by 739. She
-    was reading the entire screen — browser tabs, address bar, advertising
-    rails, footer — and finding five of the sixteen places on it.
+    was reading everything the window held — tabs, address bar, advertising
+    rails, footer — and finding five of the sixteen places on the board.
 
-    Returns a band as ``(left, top, right, bottom)`` in screen fractions,
-    which is what the rest of the loop already means by where a task lives.
-    Nothing when the page draws nothing, which is most pages.
+    Returns a band as ``(left, top, right, bottom)``, each a share of the
+    window, which is what the rest of the loop already means by where a task
+    lives and the space ``read_screen`` measures in. Nothing when the page
+    draws nothing, which is most pages.
     """
     said = await _ask_where(browser)
     if not said:
         return None
     try:
         where = json.loads(said)
-        left, top = float(where["left"]), float(where["top"])
-        wide, tall = float(where["width"]), float(where["height"])
-        page = float(where.get("page") or 0.0)
+        band = (
+            float(where["left"]), float(where["top"]),
+            float(where["right"]), float(where["bottom"]),
+        )
+        share = float(where.get("share") or 0.0)
     except (ValueError, TypeError, KeyError):
         return None
-    if wide <= 0 or tall <= 0:
+    if band[2] <= band[0] or band[3] <= band[1]:
         return None
-    if page > 0 and (wide * tall) / page < BIG_ENOUGH_TO_BE_THE_THING:
+    if share and share < BIG_ENOUGH_TO_BE_THE_THING:
         # An icon, a sparkline, a spacer. Not the thing she came for.
         return None
-    across, down = screen or _how_big_the_screen_is()
-    if across <= 0 or down <= 0:
-        return None
-    band = (left / across, top / down, (left + wide) / across, (top + tall) / down)
     if not all(0.0 <= edge <= 1.0 for edge in band):
         return None
     logger.info(
@@ -209,17 +218,6 @@ async def where_the_drawing_is(
         band[0], band[2], band[1], band[3],
     )
     return band
-
-
-def _how_big_the_screen_is() -> tuple[float, float]:
-    """The main display, in points, or nothing measurable."""
-    try:
-        import Quartz
-
-        bounds = Quartz.CGDisplayBounds(Quartz.CGMainDisplayID())
-        return float(bounds.size.width), float(bounds.size.height)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return (0.0, 0.0)
 
 
 async def _ask_where(browser: Any) -> str:
