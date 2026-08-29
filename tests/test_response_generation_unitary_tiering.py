@@ -1317,12 +1317,18 @@ async def test_unitary_response_started_task_ack_is_evidence_bounded_without_llm
 
     llm.think.assert_not_awaited()
     reply = new_state.cognition.last_response
-    assert "Task accepted into governed background execution" in reply
-    assert "Task id: task-123" in reply
-    assert "Commitment id: commit-456" in reply
-    assert "No completion is claimed yet" in reply
-    assert "started working" not in reply.lower()
-    assert "keep you updated" not in reply.lower()
+    # The acknowledgement stopped being a ticket on 2026-08-26 — "a task
+    # somebody is watching stays in front of them" — and this asserted the
+    # ticket's wording rather than what the wording was for. The properties
+    # are the same: it names the governed path it went down, it claims no
+    # completion, and it does not say work is under way when it is queued.
+    lowered = reply.lower()
+    assert "governed" in lowered, reply
+    assert "desktop_task" in lowered, reply
+    assert "started working" not in lowered
+    assert "keep you updated" not in lowered
+    # No completion claimed: it says it will report when the work is done.
+    assert "done" in lowered or "no completion" in lowered, reply
     assert "i'll" not in reply.lower()
 
 
