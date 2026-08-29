@@ -759,3 +759,41 @@ available. J3 is closed. J4's measured sites are closed (research_history's
 fsync off the loop; the lane-state guard names its caller and no longer logs
 under the lock). J5 is closed: `test_server_conversation_lane` is 382 passing.
 J2 and J6 remain.
+
+## An instrument she could not read (2026-08-29)
+
+Asked whether slow turns were the machine or the code, she answered: "tell me
+if there's a system-stats command or monitoring tool available in this
+environment and I'll run it — otherwise those numbers are genuinely invisible
+to me." Her own feed was printing "processor 5%, memory 62%" every few seconds.
+
+There was a reader for the load and a matcher deciding when to staple its
+answer onto a reply, and the matcher recognises "how hard is the machine
+working" and not "why are you slow". Adding a phrase fixes that question and
+not the next one, so the reading went where she reasons from instead.
+
+She then named her own next gap exactly — "I don't have per-turn timing ...
+break the time into: send → model start → first token/tool call → final
+response" — and the runtime was measuring the first part of that on every turn
+and logging it away. That travels with her state too, as measurements with no
+arithmetic on top: what the last turn spent before the model was asked
+anything, and the rates this host reads and writes at.
+
+Live afterwards: "CPU is low: about 16%. Thermal pressure is essentially zero.
+Memory is moderate, around 67% ... So I don't think this is a hot, overloaded,
+or throttled machine problem. The more likely place for the slowdown is in the
+code path around my turns."
+
+**Still open here.** She has the rates and does not yet use them; the
+instrument is there and the reasoning that would turn it into a number is not.
+That is the honest state of it.
+
+## Found today, not yet fixed
+
+- [ ] **K1** `scaffold=6426 request=160 ratio=40.2x` on a live desktop turn.
+  H3's measurement, still standing: the injected context is forty times the
+  question.
+- [ ] **K2** "tool receipt for web_search dropped: no turn custody in this
+  execution" on the autonomous research pipeline. Correct — background work is
+  not a turn — but "dropped" reads as a loss when it is a boundary, and the
+  research pipeline then has no record of its own tool calls.
