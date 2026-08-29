@@ -590,6 +590,28 @@ class HowItMoves:
                 best = (share, rule)
         return best[1] if best else None
 
+    def _closest(self) -> tuple[str, int, int] | None:
+        """The rule with the best share so far, whether or not it is enough."""
+        moving = self.moved >= ENOUGH_TO_TRUST
+        best: tuple[float, str, int, int] | None = None
+        for rule in RULES:
+            tried = (
+                self.tried_when_it_moved.get(rule.name, 0)
+                if moving
+                else self.tried.get(rule.name, 0)
+            )
+            if not tried:
+                continue
+            right = (
+                self.right_when_it_moved.get(rule.name, 0)
+                if moving
+                else self.right.get(rule.name, 0)
+            )
+            share = right / tried
+            if best is None or share > best[0]:
+                best = (share, rule.name, right, tried)
+        return (best[1], best[2], best[3]) if best else None
+
     def confidence(self) -> float:
         """How often the rule she is using has been right about a real move."""
         rule = self.rule()
@@ -717,7 +739,21 @@ class HowItMoves:
         rule = self.rule()
         if rule is None:
             said = f"how this moves is not worked out yet ({self.seen} move(s) watched"
-            return f"{said}, {self.unreadable} unreadable)" if self.unreadable else f"{said})"
+            if self.unreadable:
+                said = f"{said}, {self.unreadable} unreadable"
+            # Which one came closest, and how close.
+            #
+            # "Not worked out yet" is true and says nothing about why: whether
+            # nothing fits, or one thing nearly fits and is being held out by a
+            # handful of misreadings. Those want different answers and looked
+            # identical from outside. LIVE 2026-08-29: twenty-four moves
+            # watched on a board she was reading correctly, and no way to tell
+            # which it was without attaching a debugger to a live run.
+            closest = self._closest()
+            if closest is not None:
+                name, right, tried = closest
+                said = f"{said}; closest is {name} at {right}/{tried}"
+            return f"{said})"
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
 
 
