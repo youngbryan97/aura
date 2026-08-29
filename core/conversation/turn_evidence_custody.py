@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import logging
 import math
 import secrets
 import threading
@@ -61,6 +62,9 @@ def _execution_identity() -> tuple[int, int]:
     except RuntimeError:
         task = None
     return (threading.get_ident(), id(task) if task is not None else 0)
+
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,7 +409,23 @@ def run_as_turn_evidence_participant(
     """Wrap a deliberate child coroutine with a one-use turn evidence lease."""
 
     custody = current_turn_evidence_custody()
-    if custody is None or not custody.admits_current_execution():
+    if custody is None:
+        return awaitable
+    if not custody.admits_current_execution():
+        # Only an admitted participant may issue a lease, so a caller that is
+        # itself unadmitted cannot pass one down and this returns what it was
+        # given. It used to do that silently, and silence here looks exactly
+        # like success: the child runs, writes receipts nobody accepts, and the
+        # turn reports that its tools found nothing.
+        #
+        # LIVE, 2026-08-28: the tool loop was wrapped here and five file reads
+        # were still refused, because the wrap itself was a no-op — the gate
+        # calling it was not an admitted participant either.
+        _logger.info(
+            "🧾 no lease for %s: this execution is not itself an admitted "
+            "participant, so the child inherits nothing",
+            " ".join(str(purpose or "child").split())[:60],
+        )
         return awaitable
     lease = custody.issue_child_lease(purpose)
 
