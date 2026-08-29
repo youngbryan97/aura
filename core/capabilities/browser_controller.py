@@ -356,6 +356,18 @@ def _applescript_dialect(browser: str) -> tuple[str, str]:
     return "", ""
 
 
+def _as_applescript_text(said: str) -> str:
+    """A Python string as an AppleScript literal, newlines and all.
+
+    AppleScript has no escape for a line break inside a literal, so the text is
+    handed over as pieces joined by `return`. Backslashes first, then quotes,
+    or the escaping escapes its own escapes.
+    """
+    safe = str(said or "").replace("\\", "\\\\").replace('"', '\\"')
+    lines = safe.split("\n")
+    return " & return & ".join(f'"{line}"' for line in lines) or '""'
+
+
 class BrowserController:
     """General browser automation.
 
@@ -549,6 +561,41 @@ class BrowserController:
             "app": browser,
             "error": "",
         }
+
+    async def read_page_text(self, expression: str) -> str:
+        """Evaluate a read-only expression in the page in front, and return it.
+
+        The missing instrument. She could open a page, focus it, press keys at
+        it and read pixels off it, and could not ask it what it was showing —
+        so a browser was read with the same squint as an application nobody
+        can question. LIVE 2026-08-29 on a 4x4 board: the screen reading found
+        five of sixteen places, and nothing downstream could recover from it.
+
+        Read-only by contract. The caller passes an expression that gathers
+        what is on the page and returns it; nothing here writes, clicks or
+        navigates. Knowing what is in front of you is not an effect on the
+        world, which is the same line current_page draws.
+        """
+        from core.capabilities.host_automation import AppleScriptRunner
+
+        browser = self._preferred_browser
+        if "chrome" in browser.lower():
+            holder, tab = "Google Chrome", "active tab of front window"
+        elif "safari" in browser.lower():
+            holder, tab = "Safari", "current tab of front window"
+        else:
+            return ""
+        # Escaped into the script rather than written to a file and read
+        # back. A temporary file would be two disk operations on the event
+        # loop for something that is a string.
+        script = (
+            f"tell application {_as_applescript_text(holder)} to execute {tab} "
+            f"javascript {_as_applescript_text(expression)}"
+        )
+        receipt = await AppleScriptRunner.run(script, timeout=10.0)
+        if not getattr(receipt, "success", False):
+            return ""
+        return str(getattr(receipt, "result", "") or "")
 
     async def focus_tab(self, match: str) -> AutomationReceipt:
         """Bring the tab whose title or URL contains `match` to the front.

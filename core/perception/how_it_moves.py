@@ -348,6 +348,9 @@ class HowItMoves:
     #: Places she has seen empty, which settles them as part of the thing.
     _a_place: set[tuple[int, int]] = field(default_factory=set)
     _looks: int = 0
+    #: Whether what she had learned has already been thrown away once, for
+    #: being about the surroundings rather than the thing.
+    _started_again: bool = False
     #: How full the thing has been, added up across looks.
     _how_full: float = 0.0
     #: Every place that has ever held anything. What has not is not part of
@@ -455,7 +458,7 @@ class HowItMoves:
             if place in self.counters:
                 continue
             self.counters.add(place)
-            if True:
+            if not self._started_again:
                 # What she learned was about a different thing.
                 #
                 # Every observation until now compared a board with a score
@@ -463,6 +466,15 @@ class HowItMoves:
                 # evidence about the board, and left in the counts they hold a
                 # correct rule below the bar for as long as they outnumber
                 # what came after.
+                #
+                # ONCE. Furniture is found a place at a time — a title, then a
+                # label, then a score — and starting again at each of them
+                # means the count never gets past one or two before it is wiped
+                # again. LIVE 2026-08-29: "1 place(s) smaller ... 2 ... 3 ... 4
+                # — starting again" through a whole run, "2 move(s) watched"
+                # after eighteen moves, and no rule ever formed. The correction
+                # is worth making the first time and never again.
+                self._started_again = True
                 logger.info(
                     "the thing itself is %s, not what surrounds it — starting again",
                     f"{len(self.counters)} place(s) smaller",
