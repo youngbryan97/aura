@@ -4987,6 +4987,21 @@ def _route_desktop_cognitive_failure_to_resilience(
     return outcome
 
 
+def _this_turn_generated_something() -> bool:
+    """Whether this turn's own record says a model wrote text for it."""
+
+    try:
+        from core.conversation.turn_evidence_custody import turn_model_generations
+
+        return any(
+            int(row.get("tokens") or 0) > 0
+            for row in turn_model_generations()
+            if isinstance(row, dict)
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def _generation_metadata_consumed_foreground_owner(
     metadata: Any,
     *,
@@ -5763,14 +5778,24 @@ async def _run_cognitive_engine_chat_turn(
     ) -> None:
         """Record physical decodes without confusing segments with new answers."""
 
-        if (
-            turn_trace is None
-            or not require_engine
-            or not _generation_metadata_consumed_foreground_owner(
-                metadata,
-                response_text=response_text,
-            )
-        ):
+        proven = _generation_metadata_consumed_foreground_owner(
+            metadata,
+            response_text=response_text,
+        )
+        if not proven:
+            # What the turn itself recorded, when the metadata proves nothing.
+            #
+            # A receipt is published on the object that ran the generation, and
+            # the tool loop runs on a different object from the one this layer
+            # reads. The turn is what they share, and a generation recorded
+            # there carries the same fact: this model wrote this many tokens
+            # for this turn.
+            #
+            # Nothing is waived. Repair text and legacy fallbacks never write
+            # that record — it is made where the model's own tokens are
+            # counted, and a generation of zero tokens does not write one.
+            proven = bool(_this_turn_generated_something())
+        if turn_trace is None or not require_engine or not proven:
             return
         turn_trace["foreground_model_generation_consumed"] = True
         turn_trace["foreground_model_generation_count"] = (

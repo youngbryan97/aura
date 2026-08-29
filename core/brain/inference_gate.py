@@ -8658,6 +8658,31 @@ class InferenceGate:
                 text=text,
                 generation_metadata=tool_loop_metadata,
             )
+            # And on the turn, which is the one thing every path shares.
+            #
+            # The line above publishes on this gate. The layer that checks
+            # authorship reads the health router. Both are right about their
+            # own object, and the answer falls between them — LIVE 2026-08-29,
+            # "ownership_evidence=[live_mind(tokens=-,decode=-); latent_cortex
+            # (decode=0)]" on a turn whose fifth tool call had just returned
+            # the trial balance.
+            _tokens = 0
+            for _key in ("generated_tokens", "decode_generated_tokens"):
+                _value = (receipt or {}).get(_key)
+                if isinstance(_value, int) and _value > 0:
+                    _tokens = _value
+                    break
+            if _tokens > 0:
+                try:
+                    from core.conversation.turn_evidence_custody import (
+                        record_turn_model_generation,
+                    )
+
+                    record_turn_model_generation(
+                        model_path, tokens=_tokens, path="tool_loop"
+                    )
+                except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("tool loop could not record its generation: %s", exc)
         from core.conversation.surface_disposition import record_tool_receipt
 
         for call in called:

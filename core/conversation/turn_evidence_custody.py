@@ -47,9 +47,11 @@ __all__ = [
     "bind_turn_evidence_custody",
     "current_turn_evidence_custody",
     "record_turn_capability_availability",
+    "record_turn_model_generation",
     "record_turn_grounding",
     "record_turn_sensory_evidence",
     "turn_capability_availability",
+    "turn_model_generations",
     "turn_grounding_evidence",
     "turn_sensory_evidence",
 ]
@@ -82,6 +84,7 @@ class TurnEvidenceCustody:
         self._receipts: list[dict[str, Any]] = []
         self._grounding: list[str] = []
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
+        self._generations: list[dict[str, Any]] = []
         self._capability_availability: dict[str, dict[str, Any]] = {}
         self._closed = False
 
@@ -162,6 +165,26 @@ class TurnEvidenceCustody:
             return ()
         with self._lock:
             return tuple(dict(item) for item in self._receipts)
+
+    def append_generation(self, generation: dict[str, Any]) -> bool:
+        """Record that a model generated text for this turn."""
+
+        if not self.admits_current_execution():
+            return False
+        row = dict(generation)
+        row["session_id"] = self.session_id
+        row["turn_id"] = self.turn_id
+        with self._lock:
+            if self._closed or len(self._generations) >= 32:
+                return False
+            self._generations.append(row)
+            return True
+
+    def generations(self) -> tuple[dict[str, Any], ...]:
+        if not self.admits_current_execution():
+            return ()
+        with self._lock:
+            return tuple(dict(item) for item in self._generations)
 
     def append_grounding(self, evidence: Any) -> bool:
         """Attach source text that this exact turn was entitled to use."""
@@ -339,6 +362,59 @@ def turn_capability_availability() -> tuple[dict[str, Any], ...]:
 
     custody = current_turn_evidence_custody()
     return custody.capability_availability() if custody is not None else ()
+
+
+def record_turn_model_generation(
+    model: Any,
+    *,
+    tokens: int,
+    path: Any = "",
+) -> bool:
+    """Record that a model wrote text for this turn, and how much.
+
+    Provenance belongs to the turn, not to whichever object produced it.
+
+    A foreground answer proves its authorship from a surface-control receipt
+    with a token count in it, and that receipt is published on the object that
+    ran the generation. The tool loop runs on the inference gate; the layer
+    that checks the proof reads the health router. Both are correct about
+    their own object and the answer falls between them.
+
+    LIVE 2026-08-29: five tool calls, a code_repl that returned the trial
+    balance, an answer composed from it — and "ownership_evidence=[live_mind
+    (tokens=-,decode=-,attempts=0,applied=False); latent_cortex_receipt
+    (tokens=-,decode=0)]". No receipt for the generation that wrote the answer
+    reached the contract at all, because it was published somewhere the
+    contract does not look.
+
+    The turn is the one thing every path shares. This says nothing about
+    quality and grants nothing: repair text and legacy fallbacks do not call
+    it, because it is written where the model's own tokens are counted.
+    """
+
+    custody = _ACTIVE_CUSTODY.get()
+    if custody is None:
+        return False
+    counted = max(0, int(tokens or 0))
+    if counted <= 0:
+        # A generation that produced nothing proves nothing, and saying so is
+        # the point: absence of a count is not a small count.
+        return False
+    return custody.append_generation(
+        {
+            "model": str(model or "")[:200],
+            "tokens": counted,
+            "path": str(path or "")[:120],
+            "recorded_at": time.time(),
+        }
+    )
+
+
+def turn_model_generations() -> tuple[dict[str, Any], ...]:
+    """What this exact turn's own execution generated."""
+
+    custody = _ACTIVE_CUSTODY.get()
+    return custody.generations() if custody is not None else ()
 
 
 @contextmanager
