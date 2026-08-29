@@ -7037,7 +7037,22 @@ async def _run_cognitive_engine_chat_turn(
                     attempt_timeout = max(2.0, min(remaining, float(operation_timeout) * 0.55))
                 else:
                     attempt_timeout = remaining
-                return await asyncio.wait_for(operation(), timeout=attempt_timeout)
+                # The eighth clock in this turn, and it wrapped the engine
+                # call itself. Every clock inside it holds open while the turn
+                # is working; this one counted, so a ledgerkit turn that read
+                # three files died here at 139 seconds with the engine
+                # reporting no timeout of its own.
+                #
+                # A turn somebody is waiting for keeps going while it is
+                # working. One that has gone quiet still fails on the next
+                # slice, and nothing here changes the budget.
+                from core.brain.llm_health_router import _await_while_it_is_working
+
+                return await _await_while_it_is_working(
+                    operation(),
+                    budget_s=attempt_timeout,
+                    user_facing=bool(require_engine),
+                )
             except TimeoutError:
                 raise
             except _CHAT_RECOVERABLE_ERRORS as exc:
