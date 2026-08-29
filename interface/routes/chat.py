@@ -22813,11 +22813,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                     _live_turn_trace["desktop_internal_artifact_draft_path"] = str(
                                         candidate_contract.get("response_path") or reply_source
                                     )[:120]
+                                _owner_receipt: dict[str, Any] = {}
+                                for _receipt_key in (
+                                    "live_mind_surface_control_receipt",
+                                    "surface_control_receipt",
+                                ):
+                                    _found = candidate_contract.get(_receipt_key)
+                                    if isinstance(_found, dict) and _found:
+                                        _owner_receipt = _found
+                                        break
                                 logger.error(
                                     "Desktop CognitiveEngine candidate did not prove authorship "
                                     "(missing: %s); failing closed instead of serving repair "
                                     "text as Aura speech. path=%s generations=%s "
-                                    "completion_retries=%s repair_attempts=%s consumed=%s",
+                                    "completion_retries=%s repair_attempts=%s consumed=%s "
+                                    "receipt=%s tokens=%s",
                                     ",".join(
                                         candidate_contract.get("full_mind_missing_proofs") or ()
                                     ),
@@ -22837,6 +22847,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                     candidate_contract.get(
                                         "foreground_model_generation_consumed"
                                     ),
+                                    # And the evidence ownership is made of.
+                                    #
+                                    # "foreground_model_generation_ownership_unproven"
+                                    # names the proof, not what was missing from
+                                    # it, and what it rests on is one number: the
+                                    # tokens a surface control receipt says were
+                                    # generated. A receipt that never arrived and
+                                    # one that arrived empty read identically
+                                    # without it, and they are different faults
+                                    # with different fixes.
+                                    "present" if _owner_receipt else "absent",
+                                    _owner_receipt.get("generated_tokens", "unset"),
                                 )
                                 reply_text = None
                                 reply_source = ""
