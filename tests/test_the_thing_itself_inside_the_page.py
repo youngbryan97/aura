@@ -219,3 +219,33 @@ def test_and_a_thing_that_has_really_moved_is_found_again():
     ])
     found = the_thing_itself(elsewhere, like=first)
     assert (found.rows, found.columns) == (3, 3)
+
+
+def test_a_shape_that_was_never_a_crop_is_not_held():
+    """LIVE 2026-08-29: "reading 13x8" for an entire run on a 4x4 board.
+
+    A reading taken before the page settles has no lattice in it, so what
+    comes back is the whole reading rather than a block of it. Held as though
+    it were a block, it forces every later reading back to the whole page and
+    she never finds the thing at all.
+    """
+    from core.skills.screen_pursuit import _worth_holding
+
+    settling = arranged(PAGE)
+    not_a_crop = the_thing_itself(settling)
+    assert _worth_holding(not_a_crop, settling) is None
+
+
+def test_a_real_block_is_held():
+    from core.skills.screen_pursuit import _worth_holding
+
+    whole = arranged(PAGE + board(FULL))
+    found = the_thing_itself(whole)
+    assert _worth_holding(found, whole) is found
+
+
+def test_and_nothing_is_held_before_there_is_anything():
+    from core.skills.screen_pursuit import _worth_holding
+
+    assert _worth_holding(None, None) is None
+    assert _worth_holding(arranged(PAGE), None) is None

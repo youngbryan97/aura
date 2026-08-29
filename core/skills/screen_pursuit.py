@@ -989,6 +989,23 @@ def _a_screenful(hands: Any) -> int:
     return max(A_SCREENFUL_AT_LEAST, int(height * MOST_OF_A_SCREEN))
 
 
+def _worth_holding(found: Any, whole: Any) -> Any:
+    """The block she found last time, if she really found one.
+
+    A reading taken before the page settles has no lattice in it — nothing
+    drawn yet, or a panel over the top — and what comes back is the whole
+    reading rather than a block of it. Held as though it were a block, it
+    forces every later reading back to the whole page, and she never finds the
+    thing at all. LIVE 2026-08-29: "reading 13x8" for an entire run on a
+    four-by-four board, every comparison after the first discarded as
+    unreadable, and no rule ever formed.
+    """
+    if found is None or whole is None:
+        return None
+    inside = found.rows * found.columns < whole.rows * whole.columns
+    return found if inside else None
+
+
 def _what_there_is_to_aim_at(reading: Any) -> str:
     """What to prefer one situation over another by, when nobody said.
 
@@ -1841,7 +1858,9 @@ async def pursue_on_screen(
         # eighty-four moves, and therefore a full language generation for
         # every single one of them — about twenty-eight seconds a move.
         whole = what_is_there(observation, band, like=pending["whole"])
-        laid_out = the_thing_itself(whole, like=pending["arranged"])
+        laid_out = the_thing_itself(
+            whole, like=_worth_holding(pending["arranged"], pending["whole"])
+        )
 
         # Is this the thing she was asked to act in.
         #

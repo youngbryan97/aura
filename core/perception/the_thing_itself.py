@@ -120,6 +120,8 @@ def _where_it_was(
     """
     if before is None or not before.down_at or not before.across_at:
         return None
+    if before.rows * before.columns < ENOUGH_TO_BE_A_LATTICE ** 2:
+        return None
     down, across = list(reading.down_at), list(reading.across_at)
     if not down or not across:
         return None
