@@ -101,6 +101,17 @@ _DEFAULT_COGNITIVE_CYCLE_MAX_S = 240.0
 
 
 
+
+def _nothing_has_ever_arrived() -> bool:
+    """True when this turn has produced no sign of work at all."""
+
+    try:
+        from core.runtime.turn_progress import seconds_since_progress
+
+        return seconds_since_progress() < 0.0
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
 async def _keep_the_cycle_open_while_it_is_working(
     clock: Any, *, ceiling_at: float, user_facing: bool
 ) -> None:
@@ -134,8 +145,25 @@ async def _keep_the_cycle_open_while_it_is_working(
             now = time.monotonic()
             if now >= ceiling_at:
                 return
-            if not still_producing(within_s=quiet_for):
-                continue
+            # Extended while the turn is under its ceiling, whether or not
+            # this layer can see the work.
+            #
+            # It used to extend only while it could see progress, and it kept
+            # losing to gaps it cannot observe: a tool running, a long prefill,
+            # a worker between frames. Live on 2026-08-28 a ledgerkit turn read
+            # three files and died at 139 seconds with the engine having
+            # logged, in the same turn, that it was holding the cycle open.
+            #
+            # This clock has no way of telling a wedged turn from a working
+            # one — it sits above the lanes that do. A silent worker is caught
+            # by the first-token ceiling, a livelocked one by the livelock
+            # ceiling, a looping decode by the sentinel that reads what is
+            # being written, and all three watch the output rather than the
+            # hour. What is left for this one to enforce is the ceiling.
+            if not still_producing(within_s=quiet_for) and _nothing_has_ever_arrived():
+                # Never a token, never a tool: the turn has not started, and
+                # the first-token ceiling owns that case.
+                return
             # Keep a slice ahead of now, never past the ceiling.
             wanted = min(ceiling_at - now, 15.0)
             if wanted <= 0.0:

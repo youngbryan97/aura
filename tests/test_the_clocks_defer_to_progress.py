@@ -405,3 +405,50 @@ def test_a_stray_finish_cannot_drive_the_count_negative() -> None:
 
     _time.sleep(0.05)
     assert still_producing(within_s=0.01) is False
+
+
+def test_the_cycle_clock_holds_a_started_turn_to_its_ceiling_only() -> None:
+    """It sits above the lanes that can tell a wedged turn from a working one.
+
+    Extending only while it could see progress kept losing to gaps it cannot
+    observe — a tool running, a long prefill, a worker between frames. Live on
+    2026-08-28 a ledgerkit turn read three files and died at 139 seconds, in a
+    turn where the engine had already logged that it was holding the cycle
+    open.
+
+    A silent worker is caught by the first-token ceiling, a livelocked one by
+    the livelock ceiling, a looping decode by the sentinel. All three read the
+    output. What is left for this clock is the ceiling.
+    """
+
+    import asyncio
+    import time as _time
+
+    from core.brain.cognitive_engine import _keep_the_cycle_open_while_it_is_working
+
+    class _Clock:
+        def __init__(self) -> None:
+            self.reschedules = 0
+
+        def reschedule(self, _when: float) -> None:
+            self.reschedules += 1
+
+    async def run(*, any_sign_of_work: bool) -> int:
+        clock = _Clock()
+        forget_progress()
+        if any_sign_of_work:
+            note_progress()
+        task = asyncio.create_task(
+            _keep_the_cycle_open_while_it_is_working(
+                clock, ceiling_at=_time.monotonic() + 30.0, user_facing=True
+            )
+        )
+        await asyncio.sleep(2.4)
+        task.cancel()
+        return clock.reschedules
+
+    # A turn that has shown any sign of work is held open, even after the
+    # window has gone quiet.
+    assert asyncio.run(run(any_sign_of_work=True)) >= 1
+    # A turn that has never produced anything is not this clock's to hold.
+    assert asyncio.run(run(any_sign_of_work=False)) == 0
