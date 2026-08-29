@@ -157,9 +157,39 @@ def test_authored_answer_survives_hard_certification_gaps() -> None:
 
 
 def test_authored_answer_still_requires_completed_user_contract() -> None:
-    contract = _contract(
-        authentic_cognitive_reply=True,
-        answer_delivery_proven=False,
-    )
+    """Without the delivery proof, what serves depends on WHY it is missing.
 
-    assert not _authored_answer_can_serve(contract)
+    The fixture sets answer_delivery_proven False with only soft proofs in the
+    list, and those two cannot both be arbitrary: the delivery proof fails
+    BECAUSE of the proofs that are missing. A hard one still refuses. A soft
+    one is disclosed, which is the same policy the other exit has always
+    applied — a proof disclosable at one exit and fatal at the next is an
+    accident of which exit the turn took, not a rule.
+    """
+
+    assert not _authored_answer_can_serve(
+        _contract(
+            authentic_cognitive_reply=True,
+            answer_delivery_proven=False,
+            full_mind_missing_proofs=["engine_reply_failed"],
+        )
+    )
+    assert not _authored_answer_can_serve(
+        _contract(
+            authentic_cognitive_reply=True,
+            answer_delivery_proven=False,
+            full_mind_missing_proofs=["authored_answer_incomplete:generation_cut_off"],
+        )
+    )
+    # And authorship is never waived by the soft route.
+    assert not _authored_answer_can_serve(
+        _contract(
+            authentic_cognitive_reply=True,
+            answer_delivery_proven=False,
+            authorship_replacement_applied=True,
+        )
+    )
+    # Soft only, and hers: served with the degradation disclosed.
+    assert _authored_answer_can_serve(
+        _contract(authentic_cognitive_reply=True, answer_delivery_proven=False)
+    )

@@ -98,3 +98,58 @@ def test_the_contract_names_the_cause_it_found(monkeypatch, flag, named) -> None
 
     missing = _payload(chat_routes, trace)["full_mind_missing_proofs"]
     assert f"authored_answer_incomplete:{named}" in missing
+
+
+class TestOnePolicyAtBothExits:
+    """A proof disclosable at one exit and fatal at the next is not a policy.
+
+    LIVE 2026-08-29: a turn that read a library's docs, wrote code against
+    them, ran it and produced the trial balance was refused on
+    authored_answer_incomplete:nobody_checked and
+    live_mind_controls_unbound:not_applied — both on the soft list, both
+    already disclosable at the other exit, on a turn whose ownership had just
+    been proven.
+    """
+
+    def test_a_turn_missing_only_soft_proofs_can_serve_here_too(self) -> None:
+        from interface.routes.chat import _authored_answer_can_serve
+
+        assert _authored_answer_can_serve(
+            _hers(
+                full_mind_missing_proofs=[
+                    "authored_answer_incomplete:nobody_checked",
+                    "live_mind_controls_unbound:not_applied",
+                ]
+            )
+        )
+
+    def test_the_strong_proof_still_serves_on_its_own(self) -> None:
+        from interface.routes.chat import _authored_answer_can_serve
+
+        assert _authored_answer_can_serve(
+            {"answer_delivery_proven": True, "authentic_cognitive_reply": True}
+        )
+
+    def test_a_claim_about_the_text_is_still_fatal_here(self) -> None:
+        from interface.routes.chat import _authored_answer_can_serve
+
+        assert not _authored_answer_can_serve(
+            _hers(full_mind_missing_proofs=["authored_answer_incomplete:generation_cut_off"])
+        )
+
+    def test_repair_text_never_serves_by_this_route(self) -> None:
+        from interface.routes.chat import _authored_answer_can_serve
+
+        for forged in (
+            {"authorship_replacement_applied": True},
+            {"bounded_contract_used": True},
+            {"legacy_fallback_used": True},
+        ):
+            assert not _authored_answer_can_serve(
+                _hers(
+                    full_mind_missing_proofs=[
+                        "authored_answer_incomplete:nobody_checked"
+                    ],
+                    **forged,
+                )
+            )

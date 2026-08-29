@@ -4194,13 +4194,33 @@ def _authored_answer_can_serve_unfinished(contract: Any) -> bool:
 
 
 def _authored_answer_can_serve(contract: Any) -> bool:
-    """Keep a valid answer independent from full-system certification state."""
+    """Keep a valid answer independent from full-system certification state.
 
-    return bool(
-        isinstance(contract, dict)
-        and contract.get("answer_delivery_proven")
-        and contract.get("authentic_cognitive_reply")
-    )
+    Two exits, one policy. The soft-proof list above exists because a handful
+    of STATE-COMPLETENESS proofs are bookkeeping about her internals rather
+    than claims about the text, and its own comment names the failure this
+    fixes: a proof that is disclosable at one exit and fatal at the next is
+    not a policy, it is an accident of which exit the turn happened to take.
+
+    LIVE 2026-08-29: a turn that read a library's docs, wrote code against
+    them, ran it and produced the trial balance was refused here on
+    ``authored_answer_incomplete:nobody_checked`` and
+    ``live_mind_controls_unbound:not_applied`` — both on that list, both
+    already disclosable at the other exit. Ownership had just been proven on
+    the same turn.
+
+    Authorship is not waived by either route. The second branch requires that
+    she thought it and said it, and that no bounded repair, legacy fallback or
+    runtime substitution is wearing her voice.
+    """
+
+    if not isinstance(contract, dict):
+        return False
+    if contract.get("answer_delivery_proven") and contract.get(
+        "authentic_cognitive_reply"
+    ):
+        return True
+    return _only_soft_proofs_missing(contract)
 
 
 def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
