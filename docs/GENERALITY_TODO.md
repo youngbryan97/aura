@@ -575,3 +575,70 @@ anywhere near it. The model ended its own turn, and the semantic completion
 contract accepted it: there is no "ended before semantic completion" line for
 that generation. So the next defect is not a clock and not a budget. It is a
 list that stops at item two being read as a complete answer.
+
+---
+
+# Standing: the structure is not the constraint
+
+Said plainly on 2026-08-28, and it applies to everything below.
+
+Aura and the work on her run on the same machine. The code can be read
+directly rather than inferred from logs, and a restart is not the only way to
+learn what a function does. Where a previous decision is in the way, the
+decision can go. Two sessions were spent threading leases through call sites to
+satisfy a participant set that turned out to be a second, worse copy of a proof
+the runtime already had; deleting it was smaller than the workaround, and the
+rule it left behind is one sentence that cannot be forgotten at a call site
+because there is no call site.
+
+The test for a change like that is not whether it respects the existing shape.
+It is whether the invariant that matters still holds and is still pinned.
+
+# The whole backlog, so none of it drifts
+
+**In flight.** The ledgerkit turn end to end: read the docs, use the library,
+report the trial balance — Accounts Receivable +25000, Revenue -25000, Hosting
+Expense 0, Accounts Payable 0, summing to zero. Three defects between the ask
+and the answer are fixed (the tool budget reaching the loop, the envelope
+parser refusing two well-formed calls, and evidence custody refusing the
+turn's own children). Needs a clean live run.
+
+**Named in the mandate.**
+
+- A retirement path for library entries. Entries only ever enter; Soar and
+  ACT-R both report that symbolic accumulation saturates, and nothing here
+  ever removes anything.
+- H3 the standing injected context; H4 the eight `engine_directives` that are
+  English instruction prose telling the model which phrases to use — the
+  explicitly banned thing, still present, each added for a specific failure
+  that has to be identified before it can go.
+- A7 the action side: new action abstractions built from lower-level ones.
+- C7 a second concept formed the same way from a different signature.
+- D2 the same battery scored WITH the model, so the difference is measured
+  rather than asserted.
+- E2 the improver's own output against a held-out score; E3 repeated gains in
+  a NEW capability class.
+
+**The capability battery. Nothing may cost money, ever — booking means booking
+something free.** Operate unfamiliar SaaS; book something free; teach herself
+a tool or API from its docs; an open-ended research project; a scientific
+reasoning loop; a novel computer task with no dedicated skill; multi-tool
+coordination on an underspecified goal; recover from a mistaken assumption
+unaided; competing long-horizon goals under interruption; an unfamiliar
+professional domain; infer an unfamiliar visual environment; a frozen
+unseen-task battery.
+
+**The unification reading.** U1 the failure diagnosis that returns a level,
+with every learning mechanism subscribing to its verdict rather than being its
+own entry point. U2 the boxed-in mechanisms. U4 authority when representations
+disagree. U5 a minimal causal spine. U6 counterfactual ablations with
+predictions made in advance, in place of consciousness scores that measure the
+metric somebody implemented. U7 every subsystem earning its place by changing
+a measurement. U8 the test that would settle it. U9 the prerequisites,
+including making long tasks leave the foreground turn and persist as durable
+work.
+
+**From the metalanguage add-ons.** The derived signature lattice; testedness
+rather than fit; the World A/B/C milestone for M₀→M₁→M₂. `Composed`
+serialisation and the uniform IR are done — every learned rule is one
+`Node(kind, parameters, [Node...])`.
