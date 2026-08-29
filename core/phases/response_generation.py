@@ -2581,9 +2581,34 @@ class ResponseGenerationPhase(BasePhase):
                         _generation_metadata_sink=router_generation_metadata_sink,
                         timeout=ordinary_timeout,
                     )
-                    response_text = await asyncio.wait_for(
+                    # The tenth clock, and the same lesson as the other nine.
+                    #
+                    # asyncio.wait_for cancels on a stopwatch. LIVE
+                    # 2026-08-29: "ResponseGeneration Phase TIMEOUT (476s).
+                    # Logic took too long." on a turn that was running a tool
+                    # and composing an answer from it, and the person got the
+                    # canned apology.
+                    #
+                    # The helper waits while tokens are arriving, gives up on
+                    # silence, and stays inside the turn's own ceiling. This
+                    # phase composes what a person reads, so a person is
+                    # waiting on it unless the state says otherwise.
+                    from core.brain.llm_health_router import (
+                        _await_while_it_is_working,
+                    )
+                    from core.runtime.turn_origin import a_person_is_waiting
+
+                    response_text = await _await_while_it_is_working(
                         think_coro,
-                        timeout=ordinary_timeout + 2.0,
+                        budget_s=ordinary_timeout + 2.0,
+                        user_facing=True,
+                        # The facts this call already has: the origin it is
+                        # about to stamp on the request, and whether it is
+                        # background. A background generation has nobody
+                        # waiting whatever its origin says.
+                        person_is_waiting=(
+                            not is_background and a_person_is_waiting(origin)
+                        ),
                     )
                     attributed_generation_metadata = generation_metadata_of(
                         response_text
