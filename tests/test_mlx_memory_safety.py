@@ -1848,6 +1848,55 @@ def test_prompt_cache_resume_capability_is_exact_scoped_and_one_use():
     assert failure == "unknown_or_expired_handle"
 
 
+def test_prompt_cache_resume_appends_new_turn_tokens_after_exact_replay():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4)
+    key = (8, "user_surface")
+    tokens = [10, 20, 30, 40]
+    lru.insert_cache(key, tokens, ["exact-kv"])
+    handle = lru.bind_resume(key, tokens, context_digest="authority-v1")
+
+    cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+        append_tokens=[50, 60],
+        context_digest="authority-v1",
+    )
+
+    assert cache == ["exact-kv"]
+    assert remaining == [40, 50, 60]
+    assert resumed == [10, 20, 30, 40, 50, 60]
+    assert failure == ""
+
+
+def test_prompt_cache_resume_refuses_changed_authority_context():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4)
+    key = (8, "user_surface")
+    tokens = [10, 20, 30, 40]
+    lru.insert_cache(key, tokens, ["exact-kv"])
+    handle = lru.bind_resume(key, tokens, context_digest="authority-v1")
+
+    cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+        append_tokens=[50],
+        context_digest="authority-v2",
+    )
+
+    assert cache is None
+    assert remaining == []
+    assert resumed == []
+    assert failure == "context_mismatch"
+    assert lru.retained_entries() == 1
+
+
 def test_prompt_cache_resume_capability_refuses_cross_lane_and_clear_invalidates():
     from core.brain.llm.mlx_worker import _PromptCacheLRU
 
@@ -2123,6 +2172,84 @@ def test_hybrid_one_token_rollback_replays_identical_qwen35_logits():
     assert mx.allclose(replayed_logits, expected_logits, rtol=0, atol=0).item()
 
 
+def test_hybrid_resume_then_append_matches_uninterrupted_qwen35_logits():
+    import mlx.core as mx
+    from mlx_lm.models.cache import can_trim_prompt_cache, trim_prompt_cache
+    from mlx_lm.models.qwen3_5 import Model, ModelArgs
+
+    from core.brain.llm.mlx_worker import (
+        _capture_prompt_cache_one_token_rollback,
+        _PromptCacheLRU,
+    )
+
+    text_config = {
+        "model_type": "qwen3_5_text",
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "num_hidden_layers": 8,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "rms_norm_eps": 1e-6,
+        "vocab_size": 128,
+        "max_position_embeddings": 256,
+        "linear_num_value_heads": 4,
+        "linear_num_key_heads": 2,
+        "linear_key_head_dim": 16,
+        "linear_value_head_dim": 16,
+        "linear_conv_kernel_dim": 2,
+        "full_attention_interval": 2,
+        "head_dim": 16,
+        "tie_word_embeddings": False,
+    }
+    model = Model(ModelArgs(model_type="qwen3_5", text_config=text_config))
+    mx.eval(model.parameters())
+    prompt = mx.array([[3, 5, 7, 9]], dtype=mx.int32)
+    old_tail = mx.array([[11]], dtype=mx.int32)
+    append = [13, 15]
+
+    uninterrupted_cache = model.make_cache()
+    mx.eval(model(prompt, cache=uninterrupted_cache))
+    expected_logits = model(
+        mx.array([[11, *append]], dtype=mx.int32),
+        cache=uninterrupted_cache,
+    )
+    mx.eval(expected_logits)
+
+    resumable_cache = model.make_cache()
+    mx.eval(model(prompt, cache=resumable_cache))
+    rollback = _capture_prompt_cache_one_token_rollback(resumable_cache)
+    assert rollback is not None
+    mx.eval(model(old_tail, cache=resumable_cache))
+
+    lru = _PromptCacheLRU(max_size=2)
+    key = (32, "user_surface")
+    handle = lru.bind_resume(
+        key,
+        [3, 5, 7, 9, 11],
+        prompt_cache=resumable_cache,
+        one_token_rollback=rollback,
+        context_digest="authority-v1",
+    )
+    resumed_cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=can_trim_prompt_cache,
+        trim_prompt_cache=trim_prompt_cache,
+        append_tokens=append,
+        context_digest="authority-v1",
+    )
+
+    assert failure == ""
+    assert remaining == [11, 13, 15]
+    assert resumed == [3, 5, 7, 9, 11, 13, 15]
+    actual_logits = model(
+        mx.array([remaining], dtype=mx.int32),
+        cache=resumed_cache,
+    )
+    mx.eval(actual_logits)
+    assert mx.allclose(actual_logits, expected_logits, rtol=0, atol=0).item()
+
+
 def test_prompt_cache_resume_refuses_unrewindable_hybrid_state_without_mutation():
     import mlx.core as mx
     from mlx_lm.models.cache import ArraysCache, KVCache
@@ -2167,6 +2294,22 @@ def test_mlx_client_drops_an_invalid_continuation_resume_handle():
 
     assert receipt["continuation_resume_available"] is True
     assert "continuation_resume_handle" not in receipt
+
+
+def test_mlx_client_drops_invalid_conversation_resume_proof_fields():
+    from core.brain.llm.mlx_client import _sanitize_surface_control_receipt
+
+    receipt = _sanitize_surface_control_receipt(
+        {
+            "conversation_resume_available": True,
+            "conversation_resume_handle": "../../not-a-capability",
+            "conversation_resume_output_sha256": "not-a-digest",
+        }
+    )
+
+    assert receipt["conversation_resume_available"] is True
+    assert "conversation_resume_handle" not in receipt
+    assert "conversation_resume_output_sha256" not in receipt
 
 
 def test_mlx_client_arms_the_oom_ladder_with_the_prompt_cache():

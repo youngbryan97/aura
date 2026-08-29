@@ -990,13 +990,11 @@ async def test_cognitive_engine_desktop_quick_reply_includes_recent_context(monk
     )
 
     assert thought.content.startswith("I am carrying")
-    assert captured["messages"][1]["role"] == "system"
-    assert "RECENT COMPLETED LIVE DESKTOP CONVERSATION" in captured["messages"][1]["content"]
-    assert captured["messages"][2]["role"] == "user"
-    assert captured["messages"][2]["content"] == "The live desktop lane lost context."
-    assert captured["messages"][3]["role"] == "assistant"
+    assert captured["messages"][1]["role"] == "user"
+    assert captured["messages"][1]["content"] == "The live desktop lane lost context."
+    assert captured["messages"][2]["role"] == "assistant"
     assert (
-        captured["messages"][3]["content"]
+        captured["messages"][2]["content"]
         == "I should preserve bounded recent exchanges through CognitiveEngine."
     )
     user_message = captured["messages"][-1]["content"]

@@ -1663,6 +1663,8 @@ class _ConversationQualityState:
     consecutive_degraded_count: int = 0
     lane_status_fingerprint: str = ""
     lane_status_repeat_count: int = 0
+    conversation_resume_handle: str = ""
+    conversation_resume_created_at: float = 0.0
     last_access_monotonic: float = dataclasses.field(default_factory=time.monotonic)
 
 
@@ -1685,6 +1687,7 @@ _CHAT_REPLY_QUALITY_SNAPSHOTS: ContextVar[
 
 _CONVERSATION_QUALITY_STATE_LIMIT = 256
 _CONVERSATION_QUALITY_STATE_TTL_S = 6 * 60 * 60.0
+_CONVERSATION_RESUME_TTL_S = 240.0
 _DEFAULT_CONVERSATION_QUALITY_KEY = "default"
 _conversation_quality_lock = checked_lock(
     "chat.conversation_quality_state",
@@ -1765,9 +1768,72 @@ def _reset_conversation_quality_registry() -> None:
         default.consecutive_degraded_count = 0
         default.lane_status_fingerprint = ""
         default.lane_status_repeat_count = 0
+        default.conversation_resume_handle = ""
+        default.conversation_resume_created_at = 0.0
         default.last_access_monotonic = time.monotonic()
         _conversation_quality_states.clear()
         _conversation_quality_states[_DEFAULT_CONVERSATION_QUALITY_KEY] = default
+
+
+def _take_conversation_resume_handle(
+    *,
+    session_id: str = "",
+    principal_id: str = "",
+    principal_surface: str = "",
+) -> str:
+    """Consume this conversation's worker capability exactly once."""
+
+    with _conversation_quality_lock:
+        state = _conversation_quality_state_locked(
+            session_id=session_id,
+            principal_id=principal_id,
+            principal_surface=principal_surface,
+        )
+        handle = str(state.conversation_resume_handle or "").strip().lower()
+        age = time.monotonic() - float(state.conversation_resume_created_at or 0.0)
+        state.conversation_resume_handle = ""
+        state.conversation_resume_created_at = 0.0
+    if age > _CONVERSATION_RESUME_TTL_S:
+        return ""
+    return handle if re.fullmatch(r"[0-9a-f]{32}", handle) else ""
+
+
+def _store_conversation_resume_handle(
+    turn_trace: dict[str, Any],
+    delivered_text: str,
+    *,
+    session_id: str = "",
+    principal_id: str = "",
+    principal_surface: str = "",
+) -> bool:
+    """Retain exact KV only when it authored the exact bytes delivered."""
+
+    receipt = turn_trace.get("live_mind_surface_control_receipt")
+    receipt = dict(receipt) if isinstance(receipt, dict) else {}
+    handle = str(receipt.get("conversation_resume_handle") or "").strip().lower()
+    expected_hash = str(
+        receipt.get("conversation_resume_output_sha256") or ""
+    ).strip().lower()
+    delivered_hash = hashlib.sha256(
+        str(delivered_text or "").encode("utf-8", "replace")
+    ).hexdigest()
+    accepted = bool(
+        re.fullmatch(r"[0-9a-f]{32}", handle)
+        and re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+        and expected_hash == delivered_hash
+        and turn_trace.get("cognitive_engine_reply_accepted") is True
+        and turn_trace.get("bounded_contract_used") is not True
+        and turn_trace.get("legacy_fallback_used") is not True
+    )
+    with _conversation_quality_lock:
+        state = _conversation_quality_state_locked(
+            session_id=session_id,
+            principal_id=principal_id,
+            principal_surface=principal_surface,
+        )
+        state.conversation_resume_handle = handle if accepted else ""
+        state.conversation_resume_created_at = time.monotonic() if accepted else 0.0
+    return accepted
 
 
 def _increment_conversation_degradation_streak() -> int:
@@ -5762,6 +5828,7 @@ async def _run_cognitive_engine_chat_turn(
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
     continuation_evidence: dict[str, Any] | None = None,
+    conversation_resume_handle: str = "",
     completed_capability_evidence: dict[str, Any] | None = None,
     evidence_profile: str = _chat_preflight._CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE,
 ) -> str | None:
@@ -5788,6 +5855,9 @@ async def _run_cognitive_engine_chat_turn(
     visible = str(visible_user_message or effective_user_message or "")
     raw_visible = str(raw_user_message or visible)
     action_episode_evidence = str(action_episode_evidence or "").strip()
+    conversation_resume_handle = str(conversation_resume_handle or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
+        conversation_resume_handle = ""
     interlocutor_evidence = (
         dict(declared_interlocutor)
         if isinstance(declared_interlocutor, dict) and declared_interlocutor
@@ -6573,6 +6643,10 @@ async def _run_cognitive_engine_chat_turn(
         "prompt_shape": dict(prompt_shape_payload),
         "completed_capability_evidence": completed_capability_evidence,
     }
+    if conversation_resume_handle:
+        context[
+            "user_surface_conversation_resume_handle"
+        ] = conversation_resume_handle
     from core.conversation.user_surface_contract import bind_user_surface_prompt
 
     bind_user_surface_prompt(
@@ -7376,6 +7450,9 @@ async def _run_cognitive_engine_chat_turn(
                 reasons,
             )
         retry_context = dict(context)
+        # The first decode consumes exact conversation state. A repair starts
+        # from its own prompt and must never retry a spent bearer capability.
+        retry_context.pop("user_surface_conversation_resume_handle", None)
         if completion_only_retry:
             # Typed continuation state replaces prose about why the preceding
             # segment failed. Strip inherited repair payloads so retries cannot
@@ -20393,6 +20470,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
     _interlocutor_turn = parse_interlocutor_introduction(_original_user_message)
     _semantic_user_message = _interlocutor_turn.utterance
+    # Any visible user turn advances the conversation. Consume the exact cache
+    # capability now so an early bounded/fallback exit cannot leave stale state
+    # for a later turn to append onto.
+    _conversation_resume_handle_for_turn = _take_conversation_resume_handle()
     # Bound HERE because a nested helper closes over it.
     #
     # `_try_serve_grounded_recovery` is defined around line 16800 and reads
@@ -22871,6 +22952,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
                     action_episode_evidence=action_episode_evidence,
+                    conversation_resume_handle=_conversation_resume_handle_for_turn,
                     completed_capability_evidence=desktop_required_search_evidence,
                     evidence_profile=_preflight.evidence_profile,
                 )
@@ -24591,6 +24673,25 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _json_safe_payload(r) for r in _affordance_results
             ]
 
+        # The durable delivery boundary may still replace these bytes through
+        # recorded-answer composition, paired projection, or control-syntax
+        # sanitation. Commit exact worker state only after that boundary has
+        # sealed the payload it will actually return.
+        _resume_trace = dict(_live_turn_trace)
+        _resume_session = str(_CHAT_REQUEST_SESSION.get() or _chat_session_id or "")
+        _resume_principal = str(_CHAT_REQUEST_PRINCIPAL.get() or "")
+        _resume_surface = str(_CHAT_REQUEST_SURFACE.get() or "")
+        _chat_delivery.register_chat_delivery_commit_hook(
+            request,
+            lambda payload: _store_conversation_resume_handle(
+                _resume_trace,
+                str(payload.get("response") or ""),
+                session_id=_resume_session,
+                principal_id=_resume_principal,
+                principal_surface=_resume_surface,
+            ),
+        )
+        _live_turn_trace["conversation_resume_commit_registered"] = True
         _record_recent_response(_final_reply or "…", _semantic_user_message)
         _persistence_started_at = time.monotonic()
         if pending_exchange_id:

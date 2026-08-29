@@ -6,6 +6,7 @@ from core.brain.llm.mlx_worker import (
     _classify_generation_stop_reason,
     _continuation_resume_should_bind,
     _continuation_resume_unavailable_reason,
+    _conversation_resume_boundary_complete,
     _job_requires_exact_continuation_cache,
     _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
@@ -76,6 +77,16 @@ def test_cache_bypass_does_not_disable_exact_transaction_continuation() -> None:
             "user_surface_continuation_resume_handle": "d" * 32,
         }
     )
+    assert _job_requires_exact_continuation_cache(
+        {
+            "clean_user_surface_contract": True,
+        }
+    )
+    assert _job_requires_exact_continuation_cache(
+        {
+            "user_surface_conversation_resume_handle": "e" * 32,
+        }
+    )
 
 
 def test_unrelated_cache_bypass_does_not_allocate_continuation_state() -> None:
@@ -127,6 +138,25 @@ def test_worker_retains_exact_state_at_only_resumable_boundaries(
         )
         is expected
     )
+
+
+@pytest.mark.parametrize(
+    ("stop_reason", "expected"),
+    [
+        ("eos", True),
+        ("configured_stop", False),
+        ("role_continuation", False),
+        ("semantic_contract_satisfied", False),
+        ("deadline_exceeded", False),
+        ("max_tokens", False),
+        ("soft_cancelled", False),
+    ],
+)
+def test_new_conversation_turn_requires_a_native_assistant_boundary(
+    stop_reason: str,
+    expected: bool,
+) -> None:
+    assert _conversation_resume_boundary_complete(stop_reason) is expected
 
 
 UNPUNCTUATED_COMPLETE_PROSE = (

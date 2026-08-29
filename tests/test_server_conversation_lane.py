@@ -3285,6 +3285,108 @@ def test_final_requested_output_contract_repairs_post_affordance_mutation():
     assert trace["final_requested_output_contract_satisfied"] is True
 
 
+def test_exact_conversation_resume_is_session_scoped_one_use_and_byte_bound():
+    from interface.routes import chat as chat_routes
+
+    chat_routes._reset_conversation_quality_registry()
+    reply = "I used the earlier Solaris example because it was still in this conversation."
+    digest = hashlib.sha256(reply.encode("utf-8")).hexdigest()
+    trace = {
+        "cognitive_engine_reply_accepted": True,
+        "bounded_contract_used": False,
+        "legacy_fallback_used": False,
+        "live_mind_surface_control_receipt": {
+            "conversation_resume_handle": "a" * 32,
+            "conversation_resume_output_sha256": digest,
+        },
+    }
+
+    assert chat_routes._store_conversation_resume_handle(
+        trace,
+        reply,
+        session_id="session-a",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) is True
+    assert chat_routes._take_conversation_resume_handle(
+        session_id="session-b",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) == ""
+    assert chat_routes._take_conversation_resume_handle(
+        session_id="session-a",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) == "a" * 32
+    assert chat_routes._take_conversation_resume_handle(
+        session_id="session-a",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) == ""
+
+
+def test_exact_conversation_resume_rejects_a_terminal_text_mutation():
+    from interface.routes import chat as chat_routes
+
+    chat_routes._reset_conversation_quality_registry()
+    worker_reply = "The original answer."
+    trace = {
+        "cognitive_engine_reply_accepted": True,
+        "bounded_contract_used": False,
+        "legacy_fallback_used": False,
+        "live_mind_surface_control_receipt": {
+            "conversation_resume_handle": "b" * 32,
+            "conversation_resume_output_sha256": hashlib.sha256(
+                worker_reply.encode("utf-8")
+            ).hexdigest(),
+        },
+    }
+
+    assert chat_routes._store_conversation_resume_handle(
+        trace,
+        "The terminal guard changed this answer.",
+        session_id="session-a",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) is False
+    assert chat_routes._take_conversation_resume_handle(
+        session_id="session-a",
+        principal_id="bryan",
+        principal_surface="desktop",
+    ) == ""
+
+
+def test_delivery_commit_hooks_see_final_bytes_once():
+    from starlette.requests import Request
+
+    from interface.routes import chat_delivery
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/chat",
+            "headers": [],
+        }
+    )
+    observed = []
+    chat_delivery.register_chat_delivery_commit_hook(
+        request,
+        lambda payload: observed.append(str(payload.get("response") or "")),
+    )
+
+    chat_delivery._run_chat_delivery_commit_hooks(
+        request,
+        {"response": "the terminal boundary changed these bytes"},
+    )
+    chat_delivery._run_chat_delivery_commit_hooks(
+        request,
+        {"response": "a second delivery must not recommit"},
+    )
+
+    assert observed == ["the terminal boundary changed these bytes"]
+
+
 def test_exact_reply_contract_exempts_only_matching_repetition_from_stale_gate():
     from interface.routes import chat as chat_routes
 
@@ -9657,7 +9759,7 @@ async def test_cognitive_engine_quick_reply_places_self_condition_evidence_in_mo
     assert "[LIVE MIND CONTEXT]" not in call["messages"][0]["content"]
     assert call["messages"][-1] == {"role": "user", "content": "Are you okay though?"}
     grounding = call["messages"][-2]
-    assert grounding["role"] == "system"
+    assert grounding["role"] == "runtime_evidence"
     assert grounding["metadata"]["type"] == "turn_grounding"
     assert grounding["metadata"]["snapshot_owner"] == "cognitive_engine"
     assert grounding["metadata"]["evidence_priority"] == (
@@ -9757,7 +9859,7 @@ async def test_self_condition_prompt_has_one_projection_and_no_stale_assistant_d
     assert "condition=" not in joined
     assert "Draft one" not in joined
     assert messages[-1] == {"role": "user", "content": prompt}
-    assert messages[-2]["role"] == "system"
+    assert messages[-2]["role"] == "runtime_evidence"
     assert evidence in messages[-2]["content"]
     assert '"display_name":"ChatGPT"' in messages[-2]["content"]
     assert "ChatGPT here" not in messages[-1]["content"]
@@ -13958,6 +14060,46 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
     assert call["user_surface_continuation_resume_handle"] == "e" * 32
     assert call["semantic_completion_contract"] is True
     assert "USER-SURFACE CONTINUATION CONTRACT" not in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_ordinary_turn_forwards_exact_conversation_resume_to_router(monkeypatch):
+    from core.brain import cognitive_engine as ce_module
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+
+    calls = []
+
+    class _Router:
+        async def think(self, **kwargs):
+            calls.append(kwargs)
+            return "It followed from the prior turn."
+
+        def get_last_generation_metadata(self):
+            return {}
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            return _Router() if name == "llm_router" else default
+
+    monkeypatch.setattr(ce_module, "get_container", lambda: _Container)
+    context = {
+        "desktop_quick_reply_contract": True,
+        "visible_user_message": "How did you know that?",
+        "user_surface_conversation_resume_handle": "f" * 32,
+    }
+
+    thought = await CognitiveEngine()._direct_desktop_quick_reply(
+        "How did you know that?",
+        ThinkingMode.FAST,
+        "user",
+        context,
+        timeout_s=60.0,
+    )
+
+    assert thought is not None
+    assert calls[0]["user_surface_conversation_resume_handle"] == "f" * 32
 
 
 @pytest.mark.asyncio

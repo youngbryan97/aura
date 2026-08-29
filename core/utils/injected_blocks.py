@@ -31,6 +31,7 @@ __all__ = [
     "EVIDENCE_BANNERS",
     "GROUNDING_STAMP",
     "INJECTED_BANNERS",
+    "RUNTIME_EVIDENCE_ROLE",
     "carries_read_evidence",
     "contains_injected_block",
     "is_stamped_grounding",
@@ -39,6 +40,12 @@ __all__ = [
     "stamp_runtime_payload",
     "strip_injected_blocks",
 ]
+
+#: Internal transcript role for evidence gathered by Aura's runtime. Model
+#: adapters translate it to a native evidence-bearing role at serialization;
+#: it must never be folded into system authority or mistaken for the person's
+#: words while it moves through the cognitive pipeline.
+RUNTIME_EVIDENCE_ROLE = "runtime_evidence"
 
 #: Proof that the RUNTIME produced a grounding message, not a caller.
 #:

@@ -11,6 +11,7 @@ logger = logging.getLogger("Aura.ChatFormat")
 
 _ROLE_ALIASES = {
     "assistant": "assistant",
+    "runtime_evidence": "runtime_evidence",
     "system": "system",
     "tool": "user",
     "developer": "system",
@@ -65,6 +66,7 @@ _THINKING_PROBE = [{"role": "user", "content": "probe"}]
 # model-family names cannot establish that contract, so probe the active
 # tokenizer once and adapt only at its serialization boundary.
 _TOOL_ARGUMENT_MODE: dict[str, str] = {}
+_RUNTIME_EVIDENCE_ROLE_MODE: dict[str, str] = {}
 _TOOL_ARGUMENT_PROBE_TOOLS = [
     {
         "type": "function",
@@ -213,6 +215,84 @@ def normalize_tool_transcript_for_template(
             normalized[message_index] = normalized_message
             changed = True
     return normalized if changed else messages
+
+
+def _runtime_evidence_role_mode(tokenizer: object) -> str:
+    """Return the wire role the active template proves it can distinguish."""
+
+    template = getattr(tokenizer, "chat_template", None)
+    apply = getattr(tokenizer, "apply_chat_template", None)
+    if not isinstance(template, str) or not template or not callable(apply):
+        return "user"
+
+    key = _hashlib.sha256(template.encode("utf-8", "replace")).hexdigest()
+    cached = _RUNTIME_EVIDENCE_ROLE_MODE.get(key)
+    if cached is not None:
+        return cached
+
+    def _render(role: str) -> str | None:
+        messages = [
+            {"role": "system", "content": "authority"},
+            {"role": "user", "content": "question one"},
+            {"role": "assistant", "content": "answer one"},
+            {"role": role, "content": "AURA_RUNTIME_EVIDENCE_PROBE"},
+            {"role": "user", "content": "question two"},
+        ]
+        try:
+            return str(
+                apply(
+                    messages,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - third-party Jinja is untyped
+            logger.debug("runtime-evidence role probe did not render: %s", exc)
+            return None
+
+    native_tool = _render("tool")
+    user_fallback = _render("user")
+    if (
+        native_tool is not None
+        and user_fallback is not None
+        and native_tool != user_fallback
+        and "AURA_RUNTIME_EVIDENCE_PROBE" in native_tool
+    ):
+        mode = "tool"
+    else:
+        mode = "user"
+    _RUNTIME_EVIDENCE_ROLE_MODE[key] = mode
+    return mode
+
+
+def normalize_runtime_evidence_for_template(
+    tokenizer: object,
+    messages: object,
+) -> object:
+    """Map Aura's typed evidence role to the active model's proven wire role."""
+
+    if not isinstance(messages, (list, tuple)) or not messages:
+        return messages
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
+
+    if not any(
+        isinstance(message, dict)
+        and str(message.get("role") or "").strip().lower() == RUNTIME_EVIDENCE_ROLE
+        for message in messages
+    ):
+        return messages
+
+    wire_role = _runtime_evidence_role_mode(tokenizer)
+    normalized = list(messages)
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != RUNTIME_EVIDENCE_ROLE:
+            continue
+        converted = dict(message)
+        converted["role"] = wire_role
+        normalized[index] = converted
+    return normalized
 
 
 def template_supports_thinking(tokenizer: object) -> bool:
@@ -374,9 +454,27 @@ def system_first(messages: object) -> object:
     """
     if not isinstance(messages, (list, tuple)) or not messages:
         return messages
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, is_stamped_grounding
+
+    prepared = list(messages)
+    first_system_seen = False
+    changed = False
+    for index, message in enumerate(messages):
+        if _message_role(message) != "system":
+            continue
+        if not first_system_seen:
+            first_system_seen = True
+            continue
+        if isinstance(message, dict) and is_stamped_grounding(message):
+            evidence = dict(message)
+            evidence["role"] = RUNTIME_EVIDENCE_ROLE
+            prepared[index] = evidence
+            changed = True
+
+    source = prepared if changed else messages
     system: list[object] = []
     rest: list[object] = []
-    for message in messages:
+    for message in source:
         (system if _message_role(message) == "system" else rest).append(message)
     if not system:
         return messages
@@ -384,17 +482,17 @@ def system_first(messages: object) -> object:
     if len(system) == 1 and not isinstance(system[0], dict):
         raw_role = str(getattr(system[0], "role", "") or "").strip().lower()
         if raw_role == "system":
-            if system[0] is messages[0]:
-                return messages
+            if system[0] is source[0]:
+                return source
             return [system[0], *rest]
 
     if (
         len(system) == 1
-        and system[0] is messages[0]
+        and system[0] is source[0]
         and isinstance(system[0], dict)
         and str(system[0].get("role") or "").strip().lower() == "system"
     ):
-        return messages
+        return source
 
     first = system[0]
     canonical = dict(first) if isinstance(first, dict) else {}
@@ -403,7 +501,7 @@ def system_first(messages: object) -> object:
     logger.info(
         "Canonicalized %d authority message(s) at the front of a %d-message conversation.",
         len(system),
-        len(messages),
+        len(source),
     )
     return [canonical, *rest]
 
@@ -432,10 +530,172 @@ def render_chat_template(
         kwargs["enable_thinking"] = bool(enable_thinking)
     return str(
         apply(
-            normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+            normalize_tool_transcript_for_template(
+                tokenizer,
+                normalize_runtime_evidence_for_template(
+                    tokenizer,
+                    system_first(messages),
+                ),
+            ),
             **kwargs,
         )
     )
+
+
+def conversation_append_messages(messages: object) -> list[dict[str, Any]]:
+    """Return only the new evidence and user turn after cached dialogue.
+
+    Exact conversation resume already owns the rendered transcript through the
+    previous assistant answer. Re-rendering that history defeats the cache and
+    risks diverging from the bytes it contains. A resumable turn therefore has
+    one narrow shape: zero or more runtime-evidence records followed by one
+    user message. Anything else falls back to the ordinary full renderer.
+    """
+
+    canonical = system_first(messages)
+    if not isinstance(canonical, (list, tuple)) or not canonical:
+        raise ValueError("conversation transcript must be a non-empty sequence")
+    last_assistant = -1
+    for index, message in enumerate(canonical):
+        if _message_role(message) == "assistant":
+            last_assistant = index
+    if last_assistant < 0:
+        raise ValueError("conversation resume requires a prior assistant turn")
+
+    suffix = canonical[last_assistant + 1 :]
+    if not suffix:
+        raise ValueError("conversation resume requires a new user turn")
+    normalized: list[dict[str, Any]] = []
+    user_count = 0
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
+
+    for index, message in enumerate(suffix):
+        if not isinstance(message, dict):
+            raise ValueError("conversation append messages must contain mappings")
+        role = str(message.get("role") or "").strip().lower()
+        if role == "user":
+            user_count += 1
+            if index != len(suffix) - 1:
+                raise ValueError("conversation append user message must be final")
+        elif role not in {RUNTIME_EVIDENCE_ROLE, "tool"}:
+            raise ValueError(f"unsupported conversation append role: {role or 'empty'}")
+        normalized.append(dict(message))
+    if user_count != 1:
+        raise ValueError("conversation append requires exactly one user message")
+    return normalized
+
+
+def conversation_resume_context_digest(
+    tokenizer: object,
+    messages: object,
+    *,
+    tools: object = None,
+    enable_thinking: bool | None = None,
+) -> str:
+    """Bind resumable KV state to the authority and template that produced it."""
+
+    canonical = system_first(messages)
+    if not isinstance(canonical, (list, tuple)) or not canonical:
+        raise ValueError("conversation transcript must be a non-empty sequence")
+    authority = [
+        message
+        for message in canonical
+        if _message_role(message) == "system"
+    ]
+    template = str(getattr(tokenizer, "chat_template", "") or "")
+    material = {
+        "authority": authority,
+        "enable_thinking": enable_thinking,
+        "evidence_wire_role": _runtime_evidence_role_mode(tokenizer),
+        "template_sha256": _hashlib.sha256(
+            template.encode("utf-8", "replace")
+        ).hexdigest(),
+        "tools": tools,
+    }
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8", "replace")
+    return _hashlib.sha256(encoded).hexdigest()
+
+
+def render_chat_append_template(
+    tokenizer: object,
+    append_messages: object,
+    *,
+    tools: object = None,
+    enable_thinking: bool | None = None,
+) -> str:
+    """Render bytes that can be appended to an exact completed chat cache.
+
+    The tokenizer itself proves locality. We render a fixed completed exchange,
+    then render that same exchange with the proposed suffix and require the
+    latter to begin with the former byte for byte. The returned tail is safe to
+    encode after rewinding the cache's final token. Templates that rewrite prior
+    turns cannot use exact conversation resume.
+    """
+
+    if not isinstance(append_messages, (list, tuple)) or not append_messages:
+        raise ValueError("append messages must be a non-empty sequence")
+    append = [dict(message) for message in append_messages if isinstance(message, dict)]
+    if len(append) != len(append_messages):
+        raise ValueError("append messages must contain mappings")
+
+    anchor = [
+        {"role": "system", "content": "AURA_APPEND_ANCHOR_AUTHORITY"},
+        {"role": "user", "content": "AURA_APPEND_ANCHOR_USER"},
+        {"role": "assistant", "content": "AURA_APPEND_ANCHOR_ASSISTANT"},
+    ]
+    apply = tokenizer.apply_chat_template
+    shared_kwargs = {"tools": tools, "tokenize": False}
+    if enable_thinking is not None and template_supports_thinking(tokenizer):
+        shared_kwargs["enable_thinking"] = bool(enable_thinking)
+
+    def _wire(value: object) -> object:
+        return normalize_tool_transcript_for_template(
+            tokenizer,
+            normalize_runtime_evidence_for_template(tokenizer, value),
+        )
+
+    rendered_anchor = str(
+        apply(
+            _wire(anchor),
+            add_generation_prompt=False,
+            **shared_kwargs,
+        )
+    )
+    rendered_full = str(
+        apply(
+            _wire([*anchor, *append]),
+            add_generation_prompt=True,
+            **shared_kwargs,
+        )
+    )
+    if not rendered_full.startswith(rendered_anchor):
+        raise ValueError("chat template rewrote the completed transcript while appending")
+    tail = rendered_full[len(rendered_anchor) :]
+    if not tail:
+        raise ValueError("chat template produced an empty conversation append")
+
+    # Byte locality is necessary but not sufficient. A tokenizer may merge
+    # across the byte boundary, in which case ``encode(anchor) + encode(tail)``
+    # is not the token sequence for ``anchor + tail`` and replaying the tail
+    # beside cached KV changes the model input. Prove the exact composition on
+    # the active tokenizer; a template/tokenizer pair that cannot demonstrate
+    # it uses ordinary full reconstruction instead.
+    encode = getattr(tokenizer, "encode", None)
+    if callable(encode):
+        anchor_tokens = [int(token) for token in encode(rendered_anchor)]
+        tail_tokens = [int(token) for token in encode(tail)]
+        full_tokens = [int(token) for token in encode(rendered_full)]
+        if full_tokens != [*anchor_tokens, *tail_tokens]:
+            raise ValueError(
+                "chat tokenizer merged across the completed-transcript boundary"
+            )
+    return tail
 
 
 def render_chat_continuation_template(
@@ -476,7 +736,13 @@ def render_chat_continuation_template(
     try:
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+                normalize_tool_transcript_for_template(
+                    tokenizer,
+                    normalize_runtime_evidence_for_template(
+                        tokenizer,
+                        system_first(messages),
+                    ),
+                ),
                 **kwargs,
             )
         )
@@ -490,7 +756,13 @@ def render_chat_continuation_template(
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(tokenizer, system_first(messages)),
+                normalize_tool_transcript_for_template(
+                    tokenizer,
+                    normalize_runtime_evidence_for_template(
+                        tokenizer,
+                        system_first(messages),
+                    ),
+                ),
                 **fallback_kwargs,
             )
         )

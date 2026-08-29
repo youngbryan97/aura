@@ -4678,6 +4678,7 @@ class HealthAwareLLMRouter:
                                 "user_surface_continuation_contract",
                                 "user_surface_continuation_partial",
                                 "user_surface_continuation_resume_handle",
+                                "user_surface_conversation_resume_handle",
                                 "user_surface_prompt_binding",
                                 "user_surface_grounding_evidence",
                                 "clean_user_surface_steering_alpha",

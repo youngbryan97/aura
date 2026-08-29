@@ -18,6 +18,7 @@ caller's mistake, and the cost of it should be a reordered list.
 from __future__ import annotations
 
 from core.brain.llm.chat_format import system_first
+from core.utils.injected_blocks import stamp_grounding
 
 
 def test_a_system_message_arriving_late_is_moved_to_the_front():
@@ -44,6 +45,23 @@ def test_multiple_system_messages_become_one_canonical_system_block():
     assert [message["role"] for message in moved] == ["system", "user", "assistant"]
     assert moved[0]["content"] == "s1\n\ns2"
     assert [message["content"] for message in moved[1:]] == ["a", "b"]
+
+
+def test_stamped_late_grounding_is_not_promoted_to_system_authority():
+    moved = system_first(
+        [
+            {"role": "system", "content": "stable authority"},
+            {"role": "user", "content": "question one"},
+            stamp_grounding({"role": "system", "content": "fresh evidence"}),
+            {"role": "user", "content": "question two"},
+        ]
+    )
+    assert [message["role"] for message in moved] == [
+        "system",
+        "user",
+        "runtime_evidence",
+        "user",
+    ]
 
 
 def test_developer_authority_is_folded_into_the_canonical_system_block():

@@ -250,6 +250,7 @@ def test_generation_request_carries_typed_cognitive_mode_to_worker():
             "cognitive_mode": "deliberate",
             "serving_lane": "tool_execution",
             "user_surface_continuation_resume_handle": "d" * 32,
+            "user_surface_conversation_resume_handle": "e" * 32,
         },
         prompt="question",
         req_id="request-1",
@@ -265,6 +266,7 @@ def test_generation_request_carries_typed_cognitive_mode_to_worker():
     assert request["cognitive_mode"] == "deliberate"
     assert request["serving_lane"] == "tool_execution"
     assert request["user_surface_continuation_resume_handle"] == "d" * 32
+    assert request["user_surface_conversation_resume_handle"] == "e" * 32
 
 
 def test_generation_request_drops_malformed_continuation_resume_handle():
@@ -276,7 +278,10 @@ def test_generation_request_drops_malformed_continuation_resume_handle():
         contract_generation_floor=0,
         generation_max_tokens=256,
         hard_output_token_ceiling=None,
-        kwargs={"user_surface_continuation_resume_handle": "not-a-capability"},
+        kwargs={
+            "user_surface_continuation_resume_handle": "not-a-capability",
+            "user_surface_conversation_resume_handle": "also-not-a-capability",
+        },
         prompt="question",
         req_id="request-2",
         requested_output_contract={},
@@ -289,6 +294,7 @@ def test_generation_request_drops_malformed_continuation_resume_handle():
     )
 
     assert request["user_surface_continuation_resume_handle"] == ""
+    assert request["user_surface_conversation_resume_handle"] == ""
 
 
 def test_mlx_surface_receipt_reports_contract_tokens_and_repair():

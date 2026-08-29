@@ -234,6 +234,7 @@ REQUEST_FIELDS: dict[str, Field_] = {
     # resume cache. Preserve exactly 128 bits; arbitrary strings never become
     # cache selectors.
     "user_surface_continuation_resume_handle": Field_(Kind.HEX_CAPABILITY_128),
+    "user_surface_conversation_resume_handle": Field_(Kind.HEX_CAPABILITY_128),
     "semantic_completion_contract": Field_(Kind.BOOL),
     # ── live-mind readiness claims (authority-relevant) ─────────────────
     "live_mind_controls_bound": Field_(Kind.BOOL, policy=True),

@@ -20,6 +20,12 @@ message, so it still conditions the answer with maximum recency, while
 from __future__ import annotations
 
 from core.brain.inference_gate import InferenceGate
+from core.brain.llm.chat_format import (
+    conversation_append_messages,
+    render_chat_append_template,
+    render_chat_template,
+)
+from core.utils.injected_blocks import stamp_grounding
 
 LIVE_MIND = "[LIVE MIND CONTEXT]"
 
@@ -31,7 +37,7 @@ def _gate() -> InferenceGate:
 def _turn(grounding: str, history: list[tuple[str, str]]) -> list[dict[str, str]]:
     """One turn's prebuilt payload: system, per-turn grounding, then history."""
     messages = [{"role": "system", "content": "You are Aura. Stable identity block."}]
-    messages.append({"role": "system", "content": f"{LIVE_MIND} {grounding}"})
+    messages.append(stamp_grounding({"role": "system", "content": f"{LIVE_MIND} {grounding}"}))
     messages.extend({"role": role, "content": text} for role, text in history)
     return messages
 
@@ -55,6 +61,7 @@ def test_grounding_lands_after_history_and_before_the_newest_user_message() -> N
     assert grounding_at > 1
     # ...it sits directly before the question it is meant to ground.
     assert grounding_at == newest_user_at - 1
+    assert out[grounding_at]["role"] == "runtime_evidence"
     assert out[-1]["content"] == "second question"
 
 
@@ -124,8 +131,125 @@ def test_grounding_survives_when_there_is_no_user_message_yet() -> None:
     """No user turn to sit before: the grounding must not be dropped."""
     messages = [
         {"role": "system", "content": "You are Aura."},
-        {"role": "system", "content": f"{LIVE_MIND} vitality=0.74"},
+        stamp_grounding({"role": "system", "content": f"{LIVE_MIND} vitality=0.74"}),
         {"role": "assistant", "content": "an opening line"},
     ]
     out = _gate()._compact_prebuilt_messages(messages, history_limit=12)
     assert any(LIVE_MIND in m["content"] for m in out)
+
+
+class _StrictEvidenceTokenizer:
+    chat_template = "strict-system-first-with-native-tool-evidence"
+
+    def apply_chat_template(self, messages, *, add_generation_prompt, **_kwargs):
+        assert messages[0]["role"] == "system"
+        assert all(message["role"] != "system" for message in messages[1:])
+        rendered = []
+        for message in messages:
+            role = message["role"]
+            content = message["content"]
+            if role == "tool":
+                rendered.append(f"<user><tool_response>{content}</tool_response></user>")
+            elif role in {"system", "user", "assistant"}:
+                rendered.append(f"<{role}>{content}</{role}>")
+            else:
+                raise ValueError(f"unexpected role: {role}")
+        if add_generation_prompt:
+            rendered.append("<assistant>")
+        return "".join(rendered)
+
+
+def test_full_reconstruction_cannot_reuse_a_turn_with_different_evidence() -> None:
+    tokenizer = _StrictEvidenceTokenizer()
+    stable = {"role": "system", "content": "stable authority"}
+    first_open = render_chat_template(
+        tokenizer,
+        [
+            stable,
+            stamp_grounding({"role": "runtime_evidence", "content": "state one"}),
+            {"role": "user", "content": "q1"},
+        ],
+    )
+    cached_first_turn = first_open + "a1</assistant>"
+
+    second = render_chat_template(
+        tokenizer,
+        [
+            stable,
+            {"role": "user", "content": "q1"},
+            {"role": "assistant", "content": "a1"},
+            stamp_grounding(
+                {"role": "runtime_evidence", "content": "fresh state"}
+            ),
+            {"role": "user", "content": "q2"},
+        ],
+    )
+
+    assert not second.startswith(cached_first_turn)
+    assert "<tool_response>fresh state</tool_response>" in second
+
+
+def test_append_renderer_extends_exact_completed_cache_without_rewriting_it() -> None:
+    tokenizer = _StrictEvidenceTokenizer()
+    messages = [
+        {"role": "system", "content": "stable authority"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        stamp_grounding({"role": "runtime_evidence", "content": "fresh state"}),
+        {"role": "user", "content": "q2"},
+    ]
+
+    append = conversation_append_messages(messages)
+    rendered = render_chat_append_template(tokenizer, append)
+
+    assert [message["role"] for message in append] == ["runtime_evidence", "user"]
+    assert rendered == (
+        "<user><tool_response>fresh state</tool_response></user>"
+        "<user>q2</user><assistant>"
+    )
+
+
+def test_append_renderer_refuses_a_tokenizer_that_merges_across_the_boundary() -> None:
+    class _BoundaryMergingTokenizer(_StrictEvidenceTokenizer):
+        @staticmethod
+        def encode(text: str) -> list[int]:
+            boundary = "</assistant><user>"
+            encoded: list[int] = []
+            index = 0
+            while index < len(text):
+                if text.startswith(boundary, index):
+                    encoded.append(1_000_001)
+                    index += len(boundary)
+                    continue
+                encoded.append(ord(text[index]))
+                index += 1
+            return encoded
+
+    tokenizer = _BoundaryMergingTokenizer()
+    append = [
+        stamp_grounding({"role": "runtime_evidence", "content": "fresh state"}),
+        {"role": "user", "content": "q2"},
+    ]
+
+    try:
+        render_chat_append_template(tokenizer, append)
+    except ValueError as exc:
+        assert "tokenizer merged" in str(exc)
+    else:
+        raise AssertionError("token-unsafe append must use full reconstruction")
+
+
+def test_append_extractor_refuses_a_second_user_turn_after_cached_history() -> None:
+    messages = [
+        {"role": "system", "content": "stable authority"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+        {"role": "user", "content": "q3"},
+    ]
+
+    try:
+        conversation_append_messages(messages)
+    except ValueError as exc:
+        assert "user message must be final" in str(exc)
+    else:
+        raise AssertionError("ambiguous append transcript must be refused")

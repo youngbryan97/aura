@@ -10481,7 +10481,7 @@ class InferenceGate:
         # Grounding first, in the order it was gathered, then dialogue. Both
         # are bounded; the token fit at dispatch is the real ceiling.
         grounding = [
-            {"role": "system", "content": str(item.get("content", "") or "")}
+            {"role": "runtime_evidence", "content": str(item.get("content", "") or "")}
             for item in recent
             if self._is_grounding_system_message(item)
             and str(item.get("content", "") or "").strip()
@@ -10587,7 +10587,7 @@ class InferenceGate:
                 if cls._is_grounding_system_message(msg):
                     content = cls._trim_retry_message_content(msg.get("content"), 2000)
                     if content:
-                        grounding.append({"role": "system", "content": content})
+                        grounding.append({"role": "runtime_evidence", "content": content})
                     continue
                 role = str(msg.get("role", "") or "").strip().lower()
                 if role not in {"user", "assistant"}:
@@ -10627,7 +10627,7 @@ class InferenceGate:
         if not isinstance(message, dict):
             return False
         role = str(message.get("role", "") or "").strip().lower()
-        if role != "system":
+        if role not in {"system", "runtime_evidence"}:
             return False
 
         from core.utils.injected_blocks import is_stamped_grounding
@@ -11251,7 +11251,10 @@ class InferenceGate:
         if system_prompt:
             trimmable.append((-1, _cost(system_prompt)))
         for index, message in enumerate(messages):
-            if str(message.get("role", "")).strip().lower() != "system":
+            if str(message.get("role", "")).strip().lower() not in {
+                "system",
+                "runtime_evidence",
+            }:
                 continue
             trimmable.append((index, _cost(message.get("content"))))
         trimmable.sort(key=lambda entry: entry[1], reverse=True)
@@ -11481,8 +11484,8 @@ class InferenceGate:
                 continue
             role = str(msg.get("role", "") or "").strip().lower()
             grounding_system = bool(
-                role == "system"
-                and system_message is not None
+                system_message is not None
+                and role in {"system", "runtime_evidence"}
                 and self._is_grounding_system_message(msg)
             )
             content_source = msg.get("content", "")
@@ -11508,7 +11511,10 @@ class InferenceGate:
             )
             if not content:
                 continue
-            normalized = {"role": role or "user", "content": content}
+            normalized = {
+                "role": "runtime_evidence" if grounding_system else role or "user",
+                "content": content,
+            }
             if role == "system" and system_message is None:
                 system_message = normalized
             elif grounding_system:
@@ -12621,6 +12627,7 @@ class InferenceGate:
             "user_surface_continuation_contract",
             "user_surface_continuation_partial",
             "user_surface_continuation_resume_handle",
+            "user_surface_conversation_resume_handle",
             "user_surface_prompt_binding",
             "clean_user_surface_steering_alpha",
             "clean_user_surface_recurrent_loops",

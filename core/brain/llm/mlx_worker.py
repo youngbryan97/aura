@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import gc
+import hashlib
 import json
 import logging
 import math
@@ -427,6 +428,8 @@ def _job_requires_exact_continuation_cache(job: dict[str, Any]) -> bool:
     return bool(
         job.get("semantic_completion_contract", False)
         or str(job.get("user_surface_continuation_resume_handle") or "").strip()
+        or str(job.get("user_surface_conversation_resume_handle") or "").strip()
+        or job.get("clean_user_surface_contract", False)
     )
 
 
@@ -1033,6 +1036,15 @@ def _surface_generation_control_receipt(
         "continuation_resume_available": bool(
             state.get("continuation_resume_available", False)
         ),
+        "conversation_resume_requested": bool(
+            state.get("conversation_resume_requested", False)
+        ),
+        "conversation_resume_applied": bool(
+            state.get("conversation_resume_applied", False)
+        ),
+        "conversation_resume_available": bool(
+            state.get("conversation_resume_available", False)
+        ),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -1048,6 +1060,25 @@ def _surface_generation_control_receipt(
     ).strip()
     if resume_failure:
         receipt["continuation_resume_failure_reason"] = resume_failure[:120]
+    conversation_resume_handle = str(
+        state.get("conversation_resume_handle") or ""
+    ).strip().lower()
+    if re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
+        receipt["conversation_resume_handle"] = conversation_resume_handle
+    conversation_resume_failure = str(
+        state.get("conversation_resume_failure_reason") or ""
+    ).strip()
+    if conversation_resume_failure:
+        receipt["conversation_resume_failure_reason"] = (
+            conversation_resume_failure[:120]
+        )
+    conversation_resume_output_sha256 = str(
+        state.get("conversation_resume_output_sha256") or ""
+    ).strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", conversation_resume_output_sha256):
+        receipt[
+            "conversation_resume_output_sha256"
+        ] = conversation_resume_output_sha256
     receipt["deterministic_repair_applied"] = any(
         bool(item.get("deterministic")) for item in receipt["text_mutations"]
     )
@@ -1653,6 +1684,18 @@ def _continuation_resume_should_bind(
         semantic_completion_incomplete
         and stop_reason in {"deadline_exceeded", "max_tokens", "soft_cancelled"}
     )
+
+
+def _conversation_resume_boundary_complete(generation_stop_reason: str) -> bool:
+    """Whether the cache contains a native completed assistant turn.
+
+    Conversation append is unlike same-turn continuation: it needs the
+    model's end-of-turn token in the cache. Every synthetic stop can leave
+    token state that is absent from the visible reply, so only natural EOS is
+    an admissible boundary.
+    """
+
+    return str(generation_stop_reason or "").strip().lower() == "eos"
 
 
 def _capability_inventory_minimum_grounding(
@@ -5871,6 +5914,7 @@ class _PromptCacheResumeBinding:
     tokens: tuple[int, ...]
     prompt_cache: list[Any]
     one_token_rollback: _PromptCacheOneTokenRollback | None
+    context_digest: str
     created_at: float
 
 
@@ -6086,6 +6130,7 @@ class _PromptCacheLRU:
         *,
         prompt_cache: list[Any] | None = None,
         one_token_rollback: _PromptCacheOneTokenRollback | None = None,
+        context_digest: str = "",
     ) -> str:
         """Move exact final KV state into a short-lived continuation capability.
 
@@ -6113,6 +6158,7 @@ class _PromptCacheLRU:
             tokens=tuple(int(token) for token in tokens),
             prompt_cache=owned_cache,
             one_token_rollback=one_token_rollback,
+            context_digest=str(context_digest or ""),
             created_at=time.monotonic(),
         )
         self._prune_resume_bindings()
@@ -6126,8 +6172,10 @@ class _PromptCacheLRU:
         *,
         can_trim_prompt_cache: Any,
         trim_prompt_cache: Any,
+        append_tokens: list[int] | None = None,
+        context_digest: str = "",
     ) -> tuple[list[Any] | None, list[int], list[int], str]:
-        """Consume an exact continuation capability and replay one token."""
+        """Consume exact worker state, replay its last token, then append a turn."""
 
         normalized = str(handle or "").strip().lower()
         if not re.fullmatch(r"[0-9a-f]{32}", normalized):
@@ -6146,6 +6194,15 @@ class _PromptCacheLRU:
                 binding.prompt_cache,
             )
             return None, [], [], "model_or_lane_mismatch"
+        expected_digest = str(binding.context_digest or "")
+        presented_digest = str(context_digest or "")
+        if expected_digest and presented_digest != expected_digest:
+            self.insert_cache(
+                binding.model_key,
+                list(binding.tokens),
+                binding.prompt_cache,
+            )
+            return None, [], [], "context_mismatch"
         tokens = list(binding.tokens)
         prompt_cache = binding.prompt_cache
         if not can_trim_prompt_cache(prompt_cache):
@@ -6160,14 +6217,18 @@ class _PromptCacheLRU:
         else:
             trim_prompt_cache(prompt_cache, 1)
             resume_kind = "KV"
+        appended = [int(token) for token in (append_tokens or [])]
+        logical_tokens = [*tokens, *appended]
+        replay_tokens = [tokens[-1], *appended]
         logger.info(
-            "🎯 [PROMPT CACHE] %s continuation resume — reused %d/%d tokens, "
-            "1 to prefill.",
+            "🎯 [PROMPT CACHE] %s exact resume — reused %d/%d tokens, "
+            "%d to prefill.",
             resume_kind,
             len(tokens) - 1,
-            len(tokens),
+            len(logical_tokens),
+            len(replay_tokens),
         )
-        return prompt_cache, tokens[-1:], tokens, ""
+        return prompt_cache, replay_tokens, logical_tokens, ""
 
     def _search(self, model_key: Any, tokens: list[int]) -> _PromptCacheSearchResult:
         if model_key not in self._cache:
@@ -7840,6 +7901,9 @@ def _mlx_worker_loop(
                 proof_contract_incomplete = False
                 strict_value_normalized_from_draft = ""
                 operator_evidence_receipt: dict[str, Any] = {}
+                conversation_append_prompt = ""
+                conversation_resume_context = ""
+                conversation_resume_prepare_failure = ""
                 if not (
                     strict_answer_contract
                     or strict_value_contract
@@ -7871,6 +7935,9 @@ def _mlx_worker_loop(
                     try:
                         logger.info("🎯 [WORKER] Rendering native chat/tool template.")
                         from core.brain.llm.chat_format import (
+                            conversation_append_messages,
+                            conversation_resume_context_digest,
+                            render_chat_append_template,
                             render_chat_continuation_template,
                             render_chat_template,
                             thinking_enabled_for_generation,
@@ -7894,6 +7961,44 @@ def _mlx_worker_loop(
                             job.get("user_surface_completion_floor"),
                             job.get("cognitive_mode"),
                         )
+
+                        if _job_requires_exact_continuation_cache(job):
+                            conversation_resume_context = (
+                                conversation_resume_context_digest(
+                                    tokenizer,
+                                    messages,
+                                    tools=tools,
+                                    enable_thinking=native_thinking,
+                                )
+                            )
+                        if (
+                            conversation_resume_context
+                            and str(
+                                job.get("user_surface_conversation_resume_handle") or ""
+                            ).strip()
+                        ):
+                            try:
+                                conversation_append_prompt = render_chat_append_template(
+                                    tokenizer,
+                                    conversation_append_messages(messages),
+                                    tools=tools,
+                                    enable_thinking=native_thinking,
+                                )
+                            except (
+                                TypeError,
+                                ValueError,
+                                KeyError,
+                                RuntimeError,
+                                AttributeError,
+                            ) as exc:
+                                conversation_resume_prepare_failure = (
+                                    f"append_render_failed:{type(exc).__name__}"
+                                )
+                                logger.warning(
+                                    "Conversation resume append unavailable (%s); "
+                                    "using full transcript reconstruction.",
+                                    exc,
+                                )
 
                         if job.get("user_surface_continuation_contract", False):
                             prompt = render_chat_continuation_template(
@@ -8267,6 +8372,10 @@ def _mlx_worker_loop(
                     surface_control_state["instruction_shape_repair_applied"] = False
                     surface_control_state["text_mutations"] = []
                     surface_control_state["generation_max_tokens_applied"] = max_tokens
+                    if conversation_resume_prepare_failure:
+                        surface_control_state[
+                            "conversation_resume_failure_reason"
+                        ] = conversation_resume_prepare_failure
                     try:
                         with metal_semaphore:
                             # Proactive cache clearing under memory pressure
@@ -8503,16 +8612,30 @@ def _mlx_worker_loop(
                                     )
                                     cache = None
                                     remaining_tokens = tokens
-                                    resume_handle = str(
+                                    continuation_resume_handle = str(
                                         job.get("user_surface_continuation_resume_handle")
+                                        or ""
+                                    ).strip().lower()
+                                    conversation_resume_handle = str(
+                                        job.get("user_surface_conversation_resume_handle")
                                         or ""
                                     ).strip().lower()
                                     surface_control_state[
                                         "continuation_resume_requested"
-                                    ] = bool(resume_handle)
-                                    resume_applied = False
+                                    ] = bool(continuation_resume_handle)
+                                    surface_control_state[
+                                        "conversation_resume_requested"
+                                    ] = bool(conversation_resume_handle)
+                                    continuation_resume_applied = False
+                                    conversation_resume_applied = False
+                                    exact_resume_applied = False
+                                    if continuation_resume_handle and conversation_resume_handle:
+                                        surface_control_state[
+                                            "conversation_resume_failure_reason"
+                                        ] = "conflicting_resume_handles"
+                                        conversation_resume_handle = ""
                                     if (
-                                        resume_handle
+                                        continuation_resume_handle
                                         and prompt_cache_lru is not None
                                     ):
                                         (
@@ -8521,16 +8644,18 @@ def _mlx_worker_loop(
                                             resumed_tokens,
                                             resume_failure,
                                         ) = prompt_cache_lru.fetch_resume(
-                                            resume_handle,
+                                            continuation_resume_handle,
                                             model_key,
                                             can_trim_prompt_cache=_can_trim,
                                             trim_prompt_cache=_do_trim,
+                                            context_digest=conversation_resume_context,
                                         )
                                         if resumed_cache is not None:
                                             cache = resumed_cache
                                             remaining_tokens = resumed_remaining
                                             tokens = resumed_tokens
-                                            resume_applied = True
+                                            continuation_resume_applied = True
+                                            exact_resume_applied = True
                                         else:
                                             surface_control_state[
                                                 "continuation_resume_failure_reason"
@@ -8540,9 +8665,53 @@ def _mlx_worker_loop(
                                                 "using bounded textual reconstruction.",
                                                 resume_failure,
                                             )
+                                    elif (
+                                        conversation_resume_handle
+                                        and conversation_append_prompt
+                                        and prompt_cache_lru is not None
+                                    ):
+                                        append_tokens = tokenizer.encode(
+                                            conversation_append_prompt
+                                        )
+                                        (
+                                            resumed_cache,
+                                            resumed_remaining,
+                                            resumed_tokens,
+                                            resume_failure,
+                                        ) = prompt_cache_lru.fetch_resume(
+                                            conversation_resume_handle,
+                                            model_key,
+                                            can_trim_prompt_cache=_can_trim,
+                                            trim_prompt_cache=_do_trim,
+                                            append_tokens=append_tokens,
+                                            context_digest=conversation_resume_context,
+                                        )
+                                        if resumed_cache is not None:
+                                            cache = resumed_cache
+                                            remaining_tokens = resumed_remaining
+                                            tokens = resumed_tokens
+                                            conversation_resume_applied = True
+                                            exact_resume_applied = True
+                                        else:
+                                            surface_control_state[
+                                                "conversation_resume_failure_reason"
+                                            ] = resume_failure
+                                            logger.warning(
+                                                "Conversation resume unavailable (%s); "
+                                                "using full transcript reconstruction.",
+                                                resume_failure,
+                                            )
+                                    elif conversation_resume_handle:
+                                        surface_control_state.setdefault(
+                                            "conversation_resume_failure_reason",
+                                            "append_or_cache_unavailable",
+                                        )
                                     surface_control_state[
                                         "continuation_resume_applied"
-                                    ] = resume_applied
+                                    ] = continuation_resume_applied
+                                    surface_control_state[
+                                        "conversation_resume_applied"
+                                    ] = conversation_resume_applied
                                     # Prefill cost is the whole endurance story, and
                                     # until now the only number anyone could see was
                                     # the planner's CHARACTER count — measured live at
@@ -8582,7 +8751,7 @@ def _mlx_worker_loop(
                                         architectural_window=effective_context_window,
                                     )
                                     if (
-                                        not resume_applied
+                                        not exact_resume_applied
                                         and len(tokens) + _output_reserve
                                         > _request_context_window
                                     ):
@@ -8635,7 +8804,7 @@ def _mlx_worker_loop(
                                         )
                                     prompt_token_count = len(tokens)
                                     if (
-                                        not resume_applied
+                                        not exact_resume_applied
                                         and prompt_cache_lru is not None
                                         and not disable_prompt_cache
                                     ):
@@ -8852,10 +9021,8 @@ def _mlx_worker_loop(
                                         # needed if this becomes the final token.
                                         if (
                                             bool(
-                                                job.get(
-                                                    "semantic_completion_contract",
-                                                    False,
-                                                )
+                                                job.get("semantic_completion_contract", False)
+                                                or job.get("clean_user_surface_contract", False)
                                             )
                                             and prompt_cache_lru is not None
                                             and final_prompt_cache is not None
@@ -10560,19 +10727,50 @@ def _mlx_worker_loop(
                         ),
                     )
                     continuation_resume_handle = ""
+                    conversation_resume_handle = ""
+                    conversation_bind_eligible = bool(
+                        not resume_required
+                        # Appending a new chat turn requires the model's native
+                        # end-of-turn token to be present in both the token
+                        # ledger and cache. A manual stop, role-drift cut,
+                        # deadline, cancellation, or token ceiling can leave
+                        # invisible tokens beyond the delivered text; none is
+                        # an exact completed assistant message.
+                        and _conversation_resume_boundary_complete(
+                            generation_stop_reason
+                        )
+                        and not configured_stop_hit
+                        and not role_continuation_hit
+                        and not soft_cancelled
+                        and not deadline_hit
+                        and not hard_token_limit_hit
+                        and job.get("clean_user_surface_contract", False)
+                        and not job.get("user_surface_continuation_contract", False)
+                        and internal_attempt == 0
+                        and bool(response_text.strip())
+                        and response_text.strip() == current_response.strip()
+                        and not surface_control_state.get("text_mutations")
+                        and conversation_resume_context
+                        and not sentinel_aborted
+                    )
                     if (
-                        resume_required
+                        (resume_required or conversation_bind_eligible)
                         and bool(response_text.strip())
                         and prompt_cache_lru is not None
                         and final_prompt_cache is not None
                         and not sentinel_aborted
                     ):
-                        continuation_resume_handle = prompt_cache_lru.bind_resume(
+                        bound_resume_handle = prompt_cache_lru.bind_resume(
                             model_key,
                             list(tokens),
                             prompt_cache=final_prompt_cache,
                             one_token_rollback=continuation_cache_rollback,
+                            context_digest=conversation_resume_context,
                         )
+                        if resume_required:
+                            continuation_resume_handle = bound_resume_handle
+                        else:
+                            conversation_resume_handle = bound_resume_handle
                     if resume_required and not continuation_resume_handle:
                         resume_unavailable_reason = (
                             _continuation_resume_unavailable_reason(
@@ -10605,6 +10803,28 @@ def _mlx_worker_loop(
                         surface_control_state[
                             "continuation_resume_handle"
                         ] = continuation_resume_handle
+                    surface_control_state["conversation_resume_available"] = bool(
+                        conversation_resume_handle
+                    )
+                    if conversation_resume_handle:
+                        surface_control_state[
+                            "conversation_resume_handle"
+                        ] = conversation_resume_handle
+                        surface_control_state[
+                            "conversation_resume_output_sha256"
+                        ] = hashlib.sha256(
+                            response_text.strip().encode("utf-8", "replace")
+                        ).hexdigest()
+                    elif conversation_bind_eligible:
+                        surface_control_state[
+                            "conversation_resume_failure_reason"
+                        ] = (
+                            "cache_lru_unavailable"
+                            if prompt_cache_lru is None
+                            else "final_cache_unavailable"
+                            if final_prompt_cache is None
+                            else "cache_retention_refused"
+                        )
                     generate_payload: dict[str, Any] = {
                         "id": job.get("id"),
                         "action": "generate",

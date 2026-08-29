@@ -24,7 +24,7 @@ from core.runtime.chat_delivery_journal import (
 )
 from typing import TYPE_CHECKING, Any
 from starlette.background import BackgroundTask
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from core.runtime.flags import FlagKind, declare
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -702,6 +702,59 @@ def _invalidate_answer_proof_after_delivery_mutation(
     payload["live_turn_contract"] = contract
 
 
+def register_chat_delivery_commit_hook(
+    request: Request | None,
+    hook: Callable[[Mapping[str, Any]], None],
+) -> None:
+    """Run a state commit only after the durable response bytes are final.
+
+    Model state tied to a response cannot be committed inside the route: the
+    recorded-answer wrapper, paired projection, and affordance sanitizer may
+    still replace those bytes. Hooks are request-local and one-use. They run
+    only after the terminal journal accepts the exact payload that will be
+    rendered to the caller.
+    """
+
+    if request is None or not callable(hook):
+        return
+    state = getattr(request, "state", None)
+    if state is None:
+        return
+    hooks = getattr(state, "_aura_chat_delivery_commit_hooks", None)
+    if not isinstance(hooks, list):
+        hooks = []
+        setattr(state, "_aura_chat_delivery_commit_hooks", hooks)
+    hooks.append(hook)
+
+
+def _run_chat_delivery_commit_hooks(
+    request: Request | None,
+    payload: Mapping[str, Any],
+) -> None:
+    """Consume request-local commits against the final durable payload."""
+
+    state = getattr(request, "state", None) if request is not None else None
+    if state is None:
+        return
+    hooks = getattr(state, "_aura_chat_delivery_commit_hooks", None)
+    setattr(state, "_aura_chat_delivery_commit_hooks", [])
+    if not isinstance(hooks, list):
+        return
+    final_payload = dict(payload)
+    for hook in hooks:
+        if not callable(hook):
+            continue
+        try:
+            hook(final_payload)
+        except Exception as exc:  # noqa: BLE001 - terminal extension boundary
+            record_degradation(
+                "chat.delivery_commit_hook",
+                exc,
+                severity="warning",
+                action="delivered the sealed response without committing dependent state",
+            )
+
+
 def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[..., Any]:
     """Fence every chat turn before side effects and durably seal its outcome."""
 
@@ -1084,6 +1137,8 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     turn_id=admission.record.turn_id,
                     idempotency_key=admission.record.identity.idempotency_key,
                 )
+
+            _run_chat_delivery_commit_hooks(request, payload)
 
             response.body = response.render(payload)
             response.headers["content-length"] = str(len(response.body))

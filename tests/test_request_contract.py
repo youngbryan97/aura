@@ -152,6 +152,20 @@ def test_continuation_resume_handle_is_a_typed_bearer_capability():
     assert "user_surface_continuation_resume_handle" in malformed.rejected
 
 
+def test_conversation_resume_handle_is_a_typed_bearer_capability():
+    handle = "B7" * 16
+
+    accepted = validate_request_context(
+        {"user_surface_conversation_resume_handle": handle}
+    )
+    malformed = validate_request_context(
+        {"user_surface_conversation_resume_handle": "most-recent-turn"}
+    )
+
+    assert accepted.context["user_surface_conversation_resume_handle"] == handle.lower()
+    assert "user_surface_conversation_resume_handle" in malformed.rejected
+
+
 def test_a_clean_context_reports_clean():
     result = validate_request_context(
         {"origin": "user", "max_tokens": 2048, "allow_cloud_fallback": False}

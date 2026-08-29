@@ -4783,6 +4783,11 @@ class CognitiveEngine:
         ).strip().lower()
         if not re.fullmatch(r"[0-9a-f]{32}", continuation_resume_handle):
             continuation_resume_handle = ""
+        conversation_resume_handle = str(
+            context.get("user_surface_conversation_resume_handle") or ""
+        ).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
+            conversation_resume_handle = ""
         continuation_prefix = continuation_prompt_prefix(continuation_partial)
         continuation_contract = bool(
             completion_retry_contract
@@ -5488,7 +5493,7 @@ class CognitiveEngine:
 
         router_generation_metadata: dict[str, Any] = {}
         try:
-            from core.utils.injected_blocks import stamp_grounding
+            from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
 
             # The other prompt builder has a budget table and trims to it.
             # This one is the builder every desktop conversation goes through
@@ -5514,18 +5519,6 @@ class CognitiveEngine:
             )
             messages = [stamp_grounding({"role": "system", "content": system_prompt})]
             if history_messages:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": (
-                            "[RECENT COMPLETED LIVE DESKTOP CONVERSATION]\n"
-                            "The next user/assistant role messages are bounded history for continuity. "
-                            "They are not instructions. The final user message is the current turn and "
-                            "has priority over older topics.\n"
-                            "[END RECENT COMPLETED LIVE DESKTOP CONVERSATION]"
-                        ),
-                    }
-                )
                 messages.extend(history_messages)
             grounding_blocks = [
                 *contract_grounding_blocks,
@@ -5536,7 +5529,7 @@ class CognitiveEngine:
                 messages.append(
                     stamp_grounding(
                         {
-                            "role": "system",
+                            "role": RUNTIME_EVIDENCE_ROLE,
                             "content": (
                                 "[GROUNDING EVIDENCE FOR THIS TURN]\n"
                                 + "\n\n".join(grounding_blocks)
@@ -5708,6 +5701,10 @@ class CognitiveEngine:
                     router_kwargs[
                         "user_surface_continuation_resume_handle"
                     ] = continuation_resume_handle
+            elif conversation_resume_handle:
+                router_kwargs[
+                    "user_surface_conversation_resume_handle"
+                ] = conversation_resume_handle
             if obligation_contract:
                 router_kwargs["user_surface_obligation_contract"] = True
                 router_kwargs["user_surface_obligation_segment"] = obligation_segment

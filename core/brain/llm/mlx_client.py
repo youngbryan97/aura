@@ -3306,6 +3306,10 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
         "continuation_resume_applied",
         "continuation_resume_available",
         "continuation_resume_failure_reason",
+        "conversation_resume_requested",
+        "conversation_resume_applied",
+        "conversation_resume_available",
+        "conversation_resume_failure_reason",
         "caller_requested_max_tokens",
         "adaptive_suggested_max_tokens",
         "output_contract_generation_floor",
@@ -3331,6 +3335,18 @@ def _sanitize_surface_control_receipt(value: Any) -> dict[str, Any]:
     resume_handle = str(value.get("continuation_resume_handle") or "").strip().lower()
     if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
         receipt["continuation_resume_handle"] = resume_handle
+    conversation_resume_handle = str(
+        value.get("conversation_resume_handle") or ""
+    ).strip().lower()
+    if re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
+        receipt["conversation_resume_handle"] = conversation_resume_handle
+    conversation_resume_output_sha256 = str(
+        value.get("conversation_resume_output_sha256") or ""
+    ).strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", conversation_resume_output_sha256):
+        receipt[
+            "conversation_resume_output_sha256"
+        ] = conversation_resume_output_sha256
     contract = value.get("requested_output_contract")
     if isinstance(contract, dict):
         contract_allowed = {
@@ -4808,6 +4824,11 @@ def _build_the_generation_request(
     ).strip().lower()
     if not re.fullmatch(r"[0-9a-f]{32}", continuation_resume_handle):
         continuation_resume_handle = ""
+    conversation_resume_handle = str(
+        kwargs.get("user_surface_conversation_resume_handle") or ""
+    ).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
+        conversation_resume_handle = ""
     req = {
         "id": req_id,
         "seq": self._job_seq_counter,
@@ -4878,6 +4899,7 @@ def _build_the_generation_request(
             kwargs.get("user_surface_continuation_partial")
         ),
         "user_surface_continuation_resume_handle": continuation_resume_handle,
+        "user_surface_conversation_resume_handle": conversation_resume_handle,
         "semantic_completion_contract": bool(
             kwargs.get("semantic_completion_contract", False)
         ),
