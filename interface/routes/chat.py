@@ -21462,13 +21462,19 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                 _semantic_user_message, final_text
                             )
                             try:
-                                if assess_user_facing_reply is None:
-                                    from core.conversation.response_reliability import (
-                                        assess_user_facing_reply as _assess_user_facing_reply,
-                                    )
+                                # Imported, not guarded. Assigning to a name
+                                # anywhere in a function makes it local for
+                                # the whole function, so the guard that read
+                                # it first — "if assess_user_facing_reply is
+                                # None" — could only ever raise
+                                # UnboundLocalError, and did: a live turn came
+                                # back status=error with
+                                # chat.uncaught_turn_error.
+                                from core.conversation.response_reliability import (
+                                    assess_user_facing_reply as _assess_reply,
+                                )
 
-                                    assess_user_facing_reply = _assess_user_facing_reply
-                                fastpath_assessment = assess_user_facing_reply(
+                                fastpath_assessment = _assess_reply(
                                     _semantic_user_message,
                                     final_text,
                                     recent_user_messages=recent_user_messages,
@@ -23827,7 +23833,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     reply_text,
                 )
                 try:
-                    repaired_assessment = assess_user_facing_reply(
+                    # Imported here rather than relied on. The name is bound in
+                    # three conditional branches above, which makes it local to
+                    # this whole function, so a turn that took none of those
+                    # branches read an unbound local and died —
+                    # chat.uncaught_turn_error, status=error, and the person
+                    # got nothing.
+                    from core.conversation.response_reliability import (
+                        assess_user_facing_reply as _assess_repaired,
+                    )
+
+                    repaired_assessment = _assess_repaired(
                         _semantic_user_message,
                         reply_text,
                         recent_user_messages=recent_user_messages,
