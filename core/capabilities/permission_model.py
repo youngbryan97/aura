@@ -55,6 +55,9 @@ class PermissionDecision:
     reason: str
     requires_confirmation: bool = False
     modality: str = ""              # which modality this touches
+    #: Whether a person asked for this action, in this turn. The escalation
+    #: below counts only actions nobody asked for.
+    asked_for: bool = False
     receipt_id: str = ""
     timestamp: float = field(default_factory=time.time)
 
@@ -446,6 +449,17 @@ class PermissionRiskModel:
         permission before executing.
         """
         context = context or {}
+        # Did a person ask for this, in this turn? The one predicate, from
+        # core/runtime/turn_origin, which believes a stated fact over a name.
+        try:
+            from core.runtime.turn_origin import a_person_is_waiting
+
+            asked_for = a_person_is_waiting(
+                context.get("origin"),
+                stated=context.get("a_person_is_waiting"),
+            )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            asked_for = False
         risk_level, reason = self.classify_risk(
             action,
             target,
@@ -507,8 +521,11 @@ class PermissionRiskModel:
                 approved = True
                 reason = f"Auto-approved in trusted mode: {reason}"
             else:
-                # Check escalation: too many MEDIUM actions in short window
-                if self._should_escalate():
+                # Check escalation: too much UNREQUESTED medium-risk work in a
+                # short window. A person's own request is never what this is
+                # protecting against — confirming it would be asking them
+                # about the thing they just asked for.
+                if not asked_for and self._should_escalate():
                     approved = False
                     requires_confirmation = True
                     reason = f"Escalated due to rapid MEDIUM actions: {reason}"
@@ -524,7 +541,7 @@ class PermissionRiskModel:
             action=action, target=target[:200],
             risk_level=risk_level, approved=approved,
             reason=reason, requires_confirmation=requires_confirmation,
-            modality=modality,
+            modality=modality, asked_for=asked_for,
         )
         self._record_decision(decision)
         return decision
@@ -698,12 +715,31 @@ class PermissionRiskModel:
         }
 
     def _should_escalate(self) -> bool:
-        """Check if too many MEDIUM actions happened recently."""
+        """Whether unrequested medium-risk work is coming too fast.
+
+        This exists to catch a runaway agent, and it used to count every
+        approved MEDIUM decision in the window — including the ones a person
+        had just asked for, and including the background loops that run
+        constantly. Three in sixty seconds is easy for curiosity, dreaming and
+        auto-refactor to reach between them, and the next thing escalated was
+        whatever a person asked for next.
+
+        LIVE, 2026-08-29: "use that library to record this" reached the
+        sandbox and came back "WILL DEFERRED: response_generation_user/
+        tool_execution -- permission_model_requires_confirmation: Escalated
+        due to rapid MEDIUM actions", asking the person to confirm the thing
+        they had just asked for in those words.
+
+        So the window counts what nobody asked for. A burst of autonomous
+        activity still escalates, which is the case this was written for.
+        """
+
         now = time.time()
         recent_medium = sum(
             1 for d in self._decision_history[-20:]
             if d.risk_level == RiskLevel.MEDIUM
             and d.approved
+            and not d.asked_for
             and (now - d.timestamp) < self._escalation_window_s
         )
         return recent_medium >= self._escalation_threshold
