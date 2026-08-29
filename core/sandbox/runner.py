@@ -423,7 +423,23 @@ def run_untrusted(
             {
                 "code": code,
                 "mem_bytes": mem_bytes,
-                "cpu_seconds": timeout,
+                # Not the caller's timeout. That number says how long they
+                # are willing to WAIT; this one says how much computation the
+                # code may do, and on a contended machine those are very
+                # different quantities.
+                #
+                # Using one for both meant a spin got the whole patience
+                # budget as CPU. Live on 2026-08-29 a sandbox child sat at
+                # 100% for 106 seconds and the machine ran hot — the code the
+                # model had written was in a loop, and the limit that should
+                # have ended it early was set to how long somebody was
+                # prepared to wait.
+                #
+                # Real work in this REPL is milliseconds: it exists to script
+                # against a library. A third of the wait is generous for that
+                # and cuts a runaway to a third of the heat, and the wall
+                # allowance below still absorbs contention.
+                "cpu_seconds": max(1, int(float(timeout) / 3.0)),
                 # The runner starts with -I, so it inherits no path. It needs
                 # this to find the engineering primitives it hands the
                 # sandboxed code; nothing else is read from the tree.

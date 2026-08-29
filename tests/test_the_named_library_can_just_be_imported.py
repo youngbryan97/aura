@@ -98,3 +98,41 @@ def test_ordinary_code_is_unaffected() -> None:
     out = run_untrusted("print(6 * 7)", timeout=10, mem_bytes=256 * 1024 * 1024)
     assert out["status"] == "ok", out
     assert out["stdout"].strip() == "42"
+
+
+def test_patience_and_computation_are_different_budgets() -> None:
+    """The caller's timeout says how long they will wait, not how much to compute.
+
+    Using one number for both gave a spin the whole patience budget as CPU.
+    Live on 2026-08-29 a sandbox child sat at 100% for 106 seconds and the
+    machine ran hot — the code the model had written was in a loop, and the
+    limit that should have ended it early was set to how long somebody was
+    prepared to wait.
+    """
+
+    import time
+
+    from core.sandbox.runner import run_untrusted
+
+    started = time.perf_counter()
+    out = run_untrusted(
+        "while True:\n    pass\n", timeout=30, mem_bytes=256 * 1024 * 1024
+    )
+    elapsed = time.perf_counter() - started
+    assert out["status"] != "ok"
+    # A third of the wait, not all of it: well under the 30s the caller was
+    # willing to wait, and far under the 106s it used to burn.
+    assert elapsed < 20.0, f"took {elapsed:.1f}s"
+
+
+def test_a_generous_wait_still_does_not_buy_more_computation() -> None:
+    """Contention allowance is not a compute allowance."""
+
+    import time
+
+    from core.sandbox.runner import run_untrusted
+
+    started = time.perf_counter()
+    run_untrusted("while True:\n    pass\n", timeout=12, mem_bytes=256 * 1024 * 1024)
+    elapsed = time.perf_counter() - started
+    assert elapsed < 12.0, f"took {elapsed:.1f}s"
