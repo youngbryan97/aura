@@ -1176,15 +1176,26 @@ async def clear_what_is_in_front(on_top: str) -> bool:
             "screen_pursuit", exc, severity="info", action="could not decline what was in front"
         )
         return False
-    still_there = await _whats_on_top(on_top)
-    if still_there:
-        logger.info("%r is still in front and will not decline", still_there)
+    # Ask whether THAT is still there, not whether something else is.
+    #
+    # This called _whats_on_top(on_top), whose first argument names the window
+    # to leave OUT — so the check for "did it close" excluded the very thing
+    # it was checking for, and reported success whenever the overlay was the
+    # only thing above her. Every claim it made was unfalsifiable. LIVE
+    # 2026-08-29: "UserNotificationCenter was in front of this. Closed it."
+    # four times over, with the notification exactly where it had been.
+    above = await _everything_on_top("")
+    wanted = str(on_top).strip().lower()
+    if any(name.strip().lower() == wanted for name in above):
+        logger.info("%r is still in front and will not decline", on_top)
         return False
     logger.info("%s is out of the way", on_top)
     return True
 
 
-async def _why_nothing_answers(mine: str) -> str:
+async def _why_nothing_answers(
+    mine: str, over: tuple[float, float, float, float] | None = None
+) -> str:
     """Why nothing she does is changing anything, before blaming the thing.
 
     A world that has stopped answering and a world she cannot reach look
@@ -1196,7 +1207,7 @@ async def _why_nothing_answers(mine: str) -> str:
     Something else holding the keyboard is a different thing from a thing that
     is finished, and it has a different answer: one of them somebody can fix.
     """
-    on_top = await _whats_on_top(mine)
+    on_top = await _whats_on_top(mine, over=over)
     if on_top:
         # Try to move it before saying it cannot be moved.
         if await clear_what_is_in_front(on_top):
@@ -1208,13 +1219,69 @@ async def _why_nothing_answers(mine: str) -> str:
     return "Nothing I do is changing anything here — this attempt is over."
 
 
-async def _whats_on_top(mine: str) -> str:
-    """What is above her window, when something is.
+def _covers(window: Any, over: tuple[float, float, float, float], screen: Any) -> bool:
+    """Whether a window actually overlaps the part of the screen she is using.
+
+    Being above her window is not the same as being in her way. A notification
+    banner sits in a corner; the thing she is acting on is somewhere else, and
+    nothing about the banner stops her.
+    """
+    try:
+        import Quartz  # noqa: PLC0415
+
+        bounds = window.get("kCGWindowBounds") or {}
+        if not bounds:
+            # No bounds is not a window of no size. It is a window she cannot
+            # place, and she cannot place it in front of or beside anything.
+            return True
+        box = Quartz.CGRectMake(
+            float(bounds.get("X", 0.0)), float(bounds.get("Y", 0.0)),
+            float(bounds.get("Width", 0.0)), float(bounds.get("Height", 0.0)),
+        )
+    except (ImportError, AttributeError, TypeError, ValueError, KeyError):
+        # Unreadable bounds mean she cannot tell, and cannot tell is in the way.
+        return True
+    wide = float(screen.size.width or 0.0)
+    tall = float(screen.size.height or 0.0)
+    if wide <= 0.0 or tall <= 0.0:
+        return True
+    left, top, right, bottom = over
+    return not (
+        box.origin.x / wide >= right
+        or (box.origin.x + box.size.width) / wide <= left
+        or box.origin.y / tall >= bottom
+        or (box.origin.y + box.size.height) / tall <= top
+    )
+
+
+async def _whats_on_top(
+    mine: str, over: tuple[float, float, float, float] | None = None
+) -> str:
+    """The first thing above her work, or nothing. See :func:`_everything_on_top`."""
+    above = await _everything_on_top(mine, over=over)
+    return above[0] if above else ""
+
+
+async def _everything_on_top(
+    mine: str, over: tuple[float, float, float, float] | None = None
+) -> tuple[str, ...]:
+    """What is above her window AND over the part of it she is using.
 
     Read from the window server rather than from what claims to be frontmost:
     a dialog can sit above everything while the application underneath is
     still the frontmost one, which is exactly the case that fools every other
     check.
+
+    ``over`` is the part of the screen that answers to her, as she worked it
+    out. Without it, anything above her counts — which is the honest reading
+    before she knows where the task lives, and the wrong one after.
+
+    Being above her window is not being in her way. LIVE 2026-08-29, on
+    play2048.co with the board found and read: a notification banner in the
+    corner was reported as in front of the game, she pressed Escape at it
+    three times, it stayed where it was, and the run ended having made no
+    moves — "nothing on screen offered a move" — with the board untouched and
+    entirely visible the whole time.
     """
     try:
         import Quartz  # noqa: PLC0415
@@ -1222,6 +1289,7 @@ async def _whats_on_top(mine: str) -> str:
         windows = Quartz.CGWindowListCopyWindowInfo(
             Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID
         )
+        screen = Quartz.CGDisplayBounds(Quartz.CGMainDisplayID()) if over else None
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "screen_pursuit", exc, severity="info", action="could not see what is on top"
@@ -1237,11 +1305,12 @@ async def _whats_on_top(mine: str) -> str:
             continue
         # Ordinary windows sit at zero. Anything above that is over everything,
         # including hers, whatever claims to be frontmost.
-        if 0 < layer < ABOVE_EVERYTHING and owner and owner.lower() != ours:
-            above.append(owner)
-    if not above:
-        return ""
-    return sorted(set(above), key=above.index)[0]
+        if not (0 < layer < ABOVE_EVERYTHING and owner and owner.lower() != ours):
+            continue
+        if over is not None and not _covers(window, over, screen):
+            continue
+        above.append(owner)
+    return tuple(sorted(set(above), key=above.index))
 
 
 #: Where the menu bar, the dock and the system's own furniture live. A window
@@ -1703,7 +1772,13 @@ async def pursue_on_screen(
         # answers: a dialog that owns the keyboard makes every reading and
         # every keystroke of this cycle meaningless, and a person closes it
         # and carries on rather than playing on underneath it.
-        in_front = await _whats_on_top(target_app or anchor["app"])
+        # Over the part of the screen she is using, not merely above her
+        # window. Before the answering part is worked out this is None and
+        # anything on top counts, which is the honest reading while she does
+        # not yet know where the task lives.
+        in_front = await _whats_on_top(
+            target_app or anchor["app"], over=responds["state"].band()
+        )
         if in_front and in_front != in_the_way["last"]:
             in_the_way["last"] = in_front
             if await clear_what_is_in_front(in_front):
@@ -2057,7 +2132,12 @@ async def pursue_on_screen(
                 if ended and not said_it_ended["value"]:
                     said_it_ended["value"] = True
                     if narrate:
-                        _tell(await _why_nothing_answers(target_app or anchor["app"]))
+                        _tell(
+                            await _why_nothing_answers(
+                                target_app or anchor["app"],
+                                over=responds["state"].band(),
+                            )
+                        )
             # Her own pacing is hers to decide, once there is really a gap.
             behind = narration_backlog() if narrate else {}
             # A pace chosen because the commentary was behind ends when it
