@@ -16131,6 +16131,24 @@ class MLXLocalClient:
                     "result": tool_result,
                 }
             )
+            # The turn owns this the moment it exists.
+            #
+            # The caller recorded receipts for the whole loop after the loop
+            # returned, which means a loop that did not return recorded
+            # nothing. LIVE 2026-08-29: six tool turns, a code_repl that ran
+            # and produced the answer on turn six, and then the loop ran out
+            # of time — every result dropped, the salvage that reports what
+            # the tools found had nothing to report ("custody=present
+            # admits=True" with no receipts), and the person got "I couldn't
+            # get to an answer I'd stand behind".
+            #
+            # Writing it here costs nothing and makes the record independent
+            # of how the loop ends. The caller still writes the whole batch on
+            # the path where it finishes, and custody now treats a receipt
+            # naming the same call and the same result as the one call it is.
+            _record_tool_receipt_for_this_turn(
+                tool_name, tool_args, raw_result, tool_result
+            )
             # Report what actually happened. This line said "ok" for every
             # outcome — a missing capability engine, a caught exception, and a
             # governance DENIAL encoded as a normal result all logged
@@ -17352,6 +17370,29 @@ _NATIVE_XML_PARAMETER_RE = re.compile(
     r"(?P<value>.*?)</parameter>",
     re.DOTALL,
 )
+
+
+def _record_tool_receipt_for_this_turn(
+    tool_name: Any, tool_args: Any, raw_result: Any, serialized: Any
+) -> None:
+    """Attach one finished tool call to the turn that asked for it."""
+
+    try:
+        from core.conversation.surface_disposition import record_tool_receipt
+
+        record_tool_receipt(
+            str(tool_name or "tool"),
+            ok=bool(_tool_turn_outcome(raw_result) == "ok"),
+            action="execute",
+            object_ref=str(tool_args or "")[:200],
+            effect_observed=True,
+            verification="the tool returned a result during this turn",
+            observed_content=str(serialized or "")[:2000],
+        )
+    except Exception as exc:  # noqa: BLE001 - a receipt must never end a turn
+        logger.debug(
+            "[think_and_act] could not record a receipt for %s: %s", tool_name, exc
+        )
 
 
 def _text_is_a_complete_tool_call(text: Any) -> bool:

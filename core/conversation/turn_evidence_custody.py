@@ -58,6 +58,15 @@ __all__ = [
 _logger = logging.getLogger(__name__)
 
 
+def _the_same_call(one: dict[str, Any], other: dict[str, Any]) -> bool:
+    """Whether two receipts describe one tool call rather than two."""
+
+    return all(
+        str(one.get(field) or "") == str(other.get(field) or "")
+        for field in ("tool", "object_ref", "observed_content", "ok")
+    )
+
+
 class TurnEvidenceCustody:
     """Synchronized evidence owned by one exact session/turn/task tree."""
 
@@ -130,6 +139,19 @@ class TurnEvidenceCustody:
         with self._lock:
             if self._closed:
                 return False
+            # The same call, recorded twice, is still one call.
+            #
+            # A tool result is written when the tool returns, so it belongs to
+            # the turn however the loop that ran it ends. The loop's caller
+            # also writes the whole batch when it finishes normally, which is
+            # the common path — and a record that shows every tool twice is a
+            # worse account of the turn than one that shows it once.
+            #
+            # By what the call was and what came back, not by receipt_id: the
+            # ids are minted per write and would make every duplicate unique,
+            # which is the opposite of what is needed here.
+            if any(_the_same_call(row, seen) for seen in self._receipts):
+                return True
             if len(self._receipts) < 64:
                 self._receipts.append(row)
                 return True
