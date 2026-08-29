@@ -8611,20 +8611,46 @@ class InferenceGate:
             return None
         model_path = str(getattr(client, "model_path", "") or "").strip()
         if text and model_path:
+            # The receipt for the work, carried with the record of it.
+            #
+            # Ownership of a foreground answer is proven by a surface-control
+            # receipt with a token count in it: the resident model generated
+            # these words, on this turn, once. This path recorded that a tool
+            # loop had run and nothing about the generation inside it, so an
+            # answer the 27B plainly wrote could not be shown to have been
+            # written by anything.
+            #
+            # LIVE 2026-08-29: six tool calls, the last one returning the
+            # trial balance, an answer composed from them and trimmed, and
+            # then "missing: foreground_model_generation_ownership_unproven"
+            # with generations=0 consumed=False. The turn failed closed on
+            # bookkeeping for work it had done.
+            tool_loop_metadata = {
+                "provider": "mlx_local",
+                "model": model_path,
+                "endpoint": os.path.basename(model_path),
+                "is_local": True,
+                "provider_verified": True,
+                "tool_loop": True,
+                "tool_calls": len(called),
+            }
+            receipt = None
+            reader = getattr(client, "get_last_surface_control_receipt", None)
+            if callable(reader):
+                try:
+                    receipt = reader()
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "tool loop could not read the surface control receipt: %s", exc
+                    )
+            if isinstance(receipt, dict) and receipt:
+                tool_loop_metadata["live_mind_surface_control_receipt"] = dict(receipt)
             self._record_client_generation_metadata(
                 client,
                 label=os.path.basename(model_path),
                 success=True,
                 text=text,
-                generation_metadata={
-                    "provider": "mlx_local",
-                    "model": model_path,
-                    "endpoint": os.path.basename(model_path),
-                    "is_local": True,
-                    "provider_verified": True,
-                    "tool_loop": True,
-                    "tool_calls": len(called),
-                },
+                generation_metadata=tool_loop_metadata,
             )
         from core.conversation.surface_disposition import record_tool_receipt
 
