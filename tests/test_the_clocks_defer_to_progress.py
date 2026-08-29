@@ -159,3 +159,81 @@ def test_the_memory_floor_is_scaled_to_the_host() -> None:
     assert "6.0 if total_gb >= 60.0 else 10.0" in source
     # And an unknown host falls back to the stricter pair, not the roomier one.
     assert 'admission_snapshot.get("total_gb", 0.0)' in source
+
+
+def test_the_endpoint_waits_while_the_cortex_is_producing() -> None:
+    """The sixth deadline, and it sat below every other one.
+
+    The gate had raised the turn to 557 seconds and this cut the Cortex off at
+    150, so raising the others changed nothing: "Endpoint Cortex timed out
+    after 150.0s (force_aborted=False)".
+    """
+
+    import asyncio
+
+    from core.brain.llm_health_router import _await_while_it_is_working
+
+    async def slow_but_working() -> str:
+        for _ in range(6):
+            await asyncio.sleep(0.1)
+            note_progress()
+        return "the answer"
+
+    async def run_user_facing() -> str:
+        forget_progress()
+        note_progress()
+        return await _await_while_it_is_working(
+            slow_but_working(), budget_s=0.15, user_facing=True
+        )
+
+    assert asyncio.run(run_user_facing()) == "the answer"
+
+
+def test_background_work_still_gives_up_on_its_budget() -> None:
+    """One GPU. A dream cycle does not hold it while somebody waits."""
+
+    import asyncio
+
+    import pytest
+
+    from core.brain.llm_health_router import _await_while_it_is_working
+
+    async def slow_but_working() -> str:
+        for _ in range(6):
+            await asyncio.sleep(0.1)
+            note_progress()
+        return "the answer"
+
+    async def run_background() -> str:
+        forget_progress()
+        note_progress()
+        return await _await_while_it_is_working(
+            slow_but_working(), budget_s=0.15, user_facing=False
+        )
+
+    with pytest.raises(TimeoutError):
+        asyncio.run(run_background())
+
+
+def test_a_silent_endpoint_still_fails() -> None:
+    """Which is the case the deadline was standing in for."""
+
+    import asyncio
+
+    import pytest
+
+    from core.brain.llm_health_router import _await_while_it_is_working
+
+    async def never_answers() -> str:
+        await asyncio.sleep(30.0)
+        return "too late"
+
+    async def run() -> str:
+        forget_progress()
+        # Nothing has arrived at all, so this is silence rather than slowness.
+        return await _await_while_it_is_working(
+            never_answers(), budget_s=0.1, user_facing=True
+        )
+
+    with pytest.raises(TimeoutError):
+        asyncio.run(run())

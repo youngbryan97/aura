@@ -498,6 +498,56 @@ def desktop_background_endpoint_deferral_reasons(
     return reasons
 
 
+
+async def _await_while_it_is_working(
+    coro: Any, *, budget_s: float, user_facing: bool
+) -> Any:
+    """Wait out the endpoint budget, then keep waiting while tokens arrive.
+
+    This is the sixth deadline a desktop turn passes through and it sat below
+    every other one: the gate had raised the turn to 557 seconds and this cut
+    the Cortex off at 150, so raising the others changed nothing.
+
+    The number is not what was wrong. A generation still emitting tokens is
+    working, and cancelling it returns half an answer or an apology; one that
+    has gone quiet is the case a deadline was standing in for, and it fails on
+    the very next slice. Bounded by the same ceiling the rest of the turn
+    uses, and background work keeps its budget exactly as it was — one GPU,
+    and a dream cycle does not get to hold it while somebody waits.
+    """
+
+    task = asyncio.ensure_future(coro)
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), timeout=budget_s)
+    except TimeoutError:
+        if not user_facing:
+            task.cancel()
+            raise
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+    from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
+
+    quiet_for = normal_gap_between_tokens()
+    ends_at = time.monotonic() + max(
+        0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s)
+    )
+    said_it_once = False
+    while time.monotonic() < ends_at:
+        if not still_producing(within_s=quiet_for):
+            break
+        if not said_it_once:
+            said_it_once = True
+            logger.info(
+                "Endpoint past its %.1fs budget and still producing; waiting for the "
+                "answer rather than cancelling it.",
+                budget_s,
+            )
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
+        except TimeoutError:
+            continue
+    task.cancel()
+    raise TimeoutError
+
 class _DeepLaneUnavailable(RuntimeError):
     """This host cannot admit the deep solver, so no lane is built for it."""
 
@@ -4011,7 +4061,7 @@ class HealthAwareLLMRouter:
                     timeout_s=endpoint_budget,
                 )
                 try:
-                    result = await asyncio.wait_for(
+                    result = await _await_while_it_is_working(
                         self._call_endpoint(
                             ep,
                             prompt,
@@ -4020,7 +4070,8 @@ class HealthAwareLLMRouter:
                             schema=schema,
                             **kwargs,
                         ),
-                        timeout=endpoint_budget,
+                        budget_s=endpoint_budget,
+                        user_facing=not bool(is_bg),
                     )
                     if watchdog_fired.is_set():
                         raise TimeoutError(timeout_reason)
