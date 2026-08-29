@@ -84,3 +84,37 @@ def test_a_lead_in_that_names_her_keeps_its_subject() -> None:
         asks_about_own_operational_state("Give me a status: what is your processor doing")
         is True
     )
+
+
+def test_a_possessive_has_to_reach_the_machine_word() -> None:
+    """Two searches in one sentence are not one claim about her hardware.
+
+    Live on 2026-08-28: "When you are confused, how does that change your
+    planning, memory use, and tool verification?" was answered "The machine is
+    at 20.1% processor and 63.7% memory right now." One search found "your",
+    governing "planning"; another found "memory", four words later in a
+    different phrase. Together they made a question about how confusion
+    changes her behaviour into a hardware reading.
+    """
+
+    assert (
+        asks_about_own_operational_state(
+            "When you are confused, how does that change your planning, "
+            "memory use, and tool verification?"
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "how much memory are you using",
+        "what is the machine you run on doing",
+        "your memory is nearly full",
+        "is your processor hot?",
+        "your unified memory is under pressure",
+    ],
+)
+def test_every_way_of_asking_about_the_machine_still_reaches_it(text: str) -> None:
+    assert asks_about_own_operational_state(text) is True

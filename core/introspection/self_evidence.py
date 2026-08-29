@@ -107,6 +107,23 @@ _A_FILE_OR_A_PATH = re.compile(
 #: What is left is the possessive — "your memory" — and the second person
 #: itself, which is how the real questions are actually written: "how much
 #: memory are you using" says "are you", and "is your runtime ok" says "your".
+#: The words for the machine underneath her.
+_HOST_PARTS = (
+    "machine|host|hardware|box|processor|cpu|memory|ram|disk|thermals?|"
+    "temperature|battery"
+)
+_HOST_SUBJECT_RE = re.compile(rf"\b(?:{_HOST_PARTS})\b", re.IGNORECASE)
+
+#: The machine under her, claimed as hers. Either a possessive that reaches a
+#: machine word, or one of the phrases that says outright what the machine is
+#: to her.
+_ABOUT_HER_HOST_RE = re.compile(
+    rf"\b(?:your|you'?re)\s+(?:\w+\s+){{0,2}}(?:{_HOST_PARTS})\b|"
+    rf"\b(?:{_HOST_PARTS})\b[^.?!]{{0,40}}?\b(?:you\s+run\s+on|you'?re\s+running\s+on|"
+    r"running\s+you|hosts?\s+you|under\s+you|you\s+are\s+on|you\s+sit\s+on|are\s+you)\b",
+    re.IGNORECASE,
+)
+
 _SELF_SUBJECT_RE = re.compile(
     r"\b(?:you'?re|yours|of\s+yours|are\s+you)\b|"
     rf"\byour\s+(?:\w+\s+){{0,2}}(?:{_HER_PARTS})\b",
@@ -208,11 +225,6 @@ _RUNS_ON_RE = re.compile(
     re.IGNORECASE,
 )
 
-_HOST_SUBJECT_RE = re.compile(
-    r"\b(?:machine|host|hardware|box|processor|cpu|memory|ram|disk|thermals?|"
-    r"temperature|battery)\b",
-    re.IGNORECASE,
-)
 
 #: The machine named as WHERE she is, rather than as what is being asked about.
 #:
@@ -435,9 +447,20 @@ def asks_about_own_operational_state(text: Any) -> bool:
     subject = _ABOUT_WHAT_COMES_NEXT.sub(" ", subject)
     # "Pin it down" is not a report that something is down.
     subject = _without_particles(subject)
-    about_her_host = bool(_HOST_SUBJECT_RE.search(subject)) and bool(
-        _RUNS_ON_RE.search(subject)
-    )
+    # The possessive has to reach the machine word, not merely appear in the
+    # same sentence as it.
+    #
+    # LIVE, 2026-08-28: "When you are confused, how does that change your
+    # planning, memory use, and tool verification?" was answered "The machine
+    # is at 20.1% processor and 63.7% memory right now." Two independent
+    # searches found "your" — governing "planning" — and "memory", four words
+    # later in a different phrase, and together they made a question about how
+    # confusion changes her behaviour into a hardware reading.
+    #
+    # A comma is where a possessive stops reaching, which is why the governed
+    # form rejects this and still accepts "your memory", "your unified
+    # memory", and every way of saying the machine underneath her.
+    about_her_host = bool(_ABOUT_HER_HOST_RE.search(subject))
     about_her = bool(_SELF_SUBJECT_RE.search(subject)) or about_her_host
     settled = about_her_host or (
         about_her
