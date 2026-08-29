@@ -35,7 +35,10 @@ import tempfile
 import time
 from typing import Any
 
-from core.actuators.code_execution_actuator import code_is_ast_safe
+from core.actuators.code_execution_actuator import (
+    code_is_ast_safe,
+    why_code_is_not_ast_safe,
+)
 from core.runtime.constrained_exec import (  # noqa: F401 - _RLIMIT_OPEN_FILES is re-exported for tests
     ISOLATION_LEVEL,
     RLIMIT_OPEN_FILES as _RLIMIT_OPEN_FILES,
@@ -122,8 +125,12 @@ class SandboxOperator:
             return self._refused("empty or non-string code")
         if len(code.encode("utf-8", errors="ignore")) > _MAX_CODE_BYTES:
             return self._refused(f"code exceeds the {_MAX_CODE_BYTES}-byte sandbox limit")
-        if not code_is_ast_safe(code, network_access=False):
-            return self._refused("code failed AST safety validation (banned import or call)")
+        unsafe = why_code_is_not_ast_safe(code, network_access=False)
+        if unsafe:
+            # The reason, because this refusal is usually read by whoever wrote
+            # the code and asked to try again. "banned import or call" names
+            # neither, and costs a whole turn to learn one word.
+            return self._refused(unsafe)
 
         timeout_s = _clamp_timeout(timeout_s)
         self._prune_sandbox()

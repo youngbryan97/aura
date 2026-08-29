@@ -80,6 +80,7 @@ engineering_error = None
 if repo_root and repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 library_namespace = {}
+library_modules = {}
 library_error = None
 if library_root and library_root not in sys.path:
     sys.path.insert(0, library_root)
@@ -93,6 +94,7 @@ if library_root:
                 continue
             _name = _entry[:-3]
             _module = _importlib.import_module(_name)
+            library_modules[_name] = _module
             library_namespace[_name] = _module
             for _attr in dir(_module):
                 if not _attr.startswith("_"):
@@ -174,6 +176,39 @@ try:
     globals_dict = {"__name__": "__main__", "__builtins__": safe_builtins}
     globals_dict.update(engineering_namespace)
     globals_dict.update(library_namespace)
+    if library_modules:
+        # An import that can only hand back what is already here.
+        #
+        # The modules of the named library are imported above, while real
+        # builtins still exist, and their names are laid into the namespace.
+        # Anyone writing code for that library still writes the import — it is
+        # the obvious thing to write — and got back
+        # ImportError('__import__ not found'), which reads as the sandbox being
+        # broken rather than as the import being unnecessary. The turn then
+        # fell through to a strategy with no library support at all, where the
+        # only remaining way in was `import sys`, which is banned. Three
+        # strategies deep, the answer was that the first one already had it.
+        #
+        # This resolves nothing that is not already loaded, so it opens no
+        # door: the alternative to writing this was the model finding out by
+        # failing, one turn at a time.
+        def _import_from_the_named_library(name, globals=None, locals=None, fromlist=(), level=0):
+            head = str(name or "").split(".")[0]
+            module = library_modules.get(head)
+            if module is None:
+                raise ImportError(
+                    f"{name!r} is not part of the library this sandbox was given; "
+                    f"available: {', '.join(sorted(library_modules)) or 'none'}"
+                )
+            if not fromlist:
+                return module
+            for wanted in fromlist:
+                if not hasattr(module, wanted):
+                    raise ImportError(f"{wanted!r} is not in {head!r}")
+            return module
+
+        safe_builtins["__import__"] = _import_from_the_named_library
+        globals_dict["__builtins__"] = safe_builtins
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):

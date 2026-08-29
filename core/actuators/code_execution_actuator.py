@@ -22,6 +22,52 @@ _BANNED_CALLS = {
 _BANNED_ATTR_CALLS = {"system", "popen", "spawn", "remove", "unlink", "rmdir"}
 
 
+def why_code_is_not_ast_safe(code: Any, *, network_access: bool = False) -> str:
+    """What is unsafe about this code, or "" when nothing is.
+
+    The reason, not just the verdict. A refusal reading "banned import or
+    call" tells whoever wrote the code neither which import nor which call,
+    and the caller here is usually a model that will be handed the error and
+    asked to try again — so a refusal that does not say what it found costs a
+    whole turn to learn one word.
+
+    LIVE, 2026-08-28: asked to use a library the person had named, the model
+    wrote the three lines anyone would write — import sys, put the directory on
+    the path, import the library — and got back "banned import or call". The
+    library was already importable inside the sandbox; only the first line was
+    the problem, and nothing said so.
+    """
+
+    if not isinstance(code, str):
+        return "code must be a string"
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError, TypeError, MemoryError) as exc:
+        return f"code does not parse: {exc}"
+    banned = set(_BANNED_MODULES)
+    if not network_access:
+        banned |= _BANNED_NETWORK_MODULES
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                head = alias.name.split(".")[0]
+                if head in banned:
+                    return f"import of {head!r} is not allowed in the sandbox"
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split(".")[0] in banned:
+                return f"import from {node.module.split('.')[0]!r} is not allowed in the sandbox"
+            for alias in node.names:
+                head = alias.name.split(".")[0]
+                if head in banned:
+                    return f"import of {head!r} is not allowed in the sandbox"
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in _BANNED_CALLS:
+                return f"calling {node.func.id!r} is not allowed in the sandbox"
+            if isinstance(node.func, ast.Attribute) and node.func.attr in _BANNED_ATTR_CALLS:
+                return f"calling {node.func.attr!r} is not allowed in the sandbox"
+    return ""
+
+
 def code_is_ast_safe(code: Any, *, network_access: bool = False) -> bool:
     """Shared AST safety gate for synthesized code.
 
@@ -29,30 +75,8 @@ def code_is_ast_safe(code: Any, *, network_access: bool = False) -> bool:
     explicitly allowed) and dangerous call names. Used by both the code-execution
     actuator and the sandbox operator so no execution path skips the check.
     """
-    if not isinstance(code, str):
-        return False
-    try:
-        tree = ast.parse(code)
-    except (SyntaxError, ValueError, TypeError, MemoryError):
-        return False
-    banned = set(_BANNED_MODULES)
-    if not network_access:
-        banned |= _BANNED_NETWORK_MODULES
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            if any(n.name.split(".")[0] in banned for n in node.names):
-                return False
-        elif isinstance(node, ast.ImportFrom):
-            if node.module and node.module.split(".")[0] in banned:
-                return False
-            if any(n.name.split(".")[0] in banned for n in node.names):
-                return False
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id in _BANNED_CALLS:
-                return False
-            if isinstance(node.func, ast.Attribute) and node.func.attr in _BANNED_ATTR_CALLS:
-                return False
-    return True
+
+    return not why_code_is_not_ast_safe(code, network_access=network_access)
 
 
 class CodeExecutionActuator(BaseActuator):
