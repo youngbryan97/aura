@@ -57,3 +57,46 @@ def test_the_payload_offers_it() -> None:
         assert '"host": _host_condition()' in ast.unparse(node).replace("'", '"')
         return
     raise AssertionError("the live mind payload is gone")
+
+
+class TestWhereATurnsTimeGoes:
+    """She named the gap herself and the runtime was measuring it.
+
+    LIVE 2026-08-29, after the host reading reached her: "The honest limit: I
+    don't have per-turn timing in what you're seeing, so I can say 'not a
+    machine overload right now,' but not yet prove exactly where the delay is
+    coming from. To isolate it cleanly, we'd want to compare one slow turn
+    against a fast one and break the time into: send → model start → first
+    token/tool call → final response."
+
+    The runtime measures the first part of that on every turn and logged it
+    away. It measures the rates the rest follows from.
+    """
+
+    def test_the_rates_this_host_was_measured_at_are_there(self) -> None:
+        from interface.routes.chat import _turn_timing
+
+        timing = _turn_timing()
+        assert timing["prefill_tokens_per_second"] > 0
+        assert timing["decode_tokens_per_second"] > 0
+
+    def test_the_last_turn_preparation_is_kept_for_the_next_one(self) -> None:
+        from interface.routes.chat import _LAST_TURN_PREPARATION, _turn_timing
+
+        _LAST_TURN_PREPARATION.clear()
+        assert "last_turn_preparation_ms" not in _turn_timing()
+        _LAST_TURN_PREPARATION.update({"total_ms": 361.44})
+        assert _turn_timing()["last_turn_preparation_ms"] == 361.4
+        _LAST_TURN_PREPARATION.clear()
+
+    def test_it_reaches_both_compactions(self) -> None:
+        source = Path("core/brain/cognitive_engine.py").read_text(encoding="utf-8")
+        assert source.count('"turn_timing": live_mind_context.get("turn_timing"),') == 2
+
+    def test_it_carries_measurements_and_no_arithmetic_on_top(self) -> None:
+        """Two measured things. What they imply is hers to work out."""
+
+        from interface.routes.chat import _turn_timing
+
+        for value in _turn_timing().values():
+            assert isinstance(value, float)

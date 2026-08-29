@@ -4241,6 +4241,42 @@ def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
 
 
 
+#: What the last foreground turn spent before the model was asked anything.
+#: One turn, overwritten each time — a history belongs in the tracker, and this
+#: is here so she can answer "where did that turn's time go" about the turn the
+#: person just had.
+_LAST_TURN_PREPARATION: dict[str, Any] = {}
+
+
+def _turn_timing() -> dict[str, Any]:
+    """Where a turn's time goes, as this runtime measures it.
+
+    She asked for exactly this and could not reach it: "I don't have per-turn
+    timing in what you're seeing, so I can say 'not a machine overload right
+    now', but not yet prove exactly where the delay is coming from."
+
+    Two measured things, and no arithmetic on top of them. Preparation is what
+    the last turn spent before the model was asked anything. The rates are what
+    this host has been seen reading and writing at, so the cost of a prompt and
+    an answer follows from their sizes rather than from a guess.
+    """
+
+    timing: dict[str, Any] = {}
+    if _LAST_TURN_PREPARATION:
+        timing["last_turn_preparation_ms"] = round(
+            float(_LAST_TURN_PREPARATION.get("total_ms") or 0.0), 1
+        )
+    try:
+        from core.brain.llm.mlx_client import observed_rates
+
+        rates = observed_rates()
+        timing["prefill_tokens_per_second"] = round(float(rates["prefill"]), 1)
+        timing["decode_tokens_per_second"] = round(float(rates["decode"]), 1)
+    except (ImportError, KeyError, TypeError, ValueError):
+        pass
+    return timing
+
+
 def _host_condition() -> dict[str, Any]:
     """The machine's own load, as the runtime already measures it."""
 
@@ -4456,6 +4492,7 @@ def _build_live_mind_context_payload(
             # it goes where she reasons from, and she can use it or not as the
             # question deserves.
             "host": _host_condition(),
+            "turn_timing": _turn_timing(),
             "required_subsystems": required,
             "required_subsystems_ok": all(required.values()),
             "recent_context_needed": bool(recent_context_needed),
@@ -7040,6 +7077,16 @@ async def _run_cognitive_engine_chat_turn(
     if turn_trace is not None:
         turn_trace["pre_engine_preparation"] = dict(preparation_timings)
         turn_trace["pre_engine_final_binding_stages"] = dict(final_binding_stages)
+    # Kept for the next turn to read.
+    #
+    # Asked why turns were slow, she answered from the host reading and then
+    # named her own remaining gap exactly: "I don't have per-turn timing ... to
+    # isolate it cleanly, we'd want to compare one slow turn against a fast one
+    # and break the time into: send → model start → first token/tool call →
+    # final response." The runtime measures the first part of that and throws
+    # it away after logging it.
+    _LAST_TURN_PREPARATION.clear()
+    _LAST_TURN_PREPARATION.update(preparation_timings)
     if preparation_timings["total_ms"] >= 250.0:
         logger.info(
             "Foreground chat preparation timing: total=%.1fms contracts=%.1fms "

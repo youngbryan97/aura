@@ -1655,6 +1655,7 @@ def _note_the_quick_reply_contract(
                 # seconds. Two small dicts, in both compactions, so which one a
                 # turn takes does not decide whether she can see her own body.
                 "host": live_mind_context.get("host"),
+                "turn_timing": live_mind_context.get("turn_timing"),
                 "governance": live_mind_context.get("governance"),
             }
         else:
@@ -1671,6 +1672,7 @@ def _note_the_quick_reply_contract(
                 "mind_snapshot": live_mind_context.get("mind_snapshot"),
                 "mind_snapshot_quality": live_mind_context.get("mind_snapshot_quality"),
                 "host": live_mind_context.get("host"),
+                "turn_timing": live_mind_context.get("turn_timing"),
                 "governance": live_mind_context.get("governance"),
             }
         live_mind_grounding = (
