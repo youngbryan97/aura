@@ -131,7 +131,9 @@ class TestWorkerSandboxExecution:
 
         assert result["ok"] is False
         assert result["details"]["status"] == "error"
-        assert "__import__" in result["details"].get("traceback", "")
+        # Wording changed with the pure-computation standard library; the
+        # property is that the dangerous import is refused.
+        assert "cannot be imported here" in result["details"].get("traceback", "")
 
 
 # ════════════════════════════════════════════════════════════════════════

@@ -4304,7 +4304,12 @@ class CapabilityEngine(AuraBaseModule):
         # A tool rated from its arguments and a tool rated from nothing produce
         # the same word, and the lease then compares two of them taken at
         # different moments. Finding that out has cost five live turns.
-        self.logger.info(
+        #
+        # The module logger, not self.logger: they are the same object —
+        # __init__ assigns this one — and rating a tool must not depend on
+        # having been through __init__. A caller that builds the object
+        # another way got AttributeError from a log line.
+        logger.info(
             "risk %s for %s (scope=%s) from arguments %s",
             risk,
             skill_name,

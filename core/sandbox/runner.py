@@ -217,11 +217,44 @@ safe_builtins = {
     # specifically exclude __import__, open, eval, exec, compile, globals, locals
 }
 
+# The part of the standard library that only computes.
+#
+# A sandbox described as being for "calculations, data processing,
+# prototyping" could not import math. Without a named library there was no
+# __import__ at all; with one, only that library resolved — so naming a
+# library took Python away rather than adding to it.
+#
+# LIVE 2026-08-29, two turns apart on one request: "'sys' is not part of the
+# library this sandbox was given" and then "'json' is not part of the library
+# this sandbox was given". The second is a ledger script asking for the module
+# every ledger script asks for, and the model could only find out by spending
+# a turn on it.
+#
+# Named one at a time, and every one of them is arithmetic, text or data
+# structure. Nothing here opens a file, a socket, a process or the
+# interpreter: os, sys, subprocess, socket, pathlib, shutil, importlib,
+# builtins, ctypes, pickle, inspect and io are all absent, and io is absent
+# because io.open is a file open by another name.
+_PURE_COMPUTATION = (
+    "base64", "binascii", "bisect", "calendar", "cmath", "collections",
+    "colorsys", "copy", "csv", "dataclasses", "datetime", "decimal", "difflib",
+    "enum", "fractions", "functools", "hashlib", "heapq", "hmac", "html",
+    "itertools", "json", "math", "numbers", "operator", "pprint", "random",
+    "re", "statistics", "string", "textwrap", "time", "types", "typing",
+    "unicodedata", "uuid",
+)
+_computation_modules = {}
+for _name in _PURE_COMPUTATION:
+    try:
+        _computation_modules[_name] = __import__(_name)
+    except ImportError:
+        continue
+
 try:
     globals_dict = {"__name__": "__main__", "__builtins__": safe_builtins}
     globals_dict.update(engineering_namespace)
     globals_dict.update(library_namespace)
-    if library_modules:
+    if True:
         # An import that can only hand back what is already here.
         #
         # The modules of the named library are imported above, while real
@@ -239,11 +272,13 @@ try:
         # failing, one turn at a time.
         def _import_from_the_named_library(name, globals=None, locals=None, fromlist=(), level=0):
             head = str(name or "").split(".")[0]
-            module = library_modules.get(head)
+            module = library_modules.get(head) or _computation_modules.get(head)
             if module is None:
+                offered = sorted(set(library_modules) | set(_computation_modules))
                 raise ImportError(
-                    f"{name!r} is not part of the library this sandbox was given; "
-                    f"available: {', '.join(sorted(library_modules)) or 'none'}"
+                    f"{name!r} cannot be imported here. This sandbox computes and "
+                    f"has no filesystem, network or process access. Available: "
+                    f"{', '.join(offered) or 'none'}"
                 )
             if not fromlist:
                 return module
@@ -433,6 +468,40 @@ def _run_process_blocking(
         record_degradation("sandbox_runner", exc)
         return _RunnerProcessResult(127, "", str(exc))
     return result["value"]
+
+
+#: Names the sandbox lays into the namespace before the code runs, taken from
+#: the block that builds them so the two cannot drift apart.
+_ENGINEERING_NAMES = (
+    "Q", "parse_quantity", "DimensionError", "material", "fluid",
+    "Box", "Plate", "Cylinder", "Tube", "Sphere", "Dome", "Cone", "Frustum",
+    "Torus", "Capsule", "Prism", "Ellipsoid", "solid_from_spec",
+    "Uncertain", "propagate", "rss_stack",
+)
+
+
+def names_the_sandbox_provides(library_root: str = "") -> frozenset[str]:
+    """Every name that already exists when the code starts.
+
+    A checker reading the file alone calls these undefined, because in the
+    file they are: ``Q("3 m")`` has no import above it and needs none. The
+    sandbox lays them in, and a pre-flight that does not know it refuses
+    working code — LIVE 2026-08-29, "Undefined name `Tube`" on a script whose
+    whole purpose was to use Tube.
+
+    The library's modules are here too, for the same reason: naming a library
+    binds its module names in the namespace as well as making them importable.
+    Read from the directory rather than imported, because deciding what a
+    checker may say is not a reason to execute anything.
+    """
+
+    names = set(_ENGINEERING_NAMES)
+    root = Path(library_root or "").expanduser()
+    if root.is_dir():
+        for entry in root.iterdir():
+            if entry.suffix == ".py" and not entry.name.startswith("_"):
+                names.add(entry.stem)
+    return frozenset(names)
 
 
 def wall_clock_allowance(timeout_s: float) -> float:

@@ -131,7 +131,22 @@ def _names_that_are_not_defined(code: str) -> list[StaticFinding]:
     return findings
 
 
-def what_will_not_work(code: str, library_root: str = "") -> list[StaticFinding]:
+def _names_one_of(finding: StaticFinding, provided: frozenset[str]) -> bool:
+    """Whether this undefined-name finding is about a name the runtime supplies."""
+
+    if not provided:
+        return False
+    said = finding.said
+    start = said.find("`")
+    end = said.find("`", start + 1)
+    if start < 0 or end <= start:
+        return False
+    return said[start + 1 : end] in provided
+
+
+def what_will_not_work(
+    code: str, library_root: str = "", *, already_defined: frozenset[str] | None = None
+) -> list[StaticFinding]:
     """What is decidably wrong with this code, in the order it will bite.
 
     Empty when nothing is decidable, which is not a claim that the code is
@@ -147,7 +162,22 @@ def what_will_not_work(code: str, library_root: str = "") -> list[StaticFinding]
         # Nothing after this is meaningful: every other check reads the tree.
         return [unparseable]
 
-    findings = _names_that_are_not_defined(text)
+    # Names the runtime lays in before the code starts are defined, whatever
+    # the file looks like on its own. ``Q("3 m")`` has no import above it and
+    # needs none; a checker that does not know refuses working code.
+    provided = already_defined
+    if provided is None:
+        try:
+            from core.sandbox.runner import names_the_sandbox_provides
+
+            provided = names_the_sandbox_provides(library_root)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            provided = frozenset()
+    findings = [
+        finding
+        for finding in _names_that_are_not_defined(text)
+        if not _names_one_of(finding, provided)
+    ]
     if library_root:
         findings.extend(
             _from_api(f) for f in check_code_against_library(text, library_root)

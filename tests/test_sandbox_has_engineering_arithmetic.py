@@ -60,7 +60,9 @@ def test_the_sandbox_still_cannot_open_a_file():
 def test_the_sandbox_still_cannot_import_anything():
     out = _run("import os\nprint(os.listdir('/'))")
     assert not out.get("ok")
-    assert "__import__" in str(out.get("error"))
+    # The wording changed when the sandbox gained the pure-computation
+    # standard library; the property is that the import is refused.
+    assert "cannot be imported here" in str(out.get("error"))
 
 
 @pytest.mark.slow
@@ -68,7 +70,9 @@ def test_the_sandbox_cannot_reach_the_engineering_module_by_import():
     """The names are handed over; the door stays shut."""
     out = _run("from core.engineering.units import Q\nprint(Q)")
     assert not out.get("ok")
-    assert "__import__" in str(out.get("error"))
+    # The wording changed when the sandbox gained the pure-computation
+    # standard library; the property is that the import is refused.
+    assert "cannot be imported here" in str(out.get("error"))
 
 
 def test_the_injected_names_are_pure_computation():
