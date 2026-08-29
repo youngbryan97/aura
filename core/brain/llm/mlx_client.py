@@ -12307,6 +12307,17 @@ class MLXLocalClient:
         if status == "token":
             self._mark_token_progress(res.get("id"))
         elif res.get("phase") == "prefill":
+            # Reading the prompt is the model working on this request, and on
+            # a long one it is the larger half. Counting only decoded tokens
+            # made a turn look silent for the whole of it, so a wait that
+            # defers to progress gave up during the one part of the turn where
+            # nothing could have arrived yet.
+            try:
+                from core.runtime.turn_progress import note_progress
+
+                note_progress()
+            except ImportError:
+                pass
             self._mark_prefill_progress(
                 res.get("id"),
                 processed=res.get("prompt_tokens_processed", 0),

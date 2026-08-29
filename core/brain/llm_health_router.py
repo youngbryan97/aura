@@ -526,7 +526,12 @@ async def _await_while_it_is_working(
     from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
     from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
 
-    quiet_for = normal_gap_between_tokens()
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+
+        quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        quiet_for = normal_gap_between_tokens()
     ends_at = time.monotonic() + max(
         0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s)
     )

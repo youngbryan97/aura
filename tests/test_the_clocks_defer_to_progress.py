@@ -237,3 +237,23 @@ def test_a_silent_endpoint_still_fails() -> None:
 
     with pytest.raises(TimeoutError):
         asyncio.run(run())
+
+
+def test_reading_the_prompt_counts_as_working() -> None:
+    """On a long prompt it is the larger half of the turn.
+
+    Counting only decoded tokens made a turn look silent for the whole of
+    prefill, so a wait that defers to progress gave up during the one part of
+    the turn where nothing could have arrived yet — which is what happened
+    live: "Endpoint past its 150.0s budget and still producing; waiting for
+    the answer" and then, moments later, "Endpoint Cortex timed out".
+    """
+
+    from pathlib import Path
+
+    source = Path("core/brain/llm/mlx_client.py").read_text()
+    prefill_branch = source[
+        source.index('elif res.get("phase") == "prefill":') :
+        source.index("self._mark_prefill_progress(")
+    ]
+    assert "note_progress" in prefill_branch, prefill_branch
