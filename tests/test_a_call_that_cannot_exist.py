@@ -212,3 +212,40 @@ def test_calls_into_another_library_are_not_this_checks_business(library: str) -
         """,
         library,
     )
+
+
+def test_what_reading_decides_covers_syntax_names_and_the_library(
+    library: str,
+) -> None:
+    """One check for everything decidable, in the order it will bite."""
+
+    from core.sandbox.static_check import describe_findings, what_will_not_work
+
+    assert not what_will_not_work("import json\nprint(json.dumps({}))\n")
+
+    (unparseable,) = what_will_not_work("def broken(:\n    pass\n")
+    assert "does not parse" in unparseable.problem
+
+    both = what_will_not_work(
+        textwrap.dedent(
+            """
+            from ledgerkit import Ledger
+            book = Ledger('acme')
+            book.add_entry(running_total)
+            """
+        ),
+        library,
+    )
+    described = describe_findings(both)
+    assert "running_total" in described
+    assert "add_entry" in described and "trial_balance" in described
+
+
+def test_a_candidate_that_cannot_run_costs_the_dna_engine_no_cases() -> None:
+    """The reconstruction loop reads before it spends a held-out battery."""
+
+    from core.self_improvement.program_dna import _decidably_broken
+
+    assert not _decidably_broken("def reconstructed(case):\n    return case\n")
+    (problem,) = _decidably_broken("def reconstructed(case):\n    return tally(case)\n")
+    assert "tally" in problem

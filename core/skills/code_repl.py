@@ -494,18 +494,24 @@ def _library_path_is_allowed(path: str) -> tuple[bool, str]:
 
 
 
-def _what_the_library_does_not_support(code: str, library_root: str) -> list:
-    """Calls in this code that the named library does not define."""
+def _what_will_not_work_in_this_code(code: str, library_root: str) -> list:
+    """What reading this code decides, before any of it is run."""
 
     try:
-        from core.sandbox.api_check import check_code_against_library
+        from core.sandbox.static_check import what_will_not_work
 
-        return check_code_against_library(code, library_root)
+        return what_will_not_work(code, library_root)
     except Exception as _exc:  # noqa: BLE001 - a check that fails checks nothing
         logger.debug(
             "Suppressed %s in core.skills.code_repl: %s", type(_exc).__name__, _exc
         )
         return []
+
+
+def _describe_what_will_not_work(findings: list) -> str:
+    from core.sandbox.static_check import describe_findings
+
+    return describe_findings(findings)
 
 
 def _the_code_inside_any_fence(code: str) -> str:
@@ -662,37 +668,28 @@ class CodeREPLSkill(BaseSkill):
             # call, and this one runs inside an async handler.
             library = await asyncio.to_thread(_resolved(library))
 
-            # What the library actually defines, before an attempt is spent.
-            #
-            # A model writing against an unfamiliar library invents: a method
-            # that reads right, a keyword the function never took. Running it
-            # to find out costs a full generation from a resident 27B and
-            # comes back as a traceback, which says what broke but not what
-            # exists.
-            #
-            # The library is on disk and its signatures are readable, so the
-            # invented name can be refused in milliseconds and answered with
-            # the real one. Names and shapes only — this cannot tell a right
-            # posting from a backwards one, and anything it cannot resolve it
-            # leaves alone.
-            findings = await asyncio.to_thread(
-                _what_the_library_does_not_support, code, library
+        # What is wrong with this code before an attempt is spent on it.
+        #
+        # A model writing code invents: a method that reads right, a keyword
+        # the function never took, a helper it meant to define. Running it to
+        # find out costs a full generation from a resident 27B and comes back
+        # as a traceback, which says what broke rather than what exists.
+        #
+        # Syntax, undefined names and calls into the named library are all
+        # decidable by reading, in milliseconds, and the answer can carry the
+        # real API instead of an AttributeError. Nothing found here is a claim
+        # that the code is right — only that nothing was decidably wrong.
+        will_not_work = await asyncio.to_thread(
+            _what_will_not_work_in_this_code, code, library
+        )
+        if will_not_work:
+            logger.info(
+                "code_repl: refused before running — %d thing(s) decidable by "
+                "reading%s.",
+                len(will_not_work),
+                f" (library {library})" if library else "",
             )
-            if findings:
-                logger.info(
-                    "code_repl: refused before running — %d call(s) the "
-                    "library at %s does not define.",
-                    len(findings),
-                    library,
-                )
-                return {
-                    "ok": False,
-                    "error": (
-                        "This code calls things the library does not define, "
-                        "so it was not run:\n"
-                        + "\n".join(f"  {f.describe()}" for f in findings)
-                    ),
-                }
+            return {"ok": False, "error": _describe_what_will_not_work(will_not_work)}
 
         session_id = params.session_id or self._generate_session_id()
         session_dir = await self._get_session_dir(session_id)

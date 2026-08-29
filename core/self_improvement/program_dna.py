@@ -248,6 +248,17 @@ class ProgramDNAResult:
         return asdict(self)
 
 
+def _decidably_broken(candidate_code: str) -> list[str]:
+    """What is wrong with a candidate before any case is spent on it."""
+
+    try:
+        from core.sandbox.static_check import what_will_not_work
+
+        return [f.describe() for f in what_will_not_work(candidate_code)]
+    except Exception:  # noqa: BLE001 - a check that fails checks nothing
+        return []
+
+
 class ProgramDNAReconstructionEngine:
     """Authorized clean-room reconstruction from program behavior and evidence."""
 
@@ -1010,6 +1021,24 @@ def reconstructed(case):
             candidate_failures: list[dict[str, Any]] = []
             if evaluator is None:
                 return candidate_passed, candidate_failures
+            # A candidate that cannot run does not need a battery to say so.
+            #
+            # Reading it decides syntax and undefined names in milliseconds,
+            # against every held-out case failing identically and reporting
+            # the same NameError once per case. The repair pass reads these
+            # failures, so naming the defect precisely is worth more than
+            # naming it many times.
+            decided = _decidably_broken(candidate_code)
+            if decided:
+                return 0, [
+                    {
+                        "input": None,
+                        "expected": None,
+                        "outcome": "will_not_run",
+                        "error": finding,
+                    }
+                    for finding in decided
+                ]
             for case in held_out:
                 expected = case.get("expected")
                 inp = case.get("input", case)

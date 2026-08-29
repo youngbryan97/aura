@@ -369,7 +369,7 @@ async def test_live_safe_execute_result_matches_model_visible_contract(
     async def session_dir(_session_id):
         return tmp_path
 
-    async def sandbox_result(_code, _timeout, _cwd):
+    async def sandbox_result(_code, _timeout, _cwd, library_root=""):
         return {
             "ok": True,
             "status": "ok",
