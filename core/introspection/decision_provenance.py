@@ -83,6 +83,31 @@ _WHY_ABOUT_THE_WORLD = re.compile(
 )
 
 
+#: The fourth kind of why: what makes a claim true, not what she did.
+#:
+#: The record says which phase ran on which branch. It has nothing to say about
+#: whether a thing is so, and "why you believe it" asks the second question.
+#: The verb alternation above ends in a bare "that|this|it", so any "why ...
+#: you ... it" matched — LIVE 2026-08-29, "Tell me the single most interesting
+#: thing in it and show me why you believe it" came back with the honest answer
+#: and "• AffectUpdatePhase — took the ordinary_decay branch — on arousal=0.4"
+#: stapled underneath.
+#:
+#: Holding a claim is not doing something. Asked for grounds, the grounds are
+#: the answer.
+#:
+#: "Think" is deliberately not here. "Why do you think that is?" is a real
+#: question about her reasoning and has routed to the record for as long as
+#: this has existed; the certainty verbs are the ones that are only ever about
+#: a claim.
+_WHY_A_CLAIM_IS_TRUE = re.compile(
+    r"\bwhy\s+(?:do|does|did|would|should|are|is)?\s*(?:you|she|aura)\s+"
+    r"(?:believe|believes|know|knows|trust|trusts|conclude|concluded|claim|"
+    r"claims|sure|certain|confident)\b",
+    re.IGNORECASE,
+)
+
+
 def asks_why_she_did_that(message: Any) -> bool:
     """Whether this turn is asking for an account of her own behaviour."""
 
@@ -98,6 +123,9 @@ def asks_why_she_did_that(message: Any) -> bool:
     # the record; "why do you think PEOPLE lie" asks for her view, and the
     # record has nothing to say about it.
     if _WHY_ABOUT_THE_WORLD.search(text):
+        return False
+    # Grounds for a claim, not an account of an action.
+    if _WHY_A_CLAIM_IS_TRUE.search(text):
         return False
     return bool(_WHY_ABOUT_HERSELF.search(text))
 
