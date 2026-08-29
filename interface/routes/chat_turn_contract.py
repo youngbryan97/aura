@@ -1107,13 +1107,54 @@ def _build_live_turn_contract_payload(
             else "foreground_model_generation_ownership_unproven"
         )
     if not authored_answer_completion_proven:
-        missing_proofs.append("authored_answer_incomplete")
+        # Which of the four, because they call for different actions and one
+        # of them is not a statement about the answer at all.
+        #
+        # This name was reported for a draft cut off mid-clause, for a draft
+        # judged semantically short, for a retry that had already given up —
+        # and for a turn where nobody checked, because the receipt carrying
+        # the verdict was never bound. Only the first is fixed by continuing
+        # the generation. The last says the bookkeeping is missing, which is
+        # the same category as live_mind_controls_unbound beside it, and it
+        # is fatal here while that one is disclosed.
+        #
+        # LIVE 2026-08-29: a turn that had listed a directory, read an API
+        # reference, run the library's code and written a reply was refused
+        # under this name with completion_retries=0. Nothing had been cut off.
+        # Both missing proofs were one absent receipt, and the name sent the
+        # investigation after a truncation that never happened.
+        if trace.get("completion_retry_exhausted"):
+            missing_proofs.append("authored_answer_incomplete:retry_exhausted")
+        elif trace.get("reply_generation_incomplete"):
+            missing_proofs.append("authored_answer_incomplete:generation_cut_off")
+        elif trace.get("semantic_completion_incomplete"):
+            missing_proofs.append("authored_answer_incomplete:semantically_short")
+        elif semantic_completion_expected and not semantic_completion_receipt_present:
+            missing_proofs.append("authored_answer_incomplete:nobody_checked")
+        elif semantic_completion_expected and not semantic_completion_satisfied:
+            missing_proofs.append("authored_answer_incomplete:semantic_contract_unmet")
+        else:
+            missing_proofs.append("authored_answer_incomplete")
     if not architecture_context_bound:
         missing_proofs.append("architecture_context_unbound")
     if not live_mind_snapshot_bound:
         missing_proofs.append("live_mind_snapshot_not_ready")
     if not live_mind_controls_structurally_bound:
-        missing_proofs.append("live_mind_controls_unbound")
+        # Three independent conditions under one name. An unbound receipt,
+        # controls bound but not applied, and a surface that failed its
+        # quality gate are three faults with three fixes.
+        unmet = ",".join(
+            name
+            for name, met in (
+                ("not_bound", live_mind_controls_bound),
+                ("not_applied", live_mind_controls_application_satisfied),
+                ("surface_quality", live_mind_surface_quality_gate_passed),
+            )
+            if not met
+        )
+        missing_proofs.append(
+            f"live_mind_controls_unbound:{unmet}" if unmet else "live_mind_controls_unbound"
+        )
     if not final_output_contract_evaluated:
         missing_proofs.append("final_output_contract_not_evaluated")
     elif final_output_contract_required and not final_output_contract_satisfied:

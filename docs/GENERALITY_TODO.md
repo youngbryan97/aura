@@ -642,3 +642,72 @@ work.
 rather than fit; the World A/B/C milestone for M₀→M₁→M₂. `Composed`
 serialisation and the uniform IR are done — every learned rule is one
 `Node(kind, parameters, [Node...])`.
+
+## Closed and found (2026-08-29)
+
+Everything here came from one live session, and every one of them was a case
+of the machine answering a question it had itself made unanswerable.
+
+**Closed.**
+
+- A fenced block is still code. A model writes ```` ```python ```` because that
+  is how code is written everywhere it has seen it, and the fence sent to the
+  interpreter is a syntax error. The reconstruction lab's extractor already
+  solved this and is now used here rather than a second one that would drift
+  from it. Consulted only where a fence is present, so unfenced code reaches
+  the sandbox byte for byte.
+- What reading decides is decided by reading. Syntax, names defined nowhere the
+  code can see, and calls into a named library that the library does not
+  define — all three used to cost an execution, and came back as a traceback
+  naming what broke rather than what exists. `core/sandbox/static_check.py`
+  answers all three in milliseconds and carries the real API into the answer.
+  The library is read, never imported: importing it to inspect it would run
+  untrusted code in this process, which is what the sandbox exists to prevent.
+  Both callers pay real money for the answer — `code_repl` a generation from a
+  resident 27B, the reconstruction engine a held-out battery where a candidate
+  calling an undefined helper fails every case identically.
+- The path preamble the runner had already performed. `import sys;
+  sys.path.insert(0, <the library>)` is the idiom everywhere except inside this
+  sandbox, which was handed the library and made it importable before the code
+  ran. Those two lines are dropped and only those; any other use of `sys` is
+  still refused, and the lines are blanked rather than unparsed so a traceback
+  still points at what the model wrote.
+- A cold lane is not a wedged one. A worker spawned at 02:27:07, ready at :12,
+  recycled at :32 for producing no token in 20.2s — and the replacement was
+  cold for the same reason, so the loop was ours. Weight loading is now
+  measured on this host, the way prefill and decode already were, and the
+  allowance covers the state rather than the lane: once a token arrives it is
+  zero.
+- Calibration evidence is retired by the decision it is about. Three control
+  points reported `samples=0 supported=False` at every boot, needing fifty
+  graded episodes in a cohort keyed on the repo's HEAD — unreachable on a
+  machine whose source changes several times an hour. Each schema already
+  declared where its features come from; the cohort turns over when that code
+  does.
+- The custody suite still imported the lease API that went when belonging to a
+  turn became inherited. Rewritten to what is left to hold.
+
+**Found and not yet fixed.**
+
+- [ ] **J1** The pre-flight names undefined names and library calls, but not a
+  banned import. `'sys' is not part of the library this sandbox was given` is
+  decidable by reading and should come back with the alternative attached.
+- [ ] **J2** A client that disconnects mid-turn produces `RuntimeError: No
+  response returned` from the middleware stack, and the turn is then recorded
+  as `TurnOutcomeError: unknown:nothing_recorded` — "turn ended without
+  establishing what happened". A disconnect is a known outcome, not an unknown
+  one.
+- [ ] **J3** The autonomous task engine reports `Fallback reasoning for: <the
+  goal>. 1. Restate the objective...` as a **Key finding**. Canned boilerplate
+  presented as a discovery, and the failure that produced it (an empty response
+  from a recycled lane) was recorded as hers.
+- [ ] **J4** Six sites hold a lock across a build, found by the AST sweep that
+  caught `desktop_actuation`. Each is a 50ms+ blocking hold on the event loop
+  waiting to happen.
+- [ ] **J5** `test_api_chat_desktop_nonexecuting_decision_question_blocks_desktop_task`
+  still fails on `desktop_full_mind_contract_not_proven`: shape gate →
+  deterministic repair → authorship replacement → fail closed.
+- [ ] **J6** Background cognition can never admit to the Brainstem lane while
+  the Cortex is resident — the floor is 22GB free and steady state is ~20GB. The
+  gate is doing its job; the consequence is that every background thought is
+  served by the smallest model on the machine, and nothing says so out loud.

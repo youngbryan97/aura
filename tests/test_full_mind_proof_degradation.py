@@ -132,7 +132,11 @@ def test_unbound_controls_keep_authorship_and_name_the_gap(monkeypatch):
     payload = _payload(chat_routes, trace)
     assert payload["authentic_cognitive_reply"] is True
     assert payload["full_mind_path"] is False
-    assert "live_mind_controls_unbound" in payload["full_mind_missing_proofs"]
+    # Named by the condition that failed, so a reader knows which of the three.
+    assert any(
+        item.startswith("live_mind_controls_unbound")
+        for item in payload["full_mind_missing_proofs"]
+    )
 
 
 def test_unavailable_subsystem_keeps_authorship_and_is_named(monkeypatch):
@@ -209,7 +213,9 @@ def test_semantic_completion_requires_positive_worker_receipt(monkeypatch):
     assert payload["authentic_cognitive_reply"] is True
     assert payload["authored_answer_completion_proven"] is False
     assert payload["answer_delivery_proven"] is False
-    assert "authored_answer_incomplete" in payload["full_mind_missing_proofs"]
+    # An absent receipt is named as one: nobody checked, rather than "the
+    # answer was incomplete", which is a claim about the answer.
+    assert "authored_answer_incomplete:nobody_checked" in payload["full_mind_missing_proofs"]
 
 
 def test_semantic_completion_accepts_positive_worker_receipt(monkeypatch):

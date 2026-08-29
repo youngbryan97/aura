@@ -13125,7 +13125,10 @@ async def test_truncated_completion_replacement_cannot_become_authoritative(monk
     assert contract["authentic_cognitive_reply"] is True
     assert contract["authored_answer_completion_proven"] is False
     assert contract["answer_delivery_proven"] is False
-    assert "authored_answer_incomplete" in contract["full_mind_missing_proofs"]
+    assert any(
+        item.startswith("authored_answer_incomplete")
+        for item in contract["full_mind_missing_proofs"]
+    )
     assert "duplicate_foreground_model_generation" not in contract["full_mind_missing_proofs"]
 
 

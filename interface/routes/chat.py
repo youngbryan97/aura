@@ -4124,6 +4124,19 @@ _SOFT_FULL_MIND_PROOF_PREFIXES: tuple[str, ...] = (
     "architecture_context_unbound",
     "live_mind_snapshot_not_ready",
     "live_mind_controls_unbound",
+    # An absent check is not a failed one.
+    #
+    # "authored_answer_incomplete" is fatal, and rightly so when the answer
+    # was cut off or a continuation gave up. It was also raised when the
+    # semantic-completion receipt was never bound — nobody looked, so nothing
+    # is known, and a turn that had read a library, run its code and written a
+    # reply was refused on the strength of that (LIVE 2026-08-29, beside
+    # live_mind_controls_unbound, which is already disclosed here).
+    #
+    # Bookkeeping about her internals, disclosed rather than substituted, on
+    # the same reasoning as the three above. The causes that ARE statements
+    # about the answer keep their own names and stay fail-closed.
+    "authored_answer_incomplete:nobody_checked",
 )
 
 
@@ -16160,6 +16173,11 @@ def _readable_result(raw: object) -> str:
     return said
 
 
+#: How many tool receipts a salvaged answer carries. Enough for a short chain
+#: to arrive whole; few enough that the reply stays readable.
+_RECEIPTS_WORTH_READING = 3
+
+
 def _what_the_tools_found() -> str:
     """What this turn's tools actually returned, or "".
 
@@ -16208,12 +16226,28 @@ def _what_the_tools_found() -> str:
         said.append(f"{tool} returned:\n{found[:1500]}")
     if not said:
         return ""
-    logger.info("🧾 Served what this turn's tools returned (%d).", len(said))
+    logger.info(
+        "🧾 Served what this turn's tools returned (%d of %d).",
+        min(len(said), _RECEIPTS_WORTH_READING),
+        len(said),
+    )
     lead = (
         "I did not get a written answer together, so here is what I ran and "
         "what came back:"
     )
-    return lead + "\n\n" + "\n\n".join(said[:3])
+    # The end of the work, not the beginning of it.
+    #
+    # Tools run in order and each one consumes what the last returned, so the
+    # final receipt is the closest thing this turn has to an answer. Keeping
+    # the first three kept the setup and dropped the conclusion.
+    #
+    # LIVE 2026-08-29: asked to read a library's docs and then use it, she
+    # listed the directory, read the API reference, read the module, ran the
+    # code — and what reached the screen was the directory listing and the
+    # first page of the reference. The trial balance she had computed was the
+    # receipt that got cut. Still in execution order, because a record of what
+    # happened should read as one.
+    return lead + "\n\n" + "\n\n".join(said[-_RECEIPTS_WORTH_READING:])
 
 
 def _serve_tabular_answer(user_message: object, reply: object) -> object:
