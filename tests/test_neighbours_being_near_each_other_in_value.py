@@ -114,3 +114,14 @@ def test_ordered_and_unworkable_is_told_from_ordered_and_workable():
     stepped = board([["2", "4", "8", "16"]])
     assert _order(laddered) == pytest.approx(_order(stepped))
     assert _smoothness(stepped) > _smoothness(laddered)
+
+
+def test_what_can_honestly_be_said_about_her_play_is_written_down():
+    """2048 as a rule, 4096 on a good run — not "she can reach 4096"."""
+    import inspect
+
+    from core.agency import how_good_is_this
+
+    source = inspect.getsource(how_good_is_this)
+    assert "4096" in source
+    assert "on a good run" in source

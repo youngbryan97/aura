@@ -64,6 +64,16 @@ ORDER_MATTERS = 0.15
 #: The median best tile DOUBLES, and totals do too. Past this it turns back:
 #: closeness bought at the price of progress is a board that is easy to work
 #: in and going nowhere.
+#:
+#: Asked for a 4096 instead, eight games each and room to play them out:
+#:
+#:     smoothness    median best tile    best seen
+#:            0.3                2048         4096
+#:            0.4                1536         4096
+#:           0.55                2048         2048
+#:
+#: A 4096 tile is reachable, and it is not the ordinary case. What to say
+#: about her play is that she reaches 2048 as a rule and 4096 on a good run.
 SMOOTHNESS_MATTERS = 0.4
 
 #: What holding her own stated line is worth. Level with nearness to the goal,
