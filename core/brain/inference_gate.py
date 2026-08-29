@@ -8672,17 +8672,35 @@ class InferenceGate:
                 if isinstance(_value, int) and _value > 0:
                     _tokens = _value
                     break
-            if _tokens > 0:
-                try:
-                    from core.conversation.turn_evidence_custody import (
-                        record_turn_model_generation,
-                    )
+            try:
+                from core.conversation.turn_evidence_custody import (
+                    record_turn_model_generation,
+                )
 
+                _recorded = (
                     record_turn_model_generation(
                         model_path, tokens=_tokens, path="tool_loop"
                     )
-                except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                    logger.debug("tool loop could not record its generation: %s", exc)
+                    if _tokens > 0
+                    else False
+                )
+            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _recorded = False
+                logger.debug("tool loop could not record its generation: %s", exc)
+            # Which of the two, when the answer cannot prove who wrote it.
+            #
+            # A receipt with no count and a turn that would not take the
+            # record are different faults: the first is a generation whose
+            # tokens nobody added up, the second is custody this execution
+            # does not belong to. Both end as
+            # "foreground_model_generation_ownership_unproven" and the name
+            # says neither.
+            if not _recorded:
+                logger.info(
+                    "🧾 tool loop generation unrecorded: tokens=%d receipt_keys=%s",
+                    _tokens,
+                    ",".join(sorted(receipt or {}))[:300] or "none",
+                )
         from core.conversation.surface_disposition import record_tool_receipt
 
         for call in called:
