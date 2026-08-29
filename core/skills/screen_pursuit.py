@@ -1907,6 +1907,15 @@ async def pursue_on_screen(
         # the thing down by its own outline.
         already = str(observation.get("read_within") or "") == "the part"
         band = None if already else (drawn["where"] or responds["state"].band())
+        # Whether this reading is OF the thing rather than of everything.
+        #
+        # It was read off "is there a band", which stopped meaning that the
+        # moment a reading could be scoped by photographing only the part —
+        # then the band is None BECAUSE she is already looking at the right
+        # place, and every guard that tested for one read it as the opposite.
+        # She played on without learning anything from a board she was finally
+        # reading properly.
+        looking_at_the_thing = already or band is not None
         seen = within(observation, band, responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
@@ -1986,7 +1995,7 @@ async def pursue_on_screen(
             if (
                 pending["arranged"] is not None
                 and previous.chosen is not None
-                and band is not None
+                and looking_at_the_thing
             ):
                 # What a rule said would happen, before it is folded in. The
                 # difference between that and what she actually saw is the
@@ -2165,7 +2174,7 @@ async def pursue_on_screen(
                 and plan["held"] is not None
                 and tried_it
                 or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
-                or (plan["asked_at"] < 0 and band is not None)
+                or (plan["asked_at"] < 0 and looking_at_the_thing)
             )
             if not holding and time_to_ask:
                 plan["asked_at"] = len(moves)
