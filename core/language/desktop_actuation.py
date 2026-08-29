@@ -35,17 +35,33 @@ def actuation_surface() -> LearnedMatcher:
     rather than subject.
     """
     global _SURFACE
-    with _LOCK:
-        if _SURFACE is not None:
-            return _SURFACE
-        surface = LearnedMatcher(name="desktop_actuation", features=embed_sentences)
-        try:
-            from core.language.label_mining import mine_desktop_actuation_labels
+    # Built outside the lock, published under it.
+    #
+    # The build mines labels and embeds them, and it used to happen with the
+    # lock held. Live on 2026-08-29 that was 291ms on the event loop thread
+    # against a 50ms limit: "the loop could not make progress for that window".
+    # Everything else waiting on the loop — a turn's tokens, a heartbeat — was
+    # stopped for the duration.
+    #
+    # Two callers racing now both build, and one of them throws its copy away.
+    # That costs one extra build once, in exchange for a lock nobody waits on,
+    # and it is the reason lockdep can see this lock at all: a hold this long
+    # is where an ABBA deadlock hides.
+    existing = _SURFACE
+    if existing is not None:
+        return existing
 
-            positives, negatives = mine_desktop_actuation_labels()
-            surface.positives = tuple(positives)
-            surface.negatives = tuple(negatives)
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            pass
-        _SURFACE = surface
-        return surface
+    surface = LearnedMatcher(name="desktop_actuation", features=embed_sentences)
+    try:
+        from core.language.label_mining import mine_desktop_actuation_labels
+
+        positives, negatives = mine_desktop_actuation_labels()
+        surface.positives = tuple(positives)
+        surface.negatives = tuple(negatives)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+
+    with _LOCK:
+        if _SURFACE is None:
+            _SURFACE = surface
+        return _SURFACE
