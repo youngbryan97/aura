@@ -8314,6 +8314,27 @@ def _mlx_worker_loop(
                                     continuation_cache_rollback = None
                                     deadline_hit = False
                                     deadline_passed_while_working = False
+                                    thinking_overran = False
+                                    # Half the budget to deliberate with, half
+                                    # to answer with. The answer is what was
+                                    # asked for, so it gets room reserved for
+                                    # it rather than whatever deliberation
+                                    # leaves behind.
+                                    #
+                                    # Live 2026-08-28: given 1,024 tokens this
+                                    # model used all 1,024 thinking; given
+                                    # 2,048 it used all 2,048; given 4,025 it
+                                    # wrote 15,404 characters of notes and
+                                    # still never reached an answer. A budget
+                                    # it can spend entirely on thinking is a
+                                    # budget it will spend entirely on
+                                    # thinking, and raising it only buys
+                                    # longer notes.
+                                    thinking_allowance = (
+                                        max(1, _safe_int(kwargs.get("max_tokens"), max_tokens)) // 2
+                                        if native_thinking is True
+                                        else 0
+                                    )
                                     # A turn somebody is waiting for is allowed to
                                     # take the time it takes. Background work still
                                     # yields on its deadline, so a dream cycle
@@ -8945,10 +8966,18 @@ def _mlx_worker_loop(
                                                 sentinel_aborted = True
                                                 break
 
-                                        semantic_surface = split_native_thinking_generation(
+                                        _channels_now = split_native_thinking_generation(
                                             current_response,
                                             native_thinking=(native_thinking is True),
-                                        ).surface
+                                        )
+                                        semantic_surface = _channels_now.surface
+                                        if (
+                                            thinking_allowance > 0
+                                            and not _channels_now.boundary_closed
+                                            and token_count >= thinking_allowance
+                                        ):
+                                            thinking_overran = True
+                                            break
 
                                         if (
                                             token_count % 8 == 0
@@ -9101,6 +9130,74 @@ def _mlx_worker_loop(
                                                 break
                                         if stop_hit:
                                             break
+
+                                    if thinking_overran:
+                                        # Writing "</think>" into the text
+                                        # would close the boundary for the
+                                        # splitter and change nothing for the
+                                        # model, which would carry on taking
+                                        # notes into what is now called the
+                                        # answer. The marker has to be in the
+                                        # context it is reading, so the
+                                        # thinking so far becomes prompt and
+                                        # the model answers from it.
+                                        _reasoning_so_far = current_response
+                                        _room_left = max(
+                                            64,
+                                            max(1, _safe_int(kwargs.get("max_tokens"), max_tokens))
+                                            - token_count,
+                                        )
+                                        logger.info(
+                                            "🧠 [WORKER] Thinking reached its allowance at token "
+                                            "%d of %d without an answer; closing the channel and "
+                                            "asking for one with the remaining %d.",
+                                            token_count,
+                                            _safe_int(kwargs.get("max_tokens"), max_tokens),
+                                            _room_left,
+                                        )
+                                        try:
+                                            _answer_kwargs = dict(clean_kwargs)
+                                            _answer_kwargs["max_tokens"] = _room_left
+                                            # With a cache the model's own KV
+                                            # already holds the prompt and
+                                            # every token it just wrote, so
+                                            # the only new thing to feed it is
+                                            # the marker. Without one there is
+                                            # nothing behind it and the whole
+                                            # context has to go in again.
+                                            #
+                                            # ``gen_prompt`` is a token array
+                                            # in the first case and a string in
+                                            # the second, so it is not what
+                                            # gets concatenated either way.
+                                            _answer_prompt = (
+                                                "</think>\n"
+                                                if cache is not None
+                                                else f"{prompt}{_reasoning_so_far}</think>\n"
+                                            )
+                                            _answered = ""
+                                            for _piece in _gen_stream(
+                                                None,
+                                                _answer_prompt,
+                                                _answer_kwargs,
+                                            ):
+                                                _answered += _piece.text
+                                                token_count += 1
+                                            current_response = (
+                                                f"{_reasoning_so_far}</think>\n{_answered}"
+                                            )
+                                        except (RuntimeError, ValueError, TypeError, OSError) as exc:
+                                            # The thinking still stands, and
+                                            # the turn is no worse off than it
+                                            # was before this tried.
+                                            _record_mlx_degradation(
+                                                exc,
+                                                action=(
+                                                    "left the generation inside its private "
+                                                    "channel after the answer pass failed"
+                                                ),
+                                                severity="warning",
+                                            )
 
                                     generation_stream_elapsed_s = max(
                                         0.0,

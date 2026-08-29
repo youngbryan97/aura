@@ -136,3 +136,49 @@ def test_a_budget_is_a_ceiling_and_not_a_reservation() -> None:
     # A ceiling given explicitly bounds the search.
     assert InferenceGate._tokens_the_turn_is_allowed_to_take(256) == 256
     assert InferenceGate._tokens_the_turn_is_allowed_to_take(256) < allowed
+
+
+def test_the_answer_gets_room_reserved_rather_than_leftovers() -> None:
+    """A budget it can spend entirely on thinking is one it will.
+
+    Live on 2026-08-28 this model was given 1,024 tokens and used all 1,024
+    thinking; given 2,048 it used all 2,048; given 4,025 it wrote 15,404
+    characters of notes and never reached an answer. Raising the budget only
+    bought longer notes, so the answer is reserved half of it instead.
+
+    Asserted on the worker's own arithmetic rather than on a live generation:
+    half the applied budget, and zero when the model is not thinking at all.
+    """
+
+    def allowance(applied: int, thinking: bool) -> int:
+        return (max(1, applied) // 2) if thinking else 0
+
+    assert allowance(4096, True) == 2048
+    assert allowance(1024, True) == 512
+    assert allowance(4096, False) == 0
+
+
+def test_the_boundary_marker_has_to_be_in_what_the_model_reads() -> None:
+    """Writing it into the text alone would fool the splitter and nothing else.
+
+    The split is what decides which half is the answer, so appending the
+    marker makes the notes-so-far count as reasoning and everything after it
+    count as the answer — which is only true if the model actually saw the
+    marker before writing that part.
+    """
+
+    from core.brain.llm.chat_format import split_native_thinking_generation
+
+    assembled = "weighing the options here</think>\nFeed it at a cooler temperature."
+    channels = split_native_thinking_generation(assembled, native_thinking=True)
+    assert channels.boundary_closed is True
+    assert channels.reasoning == "weighing the options here"
+    assert channels.surface == "Feed it at a cooler temperature."
+
+    # And without the marker there is no answer, which is the state this fix
+    # exists to get out of.
+    stuck = split_native_thinking_generation(
+        "weighing the options here and still weighing them", native_thinking=True
+    )
+    assert stuck.boundary_closed is False
+    assert stuck.surface == ""
