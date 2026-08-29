@@ -435,6 +435,25 @@ def _run_process_blocking(
     return result["value"]
 
 
+def wall_clock_allowance(timeout_s: float) -> float:
+    """The longest this may take on the clock, for a given computation budget.
+
+    Generous against the CPU limit rather than equal to it: a script that runs
+    in 0.3 seconds on an idle machine was killed three times at 32.1 seconds
+    while the resident 27B was decoding, so waiting for a turn on a loaded
+    machine is not treated as the same thing as computing forever. Runaway
+    computation still hits RLIMIT_CPU exactly as before.
+
+    Shared, because the caller has to wait at least this long. A dispatcher
+    that gives up first kills the work and returns nothing — not the output,
+    and not the reason — which is worse than either clock alone: LIVE
+    2026-08-29, "Tool Result: code_repl in 120004ms", twice, against a sandbox
+    allowed 180.
+    """
+
+    return max(float(timeout_s) + 2.0, float(timeout_s) * 6.0)
+
+
 def run_untrusted(
     code: str,
     timeout: int = DEFAULT_TIMEOUT,
@@ -512,7 +531,7 @@ def run_untrusted(
         # equal to it. Runaway computation still hits RLIMIT_CPU exactly as
         # before; what changes is that waiting for a turn on a loaded machine
         # is no longer treated as the same thing.
-        wall_clock_wait = max(float(timeout) + 2.0, float(timeout) * 6.0)
+        wall_clock_wait = wall_clock_allowance(timeout)
         process_result = _run_process_blocking(
             command, payload, wall_clock_wait, mem_bytes
         )

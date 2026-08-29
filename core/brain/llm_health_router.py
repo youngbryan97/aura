@@ -500,7 +500,11 @@ def desktop_background_endpoint_deferral_reasons(
 
 
 async def _await_while_it_is_working(
-    coro: Any, *, budget_s: float, user_facing: bool
+    coro: Any,
+    *,
+    budget_s: float,
+    user_facing: bool,
+    person_is_waiting: bool = False,
 ) -> Any:
     """Wait out the endpoint budget, then keep waiting while tokens arrive.
 
@@ -543,10 +547,24 @@ async def _await_while_it_is_working(
     # A caller that asked for two seconds is not asking to be waited on for
     # eight minutes; one that asked for two minutes is. The ceiling still caps
     # the whole thing.
-    overrun = min(
-        max(0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s)),
-        max(0.0, float(budget_s) * 3.0),
-    )
+    ceiling = max(0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s))
+    # Proportional for a probe, the turn's own ceiling for a person.
+    #
+    # "user_facing" is true for anything on the foreground lane, which includes
+    # a two-second health check — and that check waited eight minutes here
+    # once, leaving the runtime in CRITICAL with conversation recovering. The
+    # multiplier exists for that, and it is the wrong bound for a turn.
+    #
+    # LIVE 2026-08-29: "Endpoint gave up 31s past its budget: last sign of work
+    # 0.2s ago, quiet window 20s". Nothing had gone quiet. A step of a turn was
+    # given 31 seconds, three times that as overrun, and was cut while working
+    # — after the six clocks above it had all been taught to wait. The person
+    # got a list of files instead of the answer.
+    #
+    # Whether somebody is sitting in front of this is a fact the caller has,
+    # and it is what separates the two cases. Nobody waiting keeps today's
+    # proportional bound, so a probe stays a probe.
+    overrun = ceiling if person_is_waiting else min(ceiling, max(0.0, float(budget_s) * 3.0))
     ends_at = time.monotonic() + overrun
     said_it_once = False
     while time.monotonic() < ends_at:

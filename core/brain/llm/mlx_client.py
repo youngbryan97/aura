@@ -137,6 +137,31 @@ def time_a_prompt_needs(prompt_chars: int, max_tokens: int) -> float:
     return reading + writing
 
 
+def longest_a_turn_may_take(
+    *, generations: int, prompt_chars: int, max_tokens: int, floor_s: float
+) -> float:
+    """How long a turn of this shape needs on THIS machine, at its measured rates.
+
+    A ceiling is meant to stop a turn running away, and a flat number cannot
+    tell running away from working. LIVE 2026-08-29: a turn read a library's
+    docs, wrote code against them, ran it and was composing the answer when it
+    reached 480 seconds — "gave up 298s past its budget: last sign of work 0.3s
+    ago". Nothing had gone quiet. On this host a generation of a thousand
+    tokens against a seven-thousand-character prompt takes about a hundred
+    seconds, and a tool loop is allowed several of them, so the ceiling was
+    below the cost of the work it was standing over.
+
+    The rates are what the machine has been seen doing, so a faster host gets
+    a shorter ceiling for free and a loaded one gets the room it needs. The
+    caller's floor still applies: this only ever raises, because a measurement
+    that comes back small must not shorten a bound somebody else set.
+    """
+
+    turns = max(1, int(generations or 1))
+    needed = turns * time_a_prompt_needs(prompt_chars, max_tokens)
+    return max(float(floor_s), needed)
+
+
 logger = logging.getLogger("LLM.MLX")
 
 # Abort reasons that race a finishing generation: losing that race is the

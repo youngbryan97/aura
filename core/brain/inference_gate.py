@@ -8575,6 +8575,12 @@ class InferenceGate:
                     ),
                 ),
                 user_facing=True,
+                # The same fact the loop puts on its own context. A person
+                # asked for this in the foreground and is sitting in front of
+                # it, so the bound is the turn's ceiling rather than a
+                # multiple of one step's budget — which cut a loop that was
+                # producing 0.2s earlier, LIVE 2026-08-29.
+                person_is_waiting=True,
             )
         except (TimeoutError, asyncio.CancelledError) as exc:
             record_degradation(
