@@ -8672,6 +8672,17 @@ class InferenceGate:
                 if isinstance(_value, int) and _value > 0:
                     _tokens = _value
                     break
+            if _tokens <= 0:
+                # What the client counted arriving, when the worker attached
+                # no total. The tokens are the same tokens; only the reporting
+                # differs, and an answer must not fail to prove itself because
+                # of which branch of the worker replied.
+                _counter = getattr(client, "tokens_generated_for_this_request", None)
+                if callable(_counter):
+                    try:
+                        _tokens = max(0, int(_counter() or 0))
+                    except (TypeError, ValueError):
+                        _tokens = 0
             try:
                 from core.conversation.turn_evidence_custody import (
                     record_turn_model_generation,

@@ -5743,6 +5743,18 @@ class MLXLocalClient:
     def _set_task_surface_control_receipt(self, receipt: dict[str, Any]) -> None:
         self._surface_control_receipt_slot().set(dict(receipt))
 
+    def tokens_generated_for_this_request(self) -> int:
+        """Tokens this client has seen arrive for the request in flight.
+
+        Counted where they arrive, so it does not depend on the worker
+        attaching a total to its reply. LIVE 2026-08-29: "tool loop generation
+        unrecorded: tokens=0 receipt_keys=none" — the generation that wrote the
+        answer came back with neither a receipt nor a count, and authorship is
+        proven from exactly that number, so the turn refused its own work.
+        """
+
+        return max(0, int(getattr(self, "_tokens_this_request", 0) or 0))
+
     def get_last_surface_control_receipt(self) -> dict[str, Any]:
         task_receipt = self._surface_control_receipt_slot().get()
         if task_receipt is not None:
@@ -6198,6 +6210,10 @@ class MLXLocalClient:
         )
         self._current_request_started_at = now
         self._current_first_token_at = 0.0
+        #: Tokens observed for THIS request. The worker reports a count on the
+        #: generations that carry a receipt and not on the ones that do not,
+        #: and an answer's authorship is proven from that count.
+        self._tokens_this_request = 0
         self._current_prompt_chars = max(0, int(prompt_chars or 0))
         self._current_requested_max_tokens = max(0, int(requested_max_tokens or 0))
         self._last_token_progress_at = 0.0
@@ -6363,6 +6379,7 @@ class MLXLocalClient:
                         observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                     )
         self._tokens_since_spawn = int(getattr(self, "_tokens_since_spawn", 0) or 0) + 1
+        self._tokens_this_request = int(getattr(self, "_tokens_this_request", 0) or 0) + 1
         self._mark_progress()
 
     def _clear_active_generation_tracking(self) -> None:

@@ -79,5 +79,51 @@ def test_the_tool_loop_records_it_where_the_tokens_are_counted() -> None:
     gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
     assert "record_turn_model_generation(" in gate
     assert 'path="tool_loop"' in gate
-    # Only when the receipt actually counted something.
-    assert "if _tokens > 0:" in gate
+    # Only when something was actually counted — by the worker's receipt, or
+    # by the client watching the tokens arrive.
+    assert "if _tokens > 0" in gate
+
+
+class TestTheCountComesFromWhereTheTokensArrive:
+    """A worker that attaches no total still generated tokens.
+
+    LIVE 2026-08-29: "tool loop generation unrecorded: tokens=0
+    receipt_keys=none". The generation that wrote the answer came back with
+    neither a surface-control receipt nor a tokens_used total, and authorship
+    is proven from exactly that number — so the turn refused its own work
+    because of which branch of the worker happened to reply.
+    """
+
+    def test_the_client_counts_them_as_they_arrive(self) -> None:
+        from core.brain.llm.mlx_client import MLXLocalClient
+
+        counter = MLXLocalClient.tokens_generated_for_this_request
+
+        class _Lane:
+            tokens_generated_for_this_request = counter
+
+        lane = _Lane()
+        assert lane.tokens_generated_for_this_request() == 0
+        lane._tokens_this_request = 412
+        assert lane.tokens_generated_for_this_request() == 412
+
+    def test_a_bad_counter_reads_as_none_rather_than_raising(self) -> None:
+        from core.brain.llm.mlx_client import MLXLocalClient
+
+        class _Lane:
+            _tokens_this_request = "not a number"
+            tokens_generated_for_this_request = (
+                MLXLocalClient.tokens_generated_for_this_request
+            )
+
+        with pytest.raises((TypeError, ValueError)):
+            _Lane().tokens_generated_for_this_request()
+
+    def test_the_gate_falls_back_to_it_only_when_the_receipt_has_nothing(self) -> None:
+        from pathlib import Path
+
+        gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+        assert "tokens_generated_for_this_request" in gate
+        assert "if _tokens <= 0:" in gate
+        # The receipt is still preferred: it is the worker's own accounting.
+        assert 'for _key in ("generated_tokens", "decode_generated_tokens"):' in gate
