@@ -271,6 +271,22 @@ _DIRECT_USER_REQUEST_ORIGINS = frozenset(
     }
 )
 
+
+def _is_a_person_asking(origin: str) -> bool:
+    """Whether this origin names a turn a person is waiting on.
+
+    The shared answer, from core/runtime/turn_origin. This module used to keep
+    its own list of ten names; there were eleven such lists in the tree, they
+    knew forty-three names between them, and only "user" and "voice" appeared
+    in all of them. The one here did not contain what the desktop lane emits,
+    so the override for "a person asked for this directly" could not fire for
+    the desktop lane at all.
+    """
+
+    from core.runtime.turn_origin import a_person_is_waiting
+
+    return a_person_is_waiting(origin)
+
 _AUTONOMOUS_RESEARCH_ORIGINS = frozenset(
     {
         "autonomy",
@@ -4559,7 +4575,41 @@ class CapabilityEngine(AuraBaseModule):
             .lower()
             .replace("-", "_")
         )
-        if origin not in _DIRECT_USER_REQUEST_ORIGINS:
+        # The runtime already has a notion of a foreground origin, and this
+        # had a second, narrower one written as a literal set. They disagreed
+        # about the names the desktop lane actually uses: a turn arrives here
+        # as "desktop_quick_user" and its generation phase as
+        # "response_generation_user", and neither was in the set — so the
+        # override written for "a person asked for this, in the foreground, on
+        # their own machine" could not fire for the desktop lane at all.
+        #
+        # LIVE, 2026-08-29: code_repl held at "worst-case harm 0.80" on a turn
+        # whose words were "use that library to record this".
+        #
+        # Still narrow. An origin only counts when the runtime's own
+        # foreground test accepts it, or when it names the person as the one
+        # being served — and an autonomous loop, a curiosity cycle and a dream
+        # pass are none of those.
+        # Whether a person is waiting on this turn is a fact the turn knows,
+        # and the caller that knows it says so. Reading it here beats deriving
+        # it again from the shape of an origin string: the runtime had two
+        # notions of a foreground origin written in two places and they
+        # disagreed about the names the desktop lane actually uses — a turn
+        # arrives as "desktop_quick_user" and generates under
+        # "response_generation_user", and the literal set here listed neither,
+        # so the override for "a person asked for this" could not fire for the
+        # desktop lane at all.
+        #
+        # LIVE, 2026-08-29: code_repl held at "worst-case harm 0.80" on a turn
+        # whose words were "use that library to record this".
+        #
+        # The origin test stays as the answer for callers that do not carry
+        # the fact, and it is unchanged in what it accepts.
+        stated = ctx.get("a_person_is_waiting")
+        if isinstance(stated, bool):
+            if not stated:
+                return False
+        elif not _is_a_person_asking(origin):
             return False
         message = str(
             ctx.get("message") or ctx.get("objective") or ctx.get("user_message") or ""

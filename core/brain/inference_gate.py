@@ -8494,6 +8494,12 @@ class InferenceGate:
                         # person had asked for it in those words.
                         "origin": origin or "user",
                         "message": text,
+                        # The fact, rather than a name to be parsed again. This
+                        # gate already decided whether somebody is waiting on
+                        # this turn; the conscience downstream needs the same
+                        # answer, and deriving it twice from origin strings is
+                        # how the two came to disagree.
+                        "a_person_is_waiting": True,
                         # What this turn may do. The dispatch refuses any
                         # action ranked above it, so a skill can be offered
                         # for its safe actions without offering its
