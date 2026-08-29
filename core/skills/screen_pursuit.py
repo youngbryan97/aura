@@ -1378,6 +1378,7 @@ async def pursue_on_screen(
     from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
+    from core.perception.the_thing_itself import the_thing_itself
     from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import (
         Responsive,
@@ -1822,7 +1823,19 @@ async def pursue_on_screen(
         seen = within(observation, band, responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
-        laid_out = what_is_there(observation, band, like=pending["arranged"])
+        # The thing she is acting on, not the page it is drawn on.
+        #
+        # A reading of a screen is a reading of everything on it. Handed all
+        # of it, the shape is called open because two hundred places is not
+        # small, no rule about movement can match because most of a page never
+        # moves, and two readings a second apart disagree about how many rows
+        # there are. LIVE 2026-08-29: readings of 12x17 then 7x7 of a board
+        # that is four by four, "how this moves is not worked out yet" after
+        # eighty-four moves, and therefore a full language generation for
+        # every single one of them — about twenty-eight seconds a move.
+        laid_out = the_thing_itself(
+            what_is_there(observation, band, like=pending["arranged"])
+        )
 
         # Is this the thing she was asked to act in.
         #
