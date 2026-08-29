@@ -15529,6 +15529,36 @@ class MLXLocalClient:
                 quality_rejection_reasons = _surface_quality_rejection_reasons(
                     self.get_last_surface_control_receipt()
                 )
+                # A tool call is not prose and must not be judged as prose.
+                #
+                # The surface quality gate reads a draft as an answer somebody
+                # is about to be shown: prompt artifacts, boilerplate, leaked
+                # internal text. A generation that was offered tools and
+                # answered with a tool call is none of those. It is the model
+                # saying what to run next, and the loop that offered the tools
+                # is the thing waiting to read it.
+                #
+                # LIVE 2026-08-29: asked to read a library's docs and use it,
+                # turn four of the tool loop emitted a complete, correct
+                # code_repl call — the right library, the right arguments, the
+                # invoice posted the right way round. It was rejected as
+                # "prompt_artifact" because it is angle brackets rather than
+                # sentences, the generation returned nothing, and the turn
+                # ended on "I couldn't get to an answer I'd stand behind"
+                # after four successful tool calls.
+                #
+                # Only a complete, parseable call earns this, and only when
+                # the request actually offered tools. Everything else the gate
+                # catches, it still catches.
+                if quality_rejection_reasons and text and kwargs.get("tools"):
+                    if _text_is_a_complete_tool_call(text):
+                        logger.info(
+                            "🔧 [MLX] the draft the quality gate refused (%s) is a "
+                            "complete tool call, and tools were offered — handing "
+                            "it to the loop that asked for it.",
+                            ",".join(quality_rejection_reasons),
+                        )
+                        quality_rejection_reasons = ()
                 if quality_rejection_reasons and (not text or cooperative_stop):
                     # The worker decoded a draft but could not make it directly
                     # servable before this request ended. Keep it bound to the
@@ -17322,6 +17352,28 @@ _NATIVE_XML_PARAMETER_RE = re.compile(
     r"(?P<value>.*?)</parameter>",
     re.DOTALL,
 )
+
+
+def _text_is_a_complete_tool_call(text: Any) -> bool:
+    """Whether this draft is one parseable call and nothing else of substance.
+
+    Read with the same parser the loop uses, so the two cannot disagree about
+    what a call is. Prose wrapped around a call does not qualify: that is a
+    draft with a call in it, and judging it as prose is then correct.
+    """
+
+    body = str(text or "").strip()
+    if not body:
+        return False
+    opened = body.find("<tool_call>")
+    if opened < 0:
+        return False
+    if body[:opened].strip():
+        return False  # the model said something first; that is prose
+    payload, _why = _native_xml_tool_payload(
+        body, start=opened + len("<tool_call>"), tool_definitions=None
+    )
+    return bool(isinstance(payload, dict) and payload.get("name"))
 
 
 def _native_xml_tool_payload(
