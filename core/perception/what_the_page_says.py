@@ -31,7 +31,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["MOST_REGIONS", "what_the_page_says"]
+__all__ = ["MOST_REGIONS", "what_the_page_says", "where_the_drawing_is"]
 
 logger = logging.getLogger("Aura.WhatThePageSays")
 
@@ -128,5 +128,116 @@ async def _ask(browser: Any) -> str:
     except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
         record_degradation(
             "what_the_page_says", exc, severity="info", action="ask the page what it says"
+        )
+        return ""
+
+
+#: How much of the page a drawn thing has to occupy before it is the thing she
+#: came for rather than an icon or a spacer. A twentieth of the visible page.
+BIG_ENOUGH_TO_BE_THE_THING = 0.05
+
+#: What the page is asked about a thing it draws rather than writes.
+#:
+#: Where it is, in screen coordinates, because that is the question the screen
+#: reader needs answered. A page knows its own position: screenX and screenY
+#: are the window's place on the desktop, and the difference between the outer
+#: and inner heights is the browser's own furniture above the page.
+_WHERE_IS_IT = """
+(function () {
+  var best = null;
+  var drawn = document.getElementsByTagName('canvas');
+  for (var i = 0; i < drawn.length; i++) {
+    var r = drawn[i].getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    if (!best || r.width * r.height > best.w * best.h) {
+      best = {l: r.left, t: r.top, w: r.width, h: r.height};
+    }
+  }
+  if (!best) return '';
+  var chrome = (window.outerHeight || 0) - (window.innerHeight || 0);
+  return JSON.stringify({
+    left: (window.screenX || 0) + best.l,
+    top: (window.screenY || 0) + chrome + best.t,
+    width: best.w, height: best.h,
+    page: (window.innerWidth || 1) * (window.innerHeight || 1)
+  });
+})()
+"""
+
+
+async def where_the_drawing_is(
+    browser: Any = None, screen: tuple[float, float] | None = None
+) -> tuple[float, float, float, float] | None:
+    """Where on the SCREEN the page is drawing something, if it is.
+
+    A page that draws rather than writes cannot say what it is showing — the
+    numbers on a canvas are pixels and nothing else. It can say exactly where
+    it is showing it, and that is the other half of the question: she can look
+    at the right part of the screen instead of the whole of it.
+
+    LIVE 2026-08-29: play2048.co draws its board on a canvas 576 by 739. She
+    was reading the entire screen — browser tabs, address bar, advertising
+    rails, footer — and finding five of the sixteen places on it.
+
+    Returns a band as ``(left, top, right, bottom)`` in screen fractions,
+    which is what the rest of the loop already means by where a task lives.
+    Nothing when the page draws nothing, which is most pages.
+    """
+    said = await _ask_where(browser)
+    if not said:
+        return None
+    try:
+        where = json.loads(said)
+        left, top = float(where["left"]), float(where["top"])
+        wide, tall = float(where["width"]), float(where["height"])
+        page = float(where.get("page") or 0.0)
+    except (ValueError, TypeError, KeyError):
+        return None
+    if wide <= 0 or tall <= 0:
+        return None
+    if page > 0 and (wide * tall) / page < BIG_ENOUGH_TO_BE_THE_THING:
+        # An icon, a sparkline, a spacer. Not the thing she came for.
+        return None
+    across, down = screen or _how_big_the_screen_is()
+    if across <= 0 or down <= 0:
+        return None
+    band = (left / across, top / down, (left + wide) / across, (top + tall) / down)
+    if not all(0.0 <= edge <= 1.0 for edge in band):
+        return None
+    logger.info(
+        "the page is drawing something at %.2f-%.2f across, %.2f-%.2f down",
+        band[0], band[2], band[1], band[3],
+    )
+    return band
+
+
+def _how_big_the_screen_is() -> tuple[float, float]:
+    """The main display, in points, or nothing measurable."""
+    try:
+        import Quartz
+
+        bounds = Quartz.CGDisplayBounds(Quartz.CGMainDisplayID())
+        return float(bounds.size.width), float(bounds.size.height)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return (0.0, 0.0)
+
+
+async def _ask_where(browser: Any) -> str:
+    """Put the geometry question to whatever browser is in front."""
+    if browser is None:
+        try:
+            from core.capabilities.browser_controller import get_browser_controller
+
+            browser = get_browser_controller()
+        except (ImportError, AttributeError, RuntimeError):
+            return ""
+    ask = getattr(browser, "read_page_text", None)
+    if not callable(ask):
+        return ""
+    try:
+        return str(await ask(_WHERE_IS_IT) or "")
+    except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "what_the_page_says", exc, severity="info", action="ask the page where it draws"
         )
         return ""

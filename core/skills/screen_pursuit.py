@@ -1420,6 +1420,8 @@ async def pursue_on_screen(
         ends_at = min(ends_at, float(deadline_at))
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
+    #: Where the page says it draws, asked once when the run gets its bearings.
+    drawn: dict[str, Any] = {"where": None, "asked": False}
     pending: dict[str, Any] = {
         "deliberation": None,
         "before": "",
@@ -1843,7 +1845,27 @@ async def pursue_on_screen(
         # is answered by what happens when she acts. Until enough acts have
         # answered it, this is the whole reading, because a guess about where
         # the task is would be worse.
-        band = responds["state"].band()
+        if not drawn["asked"]:
+            drawn["asked"] = True
+            from core.perception.what_the_page_says import where_the_drawing_is
+
+            drawn["where"] = await where_the_drawing_is()
+            if drawn["where"] and narrate:
+                _tell("The page told me where it is drawing — I will look there.")
+
+        # Where the task lives, asked rather than worked out, when it can be.
+        #
+        # The band is normally learned: act, look, and see which places
+        # changed. That is right for anything that cannot be questioned, and
+        # slow — it takes many moves, and until it settles she is reading
+        # browser tabs and advertising rails as part of the thing. A page that
+        # draws its content can say exactly where it draws, and then she knows
+        # on the first cycle what would otherwise take twenty.
+        #
+        # LIVE 2026-08-29: play2048.co draws its board on a canvas. She was
+        # reading the whole screen and finding five of the sixteen places on
+        # it, and no model ever formed.
+        band = drawn["where"] or responds["state"].band()
         seen = within(observation, band, responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.

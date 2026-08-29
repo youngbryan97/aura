@@ -131,3 +131,59 @@ def test_a_backslash_is_escaped_before_the_quotes_are():
 
 def test_nothing_is_an_empty_literal():
     assert _as_applescript_text("") == '""'
+
+
+# ── a page that draws can still say WHERE it draws ───────────────────────
+
+from core.perception.what_the_page_says import (  # noqa: E402
+    BIG_ENOUGH_TO_BE_THE_THING,
+    where_the_drawing_is,
+)
+
+SCREEN = (1600.0, 1000.0)
+
+
+def drawing(left=500, top=150, width=520, height=660, page=1500 * 900):
+    return Page(json.dumps(
+        {"left": left, "top": top, "width": width, "height": height, "page": page}
+    ))
+
+
+@pytest.mark.asyncio
+async def test_the_page_says_where_it_is_drawing():
+    band = await where_the_drawing_is(drawing(), screen=SCREEN)
+    assert band == pytest.approx((500 / 1600, 150 / 1000, 1020 / 1600, 810 / 1000))
+
+
+@pytest.mark.asyncio
+async def test_a_page_that_draws_nothing_says_nothing():
+    assert await where_the_drawing_is(Page(""), screen=SCREEN) is None
+
+
+@pytest.mark.asyncio
+async def test_an_icon_is_not_the_thing_she_came_for():
+    small = drawing(width=20, height=20)
+    assert await where_the_drawing_is(small, screen=SCREEN) is None
+
+
+@pytest.mark.asyncio
+async def test_something_big_enough_is():
+    big = drawing(width=400, height=400, page=1000 * 800)
+    assert (400 * 400) / (1000 * 800) >= BIG_ENOUGH_TO_BE_THE_THING
+    assert await where_the_drawing_is(big, screen=SCREEN) is not None
+
+
+@pytest.mark.asyncio
+async def test_a_drawing_off_the_screen_is_not_a_band():
+    assert await where_the_drawing_is(drawing(left=1500, width=900), screen=SCREEN) is None
+
+
+@pytest.mark.asyncio
+async def test_a_screen_of_no_size_gives_no_band():
+    assert await where_the_drawing_is(drawing(), screen=(0.0, 0.0)) is None
+
+
+@pytest.mark.asyncio
+async def test_rubbish_is_not_a_place():
+    assert await where_the_drawing_is(Page("not json"), screen=SCREEN) is None
+    assert await where_the_drawing_is(Page('{"left": 1}'), screen=SCREEN) is None
