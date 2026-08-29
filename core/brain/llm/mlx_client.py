@@ -5743,6 +5743,20 @@ class MLXLocalClient:
     def _set_task_surface_control_receipt(self, receipt: dict[str, Any]) -> None:
         self._surface_control_receipt_slot().set(dict(receipt))
 
+    def _prefill_progress_at(self) -> float:
+        """When this request last advanced through a prompt, or 0.0.
+
+        Only while a prefill is actually under way: a finished one must not
+        keep a stalled generation alive on the strength of work it did
+        minutes ago.
+        """
+
+        total = int(getattr(self, "_current_prefill_tokens_total", 0) or 0)
+        done = int(getattr(self, "_current_prefill_tokens_processed", 0) or 0)
+        if total <= 0 or done >= total:
+            return 0.0
+        return float(getattr(self, "_prefill_observed_at", 0.0) or 0.0)
+
     def tokens_generated_for_this_request(self) -> int:
         """Tokens this client has seen arrive for the request in flight.
 
@@ -14293,8 +14307,30 @@ class MLXLocalClient:
                     _cancel_shared_future(future)
                     return None
 
+                # Reading is work here too, and this clock could not see it.
+                #
+                # Progress is emitted per token, so a generation that spends
+                # twenty seconds inside one prefill step emits nothing and
+                # reads as stalled. That case is real and already recorded in
+                # the worker: "a measured 755-token recurrent prefill occupied
+                # the inference thread for roughly 52 seconds". It happens
+                # after the first token when a second pass re-reads the
+                # context, which is exactly when this clock is watching.
+                #
+                # LIVE 2026-08-29: asked to work out why turns were slow, the
+                # 27B produced tokens, went quiet for 40 seconds, and was
+                # abandoned — "Token progress stalled during generation
+                # (>40.0s)", "Cortex still sending heartbeats (2.2s ago)". The
+                # person got the canned apology.
+                #
+                # Prefill progress was deliberately kept out of the first-token
+                # clock, because there the question is whether reading has
+                # begun at all. Here the question is whether the generation is
+                # doing anything, and reading is doing something.
                 last_token_progress = max(
-                    self._last_token_progress_at, self._current_first_token_at
+                    self._last_token_progress_at,
+                    self._current_first_token_at,
+                    self._prefill_progress_at(),
                 )
                 if (
                     req_id == self._current_request_id
