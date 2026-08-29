@@ -348,5 +348,60 @@ def test_running_a_tool_counts_as_working() -> None:
     source = Path("core/transparency/dev_mode.py").read_text()
     start = source.index("async def record_tool_execution")
     complete = source.index("async def complete_tool_execution")
-    assert "note_progress" in source[start:complete], "dispatch must report life"
-    assert "note_progress" in source[complete:complete + 1200], "completion must too"
+    assert "tool_started" in source[start:complete], "dispatch must open the state"
+    assert "tool_finished" in source[complete:complete + 1200], "completion must close it"
+
+
+def test_a_tool_in_flight_is_working_however_long_it_takes() -> None:
+    """Sampling a timestamp is the wrong instrument for an external step.
+
+    A file read that takes twenty-five seconds looks exactly like a worker
+    that has died, and live on 2026-08-28 a turn reading three files was
+    cancelled for that resemblance. How long a tool takes is a fact about the
+    tool, not about the decode rate, so a tool in flight is a state rather
+    than a sample.
+    """
+
+    import time as _time
+
+    from core.runtime.turn_progress import tool_finished, tool_started
+
+    forget_progress()
+    note_progress()
+    _time.sleep(0.05)
+    assert still_producing(within_s=0.01) is False
+
+    tool_started()
+    _time.sleep(0.05)
+    assert still_producing(within_s=0.01) is True
+    tool_finished()
+    assert still_producing(within_s=0.01) is True
+
+
+def test_two_tools_at_once_both_have_to_finish() -> None:
+    from core.runtime.turn_progress import tool_finished, tool_started
+
+    forget_progress()
+    tool_started()
+    tool_started()
+    tool_finished()
+    assert still_producing(within_s=0.0001) is True
+    tool_finished()
+    import time as _time
+
+    _time.sleep(0.05)
+    assert still_producing(within_s=0.01) is False
+
+
+def test_a_stray_finish_cannot_drive_the_count_negative() -> None:
+    from core.runtime.turn_progress import tool_finished, tool_started
+
+    forget_progress()
+    tool_finished()
+    tool_finished()
+    tool_started()
+    tool_finished()
+    import time as _time
+
+    _time.sleep(0.05)
+    assert still_producing(within_s=0.01) is False

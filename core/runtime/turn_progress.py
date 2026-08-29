@@ -31,6 +31,8 @@ from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "note_progress",
+    "tool_started",
+    "tool_finished",
     "seconds_since_progress",
     "still_producing",
     "forget_progress",
@@ -42,6 +44,14 @@ _lock = checked_lock("core.runtime.turn_progress")
 #: been seen at all, which is silence rather than slowness.
 _last_progress_at: float = 0.0
 
+#: How many tools are running right now. A turn waiting on one is working, and
+#: it is working for as long as the tool takes — which is a fact about the
+#: tool, not about the decode rate. Sampling a timestamp cannot express that:
+#: a file read that takes twenty-five seconds looks exactly like a worker that
+#: has died, and live on 2026-08-28 a turn reading three files was cancelled
+#: for it. A count, because a turn may have more than one in flight.
+_tools_running: int = 0
+
 
 def note_progress() -> None:
     """A token arrived. Called from the lane that decodes."""
@@ -50,6 +60,24 @@ def note_progress() -> None:
     now = time.monotonic()
     with _lock:
         _last_progress_at = now
+
+
+def tool_started() -> None:
+    """A tool is running. The turn is working until it finishes."""
+
+    global _tools_running, _last_progress_at
+    with _lock:
+        _tools_running += 1
+        _last_progress_at = time.monotonic()
+
+
+def tool_finished() -> None:
+    """That tool is done. Its finishing is itself a sign of life."""
+
+    global _tools_running, _last_progress_at
+    with _lock:
+        _tools_running = max(0, _tools_running - 1)
+        _last_progress_at = time.monotonic()
 
 
 def seconds_since_progress() -> float:
@@ -79,6 +107,9 @@ def still_producing(*, within_s: float) -> bool:
         return False
     if not (window > 0.0):
         return False
+    with _lock:
+        if _tools_running > 0:
+            return True
     since = seconds_since_progress()
     if since < 0.0:
         return False
@@ -88,9 +119,10 @@ def still_producing(*, within_s: float) -> bool:
 def forget_progress() -> None:
     """Drop the reading. For tests, and between unrelated turns."""
 
-    global _last_progress_at
+    global _last_progress_at, _tools_running
     with _lock:
         _last_progress_at = 0.0
+        _tools_running = 0
 
 
 def normal_gap_between_tokens(measured_for_64_tokens: float = 0.0) -> float:

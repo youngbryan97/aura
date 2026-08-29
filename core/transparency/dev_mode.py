@@ -164,9 +164,9 @@ class DevMode:
         # that ended a ledgerkit turn with cognitive_engine_timeout after
         # three successful reads.
         try:
-            from core.runtime.turn_progress import note_progress
+            from core.runtime.turn_progress import tool_started
 
-            note_progress()
+            tool_started()
         except ImportError:
             pass
 
@@ -190,9 +190,9 @@ class DevMode:
         # And when it finishes, so the gap a long tool leaves behind is
         # bracketed by two signs of life rather than one.
         try:
-            from core.runtime.turn_progress import note_progress
+            from core.runtime.turn_progress import tool_finished
 
-            note_progress()
+            tool_finished()
         except ImportError:
             pass
 
