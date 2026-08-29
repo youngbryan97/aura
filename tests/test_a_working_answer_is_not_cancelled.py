@@ -263,3 +263,45 @@ def test_every_clock_in_a_turn_takes_the_same_floor() -> None:
     assert needed == min(
         float(USER_FACING_COMPLETION_DEADLINE_MAX_S), _time_the_answer_needs(question)
     )
+
+
+def test_the_reserve_comes_off_the_top_not_on_afterwards() -> None:
+    """The worker adds its reserve to whatever the gate asks for.
+
+    So asking for everything that fits the clock, and then having a reserve
+    added to that, puts the budget outside the clock it was sized against.
+    Live on 2026-08-28: the ceiling bought 4,395 tokens, the reserve stood at
+    4,025, and the clock came out at 557 seconds inside a wait that gives up
+    at 480.
+    """
+
+    from core.brain.llm import thinking_reserve
+
+    thinking_reserve.forget()
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+
+    total = InferenceGate._tokens_the_turn_is_allowed_to_take()
+    assert total > 0
+
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=total // 2)
+    reserve = InferenceGate._reasoning_reserve()
+    assert reserve > 0
+
+    # What the gate should ask for, so that asked + reserve still fits.
+    asked = max(0, InferenceGate._tokens_the_turn_is_allowed_to_take() - reserve)
+    assert asked + reserve <= total
+
+
+def test_the_clock_never_exceeds_the_wait_that_contains_it() -> None:
+    """Two numbers disagreeing again, with the outer one winning silently."""
+
+    import inspect
+
+    from core.brain.inference_gate import InferenceGate as Gate
+
+    source = inspect.getsource(Gate)
+    marker = "primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)"
+    assert marker in source
+    before = source[source.index("timeout_val = min(") : source.index(marker)]
+    assert "USER_FACING_COMPLETION_DEADLINE_MAX_S" in before, before

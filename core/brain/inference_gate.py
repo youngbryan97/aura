@@ -13936,7 +13936,17 @@ class InferenceGate:
                             float(timeout_val),
                             _needed,
                         )
-                        timeout_val = _needed
+                        # Never past the ceiling the wait outside this one
+                        # uses. A deadline of 557 seconds inside a wait that
+                        # gives up at 480 is two numbers disagreeing again,
+                        # with the outer one winning silently.
+                        from core.runtime.response_policy import (
+                            USER_FACING_COMPLETION_DEADLINE_MAX_S,
+                        )
+
+                        timeout_val = min(
+                            float(USER_FACING_COMPLETION_DEADLINE_MAX_S), _needed
+                        )
                         primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
                         # The clock is one object, built when the request was
                         # admitted. Raising the number beside it computed an
@@ -13961,7 +13971,16 @@ class InferenceGate:
                 # Raised to what the turn's own wall clock can pay for, so a
                 # thinking turn stops discovering its budget by running out of
                 # it. Never lowered: a lane that asked for less meant it.
-                _affordable = self._tokens_the_turn_is_allowed_to_take()
+                # What fits is the TOTAL, and the worker adds its reserve to
+                # whatever is asked for here, so the reserve comes off the top
+                # rather than going on afterwards. Asking for everything that
+                # fits and then having a reserve added to it is how a budget
+                # ends up outside the clock that was sized for it.
+                _affordable = max(
+                    0,
+                    self._tokens_the_turn_is_allowed_to_take()
+                    - self._reasoning_reserve(),
+                )
                 if _affordable > max_tokens:
                     logger.info(
                         "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "

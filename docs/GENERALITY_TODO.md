@@ -460,3 +460,89 @@ environment learning; keep swapping in stronger local cortices.
 The durable-work item connects directly to the clock work landed today: the
 answer to "this turn needs eight minutes" is not only a longer deadline, it is
 that the work stops being a turn.
+
+---
+
+# Where this stands, end of 2026-08-28
+
+Written down because five hours of it was one chain, and the chain is worth
+more than the commits are separately.
+
+## Closed today
+
+**The clock chain.** A desktop turn passes through five nested deadlines. Each
+was a flat number chosen before anything knew what the answer would cost, and
+each capped the next, so raising an inner one changed nothing: the engine was
+allowed 480 seconds, the gate raised itself to 341, the thinking bound fired
+and asked for the answer, and the turn still ended at 144.3 because the chat
+route's default is 120.
+
+They read one measurement between them now — what this request costs to decode
+at the rate this machine has been measured at, including the reserve the worker
+adds for thinking — and they defer to progress rather than to elapsed time. A
+generation that is still producing tokens is not out of time. One that has gone
+quiet is, whatever its deadline says, and that is caught by the first-token
+ceiling, the livelock ceiling, and the sentinel that reads the output.
+
+Bounded by what she is allowed to SAY rather than how long she may take: the
+absolute 480-second ceiling, the token cap, the loop sentinel, and the semantic
+contract that stops the decode the moment the answer is complete.
+
+**The reserve.** It learned only from a generation that never left the private
+channel and returned nothing; the commoner failure — the channel closes, the
+answer starts, the budget dies part-way — taught it nothing, so it stood at
+zero through every failure it exists to prevent. It also could not survive a
+restart (a process that had learned nothing wrote zeros over a proof another
+had paid for), could not cross from one worker to the next, and was being
+raised on a deadline stop, which is evidence about a clock and not about a
+size.
+
+**The thinking budget.** Raising it chased something that recedes: given 1,024
+tokens this model used all 1,024 thinking; given 2,048 it used all 2,048; given
+4,025 it wrote 15,404 characters of notes and never answered. The answer now
+has half the budget reserved for it, and when deliberation reaches its half the
+channel is closed in the context the model is reading and the answer is asked
+for with what is left.
+
+**The assembled prompt.** Two builders, one budget between them. The one every
+desktop conversation goes through sized itself on the model's context window —
+about 980,000 characters — while the client refuses to prefill more than 48,000
+and cuts the middle out of anything longer. Twenty-seven turns had reached that
+cut, each recorded as a fault and felt as friction, and the middle of an
+assembled prompt is the mind context. It meets the ceiling deliberately now,
+with the request deciding what survives instead of a byte offset.
+
+**U3, the synthesiser that is not fed.** Confirmed exactly. `log_gap` had no
+caller in the running system, only in its own test. Joined to the loop that
+recognises capability gaps, as recording only. The autonomy score that awarded
+a fifth of a point for that component being *registered* now asks whether it
+has received anything.
+
+**One shape for every learned rule.** `Node(kind, parameters, [Node...])`,
+applying to a state and returning a state. Composition stops being a type, so a
+pair nobody wrote a type for is expressible and depth is not a type either.
+
+## Still open, in the order they matter
+
+1. **H3/H4** — the standing injected context, and the eight `engine_directives`
+   that are English instruction prose telling the model which phrases to use.
+   The second is explicitly banned and still there; each was added to fix a
+   specific failure, so removing them needs those failures identified first.
+2. **U1** — the diagnosis that does not exist: one `why_did_this_fail` that
+   returns a *level*, with every learning mechanism a subscriber to its verdict
+   rather than an entry point of its own.
+3. **U6/U7** — counterfactual ablations with predictions made in advance, and a
+   gate that makes every subsystem earn its place by changing a measurement.
+4. **U2, U4, U5, U8, U9** — the boxed-in mechanisms, authority when
+   representations disagree, the causal spine, the test that would settle it,
+   and the prerequisites.
+5. **A7** the action side; **C7** a second concept from a different signature;
+   **D2** the battery scored with the model beside it; **E2/E3** the improver
+   measured against held-out scores and on a new capability class.
+6. **The battery.** Nothing may cost money, ever. Operate unfamiliar SaaS; book
+   something free; teach herself a tool from docs; open-ended research; a
+   scientific reasoning loop; a novel computer task with no dedicated skill;
+   multi-tool coordination on an underspecified goal; competing long-horizon
+   goals under interruption; an unfamiliar visual environment; a frozen
+   unseen-task battery.
+7. **World A/B/C**, the qualitative milestone for M₀→M₁→M₂.
