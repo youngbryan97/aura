@@ -33,6 +33,7 @@ and looking.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping
 from typing import Any, Sequence
@@ -48,6 +49,22 @@ ROOM_MATTERS = 0.15
 #: same kind of thing: a situation is easier to work in for having either, and
 #: neither says anything about what she is trying to do.
 ORDER_MATTERS = 0.15
+
+#: What it is worth for neighbouring things to be near each other in value.
+#:
+#: Measured, not chosen. Six games at each weight, run to a dead board, the
+#: same seeds, with her line held and the world model on:
+#:
+#:     smoothness    median best tile    total
+#:            0.0                1024     2133
+#:           0.15                1536     2670
+#:            0.4                2048     4020
+#:            1.0                1536     2463
+#:
+#: The median best tile DOUBLES, and totals do too. Past this it turns back:
+#: closeness bought at the price of progress is a board that is easy to work
+#: in and going nowhere.
+SMOOTHNESS_MATTERS = 0.4
 
 #: What holding her own stated line is worth. Level with nearness to the goal,
 #: because a line she is holding is her judgement about how the goal is reached
@@ -139,6 +156,7 @@ def terms(
         "line": _holds_her_line(state, approach),
         "room": _room(state),
         "order": _order(state),
+        "smoothness": _smoothness(state),
     }
 
 
@@ -148,6 +166,7 @@ AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
     "line": LINE_MATTERS,
     "room": ROOM_MATTERS,
     "order": ORDER_MATTERS,
+    "smoothness": SMOOTHNESS_MATTERS,
 }
 
 
@@ -288,6 +307,35 @@ def _order(state: Any) -> float:
         return 0.0
     scored = [_runs_one_way(line) for line in lines if len(line) > 1]
     return sum(scored) / len(scored) if scored else 0.0
+
+
+def _smoothness(state: Any) -> float:
+    """How near neighbouring things are to each other in value, on a doubling scale.
+
+    A thing can be perfectly ordered and impossible to work with: 2, 32, 4,
+    64 runs one way along no line, and 2, 4, 512, 1024 runs one way along
+    every line while offering nothing that can combine. What makes a situation
+    workable is that the things beside each other are CLOSE — one step apart
+    rather than eight — because that is what lets them come together at all.
+
+    Counted in doublings, like nearness is, because in anything built by
+    combining a step is a doubling and a plain difference makes every gap
+    among small things look like nothing.
+    """
+    lines = _lines_of(state)
+    if not lines:
+        return 0.0
+    apart: list[float] = []
+    for line in lines:
+        for one, other in zip(line, line[1:]):
+            if one <= 0 or other <= 0:
+                continue
+            apart.append(abs(math.log2(one) - math.log2(other)))
+    if not apart:
+        return 0.0
+    # One doubling apart is as close as two different things can be, so that
+    # is the scale a gap is measured against.
+    return 1.0 / (1.0 + sum(apart) / len(apart))
 
 
 def _runs_one_way(values: Sequence[float]) -> float:
