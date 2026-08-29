@@ -7812,9 +7812,17 @@ async def _run_cognitive_engine_chat_turn(
             import traceback as _tb
 
             _frames = _tb.extract_tb(_timed_out.__traceback__)
-            if _frames:
-                _last = _frames[-1]
-                _where = f" (raised at {_last.filename.rsplit('/', 1)[-1]}:{_last.lineno})"
+            # The whole chain, not the last frame. asyncio routes every
+            # wait_for and every timeout context through the same module, so
+            # the innermost frame is always timeouts.py and never says which
+            # of this runtime's clocks it belonged to. The frames above it do.
+            _ours = [
+                f"{f.filename.rsplit('/', 1)[-1]}:{f.lineno}"
+                for f in _frames
+                if "/asyncio/" not in f.filename
+            ]
+            if _ours:
+                _where = f" (through {' -> '.join(_ours[-4:])})"
         except (AttributeError, IndexError, TypeError, ValueError):
             _where = ""
         logger.warning(
