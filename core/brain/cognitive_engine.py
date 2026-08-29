@@ -5685,9 +5685,38 @@ class CognitiveEngine:
             router_kwargs["_generation_metadata_sink"] = (
                 router_generation_metadata_sink
             )
-            content = await asyncio.wait_for(
+            # The ninth clock, and the last hard one on this path.
+            #
+            # asyncio.wait_for cancels on a stopwatch and cannot tell a
+            # generation that is writing from one that has stopped. Every
+            # other clock a desktop turn passes through has been taught the
+            # difference; this one was still counting.
+            #
+            # LIVE 2026-08-29: asked what she could work out about herself
+            # from what she can measure, the turn ran 185 seconds and ended
+            # in "TimeoutError: <no message; raised in
+            # asyncio.timeouts:__aexit__>" — the empty message being what a
+            # stopwatch has to say about work it did not watch. The person got
+            # the canned apology.
+            #
+            # Same helper as the rest of them: it waits while tokens are
+            # arriving, gives up on silence, and is bounded by the turn's own
+            # ceiling. This origin is one a person types into, and the caller
+            # already said so.
+            from core.brain.llm_health_router import _await_while_it_is_working
+            from core.runtime.turn_origin import a_person_is_waiting
+
+            content = await _await_while_it_is_working(
                 router.think(**router_kwargs),
-                timeout=request_timeout + 3.0,
+                budget_s=request_timeout + 3.0,
+                user_facing=True,
+                # The bare origin, not the decorated one: every
+                # "desktop_quick_*" matches the foreground prefix, so asking
+                # about the decorated name says yes for an autonomous
+                # initiative too. The origin judged as itself is the fact.
+                person_is_waiting=a_person_is_waiting(
+                    origin, stated=context.get("a_person_is_waiting")
+                ),
             )
             if router_generation_metadata_sink:
                 router_generation_metadata = dict(router_generation_metadata_sink)
