@@ -1008,6 +1008,20 @@ class InitiativeSynthesizer:
             )
             approved = False
 
+        if approved:
+            # The one line that means work is about to happen.
+            #
+            # The arbiter ranks for whoever asks — synthesis, executive
+            # authority, the binding engine — and only this caller can start
+            # the work. Every one of them logged "Selected", so the record
+            # showed a goal chosen 190 times and started 24, which reads as an
+            # initiative that keeps being dropped and is really four readers
+            # asking the same question. This is where a selection is one.
+            logger.info(
+                "Synth: acting on '%s' (will=%s)",
+                str(winner.get("goal") or winner.get("description") or "an initiative")[:80],
+                will_receipt or "unrecorded",
+            )
         result = SynthesisResult(
             winner=winner if approved else None,
             impulse_count=impulse_count,

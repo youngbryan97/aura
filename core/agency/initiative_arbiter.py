@@ -208,7 +208,22 @@ class InitiativeArbiter:
             subjective_receipt = None
 
         # Build rationale comparing the winner to runners-up
-        rationale_parts = [f"Selected '{_goal(best.initiative)}' (score={best.final_score:.3f})"]
+        # "Ranked first", because that is what happened here.
+        #
+        # Four callers arbitrate — synthesis, executive authority, the binding
+        # engine, the executive kernel — and only one of them can start the
+        # work. Every one of them logged "Selected", so the record showed a
+        # goal chosen 190 times and started 24, which reads as an initiative
+        # that keeps being dropped and is really four readers asking the same
+        # question. Asked what she could measure about herself, she reported
+        # the contradiction: "a goal marked 93% confident, yet the step count
+        # is still zero."
+        #
+        # The caller that acts says so; this one says what it did.
+        rationale_parts = [
+            f"ranked '{_goal(best.initiative)}' first of {len(scored)} "
+            f"(score={best.final_score:.3f})"
+        ]
         top_dim = max(best.scores, key=best.scores.get)  # type: ignore[arg-type]
         rationale_parts.append(f"strongest dimension: {top_dim}={best.scores[top_dim]:.2f}")
         if subjective_receipt is not None:
