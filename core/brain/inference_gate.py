@@ -8410,128 +8410,114 @@ class InferenceGate:
                 ",".join(required),
                 ",".join(sorted(tools)),
             )
-            # Turn evidence custody identifies an execution by (thread, task),
-            # and the tool loop does not always run under the identity that
-            # opened the turn — a task or a thread anywhere in the dispatch is
-            # enough. When it does not, every receipt it writes is refused:
-            # "this execution is not an admitted participant of the turn
-            # holding the evidence". Live on 2026-08-28 a turn read three files
-            # and then reported "nothing to report from this turn's tools".
-            #
-            # The custody rule is right: an ambient child must not write
-            # evidence into somebody else's turn. What was missing is that this
-            # child is not ambient. It is the turn's own tool loop, and there
-            # is a lease for exactly that.
-            from core.conversation.turn_evidence_custody import (
-                run_as_turn_evidence_participant,
-            )
-
+            # The receipts this loop writes belong to the turn that started it.
+            # That used to need a hand-threaded lease, because custody was
+            # keyed on the exact (thread, task) that opened the turn and this
+            # loop does not always run there. Belonging is inherited from the
+            # turn's context now, so the loop needs nothing to be part of it.
             result = await asyncio.wait_for(
-                run_as_turn_evidence_participant(
-                    client.think_and_act(
-                        objective=text,
-                        # The budget this turn decided on, not the client's default.
-                        #
-                        # LIVE, 2026-08-28: "read the docs, then use it" read three
-                        # files, said "Running it now:", and emitted a code_repl
-                        # call whose argument was cut off mid-import. The turn's
-                        # clock had allocated 1536 tokens and every generation in
-                        # the loop got 399, so the narration and the opening of the
-                        # program together reached the ceiling and the call was
-                        # never a call — it arrived as prose, was judged prose
-                        # containing prompt scaffolding, and was correctly refused.
-                        #
-                        # She decided to run the code. The room to say so was the
-                        # thing missing, and the room had already been worked out
-                        # one function up.
-                        **(
-                            {"max_tokens": int(decode_budget)}
-                            if int(decode_budget or 0) > 0
-                            else {}
-                        ),
-                        # An execution turn is not a conversation turn.
-                        #
-                        # The foreground system prompt is the full conversational
-                        # scaffold — persona, instruments, present moment, running
-                        # to five thousand tokens. Wrapped around a tool call it
-                        # produced an immediate end-of-turn: one token, no text,
-                        # every time. A call needs the objective and the tools; the
-                        # voice belongs to the reply, which is generated
-                        # separately.
-                        #
-                        # It is also most of the latency of a tool turn.
-                        system_prompt="",
-                        tools=tools,
-                        # A step, a look at what it returned, and a chance to do
-                        # something else because of it — three is one attempt with
-                        # no room to be wrong. Scaled to the working set so a
-                        # single-capability turn stays cheap.
-                        #
-                        # And one more than the calls, because the last turn has to
-                        # be free to WRITE. Two tools gave five turns; a turn that
-                        # was refused twice and then read three files used all five
-                        # on calls, and the person got a list of what ran instead of
-                        # an answer.
-                        #
-                        # LIVE, 2026-08-28: "read the docs, then actually use it"
-                        # spent turns on a denied path, a refused execution, and
-                        # three successful reads. Nothing was left to say what it
-                        # had found.
-                        max_turns=max(4, 2 * len(tools) + 2),
-                        context={
-                            "required_skills": list(required),
-                            "foreground_request": True,
-                            # What this turn may do. The dispatch refuses any
-                            # action ranked above it, so a skill can be offered
-                            # for its safe actions without offering its
-                            # dangerous ones.
-                            "authorised_effect_scope": ceiling,
-                            # Consent the request itself carries.
-                            #
-                            # The permission model already asks whether the person
-                            # pre-approved this class of action, and nothing ever
-                            # answered. So "build me a small web app, one
-                            # self-contained file" was refused with "Requires user
-                            # confirmation" — a confirmation prompt for the thing
-                            # that had just been asked for in those words.
-                            #
-                            # Deliberately narrow, and it was narrower than the
-                            # thing it was arguing for.
-                            #
-                            # Set only for the artifact ceiling, it left the
-                            # SELF-SERVICE ceiling asking for a confirmation
-                            # nobody can give — and that ceiling is defined, where
-                            # it is declared, as "the most a turn may do without
-                            # the person having asked for that effect... it can
-                            # calculate anything and change nothing outside its own
-                            # sandbox". Something that by definition needs no
-                            # permission was being refused for want of one.
-                            #
-                            # LIVE, 2026-08-28: "read the docs, then actually use
-                            # it" reached code_repl and came back "Permission
-                            # denied: Requires user confirmation: Typed execution
-                            # contract: scope=sandboxed_compute". She read the
-                            # library three times over and never ran it.
-                            #
-                            # Still narrow: these are the two ceilings a request
-                            # can establish for itself. Nothing here authorises
-                            # external_io, privileged mutation, deleting, sending
-                            # or spending — those need their own consent, because
-                            # nobody asked for them.
-                            "user_explicitly_authorized": (
-                                ceiling
-                                in {
-                                    _SELF_SERVICE_EFFECT_CEILING,
-                                    _REQUESTED_ARTIFACT_EFFECT_CEILING,
-                                }
-                            ),
-                        },
-                        # What the turn has already read. Without it the loop
-                        # fetched the same document a second time, from a URL it
-                        # rebuilt from memory, and got a 400.
-                        evidence=evidence,
+                client.think_and_act(
+                    objective=text,
+                    # The budget this turn decided on, not the client's default.
+                    #
+                    # LIVE, 2026-08-28: "read the docs, then use it" read three
+                    # files, said "Running it now:", and emitted a code_repl
+                    # call whose argument was cut off mid-import. The turn's
+                    # clock had allocated 1536 tokens and every generation in
+                    # the loop got 399, so the narration and the opening of the
+                    # program together reached the ceiling and the call was
+                    # never a call — it arrived as prose, was judged prose
+                    # containing prompt scaffolding, and was correctly refused.
+                    #
+                    # She decided to run the code. The room to say so was the
+                    # thing missing, and the room had already been worked out
+                    # one function up.
+                    **(
+                        {"max_tokens": int(decode_budget)}
+                        if int(decode_budget or 0) > 0
+                        else {}
                     ),
-                    purpose="foreground tool loop",
+                    # An execution turn is not a conversation turn.
+                    #
+                    # The foreground system prompt is the full conversational
+                    # scaffold — persona, instruments, present moment, running
+                    # to five thousand tokens. Wrapped around a tool call it
+                    # produced an immediate end-of-turn: one token, no text,
+                    # every time. A call needs the objective and the tools; the
+                    # voice belongs to the reply, which is generated
+                    # separately.
+                    #
+                    # It is also most of the latency of a tool turn.
+                    system_prompt="",
+                    tools=tools,
+                    # A step, a look at what it returned, and a chance to do
+                    # something else because of it — three is one attempt with
+                    # no room to be wrong. Scaled to the working set so a
+                    # single-capability turn stays cheap.
+                    #
+                    # And one more than the calls, because the last turn has to
+                    # be free to WRITE. Two tools gave five turns; a turn that
+                    # was refused twice and then read three files used all five
+                    # on calls, and the person got a list of what ran instead of
+                    # an answer.
+                    #
+                    # LIVE, 2026-08-28: "read the docs, then actually use it"
+                    # spent turns on a denied path, a refused execution, and
+                    # three successful reads. Nothing was left to say what it
+                    # had found.
+                    max_turns=max(4, 2 * len(tools) + 2),
+                    context={
+                        "required_skills": list(required),
+                        "foreground_request": True,
+                        # What this turn may do. The dispatch refuses any
+                        # action ranked above it, so a skill can be offered
+                        # for its safe actions without offering its
+                        # dangerous ones.
+                        "authorised_effect_scope": ceiling,
+                        # Consent the request itself carries.
+                        #
+                        # The permission model already asks whether the person
+                        # pre-approved this class of action, and nothing ever
+                        # answered. So "build me a small web app, one
+                        # self-contained file" was refused with "Requires user
+                        # confirmation" — a confirmation prompt for the thing
+                        # that had just been asked for in those words.
+                        #
+                        # Deliberately narrow, and it was narrower than the
+                        # thing it was arguing for.
+                        #
+                        # Set only for the artifact ceiling, it left the
+                        # SELF-SERVICE ceiling asking for a confirmation
+                        # nobody can give — and that ceiling is defined, where
+                        # it is declared, as "the most a turn may do without
+                        # the person having asked for that effect... it can
+                        # calculate anything and change nothing outside its own
+                        # sandbox". Something that by definition needs no
+                        # permission was being refused for want of one.
+                        #
+                        # LIVE, 2026-08-28: "read the docs, then actually use
+                        # it" reached code_repl and came back "Permission
+                        # denied: Requires user confirmation: Typed execution
+                        # contract: scope=sandboxed_compute". She read the
+                        # library three times over and never ran it.
+                        #
+                        # Still narrow: these are the two ceilings a request
+                        # can establish for itself. Nothing here authorises
+                        # external_io, privileged mutation, deleting, sending
+                        # or spending — those need their own consent, because
+                        # nobody asked for them.
+                        "user_explicitly_authorized": (
+                            ceiling
+                            in {
+                                _SELF_SERVICE_EFFECT_CEILING,
+                                _REQUESTED_ARTIFACT_EFFECT_CEILING,
+                            }
+                        ),
+                    },
+                    # What the turn has already read. Without it the loop
+                    # fetched the same document a second time, from a URL it
+                    # rebuilt from memory, and got a 400.
+                    evidence=evidence,
                 ),
                 # The tool loop's job is to GET the evidence; the reply's job
                 # is to SAY it, and evidence nobody can say is worth nothing.

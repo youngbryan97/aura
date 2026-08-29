@@ -19042,15 +19042,12 @@ async def _await_the_sovereign_kernel_reply(
             logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
             try:
                 kernel_timeout = _remaining_foreground_budget()
-                from core.conversation.turn_evidence_custody import (
-                    run_as_turn_evidence_participant,
-                )
-
+                # The kernel's receipts belong to the turn that started it, and
+                # belonging is inherited from the turn's context rather than
+                # granted by a lease. A task created here is created inside that
+                # context and is part of the turn by construction.
                 kernel_task = get_task_tracker().create_task(
-                    run_as_turn_evidence_participant(
-                        ki.process(effective_user_message, origin=chat_origin, priority=True),
-                        purpose="foreground sovereign kernel",
-                    ),
+                    ki.process(effective_user_message, origin=chat_origin, priority=True),
                     name="Aura.Server.Chat.kernel_foreground",
                 )
                 # [STABILITY v53] Two-phase timeout:

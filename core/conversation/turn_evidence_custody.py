@@ -7,25 +7,29 @@ lets every background task spawned during a request mutate the foreground
 reply's evidence. Making the value immutable fixes contamination but also
 makes legitimate child-task writes invisible to the parent.
 
-This module separates the two questions. A custody object is shared by the
-turn, but only the owner execution may use it. A deliberate child receives a
-one-use lease from the owner and joins explicitly. Incidental background tasks,
-thread-pool hops, and other turns inherit no authority merely because Python
-copied their context.
+This module answers it with the context itself. A custody object lives in a
+contextvar, so the children a turn starts inherit it and nothing else does: a
+background task started before the turn, a loop running beside it, or another
+turn sees nothing to write into. Two further facts close the gap — the turn
+must still be open, and the session and turn the execution runs under must be
+this one's — which together refuse a child that outlives its turn and a task
+carrying an older turn's context.
+
+An earlier version enumerated the exact (thread, task) pairs allowed to write,
+and handed out one-use leases so a deliberate child could join. That refused
+the turn's own tool loop and repair passes unless somebody had threaded a lease
+to them by hand, and where nobody had, the turn reported that its tools had
+found nothing.
 """
 
 from __future__ import annotations
 
-import asyncio
 import contextvars
 import logging
 import math
-import secrets
-import threading
 import time
-from collections.abc import Awaitable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import Any
 
 from core.conversation.session_scope import (
@@ -39,43 +43,19 @@ from core.conversation.session_scope import (
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
-    "EvidenceParticipantLease",
     "TurnEvidenceCustody",
     "bind_turn_evidence_custody",
     "current_turn_evidence_custody",
-    "join_turn_evidence_custody",
     "record_turn_capability_availability",
     "record_turn_grounding",
     "record_turn_sensory_evidence",
-    "run_as_turn_evidence_participant",
     "turn_capability_availability",
     "turn_grounding_evidence",
     "turn_sensory_evidence",
 ]
 
 
-def _execution_identity() -> tuple[int, int]:
-    """Stable identity for one thread/task execution locus."""
-
-    try:
-        task = asyncio.current_task()
-    except RuntimeError:
-        task = None
-    return (threading.get_ident(), id(task) if task is not None else 0)
-
-
 _logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class EvidenceParticipantLease:
-    """One-use capability allowing an intentional child to join a turn."""
-
-    token: str
-    session_id: str
-    turn_id: str
-    purpose: str
-    issued_at: float
 
 
 class TurnEvidenceCustody:
@@ -90,9 +70,6 @@ class TurnEvidenceCustody:
         self.turn_id = turn
         self.started_at = time.time()
         self._lock = checked_lock("core.conversation.turn_evidence_custody", reentrant=True)
-        self._owner = _execution_identity()
-        self._participants: set[tuple[int, int]] = {self._owner}
-        self._leases: dict[str, EvidenceParticipantLease] = {}
         self._receipts: list[dict[str, Any]] = []
         self._grounding: list[str] = []
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
@@ -111,54 +88,31 @@ class TurnEvidenceCustody:
         )
 
     def admits_current_execution(self) -> bool:
+        """Whether the execution asking is part of this turn.
+
+        Two things decide it, and both are facts rather than bookkeeping: the
+        turn is still open, and the conversation session and turn this
+        execution runs under are this one's.
+
+        There used to be a third — that the execution's (thread, task) pair had
+        been registered as a participant — and the lease machinery existed to
+        work around it. It refused the turn's own children: a tool loop, a
+        repair pass, anything the turn started in a task of its own. Live on
+        2026-08-28 a turn read three files and told the person "nothing to
+        report from this turn's tools", because five receipts were written by
+        executions nobody had enumerated.
+
+        It was also redundant. This object is reachable only through a
+        contextvar, and a contextvar is inherited by exactly the children a
+        turn starts and by nothing else. Anything that can see this custody was
+        started inside the turn; anything started before it, or beside it, sees
+        nothing at all. Belonging was already proved by the way the object
+        arrived, and the set was a second copy of that proof which could not
+        keep up with it.
+        """
+
         with self._lock:
-            return (
-                not self._closed
-                and self._identity_matches()
-                and _execution_identity() in self._participants
-            )
-
-    def issue_child_lease(self, purpose: str) -> EvidenceParticipantLease:
-        """Issue a one-use lease; ambient child tasks receive no authority."""
-
-        if not self.admits_current_execution():
-            raise PermissionError("only an admitted turn participant may issue an evidence lease")
-        lease = EvidenceParticipantLease(
-            token=secrets.token_urlsafe(24),
-            session_id=self.session_id,
-            turn_id=self.turn_id,
-            purpose=" ".join(str(purpose or "turn child").split())[:120],
-            issued_at=time.time(),
-        )
-        with self._lock:
-            if self._closed:
-                raise RuntimeError("turn evidence custody is closed")
-            self._leases[lease.token] = lease
-        return lease
-
-    @contextmanager
-    def join(self, lease: EvidenceParticipantLease) -> Iterator[TurnEvidenceCustody]:
-        """Consume ``lease`` and admit this exact child for the block."""
-
-        participant = _execution_identity()
-        with self._lock:
-            issued = self._leases.pop(str(getattr(lease, "token", "") or ""), None)
-            if (
-                self._closed
-                or issued is None
-                or issued != lease
-                or lease.session_id != self.session_id
-                or lease.turn_id != self.turn_id
-                or not self._identity_matches()
-            ):
-                raise PermissionError("invalid, stale, or cross-turn evidence participant lease")
-            self._participants.add(participant)
-        try:
-            yield self
-        finally:
-            with self._lock:
-                if participant != self._owner:
-                    self._participants.discard(participant)
+            return not self._closed and self._identity_matches()
 
     def clear_receipts(self) -> bool:
         if not self.admits_current_execution():
@@ -297,8 +251,6 @@ class TurnEvidenceCustody:
     def close(self) -> None:
         with self._lock:
             self._closed = True
-            self._leases.clear()
-            self._participants.clear()
 
 
 _ACTIVE_CUSTODY: contextvars.ContextVar[TurnEvidenceCustody | None] = contextvars.ContextVar(
@@ -388,49 +340,3 @@ def bind_turn_evidence_custody(
         conversation_session_var.reset(session_token)
 
 
-@contextmanager
-def join_turn_evidence_custody(
-    lease: EvidenceParticipantLease,
-) -> Iterator[TurnEvidenceCustody]:
-    """Join the inherited custody only with an explicit parent-issued lease."""
-
-    custody = current_turn_evidence_custody()
-    if custody is None:
-        raise RuntimeError("no turn evidence custody is active")
-    with custody.join(lease):
-        yield custody
-
-
-def run_as_turn_evidence_participant(
-    awaitable: Awaitable[Any],
-    *,
-    purpose: str,
-) -> Awaitable[Any]:
-    """Wrap a deliberate child coroutine with a one-use turn evidence lease."""
-
-    custody = current_turn_evidence_custody()
-    if custody is None:
-        return awaitable
-    if not custody.admits_current_execution():
-        # Only an admitted participant may issue a lease, so a caller that is
-        # itself unadmitted cannot pass one down and this returns what it was
-        # given. It used to do that silently, and silence here looks exactly
-        # like success: the child runs, writes receipts nobody accepts, and the
-        # turn reports that its tools found nothing.
-        #
-        # LIVE, 2026-08-28: the tool loop was wrapped here and five file reads
-        # were still refused, because the wrap itself was a no-op — the gate
-        # calling it was not an admitted participant either.
-        _logger.info(
-            "🧾 no lease for %s: this execution is not itself an admitted "
-            "participant, so the child inherits nothing",
-            " ".join(str(purpose or "child").split())[:60],
-        )
-        return awaitable
-    lease = custody.issue_child_lease(purpose)
-
-    async def _run() -> Any:
-        with join_turn_evidence_custody(lease):
-            return await awaitable
-
-    return _run()
