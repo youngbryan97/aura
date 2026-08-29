@@ -508,35 +508,24 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
     available: ledgerkit". The library was right there under the name the code
     went on to import, and the request died on the line before.
 
-    Only the redundancy goes. A ``sys.path`` call naming the directory the
-    sandbox already loaded is a no-op, and ``import sys`` goes with it when
-    nothing else in the code uses the name. Any other use of ``sys`` is
-    untouched and still refused, which is what refusing it is for.
+    Only the redundancy goes. Imports here are served from the library the
+    runner was handed, never from ``sys.path``, so a ``sys.path`` call cannot
+    change what this code can import whatever directory it names — it is a
+    no-op by construction, not merely a duplicate of work already done. That
+    matters because the model does not always pass ``library_path``, and the
+    line it dies on is the same line either way.
+
+    ``import sys`` goes with it when nothing else in the code uses the name.
+    Any other use of ``sys`` is untouched and still refused, which is what
+    refusing it is for.
     """
 
-    if "sys" not in code or not library_root:
+    if "sys" not in code:
         return code
     try:
         tree = ast.parse(code)
     except (SyntaxError, ValueError):
         return code
-
-    try:
-        root = str(Path(library_root).expanduser().resolve())
-    except (OSError, RuntimeError, ValueError):
-        root = str(library_root)
-
-    def _names_the_library_directory(node: ast.Call) -> bool:
-        for argument in node.args:
-            if not isinstance(argument, ast.Constant) or not isinstance(argument.value, str):
-                continue
-            try:
-                named = str(Path(argument.value).expanduser().resolve())
-            except (OSError, RuntimeError, ValueError):
-                named = argument.value
-            if named == root:
-                return True
-        return False
 
     redundant: list[ast.stmt] = []
     for node in tree.body:
@@ -550,7 +539,6 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
             and called.value.attr == "path"
             and isinstance(called.value.value, ast.Name)
             and called.value.value.id == "sys"
-            and _names_the_library_directory(node.value)
         ):
             redundant.append(node)
     if not redundant:
@@ -578,10 +566,10 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
             if 1 <= number <= len(lines):
                 lines[number - 1] = ""
     logger.info(
-        "code_repl: dropped %d redundant sys.path line(s) — the sandbox had "
-        "already made %s importable.",
+        "code_repl: dropped %d sys.path line(s) that cannot affect this "
+        "sandbox%s.",
         len(redundant),
-        library_root,
+        f" — imports come from {library_root}" if library_root else "",
     )
     return "\n".join(lines)
 
@@ -771,8 +759,7 @@ class CodeREPLSkill(BaseSkill):
         # decidable by reading, in milliseconds, and the answer can carry the
         # real API instead of an AttributeError. Nothing found here is a claim
         # that the code is right — only that nothing was decidably wrong.
-        if library:
-            code = _without_a_path_preamble_for(code, library)
+        code = _without_a_path_preamble_for(code, library)
         will_not_work = await asyncio.to_thread(
             _what_will_not_work_in_this_code, code, library
         )

@@ -98,9 +98,27 @@ class TestThePathPreambleTheSandboxAlreadyDid:
         )
         assert "import sys" in left, "the name is still needed and still banned"
 
-    def test_another_directory_is_not_this_functions_business(self) -> None:
-        code = "import sys\nsys.path.insert(0, '/etc')\nimport ledgerkit\n"
-        assert self._drop(code) == code
+    def test_any_directory_at_all_since_the_call_can_do_nothing_here(self) -> None:
+        """Imports come from the library the runner was handed, not sys.path.
+
+        The model does not always pass library_path, and the line it dies on
+        is the same line either way — so the test is whether the call could
+        have an effect, not whether it names the directory we happen to know.
+        """
+
+        assert "sys" not in self._drop(
+            "import sys\nsys.path.insert(0, '/somewhere/else')\nimport ledgerkit\n"
+        )
+
+    def test_it_works_with_no_library_named_at_all(self) -> None:
+        from core.skills.code_repl import _without_a_path_preamble_for
+
+        left = _without_a_path_preamble_for(
+            "import sys\nsys.path.insert(0, '/anywhere')\nfrom ledgerkit import Ledger\n",
+            "",
+        )
+        assert "sys" not in left
+        assert "from ledgerkit import Ledger" in left
 
     def test_line_numbers_survive_so_a_traceback_still_points_at_the_code(self) -> None:
         left = self._drop(
