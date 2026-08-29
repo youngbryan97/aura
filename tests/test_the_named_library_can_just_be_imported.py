@@ -66,3 +66,35 @@ def test_without_a_library_nothing_changes() -> None:
 
     out = _run("import json\nprint('x')\n", library_root="")
     assert out["status"] != "ok"
+
+
+def test_runaway_code_still_stops() -> None:
+    """The CPU limit is the real bound, and it is untouched.
+
+    The wall-clock wait was the same number as the CPU limit plus two seconds,
+    so a sandbox step could be killed for the machine being busy rather than
+    for anything the code did — live on 2026-08-29 a ledger script that runs
+    in 0.3 seconds was killed three times at 32.1 seconds while the resident
+    27B was decoding. Loosening the wall must not loosen this.
+    """
+
+    import time
+
+    from core.sandbox.runner import run_untrusted
+
+    started = time.perf_counter()
+    out = run_untrusted(
+        "while True:\n    pass\n", timeout=3, mem_bytes=256 * 1024 * 1024
+    )
+    elapsed = time.perf_counter() - started
+    assert out["status"] != "ok", out
+    # Stopped by the CPU limit, not by the wall allowance six times larger.
+    assert elapsed < 15.0, f"took {elapsed:.1f}s"
+
+
+def test_ordinary_code_is_unaffected() -> None:
+    from core.sandbox.runner import run_untrusted
+
+    out = run_untrusted("print(6 * 7)", timeout=10, mem_bytes=256 * 1024 * 1024)
+    assert out["status"] == "ok", out
+    assert out["stdout"].strip() == "42"

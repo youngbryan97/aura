@@ -433,7 +433,28 @@ def run_untrusted(
         ).encode("utf-8")
 
         command = (sys.executable, "-I", str(runner_path))
-        process_result = _run_process_blocking(command, payload, timeout + 2, mem_bytes)
+        # Two limits, and they bound different things.
+        #
+        # `cpu_seconds` above is the real limit on the computation: it is what
+        # stops code that will not stop, and it counts only time the process
+        # actually got. The wall-clock wait here exists to stop a process that
+        # is hung, and a process being starved is not hung.
+        #
+        # They used to be the same number plus two seconds, so a sandbox step
+        # was killed for the machine being busy rather than for anything it
+        # did. Live on 2026-08-29 a ledger script that runs in 0.3 seconds on
+        # an idle machine was killed three times at 32.1 seconds while the
+        # resident 27B was decoding — the work never had a chance to be the
+        # problem.
+        #
+        # The wall allowance is generous against the CPU limit rather than
+        # equal to it. Runaway computation still hits RLIMIT_CPU exactly as
+        # before; what changes is that waiting for a turn on a loaded machine
+        # is no longer treated as the same thing.
+        wall_clock_wait = max(float(timeout) + 2.0, float(timeout) * 6.0)
+        process_result = _run_process_blocking(
+            command, payload, wall_clock_wait, mem_bytes
+        )
 
         if process_result.timed_out:
             return {
