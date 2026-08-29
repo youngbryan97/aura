@@ -27,6 +27,11 @@ from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskEngine")
 
+#: The opening of the scaffold written when the reasoning lane returns nothing.
+#: A method for working, not a result — carried in the text so any reader can
+#: tell the two apart, including the summariser that once called it a finding.
+_NOT_AN_ANSWER = "No answer came back; the method for:"
+
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
@@ -2609,14 +2614,27 @@ Respond ONLY with a JSON array, no other text:
 
     @staticmethod
     def _deterministic_think_fallback(prompt: str) -> str:
-        """Return a grounded reasoning scaffold when the background LLM lane is blank."""
+        """How to go about it, written down because the lane said nothing.
+
+        This is a method, not a result. It says restate the objective, inspect
+        the runtime, reproduce the failure — true of any task and therefore
+        about none of them.
+
+        LIVE 2026-08-29: a background lane was recycled mid-generation and
+        returned empty, so this ran, and the feed reported "Completed 1/1 steps
+        toward 'Find the most obscure fact about distributed systems
+        consensus'. Key finding: Fallback reasoning for: ... 1. Restate the
+        objective ...". A template presented as a discovery, and the plan
+        marked succeeded. Marked now so nothing downstream can mistake it for
+        something she found out.
+        """
         objective = str(prompt or "").strip()
         if len(objective) > 220:
             objective = objective[:217].rstrip() + "..."
         if not objective:
             objective = "the requested objective"
         return (
-            f"Fallback reasoning for: {objective}\n"
+            f"{_NOT_AN_ANSWER} {objective}\n"
             "1. Restate the objective and define observable success criteria.\n"
             "2. Inspect the current runtime, files, logs, receipts, or tool outputs before acting.\n"
             "3. Reproduce the failure or uncertainty with the smallest safe check available.\n"
@@ -3376,12 +3394,23 @@ Respond ONLY with a JSON array, no other text:
         else:
             plan.status = "partial"
 
-        # Build evidence from step results
+        # What the steps found out, which is not the same as what they did.
+        #
+        # A step whose result is the deterministic scaffold has not found
+        # anything: the lane returned nothing and a description of how to work
+        # was written in its place. Reported as "Key finding" it reads as a
+        # discovery, and it is the one thing in the record guaranteed to be
+        # true of every task equally.
         evidence = []
+        scaffolded = 0
         for step in succeeded_steps:
-            if step.raw_result:
-                result_str = str(step.raw_result)[:200]
-                evidence.append(f"[{step.description[:40]}]: {result_str}")
+            if not step.raw_result:
+                continue
+            result_str = str(step.raw_result)[:200]
+            if _NOT_AN_ANSWER in str(step.raw_result):
+                scaffolded += 1
+                continue
+            evidence.append(f"[{step.description[:40]}]: {result_str}")
 
         # LLM synthesis
         try:
@@ -3418,7 +3447,15 @@ Respond ONLY with a JSON array, no other text:
             n_done = len(succeeded_steps)
             n_total = len(plan.steps)
             summary = f"Completed {n_done}/{n_total} steps toward '{plan.goal}'. " + (
-                f"Key finding: {evidence[0]}" if evidence else ""
+                f"Key finding: {evidence[0]}"
+                if evidence
+                else (
+                    f"No finding: {scaffolded} step(s) got nothing back from the "
+                    "reasoning lane and fell through to a method rather than an "
+                    "answer."
+                    if scaffolded
+                    else "Nothing was found."
+                )
             )
             plan.final_result = summary
 

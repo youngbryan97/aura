@@ -643,7 +643,11 @@ async def test_task_engine_think_tool_has_deterministic_empty_llm_fallback():
         "Formulate a self-debug plan for a failed runtime gate."
     )
 
-    assert "Fallback reasoning for:" in result
+    # Marked as a method rather than a result, so the summariser cannot
+    # report it as something she found out.
+    from core.agency.autonomous_task_engine import _NOT_AN_ANSWER
+
+    assert _NOT_AN_ANSWER in result
     assert "observable success criteria" in result
     assert "root cause" in result
     llm.think.assert_awaited()
@@ -1311,3 +1315,22 @@ async def test_alternative_retry_args_are_re_screened_by_safety():
         step, {"command": "rm -rf / --no-preserve-root"}
     )
     assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_the_scaffold_is_never_reported_as_a_finding():
+    """A method for working is true of every task and therefore about none.
+
+    LIVE 2026-08-29: a background lane returned empty, the scaffold ran, and
+    the feed said "Completed 1/1 steps toward 'Find the most obscure fact about
+    distributed systems consensus'. Key finding: Fallback reasoning for: ...
+    1. Restate the objective ..." — a template presented as a discovery.
+    """
+
+    from core.agency.autonomous_task_engine import _NOT_AN_ANSWER, AutonomousTaskEngine
+
+    scaffold = AutonomousTaskEngine._deterministic_think_fallback("find an obscure fact")
+    assert _NOT_AN_ANSWER in scaffold
+    assert "Restate the objective" in scaffold, "still says how to go about it"
+    # The marker travels in the text, so any reader can tell the two apart.
+    assert _NOT_AN_ANSWER not in "Paxos was published in 1998 after an eight-year wait."
