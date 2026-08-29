@@ -11309,6 +11309,7 @@ class InferenceGate:
                 "\n\n[GROUNDING EVIDENCE FOR THIS TURN]\n",
                 "\n\n[RECENT COMPLETED CONVERSATION FOR CONTINUITY ONLY]\n",
                 "\n\n[LIVE DESKTOP FULL-MIND CONTRACT]\n",
+                "\n\n[LIVE DESKTOP TURN EVIDENCE]\n",
             )
 
             def _visible_precedes_only_internal_suffix(candidate: str) -> bool:

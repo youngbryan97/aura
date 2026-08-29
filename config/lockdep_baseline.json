@@ -473,7 +473,6 @@
     "core/runtime/eviction.py::EvictionManager.__init__::threading.RLock",
     "core/runtime/executors.py::::threading.Lock",
     "core/runtime/field_trials.py::FieldTrials.__init__::threading.Lock",
-    "core/runtime/file_write_gateway.py::::threading.Lock",
     "core/runtime/flags.py::::threading.Lock",
     "core/runtime/foreground_guard.py::::threading.RLock",
     "core/runtime/health_contract.py::::threading.Lock",

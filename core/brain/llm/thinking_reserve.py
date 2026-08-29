@@ -56,7 +56,9 @@ _proved_insufficient = 0
 #: reads faster per token than the run it is being used to size.
 _rates: deque[tuple[int, float]] = deque(maxlen=_WINDOW)
 
-_lock = threading.Lock()
+from core.runtime.lockdep import checked_lock
+
+_lock = checked_lock("brain.llm.thinking_reserve")
 
 #: Taking back earlier measurements happens once, on first use, because the
 #: state root is not ready at import time.

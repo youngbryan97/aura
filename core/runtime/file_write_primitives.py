@@ -48,7 +48,11 @@ class FileWriteTransactionError(RuntimeError):
 
 
 
-DIRECTORY_BATCH_THREAD_LOCK = threading.Lock()
+from core.runtime.lockdep import checked_lock
+
+DIRECTORY_BATCH_THREAD_LOCK = checked_lock(
+    "runtime.file_write_primitives.directory_batch"
+)
 DIRECTORY_BATCH_LOCK_FILE = ".aura_file_write_batch.lock"
 DIRECTORY_BATCH_JOURNAL_FILE = ".aura_file_write_batch.journal"
 DIRECTORY_BATCH_INTERNAL_PREFIX = ".aura-batch-"

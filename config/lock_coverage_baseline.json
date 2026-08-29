@@ -1,7 +1,7 @@
 {
-  "raw_lock_calls": 685,
-  "files_with_raw_locks": 433,
-  "files_using_checked_locks": 153,
+  "raw_lock_calls": 684,
+  "files_with_raw_locks": 432,
+  "files_using_checked_locks": 156,
   "raw_by_file": {
     "core/actuators/actuator_registry.py": 3,
     "core/actuators/actuator_synthesis.py": 2,
@@ -323,7 +323,6 @@
     "core/runtime/eviction.py": 1,
     "core/runtime/executors.py": 1,
     "core/runtime/field_trials.py": 1,
-    "core/runtime/file_write_gateway.py": 1,
     "core/runtime/flags.py": 1,
     "core/runtime/foreground_guard.py": 1,
     "core/runtime/health_contract.py": 2,

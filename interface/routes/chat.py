@@ -5403,68 +5403,50 @@ def _compose_the_engine_message(
     1.
     """
     if require_engine and not state_native_output_owner:
-        engine_directives: list[str] = []
-        if _chat_memory_state._normalize_user_message(visible).startswith(
-            "you with me"
-        ) or re.search(
-            r"\b(?:you\s+with\s+me|still\s+with\s+me|are\s+you\s+(?:there|with\s+me))\b",
-            visible,
-            flags=re.IGNORECASE,
-        ):
-            engine_directives.append(
-                "Presence contract: answer with the phrase 'I'm here with you' and one grounded sentence about staying on this thread."
-            )
+        # What this turn KNOWS, and nothing about how to say it.
+        #
+        # This block used to carry eight directives, and five of them told the
+        # model which words to use: answer with the phrase "I'm here with
+        # you"; open with "You asked me to..."; include the exact phrase
+        # "browser/web research"; use the word "evidence"; label the parts
+        # "Rule 1, Rule 2, and Example". Dictating an answer's wording is the
+        # one thing this codebase says it never does, and the shapes they were
+        # protecting are produced by deterministic reply builders that are
+        # tested directly — `_build_grounded_capability_inventory_reply` and
+        # its siblings — so the directives were a second copy of those shapes,
+        # aimed at the model instead.
+        #
+        # The other three carried real evidence with instructions wrapped
+        # around them. The evidence is what the turn could not answer without;
+        # the wrapper was advice. So the evidence stays, as facts, and the
+        # advice goes with the rest.
+        #
+        # If one of the failures they were added for comes back, it comes back
+        # as a defect with a cause, which is worth more than a phrase mandate
+        # that hides it.
+        turn_evidence: list[str] = []
         if context_challenge_context:
-            engine_directives.append(
-                "Context challenge evidence: "
-                f"{context_challenge_context} "
-                "Answer from this evidence in one or two complete sentences under 70 words. "
-                "If the evidence supports a pitch, project, story, or prior object, name it; "
-                "if it does not, say the jump has no supported prior object and answer from "
-                "the actual recent text."
-            )
+            turn_evidence.append(f"Context challenge evidence: {context_challenge_context}")
         if conversation_recall_context:
-            engine_directives.append(
-                "Conversation recall evidence: "
-                f"{conversation_recall_context} "
-                "Answer the recall question from this evidence exactly enough to be correct."
-            )
-        if _is_current_request_recap_request(visible):
-            engine_directives.append(
-                "Current-request recap contract: explicitly state what the current visible "
-                "request asks, using 'You asked me to...' or equivalent direct wording before "
-                "answering the rest of the prompt."
+            turn_evidence.append(
+                f"Conversation recall evidence: {conversation_recall_context}"
             )
         if runtime_fact_status_contract and not memory_state_contract:
-            engine_directives.append(
-                "Runtime path contract: answer the runtime/path question directly. "
-                "Name the live cognition path handling this turn, including CognitiveEngine "
-                "and the active Cortex/model lane when present. Treat this verified runtime "
-                f"status as authoritative: {grounded_runtime_status_context} Do not answer with "
-                "a generic assistant identity or invent a bounded-status substitute."
-            )
-        if capability_inventory_contract:
-            engine_directives.append(
-                "Capability inventory contract: answer from grounded_capability_inventory_context only. "
-                "Use this order: categories including the exact phrase browser/web research; governance/Will/Authority/permissions; receipts or effect "
-                "verification; one hypothetical chain; explicit non-execution boundary for this turn."
+            turn_evidence.append(
+                f"Verified runtime status: {grounded_runtime_status_context}"
             )
         if _is_self_claim_boundary_question(visible):
-            engine_directives.append(
-                "Evidence-bound self-claim context: "
-                f"{context.get('evidence_bound_self_claim_context') or ''} "
-                "Use the word evidence, distinguish functional self-modeling from phenomenal consciousness/private qualia, and avoid generic AI disclaimers."
-            )
-        if re.search(r"\b(?:two\s+rules?|one\s+example|invent)\b", visible, flags=re.IGNORECASE):
-            engine_directives.append(
-                "Creative construction contract: keep the invented name from the user prompt in the answer, include explicit labels Rule 1, Rule 2, and Example, and end with a complete sentence."
-            )
-        if engine_directives:
+            claim_evidence = str(
+                context.get("evidence_bound_self_claim_context") or ""
+            ).strip()
+            if claim_evidence:
+                turn_evidence.append(f"Self-claim evidence: {claim_evidence}")
+        if turn_evidence:
             engine_user_message = (
                 f"{engine_user_message}\n\n"
-                "[LIVE DESKTOP FULL-MIND CONTRACT]\n"
-                + "\n".join(f"- {directive}" for directive in engine_directives)
-                + "\n[END LIVE DESKTOP FULL-MIND CONTRACT]"
+                "[LIVE DESKTOP TURN EVIDENCE]\n"
+                + "\n".join(f"- {fact}" for fact in turn_evidence)
+                + "\n[END LIVE DESKTOP TURN EVIDENCE]"
             )
     return engine_user_message
 

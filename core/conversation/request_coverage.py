@@ -13,6 +13,7 @@ from typing import Any
 
 from core.conversation.requested_reply_shape import (
     is_reply_shape_constraint_segment,
+    without_reply_shape_prefix,
 )
 
 _COVERAGE_STOPWORDS = frozenset(
@@ -1039,7 +1040,12 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
             continue
         if relation_covered is True:
             continue
-        wanted = coverage_tokens(segment)
+        # Measured on what was ASKED, not on how the answer was to be
+        # presented. A segment that is a delivery instruction wearing a
+        # question — "Answer directly in two sentences: what did I just ask you
+        # to do?" — has all of its distinctive words in the instruction, so
+        # coverage was demanding the reply mention its own format.
+        wanted = coverage_tokens(without_reply_shape_prefix(segment))
         if len(wanted) < _MIN_COVERAGE_TOKENS:
             continue
         overlap = wanted & local_answered

@@ -207,6 +207,34 @@ def _is_answer_form_clause(segment: str) -> bool:
     )
 
 
+def without_reply_shape_prefix(segment: Any) -> str:
+    """A segment with any leading instruction about presentation removed.
+
+    ``is_reply_shape_constraint_segment`` answers for a WHOLE clause, and a
+    clause is often both: "Answer directly in two sentences: what did I just
+    ask you to do?" is a delivery instruction wearing a question. Coverage
+    then measures the segment by its distinctive words, and every distinctive
+    word in that one belongs to the instruction — "two", "sentences" — because
+    the question itself is made entirely of common words.
+
+    So the reply was required to mention its own format to count as having
+    answered, and a directive was written telling the model to open with "You
+    asked me to..." to satisfy it. That is a wording mandate feeding a checker
+    that was reading the wrong half of the sentence.
+
+    Returns the segment unchanged when the part before the colon is a real
+    request rather than an instruction about how to speak.
+    """
+
+    text = str(segment or "").strip()
+    head, sep, tail = text.partition(":")
+    if not sep or not tail.strip():
+        return text
+    if not is_reply_shape_constraint_segment(head.strip()):
+        return text
+    return tail.strip()
+
+
 def is_reply_shape_constraint_segment(segment: Any) -> bool:
     """Whether a whole clause constrains presentation instead of content.
 

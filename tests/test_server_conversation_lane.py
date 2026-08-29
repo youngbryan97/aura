@@ -9312,7 +9312,14 @@ async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch
     )
 
     assert calls
-    assert "Runtime path contract" in calls[0]["objective"]
+    # The turn carries what it knows, not how to word it. This used to assert
+    # the directive label "Runtime path contract", which was a line telling the
+    # model to name the lane and avoid a generic identity — the wording
+    # mandate this codebase says it never writes. What the turn cannot answer
+    # without is the verified status itself, so that is what is asserted.
+    assert "[LIVE DESKTOP TURN EVIDENCE]" in calls[0]["objective"]
+    assert "Verified runtime status:" in calls[0]["objective"]
+    assert "Cortex (27B)" in calls[0]["objective"]
     assert calls[0]["context"]["runtime_fact_status_contract"] is True
     assert calls[0]["context"]["grounded_runtime_status_contract"] is True
     assert "Cortex (27B)" in calls[0]["context"]["grounded_runtime_status_context"]

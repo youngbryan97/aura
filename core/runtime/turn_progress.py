@@ -25,8 +25,9 @@ places are waiting on it.
 
 from __future__ import annotations
 
-import threading
 import time
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "note_progress",
@@ -35,7 +36,7 @@ __all__ = [
     "forget_progress",
 ]
 
-_lock = threading.Lock()
+_lock = checked_lock("core.runtime.turn_progress")
 
 #: When a token was last seen, on the monotonic clock. Zero means nothing has
 #: been seen at all, which is silence rather than slowness.
