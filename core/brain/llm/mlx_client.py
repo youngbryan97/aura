@@ -6285,6 +6285,16 @@ class MLXLocalClient:
                     observed if previous <= 0.0 else previous * 0.8 + observed * 0.2
                 )
         self._last_token_progress_at = now
+        # Published where the layers above can read it. Five deadlines are
+        # waiting on this one generation, and each of them was deciding
+        # whether to end it from a stopwatch rather than from whether it was
+        # still saying anything.
+        try:
+            from core.runtime.turn_progress import note_progress
+
+            note_progress()
+        except ImportError:
+            pass
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
         self._mark_progress()

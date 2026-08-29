@@ -100,6 +100,59 @@ _DEFAULT_COGNITIVE_CYCLE_MAX_S = 240.0
 
 
 
+
+async def _keep_the_cycle_open_while_it_is_working(
+    clock: Any, *, ceiling_at: float, user_facing: bool
+) -> None:
+    """Push the cycle deadline out while tokens are still arriving.
+
+    The clocks in a turn were raised one at a time today and that is the same
+    design with larger numbers. A stopwatch cannot tell a generation that is
+    working from one that is stuck, and this one was only ever stopping the
+    first kind: a wedged worker never reaches here, and a decode looping
+    forever is caught by the sentinel that reads the output.
+
+    So the deadline stands until the turn goes quiet. Bounded by the same
+    ceiling the wait outside it uses, so a turn cannot run indefinitely, and
+    it does nothing at all for background work — one GPU, and a dream cycle
+    does not get to hold it while somebody waits.
+    """
+
+    if not user_facing:
+        return
+    from core.brain.llm.thinking_reserve import seconds_to_decode
+    from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
+
+    # What a silence means, measured here and handed down: core/runtime is a
+    # foundation and does not reach up to the lane that times decoding.
+    quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
+    loop = asyncio.get_running_loop()
+    said_it_once = False
+    try:
+        while True:
+            await asyncio.sleep(1.0)
+            now = time.monotonic()
+            if now >= ceiling_at:
+                return
+            if not still_producing(within_s=quiet_for):
+                continue
+            # Keep a slice ahead of now, never past the ceiling.
+            wanted = min(ceiling_at - now, 15.0)
+            if wanted <= 0.0:
+                return
+            try:
+                clock.reschedule(loop.time() + wanted)
+            except (AttributeError, RuntimeError):
+                return
+            if not said_it_once:
+                said_it_once = True
+                logger.info(
+                    "⏳ [COGNITION] Past the cycle deadline and still producing; "
+                    "holding it open while the answer arrives."
+                )
+    except asyncio.CancelledError:
+        return
+
 def _fit_prompt_to_what_the_turn_can_read(
     system_prompt: str, *, request: str, max_tokens: int, room_taken: int = 0
 ) -> str:
@@ -3480,8 +3533,21 @@ class CognitiveEngine:
             # Bound before the try, because the finally below reads it and the
             # timeout context manager can fail on entry.
             _provenance_tick = None
+            _clock_keeper: Any = None
             try:
-                async with asyncio.timeout(cycle_timeout):
+                async with asyncio.timeout(cycle_timeout) as _cycle_clock:
+                    _clock_keeper = asyncio.create_task(
+                        _keep_the_cycle_open_while_it_is_working(
+                            _cycle_clock,
+                            ceiling_at=time.monotonic()
+                            + float(
+                                response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+                            ),
+                            user_facing=bool(
+                                self._is_user_facing_origin(origin) and not is_background
+                            ),
+                        )
+                    )
                     _begin_pass_run("legacy_pipeline")
                     # The provenance graph had the same asymmetry the pass
                     # instrumentation had, for the same reason: it was opened
@@ -3628,6 +3694,13 @@ class CognitiveEngine:
                 # somebody most wants to read afterwards, and the version that
                 # closed on the success path recorded only the turns that went
                 # well.
+                #
+                # And the task holding the cycle clock open, however the turn
+                # ended. It is bounded on its own, but a turn that finished in
+                # two seconds should not leave something watching for eight
+                # minutes.
+                if _clock_keeper is not None:
+                    _clock_keeper.cancel()
                 _close_provenance_tick(_provenance_tick)
                 try:
                     # vResilience: Avoid locals().get() for type stability
