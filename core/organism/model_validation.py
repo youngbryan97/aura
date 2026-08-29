@@ -1309,6 +1309,64 @@ def install_runtime_validation() -> dict[str, Any]:
             ),
         )
     )
+    # Conation. Both claims name a test, and neither test was registered.
+    #
+    # add_claim raises on a claim whose test it does not know, so the two
+    # unregistered names did not merely go unchecked — they stopped the whole
+    # suite being built, and every caller that constructs it failed with them.
+    # A machinery for keeping claims honest that cannot be constructed is the
+    # thing it exists to prevent.
+    suite.add_test(
+        ValidationTest(
+            name="test_affect_path_collapses_all_five_cases_to_one_point",
+            description=(
+                "the heuristic affect appraisal returns one point for five "
+                "motivational situations that behave nothing alike, which is what "
+                "makes a separate conative layer necessary rather than ornamental"
+            ),
+            required_capability="conation",
+            observation=Observation(
+                name="widest_gap_between_the_five_appraisals",
+                value=0.0,
+                source=(
+                    "core/affect/damasio_v2.py and "
+                    "tests/test_conation_causal_battery.py"
+                ),
+                units="L2 distance in (v, a, e)",
+            ),
+            predict=lambda _m: _affect_appraisal_widest_gap(),
+            score=lambda p, o: threshold_score(
+                float(p), float(o.value), units=" L2 distance"
+            ),
+            owner="core/affect/damasio_v2.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="test_conation_separates_the_same_five_cases",
+            description=(
+                "the conative layer gives those same situations distinct origins, "
+                "where the affect path had one point"
+            ),
+            required_capability="conation",
+            observation=Observation(
+                name="distinct_origins_over_the_same_cases",
+                value=4,
+                source=(
+                    "core/conation/engine.py and "
+                    "tests/test_conation_causal_battery.py"
+                ),
+                units="origins",
+            ),
+            predict=lambda _m: _conation_distinct_origins(),
+            score=lambda p, o: boolean_score(
+                int(p) >= int(o.value),
+                expected=True,
+                subject="distinct conative origins",
+            ),
+            owner="core/conation/engine.py",
+        )
+    )
     # Conation. The first claim is a measurement of an existing defect and is
     # exhaustive over the cases it names; the second is the separation that
     # answers it. Neither says anything about live traffic, because the organ
@@ -1885,6 +1943,82 @@ def install_runtime_validation() -> dict[str, Any]:
         "tests": [t.name for t in suite.tests()],
         "claims": len(suite.claims()),
     }
+
+def _affect_appraisal_widest_gap() -> float:
+    """How far apart the heuristic appraisal puts the five situations."""
+
+    import itertools
+    import math
+
+    from core.affect.damasio_v2 import AffectEngineV2
+
+    triggers = (
+        "another child is playing with the toy and now I want it",
+        "the smell of something tasty, my heart jumps",
+        "a snail on the path, I want to pick it up and see it",
+        "playfully flustering someone I am fond of",
+        "they agreed to teach me the thing I have been wanting to learn",
+    )
+    points = [
+        tuple(AffectEngineV2._heuristic_appraisal(t, {"intensity": 0.7}).values())
+        for t in triggers
+    ]
+    return max(
+        math.dist(a, b) for a, b in itertools.combinations(points, 2)
+    )
+
+
+def _conation_distinct_origins() -> int:
+    """How many different sources of value the conative layer tells apart."""
+
+    from core.conation import Incentive, PlayFrame, TargetForecast
+    from core.conation.engine import ConationEngine
+
+    engine = ConationEngine()
+    engine.vicarious.observe_valuation(
+        agent="peer",
+        target="toy",
+        strength=0.9,
+        evidence="holding it",
+        similarity=0.95,
+        possesses=True,
+    )
+    states = [engine.appraise(Incentive(key="toy", cue_salience=0.3, permitted=False))]
+    with engine.do(deprivation=0.85):
+        states.append(
+            engine.appraise(
+                Incentive(key="food", homeostatic_target="energy", cached_value=0.8)
+            )
+        )
+    for error in (0.9, 0.6, 0.35, 0.15):
+        engine.epistemic.observe_error("snail", error)
+    states.append(
+        engine.appraise(
+            Incentive(key="snail", cue_salience=0.5),
+            epistemic_affordance=0.9,
+            arousal_potential=0.5,
+            controllability=0.8,
+        )
+    )
+    states.append(
+        engine.appraise(
+            Incentive(key="tease"),
+            forecast=TargetForecast(
+                person="friend",
+                predicted_amusement=0.8,
+                predicted_distress=0.05,
+                predicted_engagement=0.85,
+                model_confidence=0.8,
+                boundary_confidence=0.9,
+                explicit_consent=True,
+            ),
+            frame=PlayFrame(held=0.9, read=0.85, believed_mutual=0.8),
+            norm_violation=0.5,
+            governed=True,
+        )
+    )
+    return len({state.dominant_origin for state in states})
+
 
 def _install_honesty_coverage_claims(suite):
     """Body lifted verbatim out of ``install_runtime_validation``.

@@ -670,7 +670,20 @@ class ResearchCycle:
             task_plan_id   = getattr(research_result, "plan_id", None),
         )
         self._history.append(record)
-        self._save_record(record)
+        # The durable append is a chained write with an fsync in it, and this
+        # is the event loop.
+        #
+        # LOCKDEP, live: "fsync attempted while holding
+        # ['core.autonomy.research_history'] — a blocking operation under a
+        # lock is how the runtime freezes". CLAUDE.md names this exactly: an
+        # on-loop fsync once froze the live loop for twenty minutes.
+        #
+        # Off the loop rather than out of the lock. The lock has to span the
+        # write: it is what keeps the chain's order and the file's order the
+        # same, and an append that raced past it would produce a history whose
+        # lines do not follow their own previous_sha256. A thread keeps that
+        # property and gives the loop back.
+        await asyncio.to_thread(self._save_record, record)
 
         self._cycle_count += 1
         self._last_cycle_mono = monotonic()

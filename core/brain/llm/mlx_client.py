@@ -98,6 +98,10 @@ _HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0, "weight_load": 0
 #: back just as cold.
 _UNMEASURED_WEIGHT_LOAD_GB_S = 0.5
 
+#: Lockdep's own limit for a blocking hold on the event loop. A guard that
+#: reaches it says which block it was, because the splat cannot.
+_LANE_STATE_HOLD_WORTH_NAMING_MS = 50.0
+
 #: Weight sizes are a property of the files, read once per path.
 _WEIGHT_SIZES: dict[str, float] = {}
 
@@ -7500,7 +7504,7 @@ class MLXLocalClient:
         regular request, so diagnostics never report an ownerless held lock.
         """
 
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("try_acquire"):
             if not self._request_lock.acquire(False):
                 return False
             self._request_lock_owner_label = str(owner_label or "")
@@ -7516,7 +7520,7 @@ class MLXLocalClient:
     ) -> bool:
         """Release only the request lane whose identity the caller owns."""
 
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("release_if_owned"):
             if not self._request_lock.locked():
                 return False
             if self._request_lock_owner_label != str(owner_label or ""):
@@ -7535,7 +7539,7 @@ class MLXLocalClient:
     ) -> bool:
         """Transfer an unfinished optional request from its caller to the listener."""
 
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("register_detached"):
             if future.done():
                 return False
             if not hasattr(self, "_detached_worker_requests"):
@@ -7555,7 +7559,7 @@ class MLXLocalClient:
         """Deliver one terminal frame and retire listener-owned work."""
 
         detached_owner = ""
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("route_terminal_response"):
             detached_requests = getattr(self, "_detached_worker_requests", {})
             detached = detached_requests.pop(str(request_id), None)
             if detached is not None and detached[0] is future:
@@ -7587,7 +7591,8 @@ class MLXLocalClient:
         """
         if self._release_detached_request_lock():
             return
-        with self._request_lane_state_guard():
+        still_held_by = ""
+        with self._request_lane_state_guard("force_release"):
             holder = str(getattr(self, "_request_lock_owner_label", "") or "")
             if not self._request_lock.locked():
                 return
@@ -7595,19 +7600,25 @@ class MLXLocalClient:
                 self._current_request_started_at > 0.0 or self._active_generations
             )
             if holder and not aborted_owner:
-                logger.warning(
-                    "🛑 [MLX] Force-abort (%s) left the request lane held by %s — "
-                    "its own holder must release it.",
-                    reason,
-                    holder,
-                )
-                return
-            self._release_request_lock_locked()
+                # Said after the lock, not under it. The file sink JSON-wraps
+                # and redacts every record, which is real work on whatever
+                # thread calls it, and this one runs on the event loop while
+                # holding the lane's metadata lock.
+                still_held_by = holder
+            else:
+                self._release_request_lock_locked()
+        if still_held_by:
+            logger.warning(
+                "🛑 [MLX] Force-abort (%s) left the request lane held by %s — "
+                "its own holder must release it.",
+                reason,
+                still_held_by,
+            )
 
     def _release_detached_request_lock(self) -> bool:
         """Release the lane only when its token names listener-owned work."""
 
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("release_detached"):
             if not self._request_lock.locked():
                 return False
             holder = str(getattr(self, "_request_lock_owner_label", "") or "")
@@ -7620,7 +7631,7 @@ class MLXLocalClient:
             return True
 
     def _clear_detached_worker_requests(self) -> None:
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("clear_detached"):
             getattr(self, "_detached_worker_requests", {}).clear()
 
     def _apply_pending_force_abort_reconcile(self) -> None:
@@ -7664,19 +7675,35 @@ class MLXLocalClient:
         )
 
     def _release_request_lock(self) -> None:
-        with self._request_lane_state_guard():
+        with self._request_lane_state_guard("release"):
             self._release_request_lock_locked()
 
     @contextlib.contextmanager
-    def _request_lane_state_guard(self):
-        """Serialize lane metadata when this is a fully constructed client."""
+    def _request_lane_state_guard(self, site: str = ""):
+        """Serialize lane metadata when this is a fully constructed client.
+
+        ``site`` names the caller, and exists because the splat could not.
+        Lockdep reports where a lock was taken, and every one of these is
+        taken on the ``with`` inside this generator — so 117 live holds on the
+        event loop, the longest 88ms against a 50ms limit, all read
+        "contextlib.py:137" and named none of the eight blocks that could
+        have caused them.
+        """
 
         state_lock = getattr(self, "_request_lock_state_lock", None)
         if state_lock is None:
             yield
             return
         with state_lock, instrument("mlx_request_lane_state"):
-            yield
+            started = time.perf_counter()
+            try:
+                yield
+            finally:
+                held_ms = (time.perf_counter() - started) * 1000.0
+                if held_ms >= _LANE_STATE_HOLD_WORTH_NAMING_MS and site:
+                    logger.info(
+                        "🔒 [MLX] lane-state guard held %.0fms by %s.", held_ms, site
+                    )
 
     def _release_request_lock_locked(self) -> None:
         """Release the lane while ``_request_lock_state_lock`` is held."""
