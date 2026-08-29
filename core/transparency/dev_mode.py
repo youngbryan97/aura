@@ -155,6 +155,21 @@ class DevMode:
             origin=origin
         )
         
+        # A turn running a tool is a turn that is working.
+        #
+        # Every deadline in a turn now defers to progress, and progress was
+        # tokens arriving. A tool loop stops decoding while the tool runs, so
+        # a turn reading three files went quiet for thirty-four seconds at a
+        # time and its clocks concluded it had stopped. Live on 2026-08-28
+        # that ended a ledgerkit turn with cognitive_engine_timeout after
+        # three successful reads.
+        try:
+            from core.runtime.turn_progress import note_progress
+
+            note_progress()
+        except ImportError:
+            pass
+
         async with await self._get_lock():
             self.tool_traces.append(trace)
             if len(self.tool_traces) > 50:  # Keep memory bounded
@@ -172,6 +187,15 @@ class DevMode:
                                      result: dict[str, Any],
                                      execution_time_ms: float = 0.0):
         """Record tool execution completion."""
+        # And when it finishes, so the gap a long tool leaves behind is
+        # bracketed by two signs of life rather than one.
+        try:
+            from core.runtime.turn_progress import note_progress
+
+            note_progress()
+        except ImportError:
+            pass
+
         result_status = str(result.get("status", "") or "").strip().lower()
         deferred = result_status == "deferred"
         trace.status = (

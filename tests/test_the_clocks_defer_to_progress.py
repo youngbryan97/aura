@@ -332,3 +332,21 @@ def test_background_work_keeps_the_plain_watchdog() -> None:
         assert fired.is_set() is True
     finally:
         handle.cancel()
+
+
+def test_running_a_tool_counts_as_working() -> None:
+    """Every deadline defers to progress, and progress was tokens arriving.
+
+    A tool loop stops decoding while the tool runs, so a turn reading three
+    files went quiet for thirty-four seconds at a time and its clocks
+    concluded it had stopped. Live on 2026-08-28 that ended a ledgerkit turn
+    with cognitive_engine_timeout after three successful reads.
+    """
+
+    from pathlib import Path
+
+    source = Path("core/transparency/dev_mode.py").read_text()
+    start = source.index("async def record_tool_execution")
+    complete = source.index("async def complete_tool_execution")
+    assert "note_progress" in source[start:complete], "dispatch must report life"
+    assert "note_progress" in source[complete:complete + 1200], "completion must too"
