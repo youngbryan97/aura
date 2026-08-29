@@ -229,3 +229,37 @@ def test_a_user_facing_turn_may_reach_the_same_ceiling_as_the_wait() -> None:
     condition = source[source.rindex("if ", 0, source.index(marker)) : source.index(marker)]
     assert "explicit_timeout" not in condition, condition
     assert USER_FACING_COMPLETION_DEADLINE_MAX_S > cognitive_engine._DEFAULT_COGNITIVE_CYCLE_MAX_S
+
+
+def test_every_clock_in_a_turn_takes_the_same_floor() -> None:
+    """Five deadlines, nested, each capping the next.
+
+    Raising an inner one changes nothing while an outer one is smaller, and
+    that is how this went: the engine was allowed 480 seconds, the gate raised
+    itself to 341, and the turn ended at 144.3 because the route's default was
+    120. They read the same measurement now.
+    """
+
+    from core.brain.llm import thinking_reserve
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+    from interface.routes.chat import _seconds_this_answer_needs
+
+    thinking_reserve.forget()
+    question = "Walk me through reviving a sourdough starter and how to know it is ready."
+    # Nothing measured: nothing raised.
+    assert _seconds_this_answer_needs(question) == 0.0
+
+    for _ in range(12):
+        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
+
+    needed = _seconds_this_answer_needs(question)
+    assert needed > 0.0
+    assert needed <= USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    # And it is the same number the engine's own clock uses.
+    from core.brain.cognitive_engine import _time_the_answer_needs
+
+    assert needed == min(
+        float(USER_FACING_COMPLETION_DEADLINE_MAX_S), _time_the_answer_needs(question)
+    )

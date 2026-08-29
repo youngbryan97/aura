@@ -5596,6 +5596,31 @@ def _assess_the_engine_reply(
     return assessment, assessment_reasons, text
 
 
+
+def _seconds_this_answer_needs(question: Any) -> float:
+    """The measured floor for this turn, bounded by the user-facing ceiling.
+
+    Shared with the cognitive engine's own clock and the inference gate's, so
+    the five deadlines a desktop turn passes through cannot disagree about how
+    long the same generation takes. Zero where nothing has been measured.
+    """
+
+    try:
+        from core.brain.cognitive_engine import _time_the_answer_needs
+        from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+        needed = float(_time_the_answer_needs(question))
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "chat",
+            exc,
+            action="left this turn's deadline at the caller's number",
+        )
+        return 0.0
+    if needed <= 0.0:
+        return 0.0
+    return min(float(USER_FACING_COMPLETION_DEADLINE_MAX_S), needed)
+
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
     *,
@@ -6935,6 +6960,18 @@ async def _run_cognitive_engine_chat_turn(
         logger.info("Foreground final-binding stages: %s", final_binding_stages)
 
     timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
+    # The outermost clock, and a flat number chosen before anything knew what
+    # this answer would cost. Everything else is nested in it and takes the
+    # smaller of itself and what is left here, so raising the ones inside
+    # changed nothing: the engine was allowed 480, the gate 341, and the turn
+    # ended at 144.3 because 120 was the default out here.
+    #
+    # It takes the same floor they do — what this request needs to decode, at
+    # the rate this machine has been measured at, including the reserve the
+    # worker adds for thinking — and the same ceiling as the wait it contains.
+    # An unmeasured rate raises nothing, and a turn that finishes sooner
+    # finishes sooner.
+    timeout_s = max(timeout_s, _seconds_this_answer_needs(effective_user_message))
     turn_deadline = turn_budget_started_at + timeout_s
 
     def _remaining_turn_budget() -> float:
