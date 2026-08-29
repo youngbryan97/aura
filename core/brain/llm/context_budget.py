@@ -30,6 +30,7 @@ here: grounding a turn cannot depend on the turn happening to mention it.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import hashlib
 import json
 import math
@@ -356,6 +357,33 @@ _WRITE_EVERY = 20
 _since_write = 0
 
 
+_taken_back = False
+
+
+def _take_back_what_earlier_runs_measured() -> None:
+    """Read the store once, the first time anything asks about a section.
+
+    ``load_volatility`` was written to do this and nothing called it, so every
+    boot began with an empty table and answered from the authored prior — a
+    measurement that could not survive a restart, which is the same as one
+    that was never taken. LIVE 2026-08-29: the store did not exist at all,
+    because a session shorter than twenty observed prompts never reached the
+    write and the restarts here are far more frequent than that.
+
+    Here rather than at boot, because this module is imported by the thing
+    that assembles prompts and that is the only caller who needs the table.
+    """
+
+    global _taken_back
+    if _taken_back:
+        return
+    _taken_back = True
+    try:
+        load_volatility()
+    except (OSError, ValueError, RuntimeError):
+        pass
+
+
 def observe_sections(prompt: str) -> None:
     """Note which sections of this prompt differ from the last one carrying them.
 
@@ -370,6 +398,7 @@ def observe_sections(prompt: str) -> None:
     a section nothing has been learned about yet falls back to the prior.
     """
 
+    _take_back_what_earlier_runs_measured()
     for section in sections_of(prompt):
         header = section.header or "<identity>"
             # A digest rather than the text, and a stable one: the built-in
@@ -386,6 +415,23 @@ def observe_sections(prompt: str) -> None:
         _LAST_SEEN[header] = digest
     _written_down()
 
+
+
+def _keep_what_this_session_measured() -> None:
+    """Write on the way out, whatever the cadence has reached.
+
+    Twenty turns between writes keeps this off the answer path, and a session
+    shorter than twenty turns then measures for nothing. Restarts here are
+    minutes apart, so that was every session.
+    """
+
+    try:
+        save_volatility()
+    except (OSError, ValueError, RuntimeError):
+        pass
+
+
+atexit.register(_keep_what_this_session_measured)
 
 
 def _written_down() -> None:
