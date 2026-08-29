@@ -8415,7 +8415,14 @@ class InferenceGate:
             # keyed on the exact (thread, task) that opened the turn and this
             # loop does not always run there. Belonging is inherited from the
             # turn's context now, so the loop needs nothing to be part of it.
-            result = await asyncio.wait_for(
+            # The tool loop is the part of a turn that takes the time, and it
+            # was the one clock left holding an absolute number. Live on
+            # 2026-08-28 a ledgerkit turn read three files and died here at
+            # 138.9 seconds while every clock around it was holding itself
+            # open, because this one still counted.
+            from core.brain.llm_health_router import _await_while_it_is_working
+
+            result = await _await_while_it_is_working(
                 client.think_and_act(
                     objective=text,
                     # The budget this turn decided on, not the client's default.
@@ -8529,7 +8536,7 @@ class InferenceGate:
                 # before dispatch, "because the request budget was already
                 # spent". The answer was in hand and there was no time left to
                 # say it.
-                timeout=_tool_loop_budget(
+                budget_s=_tool_loop_budget(
                     timeout_s,
                     _answer_reserve_seconds(
                         client,
@@ -8543,6 +8550,7 @@ class InferenceGate:
                         ),
                     ),
                 ),
+                user_facing=True,
             )
         except (TimeoutError, asyncio.CancelledError) as exc:
             record_degradation(
