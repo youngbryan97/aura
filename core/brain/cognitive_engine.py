@@ -1646,6 +1646,15 @@ def _note_the_quick_reply_contract(
                 ),
                 "required_subsystems_ok": live_mind_context.get("required_subsystems_ok"),
                 "lane": live_mind_context.get("lane"),
+                # The machine's load travels with the rest of her condition.
+                #
+                # It is measured continuously and she could not reach it: asked
+                # whether slow turns were the machine or the code, she wrote
+                # "those numbers are genuinely invisible to me" while her own
+                # feed printed the processor and memory percentages every few
+                # seconds. Two small dicts, in both compactions, so which one a
+                # turn takes does not decide whether she can see her own body.
+                "host": live_mind_context.get("host"),
                 "governance": live_mind_context.get("governance"),
             }
         else:
@@ -1661,6 +1670,7 @@ def _note_the_quick_reply_contract(
                 "substrate": live_mind_context.get("substrate"),
                 "mind_snapshot": live_mind_context.get("mind_snapshot"),
                 "mind_snapshot_quality": live_mind_context.get("mind_snapshot_quality"),
+                "host": live_mind_context.get("host"),
                 "governance": live_mind_context.get("governance"),
             }
         live_mind_grounding = (

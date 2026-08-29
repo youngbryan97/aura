@@ -4241,6 +4241,43 @@ def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
 
 
 
+def _host_condition() -> dict[str, Any]:
+    """The machine's own load, as the runtime already measures it."""
+
+    try:
+        from core.introspection.self_evidence import resolve_self_health
+
+        readings = {
+            reading.channel: reading for reading in resolve_self_health().readings
+        }
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.host_condition",
+            exc,
+            severity="debug",
+            action="left the machine's load out of her state snapshot",
+        )
+        return {}
+    condition: dict[str, Any] = {}
+    load = readings.get("host_load")
+    if load is not None and load.present:
+        values = dict(load.value or {})
+        for name in ("processor_percent", "memory_percent"):
+            try:
+                condition[name] = round(float(values.get(name)), 1)
+            except (TypeError, ValueError):
+                continue
+    thermal = readings.get("host_thermal")
+    if thermal is not None and thermal.present:
+        try:
+            condition["thermal_pressure"] = round(float(thermal.value), 2)
+        except (TypeError, ValueError):
+            pass
+    # Absent rather than zero: a load reported as 0% because nothing answered
+    # is worse than one that is missing, and she can say she does not know.
+    return condition
+
+
 def _build_live_mind_context_payload(
     *,
     user_message: str,
@@ -4404,6 +4441,21 @@ def _build_live_mind_context_payload(
                 "conversation_ready": bool(lane_snapshot.get("conversation_ready")),
                 "last_failure_reason": lane_snapshot.get("last_failure_reason") or "",
             },
+            # What the machine she runs on is doing, beside the rest of her
+            # condition.
+            #
+            # There is a reader for this and a matcher that decides when to
+            # staple its answer on, and the matcher recognises "how hard is the
+            # machine working" and not "why are you slow" — LIVE 2026-08-29,
+            # asked whether slow turns were the machine or the code, she wrote
+            # "those numbers are genuinely invisible to me" while her own feed
+            # was printing "processor 5%, memory 62%" every few seconds.
+            #
+            # Adding a phrase would fix that question and not the next one.
+            # Load is a fact about her condition in the same way uptime is, so
+            # it goes where she reasons from, and she can use it or not as the
+            # question deserves.
+            "host": _host_condition(),
             "required_subsystems": required,
             "required_subsystems_ok": all(required.values()),
             "recent_context_needed": bool(recent_context_needed),
