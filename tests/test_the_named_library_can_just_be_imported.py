@@ -136,3 +136,45 @@ def test_a_generous_wait_still_does_not_buy_more_computation() -> None:
     run_untrusted("while True:\n    pass\n", timeout=12, mem_bytes=256 * 1024 * 1024)
     elapsed = time.perf_counter() - started
     assert elapsed < 12.0, f"took {elapsed:.1f}s"
+
+
+def test_running_out_of_compute_says_where_it_was() -> None:
+    """The caller is usually the model that wrote the code.
+
+    It used to get back "cpu time limit exceeded" and nothing else, then be
+    asked to try again with no idea it had written a loop. RLIMIT_CPU delivers
+    SIGXCPU before it kills, so the one thing the child can still do is look
+    at what it was executing.
+    """
+
+    from core.sandbox.runner import run_untrusted
+
+    out = run_untrusted(
+        "total = 0\nwhile True:\n    total += 1\n",
+        timeout=6,
+        mem_bytes=256 * 1024 * 1024,
+    )
+    assert out["status"] != "ok"
+    said = str(out.get("stderr") or "")
+    assert "computation budget" in said, said
+    # And where: line 2 of what was submitted is the loop.
+    assert '"<string>", line 2' in said, said
+
+
+def test_the_diagnosis_is_not_swallowed_by_the_capture_buffer() -> None:
+    """The sandboxed code runs inside redirect_stdout.
+
+    A print from the signal handler lands in the buffer that is about to be
+    abandoned, so the handler writes to the stdout it captured before anything
+    redirected it. Without that the parent saw an empty result and a zero exit.
+    """
+
+    from core.sandbox.runner import run_untrusted
+
+    out = run_untrusted(
+        "print('before the loop')\nwhile True:\n    pass\n",
+        timeout=6,
+        mem_bytes=256 * 1024 * 1024,
+    )
+    assert out["status"] == "cpu_exhausted", out
+    assert str(out.get("stderr") or "").strip() != ""

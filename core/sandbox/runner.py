@@ -43,6 +43,8 @@ import sys
 import json
 import contextlib
 import io
+import os
+import signal
 import traceback
 
 try:
@@ -145,6 +147,49 @@ try:
             apply_limit(resource.RLIMIT_CPU, int(cpu_seconds))
 except (OSError, ValueError) as e:
     resource_warning = repr(e)
+
+# Say WHERE it was when the computation budget ran out.
+#
+# RLIMIT_CPU delivers SIGXCPU before it kills, so the one thing the child can
+# still do is look at what it was executing. Without that the caller gets
+# "cpu time limit exceeded" and nothing else — and the caller is usually the
+# model that wrote the code, being asked to try again with no idea it had
+# written a loop.
+#
+# LIVE, 2026-08-29: a request to record one ledger entry produced code that
+# sat at 100% CPU until the limit killed it, three times, and the machine ran
+# hot. The API it had just read describes four calls.
+try:
+    # The real one, taken before anything redirects it. The sandboxed code
+    # runs inside redirect_stdout, so a print from this handler would land in
+    # the capture buffer that is about to be abandoned.
+    _actual_stdout = sys.stdout
+
+    def _say_where_the_budget_went(_signum, frame):
+        where = "".join(traceback.format_stack(frame)[-3:]).strip()
+        _actual_stdout.write(
+            json.dumps(
+                {
+                    "status": "cpu_exhausted",
+                    "stdout": "",
+                    "stderr": (
+                        "the code used its whole computation budget and was "
+                        "still running. It was here when the budget ran out:\n"
+                        f"{where}"
+                    ),
+                }
+            )
+            + "\n"
+        )
+        _actual_stdout.flush()
+        # Straight out, without unwinding: the child's own SystemExit handler
+        # would print a second result and the parent reads the last one.
+        os._exit(0)
+
+    if hasattr(signal, "SIGXCPU"):
+        signal.signal(signal.SIGXCPU, _say_where_the_budget_went)
+except (OSError, ValueError, RuntimeError):
+    pass
 
 # Strip dangerous builtins to prevent arbitrary execution or network egress
 import builtins
