@@ -550,6 +550,18 @@ async def _await_while_it_is_working(
             return await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
         except TimeoutError:
             continue
+    # Say which of the two ended it, because they need different fixes: a
+    # signal nobody is writing, and a generation that genuinely stopped.
+    from core.runtime.turn_progress import seconds_since_progress
+
+    since = seconds_since_progress()
+    logger.warning(
+        "Endpoint gave up %.0fs past its budget: %s.",
+        max(0.0, float(budget_s)),
+        "nothing has ever been reported for this turn"
+        if since < 0.0
+        else f"last sign of work {since:.1f}s ago, quiet window {quiet_for:.0f}s",
+    )
     task.cancel()
     raise TimeoutError
 
