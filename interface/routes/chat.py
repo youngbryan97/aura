@@ -7798,14 +7798,29 @@ async def _run_cognitive_engine_chat_turn(
             _mark_turn_trace(response_path="cognitive_engine_no_thought")
             return None
 
-    except TimeoutError:
+    except TimeoutError as _timed_out:
         _force_clear_mlx_foreground_owner(
             reason="cognitive_engine_chat_timeout",
             min_age_s=min(90.0, max(45.0, timeout_s * 0.5)),
         )
+        # Where it came from, not just that it happened. Seven clocks sit
+        # inside this call and each of them raises the same exception type, so
+        # "timed out after N" names the budget of whoever caught it rather than
+        # whoever ran out.
+        _where = ""
+        try:
+            import traceback as _tb
+
+            _frames = _tb.extract_tb(_timed_out.__traceback__)
+            if _frames:
+                _last = _frames[-1]
+                _where = f" (raised at {_last.filename.rsplit('/', 1)[-1]}:{_last.lineno})"
+        except (AttributeError, IndexError, TypeError, ValueError):
+            _where = ""
         logger.warning(
-            "CognitiveEngine desktop chat turn timed out after %.1fs; %s.",
+            "CognitiveEngine desktop chat turn timed out after %.1fs%s; %s.",
             timeout_s,
+            _where,
             no_reply_action,
         )
         _record_exhausted_cognitive_failure(
