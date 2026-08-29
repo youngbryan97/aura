@@ -493,6 +493,24 @@ def _library_path_is_allowed(path: str) -> tuple[bool, str]:
     return True, ""
 
 
+
+def _the_code_inside_any_fence(code: str) -> str:
+    """The Python inside a markdown fence, or the text unchanged.
+
+    Only consulted where a fence is actually present: the extractor also
+    strips trailing whitespace, and code that was never fenced should come
+    through byte for byte.
+    """
+
+    try:
+        from core.brain.llm.code_generator import extract_python_code
+    except ImportError:
+        return code
+    try:
+        return str(extract_python_code(code) or code)
+    except (AttributeError, TypeError, ValueError):
+        return code
+
 class CodeREPLInput(BaseModel):
     code: str = Field(..., description="Python code to execute in the REPL.")
     session_id: str | None = Field(
@@ -577,6 +595,24 @@ class CodeREPLSkill(BaseSkill):
         code = params.code.strip()
         if not code:
             return {"ok": False, "error": "No code provided."}
+
+        # A model writing code writes a fenced block, because that is how code
+        # is written everywhere it has ever seen it. Sent straight to the
+        # interpreter the fence is a syntax error, and the turn spends an
+        # attempt learning that.
+        #
+        # The reconstruction lab already solved this: extract_python_code
+        # takes the fenced body, and takes it even when the closing fence is
+        # missing because the generation ran out of room. Same extractor here
+        # rather than a second one that will drift from it.
+        unfenced = _the_code_inside_any_fence(code)
+        if "```" in code and unfenced and unfenced != code:
+            logger.info(
+                "code_repl: unwrapped a fenced block (%d chars -> %d).",
+                len(code),
+                len(unfenced),
+            )
+            code = unfenced
 
         # A library the person named, made importable.
         #
