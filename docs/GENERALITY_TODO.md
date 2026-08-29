@@ -546,3 +546,32 @@ pair nobody wrote a type for is expressible and depth is not a type either.
    goals under interruption; an unfamiliar visual environment; a frozen
    unseen-task battery.
 7. **World A/B/C**, the qualitative milestone for M₀→M₁→M₂.
+
+## The turn stopped being killed (2026-08-28, 18:36)
+
+Asked why a starter that doubles in five hours smells yeasty rather than sour,
+she answered:
+
+> "'Yeasty' means the yeast side of things is active and doing its job;
+> sourness comes from the bacteria producing lactic and acetic acid, which
+> usually takes more time — especially cooler fermentation. ... Give it more
+> total ferment time — bulk until 50-80% volume increase, then cold retard
+> 12-36 hours before baking. This is one of the biggest levers for sourness."
+
+Correct on both halves of the question, in three minutes nine seconds, with no
+timeout anywhere in the turn. Every previous attempt today ended on the
+apology.
+
+Seven clocks were involved and each one hid the next: the chat route's turn
+budget, the cognitive cycle, the gate's request deadline, the endpoint budget
+split, the endpoint wait, the thread-backed wall-clock watchdog, and the
+worker's own decode loop. Raising any of them changed nothing while a smaller
+one was still there. They ask one question now — has anything arrived recently
+— and the answer comes from one signal written by the lane that decodes.
+
+**What is still wrong.** The answer stops mid-list, at the second item, after
+1,552 tokens of a budget it never came close to spending and with no deadline
+anywhere near it. The model ended its own turn, and the semantic completion
+contract accepted it: there is no "ended before semantic completion" line for
+that generation. So the next defect is not a clock and not a budget. It is a
+list that stops at item two being read as a complete answer.
