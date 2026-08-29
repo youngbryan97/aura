@@ -132,3 +132,30 @@ def test_it_stops_at_the_ceiling() -> None:
         return clock.reschedules
 
     assert asyncio.run(run()) == 0
+
+
+def test_the_memory_floor_is_scaled_to_the_host() -> None:
+    """Two thresholds answered the same question and disagreed.
+
+    Whether there is enough memory to generate was checked in two places: the
+    prewarm check scaled its numbers to the host, and the one that refuses a
+    person's turn used flat ones, two gigabytes and ten points of pressure
+    apart. A machine with sixty-four gigabytes and a resident twenty-gigabyte
+    model sits nearer these numbers than a smaller one ever does, so the flat
+    pair was the one that would fire first on the machine this runs on.
+    """
+
+    from pathlib import Path
+
+    source = Path("core/brain/inference_gate.py").read_text()
+    refusal_at = source.index("refusing primary foreground generation")
+    guard = source.rindex("if (", 0, refusal_at)
+    condition = source[guard:refusal_at]
+
+    assert "6.0 if roomy_host else 8.0" in condition, condition
+    assert "92.0 if roomy_host else 90.0" in condition, condition
+
+    # The prewarm check it now agrees with.
+    assert "6.0 if total_gb >= 60.0 else 10.0" in source
+    # And an unknown host falls back to the stricter pair, not the roomier one.
+    assert 'admission_snapshot.get("total_gb", 0.0)' in source

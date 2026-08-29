@@ -1635,7 +1635,20 @@ async def _admit_the_foreground_request(
                 process_rss = float(admission_snapshot.get("process_rss_gb", 0.0) or 0.0)
                 process_limit = float(admission_snapshot.get("process_rss_limit_gb", 0.0) or 0.0)
                 process_over_limit = bool(process_limit > 0.0 and process_rss >= process_limit)
-                if pressure >= 90.0 or available < 8.0 or process_over_limit:
+                # Scaled to the host, the way the prewarm check below already
+                # is. Two thresholds answering the same question — is there
+                # enough memory to generate — disagreed by two gigabytes and
+                # ten points of pressure, and the flat one is the one that
+                # refuses a person's turn. A machine with sixty-four gigabytes
+                # and a resident twenty-gigabyte model sits nearer these
+                # numbers than a smaller one ever does.
+                total_gb = float(admission_snapshot.get("total_gb", 0.0) or 0.0)
+                roomy_host = total_gb >= 60.0
+                if (
+                    pressure >= (92.0 if roomy_host else 90.0)
+                    or available < (6.0 if roomy_host else 8.0)
+                    or process_over_limit
+                ):
                     logger.error(
                         "🛑 InferenceGate: refusing primary foreground generation under critical "
                         "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
