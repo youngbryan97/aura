@@ -95,6 +95,16 @@ def test_restart_rehydrates_source_and_head_cohort_without_duplication(
     tmp_path: Path, monkeypatch,
 ):
     monkeypatch.setenv("AURA_LAUNCH_EXPECTED_COMMIT", "a" * 40)
+    # The revision the runtime stamps on an episode of this control point.
+    #
+    # It used to be the launcher's commit, which retired every cohort on every
+    # commit anywhere and meant no control point reached the fifty graded
+    # episodes support needs. It is now derived from the code that computes
+    # this decision, and the fixture has to record what the runtime records or
+    # the rehydrated evidence lands in a cohort nothing activates.
+    from core.ontogeny.features import decision_revision
+
+    stamped_revision = decision_revision("executive.admission", fallback="a" * 40)
     db_path = tmp_path / "experience.db"
     spine = ExperienceSpine(db_path, autoflush=False)
     for index in range(3):
@@ -107,7 +117,7 @@ def test_restart_rehydrates_source_and_head_cohort_without_duplication(
             shadow={"approved": 0.9},
             shadow_version=7,
             provenance=Provenance.TEST,
-            context={"runtime_revision": "a" * 40},
+            context={"runtime_revision": stamped_revision},
             decided_at=100.0 + index,
         )
         spine.record(episode)
@@ -133,7 +143,7 @@ def test_restart_rehydrates_source_and_head_cohort_without_duplication(
     assert core.rehydrate_operational_calibration() == {"executive.admission": 3}
     report = core.report()["operational_calibration"]["executive.admission"]
     assert report["samples"] == 3
-    assert report["runtime_revision"] == "a" * 40
+    assert report["runtime_revision"] == stamped_revision
     assert report["head_version"] == 7
     assert report["provenance"] == OPERATIONAL_SHADOW
     core.stop()
