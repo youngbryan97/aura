@@ -105,6 +105,10 @@ _LANE_STATE_HOLD_WORTH_NAMING_MS = 50.0
 #: Weight sizes are a property of the files, read once per path.
 _WEIGHT_SIZES: dict[str, float] = {}
 
+#: How long each model has actually taken to say its first word from cold,
+#: by name. Measured whole, because the time is not all spent reading bytes.
+_COLD_FIRST_TOKEN_S: dict[str, float] = {}
+
 #: A cold lane's first token is late for a reason that is over once it
 #: happens. Room for that, on top of what loading measures at.
 _COLD_START_HEADROOM = 2.0
@@ -6392,6 +6396,22 @@ class MLXLocalClient:
                     _HOST_RATES["weight_load"] = (
                         observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                     )
+                # And the whole thing as a duration, which is what the next
+                # cold start actually has to survive.
+                #
+                # A rate assumes the time is spent reading bytes. LIVE
+                # 2026-08-29: a 0.8GB model derived a 3.2s allowance from its
+                # size and took longer than the 8s SLA to speak — the rest of
+                # it is framework import, tokenizer, and shader compile, none
+                # of which scale with the weights. Measured whole, no model of
+                # where it went is needed.
+                if spent > 0.1:
+                    name = os.path.basename(str(self.model_path or ""))
+                    if name:
+                        seen = _COLD_FIRST_TOKEN_S.get(name, 0.0)
+                        _COLD_FIRST_TOKEN_S[name] = (
+                            spent if seen <= 0.0 else seen * 0.7 + spent * 0.3
+                        )
         self._tokens_since_spawn = int(getattr(self, "_tokens_since_spawn", 0) or 0) + 1
         self._tokens_this_request = int(getattr(self, "_tokens_this_request", 0) or 0) + 1
         self._mark_progress()
@@ -6753,11 +6773,26 @@ class MLXLocalClient:
 
         if int(getattr(self, "_tokens_since_spawn", 0) or 0) > 0:
             return 0.0
-        gigabytes = self._weight_gigabytes()
-        if gigabytes <= 0.0:
-            return 0.0
-        rate = float(_HOST_RATES.get("weight_load") or 0.0) or _UNMEASURED_WEIGHT_LOAD_GB_S
-        return (gigabytes / rate) * _COLD_START_HEADROOM
+        ceiling = self._first_token_absolute_ceiling()
+        measured = _COLD_FIRST_TOKEN_S.get(
+            os.path.basename(str(self.model_path or "")), 0.0
+        )
+        if measured <= 0.0:
+            # Nothing measured, so the bound that already exists.
+            #
+            # Deriving it from the weights assumes the time is spent reading
+            # them: a 0.8GB model works out to 3.2 seconds and took longer
+            # than the 8-second SLA to speak, because the rest is framework
+            # import, tokenizer and shader compile. Guessing low here is what
+            # made the measurement impossible — the first generation of a
+            # worker's life is the one that would have measured it, and it was
+            # abandoned every time.
+            #
+            # The absolute ceiling is this lane's own answer to "how long may
+            # it be silent", so an unmeasured cold start gets that rather than
+            # an arithmetic guess.
+            return ceiling
+        return min(measured * _COLD_START_HEADROOM, ceiling)
 
     def _measured_prefill_rate(self) -> float:
         """Tokens a second this worker reads a prompt at, as measured.
@@ -14161,7 +14196,17 @@ class MLXLocalClient:
                     and self._current_first_token_at <= 0.0
                     and (
                         (
-                            elapsed_without_token > first_token_sla
+                            elapsed_without_token > max(
+                                first_token_sla,
+                                # A lane that has never spoken is still coming
+                                # up. The livelock ceiling learned this; the
+                                # SLA did not, so the first generation of a
+                                # worker's life was abandoned at 8 seconds —
+                                # and it is the generation the measurement
+                                # comes from, so the cold start could never be
+                                # learned either.
+                                self._cold_lane_first_token_allowance(),
+                            )
                             and not has_runtime_progress_after_request
                         )
                         or elapsed_without_token > hard_first_token_ceiling
