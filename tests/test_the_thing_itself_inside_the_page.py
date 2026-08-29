@@ -138,3 +138,84 @@ def test_two_readings_of_one_board_agree_about_its_shape():
 def test_furniture_moving_around_does_not_change_the_board(extra):
     found = the_thing_itself(arranged(PAGE + extra + board(FULL)))
     assert (found.rows, found.columns) == (4, 4)
+
+
+# ── and it does not eat the thing it found ───────────────────────────────
+
+def test_a_board_with_a_nearly_empty_top_row_keeps_it():
+    """LIVE 2026-08-29: "the thing itself is 3x4 inside a reading of 4x4",
+    losing a row she was playing on, because the densest block was preferred
+    over the biggest one that was dense enough."""
+    sparse = arranged(board([
+        ["", "", "2", ""],
+        ["", "4", "", "8"],
+        ["2", "8", "16", "4"],
+        ["4", "16", "32", "8"],
+    ]))
+    found = the_thing_itself(sparse)
+    assert (found.rows, found.columns) == (4, 4)
+
+
+def test_a_board_that_is_nearly_empty_all_over_is_still_that_board():
+    early = arranged(board([
+        ["", "", "", ""],
+        ["", "2", "", ""],
+        ["", "", "", "4"],
+        ["", "", "", ""],
+    ]))
+    found = the_thing_itself(early)
+    assert (found.rows, found.columns) == (early.rows, early.columns)
+
+
+def test_a_row_with_nothing_in_it_at_all_is_not_in_the_reading():
+    """Which is why the shape has to come from the LAST reading, not this one.
+
+    An empty top row has no cells, so nothing infers it, and the board reads
+    one row shorter until a tile lands there. That instability is what
+    ``arranged(..., like=previous)`` exists for, and cropping must not break
+    it — see below.
+    """
+    rows = [["", "", "", ""], ["4", "8", "16", "32"],
+            ["8", "16", "32", "64"], ["16", "32", "64", "128"]]
+    found = the_thing_itself(arranged(PAGE + board(rows)))
+    assert (found.rows, found.columns) == (3, 4)
+
+
+def test_the_last_reading_holds_the_shape_across_a_crop():
+    """Two readings of one board agree, which is what lets a rule form."""
+    whole = arranged(PAGE + board(FULL))
+    full = the_thing_itself(whole)
+    thinner = [["", "", "", ""], ["4", "8", "16", "32"],
+               ["8", "16", "32", "64"], ["16", "32", "64", "128"]]
+    # The shape is held against the WHOLE previous reading, which is what the
+    # loop keeps for exactly this: a cropped grid cannot place page cells.
+    later = the_thing_itself(arranged(PAGE + board(thinner), like=whole), like=full)
+    assert (later.rows, later.columns) == (full.rows, full.columns)
+    assert later.row_at(0) == (None, None, None, None)
+    assert later.at(1, 0).says == "4"
+
+
+@pytest.mark.parametrize("holes", [0, 3, 6])
+def test_however_many_holes_are_scattered_through_it(holes):
+    rows = [["2", "4", "8", "16"], ["4", "8", "16", "32"],
+            ["8", "16", "32", "64"], ["16", "32", "64", "128"]]
+    # Scattered, never a whole row: a row with nothing in it is not a row.
+    for n in range(holes):
+        rows[n % 4][(n * 2 + 1) % 4] = ""
+    found = the_thing_itself(arranged(PAGE + board(rows)))
+    assert (found.rows, found.columns) == (4, 4)
+
+
+def test_and_a_thing_that_has_really_moved_is_found_again():
+    """Holding the shape is not refusing to look. A page that changes under
+    her — a new layout, a different game — has no block where the old one was,
+    and the block is worked out afresh."""
+    whole = arranged(PAGE + board(FULL))
+    first = the_thing_itself(whole)
+    elsewhere = arranged([
+        (0.55 + r * 0.09, 0.05 + c * 0.09, str(r * 3 + c + 1))
+        for r in range(3)
+        for c in range(3)
+    ])
+    found = the_thing_itself(elsewhere, like=first)
+    assert (found.rows, found.columns) == (3, 3)

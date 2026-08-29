@@ -1407,6 +1407,13 @@ async def pursue_on_screen(
         "deliberation": None,
         "before": "",
         "arranged": None,
+        # The whole reading, uncropped. The shape of the NEXT reading is held
+        # against this one — a board whose top row is empty has no top row to
+        # infer, so without a previous reading to place it in, the thing
+        # changes shape under her and no rule can survive the comparison. The
+        # cropped board beside it is what she learns from; this is what keeps
+        # the two readings comparable.
+        "whole": None,
         "watched": {},
     }
     # One surface for questions about what a world would do. The rules facet
@@ -1833,9 +1840,8 @@ async def pursue_on_screen(
         # that is four by four, "how this moves is not worked out yet" after
         # eighty-four moves, and therefore a full language generation for
         # every single one of them — about twenty-eight seconds a move.
-        laid_out = the_thing_itself(
-            what_is_there(observation, band, like=pending["arranged"])
-        )
+        whole = what_is_there(observation, band, like=pending["whole"])
+        laid_out = the_thing_itself(whole, like=pending["arranged"])
 
         # Is this the thing she was asked to act in.
         #
@@ -2327,6 +2333,7 @@ async def pursue_on_screen(
             pending["deliberation"] = chosen
             pending["before"] = seen
             pending["arranged"] = laid_out
+            pending["whole"] = whole
             # Kept whole for the comparison that finds where she has effects,
             # which cannot use a band it has not worked out yet.
             pending["watched"] = observation

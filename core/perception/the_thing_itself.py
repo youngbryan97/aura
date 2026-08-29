@@ -103,12 +103,57 @@ def _trimmed(
     return first, last
 
 
-def the_thing_itself(reading: Arrangement) -> Arrangement:
+def _same_place(one: float, other: float, pitch: float) -> bool:
+    """Whether two measured positions are the same place on the lattice."""
+    return abs(one - other) <= REGULAR_ENOUGH * max(pitch, 1e-9)
+
+
+def _where_it_was(
+    reading: Arrangement, before: Arrangement
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """The block the last reading was cropped to, found again in this one.
+
+    A thing does not change size between two glances at it. What changes is
+    how much of it happens to be occupied, and a board whose top row has just
+    emptied has no top row for anything to infer — so found afresh each time,
+    the thing shrinks and grows under her and no rule survives the comparison.
+    """
+    if before is None or not before.down_at or not before.across_at:
+        return None
+    down, across = list(reading.down_at), list(reading.across_at)
+    if not down or not across:
+        return None
+    row_pitch = (before.down_at[-1] - before.down_at[0]) / max(1, before.rows - 1)
+    column_pitch = (before.across_at[-1] - before.across_at[0]) / max(1, before.columns - 1)
+
+    def find(want: float, among: list[float], pitch: float) -> int | None:
+        for index, value in enumerate(among):
+            if _same_place(value, want, pitch):
+                return index
+        return None
+
+    top = find(before.down_at[0], down, row_pitch)
+    bottom = find(before.down_at[-1], down, row_pitch)
+    left = find(before.across_at[0], across, column_pitch)
+    right = find(before.across_at[-1], across, column_pitch)
+    if None in (top, bottom, left, right) or top > bottom or left > right:
+        return None
+    return (top, bottom), (left, right)
+
+
+def the_thing_itself(
+    reading: Arrangement, like: Arrangement | None = None
+) -> Arrangement:
     """The largest regular block inside a reading, or the reading unchanged.
 
     Unchanged when there is no block worth calling one, because cropping on no
     evidence is how a reading of a page becomes a reading of nothing. A thing
     that IS the whole reading comes back as itself.
+
+    ``like`` is the block the last reading was cropped to. Found again rather
+    than worked out afresh, because a thing does not change size between two
+    glances at it, and re-deciding every time makes it grow and shrink under
+    her.
     """
     if reading is None or reading.rows < ENOUGH_TO_BE_A_LATTICE:
         return reading
@@ -119,6 +164,11 @@ def the_thing_itself(reading: Arrangement) -> Arrangement:
     across = list(reading.across_at) or [float(n) for n in range(reading.columns)]
     if len(down) != reading.rows or len(across) != reading.columns:
         return reading
+
+    held_before = _where_it_was(reading, like) if like is not None else None
+    if held_before is not None:
+        (top, bottom), (left, right) = held_before
+        return _cropped_to(reading, top, bottom, left, right)
 
     best: tuple[int, tuple[int, int], tuple[int, int]] | None = None
     for row_run in _runs_of_regular_spacing(down) or [(0, reading.rows - 1)]:
@@ -135,15 +185,20 @@ def the_thing_itself(reading: Arrangement) -> Arrangement:
             )
             if held < DENSE_ENOUGH * rows * columns:
                 continue
-            # Scored by what is really in it, not by how much ground it
-            # covers. A block that reaches two columns further into the page
-            # is bigger and no more of a thing.
-            if best is None or held > best[0]:
-                best = (held, row_run, column_run)
+            # The biggest block that is dense enough, not the densest.
+            #
+            # Density already rules out prose, and trimming already removes an
+            # empty margin, so what is left to choose between are real
+            # candidates — and preferring the densest of those crops a row off
+            # a board whose top row is nearly empty, which is most boards for
+            # most of a game. LIVE 2026-08-29: "the thing itself is 3x4 inside
+            # a reading of 4x4", losing a row she was playing on.
+            if best is None or rows * columns > best[0]:
+                best = (rows * columns, row_run, column_run)
 
     if best is None:
         return reading
-    _held, (top, bottom), (left, right) = best
+    _size, (top, bottom), (left, right) = best
     top, bottom = _trimmed(reading, top, bottom, (left, right), down=True)
     left, right = _trimmed(reading, left, right, (top, bottom), down=False)
     if bottom - top + 1 < ENOUGH_TO_BE_A_LATTICE or right - left + 1 < ENOUGH_TO_BE_A_LATTICE:
@@ -151,19 +206,25 @@ def the_thing_itself(reading: Arrangement) -> Arrangement:
     if (bottom - top + 1, right - left + 1) == (reading.rows, reading.columns):
         return reading
 
-    cells = tuple(
-        Cell(row=cell.row - top, column=cell.column - left, says=cell.says, at=cell.at)
-        for cell in reading.cells
-        if top <= cell.row <= bottom and left <= cell.column <= right
-    )
     logger.info(
         "the thing itself is %dx%d inside a reading of %dx%d",
         bottom - top + 1, right - left + 1, reading.rows, reading.columns,
     )
+    return _cropped_to(reading, top, bottom, left, right)
+
+
+def _cropped_to(
+    reading: Arrangement, top: int, bottom: int, left: int, right: int
+) -> Arrangement:
+    """The block of a reading between those rows and columns, as its own thing."""
     return Arrangement(
         rows=bottom - top + 1,
         columns=right - left + 1,
-        cells=cells,
-        down_at=tuple(down[top : bottom + 1]),
-        across_at=tuple(across[left : right + 1]),
+        cells=tuple(
+            Cell(row=cell.row - top, column=cell.column - left, says=cell.says, at=cell.at)
+            for cell in reading.cells
+            if top <= cell.row <= bottom and left <= cell.column <= right
+        ),
+        down_at=tuple(list(reading.down_at)[top : bottom + 1]),
+        across_at=tuple(list(reading.across_at)[left : right + 1]),
     )
