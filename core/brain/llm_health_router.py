@@ -499,6 +499,21 @@ def desktop_background_endpoint_deferral_reasons(
 
 
 
+#: What a turn of this shape costs, for sizing the ceiling above.
+#:
+#: The tool loop's own allowance is ``max(4, 2 * len(tools) + 2)``, and a turn
+#: reaching for one capability is offered one tool.
+_GENERATIONS_A_TOOL_TURN_MAY_TAKE = 4
+
+#: The scaffold a desktop turn carries, taken off the prompts this lane logged
+#: on 2026-08-29 as the loop accumulated what it had read: 3273, 3702, 5319,
+#: 7334 and 8324 characters.
+_A_TURNS_PROMPT_CHARS = 8324
+
+#: The tool-call budget a foreground turn is given.
+_A_TURNS_ANSWER_TOKENS = 2048
+
+
 async def _await_while_it_is_working(
     coro: Any,
     *,
@@ -547,7 +562,33 @@ async def _await_while_it_is_working(
     # A caller that asked for two seconds is not asking to be waited on for
     # eight minutes; one that asked for two minutes is. The ceiling still caps
     # the whole thing.
-    ceiling = max(0.0, float(USER_FACING_COMPLETION_DEADLINE_MAX_S) - float(budget_s))
+    # The ceiling this machine needs, not a flat one.
+    #
+    # 480 seconds cannot tell a turn that is running away from a turn that is
+    # working. On this host one generation of a thousand tokens against an
+    # eight-thousand-character prompt takes about a hundred seconds, and a tool
+    # loop is allowed several — so the bound stood below the cost of the work
+    # it was standing over. LIVE 2026-08-29, after the fix below had already
+    # stopped the proportional cut: "gave up 298s past its budget: last sign of
+    # work 0.3s ago", at exactly 480 seconds, while composing the answer.
+    #
+    # Measured, so a faster machine gets a shorter ceiling for free and a
+    # loaded one gets the room it needs. Only ever raises the flat bound, and
+    # only for somebody who is waiting.
+    limit = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+    if person_is_waiting:
+        try:
+            from core.brain.llm.mlx_client import longest_a_turn_may_take
+
+            limit = longest_a_turn_may_take(
+                generations=_GENERATIONS_A_TOOL_TURN_MAY_TAKE,
+                prompt_chars=_A_TURNS_PROMPT_CHARS,
+                max_tokens=_A_TURNS_ANSWER_TOKENS,
+                floor_s=limit,
+            )
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("kept the flat turn ceiling: %s", exc)
+    ceiling = max(0.0, limit - float(budget_s))
     # Proportional for a probe, the turn's own ceiling for a person.
     #
     # "user_facing" is true for anything on the foreground lane, which includes

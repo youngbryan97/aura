@@ -205,3 +205,35 @@ class TestThePreambleIsFoundWhereverItIsWritten:
             "import sys\nif True:\n    sys.path.insert(0, '/tmp/ledgerkit')\nprint(1)\n"
         )
         assert "    pass" in left
+
+
+def test_the_dispatcher_outlasts_the_sandbox() -> None:
+    """Two clocks on one execution, and the outer one gave up first.
+
+    LIVE 2026-08-29: "Tool Result: code_repl in 120004ms", twice, on a sandbox
+    allowed 180 seconds of wall clock for its 30-second computation budget. The
+    dispatcher killed it at its own flat 120 and the tool returned nothing —
+    not the output, not the timeout, not the traceback. The model saw an
+    outcome of "unknown" and tried the same thing again.
+
+    The declaration has to stay a literal, because the skill catalog discovers
+    it by reading the source and a computed value makes the skill invisible. So
+    the agreement is held here instead.
+    """
+
+    from core.sandbox.runner import wall_clock_allowance
+    from core.skills.code_repl import _LONGEST_ACCEPTED_TIMEOUT_S, CodeREPLSkill
+
+    assert CodeREPLSkill.timeout_seconds >= wall_clock_allowance(
+        _LONGEST_ACCEPTED_TIMEOUT_S
+    ), "the dispatcher gives up before the sandbox does"
+
+
+def test_the_accepted_budget_and_the_declared_wait_are_one_number() -> None:
+    from core.sandbox.runner import wall_clock_allowance
+    from core.skills.code_repl import _LONGEST_ACCEPTED_TIMEOUT_S, CodeREPLSkill
+
+    assert CodeREPLSkill.timeout_seconds == wall_clock_allowance(
+        _LONGEST_ACCEPTED_TIMEOUT_S
+    )
+    assert CodeREPLSkill.input_model.model_fields["timeout"].metadata

@@ -65,3 +65,67 @@ def test_the_ceiling_still_binds_both_ways() -> None:
     source = ast.unparse(_the_waiting_function())
     assert "USER_FACING_COMPLETION_DEADLINE_MAX_S" in source
     assert "ceiling if person_is_waiting else min(ceiling" in source.replace("\n", " ")
+
+
+class TestTheCeilingIsMeasuredNotFlat:
+    """A flat number cannot tell a turn running away from a turn working.
+
+    LIVE 2026-08-29, after the proportional cut above was fixed: "gave up 298s
+    past its budget: last sign of work 0.3s ago", at exactly 480 seconds, while
+    the turn was composing its answer. On this host one generation of a
+    thousand tokens against an eight-thousand-character prompt takes about a
+    hundred seconds and a tool loop is allowed several, so the bound stood
+    below the cost of the work it was standing over.
+    """
+
+    def test_the_measured_ceiling_only_ever_raises_the_flat_one(self) -> None:
+        from core.brain.llm.mlx_client import longest_a_turn_may_take
+
+        assert (
+            longest_a_turn_may_take(
+                generations=1, prompt_chars=10, max_tokens=8, floor_s=480.0
+            )
+            == 480.0
+        ), "a small measurement must not shorten somebody else's bound"
+
+    def test_a_turn_that_costs_more_than_the_flat_bound_gets_the_room(self) -> None:
+        from core.brain.llm.mlx_client import longest_a_turn_may_take
+
+        assert (
+            longest_a_turn_may_take(
+                generations=4, prompt_chars=8324, max_tokens=2048, floor_s=480.0
+            )
+            > 480.0
+        )
+
+    def test_a_faster_machine_gets_a_shorter_ceiling(self) -> None:
+        from core.brain.llm import mlx_client
+
+        rates = dict(mlx_client._HOST_RATES)
+        try:
+            mlx_client._HOST_RATES.update({"prefill": 300.0, "decode": 8.0})
+            slow = mlx_client.longest_a_turn_may_take(
+                generations=4, prompt_chars=8324, max_tokens=2048, floor_s=0.0
+            )
+            mlx_client._HOST_RATES.update({"prefill": 900.0, "decode": 40.0})
+            fast = mlx_client.longest_a_turn_may_take(
+                generations=4, prompt_chars=8324, max_tokens=2048, floor_s=0.0
+            )
+        finally:
+            mlx_client._HOST_RATES.clear()
+            mlx_client._HOST_RATES.update(rates)
+        assert fast < slow
+
+    def test_only_a_person_waiting_gets_it(self) -> None:
+        """A probe keeps the flat bound; it is asking for a fast yes or no."""
+
+        source = ast.unparse(_the_waiting_function())
+        assert "if person_is_waiting:" in source
+        assert "longest_a_turn_may_take" in source
+
+    def test_silence_still_ends_it_whatever_the_ceiling(self) -> None:
+        """The ceiling only binds something producing continuously."""
+
+        source = ast.unparse(_the_waiting_function())
+        assert "still_producing" in source
+        assert "break" in source
