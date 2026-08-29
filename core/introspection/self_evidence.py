@@ -91,10 +91,25 @@ _HER_PARTS = (
 #: A possessive says what it is attached to, and the list of what she has is
 #: already here. She has subsystems and lanes and a runtime. She does not have
 #: a friend, a sourdough, or a deploy.
+#: A path, a module, or a filename. Anything with a directory separator and no
+#: spaces, or a bare name carrying a source extension — the shapes a person
+#: writes when naming code rather than describing it.
+_A_FILE_OR_A_PATH = re.compile(
+    r"\S*/\S+|\b[\w.]+\.(?:py|js|ts|tsx|jsx|json|toml|yaml|yml|md|txt|cfg|ini|sh)\b"
+)
+
+#: A part of hers needs to be claimed as hers. The bare name of one used to
+#: count on its own, and the names are ordinary words: memory, runtime,
+#: processor, state. So "the memory tests are broken" was her memory, a
+#: directory called runtime was her runtime, and a processor spec was her
+#: processor.
+#:
+#: What is left is the possessive — "your memory" — and the second person
+#: itself, which is how the real questions are actually written: "how much
+#: memory are you using" says "are you", and "is your runtime ok" says "your".
 _SELF_SUBJECT_RE = re.compile(
     r"\b(?:you'?re|yours|of\s+yours|are\s+you)\b|"
-    rf"\byour\s+(?:\w+\s+){{0,2}}(?:{_HER_PARTS})\b|"
-    rf"\b(?:{_HER_PARTS})\b",
+    rf"\byour\s+(?:\w+\s+){{0,2}}(?:{_HER_PARTS})\b",
     re.IGNORECASE,
 )
 #: LIVE, 2026-08-22: "off-the-shelf assistants" matched `\boff\b` and a request
@@ -361,7 +376,22 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # setting the way "in this room" is: the question is about whoever is in
     # it. What is left after the setting is removed is what is being asked
     # about.
-    subject = _THE_PLACE_SHE_IS.sub(" ", asked)
+    # A path is a name, not a sentence about her.
+    #
+    # LIVE, 2026-08-28: "Debug the failing pytest in
+    # core/runtime/conversation_support.py and
+    # core/orchestrator/mixins/tool_execution.py." was answered "The machine is
+    # at 10.0% processor and 50.0% memory right now." The self-subject matched
+    # on "runtime" inside a directory name and the trouble word matched on
+    # "failing pytest", and between them a debugging request became a request
+    # for telemetry.
+    #
+    # Same shape as "your friend" and "something's off" turning a sourdough
+    # question into one: a word read without what it is attached to. Removed
+    # before the subject is read, because whatever a file is called says
+    # nothing about who the question is about.
+    subject = _A_FILE_OR_A_PATH.sub(" ", asked)
+    subject = _THE_PLACE_SHE_IS.sub(" ", subject)
     # "What are you doing later" is her plans, not her instruments.
     #
     # A weak state word beside a future reference is asking what she WILL do,

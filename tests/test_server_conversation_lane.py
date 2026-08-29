@@ -14754,6 +14754,9 @@ async def test_chat_exchange_atomic_persistence_keeps_ui_session_id(monkeypatch)
                     "cid": "ui-session-check",
                     "session_id": "desktop-ui-session-42",
                     "enqueue_memory_log": True,
+                    # Every completed exchange now carries its metadata to the
+                    # persistence call, None when the turn produced none.
+                    "exchange_metadata": None,
                 },
         )
     ]

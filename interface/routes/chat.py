@@ -6941,6 +6941,7 @@ async def _run_cognitive_engine_chat_turn(
         )
         logger.info("Foreground final-binding stages: %s", final_binding_stages)
 
+    caller_named_a_budget = timeout_s is not None
     timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
     # The outermost clock, and a flat number chosen before anything knew what
     # this answer would cost. Everything else is nested in it and takes the
@@ -6953,7 +6954,11 @@ async def _run_cognitive_engine_chat_turn(
     # worker adds for thinking — and the same ceiling as the wait it contains.
     # An unmeasured rate raises nothing, and a turn that finishes sooner
     # finishes sooner.
-    timeout_s = max(timeout_s, _seconds_this_answer_needs(effective_user_message))
+    # Only where nobody named one. A caller that passes a budget means it —
+    # a repair running inside a spent turn has 0.1 seconds left on purpose,
+    # and raising that to the measured floor hands it a fresh turn's worth.
+    if not caller_named_a_budget:
+        timeout_s = max(timeout_s, _seconds_this_answer_needs(effective_user_message))
     turn_deadline = turn_budget_started_at + timeout_s
 
     def _remaining_turn_budget() -> float:
