@@ -317,6 +317,26 @@ def _asks_after_her_rather_than_her_instruments(text: str) -> bool:
     return bool(_ASKING_AFTER_SOMEBODY.match(said))
 
 
+
+def _the_question_after_a_lead_in(text: str) -> str:
+    """What is being asked, when a lead-in clause introduces it.
+
+    A colon separates an instruction about the answer from the thing being
+    asked. Returns the tail only when the tail is the part that speaks to her,
+    so a lead-in naming her — "about your memory: how much is left" — keeps
+    its subject.
+    """
+
+    head, sep, tail = str(text or "").partition(":")
+    if not sep:
+        return str(text or "")
+    tail = tail.strip()
+    if not tail:
+        return str(text or "")
+    if _SELF_SUBJECT_RE.search(head) or not _SELF_SUBJECT_RE.search(tail):
+        return str(text or "")
+    return tail
+
 def asks_about_own_operational_state(text: Any) -> bool:
     """True when the turn asks what is wrong with HER, not with something else.
 
@@ -390,6 +410,21 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # question into one: a word read without what it is attached to. Removed
     # before the subject is read, because whatever a file is called says
     # nothing about who the question is about.
+    # Where a lead-in ends in a colon and the question follows it, the
+    # question is what comes after.
+    #
+    # LIVE, 2026-08-28: "Finish with a short status: are you still coherent, on
+    # the same thread, and able to continue?" was answered "The machine is at
+    # 10.0% processor and 50.0% memory right now." The self-subject came from
+    # "are you", after the colon, and the enquiry word came from "a short
+    # status", before it — where "status" describes the shape of the reply, not
+    # a thing being asked about. Two clauses, one word taken from each, and a
+    # question about staying on the thread became a hardware reading.
+    #
+    # Only when the self-subject is on the far side, so a real lead-in that
+    # carries the subject itself — "about your memory: how much is left" — is
+    # left alone.
+    asked = _the_question_after_a_lead_in(asked)
     subject = _A_FILE_OR_A_PATH.sub(" ", asked)
     subject = _THE_PLACE_SHE_IS.sub(" ", subject)
     # "What are you doing later" is her plans, not her instruments.

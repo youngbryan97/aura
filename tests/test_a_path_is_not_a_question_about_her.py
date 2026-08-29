@@ -54,3 +54,33 @@ def test_a_path_beside_a_real_question_about_her_still_reaches_her() -> None:
         )
         is True
     )
+
+
+def test_a_lead_in_about_the_answers_shape_is_not_the_question() -> None:
+    """Two clauses, one word taken from each, and a check-in became a reading.
+
+    Live on 2026-08-28: "Finish with a short status: are you still coherent, on
+    the same thread, and able to continue?" was answered "The machine is at
+    10.0% processor and 50.0% memory right now." The self-subject came from
+    "are you", after the colon; the enquiry word came from "a short status",
+    before it, where "status" describes the shape of the reply rather than a
+    thing being asked about.
+    """
+
+    assert (
+        asks_about_own_operational_state(
+            "Finish with a short status: are you still coherent, on the same "
+            "thread, and able to continue?"
+        )
+        is False
+    )
+
+
+def test_a_lead_in_that_names_her_keeps_its_subject() -> None:
+    """Only the case where the question is on the far side of the colon."""
+
+    assert asks_about_own_operational_state("about your memory: how much is left") is True
+    assert (
+        asks_about_own_operational_state("Give me a status: what is your processor doing")
+        is True
+    )
