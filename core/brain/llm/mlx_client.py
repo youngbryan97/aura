@@ -17277,7 +17277,22 @@ def _native_xml_tool_payload(
     # downstream would ever learn the model asked for two things.
     # A stray parameter after the close may have been meant for THIS call, so
     # taking the call without it would change what was asked for.
-    if suffix and "<parameter" in suffix:
+    #
+    # It is only stray when nothing follows that could own it. A second
+    # complete call contains parameters of its own, and this test ran before
+    # the one below that exists to handle exactly that — so two well-formed
+    # calls were refused for the crime of the second one containing the word
+    # "parameter".
+    #
+    # LIVE, 2026-08-28: asked to read a library's docs and use it, the model
+    # emitted two correct file_operation calls, the first complete and the
+    # second cut off mid-path by the budget. Both were thrown away, the raw
+    # envelope leaked into the user-facing draft, and the turn ended on an
+    # apology. The first call was exactly right.
+    _something_after_could_own_it = bool(
+        suffix and ("<function" in suffix or "<tool_call" in suffix)
+    )
+    if suffix and "<parameter" in suffix and not _something_after_could_own_it:
         return None, "native XML envelope carried a parameter after the function"
     # A second function is a second thing to do, and this loop takes more than
     # one turn: the first call is run, and the model is asked again with the
