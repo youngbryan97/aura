@@ -12,6 +12,10 @@ second that will drift from it.
 
 from __future__ import annotations
 
+import ast
+
+import pytest
+
 from core.skills.code_repl import _the_code_inside_any_fence
 
 
@@ -132,3 +136,72 @@ class TestThePathPreambleTheSandboxAlreadyDid:
     def test_code_that_never_mentions_sys_is_returned_unchanged(self) -> None:
         code = "from ledgerkit import Ledger\nprint(Ledger('a'))\n"
         assert self._drop(code) == code
+
+
+class TestThePreambleIsFoundWhereverItIsWritten:
+    """A careful model puts the import in a try, which is where it was hiding.
+
+    LIVE 2026-08-29: the turn still died on "'sys' is not part of the library
+    this sandbox was given" after the removal had shipped, because the scan
+    read only the top level of the file and the model had written the preamble
+    inside a try block — which is what anyone writes when an import might fail.
+    """
+
+    LIBRARY = "/tmp/ledgerkit"
+
+    def _drop(self, code: str) -> str:
+        from core.skills.code_repl import _without_a_path_preamble_for
+
+        return _without_a_path_preamble_for(code, self.LIBRARY)
+
+    @pytest.mark.parametrize(
+        ("where", "code"),
+        [
+            (
+                "a try block",
+                "try:\n"
+                "    import sys\n"
+                "    sys.path.insert(0, '/tmp/ledgerkit')\n"
+                "    from ledgerkit import Ledger\n"
+                "except ImportError as exc:\n"
+                "    print(exc)\n",
+            ),
+            (
+                "an if",
+                "import sys\n"
+                "if True:\n"
+                "    sys.path.insert(0, '/tmp/ledgerkit')\n"
+                "from ledgerkit import Ledger\n",
+            ),
+            (
+                "a function",
+                "import sys\n"
+                "def setup():\n"
+                "    sys.path.append('/tmp/ledgerkit')\n"
+                "setup()\n"
+                "from ledgerkit import Ledger\n",
+            ),
+            (
+                "a call across several lines",
+                "import sys\n"
+                "sys.path.insert(\n"
+                "    0,\n"
+                "    '/tmp/ledgerkit',\n"
+                ")\n"
+                "from ledgerkit import Ledger\n",
+            ),
+        ],
+    )
+    def test_it_is_found_and_the_code_still_parses(self, where: str, code: str) -> None:
+        left = self._drop(code)
+        assert "sys" not in left, f"the preamble survived in {where}"
+        ast.parse(left)  # blanking the only statement in a block would break this
+        assert "from ledgerkit import Ledger" in left
+
+    def test_the_block_that_held_it_keeps_a_body(self) -> None:
+        """pass, not a blank line: an if with no body is a syntax error."""
+
+        left = self._drop(
+            "import sys\nif True:\n    sys.path.insert(0, '/tmp/ledgerkit')\nprint(1)\n"
+        )
+        assert "    pass" in left

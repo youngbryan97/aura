@@ -527,8 +527,15 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
     except (SyntaxError, ValueError):
         return code
 
+    # Anywhere in the file, not only at the top of it.
+    #
+    # LIVE 2026-08-29: the turn still died on "'sys' is not part of the library
+    # this sandbox was given" after this ran, because the model had written the
+    # preamble inside a try block — which is what anyone writes when an import
+    # might fail, and is exactly the shape a careful model reaches for.
+    # Scanning tree.body saw a try statement and nothing inside it.
     redundant: list[ast.stmt] = []
-    for node in tree.body:
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
             continue
         called = node.value.func
@@ -552,19 +559,28 @@ def _without_a_path_preamble_for(code: str, library_root: str) -> str:
         for node in ast.walk(tree)
     )
     if not still_used:
-        for node in tree.body:
+        for node in ast.walk(tree):
             if isinstance(node, ast.Import) and [a.name for a in node.names] == ["sys"]:
                 dropped.add(id(node))
                 redundant.append(node)
 
-    # Blanked rather than unparsed: every other line keeps its number, so a
-    # traceback still points at what the model wrote.
+    # Replaced in place rather than unparsed: every other line keeps its
+    # number, so a traceback still points at what the model wrote.
+    #
+    # ``pass`` rather than a blank line, because the statement may be the only
+    # one in its block. "if ok: sys.path.insert(...)" blanked to nothing is an
+    # if with no body, and code that was going to fail on a banned import now
+    # fails to parse instead — a worse answer than the one it replaced. Same
+    # indentation, so the block it belonged to still owns it.
     lines = code.splitlines()
     for node in redundant:
         last = getattr(node, "end_lineno", node.lineno) or node.lineno
         for number in range(node.lineno, last + 1):
-            if 1 <= number <= len(lines):
-                lines[number - 1] = ""
+            if not 1 <= number <= len(lines):
+                continue
+            original = lines[number - 1]
+            indent = original[: len(original) - len(original.lstrip())]
+            lines[number - 1] = f"{indent}pass" if number == node.lineno else ""
     logger.info(
         "code_repl: dropped %d sys.path line(s) that cannot affect this "
         "sandbox%s.",
