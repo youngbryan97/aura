@@ -23008,6 +23008,35 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                 )
                                 _live_turn_trace["full_mind_proof_degraded"] = True
                                 lane = contract_lane
+                            elif _authored_answer_can_serve_unfinished(
+                                candidate_contract
+                            ) and str(reply_text or "").strip():
+                                # Her own words, unfinished, beat an apology.
+                                #
+                                # The salvage below exists for exactly this and
+                                # this exit never consulted it — the accident
+                                # _authored_answer_can_serve's own comment
+                                # warns about, where a proof is disclosable at
+                                # one exit and fatal at the next.
+                                #
+                                # LIVE 2026-08-29: asked whether she can invent
+                                # a new way of judging a situation, she wrote
+                                # 1,056 tokens, was marked
+                                # authored_answer_incomplete:retry_exhausted,
+                                # and the person got "I couldn't get to an
+                                # answer I'd stand behind on that one." An
+                                # apology is not more complete than a partial
+                                # answer. It carries nothing.
+                                logger.warning(
+                                    "Desktop turn served her own UNFINISHED answer rather "
+                                    "than an apology (missing: %s).",
+                                    ",".join(
+                                        candidate_contract.get("full_mind_missing_proofs") or ()
+                                    ),
+                                )
+                                _live_turn_trace["full_mind_proof_degraded"] = True
+                                _live_turn_trace["authored_answer_unfinished"] = True
+                                lane = contract_lane
                             elif _bounded_runtime_grounding_can_serve(candidate_contract):
                                 grounded_path = str(
                                     candidate_contract.get("response_path") or "runtime_grounding"
