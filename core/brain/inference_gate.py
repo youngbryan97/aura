@@ -4873,7 +4873,9 @@ class InferenceGate:
 
 
     @staticmethod
-    def _tokens_the_turn_is_allowed_to_take(model_ceiling: int = 0) -> int:
+    def _tokens_the_turn_is_allowed_to_take(
+        model_ceiling: int = 0, *, seconds: float = 0.0
+    ) -> int:
         """How much a user-facing turn may say, from the time it actually has.
 
         The reserve discovers the room a thinking turn needs by running out of
@@ -4890,6 +4892,14 @@ class InferenceGate:
 
         Zero where the rate is unmeasured, which leaves the existing budget
         exactly as it was.
+
+        ``seconds`` is the time THIS turn has left, and it is not the same as
+        the most a turn may ever be given. Sizing against the maximum while
+        generation is handed the remainder over-promises by exactly what the
+        turn already spent — and on a second attempt, after a first reply
+        failed its identity check, that is most of the clock. LIVE 2026-08-30:
+        4,167 tokens budgeted, 166.9s actually available, generation aborted at
+        the deadline, and every token produced in those 166 seconds discarded.
         """
 
         try:
@@ -4899,7 +4909,10 @@ class InferenceGate:
             )
         except (ImportError, AttributeError):
             return 0
-        allowed = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+        allowed = float(seconds) if float(seconds or 0.0) > 0.0 else float(
+            USER_FACING_COMPLETION_DEADLINE_MAX_S
+        )
+        allowed = min(allowed, float(USER_FACING_COMPLETION_DEADLINE_MAX_S))
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget
@@ -13944,6 +13957,18 @@ class InferenceGate:
             )
             if bool(context.get(name, False))
         ]
+        # Whether anybody is waiting for this. Computed here rather than
+        # inside the branch below, because a use of it further down sits
+        # OUTSIDE that branch — so a turn whose clock was blocked reached the
+        # use having never made the assignment, and raised UnboundLocalError
+        # in the middle of generating.
+        _is_user_facing = (
+            not benchmark_request
+            and not web_interlocutor_contract
+            and (self._origin_is_user_facing(origin) or requested_tier == "primary")
+            and not health_probe
+            and not proof_evaluation_contract
+        )
         if _clock_blocked_by:
             # Why the deadline was never reconsidered. Three conditions can
             # skip this and the log said nothing about any of them, so a turn
@@ -14015,13 +14040,6 @@ class InferenceGate:
             # given 516 seconds and read three files; without one it was given
             # 148, and the answer — over a prompt its own worker measured at
             # 120 seconds to read — was cancelled with nothing said.
-            _is_user_facing = (
-                not benchmark_request
-                and not web_interlocutor_contract
-                and (self._origin_is_user_facing(origin) or requested_tier == "primary")
-                and not health_probe
-                and not proof_evaluation_contract
-            )
             # Anyone waiting for this answer, or a turn with a floor or a
             # second pass. The two special cases were the whole condition, so
             # an ordinary question — no floor, one generation — never had its
@@ -14109,7 +14127,9 @@ class InferenceGate:
                 # ends up outside the clock that was sized for it.
                 _affordable = max(
                     0,
-                    self._tokens_the_turn_is_allowed_to_take()
+                    self._tokens_the_turn_is_allowed_to_take(
+                        seconds=float(primary_timeout or timeout_val or 0.0)
+                    )
                     - self._reasoning_reserve(),
                 )
                 if _affordable > max_tokens:
