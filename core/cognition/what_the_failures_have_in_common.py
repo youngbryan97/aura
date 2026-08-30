@@ -9,6 +9,10 @@ fits, so: try harder, or change what trying means?
                               they fail on the SAME cases. No amount of
                               looking helps, because the thing is not in the
                               space being looked through.
+    something she cannot see  the record contradicts itself: the same thing,
+                              twice, came out two ways. No function of what
+                              she can see fits, so neither of the other two
+                              readings is even the right question.
 
 Treating the second as the first is the expensive mistake: more compute
 against a hypothesis space that does not contain the answer buys nothing, and
@@ -38,6 +42,7 @@ from typing import Any, Sequence
 
 __all__ = [
     "A_SEARCH_FAILURE",
+    "SOMETHING_SHE_CANNOT_SEE",
     "how_much_the_failures_share",
     "A_REPRESENTATION_FAILURE",
     "NOTHING_FAILED",
@@ -60,6 +65,11 @@ A_SEARCH_FAILURE = "a search that went badly"
 #: language being unable to say something looks like from inside.
 A_REPRESENTATION_FAILURE = "a language that cannot say it"
 
+#: The record is not a function of what she observed, so nothing that reads
+#: only what she observed can fit it. Asked before the other two, because both
+#: of them assume a best hypothesis exists to read the leftovers of.
+SOMETHING_SHE_CANNOT_SEE = "a quantity she was not reading"
+
 #: Too few hypotheses got far enough to compare, so there is nothing to read.
 UNDECIDED = "not enough fitted to tell"
 
@@ -78,12 +88,21 @@ class WhyNothingFits:
     #: How much shorter the leftovers are described together than apart. A
     #: second opinion on the same question, from a different direction.
     shared: int = 0
+    #: What the record proves about a quantity she was not reading, if it
+    #: proves anything.
+    unseen: Any = None
 
     @property
     def is_the_language(self) -> bool:
         return self.because == A_REPRESENTATION_FAILURE
 
+    @property
+    def is_something_unseen(self) -> bool:
+        return self.because == SOMETHING_SHE_CANNOT_SEE
+
     def describes(self) -> str:
+        if self.is_something_unseen:
+            return f"{self.because}: {self.unseen}"
         if self.because in {NOTHING_FAILED, UNDECIDED}:
             return self.because
         return (
@@ -171,6 +190,23 @@ def why_nothing_fits(
     pairs = [(tuple(before), tuple(after)) for before, after in transitions]
     if not pairs:
         return WhyNothingFits(UNDECIDED)
+
+    # Before asking which reading came closest: is there a reading at all? A
+    # record where the same state came out two ways admits no function of that
+    # state, so "the best of them missed these cases" is a sentence about a
+    # best that cannot exist, and both other verdicts would be answering a
+    # question the evidence has already closed.
+    from core.cognition.something_she_cannot_see import what_she_cannot_see
+
+    unseen = what_she_cannot_see(pairs)
+    if unseen.anything:
+        return WhyNothingFits(
+            SOMETHING_SHE_CANNOT_SEE,
+            considered=len(pairs),
+            together_on=len(unseen.disagreeing_steps),
+            unseen=unseen,
+        )
+
     if hypotheses is None:
         from core.cognition.an_invented_kind import every_meaning
 

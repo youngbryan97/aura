@@ -14,8 +14,8 @@ how forgetting goes wrong.
 
 A word earns by being used. Nothing needs to be tallied to know that: the
 meanings she has settled name the words they are made of, so use is read off
-what she learned rather than counted alongside it, and a count that drifts from
-the truth is not a thing that can happen here.
+what she learned rather than counted alongside it. A count that drifts from
+what it counts cannot happen here.
 
 A maker earns by what it can still reach. It may have made nothing yet and be
 the most valuable thing in the language, which is exactly why its admission
