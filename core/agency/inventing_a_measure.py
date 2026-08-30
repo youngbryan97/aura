@@ -186,7 +186,7 @@ OF: dict[str, Callable[[tuple[float, float, int, int], Any], float]] = {
 }
 
 
-# ── how to sum the takings up ────────────────────────────────────────────
+# ── how to combine what was taken ────────────────────────────────────────
 
 SUMMED: dict[str, Callable[[Sequence[float]], float]] = {
     "on average": lambda taken: sum(taken) / len(taken),
