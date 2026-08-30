@@ -1013,6 +1013,11 @@ _FOREGROUND_OWNER_STALE_AFTER: float | None = None
 # takes the lane from a background holder immediately, and waits its turn
 # behind another user-facing one.
 _FOREGROUND_OWNER_IS_USER_FACING = False
+
+#: How long a warmup retry will wait for a reply to finish before standing
+#: down. Longer than a reply takes, shorter than anybody would sit staring at
+#: a lane that is not recovering.
+_WAIT_OUT_A_REPLY_S = 30.0
 # No foreground owner may be evicted before this, whatever anyone declares.
 # A newcomer with a 5s budget must not be able to steal a lane from a turn
 # that is legitimately still working.
@@ -16605,7 +16610,28 @@ class MLXLocalClient:
         """Reclaim and reboot the worker between two warmup attempts.
 
         Split out so the caller can put ONE bound around the whole recovery.
+
+        Never while somebody is being answered. A warmup exists to make the
+        lane ready, and tearing the worker down mid-reply to do it defeats the
+        thing it is for: LIVE 2026-08-29, a person interrupted a long errand,
+        was correctly given the lane, and had her answer cancelled underneath
+        her by a retry — "generation cancelled during expected reboot
+        (warmup_precompile_retry)" — receiving a stub about being cut short.
+
+        Waiting is the whole remedy. A reply takes seconds and the retry has
+        its own budget to spend; if that budget runs out while a person is
+        being served, the honest outcome is a warmup that did not get its
+        retry, not a person who did not get her answer.
         """
+        waited = 0.0
+        while _FOREGROUND_OWNER_IS_USER_FACING and waited < _WAIT_OUT_A_REPLY_S:
+            await asyncio.sleep(0.25)
+            waited += 0.25
+        if _FOREGROUND_OWNER_IS_USER_FACING:
+            logger.info(
+                "[MLX] warmup retry stood down: somebody is still being answered"
+            )
+            return
         await asyncio.to_thread(gc.collect)
         await self.reboot_worker(reason="warmup_precompile_retry", mark_failed=False)
         # A freshly rebooted worker needs a moment before it can answer; the

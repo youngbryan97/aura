@@ -78,3 +78,29 @@ def test_her_own_reasoning_still_says_it_is_read_by_code():
 def test_and_a_person_still_outranks_background_work():
     body = owner_context_source()
     assert "A person outranks background work, immediately." in body
+
+
+# ── and a warmup does not tear down the answer it exists to enable ───────
+
+def test_a_warmup_retry_stands_down_while_somebody_is_being_answered():
+    """LIVE 2026-08-29: a person interrupted a long errand, was correctly given
+    the lane, and had her answer cancelled underneath her by a warmup retry —
+    "generation cancelled during expected reboot (warmup_precompile_retry)" —
+    receiving a stub about being cut short.
+
+    A warmup exists to make the lane ready. Tearing the worker down mid-reply
+    to do it defeats the thing it is for.
+    """
+    body = inspect.getsource(mlx_client.MLXLocalClient._recover_worker_for_warmup_retry)
+    assert "_FOREGROUND_OWNER_IS_USER_FACING" in body
+    assert "stood down" in body
+
+
+def test_and_it_gives_up_rather_than_waiting_for_ever():
+    body = inspect.getsource(mlx_client.MLXLocalClient._recover_worker_for_warmup_retry)
+    assert "_WAIT_OUT_A_REPLY_S" in body
+    assert mlx_client._WAIT_OUT_A_REPLY_S <= 60.0
+
+
+def test_the_wait_is_longer_than_a_reply_takes():
+    assert mlx_client._WAIT_OUT_A_REPLY_S >= 10.0
