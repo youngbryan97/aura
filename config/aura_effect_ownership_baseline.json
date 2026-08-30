@@ -3409,6 +3409,30 @@
       "scope": "<module>.ToolOrchestrator.execute_python"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/what_she_invented.py",
+      "scope": "<module>.forget_everything"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/what_she_invented.py",
+      "scope": "<module>.keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/what_she_invented.py",
+      "scope": "<module>.keep"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -3583,6 +3607,22 @@
       "count": 1,
       "path": "core/brain/identity.py",
       "scope": "<module>.IdentityService.save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/context_budget.py",
+      "scope": "<module>.save_volatility"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/brain/llm/context_budget.py",
+      "scope": "<module>.save_volatility_async"
     },
     {
       "callee": "<file_write_gateway>.append_text",
@@ -3879,6 +3919,30 @@
       "count": 1,
       "path": "core/cognition/relation_language.py",
       "scope": "<module>.RelationLanguage.save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/cognition/what_she_gave_meaning.py",
+      "scope": "<module>.forget_everything"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/cognition/what_she_gave_meaning.py",
+      "scope": "<module>.keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/cognition/what_she_gave_meaning.py",
+      "scope": "<module>.keep"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -12649,6 +12713,14 @@
       "scope": "<module>.MacOSSandbox.execute_command"
     },
     {
+      "callee": "written.write_text",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
+      "path": "core/sandbox/static_check.py",
+      "scope": "<module>._names_that_are_not_defined"
+    },
+    {
       "callee": "self.path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -14103,6 +14175,14 @@
       "count": 1,
       "path": "core/runtime/subprocess_gateway.py",
       "scope": "<module>.SubprocessGateway.spawn_python_process"
+    },
+    {
+      "callee": "subprocess.run",
+      "canonical_owner": false,
+      "category": "raw_subprocess",
+      "count": 1,
+      "path": "core/sandbox/static_check.py",
+      "scope": "<module>._names_that_are_not_defined"
     },
     {
       "callee": "<state_gateway>.mutate",
@@ -15994,6 +16074,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "9bc32ef8b0baeabf5ca3b5590287e46846f73aa2801f5af62864194e7279b154",
+  "inventory_sha256": "9aff4ae1edcec4f031a5acfb3466c14d8f443f64b4ee841d4e714c9f8047c146",
   "schema_version": 1
 }
