@@ -17,6 +17,7 @@ from core.brain.live_mind_contract import (
 from core.brain.llm.context_assembler import ContextAssembler
 from core.brain.llm.latent_cortex.output_quality import evaluate_latent_output
 from core.brain.reasoning_amplifier_flags import reasoning_amplifier_v2_enabled
+from core.brain.request_contract import project_user_surface_resume_capability
 from core.container import ServiceContainer
 from core.conversation.response_reliability import (
     assess_user_facing_reply,
@@ -2152,6 +2153,19 @@ class ResponseGenerationPhase(BasePhase):
             runtime_context = kwargs.get("context")
             if not isinstance(runtime_context, dict):
                 runtime_context = {}
+            incoming_continuation_contract = bool(
+                runtime_context.get("user_surface_completion_retry", False)
+                and runtime_context.get("user_surface_continuation_contract", False)
+            )
+            resume_capability = project_user_surface_resume_capability(
+                runtime_context,
+                continuation_contract=incoming_continuation_contract,
+                user_surface=not is_background and not is_test_run,
+            )
+            if resume_capability.rejected:
+                state.response_modifiers["exact_resume_transport_refusal"] = (
+                    resume_capability.to_dict()
+                )
             turn_completed_capabilities = completed_capabilities(
                 runtime_context.get("completed_capability_evidence")
             )
@@ -2474,6 +2488,21 @@ class ResponseGenerationPhase(BasePhase):
                             "cognitive cycle budget exhausted before resident fallback"
                         )
                     router_generation_metadata_sink: dict[str, Any] = {}
+                    final_generation_kwargs = {
+                        **resume_capability.context,
+                    }
+                    if incoming_continuation_contract:
+                        final_generation_kwargs.update(
+                            {
+                                "user_surface_continuation_contract": True,
+                                "user_surface_continuation_partial": str(
+                                    runtime_context.get(
+                                        "user_surface_continuation_partial"
+                                    )
+                                    or ""
+                                ),
+                            }
+                        )
                     think_coro = router.think(
                         messages=messages,
                         priority=1.0 if not is_background else 0.5,
@@ -2580,6 +2609,7 @@ class ResponseGenerationPhase(BasePhase):
                         hard_output_token_ceiling=visible_output_contract.hard_token_ceiling,
                         _generation_metadata_sink=router_generation_metadata_sink,
                         timeout=ordinary_timeout,
+                        **final_generation_kwargs,
                     )
                     # The tenth clock, and the same lesson as the other nine.
                     #

@@ -325,6 +325,80 @@ def validate_request_context(
     return result
 
 
+_USER_SURFACE_RESUME_FIELDS = (
+    "user_surface_continuation_resume_handle",
+    "user_surface_conversation_resume_handle",
+)
+
+
+def project_user_surface_resume_capability(
+    context: Mapping[str, Any] | None,
+    *,
+    continuation_contract: bool,
+    user_surface: bool = True,
+) -> ContextValidation:
+    """Select the one exact-cache capability this generation may consume.
+
+    The route, quick cognitive path, and full ResponseGeneration phase all
+    dispatch the resident model.  Letting each one parse these bearer tokens
+    independently caused the full phase to drop an otherwise valid
+    conversation handle while the quick phase forwarded it.  This projection
+    is the single transport rule:
+
+    * a completion retry may consume only the continuation capability;
+    * an ordinary next turn may consume only the conversation capability;
+    * malformed or conflicting values are rejected, never guessed.
+
+    The returned ``ContextValidation`` preserves refusal evidence for callers
+    that need to expose why exact resume was unavailable.
+    """
+
+    raw = context if isinstance(context, Mapping) else {}
+    present = {
+        key: raw.get(key)
+        for key in _USER_SURFACE_RESUME_FIELDS
+        if raw.get(key) not in (None, "")
+    }
+    validated = validate_request_context(present)
+    if not user_surface:
+        for key in _USER_SURFACE_RESUME_FIELDS:
+            if key in validated.context:
+                validated.rejected[key] = (
+                    "exact resume is restricted to a foreground user surface"
+                )
+                validated.context.pop(key, None)
+        return validated
+    selected = (
+        "user_surface_continuation_resume_handle"
+        if continuation_contract
+        else "user_surface_conversation_resume_handle"
+    )
+    conflicting = (
+        len(
+            {
+                key
+                for key in _USER_SURFACE_RESUME_FIELDS
+                if key in validated.context
+            }
+        )
+        > 1
+    )
+    if conflicting:
+        for key in _USER_SURFACE_RESUME_FIELDS:
+            if key in validated.context:
+                validated.rejected[key] = "conflicting exact-resume capabilities"
+                validated.context.pop(key, None)
+        return validated
+
+    for key in _USER_SURFACE_RESUME_FIELDS:
+        if key != selected and key in validated.context:
+            validated.rejected[key] = (
+                "capability does not match this generation transaction"
+            )
+            validated.context.pop(key, None)
+    return validated
+
+
 def _coerce(spec: Field_, value: Any) -> tuple[Any, str]:
     kind = spec.kind
     if kind == Kind.BOOL:
@@ -426,6 +500,7 @@ __all__ = [
     "Field_",
     "Kind",
     "normalize_tier",
+    "project_user_surface_resume_capability",
     "strict_bool",
     "validate_request_context",
 ]

@@ -12,6 +12,7 @@ from core.brain.request_contract import (
     POLICY_FIELDS,
     REQUEST_FIELDS,
     normalize_tier,
+    project_user_surface_resume_capability,
     strict_bool,
     validate_request_context,
 )
@@ -164,6 +165,59 @@ def test_conversation_resume_handle_is_a_typed_bearer_capability():
 
     assert accepted.context["user_surface_conversation_resume_handle"] == handle.lower()
     assert "user_surface_conversation_resume_handle" in malformed.rejected
+
+
+def test_exact_resume_projection_selects_only_the_transaction_owner():
+    continuation = "C1" * 16
+    conversation = "D2" * 16
+
+    ordinary = project_user_surface_resume_capability(
+        {"user_surface_conversation_resume_handle": conversation},
+        continuation_contract=False,
+    )
+    retry = project_user_surface_resume_capability(
+        {"user_surface_continuation_resume_handle": continuation},
+        continuation_contract=True,
+    )
+
+    assert ordinary.context == {
+        "user_surface_conversation_resume_handle": conversation.lower()
+    }
+    assert retry.context == {
+        "user_surface_continuation_resume_handle": continuation.lower()
+    }
+
+
+def test_exact_resume_projection_rejects_conflicts_wrong_transactions_and_backgrounds():
+    continuation = "e3" * 16
+    conversation = "f4" * 16
+
+    conflict = project_user_surface_resume_capability(
+        {
+            "user_surface_continuation_resume_handle": continuation,
+            "user_surface_conversation_resume_handle": conversation,
+        },
+        continuation_contract=False,
+    )
+    wrong_transaction = project_user_surface_resume_capability(
+        {"user_surface_continuation_resume_handle": continuation},
+        continuation_contract=False,
+    )
+    background = project_user_surface_resume_capability(
+        {"user_surface_conversation_resume_handle": conversation},
+        continuation_contract=False,
+        user_surface=False,
+    )
+
+    assert conflict.context == {}
+    assert set(conflict.rejected) == {
+        "user_surface_continuation_resume_handle",
+        "user_surface_conversation_resume_handle",
+    }
+    assert wrong_transaction.context == {}
+    assert "user_surface_continuation_resume_handle" in wrong_transaction.rejected
+    assert background.context == {}
+    assert "user_surface_conversation_resume_handle" in background.rejected
 
 
 def test_a_clean_context_reports_clean():

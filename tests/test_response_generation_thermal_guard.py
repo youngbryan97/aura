@@ -1817,6 +1817,72 @@ async def test_foreground_origin_derives_clean_completion_without_caller_labels(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("continuation_contract", "handle_key", "handle"),
+    [
+        (False, "user_surface_conversation_resume_handle", "7a" * 16),
+        (True, "user_surface_continuation_resume_handle", "8b" * 16),
+    ],
+)
+async def test_full_response_generation_forwards_the_exact_resume_capability(
+    monkeypatch,
+    continuation_contract,
+    handle_key,
+    handle,
+):
+    visible = "Use the Solaris example to distinguish memory from inference."
+    state = AuraState()
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "user"
+    state.cognition.current_mode = CognitiveMode.DELIBERATE
+    router = _Router()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [
+            {"role": "system", "content": "base live Aura context"},
+            {"role": "user", "content": "Who wrote Solaris?"},
+            {"role": "assistant", "content": "Stanislaw Lem wrote Solaris."},
+            {"role": "user", "content": visible},
+        ],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    context = {
+        "clean_user_surface_contract": True,
+        "visible_user_message": visible,
+        handle_key: handle,
+    }
+    if continuation_contract:
+        context.update(
+            {
+                "user_surface_completion_retry": True,
+                "user_surface_continuation_contract": True,
+                "user_surface_continuation_partial": "Stanislaw Lem wrote",
+            }
+        )
+
+    await phase.execute(state, context=context)
+
+    assert len(router.calls) == 1
+    call = router.calls[0]
+    assert call[handle_key] == handle
+    other_key = (
+        "user_surface_conversation_resume_handle"
+        if continuation_contract
+        else "user_surface_continuation_resume_handle"
+    )
+    assert other_key not in call
+    if continuation_contract:
+        assert call["user_surface_continuation_contract"] is True
+        assert call["user_surface_continuation_partial"] == "Stanislaw Lem wrote"
+
+
+@pytest.mark.asyncio
 async def test_response_generation_quality_gate_uses_visible_desktop_prompt(monkeypatch):
     state = AuraState()
     visible = (

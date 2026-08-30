@@ -64,6 +64,7 @@ from .live_mind_contract import (
 )
 from .llm.context_assembler import ContextAssembler
 from .reasoning_strategies import ReasoningStrategies, StrategyType
+from .request_contract import project_user_surface_resume_capability
 from .types import ThinkingMode, Thought
 
 logger = logging.getLogger(__name__)
@@ -4778,21 +4779,15 @@ class CognitiveEngine:
         continuation_partial = continuation_state_text(
             context.get("user_surface_continuation_partial")
         )
-        continuation_resume_handle = str(
-            context.get("user_surface_continuation_resume_handle") or ""
-        ).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{32}", continuation_resume_handle):
-            continuation_resume_handle = ""
-        conversation_resume_handle = str(
-            context.get("user_surface_conversation_resume_handle") or ""
-        ).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
-            conversation_resume_handle = ""
         continuation_prefix = continuation_prompt_prefix(continuation_partial)
         continuation_contract = bool(
             completion_retry_contract
             and context.get("user_surface_continuation_contract", False)
             and continuation_partial
+        )
+        resume_capability = project_user_surface_resume_capability(
+            context,
+            continuation_contract=continuation_contract,
         )
         obligation_segment = str(
             context.get("user_surface_obligation_segment") or ""
@@ -5697,14 +5692,7 @@ class CognitiveEngine:
                 router_kwargs["reply_needs_room"] = True
                 router_kwargs["user_surface_continuation_contract"] = True
                 router_kwargs["user_surface_continuation_partial"] = continuation_partial
-                if continuation_resume_handle:
-                    router_kwargs[
-                        "user_surface_continuation_resume_handle"
-                    ] = continuation_resume_handle
-            elif conversation_resume_handle:
-                router_kwargs[
-                    "user_surface_conversation_resume_handle"
-                ] = conversation_resume_handle
+            router_kwargs.update(resume_capability.context)
             if obligation_contract:
                 router_kwargs["user_surface_obligation_contract"] = True
                 router_kwargs["user_surface_obligation_segment"] = obligation_segment
