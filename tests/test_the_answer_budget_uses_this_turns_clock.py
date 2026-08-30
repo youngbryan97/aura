@@ -113,3 +113,29 @@ def test_whether_anybody_is_waiting_is_decided_before_the_branch():
         assert min(assigned_at) < min(used_at), (
             "_is_user_facing is read before every path has assigned it"
         )
+
+
+# --- reading the prompt comes out of the same clock -----------------------
+
+
+def test_a_long_prompt_leaves_less_room_for_the_answer():
+    """Only the writing was ever counted against the clock.
+
+    A ten-thousand-character prompt takes about twenty-six seconds to read at
+    the measured rate, on a turn whose first-token ceiling alone was a hundred
+    and twenty seconds.
+    """
+    short = _allowed(seconds=167.0, prompt_chars=2000)
+    long = _allowed(seconds=167.0, prompt_chars=10_364)
+    assert long < short
+
+
+def test_the_prompt_is_free_when_nobody_says_how_big_it_is():
+    """Callers that do not know keep the behaviour they had."""
+    assert _allowed(seconds=167.0, prompt_chars=0) >= _allowed(
+        seconds=167.0, prompt_chars=2000
+    )
+
+
+def test_a_prompt_that_eats_the_whole_clock_buys_no_answer():
+    assert _allowed(seconds=10.0, prompt_chars=200_000) == 0

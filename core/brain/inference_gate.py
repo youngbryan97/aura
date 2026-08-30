@@ -4874,7 +4874,7 @@ class InferenceGate:
 
     @staticmethod
     def _tokens_the_turn_is_allowed_to_take(
-        model_ceiling: int = 0, *, seconds: float = 0.0
+        model_ceiling: int = 0, *, seconds: float = 0.0, prompt_chars: int = 0
     ) -> int:
         """How much a user-facing turn may say, from the time it actually has.
 
@@ -4913,6 +4913,18 @@ class InferenceGate:
             USER_FACING_COMPLETION_DEADLINE_MAX_S
         )
         allowed = min(allowed, float(USER_FACING_COMPLETION_DEADLINE_MAX_S))
+        # Reading the prompt comes out of the same clock as writing the answer,
+        # and only the writing was counted. A ten-thousand-character prompt
+        # takes twenty-six seconds to read, and on a turn whose first-token
+        # ceiling alone was a hundred and twenty, the budget promised an answer
+        # the clock could never pay for.
+        if int(prompt_chars or 0) > 0:
+            try:
+                from core.brain.llm.mlx_client import seconds_to_read
+
+                allowed -= float(seconds_to_read(int(prompt_chars)))
+            except (ImportError, AttributeError, TypeError, ValueError):
+                pass
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget
@@ -14128,7 +14140,8 @@ class InferenceGate:
                 _affordable = max(
                     0,
                     self._tokens_the_turn_is_allowed_to_take(
-                        seconds=float(primary_timeout or timeout_val or 0.0)
+                        seconds=float(primary_timeout or timeout_val or 0.0),
+                        prompt_chars=int(prompt_chars or 0),
                     )
                     - self._reasoning_reserve(),
                 )

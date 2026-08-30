@@ -17415,6 +17415,33 @@ class MLXLocalClient:
                 log("MLX client finalizer could not close cleanly: %s", exc)
 
 
+def seconds_to_read(prompt_chars: int, client: Any = None) -> float:
+    """How long this worker takes to read a prompt of this size, as measured.
+
+    The turn's clock has to cover reading the prompt as well as writing the
+    answer, and only the writing was ever counted. A ten-thousand-character
+    prompt takes most of a foreground turn to read, so a budget sized on decode
+    alone promises an answer the clock cannot pay for — generation is then
+    aborted at the deadline and everything produced is discarded.
+
+    Pessimistic where nothing has been measured, for the reason
+    ``_measured_prefill_rate`` gives: being generous with an unmeasured worker
+    costs a little latency, and being mean with it costs the answer.
+    """
+    chars = max(0, int(prompt_chars or 0))
+    if chars <= 0:
+        return 0.0
+    rate = _UNMEASURED_PREFILL_RATE
+    if client is not None:
+        try:
+            rate = float(client._measured_prefill_rate())
+        except (AttributeError, TypeError, ValueError):
+            rate = _UNMEASURED_PREFILL_RATE
+    if not (rate > 0.0):
+        rate = _UNMEASURED_PREFILL_RATE
+    return (chars / _CHARS_PER_TOKEN / rate) * _PREFILL_HEADROOM
+
+
 def get_mlx_client(
     model_path: str | None = None,
     *,
