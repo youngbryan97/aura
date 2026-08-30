@@ -1,6 +1,6 @@
 # docs/
 
-Ninety-one files live here. This is what's in them.
+102 files live here. This is what's in them.
 
 If what you actually need to know is *whether a given file is still true*,
 that's [DOC_STATUS.md](DOC_STATUS.md) — it splits everything into current,
@@ -59,6 +59,16 @@ Long-running lines of work, each with its own ledger.
   [RLC_SPARK_LITERATURE.md](RLC_SPARK_LITERATURE.md),
   [RLC_KNOWLEDGE_SOURCE_MATRIX.md](RLC_KNOWLEDGE_SOURCE_MATRIX.md),
   [SPARK_PRETRAINING_LEGS.md](SPARK_PRETRAINING_LEGS.md)
+- **Language substrate and generality** — the programme for learning,
+  representing, and composing new abstractions.
+  [LANGUAGE_SUBSTRATE_AND_GENERALITY.md](LANGUAGE_SUBSTRATE_AND_GENERALITY.md)
+  is the landing page; then
+  [GENERALITY_ANALYSIS.md](GENERALITY_ANALYSIS.md) (decomposition and
+  literature), [GENERALITY_TODO.md](GENERALITY_TODO.md) (the full backlog),
+  [ENDOGENOUS_LANGUAGE_PATHWAY.md](ENDOGENOUS_LANGUAGE_PATHWAY.md) (state →
+  language), [FRONTIER_GENERAL_ARC.md](FRONTIER_GENERAL_ARC.md) (the
+  frontier-general reframe),
+  [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md)
 - **Consciousness and integration** — [WHOLE_SYSTEM_PHI.md](WHOLE_SYSTEM_PHI.md),
   [ORGANISMAL_WORKSPACE_THEORY.md](ORGANISMAL_WORKSPACE_THEORY.md),
   [INNER_LIGHT_TEST.md](INNER_LIGHT_TEST.md),

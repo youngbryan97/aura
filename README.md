@@ -146,14 +146,15 @@ from how confident the prose sounds.
 - `core/brain/llm/continuous_substrate.py` is a configurable 64-to-512 neuron
   Liquid Time-Constant ODE running at ~20 Hz. CPU-only numpy with explicit-Euler
   integration plus stochastic perturbation; `get_state_summary()` derives
-  valence/arousal/dominance/phi from fixed projections of the live state vector,
-  so readouts reflect actual dynamics. `AURA_SUBSTRATE_DIM` scales this path
+  valence/arousal/dominance/phi from adaptive projections of the live state vector
+  (grounded in external reality via `adapt_projections()`),
   without changing callers.
 - `core/brain/llm/substrate_token_generator.py` is the substrate-first readout:
-  it tries a learned readout head over the live substrate before calling the
-  transformer and falls back to the Cortex when substrate prediction error
-  exceeds threshold. This makes the substrate the first compute path for
-  lightweight generation rather than only a sidecar steering signal.
+  it uses an untrained random projection onto a 32-word proto vocabulary from
+  the live substrate before calling the transformer, and falls back to the
+  Cortex when substrate prediction error exceeds threshold. A real
+  substrate-first readout means a trained head over the model vocabulary —
+  this is the scaffold for that, not the claim.
 - `core/brain/llm/sensorimotor_grounding.py` maps camera/screen/audio
   observations into the substrate input vector, so live sensor events perturb
   the ODE directly instead of arriving only as text/tool summaries.
@@ -318,6 +319,39 @@ defects in dependency order.
 
 ---
 
+## Language substrate and generality
+
+The question: can Aura learn a new representation from experience, invent a
+reusable abstraction, apply it in an unrelated domain, and improve at doing
+this again?
+
+**Relation induction** — `core/cognition/relation_language.py` learns
+structured transformation rules from paired observations. Validated on
+held-out transitions; must compress (substitution tables refused, noise
+invents nothing). Works across words, colours, records, and grids. Composition
+("mirror then rotate") reaches 20 of 120 battery problems unreachable
+without it. Transfer across worlds and representations measured with a
+cost-of-wrong-prior null.
+
+**Endogenous language pathway** — 12 modules in `core/brain/llm/endogenous_*.py`.
+A trained, causal path from Aura's 74-dimension cognitive state into the
+transformer's output distribution: `z_Aura → Δlogits → language`. First fit
+on 1,629 live turns (9B lane): held-out gain 0.0208 nats, paired recovery
+54.0% (p = 0.043). No generation has been biased by the pathway yet.
+
+**Ghost substrate** — `core/ghost/` (6 modules). Hash-chained continuity across
+substrate swaps. Four organs: causal integration, ghost line, hack guard,
+provenance.
+
+**Whole-system Φ and Inner Light** — honest integration measurement, not a
+consciousness claim. The Inner Light test scores Aura's activity on four
+neuroscience markers against six negative controls; only the intact system
+is 4/4. Enforced in code: `PhiEstimate.claim`.
+
+Full details: [docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md](docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md)
+
+---
+
 ## Why Aura is Different
 
 Most "AI companion" projects do the same thing. Store a mood number. Paste it
@@ -348,6 +382,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Evidence boundary](#evidence-boundary)
 - [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md)
 - [Recursive Latent Cortex](#recursive-latent-cortex) — the flagship research programme
+- [Language substrate and generality](#language-substrate-and-generality) — learning new abstractions from experience
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
 - [Decisive evidence runner](#decisive-evidence-runner)
@@ -634,11 +669,11 @@ Hot-reload button in the UI for code changes.
 
 Anything the system actually does — sending a response, calling a tool, writing
 a memory, starting an initiative, mutating state — has to pass through one
-function: `UnifiedWill.decide()` in `core/will.py`.
+function: `UnifiedWill.decide()` in `core/governance/will.py` (`core/will.py` is the facade).
 
 ```
 Action request
-  -> UnifiedWill.decide()                 [core/will.py]
+  -> UnifiedWill.decide()                 [core/governance/will.py]
      -> SubstrateAuthority                [field coherence, somatic veto]
      -> CanonicalSelf                     [identity alignment]
      -> Affect valence                    [emotional weighting]
@@ -677,7 +712,8 @@ layers.
 
 On top of that, the precision sampler
 (`core/consciousness/precision_sampler.py`) modulates temperature based on
-active-inference prediction error, and the affective circumplex
+metabolic state (Pneuma arousal/circumplex) and modulates `top_p` based on MHAF
+topological attractor count, and the affective circumplex
 (`core/affect/affective_circumplex.py`) maps somatic state to generation
 parameters.
 
@@ -738,7 +774,7 @@ the null baseline. Additional adversarial guards: constant-valued input nodes
 must contribute zero φ, and stronger causal coupling must yield strictly higher
 φ than noise.
 
-Full 32-node refresh runs in <2 s with K-subsystem parallelism via a thread
+Full 32-node refresh runs in ~150 ms with K-subsystem parallelism via a thread
 pool; MLX Metal is used opportunistically where available.
 
 ---

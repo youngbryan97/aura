@@ -153,7 +153,7 @@ it is that consequential operations produce receipts or fail closed.
   `UnifiedWill.decide()` authorizes an action before the block executes.
 - `core/governance/will_gate.py` intercepts selected function calls and binds
   them to Will authorization.
-- `tools/arch_map.py`, `guardrail_auditor.py`, and `formal_verifier.py` make the
+- `tools/arch_map.py`, `core/self_improvement/guardrail_auditor.py`, and `core/self_modification/formal_verifier.py` make the
   dependency labels operational by scanning for direct Will, memory, state,
   tool, patching, LLM, and external-I/O paths. Bypasses are treated as audit
   findings, not compatibility behavior.
@@ -675,7 +675,7 @@ cached at 15-60 second intervals.
 
 Affect modulates inference through three concrete pathways.
 
-### 4.1 Sampling parameters (affective_circumplex.py)
+### 4.1 Sampling parameters (core/affect/affective_circumplex.py)
 
 The affective circumplex maps valence and arousal to LLM generation
 parameters:
@@ -1872,12 +1872,12 @@ confirm real work is happening.
 - Effective level attenuates even when raw level is held constant
 
 **4. GWT competition uses real inhibition** (Tests 9.1-9.3)
-- Losers are inhibited for `_INHIBIT_TICKS = 3` ticks
+- Losers are inhibited for `_INHIBIT_TICKS = 1` tick
 - Inhibited sources cannot submit even with high priority
 - Inhibition decays predictably each tick
 
 **5. STDP learning rate is surprise-gated** (Tests 15.1-15.3)
-- Learning rate = `BASE × (1 + surprise × 5)`, producing up to 5.5x variation
+- Learning rate = `BASE × (1 + surprise × 5)`, producing up to 6.0x variation (for surprise ∈ [0, 1])
 - Weight deltas scale proportionally with surprise
 - Applied weight changes modify the substrate connectivity matrix
 
