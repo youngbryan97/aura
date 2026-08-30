@@ -25,6 +25,7 @@ it was shown, which is the same discipline the invention itself applies.
 from __future__ import annotations
 
 import ast
+import logging
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ from core.cognition.relation_language import RelationLanguage
 from core.cognition.value_order import solve_ordering, solve_ordering_then_move
 
 __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_question"]
+
+logger = logging.getLogger("Aura.SequenceInduction")
 
 #: A bracketed run of comma-separated cells. Deliberately not a bare comma
 #: sequence: prose is full of commas, and a wrong reading here would answer a
