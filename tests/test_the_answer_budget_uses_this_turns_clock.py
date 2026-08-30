@@ -35,7 +35,7 @@ def _a_measured_machine(monkeypatch):
     measured = deque(
         [(length, 12.0) for length in (512, 1024, 2048, 4096, 8192)] * 4, maxlen=64
     )
-    monkeypatch.setattr(thinking_reserve, "_rates", measured)
+    monkeypatch.setattr(thinking_reserve, "_rates", {"": measured})
     monkeypatch.setattr(thinking_reserve, "_restore_once", lambda: None)
 
 

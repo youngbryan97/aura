@@ -2495,13 +2495,18 @@ def _seconds_to_read(prompt_chars: int) -> float:
         return 0.0
 
 
-def _seconds_to_decode(tokens: int) -> float:
-    """How long this budget takes at the measured rate, or 0.0 if unmeasured."""
+def _seconds_to_decode(tokens: int, model: str = "") -> float:
+    """How long this budget takes at the measured rate, or 0.0 if unmeasured.
+
+    ``model`` because the rate belongs to the model. Sizing a 27B's clock on
+    readings a 9B produced is what aborted three generations on one question,
+    each after more than two and a half minutes of work.
+    """
 
     try:
         from core.brain.llm.thinking_reserve import seconds_to_decode
 
-        return float(seconds_to_decode(tokens))
+        return float(seconds_to_decode(tokens, model))
     except (ImportError, TypeError, ValueError):
         return 0.0
 
@@ -4873,8 +4878,34 @@ class InferenceGate:
 
 
     @staticmethod
+    def _model_now_serving(requested_tier: str) -> str:
+        """What the rate should be read for: the model this turn will run on.
+
+        The name the worker records, so the two sides of the measurement agree.
+        Empty where it cannot be worked out, which pools every model's readings
+        exactly as this did before.
+        """
+        try:
+            import os
+
+            from core.brain.llm.model_registry import (
+                BRAINSTEM_MODEL,
+                _current_cortex_path,
+            )
+
+            if str(requested_tier or "") == "primary":
+                return os.path.basename(str(_current_cortex_path() or ""))
+            return os.path.basename(str(BRAINSTEM_MODEL or ""))
+        except (ImportError, AttributeError, OSError, TypeError, ValueError):
+            return ""
+
+    @staticmethod
     def _tokens_the_turn_is_allowed_to_take(
-        model_ceiling: int = 0, *, seconds: float = 0.0, prompt_chars: int = 0
+        model_ceiling: int = 0,
+        *,
+        seconds: float = 0.0,
+        prompt_chars: int = 0,
+        model: str = "",
     ) -> int:
         """How much a user-facing turn may say, from the time it actually has.
 
@@ -4931,13 +4962,13 @@ class InferenceGate:
         # that fits is found by searching it rather than by inverting a rate
         # this would then have to keep in step with.
         low, high = 0, int(model_ceiling) if int(model_ceiling or 0) > 0 else 8192
-        if seconds_to_decode(high) <= 0.0:
+        if seconds_to_decode(high, model) <= 0.0:
             return 0
-        if seconds_to_decode(high) <= allowed:
+        if seconds_to_decode(high, model) <= allowed:
             return high
         while low < high:
             middle = (low + high + 1) // 2
-            if seconds_to_decode(middle) <= allowed:
+            if seconds_to_decode(middle, model) <= allowed:
                 low = middle
             else:
                 high = middle - 1
@@ -14142,6 +14173,7 @@ class InferenceGate:
                     self._tokens_the_turn_is_allowed_to_take(
                         seconds=float(primary_timeout or timeout_val or 0.0),
                         prompt_chars=int(prompt_chars or 0),
+                        model=self._model_now_serving(requested_tier),
                     )
                     - self._reasoning_reserve(),
                 )
