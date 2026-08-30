@@ -10326,6 +10326,56 @@ def _strip_scaffolding_tags(raw: object) -> str:
     return text.strip()
 
 
+#: Where a sentence can end. A reply that stops anywhere else stopped because
+#: something ran out, not because it had finished.
+_A_SENTENCE_ENDS = tuple(".!?:\u2026") + (
+    '."', ".'", '!"', '?"', ".)", ".]", ".`",
+    # A code fence that closed is a finished thought, and it is the one ending
+    # that carries no punctuation at all.
+    "```",
+)
+
+
+#: Reasons a generator gives for stopping that mean it had finished.
+_FINISHED = frozenset({"configured_stop", "eos", "semantic_contract_satisfied"})
+
+
+def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool]:
+    """The reply back to its last finished sentence, and whether it was cut.
+
+    The ladder has twenty-five seconds and the model spends them, so a long
+    answer stops wherever the clock did — LIVE 2026-08-30, a good answer about
+    a memory leak ended at "2. **Acc". Serving that is worse than serving less
+    of it: the reader cannot tell a truncated thought from a confused one, and
+    the half-word says the machine broke rather than that time ran out.
+
+    The generator says why it stopped, and that is the fact. Reading it from
+    the shape of the text instead guesses, and it guesses wrong on the two
+    things people write most: a list whose last item has no full stop, and a
+    line of code.
+    """
+    text = str(said or "").rstrip()
+    if not text:
+        return text, False
+    said_why = str(stop_reason or "").strip().lower()
+    if said_why in _FINISHED:
+        return text, False
+    if not said_why and text.endswith(_A_SENTENCE_ENDS):
+        # Nothing said why it stopped, so the shape is all there is.
+        return text, False
+    # Back up to the last place a sentence actually finished. Code fences and
+    # list items count: a fenced block that closed is a finished thought.
+    ends = [text.rfind(mark) for mark in (".", "!", "?", "\u2026", "```")]
+    at = max(ends)
+    if at <= 0:
+        return text, True
+    whole = text[: at + (3 if text[at:].startswith("```") else 1)].rstrip()
+    if len(whole) < len(text) // 2:
+        # Trimming would throw away most of what she said. Keep it and say so.
+        return text, True
+    return whole, True
+
+
 async def _readings_for(text: str) -> list[str]:
     """The present-moment readings, on the ladder's path as well as the main one.
 
@@ -10454,6 +10504,7 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         identity = _with_the_same_readings(identity, readings)
         ladder_chain: list = []
         raw = ""
+        stop_reason = ""
         deadline = time.monotonic() + _FALLBACK_LADDER_TIMEOUT_S
         for endpoint in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT):
             remaining = deadline - time.monotonic()
@@ -10475,6 +10526,7 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
                 continue
             if isinstance(candidate, dict):
                 ladder_chain = list(candidate.get("fallback_chain") or [])
+                stop_reason = str(candidate.get("generation_stop_reason") or "")
                 candidate = candidate.get("content") or candidate.get("response") or ""
             if _strip_scaffolding_tags(candidate):
                 raw = candidate
@@ -10486,7 +10538,9 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
             action=f"fallback ladder could not answer while cortex was unavailable ({reason[:80]})",
         )
         return ""
-    answer = _strip_scaffolding_tags(raw)
+    answer, cut_short = _ends_where_it_meant_to(
+        _strip_scaffolding_tags(raw), stop_reason
+    )
     if not answer:
         # Name the blocker. "empty answer" describes the outcome and hides the
         # cause, and the router already knows which guard skipped which
@@ -10512,10 +10566,16 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         )
         return ""
     logger.info("🪜 Fallback ladder answered while the cortex was unavailable (%s).", reason[:80])
+    ran_out = (
+        " I had a fixed slice of time for this and used all of it, so there is "
+        "more I would have said."
+        if cut_short
+        else ""
+    )
     return (
         f"{answer}\n\n"
         "(That came from my smaller model — the main one is still loading. "
-        "Ask again in a moment if you want me to think about it properly.)"
+        f"Ask again in a moment if you want me to think about it properly.{ran_out})"
     )
 
 
