@@ -184,7 +184,9 @@ def test_the_boundary_marker_has_to_be_in_what_the_model_reads() -> None:
     assert stuck.surface == ""
 
 
-def test_the_owning_clock_prices_the_thinking_too() -> None:
+def test_the_owning_clock_prices_only_thinking_this_generation_will_do(
+    monkeypatch,
+) -> None:
     """It is added on the far side of every deadline calculation here.
 
     So each of them was pricing a generation smaller than the one that runs,
@@ -195,19 +197,28 @@ def test_the_owning_clock_prices_the_thinking_too() -> None:
     """
 
     from core.brain.cognitive_engine import _time_the_answer_needs
-    from core.brain.llm import thinking_reserve
+    from core.brain.llm import model_registry, thinking_reserve
 
     thinking_reserve.forget()
+    model = "/models/Aura-Qwen3.8-27B"
+    monkeypatch.setattr(model_registry, "get_runtime_model_path", lambda _name: model)
     for _ in range(12):
-        thinking_reserve.record_decode_rate(generated_tokens=1000, elapsed_s=100.0)
+        thinking_reserve.record_decode_rate(
+            generated_tokens=1000, elapsed_s=100.0, model=model
+        )
 
     question = "Walk me through reviving a sourdough starter and how to know it is ready."
     without = _time_the_answer_needs(question)
-    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=2048)
-    with_thinking = _time_the_answer_needs(question)
+    thinking_reserve.record_budget_that_ran_out_thinking(
+        budget_tokens=2048, model=model
+    )
+    after_unrelated_thinking = _time_the_answer_needs(question)
 
     assert without > 0.0
-    assert with_thinking > without, (without, with_thinking)
+    # This request carries the closed-question floor, so its final generation
+    # is a render stage and the worker closes native thinking. Historical
+    # thinking cost from this checkpoint must not lengthen that clock.
+    assert after_unrelated_thinking == without
 
 
 def test_a_user_facing_turn_may_reach_the_same_ceiling_as_the_wait() -> None:
@@ -303,5 +314,6 @@ def test_the_clock_never_exceeds_the_wait_that_contains_it() -> None:
     source = inspect.getsource(Gate)
     marker = "primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)"
     assert marker in source
-    before = source[source.index("timeout_val = min(") : source.index(marker)]
-    assert "USER_FACING_COMPLETION_DEADLINE_MAX_S" in before, before
+    assert "_cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)" in source
+    assert "timeout_val = min(_cap, _needed)" in source
+    assert source.index("timeout_val = min(_cap, _needed)") < source.index(marker)

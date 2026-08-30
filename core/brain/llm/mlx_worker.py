@@ -536,7 +536,7 @@ def _admit_sampling_control(job: dict[str, Any], key: str) -> float:
     return min(max(_safe_float(job.get(key, default), default), lower), upper)
 
 
-def _answer_is_derived_here(job: dict[str, Any]) -> bool:
+def _answer_is_derived_here(job: dict[str, Any], model: str = "") -> bool:
     """Whether this generation is where the answer gets worked out.
 
     The completion floor is the runtime's own measure of how much room the
@@ -547,42 +547,16 @@ def _answer_is_derived_here(job: dict[str, Any]) -> bool:
     """
 
     try:
-        from core.brain.llm.thinking_reserve import proved_insufficient
-        from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+        from core.brain.llm.chat_format import answer_is_derived_for_generation
 
-        floor = int(job.get("user_surface_completion_floor") or 0)
-        budget = int(job.get("max_tokens") or 0)
-        proved = int(proved_insufficient())
+        return answer_is_derived_for_generation(
+            completion_floor=job.get("user_surface_completion_floor"),
+            budget_tokens=job.get("max_tokens"),
+            model_name=model,
+            seconds_remaining=_seconds_left_on(job),
+        )
     except (ImportError, TypeError, ValueError):
         return False
-    if floor <= A_CLOSED_QUESTIONS_FLOOR:
-        return False
-    # Do not open a channel this budget has already been proved unable to
-    # close. A generation that ends inside it has no surface at all, and the
-    # turn serves nothing; with the channel shut the model reasons in the open
-    # and at least the working it got through reaches the person.
-    #
-    # LIVE, 2026-08-27: three attempts in a row ended inside the channel, the
-    # last after 127 seconds and 3,411 characters of reasoning. The same
-    # question with the channel closed had served a real partial derivation.
-    if 0 < budget <= proved:
-        return False
-    # And do not open a channel there is not time to close. A generation that
-    # ends inside it has no surface, so the clock spent proving that is spent
-    # for nothing — and the retry inherits whatever is left of the turn.
-    #
-    # LIVE, 2026-08-27: the first attempt burned 98 of a 148-second turn
-    # discovering the channel would not close, and the retry that did answer
-    # had 50 seconds and produced 85 characters. The token proof survives only
-    # in memory, so every restart paid that 98 seconds again. The decode rate
-    # does not need to survive anything: it is measured on every generation,
-    # including the background ones.
-    _remaining = _seconds_left_on(job)
-    if _remaining > 0.0 and budget > 0:
-        _needed = _seconds_to_decode(budget)
-        if 0.0 < _remaining < _needed:
-            return False
-    return True
 
 
 def _seconds_left_on(job: dict[str, Any]) -> float:
@@ -608,7 +582,9 @@ def _seconds_to_decode(tokens: int) -> float:
         return 0.0
 
 
-def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
+def _record_budget_that_ran_out_thinking(
+    budget_tokens: int, model: str = ""
+) -> None:
     """Tell the reserve this budget was proved too small for the channel."""
 
     try:
@@ -616,7 +592,9 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
             record_budget_that_ran_out_thinking,
         )
 
-        record_budget_that_ran_out_thinking(budget_tokens=budget_tokens)
+        record_budget_that_ran_out_thinking(
+            budget_tokens=budget_tokens, model=model
+        )
     except (ImportError, TypeError, ValueError):
         return
 
@@ -659,13 +637,13 @@ def _record_read_rate(prompt_chars: int, elapsed_s: float) -> None:
         return
 
 
-def _reasoning_reserve_tokens() -> int:
+def _reasoning_reserve_tokens(model: str = "") -> int:
     """Tokens the private reasoning channel has been costing, or 0."""
 
     try:
         from core.brain.llm.thinking_reserve import reserve_tokens
 
-        return int(reserve_tokens())
+        return int(reserve_tokens(model))
     except (ImportError, TypeError, ValueError):
         return 0
 
@@ -675,6 +653,7 @@ def _record_reasoning_cost(
     reasoning_chars: int,
     surface_chars: int,
     generated_tokens: int,
+    model: str = "",
 ) -> None:
     """Tell the reserve what this generation spent thinking."""
 
@@ -685,6 +664,7 @@ def _record_reasoning_cost(
             reasoning_chars=reasoning_chars,
             surface_chars=surface_chars,
             generated_tokens=generated_tokens,
+            model=model,
         )
     except (ImportError, TypeError, ValueError):
         return
@@ -7970,7 +7950,9 @@ def _mlx_worker_loop(
                             final_user_surface=bool(
                                 job.get("clean_user_surface_contract", False)
                             ),
-                            answer_is_derived_here=_answer_is_derived_here(job),
+                            answer_is_derived_here=_answer_is_derived_here(
+                                job, model=model_path
+                            ),
                         )
                         # Which channel the search went down is the difference
                         # between an answer and a page of working, and nothing
@@ -8138,7 +8120,7 @@ def _mlx_worker_loop(
                 # bind, so a reserve widens the answer and never overruns the
                 # serving profile.
                 if native_thinking is True:
-                    _reserve = _reasoning_reserve_tokens()
+                    _reserve = _reasoning_reserve_tokens(model_path)
                     if _reserve > 0:
                         max_tokens += _reserve
                 max_tokens = _serving_lane_output_cap(
@@ -9542,6 +9524,7 @@ def _mlx_worker_loop(
                                             reasoning_chars=len(native_channels.reasoning),
                                             surface_chars=len(current_response or ""),
                                             generated_tokens=token_count,
+                                            model=model_path,
                                         )
                                     if (
                                         native_thinking is True
@@ -9577,7 +9560,9 @@ def _mlx_worker_loop(
                                             else "",
                                             native_channels.reasoning[-220:],
                                         )
-                                        _record_budget_that_ran_out_thinking(max_tokens)
+                                        _record_budget_that_ran_out_thinking(
+                                            max_tokens, model_path
+                                        )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
@@ -10712,7 +10697,9 @@ def _mlx_worker_loop(
                             and _spent_the_whole_budget
                             and not deadline_hit
                         ):
-                            _record_budget_that_ran_out_thinking(_budget_applied)
+                            _record_budget_that_ran_out_thinking(
+                                _budget_applied, model_path
+                            )
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.

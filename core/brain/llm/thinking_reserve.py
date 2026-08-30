@@ -24,10 +24,11 @@ the runtime generates often enough that the window fills within minutes.
 from __future__ import annotations
 
 import json
-import threading
 from collections import deque
-from typing import Any
 from pathlib import Path
+from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 #: The smallest window in which a 90th percentile is a real observation rather
 #: than a restatement of the largest sample.
@@ -39,13 +40,16 @@ _WINDOW = 128
 
 _PERCENTILE = 0.9
 
+# Kept as the unnamed window for compatibility with older local callers that
+# explicitly inspect/reset process state. Named models never share it.
 _observed: deque[int] = deque(maxlen=_WINDOW)
+_observed_by_model: dict[str, deque[int]] = {}
 
 #: The largest budget a generation has been given and still not finished
 #: thinking inside. Unlike the window this is a proof rather than a sample: the
 #: channel demonstrably needs more than this, so one observation is enough and
 #: no percentile applies.
-_proved_insufficient = 0
+_proved_insufficient_by_model: dict[str, int] = {}
 
 #: Observed decode rates in tokens per second, so the time a budget needs can
 #: be worked out rather than assumed. The rate moves with the model, the
@@ -65,6 +69,23 @@ _rates: dict[str, deque[tuple[int, float]]] = {}
 _ANY_MODEL = ""
 
 
+def _model_key(model: str | None) -> str:
+    return str(model or _ANY_MODEL)
+
+
+def _reasoning_window_for(model: str | None) -> deque[int]:
+    """Reasoning-cost readings owned by exactly one checkpoint identity."""
+
+    name = _model_key(model)
+    if name == _ANY_MODEL:
+        return _observed
+    held = _observed_by_model.get(name)
+    if held is None:
+        held = deque(maxlen=_WINDOW)
+        _observed_by_model[name] = held
+    return held
+
+
 def _window_for(model: str) -> deque[tuple[int, float]]:
     """This model's readings, made on first use."""
     name = str(model or _ANY_MODEL)
@@ -73,8 +94,6 @@ def _window_for(model: str) -> deque[tuple[int, float]]:
         held = deque(maxlen=_WINDOW)
         _rates[name] = held
     return held
-
-from core.runtime.lockdep import checked_lock
 
 _lock = checked_lock("brain.llm.thinking_reserve")
 
@@ -94,6 +113,7 @@ def record_reasoning_cost(
     reasoning_chars: int,
     surface_chars: int,
     generated_tokens: int,
+    model: str = "",
 ) -> None:
     """Log what one generation spent on its private channel.
 
@@ -112,11 +132,13 @@ def record_reasoning_cost(
         return
     spent = int(round(tokens * (reasoning / total_chars)))
     with _lock:
-        _observed.append(max(0, spent))
+        _reasoning_window_for(model).append(max(0, spent))
     _written_down()
 
 
-def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
+def record_budget_that_ran_out_thinking(
+    *, budget_tokens: int, model: str = ""
+) -> None:
     """A thinking generation spent this budget and still had not finished.
 
     Two shapes of the same failure. The budget can run out while the model is
@@ -132,13 +154,15 @@ def record_budget_that_ran_out_thinking(*, budget_tokens: int) -> None:
     to accumulate means every one of them fails first.
     """
 
-    global _proved_insufficient
     try:
         spent = max(0, int(budget_tokens))
     except (TypeError, ValueError):
         return
     with _lock:
-        _proved_insufficient = max(_proved_insufficient, spent)
+        name = _model_key(model)
+        _proved_insufficient_by_model[name] = max(
+            _proved_insufficient_by_model.get(name, 0), spent
+        )
     save()
 
 
@@ -204,15 +228,13 @@ def _take_back_any_newer_proof() -> None:
         _last_seen_store_mtime = stamp
     try:
         stored = json.loads(target.read_text())
-        found = int(stored.get("proved_insufficient") or 0)
     except (OSError, ValueError, TypeError):
         return
-    global _proved_insufficient
     with _lock:
-        _proved_insufficient = max(_proved_insufficient, found)
+        _merge_reasoning_measurements(stored)
 
 
-def reserve_tokens() -> int:
+def reserve_tokens(model: str = "") -> int:
     """Tokens to add to an answer budget so reasoning does not eat it.
 
     The larger of what the window has measured and what a generation has
@@ -223,8 +245,8 @@ def reserve_tokens() -> int:
     _restore_once()
     _take_back_any_newer_proof()
     with _lock:
-        seen = sorted(_observed)
-        proved = _proved_insufficient
+        seen = sorted(_reasoning_window_for(model))
+        proved = _proved_insufficient_by_model.get(_model_key(model), 0)
     measured = 0
     if len(seen) >= _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
@@ -288,8 +310,6 @@ def seconds_to_decode(tokens: int, model: str = "") -> float:
         # the right answer when there is nothing better to go on.
         mine = list(_window_for(model)) if model else everything
         comparable = sorted(rate for length, rate in mine if length * 2 >= wanted)
-        if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
-            comparable = sorted(rate for _length, rate in mine)
         if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE and model:
             comparable = sorted(
                 rate for length, rate in everything if length * 2 >= wanted
@@ -417,29 +437,30 @@ def seconds_to_read(prompt_chars: int) -> float:
     return wanted / rate
 
 
-def proved_insufficient() -> int:
+def proved_insufficient(model: str = "") -> int:
     """The largest budget a generation ran out of while still thinking."""
 
     with _lock:
-        return _proved_insufficient
+        return _proved_insufficient_by_model.get(_model_key(model), 0)
 
 
-def observations() -> int:
+def observations(model: str = "") -> int:
     """How many generations the reserve is learned from."""
 
     with _lock:
-        return len(_observed)
+        return len(_reasoning_window_for(model))
 
 
 def forget() -> None:
     """Drop what has been learned. For tests and for a model swap."""
 
-    global _proved_insufficient, _restored, _last_seen_store_mtime
+    global _restored, _last_seen_store_mtime
     with _lock:
         _observed.clear()
+        _observed_by_model.clear()
         _rates.clear()
         _read_rates.clear()
-        _proved_insufficient = 0
+        _proved_insufficient_by_model.clear()
         # And forget having read the store, or a re-read would take it back.
         _last_seen_store_mtime = -1
         # Stops THIS process taking the readings back on the next call.
@@ -497,7 +518,6 @@ def _store_path() -> Path | None:
 def _merge_in_what_is_already_stored(target: Path) -> None:
     """Fold the stored document into this process before overwriting it."""
 
-    global _proved_insufficient
     try:
         stored = json.loads(target.read_text())
     except (OSError, ValueError, TypeError):
@@ -505,13 +525,7 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
     if not isinstance(stored, dict):
         return
     with _lock:
-        try:
-            _proved_insufficient = max(
-                _proved_insufficient, int(stored.get("proved_insufficient") or 0)
-            )
-        except (TypeError, ValueError):
-            pass
-        _put_older_readings_first(_observed, stored.get("reasoning_tokens"), _one_int)
+        _merge_reasoning_measurements(stored)
         held = stored.get("rates")
         if isinstance(held, dict):
             for name, rows in held.items():
@@ -527,6 +541,45 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
             if row is not None and row not in _read_rates
         ]
         del _read_rates[: max(0, len(_read_rates) - _WINDOW)]
+
+
+def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
+    """Merge model-owned reasoning evidence, quarantining legacy evidence."""
+
+    held = stored.get("reasoning_tokens_by_model")
+    if isinstance(held, dict):
+        for name, readings in held.items():
+            _put_older_readings_first(
+                _reasoning_window_for(str(name)), readings, _one_int
+            )
+    else:
+        # Older stores did not identify the checkpoint. They remain usable by
+        # legacy unnamed callers, but cannot be evidence about any named model.
+        _put_older_readings_first(
+            _reasoning_window_for(_ANY_MODEL),
+            stored.get("reasoning_tokens"),
+            _one_int,
+        )
+
+    proofs = stored.get("proved_insufficient_by_model")
+    if isinstance(proofs, dict):
+        for name, value in proofs.items():
+            try:
+                parsed = max(0, int(value))
+            except (TypeError, ValueError):
+                continue
+            key = _model_key(str(name))
+            _proved_insufficient_by_model[key] = max(
+                _proved_insufficient_by_model.get(key, 0), parsed
+            )
+    else:
+        try:
+            parsed = max(0, int(stored.get("proved_insufficient") or 0))
+        except (TypeError, ValueError):
+            parsed = 0
+        _proved_insufficient_by_model[_ANY_MODEL] = max(
+            _proved_insufficient_by_model.get(_ANY_MODEL, 0), parsed
+        )
 
 
 def _one_int(item: Any) -> int | None:
@@ -579,8 +632,23 @@ def save() -> bool:
     with _lock:
         payload = json.dumps(
             {
-                "reasoning_tokens": list(_observed),
-                "proved_insufficient": _proved_insufficient,
+                "reasoning_tokens_by_model": {
+                    _ANY_MODEL: list(_observed),
+                    **{
+                        name: list(window)
+                        for name, window in _observed_by_model.items()
+                    },
+                },
+                "proved_insufficient_by_model": dict(
+                    _proved_insufficient_by_model
+                ),
+                # Kept while unnamed callers and older readers still exist.
+                "reasoning_tokens": list(
+                    _reasoning_window_for(_ANY_MODEL)
+                ),
+                "proved_insufficient": _proved_insufficient_by_model.get(
+                    _ANY_MODEL, 0
+                ),
                 "rates": {
                     name: [[length, rate] for length, rate in window]
                     for name, window in _rates.items()
@@ -613,7 +681,6 @@ def save() -> bool:
 def load() -> int:
     """Take back what earlier processes measured. Returns how many readings."""
 
-    global _proved_insufficient
     target = _store_path()
     if target is None:
         return 0
@@ -625,12 +692,15 @@ def load() -> int:
         return 0
     taken = 0
     with _lock:
-        for value in raw.get("reasoning_tokens") or ():
-            try:
-                _observed.append(max(0, int(value)))
-                taken += 1
-            except (TypeError, ValueError):
-                continue
+        before = len(_observed) + sum(
+            len(window) for window in _observed_by_model.values()
+        )
+        _merge_reasoning_measurements(raw)
+        taken += (
+            len(_observed)
+            + sum(len(window) for window in _observed_by_model.values())
+            - before
+        )
         held = raw.get("rates") or ()
         by_model = held.items() if isinstance(held, dict) else ((_ANY_MODEL, held),)
         for name, rows in by_model:
@@ -651,12 +721,6 @@ def load() -> int:
                     taken += 1
             except (TypeError, ValueError):
                 continue
-        try:
-            _proved_insufficient = max(
-                _proved_insufficient, int(raw.get("proved_insufficient") or 0)
-            )
-        except (TypeError, ValueError):
-            pass
     return taken
 
 

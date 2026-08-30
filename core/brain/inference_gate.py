@@ -4975,7 +4975,7 @@ class InferenceGate:
         return low
 
     @staticmethod
-    def _reasoning_reserve() -> int:
+    def _reasoning_reserve(model: str = "") -> int:
         """What the worker will add to this turn's budget for thinking.
 
         Read here so the clock covers the same number of tokens the worker
@@ -4987,9 +4987,44 @@ class InferenceGate:
         try:
             from core.brain.llm.thinking_reserve import reserve_tokens
 
-            return max(0, int(reserve_tokens()))
+            return max(0, int(reserve_tokens(model)))
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0
+
+    @classmethod
+    def _reasoning_reserve_for_generation(
+        cls,
+        *,
+        model: str,
+        cognitive_mode: object = None,
+        final_user_surface: bool,
+        completion_floor: object,
+        budget_tokens: object,
+        seconds_remaining: object = 0.0,
+    ) -> int:
+        """The reserve this exact generation role will receive in the worker."""
+
+        try:
+            from core.brain.llm.chat_format import (
+                answer_is_derived_for_generation,
+                thinking_enabled_for_generation,
+            )
+
+            derived_here = answer_is_derived_for_generation(
+                completion_floor=completion_floor,
+                budget_tokens=budget_tokens,
+                model_name=model,
+                seconds_remaining=seconds_remaining,
+            )
+            native_thinking = thinking_enabled_for_generation(
+                model,
+                cognitive_mode=cognitive_mode,
+                final_user_surface=final_user_surface,
+                answer_is_derived_here=derived_here,
+            )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0
+        return cls._reasoning_reserve(model) if native_thinking is True else 0
 
     @staticmethod
     def _tokens_the_clock_can_deliver(max_tokens: Any, *, seconds: float) -> int:
@@ -14095,7 +14130,23 @@ class InferenceGate:
                 # clock was sized for 1,024 tokens while up to 2,048 were
                 # decoded against it — and the extra was exactly the room the
                 # reserve had been raised to provide.
-                _reserve_the_worker_adds = self._reasoning_reserve()
+                _model_for_clock = self._model_now_serving(requested_tier)
+                _clean_user_surface_for_clock = bool(
+                    _is_user_facing
+                    and requested_tier == "primary"
+                    and not strict_answer_contract
+                    and not strict_value_contract
+                    and not internal_inference
+                    and initial_visible_user_prompt
+                )
+                _reserve_the_worker_adds = self._reasoning_reserve_for_generation(
+                    model=_model_for_clock,
+                    cognitive_mode=context.get("cognitive_mode"),
+                    final_user_surface=_clean_user_surface_for_clock,
+                    completion_floor=_answer_floor_final,
+                    budget_tokens=max_tokens,
+                    seconds_remaining=float(timeout_val or 0.0),
+                )
                 _tokens_to_pay_for = max_tokens + _reserve_the_worker_adds
                 _decode_s = _seconds_to_decode(_tokens_to_pay_for)
                 # Reading the prompt is the other half of a generation, and
@@ -14156,7 +14207,7 @@ class InferenceGate:
                             (
                                 _seconds_to_decode(
                                     _reserve_the_worker_adds,
-                                    self._model_now_serving(requested_tier),
+                                    _model_for_clock,
                                 )
                                 + _read_s
                             )
@@ -14224,9 +14275,9 @@ class InferenceGate:
                     self._tokens_the_turn_is_allowed_to_take(
                         seconds=float(primary_timeout or timeout_val or 0.0),
                         prompt_chars=int(prompt_chars or 0),
-                        model=self._model_now_serving(requested_tier),
+                            model=_model_for_clock,
                     )
-                    - self._reasoning_reserve(),
+                    - _reserve_the_worker_adds,
                 )
                 if _affordable > max_tokens:
                     logger.info(

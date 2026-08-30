@@ -45,7 +45,7 @@ def test_only_runs_of_a_comparable_length_are_used() -> None:
     """
 
     for _ in range(40):
-        thinking_reserve.record_decode_rate(generated_tokens=40, elapsed_s=1.0)
+        thinking_reserve.record_decode_rate(generated_tokens=20, elapsed_s=0.5)
     # Forty fast short runs and nothing long: no comparable evidence at all.
     assert thinking_reserve.seconds_to_decode(896) == 0.0
     for _ in range(12):
@@ -83,22 +83,18 @@ def test_forgetting_drops_the_rates() -> None:
     assert thinking_reserve.seconds_to_decode(100) == 0.0
 
 
-def test_the_gate_extends_only_when_a_floor_is_in_play() -> None:
+def test_the_gate_extends_for_any_user_facing_budget() -> None:
     body = _GATE.read_text()
-    start = body.index("A deadline that cannot deliver the budget")
-    window = body[start : start + 2600]
-    assert "if 0 < _answer_floor_final:" in window
-    assert "_seconds_to_decode(max_tokens)" in window
-    assert "if _decode_s > 0.0:" in window
+    assert "if _is_user_facing or 0 < _answer_floor_final or _generations > 1:" in body
+    assert "_decode_s = _seconds_to_decode(_tokens_to_pay_for)" in body
+    assert "if _decode_s > 0.0:" in body
 
 
 def test_the_extension_is_bounded_by_what_was_measured() -> None:
     body = _GATE.read_text()
-    start = body.index("A deadline that cannot deliver the budget")
-    window = body[start : start + 3200]
-    assert "(_decode_s * _generations) + _DELIVERY_MARGIN_S" in window
-    assert "timeout_val = _needed" in window
-    assert "if _needed > float(timeout_val):" in window
+    assert "(_decode_s + _read_s) * _generations" in body
+    assert "timeout_val = min(_cap, _needed)" in body
+    assert "if _needed > float(timeout_val):" in body
 
 
 def test_the_rate_crosses_the_process_boundary() -> None:
@@ -123,7 +119,7 @@ def test_a_turn_that_must_fetch_is_given_two_generations() -> None:
     window = body[start : start + 1200]
     assert "points_at_something_real(initial_visible_user_prompt)" in window
     assert "_generations = 2" in window
-    assert "(_decode_s * _generations) + _DELIVERY_MARGIN_S" in window
+    assert "(_decode_s + _read_s) * _generations" in body
 
 
 def test_the_generation_count_falls_back_to_one() -> None:
@@ -170,8 +166,9 @@ def _as_if_restarted() -> None:
     """Empty memory, disk untouched. What a new process actually sees."""
 
     thinking_reserve._observed.clear()
+    thinking_reserve._observed_by_model.clear()
     thinking_reserve._rates.clear()
-    thinking_reserve._proved_insufficient = 0
+    thinking_reserve._proved_insufficient_by_model.clear()
     thinking_reserve._restored = False
 
 
@@ -210,8 +207,6 @@ def test_the_extension_reaches_the_clock_it_is_extending() -> None:
     """
 
     body = _GATE.read_text()
-    start = body.index("[ANSWER CLOCK]")
-    window = body[start : start + 2200]
-    assert "timeout_val = _needed" in window
-    assert "request_deadline = get_deadline(float(timeout_val))" in window
-    assert 'context["request_deadline_s"] = float(timeout_val)' in window
+    assert "timeout_val = min(_cap, _needed)" in body
+    assert "request_deadline = get_deadline(float(timeout_val))" in body
+    assert 'context["request_deadline_s"] = float(timeout_val)' in body

@@ -952,6 +952,46 @@ def thinking_enabled_for_generation(
     return resolved
 
 
+def answer_is_derived_for_generation(
+    *,
+    completion_floor: object,
+    budget_tokens: object,
+    model_name: str | None = None,
+    seconds_remaining: object = 0.0,
+) -> bool:
+    """Whether this model call owns unresolved answer computation.
+
+    This decision used to live only inside the worker, after the answer clock
+    had already priced the call. The clock therefore paid for private thinking
+    on calls where the worker would explicitly disable it. Keeping the typed
+    decision here lets admission and execution resolve the same generation
+    role without inspecting or modifying prompt text.
+    """
+
+    try:
+        from core.brain.llm.thinking_reserve import (
+            proved_insufficient,
+            seconds_to_decode,
+        )
+        from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+        floor = int(completion_floor or 0)
+        budget = int(budget_tokens or 0)
+        remaining = float(seconds_remaining or 0.0)
+        proved = int(proved_insufficient(str(model_name or "")))
+    except (ImportError, TypeError, ValueError):
+        return False
+    if floor <= A_CLOSED_QUESTIONS_FLOOR:
+        return False
+    if 0 < budget <= proved:
+        return False
+    if remaining > 0.0 and budget > 0:
+        needed = float(seconds_to_decode(budget, str(model_name or "")))
+        if 0.0 < remaining < needed:
+            return False
+    return True
+
+
 class NativeThinkingChannels(NamedTuple):
     reasoning: str
     surface: str

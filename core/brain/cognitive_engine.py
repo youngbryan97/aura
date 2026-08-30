@@ -1241,18 +1241,28 @@ def _time_the_answer_needs(objective: Any) -> float:
     """
 
     try:
-        from core.brain.llm.thinking_reserve import seconds_to_decode
+        from core.brain.llm.chat_format import (
+            answer_is_derived_for_generation,
+            thinking_enabled_for_generation,
+        )
+        from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
+        from core.brain.llm.thinking_reserve import reserve_tokens, seconds_to_decode
         from core.runtime.structured_input import answer_surface_token_floor
 
         floor = int(answer_surface_token_floor(str(objective or "")))
-        # Plus what the worker adds for thinking. It is added on the far side
-        # of every deadline calculation in this runtime, so each of them was
-        # pricing a generation smaller than the one that actually runs — and
-        # this is the clock that owns the turn, so its underestimate is the
-        # one nothing below can recover from.
-        from core.brain.llm.thinking_reserve import reserve_tokens
-
-        needed = float(seconds_to_decode(floor + max(0, int(reserve_tokens()))))
+        model = str(get_runtime_model_path(ACTIVE_MODEL))
+        derived_here = answer_is_derived_for_generation(
+            completion_floor=floor,
+            budget_tokens=floor,
+            model_name=model,
+        )
+        native_thinking = thinking_enabled_for_generation(
+            model,
+            final_user_surface=True,
+            answer_is_derived_here=derived_here,
+        )
+        reserve = max(0, int(reserve_tokens(model))) if native_thinking is True else 0
+        needed = float(seconds_to_decode(floor + reserve, model))
     except (ImportError, AttributeError, TypeError, ValueError):
         return 0.0
     if needed <= 0.0:

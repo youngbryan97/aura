@@ -232,8 +232,13 @@ def test_a_process_that_learned_nothing_cannot_erase_a_proof() -> None:
     thinking_reserve.record_decode_rate(generated_tokens=100, elapsed_s=10.0)
     assert thinking_reserve.save()
     stored = json.loads(target.read_text())
-    assert [64, 9.0] in stored["rates"]
-    assert [100, 10.0] in stored["rates"]
+    unnamed_rates = (
+        stored["rates"].get("", [])
+        if isinstance(stored["rates"], dict)
+        else stored["rates"]
+    )
+    assert [64, 9.0] in unnamed_rates
+    assert [100, 10.0] in unnamed_rates
 
 
 def test_a_higher_proof_still_wins_over_the_stored_one() -> None:
@@ -305,6 +310,80 @@ def test_the_clock_covers_the_reserve_the_worker_will_add() -> None:
 
     thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=1024)
     assert InferenceGate._reasoning_reserve() == 1024
+
+
+def test_reasoning_evidence_belongs_only_to_the_model_that_produced_it() -> None:
+    cortex = "/models/Aura-Qwen3.8-27B"
+    brainstem = "/models/Qwen3.5-9B"
+
+    thinking_reserve.record_budget_that_ran_out_thinking(
+        budget_tokens=1024, model=cortex
+    )
+    for _ in range(20):
+        thinking_reserve.record_reasoning_cost(
+            reasoning_chars=4000,
+            surface_chars=1000,
+            generated_tokens=2000,
+            model=cortex,
+        )
+
+    assert thinking_reserve.reserve_tokens(cortex) == 1600
+    assert thinking_reserve.proved_insufficient(cortex) == 1024
+    assert thinking_reserve.observations(cortex) == 20
+    assert thinking_reserve.reserve_tokens(brainstem) == 0
+    assert thinking_reserve.reserve_tokens() == 0
+
+
+def test_legacy_unnamed_reasoning_proof_does_not_contaminate_a_named_model() -> None:
+    import json
+
+    target = thinking_reserve._store_path()
+    assert target is not None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(
+            {
+                "proved_insufficient": 4025,
+                "reasoning_tokens": [4000] * 20,
+            }
+        )
+    )
+
+    assert thinking_reserve.reserve_tokens("/models/Aura-Qwen3.8-27B") == 0
+    assert thinking_reserve.reserve_tokens() == 4025
+
+
+def test_answer_clock_prices_only_the_private_channel_worker_will_open() -> None:
+    from core.brain.inference_gate import InferenceGate
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    cortex = "/models/Aura-Qwen3.8-27B"
+    thinking_reserve.record_budget_that_ran_out_thinking(
+        budget_tokens=1024, model=cortex
+    )
+
+    # An ordinary render closes native thinking in the worker. Its clock must
+    # not price the private-channel reserve merely because this model has one.
+    assert (
+        InferenceGate._reasoning_reserve_for_generation(
+            model=cortex,
+            final_user_surface=True,
+            completion_floor=A_CLOSED_QUESTIONS_FLOOR,
+            budget_tokens=512,
+        )
+        == 0
+    )
+    # A generation that actually owns unresolved computation opens the channel
+    # and receives this checkpoint's measured reserve.
+    assert (
+        InferenceGate._reasoning_reserve_for_generation(
+            model=cortex,
+            final_user_surface=True,
+            completion_floor=A_CLOSED_QUESTIONS_FLOOR + 1,
+            budget_tokens=2048,
+        )
+        == 1024
+    )
 
 
 def test_a_long_budget_is_priced_on_long_runs() -> None:

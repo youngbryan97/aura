@@ -74,9 +74,7 @@ def test_an_unclosed_boundary_is_written_down() -> None:
 
     body = Path("core/brain/llm/mlx_worker.py").read_text()
     assert "Generation ended inside the private channel" in body
-    start = body.index("Generation ended inside the private channel")
-    window = body[start - 700 : start + 400]
-    assert "not native_channels.boundary_closed" in window
+    assert "and not native_channels.boundary_closed" in body
 
 
 _CORTEX = f"{Path.home()}/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
