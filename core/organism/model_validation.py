@@ -2289,6 +2289,50 @@ def _language_lost_across_a_restart() -> int:
             keeping._KEPT_AT = kept_at
 
 
+def _ways_of_building_she_cannot_reach() -> int:
+    """Whether the way she writes makers is itself a list. Must be none.
+
+    Counts the ways of building that are named rather than written. A term
+    with a hole in it is written; a constructor looked up by name is not, and
+    a system whose makers all come from a list has a ceiling one level up
+    however many levels it has.
+    """
+    from core.cognition.one_algebra import (
+        Term,
+        run,
+        the_closure_of_composing_undoing_and_repeating,
+    )
+
+    def check() -> int:
+        from core.cognition.an_invented_kind import WHERE_FROM
+
+        far, along = WHERE_FROM["the far end"], WHERE_FROM["one along"]
+        branching = Term(
+            "if",
+            (
+                Term("same as", (
+                    Term("left over", (Term("many"), Term("fixed", value=2))),
+                    Term("fixed", value=0),
+                )),
+                Term("hole", value=0),
+                Term("hole", value=1),
+            ),
+        )
+        reach = the_closure_of_composing_undoing_and_repeating(
+            dict(WHERE_FROM), deepest=3
+        )
+        shape = tuple(
+            run(branching, at, size, (far, along)) % size
+            for size in (3, 4, 5)
+            for at in range(size)
+        )
+        # One violation if a maker outside those three cannot be written at
+        # all, and one more if the closure is too small to be evidence.
+        return (1 if shape in reach else 0) + (0 if len(reach) > 1000 else 1)
+
+    return _language_left_as_found(check)
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -2326,6 +2370,13 @@ def _install_language_growth_claims(suite: Any) -> None:
             "where the table read off the same examples refuses every one",
             _pairs_a_derived_operation_refuses,
             "core/cognition/an_operation_that_generalises.py",
+        ),
+        (
+            "test_branching_is_not_something_those_three_could_have_produced",
+            "a way of building words can be written that composition, inversion "
+            "and iteration could not have produced between them",
+            _ways_of_building_she_cannot_reach,
+            "core/cognition/one_algebra.py",
         ),
         (
             "test_a_derived_word_comes_back_and_the_meaning_still_runs",
@@ -2419,6 +2470,28 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "derived by inverting the operation and held to examples it was "
                 "not fitted on, to depth three over eight ways of combining"
             ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A way of BUILDING words is a term she writes rather than one of a "
+                "list, so what she can reach is not the closure of three named "
+                "constructors."
+            ),
+            test="test_branching_is_not_something_those_three_could_have_produced",
+            owner="core/cognition/one_algebra.py",
+            asserted_in="core/cognition/one_algebra.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "composition, inversion and iteration reach 4,435 behaviours over "
+                "the words she was given; a maker she wrote for a family that "
+                "branches on size is not among them. The grammar itself — "
+                "arithmetic, a comparison, a branch, applying and undoing a word — "
+                "is the floor of computing rather than a menu, and past it growth "
+                "is reachability rather than expressibility"
+            ),
+            live_channels=("language.ways_of_building",),
         )
     )
     suite.add_claim(
