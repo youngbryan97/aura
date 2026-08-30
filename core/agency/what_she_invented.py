@@ -72,12 +72,15 @@ def keep() -> bool:
         if len(written) > _MOST_KEPT:
             logger.info("what she invented is too big to keep (%d)", len(written))
             return False
-        get_file_write_gateway().ensure_directory(
-            _KEPT_AT.parent, source="what_she_invented"
-        )
+        # Inside the scope. Making the directory is a write like any other,
+        # and outside it every keep logged a governance violation while the
+        # write beside it was fine.
         with local_internal_governed_scope(
             "what_she_invented.keep", domain="state_mutation"
         ):
+            get_file_write_gateway().ensure_directory(
+                _KEPT_AT.parent, source="what_she_invented"
+            )
             get_file_write_gateway().write_text(
                 _KEPT_AT, written, source="what_she_invented"
             )
