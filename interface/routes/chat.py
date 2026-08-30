@@ -10367,6 +10367,11 @@ def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool
     said_why = str(stop_reason or "").strip().lower()
     if said_why in _FINISHED:
         return text, False
+    if _A_DANGLING_MARKER.search(text):
+        # A reply ending on a bare "1." ends in a full stop and is not
+        # finished: that is the number of a point she never got to.
+        trimmed = _A_DANGLING_MARKER.sub("", text).rstrip()
+        return (trimmed or text), True
     if not said_why and text.endswith(_A_SENTENCE_ENDS):
         # Nothing said why it stopped, so the shape is all there is.
         return text, False
