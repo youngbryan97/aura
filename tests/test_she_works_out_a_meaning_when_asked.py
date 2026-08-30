@@ -39,14 +39,27 @@ MIRRORED = (
 
 @pytest.fixture(autouse=True)
 def _a_clean_registry(tmp_path, monkeypatch):
-    from core.cognition import what_she_gave_meaning
+    """Nothing she learned in another test, and nothing left for the next.
+
+    The relation language persists to disk, so a shape worked out by one test
+    answers another's question and the test reads as a failure of something it
+    never exercised.
+    """
+    from core.cognition import sequence_induction, what_she_gave_meaning
+    from core.cognition.an_invented_kind import UNSETTLED
 
     monkeypatch.setattr(what_she_gave_meaning, "_KEPT_AT", tmp_path / "meanings.json")
-    held = dict(KINDS)
+    monkeypatch.setattr(
+        sequence_induction, "_language_path", lambda: tmp_path / "language.json"
+    )
+    held, unsure = dict(KINDS), dict(UNSETTLED)
     KINDS.clear()
+    UNSETTLED.clear()
     yield
     KINDS.clear()
     KINDS.update(held)
+    UNSETTLED.clear()
+    UNSETTLED.update(unsure)
 
 
 # ── she works one out rather than saying she cannot ──────────────────────
@@ -153,3 +166,89 @@ def test_two_meanings_that_never_disagree_have_nothing_to_settle():
     one = Induced("here", "its partner", "the smaller of it and its neighbour")
     same = Induced("its partner", "here", "the smaller of it and its neighbour")
     assert what_would_tell_them_apart(one, same, of_length=4) is None
+
+
+# ── what the evidence did not settle is not learned ──────────────────────
+
+def test_an_ambiguous_family_teaches_her_nothing():
+    """Saying "your examples do not settle it" and keeping one of the
+    candidates says two different things, and the kept one is what steers the
+    next answer — so the saying was decoration."""
+    from core.cognition.an_invented_kind import UNSETTLED
+
+    ambiguous = (
+        "[1,2,1] becomes [1,2,1]. [3,4,3] becomes [3,4,3]. "
+        "[5,6,5] becomes [5,6,5]. What does [7,2,9] become?"
+    )
+    answer_sequence_question(ambiguous)
+    assert KINDS == {}
+    assert all(len(readings) > 1 for readings in UNSETTLED.values())
+
+
+def test_and_she_refuses_the_case_the_readings_disagree_about():
+    ambiguous = (
+        "[1,2,1] becomes [1,2,1]. [3,4,3] becomes [3,4,3]. "
+        "[5,6,5] becomes [5,6,5]. What does [7,2,9] become?"
+    )
+    said = answer_sequence_question(ambiguous)
+    assert "cannot answer this one yet" in said
+    assert "disagree about this case" in said
+    assert "would tell them apart" in said or "I will know which" in said
+
+
+def test_but_answers_a_case_they_agree_about():
+    from core.cognition.an_invented_kind import (
+        everything_that_fits,
+        hold_unsettled,
+        what_they_agree_on,
+    )
+
+    thin = [((1, 2, 1), (1, 2, 1)), ((3, 4, 3), (3, 4, 3))]
+    name = hold_unsettled("thin", everything_that_fits(thin))
+    assert what_they_agree_on(name, (5, 6, 5)) == (5, 6, 5)
+    assert what_they_agree_on(name, (7, 2, 9)) is None
+
+
+def test_a_discriminating_example_settles_it_and_teaches_her():
+    from core.cognition.an_invented_kind import (
+        UNSETTLED,
+        everything_that_fits,
+        hold_unsettled,
+        settle_with,
+    )
+
+    thin = [((1, 2, 1), (1, 2, 1)), ((3, 4, 3), (3, 4, 3))]
+    name = hold_unsettled("thin", everything_that_fits(thin))
+    assert settle_with(name, [((7, 2, 9), (9, 2, 7))]) == "settled"
+    assert name in KINDS
+    assert name not in UNSETTLED
+
+
+# ── and equivalence is decided, not sampled ──────────────────────────────
+
+def test_two_meanings_are_compared_exhaustively():
+    """Two hundred random probes over six and a half thousand states is "no
+    counterexample found", and using that as "the same meaning" is the quiet
+    approximation this subsystem exists not to make."""
+    import inspect
+
+    from core.cognition import an_invented_kind
+
+    module = inspect.getsource(an_invented_kind)
+    body = inspect.getsource(an_invented_kind.what_would_tell_them_apart)
+    assert "EXHAUSTIVELY" in body
+    # Nothing here draws a sample. The domain is walked.
+    assert "import random" not in module
+    assert "rng" not in module
+
+
+def test_and_a_real_difference_is_always_found():
+    from core.cognition.an_invented_kind import Induced, what_would_tell_them_apart
+
+    for other in (
+        Induced("the far end", "the far end", "as it is"),
+        Induced("one along", "one along", "as it is"),
+        Induced("here", "one along", "the larger of it and its neighbour"),
+    ):
+        here = Induced("here", "here", "as it is")
+        assert what_would_tell_them_apart(here, other) is not None

@@ -87,22 +87,45 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
 
     The examples are before-and-after pairs, which is exactly what a meaning is
     induced from: which two places each value is read from, and what is done
-    with the pair. Solved on half of them and held to the half it never saw,
-    so a meaning that fits everything it was shown and nothing else is refused
-    rather than admitted.
+    with the pair. Solved on half of them and held to the half it never saw.
 
-    Named for what it does rather than numbered, and kept, so the next question
-    of this kind is answered by something she already knows.
+    Where SEVERAL readings account for everything shown, none of them is
+    learned. Saying "your examples do not settle it" and then keeping one of
+    the candidates says two different things — and the kept one is what steers
+    the next answer, so the saying was decoration. She keeps the set, answers
+    the cases every reading agrees about, and refuses the ones they do not.
     """
-    from core.cognition.an_invented_kind import KINDS, admit, induce_from
+    from core.cognition.an_invented_kind import (
+        KINDS,
+        UNSETTLED,
+        admit,
+        everything_that_fits,
+        hold_unsettled,
+        induce_from,
+        settle_with,
+        what_they_agree_on,
+        what_would_tell_them_apart,
+    )
 
     pairs = [(one.before, one.after) for one in question.shown]
 
-    # Something she already knows first, which is what makes the second
-    # question of a kind cheaper than the first — and what makes one example
-    # enough once she has met the family before. The ordering path takes the
-    # same shortcut for the same reason.
-    for known in list(KINDS.values()):
+    # Anything she is unsure about, first: these examples may be what settles
+    # it, and that is worth more than another answer.
+    for unsure in list(UNSETTLED):
+        if settle_with(unsure, pairs) == "settled":
+            known = KINDS[unsure]
+            answer = known.read(tuple(question.asked))
+            if answer is not None:
+                return (
+                    f"{list(answer)}\n\n"
+                    f"That settles something I was unsure about. Several readings "
+                    f"fitted what you had shown me before; these rule out all but "
+                    f"one, and it is {known.name}."
+                )
+
+    # Then something already settled, which is what makes the second question
+    # of a kind cheaper than the first.
+    for kind, known in list(KINDS.items()):
         if not all(known.read(before) == after for before, after in pairs):
             continue
         answer = known.read(tuple(question.asked))
@@ -115,42 +138,60 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
             "working out at all."
         )
 
+    # Then a case she has an unsettled reading of already, where the readings
+    # happen to agree.
+    for unsure, meanings in list(UNSETTLED.items()):
+        if not all(
+            any(one.read(before) == after for one in meanings) for before, after in pairs
+        ):
+            continue
+        agreed = what_they_agree_on(unsure, tuple(question.asked))
+        if agreed is not None:
+            return (
+                f"{list(agreed)}\n\n"
+                f"I am still unsure which of {len(meanings)} readings this is, "
+                "but they all say the same thing about this one."
+            )
+
     meaning = induce_from(pairs)
     if meaning is None:
         return None
+    fits = everything_that_fits(pairs)
+
+    if len(fits) > 1:
+        # Not settled, so nothing is learned. She keeps the readings, answers
+        # what they agree on, and says what would tell them apart.
+        name = hold_unsettled(meaning.name, fits)
+        agreed = what_they_agree_on(name, tuple(question.asked))
+        other = next((one for one in fits if one.name != meaning.name), fits[0])
+        telling = what_would_tell_them_apart(
+            meaning, other, of_length=len(question.asked)
+        )
+        settle = ""
+        if telling is not None:
+            settle = (
+                f" Show me what {list(telling)} becomes and I will know which: "
+                f"{meaning.name} says {list(meaning.read(telling) or ())} and "
+                f"{other.name} says {list(other.read(telling) or ())}."
+            )
+        if agreed is not None:
+            return (
+                f"{list(agreed)}\n\n"
+                f"{len(fits)} readings account for every example you showed me, "
+                "and they all say the same thing about this one — so I can answer "
+                "it without knowing which is right. I have not decided between "
+                f"them.{settle}"
+            )
+        return (
+            f"I cannot answer this one yet, and it is worth saying why.\n\n"
+            f"{len(fits)} readings account for every example you showed me and "
+            "they disagree about this case, so any answer I gave would be a "
+            f"guess dressed as a rule.{settle}"
+        )
+
     answer = meaning.read(tuple(question.asked))
     if answer is None:
         return None
-
-    # More than one meaning may account for the examples, and that is a fact
-    # about the examples rather than about her. Answering from one of several
-    # without saying so makes a confident answer out of evidence that does not
-    # support one — so when the readings genuinely differ, she says which she
-    # took and what would settle it.
-    from core.cognition.an_invented_kind import (
-        everything_that_fits,
-        what_would_tell_them_apart,
-    )
-
-    fits = everything_that_fits(pairs)
-    unsettled = ""
-    if len(fits) > 1:
-        other = next((one for one in fits if one.name != meaning.name), None)
-        if other is not None:
-            telling = what_would_tell_them_apart(
-                meaning, other, of_length=len(question.asked)
-            )
-            unsettled = (
-                f"\n\nYour examples do not settle it, though: {other.name} "
-                f"accounts for all of them too."
-            )
-            if telling is not None:
-                unsettled += (
-                    f" Show me what {list(telling)} becomes and I will know "
-                    f"which — I read it as {list(meaning.read(telling) or ())} "
-                    f"and the other reading says {list(other.read(telling) or ())}."
-                )
-
     admit(meaning.name, meaning)
     try:
         from core.cognition.what_she_gave_meaning import keep
@@ -164,7 +205,7 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
         f"doing and gave it a meaning: {meaning.name}. It accounts for every "
         "example you showed me, including the ones I did not use to work it "
         "out, and I have kept it — ask me another of these and I will already "
-        "know it." + unsettled
+        "know it."
     )
 
 
@@ -389,12 +430,43 @@ def answer_sequence_question(text: Any) -> str:
     if len(result) > len(question.asked):
         return ""
 
-    language.admit(found)
-    language.refactor()
-    target = _language_path()
-    if target is not None:
-        language.path = target
-        language.save()
+    # What the evidence did not settle is not learned.
+    #
+    # A rival that fits everything shown and disagrees about what comes next
+    # means the observations chose no rule. Saying so and then admitting one of
+    # them anyway says two different things, and the admitted one is what
+    # steers the next question — so the saying was decoration. This is the same
+    # discipline the induced-meaning path follows a few hundred lines up.
+    probe = discriminating_probe(list(question.shown), known_forms=language.forms)
+    rival_form = ""
+    rival_says: tuple[Any, ...] | None = None
+    if probe is not None:
+        for text, _rule in probe.rivals:
+            if text == found.form:
+                continue
+            rival_form = text
+            rival_says = _what_a_form_says(text, tuple(question.asked), language)
+            break
+
+    unsettled = bool(rival_form)
+    if not unsettled:
+        language.admit(found)
+        language.refactor()
+        target = _language_path()
+        if target is not None:
+            language.path = target
+            language.save()
+
+    if unsettled and rival_says is not None and tuple(rival_says) != tuple(result):
+        # They disagree about THIS case. Any answer would be a guess dressed as
+        # a rule.
+        return (
+            "I cannot answer this one yet, and it is worth saying why.\n\n"
+            f"{found.form.capitalize()} and {rival_form} both account for every "
+            "example you showed me, and they disagree about this case: one says "
+            f"{list(result)} and the other {list(rival_says)}. "
+            f"Show me what {list(probe.state)} becomes and I will know which."
+        )
 
     said = (
         f"{list(result)}\n\n"
@@ -406,17 +478,27 @@ def answer_sequence_question(text: Any) -> str:
     # the same confidence either way: one example of (1,2,3) becoming (3,2,1)
     # is a mirror and is just as much an exchange of the ends, and only the
     # first was ever said.
-    #
-    # Named only when a rival exists AND disagrees somewhere reachable, so a
-    # world the observations actually pin says nothing extra.
-    probe = discriminating_probe(list(question.shown), known_forms=language.forms)
-    if probe is not None:
-        rival = next(
-            (text for text, _r in probe.rivals if text != found.form), None
+    if unsettled:
+        said += (
+            f"\n\n{rival_form.capitalize()} fits everything you showed just as "
+            f"well, and says the same about this one — so I could answer it "
+            f"without deciding between them, and I have not. "
+            f"{list(probe.state)} would tell them apart."
         )
-        if rival:
-            said += (
-                f"\n\n{rival.capitalize()} fits everything you showed just as "
-                f"well. {list(probe.state)} would tell them apart."
-            )
     return said
+
+
+def _what_a_form_says(
+    form: str, cells: tuple[Any, ...], language: Any
+) -> tuple[Any, ...] | None:
+    """What a rule of that form would make of these cells, or nothing."""
+    from core.cognition.primitive_invention import rule_for_description
+
+    rule = (getattr(language, "rules", {}) or {}).get(form) or rule_for_description(form)
+    if rule is None:
+        return None
+    try:
+        size = len(cells)
+        return tuple(cells[rule(index, size)] for index in range(size))
+    except (IndexError, TypeError, ValueError, AttributeError):
+        return None

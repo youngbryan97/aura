@@ -131,42 +131,113 @@ class EmergentGoalEngine:
                 by_kind.setdefault(obs.kind, []).append(obs)
 
             new_candidates: list[EmergentGoal] = []
+            # Within a kind, group by what the trouble is ABOUT.
+            #
+            # A tension's identity was its exact evidence text, which grows
+            # with every observation, so the same trouble was never the same
+            # goal twice. Making it the kind alone fixed that and overshot:
+            # a category as broad as "a regretted action" then collapses every
+            # unrelated recurring problem into one goal, and a goal that is
+            # about everything is about nothing.
+            #
+            # What sits between them is what the evidence is about — the words
+            # its accounts have in common. Two reports of the same trouble
+            # share them; two different troubles under one heading do not.
             for kind, obs_list in by_kind.items():
-                if len(obs_list) < 2:
-                    continue
-                mean_magnitude = sum(o.magnitude for o in obs_list) / len(obs_list)
-                if mean_magnitude < self.TENSION_THRESHOLD:
-                    continue
-                candidate = self._compose_candidate(kind, obs_list, mean_magnitude)
-                if candidate.goal_id in self._candidates:
-                    self._support_counts[candidate.goal_id] = self._support_counts.get(candidate.goal_id, 0) + 1
-                    # Evidence sharpens the objective it already had.
-                    self._candidates[candidate.goal_id] = candidate
-                    # Written down as it grows, not only when it is born.
-                    #
-                    # Candidates were persistent and their support was not: the
-                    # count reached disk on creation and again on adoption, and
-                    # every unit of support in between lived in memory. So a
-                    # tension that recurred four times across a day of uptime
-                    # came back after a reboot as a tension that had been
-                    # noticed once, and a goal three-quarters of the way to
-                    # being adopted started again. For a mind whose whole point
-                    # is that experience accumulates, that is the wrong thing
-                    # to lose.
-                    self._persist_candidate(candidate)
-                else:
-                    self._candidates[candidate.goal_id] = candidate
-                    self._support_counts[candidate.goal_id] = 1
-                    self._persist_candidate(candidate)
-                    new_candidates.append(candidate)
+                for founded_on, group in self._grouped_by_what_it_is_about(obs_list):
+                    if len(group) < 2:
+                        continue
+                    mean_magnitude = sum(o.magnitude for o in group) / len(group)
+                    if mean_magnitude < self.TENSION_THRESHOLD:
+                        continue
+                    candidate = self._compose_candidate(
+                        kind, group, mean_magnitude, founded_on=founded_on
+                    )
+                    if candidate.goal_id in self._candidates:
+                        self._support_counts[candidate.goal_id] = self._support_counts.get(candidate.goal_id, 0) + 1
+                        # Evidence sharpens the objective it already had.
+                        self._candidates[candidate.goal_id] = candidate
+                        # Written down as it grows, not only when it is born.
+                        #
+                        # Candidates were persistent and their support was not: the
+                        # count reached disk on creation and again on adoption, and
+                        # every unit of support in between lived in memory. So a
+                        # tension that recurred four times across a day of uptime
+                        # came back after a reboot as a tension that had been
+                        # noticed once, and a goal three-quarters of the way to
+                        # being adopted started again. For a mind whose whole point
+                        # is that experience accumulates, that is the wrong thing
+                        # to lose.
+                        self._persist_candidate(candidate)
+                    else:
+                        self._candidates[candidate.goal_id] = candidate
+                        self._support_counts[candidate.goal_id] = 1
+                        self._persist_candidate(candidate)
+                        new_candidates.append(candidate)
             self._expire_stale()
             return new_candidates
+
+    #: How much two accounts of a trouble have to have in common before they
+    #: are accounts of the SAME trouble. A share of the smaller one's words, so
+    #: a short note and a long one can still be about one thing.
+    ABOUT_THE_SAME_THING = 0.34
+
+    @staticmethod
+    def _what_it_is_about(said: str) -> frozenset[str]:
+        """The words that carry what a piece of evidence is about.
+
+        Everything of three letters or more, lowercased. Not a vocabulary: the
+        point is only that two accounts of one trouble reuse words and two
+        accounts of different troubles do not, which holds whatever the trouble
+        is and whatever anybody calls it.
+        """
+        return frozenset(
+            word for word in re.findall(r"[a-z0-9]{3,}", str(said or "").lower())
+        )
+
+    def _grouped_by_what_it_is_about(
+        self, observations: list[TensionObservation]
+    ) -> list[list[TensionObservation]]:
+        """Observations of one kind, split into the troubles they are about.
+
+        Each observation joins the group it shares most with, when that is
+        enough to call it the same thing, and otherwise starts one of its own.
+        Order-dependent by construction and that is honest: what she has seen
+        so far is what she has to group by.
+        """
+        groups: list[tuple[frozenset[str], set[str], list[TensionObservation]]] = []
+        for one in observations:
+            about = self._what_it_is_about(one.evidence)
+            best: tuple[float, int] = (0.0, -1)
+            for index, (_founded, words, _kept) in enumerate(groups):
+                if not about and not words:
+                    shared = 1.0
+                elif not about or not words:
+                    shared = 0.0
+                else:
+                    shared = len(about & words) / min(len(about), len(words))
+                if shared > best[0]:
+                    best = (shared, index)
+            if best[0] >= self.ABOUT_THE_SAME_THING and best[1] >= 0:
+                _founded, words, kept = groups[best[1]]
+                words |= about
+                kept.append(one)
+            else:
+                groups.append((about, set(about), [one]))
+        # What FOUNDED each group, not everything it has since collected.
+        #
+        # The identity has to hold still while evidence accumulates, and the
+        # words a group has gathered grow with every new account of it — which
+        # is the same drift that made a tension a new goal every time it
+        # recurred, one level up. What a group was founded on does not move.
+        return [(founded, kept) for founded, _words, kept in groups]
 
     def _compose_candidate(
         self,
         kind: str,
         observations: list[TensionObservation],
         mean_magnitude: float,
+        founded_on: frozenset[str] | None = None,
     ) -> EmergentGoal:
         # The objective's EVIDENCE is observed; its shape is not.
         #
@@ -198,7 +269,11 @@ class EmergentGoalEngine:
         #
         # What a tension IS is what it is about. Evidence accumulates onto it
         # and sharpens how the objective reads; it does not make a new one.
-        goal_key = hashlib.sha256(kind.encode()).hexdigest()[:16]
+        # Kind, plus what this group is about. Stable as evidence accumulates —
+        # the shared words are what made it one group — and different for two
+        # unrelated troubles filed under the same heading.
+        core = "|".join(sorted(founded_on or ())[:8])
+        goal_key = hashlib.sha256(f"{kind}|{core}".encode()).hexdigest()[:16]
         name = f"emergent:{kind}:{goal_key[:6]}"
         priority = float(max(0.25, min(0.95, 0.45 + 0.5 * (mean_magnitude - self.TENSION_THRESHOLD))))
         return EmergentGoal(

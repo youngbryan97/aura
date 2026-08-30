@@ -35,6 +35,10 @@ from typing import Any, Callable, Iterator, Sequence
 
 __all__ = [
     "ENOUGH_HELD_BACK",
+    "UNSETTLED",
+    "hold_unsettled",
+    "settle_with",
+    "what_they_agree_on",
     "everything_that_fits",
     "what_would_tell_them_apart",
     "Induced",
@@ -174,26 +178,67 @@ def every_meaning() -> Iterator[Induced]:
 KINDS: dict[str, Induced] = {}
 
 
-def what_would_tell_them_apart(
-    one: Induced, other: Induced, *, of_length: int = 4, tries: int = 200
-) -> tuple[Any, ...] | None:
-    """A state these two meanings disagree about, so somebody could settle it.
+#: Lengths a pair of meanings is compared over. Short, because behaviour here
+#: is decided by which places a value is read from — a difference that shows up
+#: at one length shows up at every length that has those places.
+_LENGTHS_TO_SETTLE_IT = (2, 3, 4, 5)
 
-    Searched rather than reasoned about: put states in front of both and keep
-    the first they answer differently. Nothing here knows what makes two
-    meanings differ, only that a case they disagree on is worth asking about.
+
+def _how_it_behaves(meaning: Induced, of_length: int = 4) -> tuple[Any, ...]:
+    """What a meaning does across every telling state, as one comparable value.
+
+    Computed once per meaning rather than once per pair. Comparing meanings by
+    searching for a disagreement between each of them is quadratic in a set
+    that is often twenty strong, and the search is exhaustive — which turned a
+    correct answer into a suite that took half an hour.
     """
-    import random
+    return tuple(
+        meaning.read(state)
+        for size in sorted({int(of_length), *_LENGTHS_TO_SETTLE_IT})
+        if size >= 2
+        for state in _every_telling_state(size)
+    )
 
-    rng = random.Random(0)
-    for _ in range(max(1, tries)):
-        state = tuple(rng.randint(1, 9) for _ in range(max(2, of_length)))
-        mine, theirs = one.read(state), other.read(state)
-        if mine is not None and theirs is not None and mine != theirs:
-            return state
+
+def what_would_tell_them_apart(
+    one: Induced, other: Induced, *, of_length: int = 4
+) -> tuple[Any, ...] | None:
+    """A state these two answer differently, searched EXHAUSTIVELY.
+
+    Not sampled. Two hundred random probes over the six and a half thousand
+    states of length four is "no counterexample found", and using that as "the
+    same meaning" is exactly the kind of quiet approximation this subsystem
+    exists not to make.
+
+    The domain is finite and small enough to walk. Behaviour here depends on
+    which two places each position reads from and what is done with the pair,
+    so a state whose values are all different exposes every difference in the
+    reading, and states with repeats expose differences in the doing. Both are
+    enumerated, over several lengths, and None means checked rather than
+    unlucky.
+    """
+    for size in sorted({int(of_length), *_LENGTHS_TO_SETTLE_IT}):
+        if size < 2:
+            continue
+        for state in _every_telling_state(size):
+            mine, theirs = one.read(state), other.read(state)
+            if mine is not None and theirs is not None and mine != theirs:
+                return state
     return None
 
 
+def _every_telling_state(size: int) -> Iterator[tuple[int, ...]]:
+    """States of this length that between them expose any difference.
+
+    All-distinct values first, which separate any two readings that take from
+    different places. Then every state over two values, which separates any two
+    doings that treat a pair differently — including the ties a set of distinct
+    values can never produce.
+    """
+    from itertools import permutations, product
+
+    yield from permutations(range(1, size + 1))
+    yield from product((1, 2), repeat=size)
 def everything_that_fits(
     transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
 ) -> list[Induced]:
@@ -217,13 +262,15 @@ def everything_that_fits(
     # smaller of a pair reads two ways round and is one meaning either way, and
     # reporting that as two readings of the evidence would invent a doubt that
     # is not there.
+    size = len(pairs[0][0])
     distinct: list[Induced] = []
+    seen: set[tuple[Any, ...]] = set()
     for meaning in fitting:
-        if not any(
-            what_would_tell_them_apart(meaning, kept, of_length=len(pairs[0][0])) is None
-            for kept in distinct
-        ):
-            distinct.append(meaning)
+        behaves = _how_it_behaves(meaning, size)
+        if behaves in seen:
+            continue
+        seen.add(behaves)
+        distinct.append(meaning)
     return distinct or fitting[:1]
 
 
@@ -264,6 +311,89 @@ def induce_from(
     return None
 
 
+#: Kinds whose meaning is NOT settled: several readings account for everything
+#: seen and they disagree about what comes next. Held as a set on purpose.
+UNSETTLED: dict[str, tuple[Induced, ...]] = {}
+
+
+def hold_unsettled(kind: str, meanings: Sequence[Induced]) -> str:
+    """Keep several readings of a kind, because the evidence chose none of them.
+
+    Reporting an ambiguity and then admitting one of the candidates anyway is
+    saying two different things: out loud, "your examples do not settle it";
+    in memory, "I learned this one". The second is what steers the next
+    answer, so the first was decoration.
+
+    A kind whose evidence is thin has a SET of meanings, and it keeps that set
+    until something tells them apart.
+    """
+    name = str(kind or "").strip()
+    kept = tuple(one for one in meanings if isinstance(one, Induced))
+    if not name or len(kept) < 2:
+        return ""
+    UNSETTLED[name] = kept
+    logger.info("%r is not settled: %d readings account for everything seen", name, len(kept))
+    return name
+
+
+def what_they_agree_on(kind: str, cells: Sequence[Any]) -> tuple[Any, ...] | None:
+    """What every unsettled reading of this kind says, when they all say the same.
+
+    None when they disagree, which is the honest answer: the evidence does not
+    determine this case, and picking one of them would be inventing a
+    certainty. Cases they happen to agree on are answerable without settling
+    anything, and that is worth having — most cases are.
+    """
+    meanings = UNSETTLED.get(str(kind or ""))
+    if not meanings:
+        return None
+    said = [one.read(cells) for one in meanings]
+    if any(answer is None for answer in said):
+        return None
+    return said[0] if all(answer == said[0] for answer in said) else None
+
+
+def settle_with(kind: str, transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]]) -> str:
+    """Rule out the readings these observations contradict.
+
+    When one survives it is admitted and the set is gone: the discriminating
+    observation promoted it, which is what an unsettled set is FOR.
+    """
+    name = str(kind or "").strip()
+    meanings = UNSETTLED.get(name)
+    if not meanings:
+        return ""
+    pairs = [(tuple(before), tuple(after)) for before, after in transitions]
+    surviving = tuple(
+        one for one in meanings
+        if all(one.read(before) == after for before, after in pairs)
+    )
+    if not surviving:
+        UNSETTLED.pop(name, None)
+        logger.info("%r: nothing that fitted before fits now — the set is gone", name)
+        return "none"
+    if len(surviving) == len(meanings):
+        return ""
+    if len(surviving) == 1:
+        UNSETTLED.pop(name, None)
+        # The survivor carries what settled it. A meaning admitted with no
+        # evidence behind it is refused, rightly — and the evidence here is
+        # every observation it has survived, including the one that ruled the
+        # others out.
+        settled = Induced(
+            where_from=surviving[0].where_from,
+            and_from=surviving[0].and_from,
+            what_of_it=surviving[0].what_of_it,
+            held_back=1.0,
+            from_examples=len(pairs),
+        )
+        admit(name, settled)
+        logger.info("%r is settled: %s", name, settled.name)
+        return "settled"
+    UNSETTLED[name] = surviving
+    return "narrowed"
+
+
 def admit(kind: str, meaning: Induced) -> str:
     """Give a kind of node a meaning, so the interpreter can run it.
 
@@ -292,4 +422,10 @@ def forget(kind: str) -> bool:
 def interpretation_of(kind: str) -> Callable[[Sequence[Any]], tuple[Any, ...] | None] | None:
     """How to run a node of that kind, or nothing if she has no meaning for it."""
     meaning = KINDS.get(str(kind or ""))
-    return meaning.read if meaning is not None else None
+    if meaning is not None:
+        return meaning.read
+    # A kind whose meaning is not settled still answers the cases its readings
+    # agree about, and refuses the ones they do not.
+    if str(kind or "") in UNSETTLED:
+        return lambda cells: what_they_agree_on(str(kind), cells)
+    return None
