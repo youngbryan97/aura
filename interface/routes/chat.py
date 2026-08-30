@@ -10206,6 +10206,9 @@ def _reset_lane_status_repeat_state() -> None:
 
 _FOREGROUND_GATE_BOOT_WAIT_S = 90.0
 #: A fallback answer is only useful if it beats the cortex finishing its load.
+#: This is the floor, not the budget: what the ladder actually gets is whatever
+#: the turn has left, because refusing at a hundred and ninety seconds while a
+#: model finishes loading at sixty is the worst reading of "be quick".
 _FALLBACK_LADDER_TIMEOUT_S = 25.0
 _BOOT_TRANSITION_STALL_S = 45.0
 
@@ -10377,7 +10380,7 @@ def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool
 
 
 async def _anything_better_than_giving_up(
-    message: object, *, reason: str, already: str
+    message: object, *, reason: str, already: str, budget_s: float | None = None
 ) -> str:
     """One more thing to try before the honest failure goes out.
 
@@ -10393,7 +10396,9 @@ async def _anything_better_than_giving_up(
     if already:
         return already
     try:
-        said = await _answer_from_fallback_ladder(message, reason=reason)
+        said = await _answer_from_fallback_ladder(
+            message, reason=reason, budget_s=budget_s
+        )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.fallback_ladder",
@@ -10450,7 +10455,9 @@ def _with_the_same_readings(system_prompt: str, readings: list[str]) -> str:
     return "\n\n".join([system_prompt, *readings] if system_prompt else readings)
 
 
-async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> str:
+async def _answer_from_fallback_ladder(
+    user_message: object, *, reason: str, budget_s: float | None = None
+) -> str:
     """Answer with the smaller resident model when the cortex cannot serve.
 
     Returns "" when the ladder cannot answer either, or when the question is
@@ -10539,32 +10546,59 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         ladder_chain: list = []
         raw = ""
         stop_reason = ""
-        deadline = time.monotonic() + _FALLBACK_LADDER_TIMEOUT_S
-        for endpoint in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT):
-            remaining = deadline - time.monotonic()
-            if remaining <= 1.0:
+        allowed = max(
+            _FALLBACK_LADDER_TIMEOUT_S,
+            float(budget_s) if budget_s is not None else 0.0,
+        )
+        deadline = time.monotonic() + allowed
+        # A model that is loading is a condition that passes. The chain came
+        # back EMPTY — no endpoint considered at all — because the smaller
+        # model was itself still coming up, and one pass over the endpoints
+        # turned that into a refusal inside a turn that had three minutes left.
+        while not raw and time.monotonic() < deadline:
+            considered = False
+            for endpoint in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT):
+                remaining = deadline - time.monotonic()
+                if remaining <= 1.0:
+                    break
+                try:
+                    candidate = await asyncio.wait_for(
+                        router.think(
+                            text,
+                            system_prompt=identity,
+                            prefer_tier="tertiary",
+                            prefer_endpoint=endpoint,
+                            foreground_request=True,
+                            allow_cloud_fallback=False,
+                        ),
+                        timeout=remaining,
+                    )
+                except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
+                    continue
+                if isinstance(candidate, dict):
+                    chain = list(candidate.get("fallback_chain") or [])
+                    considered = considered or bool(chain)
+                    ladder_chain = chain or ladder_chain
+                    stop_reason = str(candidate.get("generation_stop_reason") or "")
+                    candidate = candidate.get("content") or candidate.get("response") or ""
+                else:
+                    considered = True
+                if _strip_scaffolding_tags(candidate):
+                    raw = candidate
+                    break
+            if raw or considered:
+                # Something answered, or something was tried and declined. Only
+                # an empty chain means nothing was there to ask yet.
                 break
-            try:
-                candidate = await asyncio.wait_for(
-                    router.think(
-                        text,
-                        system_prompt=identity,
-                        prefer_tier="tertiary",
-                        prefer_endpoint=endpoint,
-                        foreground_request=True,
-                        allow_cloud_fallback=False,
-                    ),
-                    timeout=remaining,
-                )
-            except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
-                continue
-            if isinstance(candidate, dict):
-                ladder_chain = list(candidate.get("fallback_chain") or [])
-                stop_reason = str(candidate.get("generation_stop_reason") or "")
-                candidate = candidate.get("content") or candidate.get("response") or ""
-            if _strip_scaffolding_tags(candidate):
-                raw = candidate
+            left = deadline - time.monotonic()
+            if left <= 1.0:
                 break
+            logger.info(
+                "🪜 Nothing to ask yet — every endpoint is still loading. "
+                "Waiting %.0fs more rather than refusing.",
+                left,
+            )
+            await asyncio.sleep(min(2.0, left))
     except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
         record_degradation(
             "chat.fallback_ladder",
@@ -21641,6 +21675,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 reason="the cognitive engine could not serve this turn",
                 already=evidenced_reply,
+                budget_s=_remaining_foreground_budget(),
             )
             if evidenced_reply:
                 failure_reply = evidenced_reply
@@ -22993,6 +23028,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 ladder_reply = await _answer_from_fallback_ladder(
                     _semantic_user_message,
                     reason=admission_reason,
+                    budget_s=_remaining_foreground_budget(
+                        reserve=_DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                    ),
                 )
                 if ladder_reply:
                     _live_turn_trace.update(
@@ -23774,6 +23812,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 reason="the cognitive engine could not serve this turn",
                 already=evidenced_reply,
+                budget_s=_remaining_foreground_budget(),
             )
             if evidenced_reply:
                 failure_reply = evidenced_reply
