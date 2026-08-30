@@ -1649,6 +1649,11 @@ async def pursue_on_screen(
     began_at: dict[str, Any] = {"worth": None, "seen": 0}
     #: Where the page says it draws, asked once when the run gets its bearings.
     drawn: dict[str, Any] = {"where": None, "asked": False}
+    #: Why the last cycle ended without a move. Eleven different facts used
+    #: to arrive at the executor as one silence, and the run then reported
+    #: "nothing on screen offered a move" for every one of them — which cost
+    #: three wrong diagnoses in a row before this line existed.
+    no_move: dict[str, str] = {"because": ""}
     pending: dict[str, Any] = {
         "deliberation": None,
         "before": "",
@@ -2039,6 +2044,7 @@ async def pursue_on_screen(
                 in_the_way["last"] = ""
                 if narrate:
                     _tell(f"{in_front} was in front of this. Closed it.")
+                no_move["because"] = "a blocker was cleared, so this cycle is spent"
                 return None
 
         blocker = await clear_blocker(observation)
@@ -2048,15 +2054,18 @@ async def pursue_on_screen(
             # said.
             if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
                 blocker_attempts["last"] = blocker.name
+                no_move["because"] = "something is in front of it that will not move"
                 return None
             blocker_attempts["count"] += 1
             blocker_attempts["dismissed"] += 1
             blocker_attempts["last"] = blocker.name
             return blocker
         if needs_person["reason"]:
+            no_move["because"] = "declining what is in front of it"
             return None
         blocker_attempts["count"] = 0
         if not observation.get("ok"):
+            no_move["because"] = "waiting for what is in front of it to go"
             return None
 
         # What she is looking at, kept to the part that answers to her.
@@ -2141,6 +2150,7 @@ async def pursue_on_screen(
                     f"{anchor['app'] or 'this window'} is"
                 )
                 logger.info("she is not where she was asked to be: %s", not_there["reason"])
+                no_move["because"] = "she is not where she was asked to be"
                 return None
 
         # Grade the last prediction before making another one.
@@ -2304,11 +2314,14 @@ async def pursue_on_screen(
                     severity="info",
                     action="ended a screen pursuit cycle without a move",
                 )
+                no_move["because"] = "the policy raised rather than answered"
                 return None
             if not intent:
+                no_move["because"] = "the policy offered no move"
                 return None
             key = str(intent.get("key") or "").strip().lower()
             if key not in PRESSABLE_KEYS:
+                no_move["because"] = "the policy named a key nothing can press"
                 return None
             because = str(intent.get("because") or "").strip()
         else:
@@ -2615,6 +2628,7 @@ async def pursue_on_screen(
                 # keeps acting once its judgement is out of reach is the exact
                 # failure this decision path was built to end.
                 undecided["reason"] = chosen.reason
+                no_move["because"] = "she could not settle on one"
                 return None
             key = chosen.chosen.name
             because = chosen.rationale
@@ -2632,6 +2646,7 @@ async def pursue_on_screen(
                     # Chosen once and then re-decided as the gap changes,
                     # rather than committing the rest of the run to one pace.
                     pacing["choice"] = ""
+                no_move["because"] = "she chose a pace rather than a move"
                 return None
 
             if key == SEE_IT_THROUGH:
@@ -2639,6 +2654,7 @@ async def pursue_on_screen(
                 # "do something", so the loop carries on with the moves it has.
                 seen_through["value"] = True
                 seen_through["because"] = because
+                no_move["because"] = "she chose to see it through"
                 return None
 
             if key == START_OVER:
@@ -3068,6 +3084,9 @@ async def pursue_on_screen(
         # failure with a different fix.
         result["outcome"] = "could_not_get_there"
         result["could_not_get_there"] = not_there["reason"]
+    if no_move["because"] and not receipt.completed and not moves:
+        result["why_no_move"] = no_move["because"]
+        logger.info("no move was made: %s", no_move["because"])
     if undecided["reason"] and not receipt.completed:
         # Name the judgement, not the budget. "no_move_available" would say
         # the screen offered nothing; this says she could not decide, and why.

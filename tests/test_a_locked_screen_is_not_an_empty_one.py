@@ -27,9 +27,14 @@ def refused(reason: ScreenCaptureDenial) -> ScreenCaptureAdmission:
 # ── the refusal says which refusal it is ─────────────────────────────────
 
 def test_a_locked_screen_says_it_is_a_session_and_not_a_screen():
+    """And says it in words the person can act on.
+
+    "The interactive session is unavailable" is accurate and unactionable,
+    and the thing it keeps back is their own screen, which they locked.
+    """
     said = refused(ScreenCaptureDenial.SESSION_LOCKED).public_error
-    assert "interactive session" in said
-    assert "nothing" not in said
+    assert "locked" in said
+    assert "nothing for me to look at" in said
 
 
 @pytest.mark.parametrize(
