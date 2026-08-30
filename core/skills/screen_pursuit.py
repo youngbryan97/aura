@@ -1300,12 +1300,23 @@ async def _the_best_reading_available(
     if not said:
         return seen
     from_page = what_the_page_is_showing(said, band, like=like)
-    if from_page.occupied() <= seen.occupied():
+    # Whichever shows the THING more clearly, not whichever holds more text.
+    #
+    # A page that draws its board on a canvas has no text in the board at all,
+    # and plenty around it — a score, a best, a New Game, a footer. Preferring
+    # the reading with more things in it therefore preferred the furniture and
+    # threw the board away. What matters is the laid-out thing inside each
+    # reading, which is the question the crop already answers.
+    from core.perception.the_thing_itself import the_thing_itself
+
+    theirs = the_thing_itself(from_page)
+    mine = the_thing_itself(seen)
+    if theirs.occupied() <= mine.occupied():
         return seen
     logger.info(
-        "the page says %dx%d with %d thing(s); looking at it said %dx%d with %d",
-        from_page.rows, from_page.columns, from_page.occupied(),
-        seen.rows, seen.columns, seen.occupied(),
+        "the page shows the thing better: %dx%d with %d in it, against %dx%d with %d",
+        theirs.rows, theirs.columns, theirs.occupied(),
+        mine.rows, mine.columns, mine.occupied(),
     )
     return from_page
 

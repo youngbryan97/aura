@@ -79,3 +79,35 @@ async def test_a_page_that_will_not_answer_leaves_the_screen_reading(monkeypatch
         SQUINTING, None, like=None, in_a_browser=True
     )
     assert got.occupied() == 3
+
+
+@pytest.mark.asyncio
+async def test_a_page_full_of_furniture_does_not_win_on_count(monkeypatch):
+    """A canvas board has no text in it, and plenty around it.
+
+    LIVE 2026-08-30 on play2048.co: "the page says 5x7 with 10 thing(s);
+    looking at it said 4x5 with 8" — the ten were a score, a best, a New Game
+    and a footer, and preferring them threw the board away.
+    """
+    furniture = (
+        (0.02, 0.40, "24"), (0.02, 0.58, "6068"), (0.05, 0.50, "2048"),
+        (0.95, 0.20, "Give Feedback"), (0.97, 0.50, "play2048.co"),
+        (0.93, 0.50, "New Game"), (0.99, 0.10, "N or R"),
+        (0.91, 0.70, "1"), (0.91, 0.80, "2"), (0.91, 0.90, "3"),
+    )
+
+    async def says():
+        return furniture
+
+    monkeypatch.setattr("core.perception.what_the_page_says.what_the_page_says", says)
+    #: A screen reading that IS the board, laid out.
+    board = {
+        "layout": [
+            {"text": str(2 ** ((r + c) % 3 + 1)), "center_x": 0.20 + 0.16 * c,
+             "center_y": 0.30 + 0.16 * r}
+            for r in range(4)
+            for c in range(4)
+        ]
+    }
+    got = await _the_best_reading_available(board, None, like=None, in_a_browser=True)
+    assert got.occupied() == 16
