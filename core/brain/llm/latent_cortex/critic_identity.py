@@ -43,6 +43,7 @@ _CRITIC_SOURCE_FILES = (
     "core/brain/llm/latent_cortex/response_contracts.py",
     "core/brain/llm/latent_cortex/frontier_tasks.py",
     "core/brain/canonical_json.py",
+    "core/language/relational_request.py",
 )
 _ALLOWED_INTERNAL_IMPORTS = {
     "core.brain.llm.latent_cortex",
@@ -57,6 +58,7 @@ _ALLOWED_INTERNAL_IMPORTS = {
     "core.brain.llm.latent_cortex.response_contracts",
     "core.brain.llm.latent_cortex.test_time_training",
     "core.brain.llm.latent_cortex.teaching_events",
+    "core.language",
     # The typed compiler and its executor are pure Python — no mlx, no torch —
     # and they are what the critic's certified transition engine runs on. They
     # were undeclared, so the audit failed on them alongside the two genuinely

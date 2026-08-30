@@ -85,6 +85,7 @@ def test_symbolic_critic_identity_is_disjoint_from_neural_generator():
         row["path"] for row in validated["source_identity"]["source_files"]
     }
     assert "core/brain/canonical_json.py" in source_paths
+    assert "core/language/relational_request.py" in source_paths
     assert "core/brain/frontier_evidence_v5.py" not in source_paths
     assert (
         validated["critic_function_sha256"]

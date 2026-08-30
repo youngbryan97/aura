@@ -15,6 +15,7 @@ from core.conversation.requested_reply_shape import (
     is_reply_shape_constraint_segment,
     without_reply_shape_prefix,
 )
+from core.language import relational_request
 
 _COVERAGE_STOPWORDS = frozenset(
     {
@@ -378,14 +379,6 @@ _GRAPH_EDGE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_RELATION_REQUEST_RE = re.compile(
-    r"\b(?:distinguish|differentiate|separate|compare|contrast)\b"
-    r"(?P<left>.+?)"
-    r"(?:\bfrom\b|\bwith\b|\bversus\b|\bvs\.?\b|\band\b)"
-    r"(?P<right>.+)",
-    re.IGNORECASE,
-)
-
 # Surface forms that prove the same side of a requested distinction.  These
 # are deliberately narrow semantic families, not a general synonym table.
 # The important case is epistemic provenance: saying the word ``state`` does
@@ -504,11 +497,11 @@ def _epistemic_partition_is_covered(body: Any) -> bool:
 def requested_epistemic_partition_is_covered(request: Any, body: Any) -> bool:
     """Return whether a requested known/inferred distinction has both sides."""
 
-    match = _RELATION_REQUEST_RE.search(str(request or ""))
-    if match is None:
+    subjects = relational_request.compared_subjects(request)
+    if subjects is None:
         return True
-    left = coverage_tokens(match.group("left"))
-    right = coverage_tokens(match.group("right"))
+    left = coverage_tokens(" ".join(subjects[0]))
+    right = coverage_tokens(" ".join(subjects[1]))
     if (left | right) != _EPISTEMIC_SIDES or left == right:
         return True
     return _epistemic_partition_is_covered(body)
@@ -587,11 +580,11 @@ def _relation_sides_are_covered(
     can make a reply look complete while the requested distinction is absent.
     """
 
-    match = _RELATION_REQUEST_RE.search(str(segment or ""))
-    if match is None:
+    subjects = relational_request.compared_subjects(segment)
+    if subjects is None:
         return None
-    left = coverage_tokens(match.group("left"))
-    right = coverage_tokens(match.group("right"))
+    left = coverage_tokens(" ".join(subjects[0]))
+    right = coverage_tokens(" ".join(subjects[1]))
     if not left or not right:
         return None
     if (left | right) == _EPISTEMIC_SIDES and left != right:
@@ -987,10 +980,18 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
     answer quality or punishing concise prose.
     """
 
-    if not getattr(contract, "requires_single_reply_coverage", False):
-        return []
     segments = tuple(getattr(contract, "question_segments", ()) or ())
-    if len(segments) < 2:
+    relational_segments = {
+        index
+        for index, segment in enumerate(segments)
+        if relational_request.compared_subjects(segment)
+    }
+    if (
+        not getattr(contract, "requires_single_reply_coverage", False)
+        and not relational_segments
+    ):
+        return []
+    if len(segments) < 2 and not relational_segments:
         return []
 
     answered = coverage_tokens(body)

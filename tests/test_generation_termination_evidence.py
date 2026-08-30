@@ -609,3 +609,25 @@ def test_semantic_stop_waits_for_the_answers_own_declared_items() -> None:
             "declaration": "one of two things:",
         }
     ]
+
+
+def test_semantic_stop_waits_for_both_sides_of_one_comparison() -> None:
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": (
+            "What is the difference between a prism and a mirror?"
+        ),
+    }
+    partial = (
+        "A mirror is a flat coated surface that reflects light according to "
+        "the law of reflection: angle in equals angle out."
+    )
+    complete = (
+        partial
+        + " A prism instead refracts light at its surfaces and can disperse it "
+        "into component wavelengths."
+    )
+
+    assert not _semantic_surface_stop_ready(job, partial, generated_tokens=24)
+    assert _semantic_surface_stop_ready(job, complete, generated_tokens=48)

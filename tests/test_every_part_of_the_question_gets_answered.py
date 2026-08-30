@@ -143,6 +143,42 @@ def test_a_reply_that_covers_both_passes():
     assert not _unanswered_question_parts(complete, _Contract(shape))
 
 
+@pytest.mark.parametrize(
+    ("user_prompt", "partial", "complete"),
+    (
+        (
+            "What is the difference between a prism and a mirror?",
+            "A mirror is a coated surface that reflects incoming light.",
+            "A mirror reflects incoming light, while a prism refracts and disperses it.",
+        ),
+        (
+            "Compare TCP and UDP.",
+            "TCP establishes a reliable ordered connection.",
+            "TCP provides an ordered connection; UDP sends independent datagrams.",
+        ),
+        (
+            "How does a stack differ from a queue?",
+            "A stack removes the newest item first.",
+            "A stack removes the newest item first; a queue removes the oldest.",
+        ),
+    ),
+)
+def test_one_sentence_comparison_carries_two_subject_obligations(
+    user_prompt, partial, complete
+):
+    shape = analyze_prompt_shape(user_prompt)
+
+    assert len(shape.question_segments) == 1
+    assert _unanswered_question_parts(partial, _Contract(shape))
+    assert not _unanswered_question_parts(complete, _Contract(shape))
+
+
+def test_coordinated_instructions_are_not_misread_as_comparison_subjects():
+    from core.language.relational_request import compared_subjects
+
+    assert compared_subjects("Compare the tradeoffs and explain why it matters.") is None
+
+
 def test_one_shared_context_word_does_not_satisfy_a_numbered_obligation():
     user = (
         "Explain Dijkstra. Include: (1) its core invariant, (2) numbered pseudocode, "

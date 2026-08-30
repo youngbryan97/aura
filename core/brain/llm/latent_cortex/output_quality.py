@@ -12,6 +12,8 @@ import re
 from difflib import SequenceMatcher
 from typing import Any
 
+from core.language import relational_request
+
 OUTPUT_QUALITY_SCHEMA = "aura.latent_output_quality.v1"
 
 _WORD_RE = re.compile(r"[^\W_]+(?:[-'][^\W_]+)*", re.UNICODE)
@@ -78,31 +80,8 @@ _STOPWORDS = {
     "such", "than", "that", "their", "then", "there", "these", "they", "this", "through",
     "under", "using", "verify", "what", "when", "where", "which", "while", "with", "would",
 }
-# "difference between A and B", "compare A and B", "A vs B" — the two things
-# the request actually asks to be held against each other.
-_COMPARED_SUBJECTS_RES = (
-    re.compile(
-        r"\b(?:difference|distinction|contrast)\s+between\s+"
-        r"(?P<a>[^?.;\n]{2,80}?)\s+and\s+(?P<b>[^?.;\n]{2,80}?)\s*[?.;\n]",
-        re.I,
-    ),
-    re.compile(
-        r"\b(?:compare|contrast)\s+(?P<a>[^?.;\n]{2,80}?)\s+(?:and|with|to|against)\s+"
-        r"(?P<b>[^?.;\n]{2,80}?)\s*[?.;\n]",
-        re.I,
-    ),
-    re.compile(
-        r"\b(?P<a>[^?.;\n]{2,60}?)\s+(?:versus|vs\.?)\s+(?P<b>[^?.;\n]{2,60}?)\s*[?.;\n]",
-        re.I,
-    ),
-)
 # An explain-request that is ABOUT the comparison: satisfying the comparison
 # is what explaining the difference means.
-_INSTRUCTION_SIDE_RE = re.compile(
-    r"\b(?:explain|describe|list|enumerate|verify|test|prove|validate|choose|"
-    r"recommend|prefer|tell|show|why|how|what|give|walk)\b",
-    re.I,
-)
 _COMPARATIVE_EXPLAIN_RE = re.compile(
     r"\b(?:explain|describe|tell\s+me)\b[^?.;\n]{0,40}?"
     r"\b(?:difference|distinction|contrast)\b",
@@ -150,26 +129,13 @@ def _tokens(text: str) -> list[str]:
 
 
 def _compared_subjects(objective: str) -> tuple[list[str], list[str]] | None:
-    """The two subjects a comparison request names, as content tokens.
+    """Return the shared language substrate's explicit comparison pair."""
 
-    Returns None when the request does not name an explicit pair.
-    """
-    probe = objective if objective.endswith(("?", ".")) else objective + "."
-    for pattern in _COMPARED_SUBJECTS_RES:
-        match = pattern.search(probe)
-        if not match:
-            continue
-        raw_left, raw_right = match.group("a"), match.group("b")
-        # "compare the tradeoffs AND explain why it matters" joins two
-        # INSTRUCTIONS, not two subjects. A side that carries its own request
-        # verb is not a comparison subject.
-        if _INSTRUCTION_SIDE_RE.search(raw_left) or _INSTRUCTION_SIDE_RE.search(raw_right):
-            continue
-        left = [t for t in _tokens(raw_left) if t not in _STOPWORDS and len(t) > 2]
-        right = [t for t in _tokens(raw_right) if t not in _STOPWORDS and len(t) > 2]
-        if left and right and set(left) != set(right):
-            return left, right
-    return None
+    subjects = relational_request.compared_subjects(objective)
+    if subjects is None:
+        return None
+    left, right = subjects
+    return list(left), list(right)
 
 
 def _covers_both_compared_subjects(analysis_text: str, objective: str) -> bool:
@@ -181,12 +147,9 @@ def _covers_both_compared_subjects(analysis_text: str, objective: str) -> bool:
     nothing. Requiring coverage of the two subjects the REQUEST named is the
     stronger test — filler that addresses neither still fails.
     """
-    subjects = _compared_subjects(objective)
-    if subjects is None:
-        return False
-    answer_tokens = set(_tokens(analysis_text))
-    left, right = subjects
-    return bool(answer_tokens & set(left)) and bool(answer_tokens & set(right))
+    return relational_request.comparison_sides_are_covered(
+        analysis_text, objective
+    ) is True
 
 
 def _analysis_surface(text: str, objective: str) -> dict[str, Any]:
