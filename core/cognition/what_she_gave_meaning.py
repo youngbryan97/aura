@@ -13,6 +13,16 @@ What is kept is the RECIPE, never a pickled object: which two places a value is
 read from and what is done with the pair. It reconstructs exactly, a person can
 read it, and it cannot execute anything that was not already in the space she
 searches.
+
+The words themselves are kept the same way. A meaning is written in a language,
+and a meaning recalled into a language missing the word it was written in is a
+name with nothing behind it — so the derived addressings, the derived
+operations and the ways of building come back first, and the meanings are read
+against them. A language that resets every morning has not grown.
+
+A way of building is code, so what is kept is its name and the constructor is
+looked up in the registry the code lives in. Nothing here can name a
+constructor that does not already exist in the source.
 """
 
 from __future__ import annotations
@@ -20,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -33,11 +44,39 @@ _KEPT_AT = Path.home() / ".aura" / "state" / "meanings_she_induced.json"
 _MOST_KEPT = 200_000
 
 
+def _words_she_derived() -> dict[str, Any]:
+    """The derived words and ways of building, as recipes."""
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD, WHAT_OF_IT, WHERE_FROM
+    from core.cognition.widening_the_language import DerivedAddressing, DerivedOperation
+
+    addressings: dict[str, Any] = {}
+    for name, word in WHERE_FROM.items():
+        if isinstance(word, DerivedAddressing):
+            addressings[name] = {
+                "name": word.name,
+                "at": {str(size): list(found) for size, found in word.at.items()},
+            }
+    operations: dict[str, Any] = {}
+    for name, word in WHAT_OF_IT.items():
+        if isinstance(word, DerivedOperation):
+            try:
+                does = [[one, other, got] for (one, other), got in word.does.items()]
+                json.dumps(does)
+            except (TypeError, ValueError):
+                continue
+            operations[name] = {"name": word.name, "does": does}
+    return {
+        "addressings": addressings,
+        "operations": operations,
+        "ways": sorted(WAYS_TO_BUILD),
+    }
+
+
 def keep() -> bool:
-    """Write down every kind of rule she has worked out the meaning of."""
+    """Write down the language she worked out, and what she said in it."""
     from core.cognition.an_invented_kind import KINDS
 
-    body = {
+    kinds = {
         kind: {
             "where_from": meaning.where_from,
             "and_from": meaning.and_from,
@@ -47,8 +86,10 @@ def keep() -> bool:
         }
         for kind, meaning in KINDS.items()
     }
-    if not body:
+    words = _words_she_derived()
+    if not kinds and not any(words.values()):
         return False
+    body: dict[str, Any] = {"kinds": kinds, "language": words}
     try:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
@@ -66,7 +107,12 @@ def keep() -> bool:
             get_file_write_gateway().write_text(
                 _KEPT_AT, written, source="what_she_gave_meaning"
             )
-        logger.info("kept %d meaning(s) she worked out", len(body))
+        logger.info(
+            "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
+            len(kinds),
+            len(words["addressings"]) + len(words["operations"]),
+            len(words["ways"]),
+        )
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
@@ -76,8 +122,59 @@ def keep() -> bool:
         return False
 
 
+def _put_the_language_back(language: dict[str, Any]) -> int:
+    """Put back the derived words and ways of building. Returns how many."""
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD, WHAT_OF_IT, WHERE_FROM
+    from core.cognition.widening_the_language import (
+        CONSTRUCTORS,
+        DerivedAddressing,
+        DerivedOperation,
+    )
+
+    back = 0
+    for name in language.get("ways") or ():
+        build = CONSTRUCTORS.get(str(name))
+        if build is None:
+            # Named a way of building this source does not have. Silence is
+            # wrong and guessing is worse, so it is recorded and skipped.
+            logger.info("a way of building she kept is not in this source: %r", name)
+            continue
+        WAYS_TO_BUILD[str(name)] = build
+        back += 1
+    for name, row in (language.get("addressings") or {}).items():
+        try:
+            at = {
+                int(size): tuple(int(where) for where in found)
+                for size, found in (row.get("at") or {}).items()
+            }
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if not at:
+            continue
+        WHERE_FROM[str(name)] = DerivedAddressing(name=str(row.get("name") or name), at=at)
+        back += 1
+    for name, row in (language.get("operations") or {}).items():
+        try:
+            does = {
+                (one, other): got for one, other, got in (row.get("does") or ())
+            }
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if not does:
+            continue
+        WHAT_OF_IT[str(name)] = DerivedOperation(
+            name=str(row.get("name") or name), does=does
+        )
+        back += 1
+    return back
+
+
 def recall() -> int:
-    """Put back the meanings she induced. Returns how many came back."""
+    """Put back the language she worked out, then what she said in it.
+
+    The words first. A meaning read back before the word it is written in has
+    nothing to resolve against, and would be dropped as unreadable.
+    """
     try:
         held = json.loads(_KEPT_AT.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -86,8 +183,16 @@ def recall() -> int:
         return 0
     from core.cognition.an_invented_kind import KINDS, Induced
 
+    if "kinds" in held or "language" in held:
+        language = held.get("language") or {}
+        kinds = held.get("kinds") or {}
+    else:
+        # Written before the language was kept alongside the meanings.
+        language, kinds = {}, held
+    words = _put_the_language_back(language) if isinstance(language, dict) else 0
+
     back = 0
-    for kind, row in held.items():
+    for kind, row in kinds.items():
         if not isinstance(row, dict):
             continue
         try:
@@ -101,8 +206,13 @@ def recall() -> int:
         except (KeyError, TypeError, ValueError):
             continue
         back += 1
-    if back:
-        logger.info("she remembered %d meaning(s) she had worked out", back)
+    if back or words:
+        logger.info(
+            "she remembered %d meaning(s), in a language %d word(s) wider than "
+            "the one she was given",
+            back,
+            words,
+        )
     return back
 
 

@@ -272,13 +272,17 @@ def _a_word_the_language_was_missing(
     one — values that repeat have no single source, and two examples of one
     length that disagree describe no correspondence at all.
     """
-    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.an_invented_kind import WHERE_FROM, addressings
     from core.cognition.widening_the_language import (
         an_addressing_nobody_wrote,
         widen_with_addressing,
     )
 
-    found = an_addressing_nobody_wrote(pairs, already=list(WHERE_FROM.values()))
+    # Everything constructible, not merely the words written down. A candidate
+    # that some composition already produces is new spelling for an old
+    # meaning, and admitting it would report growth that did not happen.
+    closure = addressings()
+    found = an_addressing_nobody_wrote(pairs, already=closure)
     if found is not None:
         name = f"the way these move ({len(WHERE_FROM)})"
         said = widen_with_addressing(name, found)
@@ -294,8 +298,8 @@ def _a_word_the_language_was_missing(
         widen_with_operation,
     )
 
-    for first in list(WHERE_FROM.values()):
-        for second in list(WHERE_FROM.values()):
+    for first in list(closure.values()):
+        for second in list(closure.values()):
             done = an_operation_nobody_wrote(
                 pairs, first, second, already=list(WHAT_OF_IT.values())
             )

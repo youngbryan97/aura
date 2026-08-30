@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
 
 __all__ = [
+    "CONSTRUCTORS",
     "DerivedAddressing",
     "DerivedOperation",
     "an_addressing_nobody_wrote",
@@ -128,14 +129,23 @@ def _where_each_came_from(
 def an_addressing_nobody_wrote(
     transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
     *,
-    already: Sequence[Callable[[int, int], int]] = (),
+    already: Any = (),
 ) -> DerivedAddressing | None:
     """A way of saying where values come from that the language cannot say.
 
     Read off the examples where it can be read off, checked for consistency
-    across every example of the same length, and refused when an existing
-    addressing already says it — a language does not need a second name for
-    something it can already express.
+    across every example of the same length, and refused when the language can
+    already say it.
+
+    "Already" has to mean everything constructible and not merely the words
+    that were written down. A candidate matching some composition of two words
+    she has is a macro: it enlarges the vocabulary and leaves the set of
+    meanings exactly where it was. Passing the primitives here instead of the
+    closure is how a language reports growth it did not have.
+
+    A macro is still admitted when it is short enough to pay for itself — see
+    ``a_shorthand_worth_having`` — but it is admitted as brevity and never
+    counted as a new meaning.
     """
     pairs = [(tuple(before), tuple(after)) for before, after in transitions]
     at: dict[int, tuple[int, ...]] = {}
@@ -153,7 +163,7 @@ def an_addressing_nobody_wrote(
         at[size] = found
     if not at:
         return None
-    if _already_said_by(at, already):
+    if _already_said_by(at, already) is not None:
         return None
     name = "where these came from"
     derived = DerivedAddressing(name=name, at=dict(at))
@@ -161,20 +171,71 @@ def an_addressing_nobody_wrote(
     return derived
 
 
-def _already_said_by(
-    at: dict[int, tuple[int, ...]], already: Sequence[Callable[[int, int], int]]
-) -> bool:
-    """Whether something the language can already say produces this."""
-    for existing in already:
+def _already_said_by(at: dict[int, tuple[int, ...]], already: Any) -> str | None:
+    """What the language already uses to say this, where it can say it at all.
+
+    Returns the name so the caller can weigh the old way against the new one.
+    A mapping of names is what should be passed; a bare sequence still works
+    and gives back a position instead of a name.
+    """
+    if hasattr(already, "items"):
+        candidates = list(already.items())
+    else:
+        candidates = [(f"word {index}", word) for index, word in enumerate(already)]
+    for name, existing in candidates:
         try:
             if all(
                 tuple(existing(index, size) % size for index in range(size)) == found
                 for size, found in at.items()
             ):
-                return True
+                return str(name)
         except (TypeError, ValueError, ZeroDivisionError):
             continue
-    return False
+    return None
+
+
+def a_shorthand_worth_having(
+    transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+    *,
+    already: Any,
+    longest: int = 3,
+) -> tuple[DerivedAddressing, str] | None:
+    """A word for something she can already say, when saying it is long.
+
+    This adds no meaning, and it is worth having anyway when the thing it
+    stands for is long enough that the search saved beats the branch added.
+    Both are counted in expressions she would have to walk, so the trade is
+    settled by arithmetic rather than by preference.
+    """
+    from core.cognition.keeping_the_language_small import what_a_word_is_worth
+    from core.cognition.what_it_costs_to_say import _symbols
+
+    at: dict[int, tuple[int, ...]] = {}
+    for before, after in ((tuple(b), tuple(a)) for b, a in transitions):
+        if len(before) != len(after):
+            return None
+        found = _where_each_came_from(before, after)
+        if found is None:
+            continue
+        if len(before) in at and at[len(before)] != found:
+            return None
+        at[len(before)] = found
+    if not at:
+        return None
+    said_by = _already_said_by(at, already)
+    if said_by is None:
+        return None
+    vocabulary = len(already) if hasattr(already, "__len__") else 1
+    worth = what_a_word_is_worth(
+        said_by,
+        vocabulary=max(1, vocabulary),
+        longest=max(1, int(longest)),
+        shorter_by=max(0, _symbols(said_by) - 1),
+    )
+    if not worth.pays:
+        return None
+    logger.info("a shorthand that pays: %s", worth.describes())
+    return DerivedAddressing(name="a shorter way of saying this", at=dict(at)), said_by
 
 
 def an_operation_nobody_wrote(
@@ -279,6 +340,12 @@ def one_after_another(words: dict[str, Any]) -> dict[str, Any]:
                 continue
             made[f"{first_name}, then {then_name}"] = OneAfterAnother(first, then)
     return made
+
+
+#: Every way of building this source knows how to make. A kept language names
+#: the ways it grew by, and a name is resolved here — so what comes back after
+#: a restart can only ever be a constructor that is already written down.
+CONSTRUCTORS: dict[str, Any] = {"one after another": one_after_another}
 
 
 def a_way_of_building_nobody_wrote(

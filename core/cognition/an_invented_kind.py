@@ -203,15 +203,29 @@ def addressings() -> dict[str, Any]:
 
 
 def every_meaning() -> Iterator[Induced]:
-    """The whole space, so nothing in it had to be thought of in advance."""
+    """The whole space, shortest first, so nothing had to be thought of in advance.
+
+    The order matters as much as the contents. Enumerated however the loops
+    happen to run, a nine-symbol coincidence is checked before a two-symbol
+    explanation, and whichever is checked first wins a tie — so a language that
+    grew a composed word would start preferring the composed reading of things
+    the simple word already explained. Shortest first is the same preference as
+    favouring the simpler hypothesis, applied where it costs one sort.
+    """
+    from core.cognition.what_it_costs_to_say import in_order_of_length
+
     where_all = addressings()
+    made: list[Induced] = []
     for where_from, and_from, what_of_it in product(where_all, where_all, WHAT_OF_IT):
         if what_of_it == "as it is" and and_from != where_from:
             # Reading a second place and ignoring it is the same meaning said
             # a different way, and every duplicate is another chance for a
             # coincidence to win the search.
             continue
-        yield Induced(where_from=where_from, and_from=and_from, what_of_it=what_of_it)
+        made.append(
+            Induced(where_from=where_from, and_from=and_from, what_of_it=what_of_it)
+        )
+    yield from in_order_of_length(made)
 
 
 #: Kinds she has worked out the meaning of, by name. Empty at import: nothing
