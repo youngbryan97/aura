@@ -2131,11 +2131,18 @@ async def _find_session_content_exchanges(
     # tell you about my family?" → "Nothing. You haven't told me anything
     # about your family in this conversation."
     wanted = _kind_asked_for(user_message)
+    if not wanted:
+        # No kind, no discriminator, no match. Without one this loop returned
+        # the first statement-shaped turn in the session whatever it said —
+        # "Earlier I gave you a locker code... just the digits" answered with
+        # "you told me: I made soup for lunch". A confident quote of the wrong
+        # turn is worse than a miss, because it cannot be told from memory.
+        return []
     for entry in exchanges:
         told = str(entry.get("user") or "")
         if not told or not _states_something(told):
             continue
-        if wanted and not re.search(wanted, told, re.IGNORECASE):
+        if not re.search(wanted, told, re.IGNORECASE):
             continue
         return [entry]
     return []

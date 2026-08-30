@@ -95,7 +95,20 @@ _ACTION_VERBS = (
     # Memory instructions are instructions. "Remember for future sessions that
     # my codename is glass orchard" asks her to STORE something; reading it as
     # a remark about remembering loses the fact.
-    "remember|remind|note|store|save|forget|pin|log|track|record"
+    "remember|remind|note|store|save|forget|pin|log|track|record|"
+    # Verbs of putting something somewhere. "copy that to my clipboard" was
+    # a directive and "put BUILD-42 on my clipboard" was not, which is the
+    # same act named the way most people name it — LIVE 2026-08-10 that
+    # request routed nowhere and she said "The text ORION-7 is now on your
+    # clipboard" with the clipboard empty.
+    #
+    # A closed class, and it belongs here for the reason the note above
+    # gives: the clause-head verb only establishes that the act is being
+    # asked for now. What the act IS, and whether it touches the machine at
+    # all, is decided by the object — "put the kettle on" names no surface
+    # and reaches no lane.
+    "put|place|paste|insert|append|attach|stick|rename|print|export|import|"
+    "empty|clear|add|remove|drop|share"
 )
 
 #: An imperative: optional politeness/discourse lead-in, then a bare verb.

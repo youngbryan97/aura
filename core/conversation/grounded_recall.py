@@ -603,6 +603,30 @@ def resolve_positional_turn(
     return chosen or None
 
 
+def resolve_what_she_answered(
+    prompt: str, history: Any = None
+) -> str | None:
+    """What she said in reply to a given turn of theirs, if anything.
+
+    A positional question often asks about both halves of an exchange —
+    "what did I ask first, and what did you say?" — and only their half was
+    ever grounded. With nothing to read for her own, she made one up: LIVE
+    2026-08-30 she said "I didn't get a chance to answer that", about a
+    question she had answered a minute earlier and quoted a file for.
+    """
+    wanted = " ".join(str(prompt or "").split()).lower()
+    if not wanted:
+        return None
+    exchanges = _history_own_exchanges(history, "") or _transcript_own_exchanges("")
+    for asked, answered in exchanges:
+        if " ".join(str(asked or "").split()).lower() == wanted:
+            said = str(answered or "").strip()
+            if len(said) > _MAX_GROUNDED_CHARS:
+                said = said[: _MAX_GROUNDED_CHARS - 1].rstrip() + "…"
+            return said or None
+    return None
+
+
 def build_grounded_recall_context(user_message: str, history: Any = None) -> str | None:
     """Authoritative grounding block for a positional-recall turn, or None.
 
@@ -627,13 +651,33 @@ def build_grounded_recall_context(user_message: str, history: Any = None) -> str
         return None
     which = "first thing" if position == "first" else "most recent thing (before this turn)"
     logger.info("🧠 [GroundedRecall] positional=%s resolved actual turn for grounding.", position)
-    return (
+    block = (
         f"[GROUNDED RECALL — this is the verbatim fact; answer from it, do not guess]\n"
         f"The {which} the user actually said to you in this conversation was:\n"
         f"“{turn}”\n"
         "The quoted speaker is the user, not you. Preserve that role boundary: refer to "
         "it as what they or 'you' said, never as something you said.\n"
-        f"Answer their question using this real quote, naturally and in your own voice.\n\n"
+    )
+    # And her half, where they asked for it. Grounding one side of an exchange
+    # and leaving the other to invention is how "what did I ask, and what did
+    # you say?" got a real quote followed by a made-up account of her own
+    # silence.
+    if detect_own_statement_recall(user_message):
+        answered = resolve_what_she_answered(turn, history=history)
+        if answered:
+            block += (
+                "What YOU said in reply to that, verbatim:\n"
+                f"“{answered}”\n"
+                "That one is yours. Answer from it rather than describing what "
+                "you might have said.\n"
+            )
+        else:
+            block += (
+                "There is no reply of yours on record for that turn. Say so "
+                "plainly if they ask what you said; do not describe one.\n"
+            )
+    return block + (
+        "Answer their question using this real quote, naturally and in your own voice.\n\n"
     )
 
 

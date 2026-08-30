@@ -30,6 +30,23 @@ _CANONICAL_RESEARCH_TOOL_SPAN_RE = re.compile(
 
 _DESKTOP_OBJECTIVE_ACTION_TERMS = (
     "attach",
+    # The rest of the same closed class, kept in step with
+    # request_mood._ACTION_VERBS. Two enumerations of "verbs of putting
+    # something somewhere" in two files is how "put" reached one and not the
+    # other, and "rename that file to notes.txt" carried a surface term, asked
+    # for action, and still classified as not desktop work.
+    "place",
+    "append",
+    "stick",
+    "rename",
+    "print",
+    "import",
+    "empty",
+    "clear",
+    "add",
+    "remove",
+    "drop",
+    "share",
     "arrange",
     # "paste" and "set" were here and "put" and "copy" were not, so
     # "put the text on my clipboard" and "copy that to my clipboard" reached
