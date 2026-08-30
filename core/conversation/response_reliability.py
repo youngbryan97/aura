@@ -7598,6 +7598,22 @@ def _has_truncated_tail(
         return True
     if re.search(r"(?:^|\n)\s*(?:[-*]|\d+[.)])\s*$", body):
         return True
+    # Ending by asking its own question, at exactly the point the budget ran
+    # out, is a thought that stopped rather than a turn that finished. It is
+    # grammatically whole, so the boundary check below passes it — LIVE
+    # 2026-08-30, asked whether "decided" is doing any work, she made the
+    # case, raised "So, is it just the most fluent token?" and stopped there.
+    #
+    # Only where something says it ran out. Ending by asking the person
+    # something is an ordinary way to finish a turn, and refusing those would
+    # cost far more than this saves.
+    if str(generation_stop_reason or "").strip().lower() not in {
+        "",
+        "eos",
+        "configured_stop",
+        "role_continuation",
+    } and body.endswith(("?", '?"', "?'", "?)")):
+        return True
     if has_terminal_sentence_boundary(body):
         return False
     if re.search(r"(?:^|\n)\s*\d+\.\s+\S+", body) or re.search(r"\*\*[^*\n]{2,80}:\*\*", body):
