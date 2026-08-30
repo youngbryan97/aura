@@ -7283,6 +7283,7 @@ async def _run_cognitive_engine_chat_turn(
                     operation(),
                     budget_s=attempt_timeout,
                     user_facing=bool(require_engine),
+                    person_is_waiting=bool(require_engine),
                 )
             except TimeoutError:
                 raise
@@ -7355,6 +7356,8 @@ async def _run_cognitive_engine_chat_turn(
                         "completion_retry_failure_reason": str(failure_reason or "unknown")[:240],
                         "completion_incumbent_chars": len(incumbent),
                         "authored_answer_completion_proven": False,
+                        "semantic_completion_satisfied": False,
+                        "semantic_completion_incomplete": True,
                     }
                 )
             logger.warning(
@@ -7583,7 +7586,20 @@ async def _run_cognitive_engine_chat_turn(
                     timeout_s=repair_cycle_timeout_s,
                 )
 
-        remaining_turn_budget = _remaining_turn_budget()
+        # Completing the answer already in progress is not a new repair turn.
+        # The soft transaction slice may be spent by the initial generation;
+        # append-only completion may use the remaining bounded desktop ceiling.
+        # Unrelated regeneration remains on the original soft budget.
+        remaining_turn_budget = (
+            max(
+                0.0,
+                turn_budget_started_at
+                + _DESKTOP_COGNITIVE_MAX_TURN_TIMEOUT_S
+                - time.monotonic(),
+            )
+            if completion_only_retry
+            else _remaining_turn_budget()
+        )
         if remaining_turn_budget <= 0.25:
             if turn_trace is not None:
                 turn_trace["repair_retry_budget_exhausted"] = True

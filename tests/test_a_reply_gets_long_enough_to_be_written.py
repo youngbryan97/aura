@@ -75,4 +75,25 @@ def test_it_is_applied_where_the_prompt_and_the_length_are_both_known():
     from core.brain import inference_gate
 
     source = inspect.getsource(inference_gate)
-    assert "timeout_val, max_tokens = fit_the_answer_to_the_time(" in source
+    assert (
+        "settled_timeout_val, settled_max_tokens = fit_the_answer_to_the_time("
+        in source
+    )
+
+
+def test_it_prices_the_prompt_after_final_compaction():
+    """Discarded rich context cannot set the clock for compacted bytes."""
+
+    import inspect
+
+    from core.brain import inference_gate
+
+    source = inspect.getsource(inference_gate)
+    compacted = source.index("system_prompt, messages = self._fit_prompt_to_window(")
+    priced = source.index(
+        "settled_timeout_val, settled_max_tokens = fit_the_answer_to_the_time("
+    )
+    assert priced > compacted
+    window = source[priced : priced + 1200]
+    assert "dispatched_prompt_text" in window
+    assert "request_deadline.with_timeout(timeout_val)" in window

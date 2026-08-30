@@ -31,6 +31,18 @@ class Deadline:
             return 300.0 # Default fallback for unshielded tasks
         return max(0.1, rem - buffer)
 
+    def with_timeout(self, timeout: float | None) -> "Deadline":
+        """Return the same clock with a newly settled total allowance.
+
+        Budgeting layers sometimes learn the real cost only after a request has
+        been compacted and rendered.  Rebuilding a deadline at that point from
+        ``now`` silently grants the preparation time again; leaving the old
+        object in place silently ignores the new allowance.  Preserve the one
+        request start and change only its total timeout.
+        """
+
+        return Deadline(timeout, start_time=self._start_time)
+
     def __repr__(self) -> str:
         rem = self.remaining
         rem_str = f"{rem:.2f}s" if rem is not None else "INF"

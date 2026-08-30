@@ -20,6 +20,7 @@ import pytest
 pytestmark = pytest.mark.unit
 
 ENGINE = Path("core/brain/cognitive_engine.py")
+CHAT = Path("interface/routes/chat.py")
 
 
 def _the_quick_reply() -> ast.AsyncFunctionDef:
@@ -63,3 +64,16 @@ def test_the_origin_is_judged_as_itself() -> None:
 def test_the_budget_is_still_bounded() -> None:
     body = ast.unparse(_the_quick_reply())
     assert "budget_s=request_timeout + 3.0" in body
+
+
+def test_the_desktop_transaction_identifies_the_waiting_person() -> None:
+    tree = ast.parse(CHAT.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.AsyncFunctionDef):
+            continue
+        if node.name != "_run_cognitive_engine_chat_turn":
+            continue
+        body = ast.unparse(node)
+        assert "person_is_waiting=bool(require_engine)" in body
+        return
+    raise AssertionError("desktop cognitive transaction is gone")

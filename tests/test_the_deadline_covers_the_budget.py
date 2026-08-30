@@ -208,5 +208,19 @@ def test_the_extension_reaches_the_clock_it_is_extending() -> None:
 
     body = _GATE.read_text()
     assert "timeout_val = min(_cap, _needed)" in body
-    assert "request_deadline = get_deadline(float(timeout_val))" in body
+    assert "request_deadline.with_timeout(" in body
     assert 'context["request_deadline_s"] = float(timeout_val)' in body
+
+
+def test_resettling_a_deadline_preserves_time_already_spent(monkeypatch) -> None:
+    from core.utils import deadlines
+
+    now = 100.0
+    monkeypatch.setattr(deadlines.time, "monotonic", lambda: now)
+    original = deadlines.Deadline(10.0)
+
+    now = 104.0
+    extended = original.with_timeout(20.0)
+
+    assert original.remaining == pytest.approx(6.0)
+    assert extended.remaining == pytest.approx(16.0)

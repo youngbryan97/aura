@@ -12579,9 +12579,6 @@ class InferenceGate:
                 stakes_token_ceiling=stakes_token_ceiling,
                 surface_completion_floor=surface_completion_floor,
             )
-            timeout_val, max_tokens = fit_the_answer_to_the_time(
-                prompt, max_tokens, timeout_val
-            )
         except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
             record_degradation(
                 "inference_gate",
@@ -13946,6 +13943,36 @@ class InferenceGate:
         prompt_chars = sum(
             len(str(msg.get("content", ""))) for msg in (messages or ())
         )
+        # Settle time from what the worker will actually read, after every
+        # compactor and window clamp has run.  Using ``prompt`` here priced a
+        # discarded rich payload: LIVE 2026-08-30 logged a 631-second route for
+        # a final 2,184-token prompt, while the request Deadline still held the
+        # original 87 seconds.  The log, integer budget, and owning clock were
+        # therefore three different contracts for one dispatch.
+        dispatched_prompt_text = "\n".join(
+            str(msg.get("content", "") or "")
+            for msg in (messages or ())
+            if isinstance(msg, dict)
+        )
+        settled_timeout_val, settled_max_tokens = fit_the_answer_to_the_time(
+            dispatched_prompt_text,
+            max_tokens,
+            timeout_val,
+        )
+        if settled_timeout_val != timeout_val:
+            timeout_val = float(settled_timeout_val)
+            primary_timeout, fallback_timeout = self._split_attempt_timeouts(
+                timeout_val,
+                requested_tier,
+            )
+            if requested_tier == "primary" and lower_local_lane_forbidden:
+                primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
+                fallback_timeout = min(_DELIVERY_MARGIN_S, timeout_val)
+            request_deadline = request_deadline.with_timeout(timeout_val)
+            context["request_deadline_s"] = timeout_val
+        if settled_max_tokens != max_tokens:
+            max_tokens = int(settled_max_tokens)
+            context["max_tokens"] = max_tokens
         prompt_mode = "rich" if use_rich_context else "compact"
         if use_compact_foreground_context:
             prompt_mode = "compact_foreground"
@@ -14248,7 +14275,9 @@ class InferenceGate:
                         #
                         # LIVE, 2026-08-28: "deadline 96s to 217s" and the
                         # request expired at 98 seconds.
-                        request_deadline = get_deadline(float(timeout_val))
+                        request_deadline = request_deadline.with_timeout(
+                            float(timeout_val)
+                        )
                         context["request_deadline_s"] = float(timeout_val)
 
             # Only where the clock still has the last word. A turn somebody is
