@@ -1449,6 +1449,7 @@ async def pursue_on_screen(
         what_is_there,
         within,
     )
+    from core.perception.why_nothing_answers import ELSEWHERE, ENDED, work_out_why
     from core.skills.fluid_executor import FluidExecutor, Step
     from core.world_model.unified_world_model import UnifiedWorldModel
 
@@ -2284,7 +2285,43 @@ async def pursue_on_screen(
             # arrow keys into a dead board, because a run of broken
             # predictions had not accumulated in the way the first test
             # wanted.
+            # Nothing is answering. WHICH of the three is it?
+            #
+            # "Nothing I do changes anything" is a good ending test and a poor
+            # diagnosis: it is equally true of a finished game, a dialog over
+            # the board, and somebody else's window in front. Those want
+            # opposite responses, and collapsing them is what had her pressing
+            # keys into a finished board and narrating moves as though a game
+            # were happening. LIVE 2026-08-29: the page said "Game Over, 940
+            # points scored in 100 moves" and she went on saying "Going right".
             ended = responds["state"].nothing_answers()
+            if ended:
+                mine_now = target_app or anchor["app"]
+                why = work_out_why(
+                    mine=mine_now,
+                    in_front=await _frontmost(),
+                    on_top=await _whats_on_top(mine_now, over=responds["state"].band()),
+                    still_there=_is_a_thing_laid_out(laid_out),
+                )
+                if why.can_fix:
+                    # Not an ending. Something she can do something about, and
+                    # the doing is the answer rather than the reporting.
+                    if narrate and not said_it_ended["value"]:
+                        _tell(why.says())
+                    mended = (
+                        await _ensure_page(anchor["page"])
+                        if why.because == ELSEWHERE
+                        else await clear_what_is_in_front(why.what)
+                    )
+                    if mended:
+                        # Reachable again, so this cycle is not an ending. The
+                        # rest of it proceeds normally: she has her window
+                        # back and there is a move to choose.
+                        responds["state"].began_again()
+                        ended = False
+                elif why.because == ENDED and narrate and not said_it_ended["value"]:
+                    said_it_ended["value"] = True
+                    _tell(why.says())
             if (stuck(history) or ended) and not seen_through["value"]:
                 out = ways_out(observation, ended=ended)
                 if ended and out:
