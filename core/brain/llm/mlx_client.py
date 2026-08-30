@@ -6453,6 +6453,64 @@ class MLXLocalClient:
         self._current_prefill_tokens_total = 0
         self._mark_progress()
 
+    async def prove_visible_readiness(
+        self,
+        *,
+        budget_s: float = 30.0,
+        request_is_background: bool = False,
+        foreground_request: bool = False,
+        owner_label: str = "",
+    ) -> str:
+        """Show that this lane can answer, and record that it was shown.
+
+        The one place that means "the lane has been seen to answer". There were
+        two: warmup asked its probe, validated the reply and stamped
+        ``_last_visible_readiness_at``; anything else that ran a health probe
+        got the generation and none of the recording, because ``health_probe``
+        deliberately suppresses the user-facing mark.
+
+        So a second prover could succeed, report success, and leave conversation
+        readiness exactly as unproven as it found it — each component sensible on
+        its own and the composition wrong. Both callers go through here now, and
+        a third cannot reintroduce the gap by forgetting a line.
+
+        Returns "proved", or a short reason it could not be.
+        """
+        if not self.is_alive():
+            return "no_worker"
+        try:
+            said = await asyncio.wait_for(
+                self._generate_inner(
+                    _READINESS_PROBE_PROMPT,
+                    _retry=True,
+                    request_is_background=request_is_background,
+                    foreground_request=foreground_request,
+                    owner_label=owner_label or None,
+                    max_tokens=16,
+                    temp=0.0,
+                    top_p=1.0,
+                    min_p=0.0,
+                    repetition_penalty=1.0,
+                    health_probe=True,
+                    disable_prompt_cache=True,
+                    clear_prompt_cache=True,
+                ),
+                timeout=max(1.0, float(budget_s)),
+            )
+        except TimeoutError:
+            return "timed_out"
+        except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
+            return "failed"
+        if not said or not str(said).strip():
+            return "no_text"
+        if not _readiness_answer_accepted(said):
+            return "answer_mismatch"
+        # The recording IS the proof. Without it the lane is exactly as
+        # unproven as before the probe ran.
+        self._last_visible_readiness_at = time.time()
+        self._set_lane_state("ready")
+        return "proved"
+
     def _mark_generation_completed(self, *, user_facing: bool = False) -> None:
         self._last_generation_completed_at = time.time()
         if user_facing:
@@ -16453,43 +16511,20 @@ class MLXLocalClient:
                     "🔥 [MLX] Verifying conversation readiness for %s with a visible probe.",
                     os.path.basename(self.model_path),
                 )
-                readiness_text = await asyncio.wait_for(
-                    self._generate_inner(
-                        _READINESS_PROBE_PROMPT,
-                        _retry=True,
-                        request_is_background=request_is_background,
-                        foreground_request=foreground_request,
-                        owner_label=owner_name,
-                        # Three tokens is not enough for trained models that
-                        # emit a short latent/reasoning prefix before visible
-                        # text. Keep the probe bounded, but give it enough
-                        # room to prove a surfaced answer without falsely
-                        # recycling a healthy 32B worker.
-                        max_tokens=16,
-                        temp=0.0,
-                        top_p=1.0,
-                        min_p=0.0,
-                        repetition_penalty=1.0,
-                        health_probe=True,
-                        disable_prompt_cache=True,
-                        clear_prompt_cache=True,
-                    ),
-                    # Out of the SAME campaign budget as the precompile above
-                    # (CP126 b4fcd100). A probe that took its own independent
-                    # timeout is how the documented warmup bound became a
-                    # suggestion.
-                    timeout=min(probe_budget, _MAX_READINESS_PROBE_S),
+                # The same prover the reconciler uses, so that asking and
+                # recording can never drift apart again. Out of the SAME
+                # campaign budget as the precompile above (CP126 b4fcd100): a
+                # probe that took its own independent timeout is how the
+                # documented warmup bound became a suggestion.
+                proved = await self.prove_visible_readiness(
+                    budget_s=min(probe_budget, _MAX_READINESS_PROBE_S),
+                    request_is_background=request_is_background,
+                    foreground_request=foreground_request,
+                    owner_label=owner_name,
                 )
-                if not readiness_text or not str(readiness_text).strip():
-                    self._set_lane_state("recovering", "warmup_readiness_no_text")
-                    raise RuntimeError("warmup_readiness_no_text")
-                if not _readiness_answer_accepted(readiness_text):
-                    self._set_lane_state("recovering", "warmup_readiness_answer_mismatch")
-                    raise RuntimeError(
-                        f"warmup_readiness_answer_mismatch:{str(readiness_text).strip()[:60]!r}"
-                    )
-                self._last_visible_readiness_at = time.time()
-                self._set_lane_state("ready")
+                if proved != "proved":
+                    self._set_lane_state("recovering", f"warmup_readiness_{proved}")
+                    raise RuntimeError(f"warmup_readiness_{proved}")
                 self._last_ready_at = time.time()
                 self._warmup_in_flight = False
                 _clear_matching_foreground_owner(owner_name)

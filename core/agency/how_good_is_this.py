@@ -237,35 +237,66 @@ def on_trial(measure: Any, worth: float) -> str:
 ON_TRIAL: dict[str, dict[str, Any]] = {}
 
 
-def how_the_trial_is_going(name: str, doing: float) -> str:
-    """One outcome under a trial. Returns "kept", "dropped" or "" while running.
+def how_the_trial_is_going(name: str, standing_at: float) -> str:
+    """One observation under a trial. Returns "kept", "dropped" or "" mid-trial.
 
-    ``doing`` is whatever she is measuring herself by in this world — the same
-    number for every observation, so the comparison means something.
+    ``standing_at`` is where she stands right now by whatever this world
+    counts. What the trial actually measures is the RATE that moves at, which
+    is the only thing comparable across two different stretches of a life.
+
+    An average of where she stood is not: the middle of a run and the end of a
+    run are different places under an identical policy, so comparing a mean of
+    one against the last value of the other measures where the window sat
+    rather than whether the property helped. Both sides are gain per
+    observation now, which does not care where in a trajectory it was taken.
     """
     trial = ON_TRIAL.get(str(name))
     if trial is None:
         return ""
-    seen = trial.setdefault("seen", [])
-    seen.append(float(doing))
-    if len(seen) < A_FAIR_TRIAL:
+    standing = float(standing_at)
+    if trial.get("from") is None:
+        trial["from"] = standing
+    trial["to"] = standing
+    trial["seen"] = int(trial.get("seen", 0)) + 1
+    if trial["seen"] < A_FAIR_TRIAL:
         return ""
     was = trial.get("before")
-    now = sum(seen) / len(seen)
+    now = (float(trial["to"]) - float(trial["from"])) / max(1, trial["seen"])
     ON_TRIAL.pop(str(name), None)
     if was is None or now >= float(was):
-        logger.info("%r earned its place: %.3f against %s", name, now, was)
+        logger.info(
+            "%r earned its place: %.4f a move against %s", name, now, was
+        )
         return "kept"
     forget(str(name))
-    logger.info("%r did not earn its place: %.3f against %.3f — dropped", name, now, float(was))
+    logger.info(
+        "%r did not earn its place: %.4f a move against %.4f — dropped",
+        name, now, float(was),
+    )
     return "dropped"
 
 
-def what_it_was_like_before(name: str, doing: float) -> None:
-    """How things were going before a property went on trial."""
+def what_it_was_like_before(name: str, a_move: float) -> None:
+    """The rate things were moving at before a property went on trial.
+
+    The same statistic the trial will produce — gain per observation — because
+    a baseline measured one way and a trial measured another compares nothing.
+    """
     trial = ON_TRIAL.get(str(name))
     if trial is not None and trial.get("before") is None:
-        trial["before"] = float(doing)
+        trial["before"] = float(a_move)
+
+
+def a_trial_is_running() -> str:
+    """The property currently on trial, if one is. Empty when none is.
+
+    Read from here rather than carried in a caller, because a trial outlives
+    the run that started it — sixty observations is more than one run — and a
+    caller that keeps its own handle loses it the moment that run ends. Which
+    is what happened: the property was invented, promoted and used, and no
+    verdict was ever reached on it.
+    """
+    return next(iter(ON_TRIAL), "")
 
 
 def forget(name: str) -> bool:

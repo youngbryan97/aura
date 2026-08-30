@@ -1430,6 +1430,7 @@ async def pursue_on_screen(
     """
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt, confirm, deliberate
+    from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
     from core.agency.how_good_is_this import worth_comparing
     from core.agency.looking_ahead import look_ahead
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
@@ -1470,7 +1471,15 @@ async def pursue_on_screen(
     cannot_explain = WhatICannotExplain()
     #: The property she is currently trying out, if any. Nothing replays a
     #: life, so a change to her own judgement is tried IN one.
-    trying: dict[str, Any] = {"name": ""}
+    #
+    # Read from where trials actually live, not started blank. A trial takes
+    # sixty observations, which is more than one run, so a handle kept in the
+    # run that started it is lost the moment that run ends — and the property
+    # went on being used with no verdict ever reached about it.
+    trying: dict[str, Any] = {"name": _a_trial_is_running()}
+    #: Where she stood when this run began, so what it came to can be reported
+    #: as a rate rather than a total. A total says where the window sat.
+    began_at: dict[str, Any] = {"worth": None, "seen": 0}
     #: Where the page says it draws, asked once when the run gets its bearings.
     drawn: dict[str, Any] = {"where": None, "asked": False}
     pending: dict[str, Any] = {
@@ -2045,6 +2054,9 @@ async def pursue_on_screen(
                 )
 
                 _worth_here = sum(laid_out.numbers() or (0.0,))
+                if began_at["worth"] is None:
+                    began_at["worth"] = _worth_here
+                began_at["seen"] += 1
                 _for = success_when or _what_there_is_to_aim_at(laid_out)
                 if pending["arranged"] is not None and _for:
                     cannot_explain.been_here(
@@ -2780,7 +2792,15 @@ async def pursue_on_screen(
         from core.agency.how_good_is_this import on_trial, what_it_was_like_before
 
         ended_at = pending["arranged"]
-        how_it_went = sum(ended_at.numbers() or (0.0,)) if ended_at is not None else 0.0
+        finished_on = sum(ended_at.numbers() or (0.0,)) if ended_at is not None else 0.0
+        # The rate this run moved at, which is what the trial will produce.
+        # A baseline measured as a total and a trial measured as a rate
+        # compares nothing.
+        how_it_went = (
+            (finished_on - float(began_at["worth"])) / max(1, began_at["seen"])
+            if began_at["worth"] is not None
+            else 0.0
+        )
         for measure, held_back, _pairs in cannot_explain.worth_trying(most=1):
             name = on_trial(measure, WORTH_TRYING_AT)
             if name:

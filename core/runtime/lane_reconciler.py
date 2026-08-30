@@ -392,11 +392,6 @@ async def _default_evict_lane(model_path: str) -> bool:
 #: free; short enough that an idle machine is not left unable to act.
 UNPROVEN_TOO_LONG_S = 120.0
 
-#: The shortest thing that proves a lane can answer. Not a question — nothing
-#: reads the reply — so it asks for as little work as anything can.
-_PROOF_PROMPT = "ok"
-
-
 async def _default_prove_lane() -> str:
     """Make the runtime prove its own conversation lane, and say what happened.
 
@@ -439,17 +434,14 @@ async def _default_prove_lane() -> str:
         from core.brain.llm.mlx_client import get_mlx_client
 
         client = get_mlx_client(_default_primary_key())
-        if not client.is_alive():
-            return "no_worker_to_prove"
-        answered = await asyncio.wait_for(
-            client.generate(_PROOF_PROMPT, max_tokens=1, health_probe=True),
-            timeout=UNPROVEN_TOO_LONG_S,
-        )
-    except TimeoutError:
-        return "proof_timed_out"
+        # One place means "the lane has been seen to answer", and it does the
+        # recording as well as the asking. Running a health probe here and
+        # reading the text would succeed, report success, and leave readiness
+        # exactly as unproven as it found it — health_probe suppresses the
+        # user-facing mark by design, so the proof would prove nothing.
+        return await client.prove_visible_readiness(budget_s=UNPROVEN_TOO_LONG_S)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
         return "proof_failed"
-    return "proved" if answered else "proof_empty"
 
 
 def _default_foreground_active() -> bool:
