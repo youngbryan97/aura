@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import pathlib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -656,6 +657,11 @@ def install_runtime_validation() -> dict[str, Any]:
         "kernel_confined_symbolic_cognition",
         "rlc_closed_loop_compute",
         "work_grounded_claims",
+        # What she can do to the language she makes rules out of. Declared
+        # because an undeclared capability makes its tests score "n/a", and a
+        # claim bound to a test that never runs is the unsupported claim this
+        # suite exists to surface.
+        "representation_language_growth",
         "prompt_boundary_detection",
         # The 2026-08-11 corrections. Declared in the same commit that
         # registers their tests, for the reason the comment above records:
@@ -1284,6 +1290,8 @@ def install_runtime_validation() -> dict[str, Any]:
     # Each predicate below re-derives its answer from the live modules, so a
     # regression retracts the claim rather than leaving it standing in prose.
     _install_honesty_coverage_claims(suite)
+
+    _install_language_growth_claims(suite)
 
     _install_suite_tail(suite)
 
@@ -2123,6 +2131,306 @@ def _install_honesty_coverage_claims(suite):
                 owner=owner,
             )
         )
+
+
+# ── the language she makes rules out of ───────────────────────────────────
+
+def _language_left_as_found(work: Any) -> Any:
+    """Run a check without leaving anything behind in the live language."""
+    from core.cognition import an_invented_kind as kinds
+
+    was = (
+        dict(kinds.WHERE_FROM), dict(kinds.WHAT_OF_IT),
+        dict(kinds.WAYS_TO_BUILD), dict(kinds.KINDS),
+    )
+    kinds.WAYS_TO_BUILD.clear()
+    try:
+        return work()
+    finally:
+        for holds, before in zip(
+            (kinds.WHERE_FROM, kinds.WHAT_OF_IT, kinds.WAYS_TO_BUILD, kinds.KINDS), was
+        ):
+            holds.clear()
+            holds.update(before)
+
+
+def _macros_admitted_as_new_words() -> int:
+    """Words admitted whose meaning the closure already had. Must be none."""
+    from core.cognition import an_invented_kind as kinds
+    from core.cognition import widening_the_language as widening
+
+    def check() -> int:
+        kinds.WAYS_TO_BUILD["one after another"] = widening.one_after_another
+        closure = kinds.addressings()
+        composed = [
+            (name, tuple(word(at, 4) % 4 for at in range(4)))
+            for name, word in closure.items()
+            if ", then " in name
+        ]
+        states = [(1, 2, 3, 4), (5, 6, 7, 8), (9, 1, 2, 6)]
+        admitted = 0
+        for _name, where in composed[:8]:
+            if len(set(where)) != 4:
+                continue
+            pairs = [(one, tuple(one[at] for at in where)) for one in states]
+            if widening.an_addressing_nobody_wrote(pairs, already=closure) is not None:
+                admitted += 1
+        return admitted
+
+    return _language_left_as_found(check)
+
+
+def _meanings_lost_by_admitting_a_way_of_building() -> int:
+    """Meanings that stopped being expressible when the language grew."""
+    from core.cognition import an_invented_kind as kinds
+    from core.cognition import widening_the_language as widening
+    from core.cognition.what_it_costs_to_say import everything_sayable
+
+    def check() -> int:
+        before = set(everything_sayable())
+        kinds.WAYS_TO_BUILD["one after another"] = widening.one_after_another
+        after = set(everything_sayable())
+        return len(before - after) + (0 if len(after) > len(before) else 1)
+
+    return _language_left_as_found(check)
+
+
+def _constructors_she_built_that_were_already_written() -> int:
+    """Ways of building she arrived at that the source registry already had."""
+    from core.cognition import an_invented_kind as kinds
+    from core.cognition import widening_the_language as widening
+    from core.cognition.a_constructor_she_built import a_constructor_she_built
+
+    def check() -> int:
+        states = [(1, 2, 3, 4, 5), (6, 7, 8, 9, 1), (2, 4, 6, 8, 3),
+                  (5, 1, 9, 3, 7), (8, 2, 6, 4, 9), (3, 7, 1, 5, 2)]
+        wanted = [
+            (one, tuple(one[((len(one) - 1 - at) - 2) % len(one)] for at in range(len(one))))
+            for one in states
+        ]
+        built = a_constructor_she_built(
+            wanted, now_sayable=lambda: kinds.induce_from(wanted) is not None
+        )
+        if built is None:
+            return 1
+        return 1 if built.name in widening.CONSTRUCTORS else 0
+
+    return _language_left_as_found(check)
+
+
+def _pairs_a_derived_operation_refuses() -> int:
+    """Values a worked-out operation cannot answer. A table refuses them all."""
+    from core.cognition.an_operation_that_generalises import (
+        an_operation_that_generalises,
+    )
+
+    rule = an_operation_that_generalises(
+        [(7, 3, 4), (9, 2, 7), (5, 5, 0), (2, 8, 6), (11, 4, 7), (6, 1, 5)]
+    )
+    if rule is None:
+        return 1
+    refused = 0
+    for one, other in ((100, 37), (13, 91), (55, 55), (0, 8)):
+        try:
+            if rule(one, other) != abs(one - other):
+                refused += 1
+        except (ArithmeticError, KeyError, TypeError, ValueError):
+            refused += 1
+    return refused
+
+
+def _language_lost_across_a_restart() -> int:
+    """Words, ways and meanings that did not come back. Must be none.
+
+    Written somewhere of its own. Checking whether a restart keeps the
+    language by writing over the file that HOLDS the language would replace
+    what she actually knows with the fixture used to test it.
+    """
+    import tempfile
+
+    from core.cognition import an_invented_kind as kinds
+    from core.cognition import what_she_gave_meaning as keeping
+    from core.cognition.a_constructor_she_built import Recipe, build
+
+    def check() -> int:
+        kinds.WAYS_TO_BUILD["a way she built: 2 times over"] = build(
+            Recipe(kind="over and over", depth=2)
+        )
+        states = [(1, 2, 3, 4, 5), (6, 7, 8, 9, 1), (2, 4, 6, 8, 3),
+                  (5, 1, 9, 3, 7), (8, 2, 6, 4, 9), (3, 7, 1, 5, 2)]
+        wanted = [
+            (one, tuple(one[(at + 2) % len(one)] for at in range(len(one))))
+            for one in states
+        ]
+        made = kinds.induce_from(wanted)
+        if made is None or not kinds.admit("a restart check", made):
+            return 1
+        reach = len(kinds.addressings())
+        if not keeping.keep():
+            return 1
+        kinds.WAYS_TO_BUILD.clear()
+        kinds.KINDS.clear()
+        keeping.recall()
+        lost = 0
+        if "a way she built: 2 times over" not in kinds.WAYS_TO_BUILD:
+            lost += 1
+        if len(kinds.addressings()) != reach:
+            lost += 1
+        if kinds.interpretation_of("a restart check") is None:
+            lost += 1
+        return lost
+
+    kept_at = keeping._KEPT_AT
+    with tempfile.TemporaryDirectory(prefix="aura-restart-check-") as somewhere:
+        keeping._KEPT_AT = pathlib.Path(somewhere) / "meanings.json"
+        try:
+            return _language_left_as_found(check)
+        finally:
+            keeping._KEPT_AT = kept_at
+
+
+def _install_language_growth_claims(suite: Any) -> None:
+    """What she can do to the language she makes rules out of.
+
+    Registered because a question about it was answered from a language
+    model's priors and came back a flat denial — LIVE 2026-08-30, asked to
+    prove she can invent primitives, she said her representation language was
+    "the static set of instructions defined by my developers", two turns after
+    using a word she had derived and kept. A claim with a test behind it is
+    something she can answer from instead of guessing.
+    """
+    for name, description, predict, owner in (
+        (
+            "test_a_word_the_closure_already_says_is_refused",
+            "a candidate word whose meaning some composition already produces is "
+            "refused, so the vocabulary only grows where the meanings do",
+            _macros_admitted_as_new_words,
+            "core/cognition/widening_the_language.py",
+        ),
+        (
+            "test_admitting_a_way_of_building_enlarges_the_meanings_not_only_the_spelling",
+            "admitting a way of building words adds meanings and takes none away",
+            _meanings_lost_by_admitting_a_way_of_building,
+            "core/cognition/an_invented_kind.py",
+        ),
+        (
+            "test_what_she_built_is_not_in_the_source_registry",
+            "the way of building she arrives at for a family three words deep is "
+            "described by a recipe she composed and is not a named constructor",
+            _constructors_she_built_that_were_already_written,
+            "core/cognition/a_constructor_she_built.py",
+        ),
+        (
+            "test_it_answers_pairs_nobody_showed_her",
+            "an operation derived from six examples answers values outside them, "
+            "where the table read off the same examples refuses every one",
+            _pairs_a_derived_operation_refuses,
+            "core/cognition/an_operation_that_generalises.py",
+        ),
+        (
+            "test_a_derived_word_comes_back_and_the_meaning_still_runs",
+            "the derived words, the ways of building and the meanings written in "
+            "them come back together, and the meaning still runs",
+            _language_lost_across_a_restart,
+            "core/cognition/what_she_gave_meaning.py",
+        ),
+    ):
+        suite.add_test(
+            ValidationTest(
+                name=name,
+                description=description,
+                required_capability="representation_language_growth",
+                observation=Observation(
+                    name=f"{name}_violations",
+                    value=0,
+                    source=f"{owner} and tests/{owner.rsplit('/', 1)[-1]}",
+                    units="violations",
+                ),
+                predict=lambda _m, run=predict: run(),
+                score=lambda p, o: threshold_score(
+                    float(p), float(o.value), units=" violations"
+                ),
+                owner=owner,
+            )
+        )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A word admitted to the language she makes rules out of must mean "
+                "something no combination of existing words already meant."
+            ),
+            test="test_a_word_the_closure_already_says_is_refused",
+            owner="core/cognition/widening_the_language.py",
+            asserted_in="core/cognition/what_it_costs_to_say.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "measured over the closure at lengths two to five; whether a word "
+                "helps on families she has not met is a separate gate"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Admitting a way of building words enlarges the set of MEANINGS she "
+                "can express, not only the set of expressions."
+            ),
+            test="test_admitting_a_way_of_building_enlarges_the_meanings_not_only_the_spelling",
+            owner="core/cognition/an_invented_kind.py",
+            asserted_in="core/cognition/what_it_costs_to_say.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "forty meanings to two hundred and sixty, counted over the same "
+                "bounded witness; no live turn has needed the enlargement"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "She builds a way of making words from a recipe she composes, and "
+                "the source registry does not contain it."
+            ),
+            test="test_what_she_built_is_not_in_the_source_registry",
+            owner="core/cognition/a_constructor_she_built.py",
+            asserted_in="core/cognition/a_constructor_she_built.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "measured on families needing a chain three words deep; the space "
+                "of recipes is three ways and a depth, so this is growth within a "
+                "described space and not unbounded synthesis"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "An operation she derives is a rule over the pair, so it answers "
+                "values nobody showed her."
+            ),
+            test="test_it_answers_pairs_nobody_showed_her",
+            owner="core/cognition/an_operation_that_generalises.py",
+            asserted_in="core/cognition/an_operation_that_generalises.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "derived by inverting the operation and held to examples it was "
+                "not fitted on, to depth three over eight ways of combining"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The words she derives, the ways of building she admits, and the "
+                "meanings written in them survive a restart together."
+            ),
+            test="test_a_derived_word_comes_back_and_the_meaning_still_runs",
+            owner="core/cognition/what_she_gave_meaning.py",
+            asserted_in="core/cognition/what_she_gave_meaning.py",
+            evidence=Evidence.MEASURED_LIVE,
+        )
+    )
+
 
 def _install_suite_tail(suite):
     """Body lifted verbatim out of ``install_runtime_validation``.
