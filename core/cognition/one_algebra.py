@@ -425,7 +425,7 @@ def a_maker_she_wrote(
     integer operations, and the one confirmation at the end is what proves it
     was the right question.
     """
-    from core.cognition.an_invented_kind import WAYS_TO_BUILD, WHERE_FROM
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD, addressings
 
     if now_sayable():
         return None
@@ -463,12 +463,51 @@ def a_maker_she_wrote(
             name = f"a way she wrote: {term.name}"
             if name in WAYS_TO_BUILD:
                 continue
+            before = len(addressings())
             WAYS_TO_BUILD[name] = as_a_maker(term)
-            if now_sayable():
+            if now_sayable() and _earns_its_place(term, transitions, before):
                 logger.info("she wrote a way of building words: %s", term.name)
                 return term
             WAYS_TO_BUILD.pop(name, None)
     return None
+
+
+def _earns_its_place(
+    term: Term,
+    transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+    vocabulary_before: int,
+) -> bool:
+    """Whether it is worth carrying, measured on what it was not built from.
+
+    Making the family in front of her sayable proves it fits the evidence it
+    was made from, which is the test a lookup table passes. What it has to earn
+    is a place in the language she thinks in from now on, and every word it
+    makes is another branch at every step of every search.
+
+    Weighed on the half of the evidence the synthesis did not see. A maker is
+    always worth everything on the family it was made for.
+    """
+    from core.cognition.an_invented_kind import addressings, induce_from
+    from core.cognition.is_it_worth_keeping import what_it_is_worth
+
+    held_out = list(transitions)[1::2]
+    if len(held_out) < 2:
+        # Nothing was held back, so there is nothing to weigh it on. Making
+        # the family sayable is all the evidence there is.
+        return True
+    worth = what_it_is_worth(
+        now_sayable=lambda family: induce_from(list(family)) is not None,
+        held_out=[held_out],
+        was_sayable=(False,),
+        vocabulary_before=max(1, vocabulary_before),
+        vocabulary_after=max(1, len(addressings())),
+        longest=max(2, max((len(before) for before, _ in transitions), default=2)),
+        shorter_by=max(0, term.how_long() - 1),
+        used=len(held_out),
+    )
+    if not worth.keep_it:
+        logger.info("not keeping %s — %s", term.name, worth.describes())
+    return worth.keep_it
 
 
 def _computes(term: Term, words: Sequence[Any], wanted: dict[int, tuple[int, ...]]) -> bool:
