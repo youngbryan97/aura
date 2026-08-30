@@ -906,6 +906,12 @@ def _say_what_kind_of_problem(
 #: be grading it as if it were a move.
 A_LINE_HERE = "the line to take here"
 
+#: What a property she has just invented is worth, until a trial says
+#: otherwise. The same weight the authored measures start at, because there is
+#: no reason to trust one she wrote less than one she was given before either
+#: has been tried.
+WORTH_TRYING_AT = 0.4
+
 #: How many screenfuls down she will look for the thing before deciding the
 #: page does not have one. A page is taller than a screen and what she came
 #: for is usually below the writing about it — six is enough to clear a
@@ -1429,6 +1435,7 @@ async def pursue_on_screen(
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
+    from core.agency.what_i_cannot_explain import WhatICannotExplain
     from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
@@ -1457,6 +1464,13 @@ async def pursue_on_screen(
         ends_at = min(ends_at, float(deadline_at))
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
+    #: Situations she was in and how things went from there, so a property her
+    #: measure cannot account for has somewhere to come from. See
+    #: core/agency/what_i_cannot_explain.py.
+    cannot_explain = WhatICannotExplain()
+    #: The property she is currently trying out, if any. Nothing replays a
+    #: life, so a change to her own judgement is tried IN one.
+    trying: dict[str, Any] = {"name": ""}
     #: Where the page says it draws, asked once when the run gets its bearings.
     drawn: dict[str, Any] = {"where": None, "asked": False}
     pending: dict[str, Any] = {
@@ -2017,6 +2031,39 @@ async def pursue_on_screen(
                 if plan["held"] is not None:
                     lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
                     lines_held[plan["held"].approach] = plan["held"].as_memory()
+                # What she was in, what she made of it, and what it came to.
+                #
+                # Two situations she scores alike, one of which went on to do
+                # much better, is a difference her measure cannot account for —
+                # and the only honest place a property nobody wrote can come
+                # from. Gathered here because this is where both halves exist.
+                from core.agency.how_good_is_this import (
+                    how_good as _how_good,
+                )
+                from core.agency.how_good_is_this import (
+                    how_the_trial_is_going as _how_the_trial_is_going,
+                )
+
+                _worth_here = sum(laid_out.numbers() or (0.0,))
+                _for = success_when or _what_there_is_to_aim_at(laid_out)
+                if pending["arranged"] is not None and _for:
+                    cannot_explain.been_here(
+                        pending["arranged"],
+                        _how_good(
+                            pending["arranged"],
+                            toward=_for,
+                            approach=plan["held"].approach if plan["held"] is not None else "",
+                        ),
+                        _worth_here,
+                    )
+                if trying["name"]:
+                    verdict = _how_the_trial_is_going(trying["name"], _worth_here)
+                    if verdict:
+                        if narrate:
+                            _tell(
+                                f"{trying['name']} {'earned its place' if verdict == 'kept' else 'did not earn its place'}."
+                            )
+                        trying["name"] = ""
                 skilled.learned(
                     pending["arranged"].as_shape(),
                     previous.chosen.name,
@@ -2722,6 +2769,35 @@ async def pursue_on_screen(
         result["changed_approach"] = plan["changes"]
     if plan["held"] is not None:
         result["approach"] = plan["held"].approach
+    # A property nobody wrote, if what she could not explain calls for one.
+    #
+    # At the end, because the outcome of a situation is what came after it and
+    # that is only known once the run is over. Put on TRIAL rather than
+    # adopted: she cannot replay a life to A/B a change to her own judgement,
+    # so the trial happens in the next one and the property keeps its place
+    # only if things actually go better with it.
+    if not trying["name"]:
+        from core.agency.how_good_is_this import on_trial, what_it_was_like_before
+
+        ended_at = pending["arranged"]
+        how_it_went = sum(ended_at.numbers() or (0.0,)) if ended_at is not None else 0.0
+        for measure, held_back, _pairs in cannot_explain.worth_trying(most=1):
+            name = on_trial(measure, WORTH_TRYING_AT)
+            if name:
+                what_it_was_like_before(name, how_it_went)
+                trying["name"] = name
+                if narrate:
+                    _tell(
+                        f"There is something my measure could not account for. "
+                        f"I am going to try judging by {name!r} and see whether "
+                        f"it does better."
+                    )
+                logger.info(
+                    "put %r on trial — it accounted for %.0f%% of what she could not",
+                    name, held_back * 100.0,
+                )
+            break
+
     # What she worked out about this thing, for the next time she is in it.
     remember(
         this_world,

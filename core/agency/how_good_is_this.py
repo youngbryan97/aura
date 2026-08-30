@@ -210,6 +210,64 @@ def promote(measure: Any, worth: float) -> str:
     return name
 
 
+#: How many outcomes a property gets to prove itself over before she keeps or
+#: drops it. Enough that one lucky run does not decide, few enough that a bad
+#: property is not steering her for long.
+A_FAIR_TRIAL = 60
+
+
+def on_trial(measure: Any, worth: float) -> str:
+    """Take a property on provisionally, to find out what it does.
+
+    She cannot replay her life to A/B a change to her own judgement, so the
+    trial has to happen in it. A property goes in, she acts on it, and what
+    happens next is the evidence — compared against how things were going
+    before it arrived.
+
+    This is the only honest way an invented measure reaches her at all.
+    Offline it can be tested by replaying a world; nothing replays a life.
+    """
+    name = promote(measure, worth)
+    if name:
+        ON_TRIAL[name] = {"since": 0, "before": None, "worth": worth}
+    return name
+
+
+#: Properties she is currently trying out, and what was true before each.
+ON_TRIAL: dict[str, dict[str, Any]] = {}
+
+
+def how_the_trial_is_going(name: str, doing: float) -> str:
+    """One outcome under a trial. Returns "kept", "dropped" or "" while running.
+
+    ``doing`` is whatever she is measuring herself by in this world — the same
+    number for every observation, so the comparison means something.
+    """
+    trial = ON_TRIAL.get(str(name))
+    if trial is None:
+        return ""
+    seen = trial.setdefault("seen", [])
+    seen.append(float(doing))
+    if len(seen) < A_FAIR_TRIAL:
+        return ""
+    was = trial.get("before")
+    now = sum(seen) / len(seen)
+    ON_TRIAL.pop(str(name), None)
+    if was is None or now >= float(was):
+        logger.info("%r earned its place: %.3f against %s", name, now, was)
+        return "kept"
+    forget(str(name))
+    logger.info("%r did not earn its place: %.3f against %.3f — dropped", name, now, float(was))
+    return "dropped"
+
+
+def what_it_was_like_before(name: str, doing: float) -> None:
+    """How things were going before a property went on trial."""
+    trial = ON_TRIAL.get(str(name))
+    if trial is not None and trial.get("before") is None:
+        trial["before"] = float(doing)
+
+
 def forget(name: str) -> bool:
     """Drop a property she invented. What earned its place can lose it."""
     gone = INVENTED.pop(str(name), None) is not None
