@@ -5648,7 +5648,17 @@ class LatentCortexService:
                         worker_receipt={},
                         failure_code="client_exception",
                     )
-                return self._record_failure(f"client_error:{type(exc).__name__}")
+                # The reason travels up to the action lane, where it becomes a
+                # refusal to act. "client_error:AttributeError" told the lane
+                # nothing it could act on and told the log nothing it could be
+                # found by, so a browser action was refused for a type bug that
+                # took a subsystem read to locate. The raise site costs nothing
+                # and is the whole difference.
+                from core.runtime.errors import _raise_site
+
+                return self._record_failure(
+                    f"client_error:{type(exc).__name__}@{_raise_site(exc)}"
+                )
         finally:
             release_external_generation_gate_lease(generation_lease_id)
         elapsed = time.monotonic() - started

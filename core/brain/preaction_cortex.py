@@ -153,6 +153,32 @@ def _availability_failure(reason: str) -> str | None:
         "client_error:TimeoutError",
     }:
         return normalized
+    # A defect is not a verdict.
+    #
+    # These four are what Python raises when the code is wrong: an attribute
+    # that is not there, a key that is not there, an index past the end, a
+    # branch nobody wrote. None of them can be a judgement about the action,
+    # because reaching a judgement requires the episode to have run. A
+    # deliberate refusal is raised on purpose, as a ValueError or RuntimeError
+    # carrying what was wrong, and those stay ineligible — which is the whole
+    # reason this allowlist exists.
+    #
+    # Live 2026-08-30: `'list' object has no attribute 'get'` inside the
+    # episode client became `client_error:AttributeError`, which became
+    # `episode_integrity_refusal:...`, which the external-execution coordinator
+    # may never bypass. So a type bug in a THINKING step refused a browser
+    # action that had already cleared every authority gate, and the refusal
+    # read exactly like a safety decision. The posture here is the same one
+    # `no_resident_model` already has: when the rehearsal cannot run, the
+    # action proceeds without it.
+    defect, _, kind = normalized.partition(":")
+    if defect == "client_error" and kind.split("@", 1)[0] in {
+        "AttributeError",
+        "IndexError",
+        "KeyError",
+        "NotImplementedError",
+    }:
+        return normalized
     return None
 
 

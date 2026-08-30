@@ -756,10 +756,17 @@ def record_degradation(
     except (AttributeError, RuntimeError, TypeError, ValueError) as health_exc:
         logger.debug("Subsystem health update failed for %s: %s", subsystem, health_exc)
 
-    # Log at the appropriate level
+    # Log at the appropriate level, WITH the line that raised.
+    #
+    # The record has carried the traceback since it was written; the log line
+    # never did. So a contained exception read as "AttributeError: 'list'
+    # object has no attribute 'get'" and nothing else, and locating it meant
+    # reading the whole subsystem — which is what a containment that drops its
+    # location costs, every time, forever. The raise site is one already-built
+    # string and it ends that.
     log_msg = (
         f"[DEGRADATION] {subsystem} ({severity}): {error_type}: {error_msg} "
-        f"→ {action}"
+        f"[raised at {_raise_site(error)}] → {action}"
     )
     if severity == "critical":
         logger.critical(log_msg)
