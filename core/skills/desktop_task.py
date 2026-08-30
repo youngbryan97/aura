@@ -5528,6 +5528,26 @@ class DesktopTaskSkill(BaseSkill):
             return False
         if cls._objective_requests_observation_only(objective):
             return False
+        # A goal to keep at is never one generated script.
+        #
+        # The planner already gets this right: a watched goal plans to exactly
+        # one pursue_on_screen step, which is the lane that presses a key,
+        # looks, and decides the next one. This test then read the same
+        # objective, saw browser and desktop words in it, found no step it
+        # recognised as covering them, and replaced the pursuit with an
+        # AppleScript — a thing that runs once and cannot look at what it did.
+        #
+        # LIVE 2026-08-30, asked to play 2048 in the browser: planned as one
+        # pursuit sized at 3088s, escalated, and the model was then asked to
+        # write a script for the whole game. The reasoning did not fit
+        # (2601s > 480s), the skill died 35.6s in, and the turn reported
+        # "Completed 0/1 steps" without a key ever being pressed.
+        #
+        # Nothing about that is particular to a game. An objective needing
+        # feedback between acts cannot be satisfied by one script, whatever
+        # desktop nouns it contains.
+        if read_watched_goal(objective) is not None:
+            return False
         # Multi-surface/multi-app objectives require coordinated focus and
         # clipboard control. Prefer verified primitives when they already cover
         # the durable artifact and UI intent; escalate only when coverage is
