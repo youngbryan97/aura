@@ -2362,6 +2362,7 @@ def _install_language_growth_claims(suite: Any) -> None:
             test="test_a_word_the_closure_already_says_is_refused",
             owner="core/cognition/widening_the_language.py",
             asserted_in="core/cognition/what_it_costs_to_say.py",
+            live_channels=("language.words_derived", "language.meanings_reachable"),
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
                 "measured over the closure at lengths two to five; whether a word "
@@ -2378,6 +2379,7 @@ def _install_language_growth_claims(suite: Any) -> None:
             test="test_admitting_a_way_of_building_enlarges_the_meanings_not_only_the_spelling",
             owner="core/cognition/an_invented_kind.py",
             asserted_in="core/cognition/what_it_costs_to_say.py",
+            live_channels=("language.ways_of_building", "language.meanings_reachable"),
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
                 "forty meanings to two hundred and sixty, counted over the same "
@@ -2394,6 +2396,7 @@ def _install_language_growth_claims(suite: Any) -> None:
             test="test_what_she_built_is_not_in_the_source_registry",
             owner="core/cognition/a_constructor_she_built.py",
             asserted_in="core/cognition/a_constructor_she_built.py",
+            live_channels=("language.ways_of_building",),
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
                 "measured on families needing a chain three words deep; the space "

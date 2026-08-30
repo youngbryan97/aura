@@ -152,6 +152,8 @@ def what_is_established_block(prompt: Any = "") -> str:
         lines.append(f"    checked by: {claim.test} ({grade}), in {claim.owner}")
         if claim.evidence_note:
             lines.append(f"    what that establishes: {claim.evidence_note}")
+        for reading in _now(getattr(claim, "live_channels", ()) or ()):
+            lines.append(f"    as it stands in this process: {reading}")
     lines.append(
         "These hold in this build. A statement with no test cannot be "
         "registered here, so this record says nothing that nothing checks — "
@@ -159,6 +161,33 @@ def what_is_established_block(prompt: Any = "") -> str:
         "language model believes about itself in general."
     )
     return "\n".join(lines)
+
+
+def _now(channels: tuple[str, ...]) -> list[str]:
+    """What the channels a claim rests on are reading right now.
+
+    A statement about what she can do, with the number it currently stands at,
+    answers "what specifically did you add" — which a test name on its own
+    does not. A channel that has never been written says so rather than
+    reading zero, because those are different facts.
+    """
+    if not channels:
+        return []
+    try:
+        from core.fsw.telemetry_dictionary import channel_value
+    except ImportError:
+        return []
+    said: list[str] = []
+    for name in channels:
+        try:
+            sample = channel_value(name)
+        except (KeyError, RuntimeError, TypeError, ValueError):
+            continue
+        if sample is None:
+            said.append(f"{name} has not been written in this process")
+            continue
+        said.append(f"{name} = {getattr(sample, 'value', sample)}")
+    return said
 
 
 def _registered() -> list[Any]:

@@ -312,6 +312,7 @@ def widen_with_addressing(name: str, addressing: DerivedAddressing) -> str:
     searches is strictly larger than the one she was given.
     """
     from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.language_telemetry import note_the_language_grew
 
     said = str(name or "").strip()
     if not said or said in WHERE_FROM:
@@ -320,12 +321,14 @@ def widen_with_addressing(name: str, addressing: DerivedAddressing) -> str:
     logger.info(
         "the language grew: %d ways to say where a value comes from", len(WHERE_FROM)
     )
+    note_the_language_grew()
     return said
 
 
 def widen_with_operation(name: str, operation: DerivedOperation) -> str:
     """Put a derived operation into the language every meaning is built from."""
     from core.cognition.an_invented_kind import WHAT_OF_IT
+    from core.cognition.language_telemetry import note_the_language_grew
 
     said = str(name or "").strip()
     if not said or said in WHAT_OF_IT:
@@ -334,6 +337,7 @@ def widen_with_operation(name: str, operation: DerivedOperation) -> str:
     logger.info(
         "the language grew: %d ways to combine a pair", len(WHAT_OF_IT)
     )
+    note_the_language_grew()
     return said
 
 

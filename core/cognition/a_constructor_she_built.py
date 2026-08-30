@@ -241,6 +241,9 @@ def a_constructor_she_built(
                 logger.info(
                     "she built a constructor nobody wrote: %s", recipe.name
                 )
+                from core.cognition.language_telemetry import note_the_language_grew
+
+                note_the_language_grew()
                 return recipe
         except (TypeError, ValueError, KeyError):
             pass

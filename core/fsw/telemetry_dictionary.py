@@ -658,6 +658,11 @@ def event(
     )
 
 
+def channel_value(name: str) -> Sample | None:
+    """The last sample on a channel, or None where nothing has written it."""
+    return _DICTIONARY.value(name)
+
+
 def write(name: str, value: Any) -> LimitState:
     return _DICTIONARY.write(name, value)
 
