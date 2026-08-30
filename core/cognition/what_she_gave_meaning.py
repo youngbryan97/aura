@@ -91,12 +91,21 @@ def _words_she_derived() -> dict[str, Any]:
             built[name] = recipe_data(recipe)
         else:
             named.append(name)
+    # And the kinds of thing she named. A distinction she drew is a piece of
+    # her language as much as a word is, and one that dies at process exit was
+    # never a concept.
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+    from core.cognition.a_kind_of_thing_she_named import written_down as kind_data
+
     return {
         "addressings": addressings,
         "operations": operations,
         "ways": sorted(named),
         "built": built,
         "wrote": wrote,
+        "kinds_of_thing": {
+            name: kind_data(kind) for name, kind in KINDS_OF_THING.items()
+        },
     }
 
 
@@ -169,6 +178,16 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     from core.cognition.one_algebra import as_a_maker
     from core.cognition.one_algebra import read_back as read_term
 
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+    from core.cognition.a_kind_of_thing_she_named import read_back as read_kind
+
+    for name, row in (language.get("kinds_of_thing") or {}).items():
+        kind = read_kind(row)
+        if kind is None:
+            logger.info("a kind of thing she named does not read back: %r", name)
+            continue
+        KINDS_OF_THING[str(name)] = kind
+        back += 1
     for name, row in (language.get("wrote") or {}).items():
         term = read_term(row)
         if term is None:
