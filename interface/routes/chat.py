@@ -10376,6 +10376,40 @@ def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool
     return whole, True
 
 
+async def _anything_better_than_giving_up(
+    message: object, *, reason: str, already: str
+) -> str:
+    """One more thing to try before the honest failure goes out.
+
+    The ladder is a resident model that is loaded, warm, and not the lane
+    owner. Two paths reach the giving-up reply and only one of them asked it —
+    so the same question that got a real answer through one route got "I
+    couldn't get to an answer I'd stand behind" through the other, with the 9B
+    idle and the readings unread.
+
+    A refusal is the right answer when nothing better is known. It is the worst
+    of the options available when something is.
+    """
+    if already:
+        return already
+    try:
+        said = await _answer_from_fallback_ladder(message, reason=reason)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.fallback_ladder",
+            exc,
+            severity="warning",
+            action="gave up without asking the smaller model",
+        )
+        return ""
+    if said:
+        logger.info(
+            "🪜 The ladder answered where the turn was about to give up (%s).",
+            reason[:80],
+        )
+    return said
+
+
 async def _readings_for(text: str) -> list[str]:
     """The present-moment readings, on the ladder's path as well as the main one.
 
@@ -21603,6 +21637,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # Every governance link was clear by then; what was missing was
                 # somebody saying what the tool had returned.
                 evidenced_reply = _what_the_tools_found()
+            evidenced_reply = await _anything_better_than_giving_up(
+                _semantic_user_message,
+                reason="the cognitive engine could not serve this turn",
+                already=evidenced_reply,
+            )
             if evidenced_reply:
                 failure_reply = evidenced_reply
             if pending_exchange_id:
@@ -23731,6 +23770,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # leaves the other saying "I couldn't get to an answer" on top
                 # of a tool result.
                 evidenced_reply = _what_the_tools_found()
+            evidenced_reply = await _anything_better_than_giving_up(
+                _semantic_user_message,
+                reason="the cognitive engine could not serve this turn",
+                already=evidenced_reply,
+            )
             if evidenced_reply:
                 failure_reply = evidenced_reply
             # A refusal is the right answer when nothing better is known. When
