@@ -33,10 +33,13 @@ and looking.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from collections.abc import Mapping
 from typing import Any, Sequence
+
+logger = logging.getLogger("Aura.HowGoodIsThis")
 
 __all__ = ["ROOM_MATTERS", "bound_to", "how_good", "worth_comparing"]
 
@@ -161,16 +164,59 @@ def terms(
     differently in a world where different things matter — which is a fact
     about the world and not something anybody can know in advance.
     """
-    return {
+    said = {
         "nearness": _nearness(state, toward),
         "line": _holds_her_line(state, approach),
         "room": _room(state),
         "order": _order(state),
         "smoothness": _smoothness(state),
     }
+    # And anything she worked out for herself.
+    #
+    # Every property above was written down by somebody. That is the whole of
+    # what a mind can judge a situation by until it can add one, and adding one
+    # is not a matter of noticing — it is finding what your own measure cannot
+    # account for, composing something that does, and proving it plays better.
+    # See core/agency/what_i_cannot_explain.py for where they come from.
+    for name, measure in INVENTED.items():
+        try:
+            said[name] = float(measure.read(state))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return said
 
 
 #: What each thing is worth when nothing has been learned about this world.
+#: Properties she worked out for herself, by name. Empty until she finds one,
+#: and everything that reads a situation sees them beside the authored ones —
+#: there is no second-class shelf for a measure because a person did not write
+#: it. Promotion goes through ``promote``, which will not take one on the
+#: strength of explaining the past.
+INVENTED: dict[str, Any] = {}
+
+
+def promote(measure: Any, worth: float) -> str:
+    """Take a property she invented into the measure she judges situations by.
+
+    The weight is a measurement, not an opinion: nothing calls this until a
+    property has been shown to improve the play, and by how much.
+    """
+    name = str(getattr(measure, "name", "") or "").strip()
+    if not name or not callable(getattr(measure, "read", None)):
+        return ""
+    INVENTED[name] = measure
+    AS_GOOD_A_GUESS_AS_ANY[name] = float(worth)
+    logger.info("she added %r to what she judges a situation by, worth %.2f", name, worth)
+    return name
+
+
+def forget(name: str) -> bool:
+    """Drop a property she invented. What earned its place can lose it."""
+    gone = INVENTED.pop(str(name), None) is not None
+    AS_GOOD_A_GUESS_AS_ANY.pop(str(name), None)
+    return gone
+
+
 AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
     "nearness": 1.0,
     "line": LINE_MATTERS,
