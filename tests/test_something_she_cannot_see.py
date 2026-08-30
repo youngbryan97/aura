@@ -93,3 +93,87 @@ def test_a_world_that_fits_is_still_reported_as_fitting():
 
 def test_an_empty_record_proves_nothing():
     assert not what_she_cannot_see([]).anything
+
+
+def _board(rows):
+    from core.perception.what_is_there import Arrangement, Cell
+
+    return Arrangement(
+        rows=len(rows),
+        columns=len(rows[0]),
+        cells=tuple(
+            Cell(row=r, column=c, says=str(v), at=(c * 10.0, r * 10.0))
+            for r, row in enumerate(rows)
+            for c, v in enumerate(row)
+            if v
+        ),
+    )
+
+
+def test_a_merge_and_a_deal_leave_the_count_level_and_the_record_does_not():
+    """Its own comment named the case it could not see: two things become one
+    and a third is dealt, so occupancy comes back level and nothing looks to
+    have arrived."""
+    from core.perception.how_it_moves import HowItMoves
+
+    watching = HowItMoves()
+    before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    for dealt in (2, 4, 2, 4):
+        watching.watched(
+            before,
+            "left",
+            _board([[4, 0, 0, 0], [0, 0, 0, dealt], [0, 0, 0, 0], [0, 0, 0, 0]]),
+        )
+    assert watching.arrivals == 0
+    record = watching.what_she_saw_happen()
+    assert what_she_cannot_see(
+        [((seen, did), then) for seen, did, then in record]
+    ).anything
+
+
+def test_a_world_that_adds_nothing_leaves_the_record_a_function():
+    from core.perception.how_it_moves import HowItMoves
+
+    watching = HowItMoves()
+    still = _board([[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    for _ in range(4):
+        watching.watched(still, "left", still)
+    record = watching.what_she_saw_happen()
+    assert not what_she_cannot_see(
+        [((seen, did), then) for seen, did, then in record]
+    ).anything
+
+
+def test_the_play_loop_says_which_of_the_two_worlds_it_is_in():
+    """"Not worked out yet" is true of a world with a rule she has not found
+    and of one where no rule can fit, and those want opposite responses."""
+    from core.perception.how_it_moves import HowItMoves
+    from core.skills.screen_pursuit import _what_she_is_not_reading
+
+    watching = HowItMoves()
+    before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    import random
+
+    roll = random.Random(3)
+    for _ in range(14):
+        watching.watched(
+            before,
+            "left",
+            _board(
+                [
+                    [4, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, roll.choice([0, 2]), roll.choice([0, 4])],
+                ]
+            ),
+        )
+    said = _what_she_is_not_reading(watching)
+    assert "not reading" in said
+    assert "does not control" in said
+
+    settled = HowItMoves()
+    still = _board([[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    for _ in range(6):
+        settled.watched(still, "left", still)
+    assert _what_she_is_not_reading(settled) == ""

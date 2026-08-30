@@ -368,18 +368,39 @@ def _slo_dedup_window_s() -> float:
 
 
 def _raise_site(error: BaseException) -> str:
-    """Best-effort 'module:function:line' of where an exception was raised."""
+    """Best-effort 'module:function:line' of where an exception was raised.
+
+    The innermost frame that belongs to this codebase, not the innermost frame
+    full stop. A bounded wait expiring raises inside ``asyncio.timeouts``, and
+    naming that says only that a timeout was a timeout; the frame that awaited
+    is the one a reader can act on. Where nothing here is on the stack — a
+    library raising on its own — the innermost frame is the honest answer and
+    is what comes back.
+    """
     try:
         tb = error.__traceback__
         if tb is None:
             return "unknown"
-        while tb.tb_next is not None:
+        innermost = None
+        ours = None
+        while tb is not None:
+            module = tb.tb_frame.f_globals.get("__name__", "")
+            innermost = (module, tb.tb_frame.f_code.co_name, tb.tb_lineno)
+            if module.split(".", 1)[0] in _OUR_PACKAGES:
+                ours = innermost
             tb = tb.tb_next
-        frame = tb.tb_frame
-        module = frame.f_globals.get("__name__", "unknown")
-        return f"{module}:{frame.f_code.co_name}:{tb.tb_lineno}"
+        found = ours or innermost
+        if found is None:
+            return "unknown"
+        return f"{found[0] or 'unknown'}:{found[1]}:{found[2]}"
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return "unknown"
+
+
+#: The top-level packages that are this codebase, for naming a raise site.
+_OUR_PACKAGES = frozenset(
+    {"core", "interface", "skills", "security", "llm", "executors", "tools"}
+)
 
 
 def describe_error(error: BaseException) -> str:

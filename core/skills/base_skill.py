@@ -433,9 +433,20 @@ class BaseSkill(ABC):
             # rather than left set, or a skill that calls another skill's raw
             # execute would inherit this exemption.
             inside_token = _INSIDE_SAFE_EXECUTE.set(True)
+            # Whether the budget below is what ran out.
+            #
+            # `asyncio.timeout` raises TimeoutError when it expires, and so
+            # does every bounded wait INSIDE the skill. Catching the type and
+            # reporting "skill timed out" makes those two indistinguishable,
+            # and they send a reader to different clocks. Live 2026-08-30:
+            # os_automation declares 90s, failed at 35.6s, and the log said it
+            # timed out — so the search went to the skill's budget, the
+            # engine's sizing and the executive constraints, none of which had
+            # anything to do with it. The context manager knows which it was.
+            own_budget = None
             try:
                 # Execute with timeout
-                async with asyncio.timeout(effective_timeout):
+                async with asyncio.timeout(effective_timeout) as own_budget:
                     if inspect.iscoroutinefunction(self.execute):
                         result = await self.execute(params, context)
                     else:
@@ -457,7 +468,28 @@ class BaseSkill(ABC):
             except TimeoutError as e:
                 error_class = "transient"
                 last_err = e
-                logger.warning("⏱️ Skill '%s' timed out (attempt %d/%d)", self.name, attempt + 1, max_attempts)
+                mine = bool(getattr(own_budget, "expired", lambda: False)())
+                if mine:
+                    logger.warning(
+                        "⏱️ Skill '%s' ran out its own %.1fs budget (attempt %d/%d)",
+                        self.name,
+                        effective_timeout,
+                        attempt + 1,
+                        max_attempts,
+                    )
+                else:
+                    from core.runtime.errors import _raise_site
+
+                    logger.warning(
+                        "⏱️ Skill '%s' stopped on a timeout INSIDE it after %.1fs "
+                        "of its %.1fs budget, raised at %s (attempt %d/%d)",
+                        self.name,
+                        time.monotonic() - start,
+                        effective_timeout,
+                        _raise_site(e),
+                        attempt + 1,
+                        max_attempts,
+                    )
 
             except PermissionError as e:
                 error_class = "permanent"

@@ -1106,6 +1106,42 @@ def _left_her_better_off(
     return now >= was
 
 
+def _what_she_is_not_reading(rules: Any) -> str:
+    """Whether her own record proves a quantity she cannot see.
+
+    "How this moves is not worked out yet" is true of two different worlds and
+    says nothing about which. In one, a rule is there and she has not found it,
+    and more moves are the answer. In the other, the same board and the same
+    key came out two ways, so no rule reading only the board can ever fit, and
+    more moves are looking where the answer cannot be.
+
+    Watching is perception's; reading what the watching proves is not, so the
+    record leaves the model whole and the question is asked here.
+    """
+    from core.cognition.something_she_cannot_see import what_she_cannot_see
+
+    try:
+        record = rules.what_she_saw_happen()
+    except (AttributeError, TypeError):
+        return ""
+    if len(record) < 2:
+        return ""
+    found = what_she_cannot_see(
+        [((seen, did), then) for seen, did, then in record]
+    )
+    if not found.anything:
+        return ""
+    if found.she_can_compute_it:
+        return (
+            f" — and one thing she was not reading, which runs every "
+            f"{found.every} moves, so she can"
+        )
+    return (
+        f" — and one thing she was not reading, taking {found.how_many} values "
+        "in no cycle, so the world puts something there she does not control"
+    )
+
+
 def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
     """Say it the once, when she first works out how a thing moves."""
     rules = getattr(knows, "rules", None)
@@ -2301,9 +2337,10 @@ async def pursue_on_screen(
                 )
                 if len(moves) % 6 == 0 and knows.rules is not None:
                     logger.info(
-                        "after %d move(s): %s | reading %dx%d",
+                        "after %d move(s): %s%s | reading %dx%d",
                         len(moves),
                         knows.rules.says(),
+                        _what_she_is_not_reading(knows.rules),
                         laid_out.rows,
                         laid_out.columns,
                     )

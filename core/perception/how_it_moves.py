@@ -331,6 +331,9 @@ class HowItMoves:
     unreadable: int = 0
     #: Times something turned up that she did not put there.
     arrivals: int = 0
+    #: What she saw, what she did, what happened — as text, in order. The one
+    #: record that can prove a quantity she is not reading.
+    _record: list[tuple[str, str, str]] = field(default_factory=list)
     #: Acts that actually moved something, and how each rule did on those.
     #: Only these tell one hypothesis from another.
     moved: int = 0
@@ -528,6 +531,7 @@ class HowItMoves:
             self.unreadable += 1
             return
         self._note_arrivals(here, there)
+        self._record.append((here.as_text(), str(action), there.as_text()))
         # Whether this act told one hypothesis from another.
         #
         # An act that changed nothing is agreed about by every rule there is:
@@ -662,8 +666,25 @@ class HowItMoves:
         a board that merges two things into one and is then dealt a third, the
         count comes back level and nothing looks to have arrived. Twice is the
         world; once could be a misreading.
+
+        Counting is the weaker of the two tests and it is what perception can
+        answer on its own. The stronger one reads the whole record — the same
+        board, the same key, two different results — and that is an inference
+        rather than an observation, so it is asked from the layer that does
+        inference. :meth:`what_she_saw_happen` hands it over.
         """
         return self.arrivals >= TWICE_IS_THE_WORLD
+
+    def what_she_saw_happen(self) -> tuple[tuple[str, str, str], ...]:
+        """Every move of hers: what was there, what she did, what happened.
+
+        Watching is perception's job and reading what the watching proves is
+        not. The one thing that can show a quantity she is not reading is this
+        record in order, so it leaves here whole and
+        :func:`core.cognition.something_she_cannot_see.what_she_cannot_see`
+        asks the question of it.
+        """
+        return tuple(self._record)
 
     def the_thing(self, arrangement: Arrangement) -> Arrangement:
         """The part of a reading that behaves like one thing.
