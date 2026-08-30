@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,7 +36,6 @@ from core.cognition.primitive_invention import (
     Transition,
     _index_forms,
     discriminating_probe,
-    invent_relation,
 )
 from core.cognition.relation_language import RelationLanguage
 from core.cognition.value_order import solve_ordering, solve_ordering_then_move
@@ -82,7 +82,7 @@ def _cells(inside: str) -> tuple[Any, ...] | None:
         return None
 
 
-def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
+def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
     """An answer from a meaning she induced, when the language has none.
 
     The examples are before-and-after pairs, which is exactly what a meaning is
@@ -125,7 +125,7 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
 
     # Then something already settled, which is what makes the second question
     # of a kind cheaper than the first.
-    for kind, known in list(KINDS.items()):
+    for _kind, known in list(KINDS.items()):
         if not all(known.read(before) == after for before, after in pairs):
             continue
         answer = known.read(tuple(question.asked))
@@ -155,7 +155,46 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
 
     meaning = induce_from(pairs)
     if meaning is None:
-        return None
+        # Nothing in the language can say it — so the LANGUAGE is what is
+        # missing, not the hypothesis.
+        #
+        # Every meaning she can form is a point in the closure of a handful of
+        # ways to say where a value comes from and what is done with a pair,
+        # and those were written down by a person. A family outside that
+        # closure is not merely unsolved, it is unsayable, and no amount of
+        # searching finds it because the search is over the wrong set.
+        #
+        # Where the values are distinct, where each one came from can be READ
+        # OFF rather than guessed. If nothing the language already says
+        # produces that correspondence, the correspondence is a new word — and
+        # once it is a word, every hypothesis she can form afterwards may use
+        # it.
+        widened = _a_word_the_language_was_missing(pairs)
+        if widened is None:
+            return None
+        meaning = induce_from(pairs)
+        if meaning is None:
+            return None
+        answer = meaning.read(tuple(question.asked))
+        if answer is None:
+            return (
+                "I had to invent a way of saying this, and it still does not "
+                f"reach your case.\n\nNothing I could say described what your "
+                f"examples do, so I worked out {widened} and added it "
+                "to the language I make rules out of. But it was read off what "
+                "you showed me, and your case has parts it has never seen. Show "
+                "me one more example covering them and it will."
+            )
+        admit(meaning.name, meaning)
+        _keep_what_she_worked_out()
+        return (
+            f"{list(answer)}\n\n"
+            "Nothing I could say described what your examples do — not the "
+            "rule, the LANGUAGE I make rules out of. So I worked out "
+            f"{widened} and added it to that language, and now the rule is "
+            f"sayable: {meaning.name}. Everything I work out from here can "
+            "use it."
+        )
     fits = everything_that_fits(pairs)
 
     if len(fits) > 1:
@@ -207,6 +246,65 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
         "out, and I have kept it — ask me another of these and I will already "
         "know it."
     )
+
+
+def meaning_lengths(pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]]) -> set[int]:
+    """The lengths a set of examples was given at."""
+    return {len(tuple(before)) for before, _after in pairs}
+
+
+def _keep_what_she_worked_out() -> None:
+    """Write down meanings and words alike, or carry on without."""
+    try:
+        from core.cognition.what_she_gave_meaning import keep
+
+        keep()
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pass  # no-op: an unkept meaning still answers this question
+
+
+def _a_word_the_language_was_missing(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str | None:
+    """Derive a way of saying what these do, and add it to the language.
+
+    Returns what it is called, or nothing when the examples do not determine
+    one — values that repeat have no single source, and two examples of one
+    length that disagree describe no correspondence at all.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.widening_the_language import (
+        an_addressing_nobody_wrote,
+        widen_with_addressing,
+    )
+
+    found = an_addressing_nobody_wrote(pairs, already=list(WHERE_FROM.values()))
+    if found is not None:
+        name = f"the way these move ({len(WHERE_FROM)})"
+        said = widen_with_addressing(name, found)
+        return f"a new way of saying where a value comes from ({said})" if said else None
+
+    # Nothing was MOVED, so no addressing describes it: the values were made
+    # rather than taken. Then what is missing is a way of combining a pair, and
+    # that is derivable too — given where the two came from, what was done with
+    # them is whatever the result was.
+    from core.cognition.an_invented_kind import WHAT_OF_IT
+    from core.cognition.widening_the_language import (
+        an_operation_nobody_wrote,
+        widen_with_operation,
+    )
+
+    for first in list(WHERE_FROM.values()):
+        for second in list(WHERE_FROM.values()):
+            done = an_operation_nobody_wrote(
+                pairs, first, second, already=list(WHAT_OF_IT.values())
+            )
+            if done is None:
+                continue
+            name = f"what was done with these ({len(WHAT_OF_IT)})"
+            said = widen_with_operation(name, done)
+            return f"a new way of combining two values ({said})" if said else None
+    return None
 
 
 def read_sequence_question(text: Any) -> SequenceQuestion | None:

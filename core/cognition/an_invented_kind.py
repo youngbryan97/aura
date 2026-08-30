@@ -149,7 +149,13 @@ class Induced:
                 one = found[where(index, size) % size]
                 two = found[other(index, size) % size]
                 out.append(what(one, two))
-            except (IndexError, TypeError, ValueError, ZeroDivisionError):
+            except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
+                # A word she derived refuses what it has never seen: an
+                # addressing read off length four says nothing about length
+                # six, and an operation read off the pairs in front of her
+                # says nothing about a pair that was not. Refusing is the
+                # honest answer and it is what makes a derived word safe to
+                # put in the language everything else is built from.
                 return None
         return tuple(out)
 
