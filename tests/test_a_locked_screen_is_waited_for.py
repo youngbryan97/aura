@@ -76,3 +76,36 @@ async def test_a_refusal_that_is_not_a_lock_is_not_waited_out(monkeypatch):
     began = time.monotonic()
     assert await wait_for_a_screen_to_look_at(began + 30.0) is False
     assert time.monotonic() - began < 1.0
+
+
+@pytest.mark.asyncio
+async def test_the_person_is_told_while_she_waits(monkeypatch):
+    """They are the one who can unlock it, and cannot if nothing says so."""
+    said: list[str] = []
+
+    async def narrate(line, because=""):
+        said.append(line)
+
+    monkeypatch.setattr("core.skills.screen_pursuit._narrate", narrate)
+    monkeypatch.setattr(
+        "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
+        _answers(LOCKED, LOCKED, OPEN),
+    )
+    assert await wait_for_a_screen_to_look_at(time.monotonic() + 30.0) is True
+    assert said and "locked" in said[0]
+
+
+@pytest.mark.asyncio
+async def test_an_unlocked_screen_says_nothing(monkeypatch):
+    said: list[str] = []
+
+    async def narrate(line, because=""):
+        said.append(line)
+
+    monkeypatch.setattr("core.skills.screen_pursuit._narrate", narrate)
+    monkeypatch.setattr(
+        "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
+        _answers(OPEN),
+    )
+    await wait_for_a_screen_to_look_at(time.monotonic() + 30.0)
+    assert said == []

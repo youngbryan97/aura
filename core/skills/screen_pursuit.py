@@ -1292,6 +1292,14 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
             return False
         if not told:
             logger.info("the screen is locked; waiting for it rather than failing")
+            # Say it. Waiting in silence for the whole deadline and then
+            # explaining is the same information delivered too late to act
+            # on — the person is the one who can unlock it, and they cannot
+            # do that if nothing tells them.
+            await _narrate(
+                "Your screen is locked, so there is nothing for me to look at "
+                "yet. I will start the moment it is unlocked."
+            )
             told = True
         await asyncio.sleep(min(max(1.0, left / 60.0), left))
 
