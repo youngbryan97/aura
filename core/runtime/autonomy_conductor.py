@@ -212,6 +212,25 @@ class AutonomyConductor:
             run_immediately=True,
             policy="constitutive",
         )
+        # Goals she works out for herself, rather than templates chosen by an
+        # endogenous trigger.
+        #
+        # The engine was fed observations by production code — every regretted
+        # autonomous action lands in it — and nothing ever asked it what those
+        # observations came to. synthesize() and adopt_into_goal_engine() had
+        # no live caller at all: the machinery for a goal that nobody wrote
+        # existed, ran in tests, and could not reach her.
+        #
+        # Ten minutes, because a recurring tension is recurring: it wants long
+        # enough for the same kind of trouble to happen more than once, and
+        # short enough that she acts on it in the session it happened in.
+        self.register(
+            "emergent_goal_adoption",
+            600.0,
+            self._job_emergent_goal_adoption,
+            run_immediately=False,
+            policy="research",
+        )
         self.register(
             "internal_deliberation_cycle",
             30 * 60.0,
@@ -435,6 +454,35 @@ class AutonomyConductor:
             )
         )
         return allocation.to_dict()
+
+    async def _job_emergent_goal_adoption(self) -> dict[str, Any]:
+        """Ask what the tensions she has been recording actually come to.
+
+        Three steps that were all present and never joined: what has been
+        observed, what that synthesises into, and which of those have enough
+        support behind them to become goals she is actually pursuing.
+        """
+        from core.container import ServiceContainer
+
+        emergent = ServiceContainer.get("emergent_goal_engine", default=None)
+        if emergent is None:
+            return {"ran": False, "why": "no emergent goal engine"}
+        candidates = emergent.synthesize()
+        goals = ServiceContainer.get("goal_engine", default=None)
+        if goals is None:
+            return {"ran": True, "candidates": len(candidates), "why": "no goal engine to adopt into"}
+        adopted = await emergent.adopt_into_goal_engine(goals)
+        if adopted:
+            logger.info(
+                "she took on %d goal(s) nobody wrote: %s",
+                len(adopted),
+                ", ".join(str(one.get("name", "?")) for one in adopted)[:200],
+            )
+        return {
+            "ran": True,
+            "candidates": len(candidates),
+            "adopted": [str(one.get("name", "?")) for one in adopted],
+        }
 
     async def _job_stdp_external_validation(self) -> dict[str, Any]:
         from core.consciousness.stdp_external_validation import STDPExternalValidator
