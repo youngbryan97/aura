@@ -1069,3 +1069,23 @@ def test_computer_use_helper_refuses_unknown_foreground(monkeypatch):
 
     assert "refused" in result
     assert called is False
+
+
+def test_a_locked_screen_says_it_is_locked():
+    """"The interactive session is unavailable" is true and unactionable.
+
+    The thing being kept back is the person's own screen, and they are the one
+    who locked it. LIVE 2026-08-30: a request to play a game came back as
+    "screen capture deferred while the interactive session is unavailable",
+    which reads as a fault.
+    """
+    from core.security.screen_capture_policy import (
+        ScreenCaptureAdmission,
+        ScreenCaptureDenial,
+    )
+
+    said = ScreenCaptureAdmission(
+        allowed=False, reason=ScreenCaptureDenial.SESSION_LOCKED
+    ).public_error
+    assert "locked" in said
+    assert "interactive session" not in said

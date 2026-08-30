@@ -181,11 +181,11 @@ async def test_a_screen_that_cannot_be_read_says_so(hands):
     page = hands(Page(thing_at=0))
 
     async def blind():
-        return {"ok": False, "error": "screen capture deferred while the interactive session is unavailable"}
+        return {"ok": False, "error": "the screen is locked, so there is nothing for me to look at yet"}
 
     told: dict[str, str] = {"reason": ""}
     await _bring_it_into_view(blind, page.read, told)
-    assert "interactive session" in told["reason"]
+    assert "locked" in told["reason"]
 
 
 @pytest.mark.asyncio

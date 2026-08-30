@@ -1259,6 +1259,43 @@ async def _move_her_own_surface_aside(
     return True
 
 
+async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
+    """Wait for a locked screen, rather than failing at one.
+
+    A locked screen is a condition that passes, like a model still warming.
+    Failing at it turns "ask her, then sit down at the machine" into "ask her
+    again once you are there", and the person has no way to know that is what
+    happened — LIVE 2026-08-30, a request to play a game came back as a fault.
+
+    Bounded by the deadline the task already has, so nothing waits longer than
+    the work was given. Checked about once a second because that is the
+    granularity of the thing being waited for: a person reaching over and
+    unlocking. Checking faster cannot see it sooner.
+    """
+    from core.security.screen_capture_policy import (
+        evaluate_screen_capture_admission_async,
+    )
+
+    told = False
+    while True:
+        try:
+            admission = await evaluate_screen_capture_admission_async()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return True
+        if admission.allowed or admission.reason.value != "session_locked":
+            if told:
+                logger.info("the screen is back; carrying on")
+            return admission.allowed
+        left = ends_at - time.monotonic()
+        if left <= 0.0:
+            logger.info("the screen stayed locked for the whole of this task")
+            return False
+        if not told:
+            logger.info("the screen is locked; waiting for it rather than failing")
+            told = True
+        await asyncio.sleep(min(max(1.0, left / 60.0), left))
+
+
 async def clear_what_is_in_front(on_top: str) -> bool:
     """Try to get whatever is covering her work out of the way.
 
@@ -1527,6 +1564,13 @@ async def pursue_on_screen(
     ends_at = began + float(max_seconds)
     if deadline_at > 0.0:
         ends_at = min(ends_at, float(deadline_at))
+    if not await wait_for_a_screen_to_look_at(ends_at):
+        return {
+            "ok": False,
+            "outcome": "no_screen_to_look_at",
+            "error": "the screen is locked, so there is nothing for me to look at yet",
+            "moves": [],
+        }
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     #: Situations she was in and how things went from there, so a property her

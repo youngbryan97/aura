@@ -115,7 +115,11 @@ class ScreenCaptureAdmission:
         }:
             return "screen capture refused because private content is visible"
         if self.reason is ScreenCaptureDenial.SESSION_LOCKED:
-            return "screen capture deferred while the interactive session is unavailable"
+            # Say what is true. "The interactive session is unavailable" is
+            # accurate and tells the person nothing they can act on, and the
+            # thing it is hiding is theirs: it is their own screen, and they
+            # are the one who locked it.
+            return "the screen is locked, so there is nothing for me to look at yet"
         return "screen capture refused because foreground privacy could not be verified"
 
     def to_receipt(self) -> dict[str, str | bool]:
