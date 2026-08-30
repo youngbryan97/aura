@@ -1259,6 +1259,14 @@ async def _move_her_own_surface_aside(
     return True
 
 
+def _how_full(reading: Any) -> float:
+    """What share of a reading's places hold something."""
+    places = int(getattr(reading, "rows", 0) or 0) * int(getattr(reading, "columns", 0) or 0)
+    if places <= 0:
+        return 0.0
+    return float(reading.occupied()) / float(places)
+
+
 async def _the_best_reading_available(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
@@ -1311,13 +1319,13 @@ async def _the_best_reading_available(
 
     theirs = the_thing_itself(from_page)
     mine = the_thing_itself(seen)
-    # And only where the page actually SHOWED a thing. The crop hands back the
-    # reading unchanged when it finds no lattice in it, so an uncropped page of
-    # furniture — ten pieces of text with no grid among them — beat a real
-    # board of eight every time. A reading that was not cropped is a reading
-    # with nothing laid out in it.
-    found_a_thing = (theirs.rows, theirs.columns) != (from_page.rows, from_page.columns)
-    if not found_a_thing or theirs.occupied() <= mine.occupied():
+    # By how full each one is, not by how much it holds. The crop hands back
+    # the reading unchanged when it finds no lattice, so an uncropped page of
+    # furniture — ten pieces of text with no grid among them, spread over
+    # thirty-five places — beat a real board of eight over twenty every time.
+    # A thing laid out is full of its own cells; a page with text scattered
+    # about it is not, and that is the difference between them.
+    if _how_full(theirs) <= _how_full(mine):
         return seen
     logger.info(
         "the page shows the thing better: %dx%d with %d in it, against %dx%d with %d",
