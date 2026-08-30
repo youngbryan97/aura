@@ -4055,8 +4055,21 @@ async def _foreground_owner_context(
     deadline: Deadline | None = None,
     foreground_request: bool = False,
     stale_after: float | None = None,
+    a_person_is_waiting: bool | None = None,
 ):
-    """Serialize foreground work so background model activity cannot compete with it."""
+    """Serialize foreground work so background model activity cannot compete with it.
+
+    ``a_person_is_waiting`` is what protects a holder from being preempted, and
+    it is not the same question as whether the work is foreground. A run that
+    plays a game for forty minutes is foreground on every one of its moves and
+    nobody is waiting on any of them — so marking it user-facing made the
+    person who started it unable to interrupt it, and asking her anything
+    while she worked got a routing failure and an apology.
+
+    A person outranks her own errand. Defaults to the old meaning when the
+    caller does not say, so nothing that has not been taught the difference
+    loses its protection.
+    """
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
     global _FOREGROUND_OWNER_ACQUIRED_MONOTONIC
     global _FOREGROUND_OWNER_HEARTBEAT_MONOTONIC
@@ -4084,7 +4097,11 @@ async def _foreground_owner_context(
                     _FOREGROUND_OWNER_NAME = owner_name
                     _stamp_foreground_owner(time.time())
                     _FOREGROUND_OWNER_STALE_AFTER = stale_after
-                    _FOREGROUND_OWNER_IS_USER_FACING = bool(foreground_request)
+                    _FOREGROUND_OWNER_IS_USER_FACING = bool(
+                        foreground_request
+                        if a_person_is_waiting is None
+                        else a_person_is_waiting
+                    )
                     owner_acquired = True
                     break
 
@@ -10597,6 +10614,9 @@ class MLXLocalClient:
                 deadline=deadline,
                 foreground_request=True,
                 stale_after=bounded_timeout_s,
+                a_person_is_waiting=not bool(
+                    (wire_cognitive_context or {}).get("internal_inference", False)
+                ),
             )
             try:
                 await foreground_owner_cm.__aenter__()
@@ -15218,6 +15238,9 @@ class MLXLocalClient:
                 deadline=deadline if isinstance(deadline, Deadline) else None,
                 foreground_request=True,
                 stale_after=self._first_token_sla(foreground_request=True),
+                # An answer read by code has nobody waiting on it, however
+                # foreground the errand it belongs to.
+                a_person_is_waiting=not bool(kwargs.get("internal_inference", False)),
             )
             try:
                 await foreground_owner_cm.__aenter__()
