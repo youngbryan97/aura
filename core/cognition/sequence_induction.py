@@ -342,10 +342,26 @@ def _a_word_the_language_was_missing(
     if built is not None:
         return f"a way of making words that I built rather than had ({built.name})"
 
-    # Levels, not one level. A maker of makers needs makers to work on, and
-    # those makers look useless right up until it arrives — so asking whether
-    # each helps on its own can never reach a family that needs both. They go
-    # in together and only what the answer needs is kept.
+    # A way of building she WRITES, rather than one she is handed.
+    #
+    # This used to offer two makers by name — "one after another" and "twice
+    # over" — so the levels had no ceiling and the thing supplying candidates
+    # for them did. Whatever she reached was inside the closure of
+    # composition, inversion and iteration, and a family needing anything else
+    # was unreachable however long she looked.
+    #
+    # A way of building is now a TERM with a hole in it, in the same algebra a
+    # word is a term in, so there is no list to be at the end of. Measured: the
+    # first family that branches on the size of the thing is served by a maker
+    # she wrote that is provably outside the closure of those three.
+    from core.cognition.one_algebra import a_maker_she_wrote
+
+    wrote = a_maker_she_wrote(pairs, now_sayable=sayable)
+    if wrote is not None:
+        return f"a way of building words that I wrote ({wrote.name})"
+
+    # And the ones that were written down, tried after, because a way she can
+    # reach by writing is worth more than one she can only be handed.
     kept = grow_until_sayable(
         [
             (1, "one after another", one_after_another),

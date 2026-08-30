@@ -74,12 +74,20 @@ def _words_she_derived() -> dict[str, Any]:
     # resolve against constructors the source already has, and the point of
     # building one is that the source does not have it.
     from core.cognition.a_constructor_she_built import written_down as recipe_data
+    from core.cognition.one_algebra import written_down as term_data
 
     built: dict[str, Any] = {}
+    wrote: dict[str, Any] = {}
     named: list[str] = []
     for name, build in WAYS_TO_BUILD.items():
         recipe = getattr(build, "recipe", None)
-        if recipe is not None:
+        term = getattr(build, "term", None)
+        if term is not None:
+            # A way she WROTE is saved as its term. There is no registry it
+            # could be looked up in, because the whole point of writing one is
+            # that nothing had written it down.
+            wrote[name] = term_data(term)
+        elif recipe is not None:
             built[name] = recipe_data(recipe)
         else:
             named.append(name)
@@ -88,6 +96,7 @@ def _words_she_derived() -> dict[str, Any]:
         "operations": operations,
         "ways": sorted(named),
         "built": built,
+        "wrote": wrote,
     }
 
 
@@ -157,6 +166,16 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     from core.cognition.a_constructor_she_built import build as rebuild
     from core.cognition.a_constructor_she_built import read_back as read_recipe
 
+    from core.cognition.one_algebra import as_a_maker
+    from core.cognition.one_algebra import read_back as read_term
+
+    for name, row in (language.get("wrote") or {}).items():
+        term = read_term(row)
+        if term is None:
+            logger.info("a term she wrote does not read back: %r", name)
+            continue
+        WAYS_TO_BUILD[str(name)] = as_a_maker(term)
+        back += 1
     for name, row in (language.get("built") or {}).items():
         recipe = read_recipe(row)
         if recipe is None:
