@@ -285,11 +285,46 @@ def _a_word_the_language_was_missing(
     one — values that repeat have no single source, and two examples of one
     length that disagree describe no correspondence at all.
     """
-    from core.cognition.an_invented_kind import WHERE_FROM, addressings
+    from core.cognition.an_invented_kind import (
+        WAYS_TO_BUILD,
+        WHERE_FROM,
+        addressings,
+        induce_from,
+    )
     from core.cognition.widening_the_language import (
         an_addressing_nobody_wrote,
         widen_with_addressing,
     )
+
+    sayable = lambda: induce_from(pairs) is not None
+
+    # A kind of thing before a new word, because it is the answer that holds.
+    #
+    # When the failure splits the cases in two, what is missing is usually a
+    # DISTINCTION and not an operation. Reading a correspondence off the
+    # examples instead gives a word that works at the length it was read at
+    # and refuses every other — right about these cases and silent about the
+    # next one. A distinction is right about all of them, which is what makes
+    # it worth having.
+    from core.cognition.a_kind_of_thing_she_named import (
+        KINDS_OF_THING,
+        a_kind_of_thing_she_named,
+        a_way_of_building_over,
+    )
+
+    named = a_kind_of_thing_she_named(pairs)
+    if named is not None:
+        maker, _over = a_way_of_building_over(named)
+        called = f"a way of saying it over {named.tells.name}"
+        if called not in WAYS_TO_BUILD:
+            WAYS_TO_BUILD[called] = maker
+            if sayable():
+                return (
+                    f"a kind of thing I had no name for ({named.tells.name}), "
+                    "and a way of saying things over it"
+                )
+            WAYS_TO_BUILD.pop(called, None)
+            KINDS_OF_THING.pop(named.name, None)
 
     # Everything constructible, not merely the words written down. A candidate
     # that some composition already produces is new spelling for an old
@@ -330,12 +365,9 @@ def _a_word_the_language_was_missing(
     # derived word is read off what she was shown and says nothing beyond it,
     # while a way of building takes every word she has — including the derived
     # ones — and makes more out of them.
-    from core.cognition.an_invented_kind import induce_from
     from core.cognition.a_constructor_she_built import a_constructor_she_built
     from core.cognition.growing_at_any_level import grow_until_sayable, twice_over
     from core.cognition.widening_the_language import one_after_another
-
-    sayable = lambda: induce_from(pairs) is not None
 
     # Build one before reaching for one that was written. Activating a
     # constructor somebody already wrote enlarges what she uses and never what

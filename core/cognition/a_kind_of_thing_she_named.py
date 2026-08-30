@@ -38,6 +38,7 @@ from typing import Any, Callable, Sequence
 
 __all__ = [
     "AKindOfThing",
+    "a_way_of_building_over",
     "KINDS_OF_THING",
     "a_kind_of_thing_she_named",
     "read_back",
@@ -227,6 +228,35 @@ def _holds_on_sizes_it_never_saw(
         except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
             return False
     return True
+
+
+def a_way_of_building_over(kind: AKindOfThing) -> Any:
+    """A way of building words that asks which kind of thing this is.
+
+    The point of naming a distinction is that things can be said with it. This
+    is the saying: one word for cases on one side of it and another for cases
+    on the other, which is a thing her language could not express at all
+    before the distinction existed.
+
+    It is a term like any other, so everything downstream is unchanged and
+    what she writes next may use it — including the next way of building.
+    """
+    from core.cognition.one_algebra import Term, as_a_maker
+
+    first = kind.classes[0].rsplit(" is ", 1)[-1] if kind.classes else "0"
+    try:
+        which = int(first)
+    except (TypeError, ValueError):
+        which = 0
+    branch = Term(
+        "if",
+        (
+            Term("same as", (kind.tells, Term("fixed", value=which))),
+            Term("hole", value=0),
+            Term("hole", value=1),
+        ),
+    )
+    return as_a_maker(branch), branch
 
 
 def written_down(kind: AKindOfThing) -> dict[str, Any]:

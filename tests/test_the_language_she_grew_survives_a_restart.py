@@ -19,18 +19,22 @@ from core.cognition.an_operation_that_generalises import an_operation_that_gener
 
 @pytest.fixture(autouse=True)
 def _kept_somewhere_of_its_own(tmp_path, monkeypatch):
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+
     monkeypatch.setattr(keeping, "_KEPT_AT", tmp_path / "meanings.json")
-    where, what, ways, known = (
+    where, what, ways, known, named = (
         dict(kinds.WHERE_FROM), dict(kinds.WHAT_OF_IT),
-        dict(kinds.WAYS_TO_BUILD), dict(kinds.KINDS),
+        dict(kinds.WAYS_TO_BUILD), dict(kinds.KINDS), dict(KINDS_OF_THING),
     )
     kinds.WAYS_TO_BUILD.clear()
+    KINDS_OF_THING.clear()
     try:
         yield
     finally:
         for holds, was in (
             (kinds.WHERE_FROM, where), (kinds.WHAT_OF_IT, what),
             (kinds.WAYS_TO_BUILD, ways), (kinds.KINDS, known),
+            (KINDS_OF_THING, named),
         ):
             holds.clear()
             holds.update(was)
