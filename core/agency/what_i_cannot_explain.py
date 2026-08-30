@@ -49,6 +49,15 @@ ENOUGH_PAIRS_TO_LOOK = 40
 #: nothing; the number that counts is the one from the half held back.
 MUST_BEAT_CHANCE_BY = 0.15
 
+#: How many unexplained pairs are worth carrying. Past this the answer stops
+#: changing and the search starts costing more than it tells her.
+MOST_PAIRS_WORTH_LOOKING_AT = 4000
+
+#: How many situations to remember. A long run must not grow without limit,
+#: and the pairs that need explaining come from all over it rather than from
+#: the end, so the oldest go first.
+WORTH_REMEMBERING = 20000
+
 #: How close two scores have to be before her measure is calling them equal.
 #: A share of the range her measure produces, so it does not depend on the
 #: scale anything happens to be on.
@@ -77,6 +86,8 @@ class WhatICannotExplain:
     def been_here(self, situation: Any, scored: float, turned_out: float) -> None:
         """One situation, what her measure said of it, and what came of it."""
         self.lived.append(Lived(situation, float(scored), float(turned_out)))
+        if len(self.lived) > WORTH_REMEMBERING:
+            del self.lived[: len(self.lived) - WORTH_REMEMBERING]
 
     # ── the pairs that need explaining ───────────────────────────────────
 
@@ -90,54 +101,83 @@ class WhatICannotExplain:
         if len(self.lived) < 2:
             return []
         scores = [one.scored for one in self.lived]
-        spread = max(scores) - min(scores)
-        if spread <= 0.0:
-            spread = 1.0
+        spread = (max(scores) - min(scores)) or 1.0
+        # In score order, so the ones her measure calls equal are next to each
+        # other and the rest are never looked at. Comparing everything with
+        # everything is the same answer and quadratic: on an ordinary run of
+        # twenty thousand situations that is two hundred million comparisons
+        # for a handful of pairs, which is a search nobody can afford to run
+        # and so a capability nobody uses.
+        in_order = sorted(self.lived, key=lambda one: one.scored)
+        near = CALLED_EQUAL_WITHIN * spread
         pairs: list[tuple[Lived, Lived]] = []
-        for index, one in enumerate(self.lived):
-            for other in self.lived[index + 1 :]:
-                if abs(one.scored - other.scored) / spread > CALLED_EQUAL_WITHIN:
-                    continue
-                if abs(one.turned_out - other.turned_out) < TURNED_OUT_DIFFERENTLY_BY:
-                    continue
-                pairs.append((one, other))
+        for index, one in enumerate(in_order):
+            for other in in_order[index + 1 :]:
+                if other.scored - one.scored > near:
+                    break
+                if abs(one.turned_out - other.turned_out) >= TURNED_OUT_DIFFERENTLY_BY:
+                    pairs.append((one, other))
+                if len(pairs) >= MOST_PAIRS_WORTH_LOOKING_AT:
+                    return pairs
         return pairs
 
     # ── what would account for them ──────────────────────────────────────
 
+    def worth_trying(
+        self, most: int = 3, among: Sequence[Measure] | None = None
+    ) -> list[tuple[Measure, float, int]]:
+        """The properties best worth TESTING, best-explaining first.
+
+        Not the answer — the shortlist. Explaining what already happened and
+        improving what happens next are different things, and the first is
+        only evidence about the second.
+
+        Measured 2026-08-29: the single best explanation of her own unexplained
+        pairs agreed with the outcome on 98% of the pairs it was never chosen
+        on, and playing with it made her 10% WORSE. Nothing was wrong with the
+        search. A property can correlate with how things turned out and still
+        be a bad thing to steer by, because steering by it changes what
+        happens — which is exactly why the causal test is the one that decides
+        and this only proposes.
+        """
+        ranked = self._ranked(among)
+        return ranked[: max(1, int(most))]
+
     def what_would_explain(
         self, among: Sequence[Measure] | None = None
     ) -> tuple[Measure, float, int] | None:
-        """The property that best separates what she cannot explain.
+        """The single property that best separates what she cannot explain."""
+        ranked = self._ranked(among)
+        return ranked[0] if ranked else None
 
-        Returned with its score on pairs it was NOT chosen on, and how many
-        pairs there were, because a measure fitted to everything has been
-        tested against nothing.
-        """
+    def _ranked(
+        self, among: Sequence[Measure] | None = None
+    ) -> list[tuple[Measure, float, int]]:
+        """Every candidate that clears the bar, best on held-back pairs first."""
         pairs = self.unexplained()
         if len(pairs) < ENOUGH_PAIRS_TO_LOOK:
-            return None
+            return []
         # Half to choose on, half to be judged on. Interleaved rather than
         # split down the middle, so a run that drifted does not put all of one
         # kind of situation in the half that decides.
         choosing = pairs[0::2]
         judging = pairs[1::2]
-        best: tuple[Measure, float, int] | None = None
+        found: list[tuple[Measure, float, int]] = []
         for measure in (among if among is not None else every_measure()):
             if _agrees_on(measure, choosing) <= 0.5:
                 continue
             held_back = _agrees_on(measure, judging)
             if held_back - 0.5 < MUST_BEAT_CHANCE_BY:
                 continue
-            if best is None or held_back > best[1]:
-                best = (measure, held_back, len(pairs))
-        if best is not None:
+            found.append((measure, held_back, len(pairs)))
+        found.sort(key=lambda row: -row[1])
+        if found:
             logger.info(
-                "what I could not explain is explained by %r on %.0f%% of %d "
-                "pairs it was not chosen on",
-                best[0].name, best[1] * 100.0, len(judging),
+                "%d propert(ies) would explain what I could not, best %r at %.0f%% "
+                "of %d pairs it was not chosen on",
+                len(found), found[0][0].name, found[0][1] * 100.0, len(judging),
             )
-        return best
+        return found
 
 
 def _agrees_on(measure: Measure, pairs: Sequence[tuple[Lived, Lived]]) -> float:

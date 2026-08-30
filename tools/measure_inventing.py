@@ -81,53 +81,73 @@ def without_the_property() -> dict[str, float]:
     return kept
 
 
-def run(games: int, weight: float) -> None:
-    print("Taking the property a person added back out, and asking whether she "
+def run(games: int, weight: float, most: int = 3) -> None:
+    import functools
+
+    say = functools.partial(print, flush=True)
+    say("Taking the property a person added back out, and asking whether she "
           "could have found it.\n")
 
     hg.AS_GOOD_A_GUESS_AS_ANY = without_the_property()
     hg.SMOOTHNESS_MATTERS = 0.0
     remember = WhatICannotExplain()
     blind = [played(seed, remember=remember) for seed in range(games)]
-    print(f"played {games} games without it: median best tile "
+    say(f"played {games} games without it: median best tile "
           f"{statistics.median(best for best, _ in blind):.0f}, "
           f"median total {statistics.median(total for _, total in blind):.0f}")
-    print(f"situations remembered: {len(remember.lived)}")
+    say(f"situations remembered: {len(remember.lived)}")
     pairs = remember.unexplained()
-    print(f"pairs her measure calls equal that did not turn out equal: {len(pairs)}\n")
+    say(f"pairs her measure calls equal that did not turn out equal: {len(pairs)}\n")
 
-    found = remember.what_would_explain()
-    if found is None:
-        print("She found nothing that explains them. No property is promoted.")
+    shortlist = remember.worth_trying(most=most)
+    if not shortlist:
+        say("She found nothing that explains them. No property is promoted.")
         return
-    measure, held_back, counted = found
-    print(f"what she proposes: {measure.name!r}")
-    print(f"  agrees with the outcome on {held_back:.0%} of the pairs it was "
-          f"NOT chosen on, out of {counted}\n")
+    say(f"{len(shortlist)} propert(ies) worth testing, best explanation first:")
+    for measure, held_back, counted in shortlist:
+        say(f"  {measure.name!r} — agrees on {held_back:.0%} of {counted // 2} "
+            f"pairs it was not chosen on")
+    say("")
 
-    # The only test that decides anything.
-    hg.AS_GOOD_A_GUESS_AS_ANY = without_the_property()
-    hg.promote(measure, weight)
-    with_it = [played(seed) for seed in range(games)]
-    print(f"played {games} games with it at {weight}: median best tile "
-          f"{statistics.median(best for best, _ in with_it):.0f}, "
-          f"median total {statistics.median(total for _, total in with_it):.0f}")
-
+    # The only test that decides anything. Explaining what already happened
+    # and improving what happens next are different things: measured
+    # 2026-08-29, the best explanation of her own unexplained pairs agreed
+    # with the outcome 98% of the time and made her play 10% WORSE.
     before = statistics.median(total for _, total in blind)
-    after = statistics.median(total for _, total in with_it)
-    better = (after - before) / before if before else 0.0
-    if better <= 0:
+    best: tuple[str, float, float] | None = None
+    for measure, _held_back, _counted in shortlist:
+        hg.AS_GOOD_A_GUESS_AS_ANY = without_the_property()
+        hg.INVENTED.clear()
+        hg.promote(measure, weight)
+        tried = [played(seed) for seed in range(games)]
+        after = statistics.median(total for _, total in tried)
+        change = (after - before) / before if before else 0.0
+        say(f"played with {measure.name!r} at {weight}: median total {after:.0f} "
+            f"({change:+.0%})")
+        if best is None or change > best[2]:
+            best = (measure.name, after, change)
         hg.forget(measure.name)
-    print(f"\n{'PROMOTED' if better > 0 else 'REFUSED'}: including it changed the "
-          f"median total by {better:+.0%}")
+
+    say("")
+    if best is None or best[2] <= 0.0:
+        say(f"REFUSED: nothing she proposed played better than the {before:.0f} "
+            f"she manages without it. Her measure is unchanged.")
+        return
+    kept = next(m for m, _h, _c in shortlist if m.name == best[0])
+    hg.AS_GOOD_A_GUESS_AS_ANY = without_the_property()
+    hg.promote(kept, weight)
+    say(f"PROMOTED {best[0]!r}: median total {before:.0f} -> {best[1]:.0f} "
+        f"({best[2]:+.0%}), and it is now one of the things she judges a "
+        f"situation by.")
 
 
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--games", type=int, default=5)
     ask.add_argument("--weight", type=float, default=0.4)
+    ask.add_argument("--most", type=int, default=3)
     said = ask.parse_args()
-    run(said.games, said.weight)
+    run(said.games, said.weight, said.most)
     return 0
 
 
