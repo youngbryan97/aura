@@ -35,6 +35,8 @@ from typing import Any, Callable, Iterator, Sequence
 
 __all__ = [
     "ENOUGH_HELD_BACK",
+    "everything_that_fits",
+    "what_would_tell_them_apart",
     "Induced",
     "KINDS",
     "admit",
@@ -170,6 +172,59 @@ def every_meaning() -> Iterator[Induced]:
 #: Kinds she has worked out the meaning of, by name. Empty at import: nothing
 #: is here that a person put here.
 KINDS: dict[str, Induced] = {}
+
+
+def what_would_tell_them_apart(
+    one: Induced, other: Induced, *, of_length: int = 4, tries: int = 200
+) -> tuple[Any, ...] | None:
+    """A state these two meanings disagree about, so somebody could settle it.
+
+    Searched rather than reasoned about: put states in front of both and keep
+    the first they answer differently. Nothing here knows what makes two
+    meanings differ, only that a case they disagree on is worth asking about.
+    """
+    import random
+
+    rng = random.Random(0)
+    for _ in range(max(1, tries)):
+        state = tuple(rng.randint(1, 9) for _ in range(max(2, of_length)))
+        mine, theirs = one.read(state), other.read(state)
+        if mine is not None and theirs is not None and mine != theirs:
+            return state
+    return None
+
+
+def everything_that_fits(
+    transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> list[Induced]:
+    """Every meaning in the space that accounts for all of these.
+
+    More than one usually does, and that is a fact about the examples rather
+    than about her. Four examples where the first value happens to be the
+    smallest are explained by "repeat the first" and by "take the smaller of
+    each pair" alike, and picking one of those quietly is how a confident
+    answer gets made out of evidence that does not support it.
+    """
+    pairs = [(tuple(before), tuple(after)) for before, after in transitions]
+    if not pairs:
+        return []
+    fitting = [
+        meaning
+        for meaning in every_meaning()
+        if all(meaning.read(before) == after for before, after in pairs)
+    ]
+    # Told apart by what they DO, not by how they are written. Taking the
+    # smaller of a pair reads two ways round and is one meaning either way, and
+    # reporting that as two readings of the evidence would invent a doubt that
+    # is not there.
+    distinct: list[Induced] = []
+    for meaning in fitting:
+        if not any(
+            what_would_tell_them_apart(meaning, kept, of_length=len(pairs[0][0])) is None
+            for kept in distinct
+        ):
+            distinct.append(meaning)
+    return distinct or fitting[:1]
 
 
 def induce_from(

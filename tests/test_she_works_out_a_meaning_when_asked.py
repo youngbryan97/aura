@@ -111,3 +111,45 @@ def test_what_she_worked_out_is_kept():
     from core.cognition.what_she_gave_meaning import _KEPT_AT
 
     assert _KEPT_AT.exists()
+
+
+# ── and she says when the examples do not settle it ──────────────────────
+
+def test_meanings_are_told_apart_by_what_they_do_not_how_they_are_written():
+    """Taking the smaller of a pair reads two ways round and is one meaning.
+
+    Reporting that as two readings of the evidence would invent a doubt that
+    is not there.
+    """
+    from core.cognition.an_invented_kind import everything_that_fits
+
+    same = [((1, 2, 3), (1, 1, 1)), ((4, 5, 6), (4, 4, 4)),
+            ((7, 8, 9), (7, 7, 7)), ((2, 9, 4), (2, 2, 2))]
+    assert len(everything_that_fits(same)) == 1
+
+
+def test_genuinely_thin_evidence_fits_several_meanings():
+    from core.cognition.an_invented_kind import everything_that_fits
+
+    thin = [((1, 2, 1), (1, 2, 1)), ((3, 4, 3), (3, 4, 3))]
+    assert len(everything_that_fits(thin)) > 1
+
+
+def test_and_a_case_that_would_settle_it_can_be_found():
+    from core.cognition.an_invented_kind import (
+        everything_that_fits,
+        what_would_tell_them_apart,
+    )
+
+    fits = everything_that_fits([((1, 2, 1), (1, 2, 1)), ((3, 4, 3), (3, 4, 3))])
+    telling = what_would_tell_them_apart(fits[0], fits[1], of_length=3)
+    assert telling is not None
+    assert fits[0].read(telling) != fits[1].read(telling)
+
+
+def test_two_meanings_that_never_disagree_have_nothing_to_settle():
+    from core.cognition.an_invented_kind import Induced, what_would_tell_them_apart
+
+    one = Induced("here", "its partner", "the smaller of it and its neighbour")
+    same = Induced("its partner", "here", "the smaller of it and its neighbour")
+    assert what_would_tell_them_apart(one, same, of_length=4) is None

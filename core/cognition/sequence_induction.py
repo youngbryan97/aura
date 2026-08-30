@@ -121,6 +121,36 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
     answer = meaning.read(tuple(question.asked))
     if answer is None:
         return None
+
+    # More than one meaning may account for the examples, and that is a fact
+    # about the examples rather than about her. Answering from one of several
+    # without saying so makes a confident answer out of evidence that does not
+    # support one — so when the readings genuinely differ, she says which she
+    # took and what would settle it.
+    from core.cognition.an_invented_kind import (
+        everything_that_fits,
+        what_would_tell_them_apart,
+    )
+
+    fits = everything_that_fits(pairs)
+    unsettled = ""
+    if len(fits) > 1:
+        other = next((one for one in fits if one.name != meaning.name), None)
+        if other is not None:
+            telling = what_would_tell_them_apart(
+                meaning, other, of_length=len(question.asked)
+            )
+            unsettled = (
+                f"\n\nYour examples do not settle it, though: {other.name} "
+                f"accounts for all of them too."
+            )
+            if telling is not None:
+                unsettled += (
+                    f" Show me what {list(telling)} becomes and I will know "
+                    f"which — I read it as {list(meaning.read(telling) or ())} "
+                    f"and the other reading says {list(other.read(telling) or ())}."
+                )
+
     admit(meaning.name, meaning)
     try:
         from core.cognition.what_she_gave_meaning import keep
@@ -134,7 +164,7 @@ def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
         f"doing and gave it a meaning: {meaning.name}. It accounts for every "
         "example you showed me, including the ones I did not use to work it "
         "out, and I have kept it — ask me another of these and I will already "
-        "know it."
+        "know it." + unsettled
     )
 
 
