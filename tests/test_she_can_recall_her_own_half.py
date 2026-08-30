@@ -102,3 +102,46 @@ def test_the_role_boundary_is_still_stated(asked):
     said = build_grounded_recall_context(asked, _exchange())
     assert said
     assert "The quoted speaker is the user, not you" in said
+
+
+# --- a positional question is answered by position ------------------------
+
+
+def test_what_she_just_said_is_found_by_position_not_by_topic():
+    """"What did you just say?" shares no content words with what she said.
+
+    LIVE 2026-08-30: scored by overlap it resolved nothing, so she answered
+    "I had just finished answering that before this turn" without saying what
+    the answer had been.
+    """
+    from core.conversation.grounded_recall import resolve_own_prior_turn
+
+    assert resolve_own_prior_turn(
+        "What did I just ask you, and what did you say?", _exchange()
+    ) == "No monkey-patching."
+
+
+def test_the_first_thing_she_said_is_found_the_same_way():
+    from core.conversation.grounded_recall import resolve_own_prior_turn
+
+    assert resolve_own_prior_turn(
+        "What did you say first in this conversation?", _exchange()
+    ) == "Anchor it to something specific."
+
+
+def test_a_topical_question_still_picks_by_topic():
+    """Position must not swallow the case overlap was built for."""
+    from core.conversation.grounded_recall import resolve_own_prior_turn
+
+    assert resolve_own_prior_turn(
+        "what did you say about remembering names?", _exchange()
+    ) == "Anchor it to something specific."
+
+
+def test_a_topical_question_with_no_overlap_still_refuses():
+    """No overlap means no verdict; a confident wrong quote is worse."""
+    from core.conversation.grounded_recall import resolve_own_prior_turn
+
+    assert resolve_own_prior_turn(
+        "what did you say about submarines?", _exchange()
+    ) is None

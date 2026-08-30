@@ -300,9 +300,6 @@ def resolve_own_prior_turn(user_message: str, history: Any = None) -> str | None
     wrong turn is worse than an admission because it is indistinguishable
     from memory.
     """
-    asked = _content_words(user_message)
-    if not asked:
-        return None
     exclude_norm = str(user_message or "").strip().lower()
     exchanges = _history_own_exchanges(history, exclude_norm)
     # Working memory is a window; the transcript is the record. Her turn is
@@ -315,6 +312,19 @@ def resolve_own_prior_turn(user_message: str, history: Any = None) -> str | None
         if exchange[1] not in seen_turns
     )
     if not exchanges:
+        return None
+
+    # A positional question is answered by position, not by topic. "What did
+    # you just say?" shares no content words with what she said, so scoring by
+    # overlap returned nothing and she had nothing to answer from — LIVE
+    # 2026-08-30 she said "I had just finished answering that before this
+    # turn" without saying what the answer had been.
+    where = detect_positional_recall(user_message)
+    if where is not None:
+        return exchanges[0][1] if where == "first" else exchanges[-1][1]
+
+    asked = _content_words(user_message)
+    if not asked:
         return None
 
     best: tuple[int, str] | None = None
