@@ -171,10 +171,12 @@ class AutonomyConductor:
         # it is persistent, reusable, composable and transferable. Three of
         # those fail if it does not survive a restart.
         try:
-            from core.runtime.what_she_invented import recall
+            from core.container import ServiceContainer
 
-            recall()
-        except (ImportError, RuntimeError, OSError, ValueError) as exc:
+            worked_out = ServiceContainer.get("what_she_worked_out", default=None)
+            if worked_out is not None:
+                worked_out.recall()
+        except (ImportError, RuntimeError, OSError, ValueError, AttributeError) as exc:
             record_degradation(
                 "autonomy_conductor", exc, severity="info",
                 action="put back what she invented",
@@ -485,9 +487,12 @@ class AutonomyConductor:
         state changes with each observation and writing a file for each of
         those would be a lot of disk for a number that moves sixty times.
         """
-        from core.runtime.what_she_invented import keep
+        from core.container import ServiceContainer
 
-        return {"kept": bool(keep())}
+        worked_out = ServiceContainer.get("what_she_worked_out", default=None)
+        if worked_out is None:
+            return {"kept": False, "why": "nothing joins the two keepers"}
+        return dict(worked_out.keep())
 
     async def _job_emergent_goal_adoption(self) -> dict[str, Any]:
         """Ask what the tensions she has been recording actually come to.

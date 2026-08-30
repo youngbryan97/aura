@@ -1,21 +1,22 @@
-"""Keeping what she worked out for herself across a restart.
+"""Keeping the properties she worked out for herself across a restart.
 
-She can now compose a property of a situation nobody wrote, prove it plays
-better and judge by it; and she can induce the meaning of a kind of rule
-nobody wrote and have the interpreter run it. Both lived in process memory, so
-both died when the process did. A mind that reinvents the same thing every
-morning has not learned it.
+She can compose a property of a situation nobody wrote, prove it plays better
+and judge by it — and it lived in process memory, so it died when the process
+did. A mind that reinvents the same property every morning has not learned it.
+
+Kept here rather than in the runtime, beside the thing it keeps. A package that
+describes how she judges a situation is where knowledge of how she judges a
+situation belongs; core/cognition keeps its own meanings the same way, and
+neither has to reach across for the other.
 
 That mattered more than it sounds. The point of the invention was never one
 good measure — it was that what she works out is persistent, reusable,
 composable and transferable. Three of those four fail if it does not survive a
 restart, and the fourth is only interesting because of them.
 
-What is kept is the RECIPE, never a pickled object: a measure is where it
-looks, what it takes and how it combines; a meaning is which two places a
-value is read from and what is done with the pair. Both reconstruct exactly,
-both are readable by a person, and neither can execute anything that was not
-already in the space she searches.
+What is kept is the RECIPE, never a pickled object: where it looks, what it
+takes and how it combines. It reconstructs exactly, a person can read it, and
+it cannot execute anything that was not already in the space she searches.
 """
 
 from __future__ import annotations
@@ -30,12 +31,12 @@ from core.runtime.errors import record_degradation
 
 __all__ = ["forget_everything", "keep", "recall"]
 
-logger = logging.getLogger("Aura.WhatSheInvented")
+logger = logging.getLogger("Aura.PropertiesSheInvented")
 
 #: Where it lives. Beside what she learned about particular worlds, because it
 #: is the same kind of thing: something she found out and should not have to
 #: find out again.
-_KEPT_AT = Path.home() / ".aura" / "state" / "what_she_invented.json"
+_KEPT_AT = Path.home() / ".aura" / "state" / "properties_she_invented.json"
 
 #: A bound on the file. What she invented is a handful of recipes; anything
 #: larger is a runaway rather than a mind that has learned a great deal.
@@ -44,11 +45,8 @@ _MOST_KEPT = 200_000
 
 def keep() -> bool:
     """Write down every property and every meaning she has worked out."""
-    try:
-        from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, ON_TRIAL
-        from core.cognition.an_invented_kind import KINDS
-    except ImportError:
-        return False
+    from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, ON_TRIAL
+
     body = {
         "measures": [
             {
@@ -63,18 +61,8 @@ def keep() -> bool:
             for name, measure in INVENTED.items()
             if hasattr(measure, "at")
         ],
-        "meanings": {
-            kind: {
-                "where_from": meaning.where_from,
-                "and_from": meaning.and_from,
-                "what_of_it": meaning.what_of_it,
-                "held_back": float(meaning.held_back),
-                "from_examples": int(meaning.from_examples),
-            }
-            for kind, meaning in KINDS.items()
-        },
     }
-    if not body["measures"] and not body["meanings"]:
+    if not body["measures"]:
         return False
     try:
         from core.governance_context import local_internal_governed_scope
@@ -93,10 +81,7 @@ def keep() -> bool:
             get_file_write_gateway().write_text(
                 _KEPT_AT, written, source="what_she_invented"
             )
-        logger.info(
-            "kept %d propert(ies) and %d meaning(s) she worked out",
-            len(body["measures"]), len(body["meanings"]),
-        )
+        logger.info("kept %d propert(ies) she worked out", len(body["measures"]))
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
@@ -113,19 +98,15 @@ def recall() -> dict[str, int]:
     by a restart is not a trial that failed, and starting it again from nought
     would mean a property could never be judged on a machine that reboots.
     """
-    back = {"measures": 0, "meanings": 0}
+    back = {"measures": 0}
     try:
         held = json.loads(_KEPT_AT.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return back
     if not isinstance(held, dict):
         return back
-    try:
-        from core.agency.how_good_is_this import ON_TRIAL, promote
-        from core.agency.inventing_a_measure import Measure
-        from core.cognition.an_invented_kind import KINDS, Induced
-    except ImportError:
-        return back
+    from core.agency.how_good_is_this import ON_TRIAL, promote
+    from core.agency.inventing_a_measure import Measure
 
     for row in held.get("measures") or ():
         if not isinstance(row, dict):
@@ -146,25 +127,9 @@ def recall() -> dict[str, int]:
         if row.get("on_trial") and isinstance(row.get("trial"), dict):
             ON_TRIAL[name] = dict(row["trial"])
 
-    for kind, row in (held.get("meanings") or {}).items():
-        if not isinstance(row, dict):
-            continue
-        try:
-            KINDS[str(kind)] = Induced(
-                where_from=str(row["where_from"]),
-                and_from=str(row["and_from"]),
-                what_of_it=str(row["what_of_it"]),
-                held_back=float(row.get("held_back") or 0.0),
-                from_examples=int(row.get("from_examples") or 0),
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-        back["meanings"] += 1
-
     if any(back.values()):
         logger.info(
-            "she remembered %d propert(ies) and %d meaning(s) she had worked out",
-            back["measures"], back["meanings"],
+            "she remembered %d propert(ies) she had worked out", back["measures"]
         )
     return back
 

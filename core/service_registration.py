@@ -278,6 +278,34 @@ def _register_all_services_body(container, is_proxy: bool):
         from core.consciousness.mesh_cognition import get_mesh_cognition
         return get_mesh_cognition()
 
+    def create_what_she_worked_out():
+        """One handle on everything she worked out for herself.
+
+        The conductor runs on the ordinary autonomy loop and lives in
+        core/runtime, which may not reach agency or cognition — deliberately,
+        and the rule is worth keeping. So the two keepers are joined here,
+        where reaching both is allowed, and the conductor asks the container
+        for the join rather than importing across a boundary.
+        """
+        from core.agency import what_she_invented as properties
+        from core.cognition import what_she_gave_meaning as meanings
+
+        class WhatSheWorkedOut:
+            @staticmethod
+            def keep() -> dict[str, bool]:
+                return {
+                    "properties": bool(properties.keep()),
+                    "meanings": bool(meanings.keep()),
+                }
+
+            @staticmethod
+            def recall() -> dict[str, int]:
+                back = dict(properties.recall())
+                back["meanings"] = int(meanings.recall())
+                return back
+
+        return WhatSheWorkedOut()
+
     def create_emergent_goal_engine():
         from core.goals.emergent_goals import get_emergent_goal_engine
         return get_emergent_goal_engine()
@@ -519,6 +547,7 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
+    container.register('what_she_worked_out', create_what_she_worked_out, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('emergent_goal_engine', create_emergent_goal_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('structural_mutator', create_structural_mutator, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('lineage_manager', create_lineage_manager, lifetime=ServiceLifetime.SINGLETON, required=False)
