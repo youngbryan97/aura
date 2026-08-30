@@ -85,3 +85,71 @@ def test_the_answering_path_asks_before_it_writes():
     wrote = source.index("a_maker_she_wrote(pairs")
     assert asked < wrote
     assert "if not why.is_the_language" in source
+
+
+# --- and a second opinion, from compression ------------------------------
+
+
+def test_failures_that_repeat_score_above_a_shuffled_control():
+    from core.cognition.what_the_failures_have_in_common import (
+        how_much_the_failures_share,
+    )
+
+    assert how_much_the_failures_share([-8] * 8) > 0
+
+
+@pytest.mark.parametrize("how_many", [8, 16, 24])
+def test_failures_that_share_nothing_score_nothing(how_many):
+    """A compressor finds savings in the digits alone; the control removes them.
+
+    Over several draws, because one unlucky sample proves nothing either way.
+    """
+    from core.cognition.what_the_failures_have_in_common import (
+        how_much_the_failures_share,
+    )
+
+    drawn = random.Random(how_many)
+    scored = [
+        how_much_the_failures_share(
+            [drawn.randint(-999, 999) for _ in range(how_many)]
+        )
+        for _ in range(20)
+    ]
+    # The floor the null actually reaches is what it is measured against, so
+    # a stray positive is possible and a run of them is not.
+    assert sum(1 for one in scored if one > 1) <= 1, scored
+
+
+@pytest.mark.parametrize("leftovers", [[-8], []])
+def test_too_few_leftovers_to_compare_score_nothing(leftovers):
+    from core.cognition.what_the_failures_have_in_common import (
+        how_much_the_failures_share,
+    )
+
+    assert how_much_the_failures_share(leftovers) == 0
+
+
+def test_a_ramp_is_structured_and_scores_nothing_here():
+    """Stated as a limit rather than hidden: this sees repetition, not algebra.
+
+    A ramp is perfectly structured and no two of its cases are alike, so a
+    compressor finds nothing shared. That is why this is a second opinion and
+    the coverage test is the verdict.
+    """
+    from core.cognition.what_the_failures_have_in_common import (
+        how_much_the_failures_share,
+    )
+
+    assert how_much_the_failures_share(list(range(8))) <= 0
+
+
+def test_the_verdict_does_not_rest_on_it():
+    """The coverage test decides; compression is reported beside it."""
+    import inspect
+
+    from core.cognition import what_the_failures_have_in_common as telling
+
+    source = inspect.getsource(telling)
+    decided = source.index("because=A_REPRESENTATION_FAILURE if joins_up")
+    scored = source.index("shared=how_much_the_failures_share")
+    assert decided < scored

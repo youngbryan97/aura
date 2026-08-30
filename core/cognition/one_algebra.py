@@ -448,7 +448,17 @@ def a_maker_she_wrote(
     from core.cognition.what_it_costs_to_say import _symbols
 
     every = addressings()
-    names = sorted(every, key=lambda name: (_symbols(name), name))[:_WORDS_TO_TRY]
+    # Ordered by how much each word already agrees with what she saw happen.
+    #
+    # A word that lands on none of the right places is unlikely to be the one
+    # inside the term that does; one that lands on most of them is nearly the
+    # answer already. Sorting by name and taking the first two dozen ordered
+    # them by nothing at all, and once the language had grown the search did
+    # not finish. This is the same evidence the term is written against.
+    names = sorted(
+        every,
+        key=lambda name: (-_agrees_with(every[name], wanted), _symbols(name), name),
+    )[:_WORDS_TO_TRY]
     fillings = [
         tuple(every[name] for name in chosen)
         for chosen in _choose(names, max(1, holes))
@@ -510,17 +520,37 @@ def _earns_its_place(
     return worth.keep_it
 
 
+def _agrees_with(word: Any, wanted: dict[int, tuple[int, ...]]) -> int:
+    """How many of the places this word already puts where they belong."""
+    agreed = 0
+    for size, found in wanted.items():
+        if size <= 0:
+            continue
+        try:
+            agreed += sum(
+                1 for at in range(size) if int(word(at, size)) % size == found[at]
+            )
+        except (ArithmeticError, IndexError, TypeError, ValueError):
+            continue
+    return agreed
+
+
 def _computes(term: Term, words: Sequence[Any], wanted: dict[int, tuple[int, ...]]) -> bool:
-    """Whether this term, given these words, is the correspondence she saw."""
+    """Whether this term, given these words, is the correspondence she saw.
+
+    Stops at the first place it disagrees. Building the whole answer for a
+    size before comparing it does the work for every position of a term that
+    was wrong at the first, and the great majority of them are.
+    """
     for size, found in wanted.items():
         if size <= 0:
             return False
-        try:
-            got = tuple(run(term, at, size, words) % size for at in range(size))
-        except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
-            return False
-        if got != found:
-            return False
+        for at in range(size):
+            try:
+                if run(term, at, size, words) % size != found[at]:
+                    return False
+            except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
+                return False
     return True
 
 

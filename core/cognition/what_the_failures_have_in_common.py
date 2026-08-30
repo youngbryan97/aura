@@ -38,6 +38,7 @@ from typing import Any, Sequence
 
 __all__ = [
     "A_SEARCH_FAILURE",
+    "how_much_the_failures_share",
     "A_REPRESENTATION_FAILURE",
     "NOTHING_FAILED",
     "UNDECIDED",
@@ -74,6 +75,9 @@ class WhyNothingFits:
     #: unrelated to one another.
     by_chance: float = 0.0
     considered: int = 0
+    #: How much shorter the leftovers are described together than apart. A
+    #: second opinion on the same question, from a different direction.
+    shared: int = 0
 
     @property
     def is_the_language(self) -> bool:
@@ -93,6 +97,61 @@ class WhyNothingFits:
                 "for them"
             )
         )
+
+    @property
+    def and_the_leftovers_repeat(self) -> bool:
+        """Whether the leftovers share more than shuffled ones of the same size."""
+        return self.shared > 0
+
+
+def how_much_the_failures_share(leftovers: Sequence[Any]) -> int:
+    """How much shorter the failures are described together than apart.
+
+    Describing n unrelated things costs the sum of describing each. If they
+    share something — one reusable account plus a little per case — describing
+    them together costs less, and the difference is how much structure is in
+    there waiting to be named. Positive means the failures themselves contain
+    something reusable, which is when a missing concept should be suspected.
+
+    Measured against a control with the same lengths and the same characters
+    and no structure ACROSS cases, because a compressor finds savings in the
+    digits alone: eight unrelated three-digit numbers compress a little
+    together whatever they say, and without the control that reads as
+    structure. What is returned is the saving beyond what the control got.
+
+    The ideal measure is Kolmogorov complexity, which is uncomputable. This is
+    a real compressor, which bounds it from above — and which sees repetition
+    rather than algebra. A ramp is perfectly structured and scores nothing
+    here, because no two of its cases are alike. So this is a second opinion
+    and never the verdict: the coverage test is what decides.
+    """
+    import random
+    import zlib
+
+    said = [str(one).encode("utf-8") for one in leftovers if str(one).strip()]
+    if len(said) < 2:
+        return 0
+    empty = len(zlib.compress(b"", 9))
+
+    def saving(parts: list[bytes]) -> int:
+        apart = sum(max(0, len(zlib.compress(one, 9)) - empty) for one in parts)
+        together = max(0, len(zlib.compress(b"\x00".join(parts), 9)) - empty)
+        return apart - together
+
+    # Against the BEST the null manages, over several draws. One control is
+    # itself a sample: measured on random numbers, a single shuffle left the
+    # saving above zero on eleven of twenty draws, so "more than the control"
+    # was not a signal at all. The floor is what the null actually reaches.
+    shuffled = random.Random(0)
+    floor = 0
+    for _ in range(max(8, len(said))):
+        control = []
+        for one in said:
+            letters = list(one)
+            shuffled.shuffle(letters)
+            control.append(bytes(letters))
+        floor = max(floor, saving(control))
+    return int(saving(said) - floor)
 
 
 #: How many of the best-fitting hypotheses are compared. Fewer than three
@@ -155,6 +214,9 @@ def why_nothing_fits(
         together_on=len(left_over),
         by_chance=expected,
         considered=len(covered),
+        shared=how_much_the_failures_share(
+            [pairs[at][1] for at in sorted(left_over)]
+        ),
     )
     logger.info("why nothing fits — %s", found.describes())
     return found
