@@ -278,7 +278,9 @@ def arranged(
         banded[-1].append((x, str(said).strip()))
     banded = [row for row in banded if row]
 
-    columns = _column_edges([x for row in banded for x, _said in row])
+    columns = the_places_nothing_sits_in(
+        _column_edges([x for row in banded for x, _said in row])
+    )
     if not columns:
         # Nothing repeats across rows, so every row stands alone. Said as one
         # column per thing rather than pretending to a grid that is not there.
@@ -323,6 +325,58 @@ def _column_edges(xs: Sequence[float]) -> tuple[float, ...]:
             edges.append([])
         edges[-1].append(x)
     return tuple(sum(group) / len(group) for group in edges)
+
+
+def the_places_nothing_sits_in(edges: Sequence[float]) -> tuple[float, ...]:
+    """The lattice these positions are on, including the ones nothing occupies.
+
+    A grid is defined by its pitch, not by what happens to be on it. Six tiles
+    on a four-by-four board occupy three columns, and the fourth leaves no
+    trace at all — so a reading built from occupied positions alone is three
+    columns wide, and it is a different width on the next glance. Nothing
+    downstream can model a thing that changes shape.
+
+    Where the gaps between neighbours are whole multiples of the smallest one,
+    the missing places are put back. Where they are not — prose, a heading
+    above a board, anything not laid out — nothing is added, because inventing
+    a lattice is worse than reading a short one.
+
+    LIVE 2026-08-30 on play2048.co: columns at 0.184, 0.596 and 0.811, gaps of
+    0.412 and 0.215, and 0.412 is twice 0.215. There is a column at 0.399 with
+    nothing in it.
+    """
+    ordered = sorted(float(edge) for edge in edges)
+    if len(ordered) < 2:
+        return tuple(ordered)
+    gaps = [b - a for a, b in zip(ordered, ordered[1:]) if b - a > 0.0]
+    if not gaps:
+        return tuple(ordered)
+    pitch = min(gaps)
+    if pitch <= 0.0:
+        return tuple(ordered)
+    steps: list[int] = []
+    for gap in gaps:
+        many = round(gap / pitch)
+        if many < 1 or abs(gap - many * pitch) > _SPACING_WOBBLE * pitch:
+            # Not a multiple of the pitch, so these positions are not one
+            # lattice and nothing may be inferred between them.
+            return tuple(ordered)
+        steps.append(many)
+    if max(steps) < 2:
+        return tuple(ordered)
+    filled: list[float] = [ordered[0]]
+    for many, edge in zip(steps, ordered[1:]):
+        start = filled[-1]
+        for step in range(1, many):
+            filled.append(start + step * pitch)
+        filled.append(edge)
+    return tuple(filled)
+
+
+#: How far a gap may be from a whole number of pitches and still be one. Text
+#: rendering wobbles and a reading measures from the middle of a glyph, so
+#: exact multiples never happen.
+_SPACING_WOBBLE = 0.25
 
 
 def _nearest(value: float, edges: Sequence[float]) -> int:
