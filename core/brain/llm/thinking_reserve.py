@@ -54,7 +54,25 @@ _proved_insufficient = 0
 #: because a short generation does not predict a long one: it decodes over a
 #: shorter context, spends proportionally more of its time on the prompt, and
 #: reads faster per token than the run it is being used to size.
-_rates: deque[tuple[int, float]] = deque(maxlen=_WINDOW)
+#: Kept per model. One window for all of them let a 9B's rate size a 27B's
+#: budget: the smaller model decodes at fifteen tokens a second and the larger
+#: at half that, so a turn on the big model was given a clock sized for the
+#: small one, ran past it, and was aborted with everything it had written
+#: discarded. LIVE 2026-08-30, three times on one question.
+_rates: dict[str, deque[tuple[int, float]]] = {}
+
+#: What to call a reading nobody named a model for.
+_ANY_MODEL = ""
+
+
+def _window_for(model: str) -> deque[tuple[int, float]]:
+    """This model's readings, made on first use."""
+    name = str(model or _ANY_MODEL)
+    held = _rates.get(name)
+    if held is None:
+        held = deque(maxlen=_WINDOW)
+        _rates[name] = held
+    return held
 
 from core.runtime.lockdep import checked_lock
 
@@ -214,8 +232,10 @@ def reserve_tokens() -> int:
     return max(measured, proved)
 
 
-def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
-    """Log how fast this generation actually decoded."""
+def record_decode_rate(
+    *, generated_tokens: int, elapsed_s: float, model: str = ""
+) -> None:
+    """Log how fast this generation actually decoded, and on what."""
 
     try:
         tokens = int(generated_tokens)
@@ -225,7 +245,7 @@ def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
     if tokens <= 0 or not (seconds > 0.0) or seconds != seconds:
         return
     with _lock:
-        _rates.append((tokens, tokens / seconds))
+        _window_for(model).append((tokens, tokens / seconds))
     _written_down()
 
 
@@ -234,7 +254,7 @@ def record_decode_rate(*, generated_tokens: int, elapsed_s: float) -> None:
 _LONG_ENOUGH_TO_TIME = 32
 
 
-def seconds_to_decode(tokens: int) -> float:
+def seconds_to_decode(tokens: int, model: str = "") -> float:
     """How long a budget of this many tokens takes, or 0.0 when unmeasured.
 
     Deliberately pessimistic: the tenth-percentile rate, because a deadline
@@ -256,9 +276,24 @@ def seconds_to_decode(tokens: int) -> float:
     with _lock:
         # Only runs of a comparable size. Half the wanted length is the
         # boundary because below it the prompt dominates the measurement.
-        comparable = sorted(
-            rate for length, rate in _rates if length * 2 >= wanted
-        )
+        # This model's readings, and only this model's, where it has enough
+        # of them. Falling back to everything is better than refusing to
+        # estimate, and it is the reading that was wrong before — so it is
+        # used only when the model itself has nothing to say.
+        everything = [
+            (length, rate) for window in _rates.values() for length, rate in window
+        ]
+        # A caller that named a model gets that model's readings. One that did
+        # not gets all of them, which is what every caller got before and is
+        # the right answer when there is nothing better to go on.
+        mine = list(_window_for(model)) if model else everything
+        comparable = sorted(rate for length, rate in mine if length * 2 >= wanted)
+        if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+            comparable = sorted(rate for _length, rate in mine)
+        if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE and model:
+            comparable = sorted(
+                rate for length, rate in everything if length * 2 >= wanted
+            )
         if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
             # Nothing comparable, so anything not dominated by its prompt.
             #
@@ -291,7 +326,8 @@ def seconds_to_decode(tokens: int) -> float:
             longest = sorted(
                 (
                     (length, rate)
-                    for length, rate in _rates
+                    for window in _rates.values()
+                    for length, rate in window
                     if length >= _LONG_ENOUGH_TO_TIME
                 ),
                 key=lambda row: row[0],
@@ -476,7 +512,15 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
         except (TypeError, ValueError):
             pass
         _put_older_readings_first(_observed, stored.get("reasoning_tokens"), _one_int)
-        _put_older_readings_first(_rates, stored.get("rates"), _one_pair)
+        held = stored.get("rates")
+        if isinstance(held, dict):
+            for name, rows in held.items():
+                _put_older_readings_first(_window_for(str(name)), rows, _one_pair)
+        else:
+            # Written before the readings were kept per model. They belong to
+            # whichever model was running, which nothing recorded, so they go
+            # in unnamed and are used only where a model has none of its own.
+            _put_older_readings_first(_window_for(_ANY_MODEL), held, _one_pair)
         _read_rates[:0] = [
             row
             for row in (_one_pair(item) for item in (stored.get("read_rates") or ()))
@@ -537,7 +581,10 @@ def save() -> bool:
             {
                 "reasoning_tokens": list(_observed),
                 "proved_insufficient": _proved_insufficient,
-                "rates": [[length, rate] for length, rate in _rates],
+                "rates": {
+                    name: [[length, rate] for length, rate in window]
+                    for name, window in _rates.items()
+                },
                 # Reading rates as well as decoding ones.
                 #
                 # The measurement was added and its persistence was not, so it
@@ -584,14 +631,18 @@ def load() -> int:
                 taken += 1
             except (TypeError, ValueError):
                 continue
-        for row in raw.get("rates") or ():
-            try:
-                length, rate = row
-                if int(length) > 0 and float(rate) > 0.0:
-                    _rates.append((int(length), float(rate)))
-                    taken += 1
-            except (TypeError, ValueError):
-                continue
+        held = raw.get("rates") or ()
+        by_model = held.items() if isinstance(held, dict) else ((_ANY_MODEL, held),)
+        for name, rows in by_model:
+            window = _window_for(str(name))
+            for row in rows or ():
+                try:
+                    length, rate = row
+                    if int(length) > 0 and float(rate) > 0.0:
+                        window.append((int(length), float(rate)))
+                        taken += 1
+                except (TypeError, ValueError):
+                    continue
         for row in raw.get("read_rates") or ():
             try:
                 size, rate = row

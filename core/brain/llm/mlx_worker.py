@@ -621,13 +621,23 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int) -> None:
         return
 
 
-def _record_decode_rate(generated_tokens: int, elapsed_s: float) -> None:
-    """Tell the reserve how fast this generation decoded."""
+def _record_decode_rate(
+    generated_tokens: int, elapsed_s: float, model: str = ""
+) -> None:
+    """Tell the reserve how fast this generation decoded, and on what.
+
+    The model matters and was not recorded. A 9B decodes at about fifteen
+    tokens a second and a 27B at half that, and one window held both — so a
+    turn on the larger model was given a clock sized by the smaller one, ran
+    past it, and was aborted with everything it had written discarded.
+    """
 
     try:
         from core.brain.llm.thinking_reserve import record_decode_rate
 
-        record_decode_rate(generated_tokens=generated_tokens, elapsed_s=elapsed_s)
+        record_decode_rate(
+            generated_tokens=generated_tokens, elapsed_s=elapsed_s, model=model
+        )
     except (ImportError, TypeError, ValueError):
         return
 
@@ -9591,7 +9601,11 @@ def _mlx_worker_loop(
                                     _elapsed_decode_s = (
                                         time.perf_counter() - generation_stream_started_at
                                     )
-                                    _record_decode_rate(token_count, _elapsed_decode_s)
+                                    _record_decode_rate(
+                                        token_count,
+                                        _elapsed_decode_s,
+                                        os.path.basename(str(model_path or "")),
+                                    )
                                     # And how long it took to READ, which is
                                     # the same kind of fact and was never
                                     # written down anywhere a deadline could
