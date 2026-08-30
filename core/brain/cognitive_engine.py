@@ -1577,6 +1577,13 @@ async def _commit_the_thought_with_retries(
                 TimeoutError("cognitive cycle budget spent before state commit"),
                 severity="warning",
                 action="skipped the state commit because the cycle deadline had passed",
+                # This module is fail-closed, so a warning here was escalated
+                # to a CRITICAL SERVICE FAILURE and the turn was discarded —
+                # including the reply, which had already been produced. The
+                # code below deliberately carries on and extracts it. Saying
+                # so is the difference between a bookkeeping note and throwing
+                # away an answer somebody was waiting for.
+                enforce_failure_policy=False,
             )
             break
         try:
@@ -3903,6 +3910,11 @@ class CognitiveEngine:
                 RuntimeError(f"foreground_turn_uncommitted:{commit_outcome}"),
                 severity="warning",
                 action="withheld foreground closure because cognitive state did not commit",
+                # Withholding closure is the whole response to this. It was
+                # also escalated to fatal by the fail-closed policy, which
+                # discarded the reply this function goes on to extract four
+                # lines below — an answer thrown away over bookkeeping.
+                enforce_failure_policy=False,
             )
 
         # 6. Extract Response

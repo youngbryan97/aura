@@ -10594,8 +10594,11 @@ async def _answer_from_fallback_ladder(
                     ladder_chain = chain or ladder_chain
                     stop_reason = str(candidate.get("generation_stop_reason") or "")
                     candidate = candidate.get("content") or candidate.get("response") or ""
-                else:
-                    considered = True
+                # A result with no text and no chain is nothing to ask having
+                # been asked. Counting it as an attempt is what kept the wait
+                # from ever running: the loop broke on the first pass and the
+                # refusal went out while the model was still loading.
+                considered = considered or bool(_strip_scaffolding_tags(candidate))
                 if _strip_scaffolding_tags(candidate):
                     raw = candidate
                     break
