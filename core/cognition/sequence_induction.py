@@ -328,8 +328,19 @@ def _a_word_the_language_was_missing(
     # while a way of building takes every word she has — including the derived
     # ones — and makes more out of them.
     from core.cognition.an_invented_kind import induce_from
+    from core.cognition.a_constructor_she_built import a_constructor_she_built
     from core.cognition.growing_at_any_level import grow_until_sayable, twice_over
     from core.cognition.widening_the_language import one_after_another
+
+    sayable = lambda: induce_from(pairs) is not None
+
+    # Build one before reaching for one that was written. Activating a
+    # constructor somebody already wrote enlarges what she uses and never what
+    # she has; a recipe she composes can describe something the source does not
+    # contain.
+    built = a_constructor_she_built(pairs, now_sayable=sayable)
+    if built is not None:
+        return f"a way of making words that I built rather than had ({built.name})"
 
     # Levels, not one level. A maker of makers needs makers to work on, and
     # those makers look useless right up until it arrives — so asking whether
@@ -340,7 +351,7 @@ def _a_word_the_language_was_missing(
             (1, "one after another", one_after_another),
             (2, "twice over", twice_over),
         ],
-        now_sayable=lambda: induce_from(pairs) is not None,
+        now_sayable=sayable,
     )
     if not kept:
         return None

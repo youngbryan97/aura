@@ -280,32 +280,38 @@ class RelationLanguage:
         return description
 
     def save(self) -> None:
-        """Write the shapes down, through the runtime's own write path."""
+        """Write the shapes down, through the runtime's own write path.
+
+        Bounded, because nothing here ever forgot anything and the file is read
+        and parsed before a question can be answered. Left to grow it reached
+        96GB, and parsing it took four minutes on the thread that was supposed
+        to be answering.
+
+        What is dropped is what is least used. A shape she has leaned on
+        thirty times is worth carrying; one seen once is a memory of an
+        afternoon, and carrying every one of those is how the file got that
+        big.
+        """
 
         if self.path is None:
             return
         with self._lock:
-            payload = json.dumps(
-                {
-                    "counts": dict(self.counts),
-                    "orders": {
-                        description: ordering.to_json()
-                        for description, ordering in self.orders.items()
-                        if _can_be_written_down(ordering, description)
-                    },
-                    "forms": {
-                        description: {
-                            "family": family,
-                            "program": rule.to_json() if hasattr(rule, "to_json") else None,
-                            "parts": list(parts),
-                        }
-                        for description, (family, rule, parts) in self.forms.items()
-                        if hasattr(rule, "to_json")
-                    },
-                },
-                indent=2,
-                sort_keys=True,
-            )
+            orders = {
+                description: ordering.to_json()
+                for description, ordering in self.orders.items()
+                if _can_be_written_down(ordering, description)
+            }
+            forms = {
+                description: {
+                    "family": family,
+                    "program": rule.to_json() if hasattr(rule, "to_json") else None,
+                    "parts": list(parts),
+                }
+                for description, (family, rule, parts) in self.forms.items()
+                if hasattr(rule, "to_json")
+            }
+            counts = dict(self.counts)
+            payload = _within_budget(counts, orders, forms)
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -324,6 +330,27 @@ class RelationLanguage:
         """The shapes learned in earlier sessions, or an empty language."""
 
         target = Path(path)
+        try:
+            how_big = target.stat().st_size
+        except OSError:
+            return cls(path=target)
+        if how_big > _TOO_BIG_TO_READ:
+            # Reading it would stall whatever asked, and parsing it would take
+            # the memory with it. What is on disk is a record that outgrew its
+            # purpose, so she starts from nothing and says so rather than
+            # hanging.
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "cognition.relation_language",
+                ValueError(f"the shapes she learned reached {how_big} bytes"),
+                severity="warning",
+                action="start from an empty language rather than parse it",
+            )
+            return cls(path=target)
+        held = _ALREADY_READ.get(target)
+        if held is not None and held[0] == (how_big, target.stat().st_mtime_ns):
+            return held[1]
         try:
             raw: Any = json.loads(target.read_text())
         except (OSError, ValueError):
@@ -351,12 +378,95 @@ class RelationLanguage:
             if restored is not None:
                 orders[str(description)] = restored
 
-        return cls(
+        made = cls(
             counts={str(k): int(v) for k, v in counts.items() if str(k)},
             forms=forms,
             orders=orders,
             path=target,
         )
+        try:
+            _ALREADY_READ[target] = ((how_big, target.stat().st_mtime_ns), made)
+        except OSError:
+            pass
+        return made
+
+
+#: How large the record of learned shapes may get. It is read and parsed
+#: before a question can be answered, so this is a bound on how long answering
+#: is allowed to wait on a disk read rather than a guess at how much she should
+#: know. Two megabytes of this parses in about the time one frame takes.
+_MOST_KEPT = 2_000_000
+
+#: Past this, reading is worse than starting over: the parse would take longer
+#: than any answer is worth and the memory would go with it.
+_TOO_BIG_TO_READ = 16 * _MOST_KEPT
+
+#: The last language read from each file, so a question does not re-parse what
+#: has not changed. Keyed by what the file looked like when it was read.
+_ALREADY_READ: dict[Path, tuple[tuple[int, int], Any]] = {}
+
+
+def _within_budget(
+    counts: dict[str, int],
+    orders: dict[str, Any],
+    forms: dict[str, Any],
+) -> str:
+    """The shapes she has learned, trimmed until they fit in what will be read.
+
+    Least-used first, because a shape she keeps returning to is what the record
+    is for. Written without indentation: this is read by machine, and spacing
+    tripled a file nobody was ever going to look at.
+
+    Each shape is costed once and then filled in until the budget is gone.
+    Dropping one and re-writing the whole record to see whether it fits yet is
+    quadratic, and on the record that caused this it took longer than the
+    parse it was meant to prevent.
+    """
+
+    def written(with_orders: dict[str, Any], with_forms: dict[str, Any]) -> str:
+        return json.dumps(
+            {"counts": counts, "orders": with_orders, "forms": with_forms},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    payload = written(orders, forms)
+    if len(payload) <= _MOST_KEPT:
+        return payload
+
+    def how_used(description: str, row: Any) -> int:
+        family = row.get("family") if isinstance(row, dict) else None
+        return int(counts.get(str(family or description), 0))
+
+    def costs(description: str, row: Any) -> int:
+        return len(json.dumps({description: row}, separators=(",", ":")))
+
+    room = _MOST_KEPT - len(written({}, {}))
+    kept_orders: dict[str, Any] = {}
+    for description, row in sorted(
+        orders.items(), key=lambda one: len(str(one[0]))
+    ):
+        spent = costs(description, row)
+        if spent > room:
+            break
+        kept_orders[description] = row
+        room -= spent
+    kept_forms: dict[str, Any] = {}
+    for description, row in sorted(
+        forms.items(), key=lambda one: how_used(*one), reverse=True
+    ):
+        spent = costs(description, row)
+        if spent > room:
+            continue
+        kept_forms[description] = row
+        room -= spent
+    logger.info(
+        "the shapes she learned outgrew what can be read before answering; "
+        "kept the %d most used of %d",
+        len(kept_forms),
+        len(forms),
+    )
+    return written(kept_orders, kept_forms)
 
 
 def _apply_in_order(

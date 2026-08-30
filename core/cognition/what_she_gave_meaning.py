@@ -70,10 +70,24 @@ def _words_she_derived() -> dict[str, Any]:
 
                 row["rule"] = written_down(word.rule)
             operations[name] = row
+    # A way she BUILT is saved as its recipe, because a name can only ever
+    # resolve against constructors the source already has, and the point of
+    # building one is that the source does not have it.
+    from core.cognition.a_constructor_she_built import written_down as recipe_data
+
+    built: dict[str, Any] = {}
+    named: list[str] = []
+    for name, build in WAYS_TO_BUILD.items():
+        recipe = getattr(build, "recipe", None)
+        if recipe is not None:
+            built[name] = recipe_data(recipe)
+        else:
+            named.append(name)
     return {
         "addressings": addressings,
         "operations": operations,
-        "ways": sorted(WAYS_TO_BUILD),
+        "ways": sorted(named),
+        "built": built,
     }
 
 
@@ -137,6 +151,16 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     )
 
     back = 0
+    from core.cognition.a_constructor_she_built import build as rebuild
+    from core.cognition.a_constructor_she_built import read_back as read_recipe
+
+    for name, row in (language.get("built") or {}).items():
+        recipe = read_recipe(row)
+        if recipe is None:
+            logger.info("a recipe she kept does not read back: %r", name)
+            continue
+        WAYS_TO_BUILD[str(name)] = rebuild(recipe)
+        back += 1
     for name in language.get("ways") or ():
         build = CONSTRUCTORS.get(str(name))
         if build is None:
