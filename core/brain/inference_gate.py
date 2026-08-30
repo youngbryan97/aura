@@ -14153,6 +14153,27 @@ class InferenceGate:
                         max_tokens,
                     )
                     max_tokens = _affordable
+                elif 0 < _affordable < max_tokens:
+                    # And lowered to fit. A floor the clock cannot pay for is
+                    # not a longer answer, it is no answer: generation runs
+                    # past the deadline, is aborted, and every token produced
+                    # is discarded. LIVE 2026-08-30, three times over — a
+                    # 1,024-token floor on a turn that could afford about half
+                    # that once reading a nine-thousand-character prompt was
+                    # counted, aborted at 166.8s with nothing said.
+                    #
+                    # Raising was allowed and lowering was not, on the grounds
+                    # that a lane asking for less meant it. A lane asking for
+                    # MORE than the clock has has not been given more; it has
+                    # been given a cancellation.
+                    logger.info(
+                        "🧠 [ANSWER BUDGET] %d tokens is what this turn's clock can "
+                        "pay for once the prompt is read; lowering the ceiling "
+                        "from %d so the answer finishes.",
+                        _affordable,
+                        max_tokens,
+                    )
+                    max_tokens = _affordable
 
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,

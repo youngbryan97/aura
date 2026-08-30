@@ -139,3 +139,29 @@ def test_the_prompt_is_free_when_nobody_says_how_big_it_is():
 
 def test_a_prompt_that_eats_the_whole_clock_buys_no_answer():
     assert _allowed(seconds=10.0, prompt_chars=200_000) == 0
+
+
+def test_a_floor_the_clock_cannot_pay_for_is_not_a_longer_answer():
+    """It is no answer: generation is aborted and every token is discarded.
+
+    LIVE 2026-08-30, three times: a 1,024-token completion floor on a turn
+    that could afford about half that once reading a nine-thousand-character
+    prompt was counted. Aborted at 166.8s with nothing said.
+    """
+    import ast
+    import inspect
+    from pathlib import Path
+
+    from core.brain import inference_gate
+
+    source = Path(inspect.getfile(inference_gate)).read_text(encoding="utf-8")
+    at = source.index("[ANSWER BUDGET] %d tokens fit this turn's clock")
+    nearby = source[at : at + 1800]
+    assert "lowering the ceiling" in nearby, (
+        "the budget only ever raised; a floor beyond the clock produces a "
+        "cancellation rather than a long answer"
+    )
+    # And the lowering is guarded so an unmeasured rate cannot zero the budget.
+    tree = ast.parse("if 0 < _affordable < max_tokens:\n    pass")
+    assert isinstance(tree.body[0], ast.If)
+    assert "0 < _affordable < max_tokens" in nearby
