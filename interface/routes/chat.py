@@ -10326,6 +10326,46 @@ def _strip_scaffolding_tags(raw: object) -> str:
     return text.strip()
 
 
+async def _readings_for(text: str) -> list[str]:
+    """The present-moment readings, on the ladder's path as well as the main one.
+
+    Every observable is registered once and read once, and it was read on one
+    path. A model asked about a fact it does not hold produces something
+    fact-shaped, which is the whole reason the readings exist — and the ladder
+    is exactly the case where the model holds least.
+    """
+    try:
+        import core.brain.observable_registry  # noqa: F401  (registers)
+        from core.brain.observable_grounding import observable_blocks
+
+        readings = list(await observable_blocks(text))
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.fallback_ladder",
+            exc,
+            severity="warning",
+            action="the smaller model answered without the readings",
+        )
+        return []
+    if readings:
+        logger.info(
+            "🔭 [GROUNDING] ladder took %d reading(s): %s",
+            len(readings),
+            ",".join(
+                block.split("\n", 1)[0].removeprefix("## ").lower()
+                for block in readings
+            ),
+        )
+    return readings
+
+
+def _with_the_same_readings(system_prompt: str, readings: list[str]) -> str:
+    """The identity, with whatever was read put in front of the model."""
+    if not readings:
+        return system_prompt
+    return "\n\n".join([system_prompt, *readings] if system_prompt else readings)
+
+
 async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> str:
     """Answer with the smaller resident model when the cortex cannot serve.
 
@@ -10350,13 +10390,20 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
     text = str(user_message or "").strip()
     if not text:
         return ""
+    readings = await _readings_for(text)
     try:
         from core.runtime.self_state_intent import asks_about_her_own_nature
 
-        if asks_about_her_own_nature(text):
+        if asks_about_her_own_nature(text) and not readings:
+            # Declining is right when there is nothing to answer FROM. With a
+            # reading in hand the smaller model is not being asked what it
+            # believes about itself, it is being asked to say what the record
+            # says — and the alternative is a wait message, which answers
+            # nothing and is the thing this ladder exists to avoid.
             logger.info(
                 "🪜 Fallback ladder declined a question about her own nature; "
-                "the smaller model cannot read her self-model."
+                "the smaller model cannot read her self-model and no reading "
+                "was available to stand in for it."
             )
             return ""
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -10397,6 +10444,14 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         )
 
         identity = _fallback_ladder_identity()
+        # The readings the main path takes. Grounding lived on one path and
+        # the ladder was another, so a question the registry could answer
+        # exactly reached a small model with nothing in front of it — LIVE
+        # 2026-08-30, asked to prove she can grow the language she makes rules
+        # out of, it said her representation language was "a fixed statistical
+        # distribution of tokens learned from a static dataset", with the
+        # register of tested claims sitting unread.
+        identity = _with_the_same_readings(identity, readings)
         ladder_chain: list = []
         raw = ""
         deadline = time.monotonic() + _FALLBACK_LADDER_TIMEOUT_S
