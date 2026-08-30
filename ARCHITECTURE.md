@@ -775,23 +775,24 @@ warmth) with 7 paired prompt sets per dimension. Bootstrap vectors stay
 as a fast-deployment fallback; the extracted vectors give higher-fidelity
 affect-computation coupling.
 
-### Scale caveat (added 2026-04-27)
+### Scale caveat (added 2026-04-27, updated 2026-08-23)
 
 The published A/B steering result (word-overlap delta of 0.131 between
 steered and unsteered generations) was produced on **Qwen 2.5 1.5B-4bit**
-"for speed." The production system runs **Qwen 2.5 32B-8bit**. Activation
-geometry is known to vary qualitatively with model scale — CAA effect
-sizes and the dimensions along which concept directions are linearly
-separable are not stable across the 1.5B → 32B gap (Bricken et al., Elhage
-et al., on activation geometry at scale). One A/B result on the production
-model would be worth more than 100 results on the 1.5B.
+"for speed." The production system runs the resident **Aura-Cortex** (fused
+Qwen3.8-27B, migrated from the historical Qwen 2.5 32B). Activation geometry is
+known to vary qualitatively with model scale — CAA effect sizes and the
+dimensions along which concept directions are linearly separable are not
+stable across the 1.5B → 27B gap (Bricken et al., Elhage et al., on activation
+geometry at scale). One A/B result on the production model would be worth more
+than 100 results on the 1.5B.
 
-**The credible artifact for the steering claim is therefore the 32B
-replication, not the 1.5B baseline.** Replicating the A/B test on 32B with
-PCA visualizations of the steering vectors at the injection layer is the
-next scheduled work item. Until that lands, the 1.5B result should be read
-as a methodology check (the pipeline runs end-to-end), not as evidence the
-production system is being meaningfully steered.
+**The credible artifact for the steering claim is therefore the resident cortex
+replication, not the 1.5B baseline.** Replicating the A/B test on the 27B with
+PCA visualizations of the steering vectors at the injection layer is the next
+scheduled work item. Until that lands, the 1.5B result should be read as a
+methodology check (the pipeline runs end-to-end), not as evidence the production
+system is being meaningfully steered.
 
 ---
 
@@ -1096,7 +1097,7 @@ columns connect sparsely (matching cortical anatomy).
 
 The mesh runs independently of the LLM. It's a second computational
 substrate that processes the same input through a different architecture —
-a 4,096-neuron RNN vs a 32B transformer. The mesh's output (activation
+a 4,096-neuron RNN vs a 27B transformer. The mesh's output (activation
 patterns across tiers) contributes to the Global Workspace competition and
 modulates the steering vectors.
 
@@ -1656,7 +1657,7 @@ integers. That introduces quantization noise — small errors distributed
 across every weight.
 
 What quantization preserves:
-- Token prediction quality (perplexity loss is typically < 1% for 4-bit on 32B+ models)
+- Token prediction quality (perplexity loss is typically < 1% for 4-bit on 27B+ models)
 - Instruction-following ability
 - Factual knowledge
 - Basic reasoning chains
@@ -1670,7 +1671,7 @@ What quantization may suppress:
 
 1. **Steering vectors at full precision**: the affective steering injection operates in float32 even though the model weights are 4-bit. The modulation signal has higher fidelity than the model's own computation.
 2. **Neurochemical parameter modulation**: temperature, token budget, and repetition penalty adjustments are exact (no quantization) because they operate on the sampler, not the weights.
-3. **The 8-bit option**: Aura supports loading the 8-bit quantized model (`Qwen2.5-32B-Instruct-8bit`), which doubles memory usage but preserves significantly more activation precision. On a 64 GB Mac, that's viable.
+3. **The Fused Cortex & Precision Options**: Aura runs the resident fused cortex (`Aura-Cortex` / Qwen3.8-27B), preserving activation precision and model capability on 64 GB Apple Silicon hosts without external cloud dependencies.
 
 ### Is this a bottleneck?
 
@@ -2644,9 +2645,10 @@ The mechanics are proven and the runtime integration is live. **The capability
 dividend is not claimed.** A preregistered, adequately powered, Holm-corrected
 campaign refuted the frozen-loop hypothesis at 1.5B — vanilla beat all seven
 latent arms — and returned statistical parity with a negative point estimate at
-32B. Resident-32B serving authority exists only for a typed battery
-(`qualified_typed_only`; `ordinary_chat_authorized=false`). No broad reasoning
-gain, static fusion, or frontier claim is made anywhere in this programme.
+the historical 32B baseline. Resident cortex serving authority (now qualified on
+the fused 27B) exists only for a typed battery (`qualified_typed_only`;
+`ordinary_chat_authorized=false`). No broad reasoning gain, static fusion, or
+frontier claim is made anywhere in this programme.
 
 The floor is enforced rather than assumed: `≥ vanilla always`, checked by
 `tests/test_rlc_never_worse_than_vanilla.py`, which enumerates the decode

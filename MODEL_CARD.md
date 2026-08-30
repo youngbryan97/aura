@@ -10,12 +10,12 @@ Override any of them with `AURA_MODEL`, `AURA_DEEP_MODEL`,
 | Field | Value |
 |-------|-------|
 | **Role** | Primary reasoning and conversation |
-| **Architecture** | Transformer LLM (32B parameters, Qwen2.5-32B-Instruct) |
+| **Architecture** | Transformer LLM (27B parameters, fused Qwen3.8-27B / `Aura-Cortex`, migrated from historical 32B) |
 | **Runtime** | MLX on Apple Silicon |
-| **Quantization** | 8-bit (MLX native); a 4-bit build exists as a legacy / low-memory option |
-| **Context Window** | 8192 tokens (configurable) |
+| **Quantization** | MLX fused native weights (`training/fused-model/active.json`); legacy 8-bit/4-bit profiles supported |
+| **Context Window** | 8192–262,144 tokens (configurable) |
 | **Inference** | Local, on-device |
-| **Fine-tuning** | 8-bit base weights with a personality LoRA applied; the runtime can also promote a fused LoRA delta (`training/fused-model/active.json`) as the live Cortex without a re-quantize |
+| **Fine-tuning** | Promoted fused LoRA delta (`training/fused-model/active.json`) as the live Cortex without a re-quantize |
 
 ### Intended Use
 Primary model for all user-facing conversation, reasoning, tool planning,

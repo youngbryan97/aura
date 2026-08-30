@@ -18,11 +18,11 @@ The tri-cameral architecture, tuned for an M5-class Apple Silicon Mac with
 
 | Lane | Model | Config key | Env override | Role |
 |---|---|---|---|---|
-| **Cortex** (Tier 2) | `Qwen2.5-32B-Instruct-8bit` + personality LoRA | `fast_model` | `AURA_MODEL` | Daily interaction, primary conversation lane. Handles nearly everything |
+| **Cortex** (Tier 2) | `Aura-Cortex` (`Qwen3.8-27B` fused, `qwen3_5`) | `fast_model` | `AURA_MODEL` | Daily interaction, primary conversation lane. Handles nearly everything |
 | **Solver** (Tier 3) | `Qwen2.5-72B-Instruct-4bit` | `deep_model` | `AURA_DEEP_MODEL` | Deep reasoning, hot-swapped only when the request needs it |
 | **Brainstem** (Tier 1) | `Qwen3.5-9B-4bit` | `chat_model` | `AURA_BRAINSTEM_MODEL` | Heartbeat, telemetry, background tasks. Lazy-loaded |
 | **Reflex** | `Qwen2.5-1.5B-Instruct-4bit` | — | `AURA_FALLBACK_MODEL` | CPU emergency fallback |
-| **Vision** | `Qwen2.5-32B-Instruct-8bit` | `vision_model` | — | Pinned to the Cortex build so vision and conversation share one identity |
+| **Vision** | `Aura-Cortex` (`Qwen3.8-27B`) | `vision_model` | — | Pinned to the Cortex build so vision and conversation share one identity |
 | **Last resort** | rule-based | — | — | Static responses that cannot fail |
 
 Sampling contract: `temperature` is bounded `[0.0, 2.0]`. The ceiling is not a
@@ -55,9 +55,9 @@ Recorded in `core/brain/llm/model_registry.py` beside the flag declaration.
 
 ### Hardware honesty
 
-The 32B 8-bit wants about 20 GB of GPU RAM and will not negotiate. On
-lower-memory machines the hardware auditor rejects both 32B 4-bit and 32B 8-bit
-as real-time heartbeat tiers; use the 9B or 1.5B lanes there. Claiming 32B
+The 27B/32B Cortex wants about 18–20 GB of GPU RAM and will not negotiate. On
+lower-memory machines the hardware auditor rejects heavy weights
+as real-time heartbeat tiers; use the 9B or 1.5B lanes there. Claiming heavy
 heartbeat latency on a machine that cannot hold it would be a benchmark run on
 hardware nobody has.
 
