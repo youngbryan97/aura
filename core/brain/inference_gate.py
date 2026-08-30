@@ -14136,9 +14136,60 @@ class InferenceGate:
                             USER_FACING_COMPLETION_DEADLINE_MAX_S,
                         )
 
-                        timeout_val = min(
-                            float(USER_FACING_COMPLETION_DEADLINE_MAX_S), _needed
-                        )
+                        _cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+                        # Knowing it cannot finish and starting anyway.
+                        #
+                        # The clamp below is right — the outer wait gives up at
+                        # the cap whatever this says — and it was the end of
+                        # the matter, so the turn was dispatched having just
+                        # calculated that it needed twelve hundred seconds and
+                        # had four hundred and eighty. LIVE 2026-08-30: three
+                        # generations, 476 seconds each, every token discarded,
+                        # and a refusal after a quarter of an hour.
+                        #
+                        # The reserve alone decides it. If the reasoning this
+                        # model does BEFORE it answers does not fit the cap,
+                        # then no answer length fits and shortening the reply
+                        # cannot help — this lane cannot serve this turn, and
+                        # saying so now is worth a quarter of an hour.
+                        _reserve_alone = (
+                            (
+                                _seconds_to_decode(
+                                    _reserve_the_worker_adds,
+                                    self._model_now_serving(requested_tier),
+                                )
+                                + _read_s
+                            )
+                            * _generations
+                        ) + _DELIVERY_MARGIN_S
+                        if requested_tier == "primary" and _reserve_alone > _cap:
+                            logger.warning(
+                                "🧠 [ANSWER CLOCK] the primary lane cannot serve this "
+                                "turn: %d tokens of reasoning alone take about %.0fs "
+                                "at the measured rate and the cap is %.0fs, so no "
+                                "answer length fits. Serving from the lane that can.",
+                                _reserve_the_worker_adds,
+                                _reserve_alone,
+                                _cap,
+                            )
+                            _record_inference_degradation(
+                                TimeoutError(
+                                    "primary_lane_cannot_fit_its_own_reasoning:"
+                                    f"{_reserve_alone:.0f}s>{_cap:.0f}s"
+                                ),
+                                action=(
+                                    "served from a lane that fits the clock rather "
+                                    "than spending the cap discovering it cannot"
+                                ),
+                                severity="warning",
+                            )
+                            requested_tier = "tertiary"
+                            context["answer_clock_demoted_from_primary"] = {
+                                "reserve_tokens": int(_reserve_the_worker_adds),
+                                "reserve_seconds": round(_reserve_alone, 1),
+                                "cap_seconds": round(_cap, 1),
+                            }
+                        timeout_val = min(_cap, _needed)
                         primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
                         # The clock is one object, built when the request was
                         # admitted. Raising the number beside it computed an
