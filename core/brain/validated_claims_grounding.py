@@ -102,21 +102,41 @@ def _grade(claim: object) -> tuple[str, str]:
 
 
 def validated_claims_block(prompt: str) -> str:
-    """The registered claims, graded, or "" when the turn is not asking."""
+    """The registered claims, graded, or "" when the turn is not asking.
+
+    Stands down where the question is about one thing. Somebody challenging a
+    single capability gets the statements that bear on it, with the tests
+    behind them; reading them the whole register on top of that is eleven
+    thousand characters of context for a question that named its subject.
+    """
     if not asks_for_own_evidence(prompt):
         return ""
     try:
-        from core.organism.model_validation import get_suite
+        from core.self.what_is_established import what_is_established_block
+
+        if what_is_established_block(prompt).strip():
+            return ""
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+    try:
+        from core.organism.model_validation import get_suite, install_runtime_validation
 
         claims = list(get_suite().claims())
+        if not claims:
+            # The boot-time install did not run in this process. The registry
+            # is built from source and installing it is deterministic, so the
+            # honest thing is to build it rather than to report having no
+            # evidence — which is what she then tells the person, and it reads
+            # as a denial of everything the register holds.
+            install_runtime_validation()
+            claims = list(get_suite().claims())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return ""
     if not claims:
-        # An empty registry is a real reading: it says the boot-time install
-        # did not run, which is worth knowing and is not "no claims exist".
         return (
-            "The validated-claim registry is empty in this process, so no "
-            "claim can be supported from it right now."
+            "The validated-claim registry could not be built in this process, "
+            "so nothing can be supported from it right now. That is a fact "
+            "about this process and not about what has been established."
         )
 
     graded: dict[str, list[str]] = {}

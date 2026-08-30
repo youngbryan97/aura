@@ -69,6 +69,20 @@ async def _read_capability_inventory(prompt: str) -> str:
     return await asyncio.to_thread(capability_inventory_block, prompt)
 
 
+# ── what is established about her, and what checks it ────────────────────────
+
+def _matches_what_is_established(prompt: str) -> bool:
+    from core.self.what_is_established import asks_what_is_established
+
+    return asks_what_is_established(prompt)
+
+
+async def _read_what_is_established(prompt: str) -> str:
+    from core.self.what_is_established import what_is_established_block
+
+    return await asyncio.to_thread(what_is_established_block, prompt)
+
+
 # ── the exact statistic, computed ────────────────────────────────────────────
 
 def _matches_computed_statistic(prompt: str) -> bool:
@@ -1189,6 +1203,24 @@ def install_default_observables() -> None:
                 "can you reverse a string for me?",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "established_claims",
+            "## WHAT IS ESTABLISHED ABOUT YOU, AND THE TEST BEHIND EACH ONE",
+            _matches_what_is_established,
+            _read_what_is_established,
+            examples=(
+                "you claim you can invent new primitives — prove it",
+                "you cannot extend your own representation language",
+                "how do you know you actually learn anything?",
+                "what can you genuinely do, with evidence?",
+                "do you really have a world model or is that marketing?",
+            ),
+            counter_examples=(
+                "can you open Safari for me",
+                "could you summarise this file",
+                "please play 2048",
             ),
         ),
         Observable(
