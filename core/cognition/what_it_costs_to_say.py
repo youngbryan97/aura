@@ -126,8 +126,8 @@ def everything_sayable(
     """E(t): every meaning the language currently has, and its shortest form.
 
     Keyed by what an expression does, so two ways of saying one thing collapse
-    to one entry — which is the whole point, since it is meanings that count
-    and not spellings.
+    to one entry. Meanings are what get counted here; spellings are counted by
+    ``every_meaning``, and the two numbers are rarely close.
     """
     from core.cognition.an_invented_kind import every_meaning
 

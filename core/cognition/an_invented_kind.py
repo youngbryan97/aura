@@ -186,6 +186,19 @@ class Induced:
 WAYS_TO_BUILD: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {}
 
 
+#: The last answer ``addressings`` gave, and what the language looked like when
+#: it gave it. Rebuilding is cheap once and ruinous a million times: reading a
+#: single state consults it, so a search over the space consults it once per
+#: expression, and after one level of growth that is 525 words rebuilt a
+#: million times over.
+_LAST_BUILT: tuple[Any, dict[str, Any]] | None = None
+
+
+def _what_the_language_is() -> Any:
+    """A value that changes exactly when the language does."""
+    return (tuple(sorted(WHERE_FROM)), tuple(sorted(WAYS_TO_BUILD)))
+
+
 def addressings() -> dict[str, Any]:
     """Every way of saying where a value comes from, however it was arrived at.
 
@@ -193,12 +206,18 @@ def addressings() -> dict[str, Any]:
     building make out of them. One dictionary, because nothing downstream
     should care which of the three a word came from.
     """
+    global _LAST_BUILT
+
+    now = _what_the_language_is()
+    if _LAST_BUILT is not None and _LAST_BUILT[0] == now:
+        return _LAST_BUILT[1]
     made = dict(WHERE_FROM)
     for build in list(WAYS_TO_BUILD.values()):
         try:
             made.update(build(dict(WHERE_FROM)))
         except (TypeError, ValueError, KeyError):
             continue
+    _LAST_BUILT = (now, made)
     return made
 
 
@@ -210,22 +229,43 @@ def every_meaning() -> Iterator[Induced]:
     explanation, and whichever is checked first wins a tie — so a language that
     grew a composed word would start preferring the composed reading of things
     the simple word already explained. Shortest first is the same preference as
-    favouring the simpler hypothesis, applied where it costs one sort.
+    favouring the simpler hypothesis.
+
+    Ordered by bucketing the words by what they cost and walking the buckets,
+    rather than by building the space and sorting it. Once she has grown a
+    level the space runs past a million expressions, and the answer is usually
+    in the first few hundred — so materialising all of it to find out costs
+    more than the search does.
     """
-    from core.cognition.what_it_costs_to_say import in_order_of_length
+    from core.cognition.what_it_costs_to_say import _symbols
 
     where_all = addressings()
-    made: list[Induced] = []
-    for where_from, and_from, what_of_it in product(where_all, where_all, WHAT_OF_IT):
-        if what_of_it == "as it is" and and_from != where_from:
-            # Reading a second place and ignoring it is the same meaning said
-            # a different way, and every duplicate is another chance for a
-            # coincidence to win the search.
-            continue
-        made.append(
-            Induced(where_from=where_from, and_from=and_from, what_of_it=what_of_it)
-        )
-    yield from in_order_of_length(made)
+    by_cost: dict[int, list[str]] = {}
+    for name in where_all:
+        by_cost.setdefault(_symbols(name), []).append(name)
+    for names in by_cost.values():
+        names.sort()
+    costs = sorted(by_cost)
+    combining = sorted(name for name in WHAT_OF_IT if name != "as it is")
+
+    longest = max(costs) if costs else 0
+    for total in range(1, 2 * longest + 2):
+        # Taking a value as it is never reads the second place, so it is not
+        # charged for one.
+        for name in by_cost.get(total - 1, ()):
+            yield Induced(where_from=name, and_from=name, what_of_it="as it is")
+        for first in costs:
+            second = total - first - 1
+            if second not in by_cost:
+                continue
+            for where_from in by_cost[first]:
+                for and_from in by_cost[second]:
+                    for what_of_it in combining:
+                        yield Induced(
+                            where_from=where_from,
+                            and_from=and_from,
+                            what_of_it=what_of_it,
+                        )
 
 
 #: Kinds she has worked out the meaning of, by name. Empty at import: nothing
