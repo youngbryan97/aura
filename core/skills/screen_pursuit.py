@@ -3084,9 +3084,16 @@ async def pursue_on_screen(
         # failure with a different fix.
         result["outcome"] = "could_not_get_there"
         result["could_not_get_there"] = not_there["reason"]
-    if no_move["because"] and not receipt.completed and not moves:
+    if no_move["because"] and not receipt.completed:
+        # Whatever else the run managed. A stall after four moves has a cause
+        # as much as a stall after none, and gating this on "no moves at all"
+        # meant the one run that mattered stayed silent.
         result["why_no_move"] = no_move["because"]
-        logger.info("no move was made: %s", no_move["because"])
+        logger.info(
+            "the last cycle made no move: %s (after %d move(s))",
+            no_move["because"],
+            len(moves),
+        )
     if undecided["reason"] and not receipt.completed:
         # Name the judgement, not the budget. "no_move_available" would say
         # the screen offered nothing; this says she could not decide, and why.
