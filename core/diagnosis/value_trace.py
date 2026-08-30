@@ -92,6 +92,14 @@ from pathlib import Path
 
 ROOT = Path(sys.argv[1]).resolve()
 TARGET = sys.argv[2]
+
+# Run it the way Python runs it.
+#
+# `python run.py` puts run.py's OWN directory first on sys.path. runpy does
+# not, and this tracer lives in a temporary directory of its own, so sys.path
+# began with somewhere the project is not — and any program of more than one
+# file died on its first import of its own code. Which is most programs.
+sys.path.insert(0, str(ROOT))
 RECORD = Path(sys.argv[3])
 MAX = int(sys.argv[4])
 
@@ -300,8 +308,10 @@ def trace_run(root: str | Path, entry: str) -> TracedRun:
     #
     # It was written beside their code and deleted afterwards, which put two
     # raw file mutations inside a directory this tool was asked to look at, not
-    # to touch. A temporary directory holds it instead; the project stays the
-    # working directory, so imports resolve exactly as they would for them.
+    # to touch. A temporary directory holds it instead, and the tracer puts the
+    # project first on the import path itself — the working directory is not
+    # what Python searches, the script's own directory is, and that had become
+    # a temporary folder the project is not in.
     with tempfile.TemporaryDirectory(prefix="aura-value-trace-") as workspace:
         return _traced_in(base, entry, Path(workspace))
 

@@ -161,19 +161,49 @@ def test_the_gate_injects_both_blocks() -> None:
 
 
 def test_grounding_survives_prompt_compaction() -> None:
-    """Grounding is worth most exactly when the prompt is tight."""
-    src = GATE.read_text(encoding="utf-8")
-    critical = src[src.index("important_headers = ("):]
-    critical = critical[: critical.index(")")]
-    assert "## PRESENT MOMENT" in critical
-    assert "## YOUR OWN INSTRUMENTS" in critical
+    """Grounding is worth most exactly when the prompt is tight.
+
+    Asked of the behaviour rather than of the source. These two assertions
+    used to grep inference_gate.py for a literal, and the literal was
+    refactored away — leaving a test that failed while the thing it was
+    protecting still worked, which teaches the reader to distrust the suite.
+    """
+    from core.brain.inference_gate import InferenceGate
+
+    kept = set(InferenceGate.CRITICAL_FOREGROUND_HEADERS)
+    assert "## PRESENT MOMENT" in kept
+    assert "## YOUR OWN INSTRUMENTS" in kept
 
 
 def test_grounding_sorts_after_the_cacheable_prefix() -> None:
-    """A per-minute timestamp early in the prompt would bust the KV cache."""
-    src = GATE.read_text(encoding="utf-8")
-    assert '("## PRESENT MOMENT", 2),' in src
-    assert '("## YOUR OWN INSTRUMENTS", 2),' in src
+    """A per-minute timestamp early in the prompt would bust the KV cache.
+
+    Emission is sorted by how turn-volatile each section is, so what changes
+    every turn lands last and the stable prefix stays cacheable. What matters
+    is that the clock and the instrument readings are ranked MORE volatile
+    than the identity that never moves — not how that ranking is spelled.
+    """
+    from core.brain.inference_gate import InferenceGate as Gate
+
+    def rank(header: str) -> int:
+        return Gate._foreground_section_volatility(f"{header}\nsomething")
+
+    assert rank("## PRESENT MOMENT") > rank("## IDENTITY")
+    assert rank("## YOUR OWN INSTRUMENTS") > rank("## IDENTITY")
+
+
+def test_and_the_order_it_produces_puts_them_last() -> None:
+    """The property that actually protects the cache, checked end to end."""
+    from core.brain.inference_gate import InferenceGate as Gate
+
+    sections = [
+        "## PRESENT MOMENT\nit is 00:53",
+        "## IDENTITY\nwho she is",
+        "## YOUR OWN INSTRUMENTS\nreadings",
+    ]
+    emitted = sorted(sections, key=Gate._foreground_section_volatility)
+    assert emitted[0].startswith("## IDENTITY")
+    assert {emitted[1][:5], emitted[2][:5]} == {"## PR", "## YO"}
 
 
 # ── Both prompt builders, not just the one I found first ───────────────────
