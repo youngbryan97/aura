@@ -220,6 +220,21 @@ def test_exact_resume_projection_rejects_conflicts_wrong_transactions_and_backgr
     assert "user_surface_conversation_resume_handle" in background.rejected
 
 
+def test_exact_resume_projection_refuses_conversation_when_authority_contract_changes():
+    result = project_user_surface_resume_capability(
+        {"user_surface_conversation_resume_handle": "ab" * 16},
+        continuation_contract=False,
+        conversation_contract_compatible=False,
+    )
+
+    assert result.context == {}
+    assert result.rejected == {
+        "user_surface_conversation_resume_handle": (
+            "current turn requires a different user-surface authority contract"
+        )
+    }
+
+
 def test_a_clean_context_reports_clean():
     result = validate_request_context(
         {"origin": "user", "max_tokens": 2048, "allow_cloud_fallback": False}

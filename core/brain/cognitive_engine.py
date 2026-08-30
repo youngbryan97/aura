@@ -4788,6 +4788,21 @@ class CognitiveEngine:
         resume_capability = project_user_surface_resume_capability(
             context,
             continuation_contract=continuation_contract,
+            conversation_contract_compatible=not any(
+                (
+                    memory_state_contract,
+                    runtime_fact_status_contract,
+                    self_condition_contract,
+                    capability_inventory_contract,
+                    identity_continuity_contract,
+                    bool(context.get("desktop_execution_contract", False)),
+                    bool(context.get("strict_answer_contract", False)),
+                    bool(context.get("strict_value_contract", False)),
+                    bool(context.get("proof_evaluation_contract", False)),
+                    bool(context.get("operator_evidence_contract", False)),
+                    bool(context.get("completed_capability_evidence")),
+                )
+            ),
         )
         obligation_segment = str(
             context.get("user_surface_obligation_segment") or ""

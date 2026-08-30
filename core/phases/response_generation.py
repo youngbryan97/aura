@@ -2157,15 +2157,6 @@ class ResponseGenerationPhase(BasePhase):
                 runtime_context.get("user_surface_completion_retry", False)
                 and runtime_context.get("user_surface_continuation_contract", False)
             )
-            resume_capability = project_user_surface_resume_capability(
-                runtime_context,
-                continuation_contract=incoming_continuation_contract,
-                user_surface=not is_background and not is_test_run,
-            )
-            if resume_capability.rejected:
-                state.response_modifiers["exact_resume_transport_refusal"] = (
-                    resume_capability.to_dict()
-                )
             turn_completed_capabilities = completed_capabilities(
                 runtime_context.get("completed_capability_evidence")
             )
@@ -2188,6 +2179,33 @@ class ResponseGenerationPhase(BasePhase):
                         else "runtime_stamped_turn_receipt"
                     ),
                 }
+            incompatible_conversation_contract = bool(
+                contract.reason != "ordinary_dialogue"
+                or turn_completed_capabilities
+                or runtime_context.get("desktop_execution_contract", False)
+                or runtime_context.get("capability_inventory_contract", False)
+                or runtime_context.get("memory_state_contract", False)
+                or runtime_context.get("runtime_fact_status_contract", False)
+                or runtime_context.get("grounded_runtime_status_contract", False)
+                or runtime_context.get("self_condition_contract", False)
+                or runtime_context.get("strict_answer_contract", False)
+                or runtime_context.get("strict_value_contract", False)
+                or runtime_context.get("proof_evaluation_contract", False)
+                or runtime_context.get("operator_evidence_contract", False)
+            )
+            resume_capability = project_user_surface_resume_capability(
+                runtime_context,
+                continuation_contract=incoming_continuation_contract,
+                user_surface=not is_background and not is_test_run,
+                conversation_contract_compatible=(
+                    incoming_continuation_contract
+                    or not incompatible_conversation_contract
+                ),
+            )
+            if resume_capability.rejected:
+                state.response_modifiers["exact_resume_transport_refusal"] = (
+                    resume_capability.to_dict()
+                )
             desktop_cognitive_engine_required = bool(
                 runtime_context.get("desktop_cognitive_engine_required", False)
                 or runtime_context.get("cognitive_engine_required", False)

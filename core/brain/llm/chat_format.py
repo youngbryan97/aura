@@ -592,20 +592,27 @@ def conversation_resume_context_digest(
     tools: object = None,
     enable_thinking: bool | None = None,
 ) -> str:
-    """Bind resumable KV state to the authority and template that produced it."""
+    """Bind resumable KV state to the wire format required to append safely.
+
+    The bearer capability itself selects an exact, process-local completed
+    conversation whose authority text is already inside its KV state.  Binding
+    the capability a second time to the *next* phase's reconstructed system
+    prose made a FAST turn impossible to continue through the full response
+    phase: both phases enforce Aura's authority, but assemble different dynamic
+    evidence blocks.  Thinking mode is likewise a property of the new answer,
+    not of the completed prefix.
+
+    Template, evidence-role and tool-schema compatibility remain bound because
+    they determine the bytes that may legally follow the cached transcript.
+    Model/process/surface/session/principal ownership is enforced by the cache
+    key and the route's one-use capability store.
+    """
 
     canonical = system_first(messages)
     if not isinstance(canonical, (list, tuple)) or not canonical:
         raise ValueError("conversation transcript must be a non-empty sequence")
-    authority = [
-        message
-        for message in canonical
-        if _message_role(message) == "system"
-    ]
     template = str(getattr(tokenizer, "chat_template", "") or "")
     material = {
-        "authority": authority,
-        "enable_thinking": enable_thinking,
         "evidence_wire_role": _runtime_evidence_role_mode(tokenizer),
         "template_sha256": _hashlib.sha256(
             template.encode("utf-8", "replace")

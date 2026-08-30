@@ -22,6 +22,7 @@ from __future__ import annotations
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm.chat_format import (
     conversation_append_messages,
+    conversation_resume_context_digest,
     render_chat_append_template,
     render_chat_template,
 )
@@ -206,6 +207,54 @@ def test_append_renderer_extends_exact_completed_cache_without_rewriting_it() ->
     assert rendered == (
         "<user><tool_response>fresh state</tool_response></user>"
         "<user>q2</user><assistant>"
+    )
+
+
+def test_resume_compatibility_follows_wire_format_not_dynamic_phase_prose() -> None:
+    tokenizer = _StrictEvidenceTokenizer()
+    fast = [
+        {"role": "system", "content": "compact user-surface authority"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+    full = [
+        {"role": "system", "content": "full phase authority plus dynamic state"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+
+    assert conversation_resume_context_digest(
+        tokenizer,
+        fast,
+        enable_thinking=True,
+    ) == conversation_resume_context_digest(
+        tokenizer,
+        full,
+        enable_thinking=False,
+    )
+
+
+def test_resume_compatibility_still_binds_the_tool_wire_contract() -> None:
+    tokenizer = _StrictEvidenceTokenizer()
+    messages = [
+        {"role": "system", "content": "authority"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+    first_tools = [{"type": "function", "function": {"name": "first"}}]
+    second_tools = [{"type": "function", "function": {"name": "second"}}]
+
+    assert conversation_resume_context_digest(
+        tokenizer,
+        messages,
+        tools=first_tools,
+    ) != conversation_resume_context_digest(
+        tokenizer,
+        messages,
+        tools=second_tools,
     )
 
 

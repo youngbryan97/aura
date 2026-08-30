@@ -336,6 +336,7 @@ def project_user_surface_resume_capability(
     *,
     continuation_contract: bool,
     user_surface: bool = True,
+    conversation_contract_compatible: bool = True,
 ) -> ContextValidation:
     """Select the one exact-cache capability this generation may consume.
 
@@ -373,6 +374,16 @@ def project_user_surface_resume_capability(
         if continuation_contract
         else "user_surface_conversation_resume_handle"
     )
+    if (
+        selected == "user_surface_conversation_resume_handle"
+        and not conversation_contract_compatible
+        and selected in validated.context
+    ):
+        validated.rejected[selected] = (
+            "current turn requires a different user-surface authority contract"
+        )
+        validated.context.pop(selected, None)
+        return validated
     conflicting = (
         len(
             {
