@@ -34,6 +34,15 @@ def _left_as_found():
     )
     for store in (kinds.WAYS_TO_BUILD, KINDS_OF_THING, kinds.KINDS):
         store.clear()
+    # Words another test file derived are still in the language at setup, so a
+    # fixture that only restores what it found starts from someone else's
+    # language.
+    for name in [
+        one
+        for one, word in list(kinds.WHERE_FROM.items())
+        if type(word).__name__ == "DerivedAddressing"
+    ]:
+        kinds.WHERE_FROM.pop(name, None)
     try:
         yield
     finally:

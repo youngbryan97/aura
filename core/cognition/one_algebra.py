@@ -37,6 +37,7 @@ reach" — which core/cognition/what_it_costs_to_say.py already counts.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Sequence
 
@@ -398,11 +399,11 @@ def _where_each_came_from(
     return at
 
 
-#: How many words a hole is tried against. The search is quadratic in this,
-#: and a language that has grown holds hundreds — so it is a budget on one
-#: search rather than a limit on what she may know. The words are taken
-#: shortest first, which is the same preference the term order uses.
-_WORDS_TO_TRY = 24
+#: How long one synthesis may run. Measured, not chosen: over three families the
+#: fixed slab of two dozen words this replaces took 58.6s, and the two it solved
+#: took 12.2s and 12.9s. The widening gets the same allowance per family and
+#: spends it on the likeliest words first.
+_AS_LONG_AS_THE_OLD_WAY_TOOK = 20.0
 
 
 def a_maker_she_wrote(
@@ -410,6 +411,7 @@ def a_maker_she_wrote(
     *,
     now_sayable: Callable[[], bool],
     holes: int = 2,
+    within: float = _AS_LONG_AS_THE_OLD_WAY_TOOK,
 ) -> Term | None:
     """Write a way of building words for the family in front of her.
 
@@ -445,40 +447,85 @@ def a_maker_she_wrote(
     # words, and a language that has grown holds hundreds. The bound is a
     # budget on this search rather than a claim about how much she may know.
     from core.cognition.an_invented_kind import addressings
+    from core.cognition.how_she_learns_to_look import (
+        in_the_order_worth_trying,
+        remember_what_worked,
+        widening_word_lists,
+    )
     from core.cognition.what_it_costs_to_say import _symbols
 
     every = addressings()
-    # Ordered by how much each word already agrees with what she saw happen.
+    # Ordered by what this family shows AND by what every family before showed.
     #
     # A word that lands on none of the right places is unlikely to be the one
     # inside the term that does; one that lands on most of them is nearly the
-    # answer already. Sorting by name and taking the first two dozen ordered
-    # them by nothing at all, and once the language had grown the search did
-    # not finish. This is the same evidence the term is written against.
-    names = sorted(
-        every,
-        key=lambda name: (-_agrees_with(every[name], wanted), _symbols(name), name),
-    )[:_WORDS_TO_TRY]
-    fillings = [
-        tuple(every[name] for name in chosen)
-        for chosen in _choose(names, max(1, holes))
-    ]
+    # answer already. That much is evidence from the case. How often a word
+    # turned up in a term that survived its own gate is evidence from her
+    # history, and the two multiply.
+    #
+    # Only the ORDER is learned. What is kept is decided by the same gate as
+    # before, so a prior that learned to propose rubbish loses time and keeps
+    # nothing.
+    names = in_the_order_worth_trying(
+        every, _agrees_with, wanted, shortest=_symbols
+    )
+    # And widening rather than a fixed slab of words: an easy family is one
+    # whose answer is near the front, and paying a hard family's price to find
+    # it buys nothing.
+    began = time.monotonic()
+    # The terms are walked once and kept, as they come.
+    #
+    # Widening the word list re-enters this loop, and generating the terms
+    # again each round cost more than the shorter word lists saved — the
+    # measurement showed no gain at all until they were kept. Materialising
+    # them up front was worse still: it runs before any check of the clock, so
+    # the time budget could not apply to it and a deep family hung. The cache
+    # fills as the search goes, which is the only version where the budget
+    # covers everything.
+    stream = every_term(constants, holes=holes, deepest=deepest)
+    seen_terms: list[Term] = []
 
-    for term in every_term(constants, holes=holes, deepest=deepest):
-        if holes_in(term) < 1:
-            continue
-        for words in fillings:
-            if not _computes(term, words, wanted):
+    def terms_so_far() -> Any:
+        yield from seen_terms
+        for term in stream:
+            if holes_in(term) < 1:
                 continue
-            name = f"a way she wrote: {term.name}"
-            if name in WAYS_TO_BUILD:
-                continue
-            before = len(addressings())
-            WAYS_TO_BUILD[name] = as_a_maker(term)
-            if now_sayable() and _earns_its_place(term, transitions, before):
-                logger.info("she wrote a way of building words: %s", term.name)
-                return term
-            WAYS_TO_BUILD.pop(name, None)
+            seen_terms.append(term)
+            yield term
+
+    tried: set[tuple[str, tuple[int, ...]]] = set()
+    for shortlist in widening_word_lists(
+        names, holes=holes, within=within, started=began
+    ):
+        fillings = [
+            tuple(every[name] for name in chosen)
+            for chosen in _choose(shortlist, max(1, holes))
+        ]
+        for term in terms_so_far():
+            if time.monotonic() - began >= within:
+                logger.info("gave up writing a maker after %.1fs", within)
+                return None
+            for words in fillings:
+                # A round re-offers what the round before it tried. Checking
+                # those again is the cost of widening, and it is avoidable.
+                already = (term.name, tuple(id(one) for one in words))
+                if already in tried:
+                    continue
+                tried.add(already)
+                if not _computes(term, words, wanted):
+                    continue
+                name = f"a way she wrote: {term.name}"
+                if name in WAYS_TO_BUILD:
+                    continue
+                before = len(addressings())
+                WAYS_TO_BUILD[name] = as_a_maker(term)
+                if now_sayable() and _earns_its_place(term, transitions, before):
+                    logger.info("she wrote a way of building words: %s", term.name)
+                    remember_what_worked(
+                        one for one in shortlist if every[one] in words
+                    )
+                    return term
+                WAYS_TO_BUILD.pop(name, None)
     return None
 
 
