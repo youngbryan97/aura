@@ -505,6 +505,16 @@ def _earns_its_place(
         # Nothing was held back, so there is nothing to weigh it on. Making
         # the family sayable is all the evidence there is.
         return True
+    # What it saves is paid once and used many times.
+    #
+    # Counted on the ruler she cannot move: a word this maker produced has a
+    # short NAME, and counting names a maker that labels long things briefly
+    # collapses every length in the system and every promotion looks like a
+    # triumph. Nothing improved — the ruler moved. Written out in the
+    # substrate, the maker's term costs what it costs, and the saving is that
+    # it is written out ONCE rather than inside each word it makes.
+    made = sum(1 for name in addressings() if term.name in name)
+    saved_each = max(0, term.how_long() - 1)
     worth = what_it_is_worth(
         now_sayable=lambda family: induce_from(list(family)) is not None,
         held_out=[held_out],
@@ -512,8 +522,8 @@ def _earns_its_place(
         vocabulary_before=max(1, vocabulary_before),
         vocabulary_after=max(1, len(addressings())),
         longest=max(2, max((len(before) for before, _ in transitions), default=2)),
-        shorter_by=max(0, term.how_long() - 1),
-        used=len(held_out),
+        shorter_by=saved_each,
+        used=max(0, made - 1),
     )
     if not worth.keep_it:
         logger.info("not keeping %s — %s", term.name, worth.describes())
