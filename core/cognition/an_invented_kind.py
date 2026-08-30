@@ -35,6 +35,8 @@ from typing import Any, Callable, Iterator, Sequence
 
 __all__ = [
     "ENOUGH_HELD_BACK",
+    "WAYS_TO_BUILD",
+    "addressings",
     "UNSETTLED",
     "hold_unsettled",
     "settle_with",
@@ -138,8 +140,9 @@ class Induced:
         if size == 0:
             return ()
         try:
-            where = WHERE_FROM[self.where_from]
-            other = WHERE_FROM[self.and_from]
+            where_all = addressings()
+            where = where_all[self.where_from]
+            other = where_all[self.and_from]
             what = WHAT_OF_IT[self.what_of_it]
         except KeyError:
             return None
@@ -168,9 +171,41 @@ class Induced:
         return f"{self.name}{held}"
 
 
+#: Ways of BUILDING an addressing out of addressings.
+#:
+#: One at first, and it is not written here because it is the absence of one:
+#: use a word as it is. A second entry is not a new word, it is a new kind of
+#: word-making — and admitting one enlarges the language everywhere at once,
+#: because every addressing she has and every one she ever derives is put
+#: through it.
+#:
+#: This is the difference between inventing a thought, inventing a kind of
+#: thought, and inventing a way of inventing kinds of thought. WHERE_FROM and
+#: WHAT_OF_IT are the first. A word derived and admitted to them is the second.
+#: An entry here is the third.
+WAYS_TO_BUILD: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {}
+
+
+def addressings() -> dict[str, Any]:
+    """Every way of saying where a value comes from, however it was arrived at.
+
+    The words she was given, the words she derived, and everything the ways of
+    building make out of them. One dictionary, because nothing downstream
+    should care which of the three a word came from.
+    """
+    made = dict(WHERE_FROM)
+    for build in list(WAYS_TO_BUILD.values()):
+        try:
+            made.update(build(dict(WHERE_FROM)))
+        except (TypeError, ValueError, KeyError):
+            continue
+    return made
+
+
 def every_meaning() -> Iterator[Induced]:
     """The whole space, so nothing in it had to be thought of in advance."""
-    for where_from, and_from, what_of_it in product(WHERE_FROM, WHERE_FROM, WHAT_OF_IT):
+    where_all = addressings()
+    for where_from, and_from, what_of_it in product(where_all, where_all, WHAT_OF_IT):
         if what_of_it == "as it is" and and_from != where_from:
             # Reading a second place and ignoring it is the same meaning said
             # a different way, and every duplicate is another chance for a

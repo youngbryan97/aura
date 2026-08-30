@@ -167,3 +167,98 @@ def test_and_a_meaning_built_on_one_refuses_rather_than_throws():
     meaning = Induced("only at four", "only at four", "as it is")
     assert meaning.read((1, 2, 3, 4)) == (2, 1, 4, 3)
     assert meaning.read((1, 2, 3)) is None
+
+
+# ── and a way of INVENTING words, which is a different thing again ───────
+
+from core.cognition.an_invented_kind import WAYS_TO_BUILD, addressings  # noqa: E402
+from core.cognition.widening_the_language import (  # noqa: E402
+    a_way_of_building_nobody_wrote,
+    one_after_another,
+)
+
+
+@pytest.fixture(autouse=True)
+def _the_ways_she_was_given():
+    ways = dict(WAYS_TO_BUILD)
+    WAYS_TO_BUILD.clear()
+    yield
+    WAYS_TO_BUILD.clear()
+    WAYS_TO_BUILD.update(ways)
+
+
+def mirrored_then_stepped(s):
+    size = len(s)
+    turned = [s[size - 1 - i] for i in range(size)]
+    return tuple(turned[(i + 1) % size] for i in range(size))
+
+
+def needs_two_addressings():
+    return [(t, mirrored_then_stepped(t)) for t in
+            [(1, 2, 3, 4), (5, 6, 7, 8), (9, 1, 2, 6), (4, 7, 2, 8)]]
+
+
+def test_a_family_no_single_word_can_say():
+    assert induce_from(needs_two_addressings()) is None
+
+
+def test_she_derives_a_way_of_MAKING_words():
+    assert a_way_of_building_nobody_wrote(needs_two_addressings()) == "one after another"
+
+
+def test_and_then_the_family_is_sayable():
+    a_way_of_building_nobody_wrote(needs_two_addressings())
+    found = induce_from(needs_two_addressings())
+    assert found is not None
+    assert ", then " in found.name
+
+
+def test_it_enlarges_what_she_could_say_about_anything():
+    """The property a derived WORD cannot have.
+
+    A word is read off what she was shown and says nothing beyond it. A way of
+    building takes every word she has — including the derived ones — and makes
+    more out of them, so it reaches families she has never met.
+    """
+    before_words = len(addressings())
+    before_meanings = len(list(every_meaning()))
+    a_way_of_building_nobody_wrote(needs_two_addressings())
+    assert len(addressings()) > before_words
+    assert len(list(every_meaning())) > before_meanings * 10
+
+
+def test_and_it_applies_to_words_she_derives_later():
+    """Which is what makes it a way of growing rather than a growth."""
+    a_way_of_building_nobody_wrote(needs_two_addressings())
+    with_it = len(addressings())
+    widen_with_addressing(
+        "something new", DerivedAddressing("something new", {4: (1, 0, 3, 2)})
+    )
+    assert len(addressings()) > with_it + 1, (
+        "a word derived afterwards was not put through the way of building"
+    )
+
+
+def test_a_way_of_building_that_changes_nothing_is_not_admitted():
+    """Enlarging the search for nothing is worse than not enlarging it."""
+    already = [((1, 2, 3), (3, 2, 1)), ((4, 5, 6), (6, 5, 4)),
+               ((7, 8, 9), (9, 8, 7)), ((2, 9, 4), (4, 9, 2))]
+    assert induce_from(already) is not None
+    assert a_way_of_building_nobody_wrote(already) is None
+    assert WAYS_TO_BUILD == {}
+
+
+def test_it_is_not_admitted_twice():
+    a_way_of_building_nobody_wrote(needs_two_addressings())
+    assert a_way_of_building_nobody_wrote(needs_two_addressings()) is None
+
+
+def test_the_way_of_building_composes_two_words_in_turn():
+    made = one_after_another({"a": lambda i, n: (i + 1) % n, "b": lambda i, n: n - 1 - i})
+    assert "a, then b" in made
+    assert made["a, then b"](0, 4) == 2
+
+
+def test_a_word_is_never_composed_with_itself():
+    made = one_after_another({"a": lambda i, n: i})
+    assert made == {}

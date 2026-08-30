@@ -304,6 +304,20 @@ def _a_word_the_language_was_missing(
             name = f"what was done with these ({len(WHAT_OF_IT)})"
             said = widen_with_operation(name, done)
             return f"a new way of combining two values ({said})" if said else None
+
+    # No new WORD is enough. Then what is missing is a way of MAKING words.
+    #
+    # Tried last, because it enlarges the search enormously and every
+    # hypothesis it adds is another chance for a coincidence to win. But it is
+    # the only one of the three that helps with a family she has not met: a
+    # derived word is read off what she was shown and says nothing beyond it,
+    # while a way of building takes every word she has — including the derived
+    # ones — and makes more out of them.
+    from core.cognition.widening_the_language import a_way_of_building_nobody_wrote
+
+    built = a_way_of_building_nobody_wrote(pairs)
+    if built:
+        return f"a new way of MAKING words rather than a word ({built})"
     return None
 
 

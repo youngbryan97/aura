@@ -249,3 +249,76 @@ def widen_with_operation(name: str, operation: DerivedOperation) -> str:
         "the language grew: %d ways to combine a pair", len(WHAT_OF_IT)
     )
     return said
+
+
+# ── and a way of INVENTING words, which is a different thing again ───────
+
+
+@dataclass(frozen=True)
+class OneAfterAnother:
+    """Two ways of saying where a value comes from, used one after the other."""
+
+    first: Callable[[int, int], int]
+    then: Callable[[int, int], int]
+
+    def __call__(self, index: int, size: int) -> int:
+        return self.then(self.first(index, size) % size, size)
+
+
+def one_after_another(words: dict[str, Any]) -> dict[str, Any]:
+    """Every pair of addressings, applied in turn.
+
+    A way of BUILDING words rather than a word. Admitted, it applies to every
+    addressing she has and every one she ever derives, so what it enlarges is
+    not the language but the language's capacity to grow.
+    """
+    made: dict[str, Any] = {}
+    for first_name, first in words.items():
+        for then_name, then in words.items():
+            if first_name == then_name:
+                continue
+            made[f"{first_name}, then {then_name}"] = OneAfterAnother(first, then)
+    return made
+
+
+def a_way_of_building_nobody_wrote(
+    transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str | None:
+    """A new way of making words, when no new WORD would be enough.
+
+    The step past deriving a primitive. Deriving one answers the family in
+    front of her and composes with everything — but it is read off what she was
+    shown, so it says nothing about a case it has not seen, and a language that
+    grows only by memorising is not really growing.
+
+    A way of building is different in kind. It takes the words she already has,
+    including the ones she derived, and makes more out of them — so admitting
+    one enlarges what she can say about families she has never met, which is
+    the thing a derived constant cannot do.
+
+    Tried only when nothing else works, and admitted only if the family that
+    defeated everything becomes sayable with it. A way of building that changes
+    nothing is not a discovery, it is a bigger search.
+    """
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD, induce_from
+
+    name = "one after another"
+    if name in WAYS_TO_BUILD:
+        return None
+    if induce_from(transitions) is not None:
+        # Already sayable. A way of building earns its place by making
+        # something possible, not by being available when nothing needed it.
+        return None
+    WAYS_TO_BUILD[name] = one_after_another
+    if induce_from(transitions) is None:
+        # It did not make this sayable, so it has not earned a place in how she
+        # thinks. Enlarging the search for nothing is worse than not enlarging
+        # it: every hypothesis it adds is another chance for a coincidence.
+        WAYS_TO_BUILD.pop(name, None)
+        return None
+    logger.info(
+        "a way of MAKING words, not a word: %r — the language can now grow "
+        "in a direction it could not before",
+        name,
+    )
+    return name
