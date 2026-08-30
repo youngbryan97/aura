@@ -164,6 +164,22 @@ class AutonomyConductor:
         )
 
     def register_defaults(self) -> None:
+        # What she worked out for herself, put back before anything runs.
+        #
+        # A mind that reinvents the same property every morning has not
+        # learned it, and the whole point of being able to invent one was that
+        # it is persistent, reusable, composable and transferable. Three of
+        # those fail if it does not survive a restart.
+        try:
+            from core.runtime.what_she_invented import recall
+
+            recall()
+        except (ImportError, RuntimeError, OSError, ValueError) as exc:
+            record_degradation(
+                "autonomy_conductor", exc, severity="info",
+                action="put back what she invented",
+            )
+
         self.register(
             "metabolic_budget",
             300.0,
@@ -224,6 +240,13 @@ class AutonomyConductor:
         # Ten minutes, because a recurring tension is recurring: it wants long
         # enough for the same kind of trouble to happen more than once, and
         # short enough that she acts on it in the session it happened in.
+        self.register(
+            "remember_what_she_invented",
+            300.0,
+            self._job_remember_what_she_invented,
+            run_immediately=False,
+            policy="constitutive",
+        )
         self.register(
             "emergent_goal_adoption",
             600.0,
@@ -454,6 +477,17 @@ class AutonomyConductor:
             )
         )
         return allocation.to_dict()
+
+    async def _job_remember_what_she_invented(self) -> dict[str, Any]:
+        """Write down the properties and meanings she has worked out.
+
+        Periodically rather than on every promotion, because a trial's own
+        state changes with each observation and writing a file for each of
+        those would be a lot of disk for a number that moves sixty times.
+        """
+        from core.runtime.what_she_invented import keep
+
+        return {"kept": bool(keep())}
 
     async def _job_emergent_goal_adoption(self) -> dict[str, Any]:
         """Ask what the tensions she has been recording actually come to.

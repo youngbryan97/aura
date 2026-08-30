@@ -55,11 +55,31 @@ class Node:
     # ---------------------------------------------------------------- writing
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        written = {
             "kind": self.kind,
             "parameters": dict(self.parameters),
             "parts": [part.to_json() for part in self.parts],
         }
+        # A kind she worked out carries its meaning with it.
+        #
+        # The three kinds this interpreter was born with are meaningful
+        # wherever they are read, because their meaning is in the code. One she
+        # induced is meaningful only where the registry holds it — so a node
+        # written down here and read back somewhere else was a name with
+        # nothing behind it, and everything gained by being able to invent a
+        # kind was lost the moment it was saved.
+        from core.cognition.an_invented_kind import KINDS
+
+        meaning = KINDS.get(self.kind)
+        if meaning is not None:
+            written["meaning"] = {
+                "where_from": meaning.where_from,
+                "and_from": meaning.and_from,
+                "what_of_it": meaning.what_of_it,
+                "held_back": meaning.held_back,
+                "from_examples": meaning.from_examples,
+            }
+        return written
 
     @classmethod
     def from_json(cls, raw: Any) -> "Node | None":
@@ -77,6 +97,25 @@ class Node:
             if child is None:
                 return None
             parts.append(child)
+        # A meaning travelling with the node is put back where meanings live,
+        # so reading a node is enough to be able to run it.
+        said = raw.get("meaning")
+        if isinstance(said, dict):
+            from core.cognition.an_invented_kind import KINDS, Induced
+
+            try:
+                KINDS.setdefault(
+                    kind,
+                    Induced(
+                        where_from=str(said["where_from"]),
+                        and_from=str(said["and_from"]),
+                        what_of_it=str(said["what_of_it"]),
+                        held_back=float(said.get("held_back") or 0.0),
+                        from_examples=int(said.get("from_examples") or 0),
+                    ),
+                )
+            except (KeyError, TypeError, ValueError):
+                pass  # no-op: a meaning that cannot be read leaves the kind unreadable
         return cls(kind=kind, parameters=dict(parameters), parts=tuple(parts))
 
     # ---------------------------------------------------------------- reading
