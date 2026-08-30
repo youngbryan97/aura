@@ -215,17 +215,11 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
         # what they agree on, and says what would tell them apart.
         name = hold_unsettled(meaning.name, fits)
         agreed = what_they_agree_on(name, tuple(question.asked))
-        other = next((one for one in fits if one.name != meaning.name), fits[0])
-        telling = what_would_tell_them_apart(
-            meaning, other, of_length=len(question.asked)
+        settle = _the_one_thing_worth_asking_him(
+            {one.name: one for one in fits},
+            len(question.asked),
+            lambda reading, state: reading.read(state),
         )
-        settle = ""
-        if telling is not None:
-            settle = (
-                f" Show me what {list(telling)} becomes and I will know which: "
-                f"{meaning.name} says {list(meaning.read(telling) or ())} and "
-                f"{other.name} says {list(other.read(telling) or ())}."
-            )
         if agreed is not None:
             return (
                 f"{list(agreed)}\n\n"
@@ -258,6 +252,45 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
         "example you showed me, including the ones I did not use to work it "
         "out, and I have kept it — ask me another of these and I will already "
         "know it."
+    )
+
+
+def _the_one_thing_worth_asking_him(
+    readings: dict[str, Any], of_length: int, says: Any
+) -> str:
+    """The single example to ask him for, chosen against the whole field.
+
+    Naming a state that parts two of sixteen readings and leaves fourteen
+    standing is asking him to do the work twice. Both places she says "show me
+    this one" used to pick a state off a pair and stop there. The act worth
+    asking for is the one that settles the most of what is open, and saying how
+    much it settles is what makes it worth his while to answer.
+    """
+    from core.cognition.the_experiment_that_settles_it import (
+        every_act_that_settles_a_sequence,
+        what_to_try,
+    )
+
+    if len(readings) < 2:
+        return ""
+    try:
+        best = what_to_try(
+            readings,
+            every_act_that_settles_a_sequence(of_length),
+            predicts=says,
+        )
+    except Exception:
+        logger.debug("choosing an example to ask for failed", exc_info=True)
+        return ""
+    if best is None:
+        return ""
+    left = len(readings) - best.tells_apart
+    beyond = "" if left <= 0 else f", leaving {left} still to separate"
+    shown = sorted((str(list(answer)), name) for name, answer in best.expects.items())
+    return (
+        f" Show me what {list(best.do)} becomes and I will know which: it splits "
+        f"them {best.tells_apart} ways{beyond}. "
+        f"{shown[0][1]} says {shown[0][0]}; {shown[-1][1]} says {shown[-1][0]}."
     )
 
 
@@ -669,15 +702,22 @@ def answer_sequence_question(text: Any) -> str:
     # steers the next question — so the saying was decoration. This is the same
     # discipline the induced-meaning path follows a few hundred lines up.
     probe = discriminating_probe(list(question.shown), known_forms=language.forms)
-    rival_form = ""
-    rival_says: tuple[Any, ...] | None = None
-    if probe is not None:
-        for text, _rule in probe.rivals:
-            if text == found.form:
-                continue
-            rival_form = text
-            rival_says = _what_a_form_says(text, tuple(question.asked), language)
-            break
+    # How many fit, not whether one does.
+    #
+    # The probe reports every rival and the reply named the first of them, so a
+    # question with four surviving rules was answered "X fits just as well" —
+    # true of X, and quietly false about the size of what she had not decided.
+    # The count is the whole fact about the evidence, and it is free.
+    rivals = [
+        text for text, _rule in (probe.rivals if probe is not None else ()) if text != found.form
+    ]
+    rival_form = rivals[0] if rivals else ""
+    rival_says = (
+        _what_a_form_says(rival_form, tuple(question.asked), language)
+        if rival_form
+        else None
+    )
+    also = "" if len(rivals) < 2 else f", and {len(rivals) - 1} more"
 
     unsettled = bool(rival_form)
     if not unsettled:
@@ -693,10 +733,10 @@ def answer_sequence_question(text: Any) -> str:
         # a rule.
         return (
             "I cannot answer this one yet, and it is worth saying why.\n\n"
-            f"{found.form.capitalize()} and {rival_form} both account for every "
+            f"{found.form.capitalize()} and {rival_form}{also} account for every "
             "example you showed me, and they disagree about this case: one says "
-            f"{list(result)} and the other {list(rival_says)}. "
-            f"Show me what {list(probe.state)} becomes and I will know which."
+            f"{list(result)} and the other {list(rival_says)}."
+            f"{_which_example_parts_the_forms(probe, found, question, language)}"
         )
 
     said = (
@@ -711,12 +751,31 @@ def answer_sequence_question(text: Any) -> str:
     # first was ever said.
     if unsettled:
         said += (
-            f"\n\n{rival_form.capitalize()} fits everything you showed just as "
-            f"well, and says the same about this one — so I could answer it "
-            f"without deciding between them, and I have not. "
-            f"{list(probe.state)} would tell them apart."
+            f"\n\n{rival_form.capitalize()}{also} fits everything you showed just "
+            f"as well, and says the same about this one — so I could answer it "
+            f"without deciding between them, and I have not."
+            f"{_which_example_parts_the_forms(probe, found, question, language)}"
         )
     return said
+
+
+def _which_example_parts_the_forms(
+    probe: Any, found: Any, question: Any, language: Any
+) -> str:
+    """The example to ask for, weighed against every rival form rather than one.
+
+    The probe hands back a state that parts the two forms it happened to
+    compare. Where five forms survive that state settles one bit and leaves the
+    rest, and she would have to ask again.
+    """
+    forms = {found.form: found.form}
+    for text, _rule in getattr(probe, "rivals", ()) or ():
+        forms[text] = text
+    return _the_one_thing_worth_asking_him(
+        forms,
+        len(question.asked),
+        lambda form, state: _what_a_form_says(form, state, language),
+    )
 
 
 def _what_a_form_says(
