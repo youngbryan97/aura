@@ -59,3 +59,16 @@ def test_trimming_never_throws_away_most_of_the_answer():
 
 def test_an_empty_reply_is_not_called_truncated():
     assert _ends_where_it_meant_to("") == ("", False)
+
+
+def test_a_dangling_list_marker_goes_with_the_cut():
+    """A trailing "3." is the number of a point she never reached."""
+    said, cut = _ends_where_it_meant_to("One point. Two point.\n\n3. **Analy")
+    assert cut is True
+    assert said == "One point. Two point."
+
+
+@pytest.mark.parametrize("marker", ["- ", "* ", "1. ", "4) ", "## "])
+def test_any_marker_left_hanging_goes_the_same_way(marker):
+    said, _cut = _ends_where_it_meant_to(f"Body text.\n\n{marker}")
+    assert said == "Body text."

@@ -10343,6 +10343,10 @@ _A_SENTENCE_ENDS = tuple(".!?:\u2026") + (
 _FINISHED = frozenset({"configured_stop", "eos", "semantic_contract_satisfied"})
 
 
+#: A list marker left at the end with nothing after it.
+_A_DANGLING_MARKER = re.compile(r"(?:\n|^)\s*(?:\d+[.)]|[-*\u2022]|#{1,6})\s*$")
+
+
 def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool]:
     """The reply back to its last finished sentence, and whether it was cut.
 
@@ -10373,6 +10377,10 @@ def _ends_where_it_meant_to(said: str, stop_reason: str = "") -> tuple[str, bool
     if at <= 0:
         return text, True
     whole = text[: at + (3 if text[at:].startswith("```") else 1)].rstrip()
+    # A trailing "3." is the number of a point she never got to, not a
+    # sentence. Cutting to the last full stop lands on one whenever the answer
+    # was a numbered list, which is what a long answer usually is.
+    whole = _A_DANGLING_MARKER.sub("", whole).rstrip()
     if len(whole) < len(text) // 2:
         # Trimming would throw away most of what she said. Keep it and say so.
         return text, True
