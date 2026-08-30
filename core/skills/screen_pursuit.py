@@ -1325,7 +1325,9 @@ async def _the_best_reading_available(
     # thirty-five places — beat a real board of eight over twenty every time.
     # A thing laid out is full of its own cells; a page with text scattered
     # about it is not, and that is the difference between them.
-    if _how_full(theirs) <= _how_full(mine):
+    # Both: more of the thing, and more thing than page. One cell read on its
+    # own is a full reading by the second measure alone.
+    if theirs.occupied() <= mine.occupied() or _how_full(theirs) <= _how_full(mine):
         return seen
     logger.info(
         "the page shows the thing better: %dx%d with %d in it, against %dx%d with %d",
