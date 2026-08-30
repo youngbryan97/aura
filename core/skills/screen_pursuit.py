@@ -1654,6 +1654,9 @@ async def pursue_on_screen(
     #: "nothing on screen offered a move" for every one of them — which cost
     #: three wrong diagnoses in a row before this line existed.
     no_move: dict[str, str] = {"because": ""}
+    #: Whether a restart control has appeared, which is a thing saying it has
+    #: finished. Held so it is said once rather than every cycle.
+    offered_a_restart: dict[str, bool] = {"value": False}
     pending: dict[str, Any] = {
         "deliberation": None,
         "before": "",
@@ -2476,6 +2479,23 @@ async def pursue_on_screen(
             # were happening. LIVE 2026-08-29: the page said "Game Over, 940
             # points scored in 100 moves" and she went on saying "Going right".
             ended = responds["state"].nothing_answers()
+            # A way to start again, offered where there was none before, is the
+            # thing saying it has finished.
+            #
+            # The other test asks whether what she was acting on is gone, and
+            # on a board that keeps its tiles under a "Play Again" overlay it
+            # never fires — so she went on pressing keys into a game that was
+            # over, which is the failure it exists to prevent. A control that
+            # appears only at the end is better evidence than the absence of
+            # one, and it is general: a finished form, an expired session and
+            # a lost game all put one up.
+            if not ended and restart_control(observation) is not None:
+                if not offered_a_restart["value"]:
+                    offered_a_restart["value"] = True
+                    logger.info(
+                        "a way to start again has appeared, so this has ended"
+                    )
+                ended = True
             if ended:
                 mine_now = target_app or anchor["app"]
                 why = work_out_why(
