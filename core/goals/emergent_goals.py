@@ -140,6 +140,20 @@ class EmergentGoalEngine:
                 candidate = self._compose_candidate(kind, obs_list, mean_magnitude)
                 if candidate.goal_id in self._candidates:
                     self._support_counts[candidate.goal_id] = self._support_counts.get(candidate.goal_id, 0) + 1
+                    # Evidence sharpens the objective it already had.
+                    self._candidates[candidate.goal_id] = candidate
+                    # Written down as it grows, not only when it is born.
+                    #
+                    # Candidates were persistent and their support was not: the
+                    # count reached disk on creation and again on adoption, and
+                    # every unit of support in between lived in memory. So a
+                    # tension that recurred four times across a day of uptime
+                    # came back after a reboot as a tension that had been
+                    # noticed once, and a goal three-quarters of the way to
+                    # being adopted started again. For a mind whose whole point
+                    # is that experience accumulates, that is the wrong thing
+                    # to lose.
+                    self._persist_candidate(candidate)
                 else:
                     self._candidates[candidate.goal_id] = candidate
                     self._support_counts[candidate.goal_id] = 1
@@ -154,14 +168,37 @@ class EmergentGoalEngine:
         observations: list[TensionObservation],
         mean_magnitude: float,
     ) -> EmergentGoal:
-        # Build the objective string from observed evidence, not a template.
-        excerpts = [re.sub(r"\s+", " ", o.evidence).strip() for o in observations[-5:] if o.evidence]
-        excerpts = [e for e in excerpts if e][:3]
-        joined_evidence = "; ".join(excerpts) or "recurring internal tension"
-        # Objective text is synthesized from observed evidence phrasing, so it
-        # is not drawn from a fixed designer taxonomy.
+        # The objective's EVIDENCE is observed; its shape is not.
+        #
+        # Said plainly because the previous note here claimed the objective was
+        # built from evidence "not a template", and the line below is a
+        # template: what varies is the kind and the evidence, and the frame
+        # around them is written here. That is worth being honest about,
+        # because it is exactly the boundary between recombining motives and
+        # inventing one — she can now form a goal nobody listed, out of tensions
+        # nobody predicted, and the sentence it is expressed in is still ours.
+        # Distinct excerpts, so the same trouble said twice is one piece of
+        # evidence rather than two.
+        seen: list[str] = []
+        for one in observations[-5:]:
+            said = re.sub(r"\s+", " ", one.evidence).strip()
+            if said and said not in seen:
+                seen.append(said)
+        joined_evidence = "; ".join(seen[:3]) or "recurring internal tension"
         objective = f"reduce recurring {kind} tension grounded in: {joined_evidence}"
-        goal_key = hashlib.sha256(f"{kind}|{joined_evidence}".encode()).hexdigest()[:16]
+        # A recurring tension is ONE tension, however much evidence of it
+        # arrives.
+        #
+        # This hashed the evidence text, which grows with every observation —
+        # so the fourth sighting of the same trouble was a different goal from
+        # the first, support never accumulated on anything, and the adoption
+        # threshold could be reached only by a tension whose evidence happened
+        # to read identically every time. The mechanism looked live and was
+        # almost unreachable.
+        #
+        # What a tension IS is what it is about. Evidence accumulates onto it
+        # and sharpens how the objective reads; it does not make a new one.
+        goal_key = hashlib.sha256(kind.encode()).hexdigest()[:16]
         name = f"emergent:{kind}:{goal_key[:6]}"
         priority = float(max(0.25, min(0.95, 0.45 + 0.5 * (mean_magnitude - self.TENSION_THRESHOLD))))
         return EmergentGoal(
@@ -169,7 +206,7 @@ class EmergentGoalEngine:
             name=name,
             objective=objective,
             tension_kind=kind,
-            evidence=excerpts,
+            evidence=tuple(seen[:3]),
             priority=priority,
             created_at=time.time(),
             adopted=False,
