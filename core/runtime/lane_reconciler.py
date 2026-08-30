@@ -387,6 +387,71 @@ async def _default_evict_lane(model_path: str) -> bool:
     return True
 
 
+#: How long a warm lane may sit unproven before the runtime proves it itself.
+#: Long enough that an ordinary turn arrives first and does the proving for
+#: free; short enough that an idle machine is not left unable to act.
+UNPROVEN_TOO_LONG_S = 120.0
+
+#: The shortest thing that proves a lane can answer. Not a question — nothing
+#: reads the reply — so it asks for as little work as anything can.
+_PROOF_PROMPT = "ok"
+
+
+async def _default_prove_lane() -> str:
+    """Make the runtime prove its own conversation lane, and say what happened.
+
+    A lane that is loaded is not a lane that is serving, and the runtime knew
+    the difference: optional background work is gated on the lane having
+    produced at least one visible reply, and the executive raises the threat
+    level while it has not.
+
+    Nothing produced that reply. The gate blocked on the proof and never made
+    one, so the proof could only ever arrive from outside — a person typing
+    something. LIVE 2026-08-29: a transient memory blip deferred one recovery
+    warmup, the lane stayed unproven, the threat level went critical, and every
+    desktop action was refused for four hours. The lane was fine the whole
+    time. One chat message healed it instantly, which is the evidence that
+    nothing inside was ever going to.
+
+    Runs only when no turn is in flight, so it never competes with a person,
+    and it is bounded: a proof that hangs is worth less than no proof.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        gate = ServiceContainer.peek("inference_gate", default=None)
+        if gate is None or not hasattr(gate, "get_conversation_status"):
+            return ""
+        lane = dict(gate.get_conversation_status() or {})
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return ""
+    if not lane or bool(lane.get("conversation_ready", False)):
+        return ""
+    if bool(lane.get("foreground_owned")) or int(lane.get("active_generations", 0) or 0) > 0:
+        return ""
+    if bool(lane.get("warmup_in_flight", False)):
+        return ""
+    since = float(lane.get("last_visible_readiness_at", 0.0) or 0.0)
+    unproven_for = (time.time() - since) if since > 0.0 else float("inf")
+    if unproven_for < UNPROVEN_TOO_LONG_S:
+        return ""
+    try:
+        from core.brain.llm.mlx_client import get_mlx_client
+
+        client = get_mlx_client(_default_primary_key())
+        if not client.is_alive():
+            return "no_worker_to_prove"
+        answered = await asyncio.wait_for(
+            client.generate(_PROOF_PROMPT, max_tokens=1, health_probe=True),
+            timeout=UNPROVEN_TOO_LONG_S,
+        )
+    except TimeoutError:
+        return "proof_timed_out"
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+        return "proof_failed"
+    return "proved" if answered else "proof_empty"
+
+
 def _default_foreground_active() -> bool:
     try:
         from core.brain.llm import mlx_client
@@ -409,6 +474,7 @@ class LaneReconciler:
         spawn_primary: Callable[[], Awaitable[bool]] | None = None,
         evict_lane: Callable[[str], Awaitable[bool]] | None = None,
         foreground_active: Callable[[], bool] | None = None,
+        prove_lane: Callable[[], Awaitable[str]] | None = None,
         breaker: CrashLoopBreaker | None = None,
     ) -> None:
         self._observe_lanes = observe_lanes or _default_observe_lanes
@@ -418,6 +484,7 @@ class LaneReconciler:
         self._spawn_primary = spawn_primary or _default_spawn_primary
         self._evict_lane = evict_lane or _default_evict_lane
         self._foreground_active = foreground_active or _default_foreground_active
+        self._prove_lane = prove_lane or _default_prove_lane
         self._breaker = breaker or get_crash_loop_breaker()
         self._actions: deque[dict[str, Any]] = deque(maxlen=_ACTION_RING_SIZE)
         self._loop_task: asyncio.Task[Any] | None = None
@@ -530,6 +597,16 @@ class LaneReconciler:
                         ),
                     )
                 )
+
+        # Rule 1b — proof: a warm lane that has never answered is not serving.
+        #
+        # Everything downstream distinguishes a loaded lane from a serving one,
+        # and nothing produced the evidence. Convergence onto the desired state
+        # includes proving the state is real.
+        if not self._foreground_active():
+            proved = await self._prove_lane()
+            if proved:
+                actions.append(self._note("proof", lane=primary_key, detail=proved))
 
         # Rule 2 — budget: joint declared footprints must fit the envelope.
         try:
