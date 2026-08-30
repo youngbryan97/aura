@@ -1205,6 +1205,60 @@ async def _take_the_run_its_bearings(
 DECLINES_AND_NOTHING_ELSE = "escape"
 
 
+async def _move_her_own_surface_aside(
+    over: tuple[float, float, float, float] | None,
+    mine: tuple[int, int, int, int] | None,
+) -> bool:
+    """Move her own window off the thing she is working on.
+
+    A window she owns and a window somebody else owns want opposite answers.
+    Declining is right for a dialog; it does nothing to her companion bubble,
+    which floats above everything by design and has no decline key — so in
+    companion mode the loop found something in front, pressed Escape at it,
+    reported that it would not close, and stopped, with the board visible the
+    whole time and her own window the only thing on it.
+
+    She can place that window. So she places it somewhere else, on the far
+    side from the work, and carries on. Nothing here closes it: it is how the
+    person is talking to her.
+    """
+    if over is None or mine is None:
+        return False
+    try:
+        from core.perception.ambient_presence import PresenceMode, get_ambient_presence
+
+        presence = get_ambient_presence()
+        if presence.mode is not PresenceMode.BUBBLE or not presence.drawing_surface_attached():
+            return False
+        where = presence.bubble_position()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    if not where:
+        return False
+    left, top, right, bottom = (float(edge) for edge in over)
+    x, y, wide, tall = (float(edge) for edge in mine)
+    if wide <= 0.0 or tall <= 0.0:
+        return False
+    across = (float(where[0]) - x) / wide
+    down = (float(where[1]) - y) / tall
+    if not (left <= across <= right and top <= down <= bottom):
+        # It is above her window without being over the work, which is not in
+        # the way. Moving it would be fussing at the person's screen.
+        return False
+    # The far side from the work, in whichever direction there is more room.
+    room_left, room_right = left, 1.0 - right
+    room_up, room_down = top, 1.0 - bottom
+    if max(room_left, room_right) >= max(room_up, room_down):
+        across = 0.0 if room_left >= room_right else 1.0
+    else:
+        down = 0.0 if room_up >= room_down else 1.0
+    asked = presence.request_bubble_move(x + across * wide, y + down * tall)
+    if asked is None:
+        return False
+    logger.info("her own window was over the work; asked it to move aside")
+    return True
+
+
 async def clear_what_is_in_front(on_top: str) -> bool:
     """Try to get whatever is covering her work out of the way.
 
@@ -1264,6 +1318,15 @@ async def _why_nothing_answers(
     """
     on_top = await _whats_on_top(mine, over=over)
     if on_top:
+        # Hers first. A window she owns is moved, not declined — declining
+        # does nothing to it and stopping because of it is stopping because
+        # of herself.
+        hers = await window_bounds(mine) if over else None
+        if await _move_her_own_surface_aside(over, hers):
+            return (
+                "My own window was over the board. I have moved it aside — "
+                "carrying on."
+            )
         # Try to move it before saying it cannot be moved.
         if await clear_what_is_in_front(on_top):
             return f"{on_top} was in front of this. I have closed it — carrying on."

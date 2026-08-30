@@ -434,6 +434,11 @@ class AmbientPresence:
             self._bubble_position = (float(x), float(y))
             return self._bubble_position
 
+    def bubble_position(self) -> tuple[float, float]:
+        """Where she is parked. Read by anything deciding whether she is in the way."""
+        with self._lock:
+            return self._bubble_position
+
     def request_bubble_move(self, x: float, y: float) -> int | None:
         """Ask the attached native bubble to move, without pretending it did.
 
