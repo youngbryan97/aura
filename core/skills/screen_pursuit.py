@@ -1311,7 +1311,13 @@ async def _the_best_reading_available(
 
     theirs = the_thing_itself(from_page)
     mine = the_thing_itself(seen)
-    if theirs.occupied() <= mine.occupied():
+    # And only where the page actually SHOWED a thing. The crop hands back the
+    # reading unchanged when it finds no lattice in it, so an uncropped page of
+    # furniture — ten pieces of text with no grid among them — beat a real
+    # board of eight every time. A reading that was not cropped is a reading
+    # with nothing laid out in it.
+    found_a_thing = (theirs.rows, theirs.columns) != (from_page.rows, from_page.columns)
+    if not found_a_thing or theirs.occupied() <= mine.occupied():
         return seen
     logger.info(
         "the page shows the thing better: %dx%d with %d in it, against %dx%d with %d",
