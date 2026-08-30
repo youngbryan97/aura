@@ -89,17 +89,30 @@ class DerivedAddressing:
 
 @dataclass(frozen=True)
 class DerivedOperation:
-    """A way of combining two values, read off examples."""
+    """A way of combining two values, read off examples.
+
+    Two kinds, and the difference is the whole difference between a memory and
+    a word. With a ``rule`` it is an expression over the pair, so it answers a
+    pair nobody has shown her. Without one it is the table of what she saw, and
+    it refuses everything else — which is honest, and is as far as reading a
+    correspondence off examples can get on its own.
+    """
 
     name: str
     does: dict[tuple[Any, Any], Any] = field(default_factory=dict)
+    #: What was done, where it was worked out rather than merely recorded.
+    rule: Any = None
 
     def __call__(self, one: Any, other: Any) -> Any:
+        if self.rule is not None:
+            return self.rule(one, other)
         if (one, other) in self.does:
             return self.does[(one, other)]
         raise KeyError(f"{self.name} was never seen on {(one, other)!r}")
 
     def describes(self) -> str:
+        if self.rule is not None:
+            return f"{self.name}: {self.rule.name}, and it answers pairs it never saw"
         return f"{self.name} (seen on {len(self.does)} pair(s))"
 
 
@@ -274,7 +287,19 @@ def an_operation_nobody_wrote(
                 return None
         except (TypeError, ValueError):
             continue
-    derived = DerivedOperation(name="what was done with these", does=dict(does))
+    # Work out the rule before settling for the record of it. A table is what
+    # is left when nothing explains the pairs, and reaching for it first means
+    # never finding the explanation that was there.
+    from core.cognition.an_operation_that_generalises import (
+        an_operation_that_generalises,
+    )
+
+    worked_out = an_operation_that_generalises(
+        [(one, other, got) for (one, other), got in does.items()]
+    )
+    derived = DerivedOperation(
+        name="what was done with these", does=dict(does), rule=worked_out
+    )
     logger.info("an operation nobody wrote: %s", derived.describes())
     return derived
 

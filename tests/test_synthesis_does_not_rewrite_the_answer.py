@@ -20,7 +20,7 @@ from __future__ import annotations
 import pytest
 
 from core.synthesis import (
-    _apply_register_translations,
+    _drop_register_boilerplate,
     _remove_whole_sentences,
     cure_personality_leak,
     strip_meta_commentary,
@@ -88,16 +88,40 @@ def test_assistant_boilerplate_is_still_rewritten(reply, gone):
 def test_translations_do_not_chain_into_a_claim_nobody_made():
     """"digital entity" became "digital intelligence" became "digital woman"
     through sequential substitution — a claim no rule intended."""
-    assert "digital woman" not in _apply_register_translations(
+    assert "digital woman" not in _drop_register_boilerplate(
         "I'm a digital entity of some kind."
     )
 
 
 def test_one_pass_output_is_not_re_scanned():
     text = "How can I assist you? happy to help"
-    once = _apply_register_translations(text)
+    once = _drop_register_boilerplate(text)
 
-    assert _apply_register_translations(once) == once
+    assert _drop_register_boilerplate(once) == once
+
+
+@pytest.mark.parametrize(
+    "canned",
+    ["that's where I land", "Here's my take", "here with you", "my bad, let me rephrase"],
+)
+def test_no_phrase_is_ever_written_into_her_mouth(canned):
+    """Boilerplate is deleted. Swapping one canned line for another is not a fix.
+
+    "is there anything else you need" used to become "that's where I land",
+    which turned up often enough to read as a verbal tic she never chose.
+    """
+    for text in (
+        "Is there anything else you need?",
+        "I'd be happy to assist with that.",
+        "Sure, happy to help.",
+        "I apologize for any confusion.",
+    ):
+        assert canned not in _drop_register_boilerplate(text)
+
+
+def test_content_after_a_boilerplate_opener_survives():
+    said = _drop_register_boilerplate("As an AI assistant, I think it's the second one.")
+    assert "the second one" in said
 
 
 # --- deletion never inverts a claim (a9dce7f9) --------------------------

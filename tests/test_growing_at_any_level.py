@@ -140,3 +140,64 @@ def test_a_level_two_maker_multiplies_what_level_zero_reaches():
     levels.REGISTRY["twice over"] = levels.Maker("twice over", 2, levels.twice_over)
     levels._publish(2)
     assert levels.what_it_reaches(0) > once > plain
+
+
+def test_a_bare_run_of_numbers_is_read_as_a_sequence():
+    """How a person writes one when they are not writing code."""
+    from core.cognition.sequence_induction import read_sequence_question
+
+    asked = read_sequence_question(
+        "1 2 3 4 5 becomes 5 4 3 2 1. 6 7 8 9 1 becomes 1 9 8 7 6. "
+        "What does 9 8 7 6 5 become?"
+    )
+    assert asked is not None
+    assert asked.shown[0].before == (1, 2, 3, 4, 5)
+    assert asked.shown[0].after == (5, 4, 3, 2, 1)
+    assert asked.asked == (9, 8, 7, 6, 5)
+
+
+def test_the_last_number_before_a_full_stop_is_not_eaten():
+    from core.cognition.sequence_induction import read_sequence_question
+
+    asked = read_sequence_question(
+        "1 2 3 becomes 3 2 1. 4 5 6 becomes 6 5 4. What does 7 8 9 become?"
+    )
+    assert asked is not None
+    assert all(len(one.before) == len(one.after) == 3 for one in asked.shown)
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "I paid 12 50 for lunch and 3 40 for coffee, then walked 2 miles home.",
+        "There were 3 4 5 people in the room over three days.",
+        "I walked 3.5 6 7 miles and paid 2.25 for a coffee.",
+    ],
+)
+def test_prose_with_numbers_in_it_is_not_read_as_examples(prose):
+    from core.cognition.sequence_induction import read_sequence_question
+
+    assert read_sequence_question(prose) is None
+
+
+def test_the_answering_path_grows_two_levels_when_the_family_needs_them():
+    """End to end: unsayable, grown, answered, and said out loud."""
+    from core.cognition.sequence_induction import answer_sequence_question
+
+    def rule(state):
+        size = len(state)
+        return tuple(
+            max(state[(index + 2) % size], state[size - 1 - index])
+            for index in range(size)
+        )
+
+    asked = (9, 8, 7, 6, 5)
+    text = " ".join(
+        f"{' '.join(map(str, state))} becomes {' '.join(map(str, rule(state)))}."
+        for state in STATES
+    )
+    text += f" What does {' '.join(map(str, asked))} become?"
+
+    said = answer_sequence_question(text)
+    assert str(list(rule(asked))) in said
+    assert levels.how_far_up_it_goes() == 2

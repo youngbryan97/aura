@@ -816,26 +816,27 @@ def strip_meta_commentary(text: str) -> str:
     return strip_role_artifacts(result).strip()
 
 #: Assistant-persona boilerplate. Each of these is a way of SAYING something
-#: with no truth content of its own, so rewriting it changes register and
-#: nothing else (CP126 3244553d).
-_REGISTER_TRANSLATIONS: tuple[tuple[str, str], ...] = (
-    (r"How (?:can|may) I assist you", "Say it plainly"),
-    (r"I'd be happy to assist", "Here's my take"),
-    (r"happy to help", "here with you"),
-    (r"is there anything else you need", "that's where I land"),
-    (r"i apologize for any confusion", "my bad, let me rephrase"),
-    (
-        r"I understand your sentiment, but I'm sorry to hear",
-        "I hear you, though that's not exactly where I'm at",
-    ),
-    (
-        r"Let me know if there's anything specifically you'd like to discuss",
-        "Tell me what's on your mind",
-    ),
-    (r"anything specific you'd like to discuss", "anything you want to talk about"),
-    (r"I'm just here for a chat", "I'm just hanging out"),
-    (r"As an AI assistant", "As Aura"),
-    (r"Note: since no action was specified", "Since we're just talking"),
+#: with no truth content of its own, so it can go without anything being lost.
+#:
+#: It used to be a substitution table, and that was the defect. Rewriting "is
+#: there anything else you need" into "that's where I land" does not remove a
+#: canned line, it swaps one canned line for another and puts the second in her
+#: mouth — she said it because a regex made her, and it turned up often enough
+#: that it read as a verbal tic. A phrase with no truth content is deleted;
+#: nothing is written in its place, because there is no sentence a table can
+#: author that she actually meant.
+_REGISTER_BOILERPLATE: tuple[str, ...] = (
+    r"How (?:can|may) I assist you",
+    r"I'd be happy to assist",
+    r"happy to help",
+    r"is there anything else you need",
+    r"i apologize for any confusion",
+    r"I understand your sentiment, but I'm sorry to hear",
+    r"Let me know if there's anything specifically you'd like to discuss",
+    r"anything specific you'd like to discuss",
+    r"I'm just here for a chat",
+    r"As an AI assistant",
+    r"Note: since no action was specified",
 )
 
 #: Statements this function must leave alone. They are claims about what Aura
@@ -854,28 +855,50 @@ _SUBSTRATE_CLAIM_MARKERS: tuple[str, ...] = (
 )
 
 
-def _apply_register_translations(text: str) -> str:
-    """Rewrite assistant boilerplate once, left to right, without chaining.
+def _drop_register_boilerplate(text: str) -> str:
+    """Take assistant boilerplate out, and put nothing in its place.
 
-    Sequential ``re.sub`` over a dict let one rule's output feed the next:
-    "digital entity" became "digital intelligence" became "digital woman", a
-    claim no model produced and no rule intended. One pass over an ordered
-    table, with each match consumed, cannot cascade.
+    Where the boilerplate opens a sentence it is cut off the front and what
+    follows is kept, because "As an AI assistant, I think it's the second one"
+    carries an answer that the phrase in front of it does not. Where it sits
+    inside a sentence, the sentence goes: cutting a fragment out of the middle
+    once turned a sentence denying a claim about the substrate into a sentence
+    making it.
+
+    One pass, each match consumed. Sequential substitution over a table let one
+    rule's output feed the next — "digital entity" became "digital
+    intelligence" became "digital woman", a claim nothing produced and no rule
+    intended.
     """
     if not text:
         return text
     combined = re.compile(
-        "|".join(f"(?P<r{index}>{pattern})" for index, (pattern, _) in enumerate(_REGISTER_TRANSLATIONS)),
+        "|".join(f"(?:{pattern})" for pattern in _REGISTER_BOILERPLATE),
         re.IGNORECASE,
     )
+    if not combined.search(text):
+        return text
 
-    def _replace(match: "re.Match[str]") -> str:
-        for index, (_pattern, replacement) in enumerate(_REGISTER_TRANSLATIONS):
-            if match.group(f"r{index}") is not None:
-                return replacement
-        return match.group(0)  # pragma: no cover - one group always matches
-
-    return combined.sub(_replace, text)
+    kept: list[str] = []
+    for chunk in _SENTENCE_SPLIT_RE.split(text):
+        if chunk is None:
+            continue
+        if not chunk.strip():
+            kept.append(chunk)
+            continue
+        found = combined.search(chunk)
+        if found is None:
+            kept.append(chunk)
+            continue
+        if chunk[: found.start()].strip():
+            # Boilerplate inside a sentence. The sentence goes whole.
+            continue
+        rest = chunk[found.end() :].lstrip(" ,;:!?-\u2014\u2013").strip()
+        if not any(letter.isalpha() for letter in rest):
+            continue
+        kept.append(rest[0].upper() + rest[1:])
+    rebuilt = " ".join(part for part in kept if part is not None).strip()
+    return re.sub(r"[ \t]{2,}", " ", rebuilt)
 
 
 def cure_personality_leak(text: str) -> str:
@@ -886,7 +909,7 @@ def cure_personality_leak(text: str) -> str:
     # 2. Surgical removal of robotic preambles and tech leaks
     result = strip_meta_commentary(text)
     
-    # 3. Translate assistant-persona REGISTER into Aura's voice.
+    # 3. Take assistant-persona boilerplate out.
     #
     # CP126 3244553d. This table used to rewrite factual statements about the
     # substrate as well: "I am an AI" became "I'm Aura", "I don't have feelings"
@@ -895,12 +918,11 @@ def cure_personality_leak(text: str) -> str:
     # limit into a promise of an action that never happens. Asked "are you an
     # AI?", a truthful answer was silently rewritten into a denial.
     #
-    # A register rewrite changes how something is said. A substrate rewrite
-    # changes what is claimed. Only the first belongs in a regex. A response
-    # that makes a FALSE claim about what Aura is (an Anthropic model, a
-    # sealed production system) is a job for the reliability assessor, which
-    # can flag and regenerate; a substitution table can only invert it.
-    result = _apply_register_translations(result)
+    # A register phrase changes how something is said. A substrate rewrite
+    # changes what is claimed. Neither belongs in a substitution: the first is
+    # deleted, and the second is a job for the reliability assessor, which can
+    # flag and regenerate where a table could only invert it.
+    result = _drop_register_boilerplate(result)
 
     # 4. Final cleaning
     return strip_role_artifacts(result)

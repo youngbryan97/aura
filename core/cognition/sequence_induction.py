@@ -47,6 +47,16 @@ __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_questi
 #: question nobody asked.
 _SEQUENCE = re.compile(r"[\[(]\s*([^\[\]()]{1,300}?)\s*[\])]")
 
+#: A bare run of numbers, which is how a person writes one when they are not
+#: writing code. "1 2 3 4 5 becomes 3 2 1 5 4" carries exactly what the
+#: bracketed form carries, and refusing it sends a perfectly clear question to
+#: be guessed at instead of worked out.
+#:
+#: What keeps prose out is not the brackets, it is everything after this: three
+#: runs at least, an odd number of them, and something meaning "becomes"
+#: between each pair. A sentence with numbers loose in it fails all three.
+_BARE_RUN = re.compile(r"(?<![\w.,])(-?\d+(?:[ \t]*,?[ \t]+-?\d+)+)(?!\w)(?!\.\d)")
+
 #: What sits between an example and its result. Any of them, or nothing at all
 #: when the examples are simply listed in order.
 _BECOMES = re.compile(
@@ -181,17 +191,17 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
                 "I had to invent a way of saying this, and it still does not "
                 f"reach your case.\n\nNothing I could say described what your "
                 f"examples do, so I worked out {widened} and added it "
-                "to the language I make rules out of. But it was read off what "
-                "you showed me, and your case has parts it has never seen. Show "
-                "me one more example covering them and it will."
+                "to the language I make rules out of. It was read off what you "
+                "showed me, and your case has parts it has never seen. Show me "
+                "one more example covering them and it will."
             )
         admit(meaning.name, meaning)
         _keep_what_she_worked_out()
         return (
             f"{list(answer)}\n\n"
-            "Nothing I could say described what your examples do — not the "
-            "rule, the LANGUAGE I make rules out of. So I worked out "
-            f"{widened} and added it to that language, and now the rule is "
+            "What your examples do sat outside the language I make rules out "
+            "of, so no rule I could form would have described it. I worked "
+            f"out {widened} and added it to that language. The rule is now "
             f"sayable: {meaning.name}. Everything I work out from here can "
             "use it."
         )
@@ -317,12 +327,31 @@ def _a_word_the_language_was_missing(
     # derived word is read off what she was shown and says nothing beyond it,
     # while a way of building takes every word she has — including the derived
     # ones — and makes more out of them.
-    from core.cognition.widening_the_language import a_way_of_building_nobody_wrote
+    from core.cognition.an_invented_kind import induce_from
+    from core.cognition.growing_at_any_level import grow_until_sayable, twice_over
+    from core.cognition.widening_the_language import one_after_another
 
-    built = a_way_of_building_nobody_wrote(pairs)
-    if built:
-        return f"a new way of MAKING words rather than a word ({built})"
-    return None
+    # Levels, not one level. A maker of makers needs makers to work on, and
+    # those makers look useless right up until it arrives — so asking whether
+    # each helps on its own can never reach a family that needs both. They go
+    # in together and only what the answer needs is kept.
+    kept = grow_until_sayable(
+        [
+            (1, "one after another", one_after_another),
+            (2, "twice over", twice_over),
+        ],
+        now_sayable=lambda: induce_from(pairs) is not None,
+    )
+    if not kept:
+        return None
+    highest = max(one.level for one in kept)
+    if highest >= 2:
+        return (
+            "a new way of making ways of making words ("
+            + ", ".join(one.name for one in kept)
+            + ")"
+        )
+    return f"a new way of MAKING words rather than a word ({kept[0].name})"
 
 
 def read_sequence_question(text: Any) -> SequenceQuestion | None:
@@ -338,10 +367,21 @@ def read_sequence_question(text: Any) -> SequenceQuestion | None:
     if not body:
         return None
     found: list[tuple[int, tuple[Any, ...]]] = []
+    covered: list[tuple[int, int]] = []
     for hit in _SEQUENCE.finditer(body):
         cells = _cells(hit.group(1))
         if cells is not None:
             found.append((hit.start(), cells))
+            covered.append((hit.start(), hit.end()))
+    for hit in _BARE_RUN.finditer(body):
+        if any(start <= hit.start() < end for start, end in covered):
+            # Already read as a bracketed run. Counting it twice would make an
+            # even number of runs out of an odd one and lose the question.
+            continue
+        cells = _cells(hit.group(1).replace(" ", ", "))
+        if cells is not None:
+            found.append((hit.start(), cells))
+    found.sort()
     if len(found) < 3 or len(found) % 2 == 0:
         return None
     *pairs, last = found

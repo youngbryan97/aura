@@ -64,7 +64,12 @@ def _words_she_derived() -> dict[str, Any]:
                 json.dumps(does)
             except (TypeError, ValueError):
                 continue
-            operations[name] = {"name": word.name, "does": does}
+            row: dict[str, Any] = {"name": word.name, "does": does}
+            if word.rule is not None:
+                from core.cognition.an_operation_that_generalises import written_down
+
+                row["rule"] = written_down(word.rule)
+            operations[name] = row
     return {
         "addressings": addressings,
         "operations": operations,
@@ -160,10 +165,14 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
             }
         except (AttributeError, TypeError, ValueError):
             continue
-        if not does:
+        if not does and not row.get("rule"):
             continue
+        from core.cognition.an_operation_that_generalises import read_back
+
         WHAT_OF_IT[str(name)] = DerivedOperation(
-            name=str(row.get("name") or name), does=does
+            name=str(row.get("name") or name),
+            does=does,
+            rule=read_back(row.get("rule")),
         )
         back += 1
     return back
