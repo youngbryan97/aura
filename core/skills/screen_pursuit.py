@@ -1259,6 +1259,57 @@ async def _move_her_own_surface_aside(
     return True
 
 
+async def _the_best_reading_available(
+    observation: dict[str, Any],
+    band: tuple[float, float, float, float] | None,
+    *,
+    like: Any,
+    in_a_browser: bool,
+) -> Any:
+    """Ask the page what it is showing; look at the screen when it will not say.
+
+    A page knows exactly what it is showing and where. LIVE 2026-08-29 on
+    play2048.co the screen reading found five of the sixteen places on the
+    board, at two distinct columns out of four — no lattice in a handful of
+    scattered cells, so no thing to model, so nothing to look ahead over, so
+    every move fell through to a full language generation. The board was drawn
+    perfectly well the whole time.
+
+    The reader for this was written then and never called by anything. Taken
+    only when it sees MORE than the screen does, so a page that answers
+    poorly, or an application that is not a browser at all, changes nothing.
+    """
+    from core.perception.where_it_responds import (
+        what_is_there,
+        what_the_page_is_showing,
+    )
+
+    seen = what_is_there(observation, band, like=like)
+    if not in_a_browser:
+        return seen
+    try:
+        from core.perception.what_the_page_says import what_the_page_says
+
+        said = await what_the_page_says()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="read the screen because the page would not say",
+        )
+        return seen
+    if not said:
+        return seen
+    from_page = what_the_page_is_showing(said, band, like=like)
+    if from_page.occupied() <= seen.occupied():
+        return seen
+    logger.info(
+        "the page says %dx%d with %d thing(s); looking at it said %dx%d with %d",
+        from_page.rows, from_page.columns, from_page.occupied(),
+        seen.rows, seen.columns, seen.occupied(),
+    )
+    return from_page
+
+
 async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     """Wait for a locked screen, rather than failing at one.
 
@@ -2068,7 +2119,9 @@ async def pursue_on_screen(
         # that is four by four, "how this moves is not worked out yet" after
         # eighty-four moves, and therefore a full language generation for
         # every single one of them — about twenty-eight seconds a move.
-        whole = what_is_there(observation, band, like=pending["whole"])
+        whole = await _the_best_reading_available(
+            observation, band, like=pending["whole"], in_a_browser=bool(anchor["page"])
+        )
         laid_out = the_thing_itself(
             whole, like=_worth_holding(pending["arranged"], pending["whole"])
         )

@@ -365,6 +365,34 @@ def what_is_there(
     return arranged(inside, like=like)
 
 
+def what_the_page_is_showing(
+    said: Sequence[tuple[float, float, str]],
+    band: tuple[float, float, float, float] | None,
+    like: Arrangement | None = None,
+) -> Arrangement:
+    """The same arrangement, built from what the page reported rather than seen.
+
+    The page reader already hands back ``(y, x, text)`` in the shape the screen
+    reader produces, which is what makes this three lines: everything
+    downstream is unchanged and does not know which instrument was used.
+    """
+    inside: list[tuple[float, float, str]] = []
+    for entry in said or ():
+        try:
+            y, x, text = float(entry[0]), float(entry[1]), str(entry[2]).strip()
+        except (IndexError, TypeError, ValueError):
+            continue
+        if not text:
+            continue
+        if band is None:
+            inside.append((y, x, text))
+            continue
+        left, top, right, bottom = band
+        if left <= x <= right and top <= y <= bottom:
+            inside.append((y, x, text))
+    return arranged(inside, like=like)
+
+
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:
     """The part that answers to her, arranged the way it is arranged.
 
