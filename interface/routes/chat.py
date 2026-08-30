@@ -23567,7 +23567,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 or not allow_required_desktop_no_reply_repairs
             )
             bounded_repair = ""
+            # An answer first. This repair describes what she is DOING —
+            # "I am tracking what I am keeping in memory inside this
+            # conversation... my next move is to answer the actual question" —
+            # which is a true sentence and not an answer to anything. LIVE
+            # 2026-08-30, asked how to remember people's names at a party, it
+            # was the whole reply, while a loaded model that could have
+            # answered was never asked.
             if not skip_bounded_desktop_repair:
+                bounded_repair = await _anything_better_than_giving_up(
+                    _semantic_user_message,
+                    reason="the cognitive engine produced no acceptable reply",
+                    already="",
+                    budget_s=_remaining_foreground_budget(),
+                )
+            if not bounded_repair and not skip_bounded_desktop_repair:
                 bounded_repair = await _build_grounded_self_process_repair_reply(
                     _semantic_user_message,
                     "",

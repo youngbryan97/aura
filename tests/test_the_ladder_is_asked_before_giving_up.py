@@ -81,9 +81,25 @@ async def test_a_ladder_that_raises_does_not_take_the_turn_with_it(monkeypatch):
     ) == ""
 
 
-def test_both_giving_up_paths_ask_it():
-    """A rescue that lives at one of two sites is the defect being fixed."""
+def test_every_path_that_would_not_answer_asks_it_first():
+    """A rescue that lives at one site and not its twin is the defect here.
+
+    Three of them: the two that serve the honest failure, and the one that
+    serves a description of what she is doing instead of an answer.
+    """
     import inspect
 
     source = inspect.getsource(chat)
-    assert source.count("_anything_better_than_giving_up(") == 3  # one def, two uses
+    assert source.count("_anything_better_than_giving_up(") == 4  # one def, three uses
+
+
+def test_the_self_process_repair_is_the_second_choice():
+    """"I am tracking what I am keeping in memory" is not an answer to anything."""
+    import inspect
+
+    source = inspect.getsource(chat)
+    at = source.index("# An answer first.")
+    block = source[at : at + 1400]
+    asked = block.index("_anything_better_than_giving_up(")
+    narrated = block.index("_build_grounded_self_process_repair_reply(")
+    assert asked < narrated
