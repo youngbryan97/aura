@@ -2128,7 +2128,18 @@ class DesktopTaskSkill(BaseSkill):
                 # every request uses; literary forms are open and there is
                 # always another. LIVE 2026-08-26.
                 r"\b(?:write|writing|written|draft|compose|type|create|make|made|put|"
-                r"add|save|jot|record|tell|generate|produce|fill)\b.{0,80}\b"
+                r"add|save|jot|record|tell|generate|produce|fill)\b.{0,80}?"
+                # The form has to be used AS a form. Several of these words are
+                # verbs in the same breath — "report the paths", "record the
+                # session", "caption the photo" — and matching the bare word
+                # read every one of them as a request for a document. LIVE
+                # 2026-08-30: "put it into Notes ... and report the paths" was
+                # authored as a report. A determiner in front, or a plural, is
+                # what tells a noun from a verb here, and it is the same signal
+                # a person reads.
+                r"(?:\b(?:a|an|the|one|two|three|four|five|six|several|some|any|"
+                r"another|each|this|that|my|your|his|her|our|their|\d+)\b"
+                r"(?:\s+\w+){0,1}\s+)"
                 r"(?:paragraph|sentence|sentences|line|lines|note|document|essay|"
                 r"summary|report|journal entry|"
                 # Creative forms are freeform writing too. Without them, "write
@@ -2138,11 +2149,100 @@ class DesktopTaskSkill(BaseSkill):
                 # note" — the same empty template this predicate exists to
                 # avoid, reached by a request nobody had listed.
                 r"haiku|poem|poetry|verse|limerick|sonnet|song|lyric|story|"
-                r"tale|joke|riddle|letter|speech|toast|eulogy|caption|"
-                r"about|describing|explaining)\b",
+                r"tale|joke|riddle|letter|speech|toast|eulogy|caption)\b",
+                lowered,
+            )
+            # A bare plural is a noun on its own and needs no determiner in
+            # front of it: "write sentences about the harbour".
+            or cls._asks_for_plural_writing(lowered)
+            # A subject with no named form is a writing request only behind a
+            # verb that means writing. "about" is a preposition, not a literary
+            # form, and counting it as one made every request with a subject in
+            # it into a document: LIVE 2026-08-30, "play 2048 for me ... tell me
+            # what you learn ABOUT the game" was authored as a note, failed to
+            # author, and reported that no file had been created — to a request
+            # that never mentioned a file.
+            or re.search(
+                r"\b(?:write|writing|written|draft|compose|pen|jot)\b"
+                r"(?:\s+\w+){0,6}?\s+(?:about|describing|explaining)\b",
                 lowered,
             )
         )
+
+    #: Words that make what follows a destination rather than a thing to write.
+    #: "put it into Notes" names the app the text goes to; "write notes" names
+    #: the text. The word in front is what tells them apart, and without it the
+    #: app name read as a request to author.
+    _PUTTING_IT_SOMEWHERE = frozenset(
+        {"into", "in", "to", "onto", "within", "from", "inside", "at"}
+    )
+
+    _PLURAL_WRITING_RE = re.compile(
+        r"\b(?:write|writing|written|draft|compose|type|create|make|made|put|"
+        r"add|save|jot|generate|produce|fill)\b.{0,80}?"
+        r"(?:\b(?P<lead>\w+)\s+)?"
+        r"\b(?:paragraphs|sentences|lines|notes|documents|essays|summaries|"
+        r"poems|stories|letters|captions|verses|lyrics)\b"
+    )
+
+    @classmethod
+    def _asks_for_plural_writing(cls, lowered: str) -> bool:
+        """Whether a plural form here is something to write or somewhere to put."""
+        found = cls._PLURAL_WRITING_RE.search(lowered)
+        if found is None:
+            return False
+        return (found.group("lead") or "") not in cls._PUTTING_IT_SOMEWHERE
+
+    @classmethod
+    def _the_plan_brought_its_own_words(
+        cls, task_context: dict[str, Any], steps: Any = (), objective: str = ""
+    ) -> bool:
+        """Whether the words are already here, so there is nothing to author.
+
+        They can arrive three ways — in the steps the caller passed, in the
+        plan she wrote, or as a body already in context — and only the last was
+        being looked at.
+
+        The objective names one content source and the plan names another, and
+        only the first was ever consulted. A plan carrying its own body still
+        went to the writer, and when the writer was not there — a router still
+        warming, a worker not yet alive — the whole task came back as "I could
+        not write the words", with every step it was actually asked to do
+        untried.
+
+        Read through the same reader the plan itself goes through, so a body
+        arriving fenced in a code block counts the same as one arriving plain.
+        """
+        if cls._words_inside(steps):
+            return True
+        plan = cls._structured_payload_from_context(task_context)
+        if not plan:
+            # Not a plan, so what she said is what gets written. Put through
+            # the same check any body goes through, because the failure this
+            # whole path exists to prevent is prose ABOUT the request being
+            # saved as though it were the request.
+            said = str(task_context.get("cognitive_reply") or "")
+            return bool(cls._usable_freeform_document_body(objective, said))
+        for named in ("document_body", "body", "content", "text"):
+            if str(plan.get(named) or "").strip():
+                return True
+        return cls._words_inside(plan.get("steps"))
+
+    @staticmethod
+    def _words_inside(steps: Any) -> bool:
+        """Whether any of these steps carries the text it is going to write."""
+        if not isinstance(steps, list):
+            return False
+        for step in steps:
+            target = getattr(step, "target", None)
+            if target is None and isinstance(step, dict):
+                target = step.get("target")
+            if not isinstance(target, dict):
+                continue
+            for named in ("content", "body", "text"):
+                if str(target.get(named) or "").strip():
+                    return True
+        return False
 
     @classmethod
     def _objective_requests_written_artifact(cls, objective: str) -> bool:
@@ -6563,9 +6663,13 @@ class DesktopTaskSkill(BaseSkill):
             # A real note, correctly created, saying nothing about orcas. That
             # is the "note that opens with no text" — it is not empty, it is
             # empty of content.
-            if not str(
-                task_context.get("desktop_task_document_body") or ""
-            ).strip() and self._objective_needs_authored_content(objective):
+            if (
+                not str(task_context.get("desktop_task_document_body") or "").strip()
+                and not self._the_plan_brought_its_own_words(
+                    task_context, steps, objective
+                )
+                and self._objective_needs_authored_content(objective)
+            ):
                 authored = await self._synthesize_requested_writing(
                     objective=objective,
                     context=task_context,
