@@ -636,13 +636,21 @@ def render_chat_append_template(
     tools: object = None,
     enable_thinking: bool | None = None,
 ) -> str:
-    """Render bytes that can be appended to an exact completed chat cache.
+    """Render the native close-and-append boundary for a completed chat cache.
 
-    The tokenizer itself proves locality. We render a fixed completed exchange,
-    then render that same exchange with the proposed suffix and require the
-    latter to begin with the former byte for byte. The returned tail is safe to
-    encode after rewinding the cache's final token. Templates that rewrite prior
-    turns cannot use exact conversation resume.
+    Some thinking templates deliberately rewrite an older assistant message by
+    removing its private reasoning envelope once a later user turn exists. The
+    live cache contains the actual generated envelope, so requiring a complete
+    re-rendered transcript to share that prefix makes valid continuation
+    impossible. What must remain stable is narrower: the bytes *after* the
+    assistant's visible content, including its end token, followed by the new
+    turn.
+
+    The returned boundary intentionally starts with the assistant end token.
+    The cache consumer compares that token with the exact generated final token,
+    rewinds the cache by one, and replays it once beside the rest of this
+    boundary. That preserves template-required whitespace without duplicating
+    the end token or guessing model-specific delimiters.
     """
 
     if not isinstance(append_messages, (list, tuple)) or not append_messages:
@@ -681,28 +689,31 @@ def render_chat_append_template(
             **shared_kwargs,
         )
     )
-    if not rendered_full.startswith(rendered_anchor):
-        raise ValueError("chat template rewrote the completed transcript while appending")
-    tail = rendered_full[len(rendered_anchor) :]
-    if not tail:
+    marker = anchor[-1]["content"]
+    if rendered_anchor.count(marker) != 1 or rendered_full.count(marker) != 1:
+        raise ValueError("chat template did not preserve the assistant boundary marker")
+    anchor_after = rendered_anchor.split(marker, 1)[1]
+    full_after = rendered_full.split(marker, 1)[1]
+    if not anchor_after or not full_after.startswith(anchor_after):
+        raise ValueError("chat template changed the completed assistant boundary")
+    boundary = full_after
+    if boundary == anchor_after:
         raise ValueError("chat template produced an empty conversation append")
 
-    # Byte locality is necessary but not sufficient. A tokenizer may merge
-    # across the byte boundary, in which case ``encode(anchor) + encode(tail)``
-    # is not the token sequence for ``anchor + tail`` and replaying the tail
-    # beside cached KV changes the model input. Prove the exact composition on
-    # the active tokenizer; a template/tokenizer pair that cannot demonstrate
-    # it uses ordinary full reconstruction instead.
+    # The close must tokenize independently at the front of the larger
+    # boundary. Otherwise the first append token is a merge spanning the end
+    # token and the next turn, and it cannot equal the final token already in
+    # the cache. The worker performs the final equality check against that
+    # actual generated token before touching cache state.
     encode = getattr(tokenizer, "encode", None)
     if callable(encode):
-        anchor_tokens = [int(token) for token in encode(rendered_anchor)]
-        tail_tokens = [int(token) for token in encode(tail)]
-        full_tokens = [int(token) for token in encode(rendered_full)]
-        if full_tokens != [*anchor_tokens, *tail_tokens]:
+        close_tokens = [int(token) for token in encode(anchor_after)]
+        boundary_tokens = [int(token) for token in encode(boundary)]
+        if not close_tokens or boundary_tokens[: len(close_tokens)] != close_tokens:
             raise ValueError(
                 "chat tokenizer merged across the completed-transcript boundary"
             )
-    return tail
+    return boundary
 
 
 def render_chat_continuation_template(

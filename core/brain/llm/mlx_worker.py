@@ -6228,6 +6228,17 @@ class _PromptCacheLRU:
             trim_prompt_cache(prompt_cache, 1)
             resume_kind = "KV"
         appended = [int(token) for token in (append_tokens or [])]
+        if append_tokens is not None:
+            if not appended:
+                self.insert_cache(model_key, tokens, prompt_cache)
+                return None, [], [], "append_boundary_empty"
+            if appended[0] != tokens[-1]:
+                self.insert_cache(model_key, tokens, prompt_cache)
+                return None, [], [], "append_boundary_final_token_mismatch"
+            # The boundary renderer includes the assistant end token so it can
+            # prove it is the same token the cache ended on. ``tokens`` already
+            # owns it; after the one-token rewind it is replayed exactly once.
+            appended = appended[1:]
         logical_tokens = [*tokens, *appended]
         replay_tokens = [tokens[-1], *appended]
         logger.info(

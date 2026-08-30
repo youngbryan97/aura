@@ -205,9 +205,38 @@ def test_append_renderer_extends_exact_completed_cache_without_rewriting_it() ->
 
     assert [message["role"] for message in append] == ["runtime_evidence", "user"]
     assert rendered == (
-        "<user><tool_response>fresh state</tool_response></user>"
+        "</assistant><user><tool_response>fresh state</tool_response></user>"
         "<user>q2</user><assistant>"
     )
+
+
+def test_append_renderer_accepts_a_template_that_strips_old_thinking() -> None:
+    class _ThinkingStrippingTokenizer(_StrictEvidenceTokenizer):
+        def apply_chat_template(self, messages, *, add_generation_prompt, **_kwargs):
+            last_user = max(
+                index for index, message in enumerate(messages) if message["role"] == "user"
+            )
+            rendered = []
+            for index, message in enumerate(messages):
+                role = message["role"]
+                content = message["content"]
+                if role == "assistant":
+                    thinking = "<think></think>" if index > last_user else ""
+                    rendered.append(f"<assistant>{thinking}{content}</assistant>")
+                elif role in {"system", "user"}:
+                    rendered.append(f"<{role}>{content}</{role}>")
+                else:
+                    raise ValueError(f"unexpected role: {role}")
+            if add_generation_prompt:
+                rendered.append("<assistant><think>")
+            return "".join(rendered)
+
+    rendered = render_chat_append_template(
+        _ThinkingStrippingTokenizer(),
+        [{"role": "user", "content": "q2"}],
+    )
+
+    assert rendered == "</assistant><user>q2</user><assistant><think>"
 
 
 def test_resume_compatibility_follows_wire_format_not_dynamic_phase_prose() -> None:

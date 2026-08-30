@@ -1862,7 +1862,7 @@ def test_prompt_cache_resume_appends_new_turn_tokens_after_exact_replay():
         key,
         can_trim_prompt_cache=lambda _cache: True,
         trim_prompt_cache=lambda _cache, _count: None,
-        append_tokens=[50, 60],
+        append_tokens=[40, 50, 60],
         context_digest="authority-v1",
     )
 
@@ -1870,6 +1870,31 @@ def test_prompt_cache_resume_appends_new_turn_tokens_after_exact_replay():
     assert remaining == [40, 50, 60]
     assert resumed == [10, 20, 30, 40, 50, 60]
     assert failure == ""
+
+
+def test_prompt_cache_resume_refuses_an_append_from_a_different_chat_boundary():
+    from core.brain.llm.mlx_worker import _PromptCacheLRU
+
+    lru = _PromptCacheLRU(max_size=4)
+    key = (8, "user_surface")
+    tokens = [10, 20, 30, 40]
+    lru.insert_cache(key, tokens, ["exact-kv"])
+    handle = lru.bind_resume(key, tokens, context_digest="wire-v1")
+
+    cache, remaining, resumed, failure = lru.fetch_resume(
+        handle,
+        key,
+        can_trim_prompt_cache=lambda _cache: True,
+        trim_prompt_cache=lambda _cache, _count: None,
+        append_tokens=[99, 50, 60],
+        context_digest="wire-v1",
+    )
+
+    assert cache is None
+    assert remaining == []
+    assert resumed == []
+    assert failure == "append_boundary_final_token_mismatch"
+    assert lru.retained_entries() == 1
 
 
 def test_prompt_cache_resume_refuses_changed_authority_context():
@@ -2235,7 +2260,7 @@ def test_hybrid_resume_then_append_matches_uninterrupted_qwen35_logits():
         key,
         can_trim_prompt_cache=can_trim_prompt_cache,
         trim_prompt_cache=trim_prompt_cache,
-        append_tokens=append,
+        append_tokens=[11, *append],
         context_digest="authority-v1",
     )
 
