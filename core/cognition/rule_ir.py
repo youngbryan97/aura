@@ -102,7 +102,24 @@ class Node:
             return self._positional(cells)
         if self.kind == BY_KEY:
             return self._by_key(cells)
-        return None
+        return self._a_kind_she_worked_out(cells)
+
+    def _a_kind_she_worked_out(self, cells: tuple[Any, ...]) -> tuple[Any, ...] | None:
+        """A kind whose meaning she induced, rather than one with a branch here.
+
+        The three kinds above are the ones this interpreter was born knowing,
+        and anything else returned None — so the set of things a node could
+        MEAN was fixed, and growing it meant a person editing this file. She
+        could compose programs out of given meanings and never acquire one.
+
+        A meaning admitted to the registry is executable and was held to
+        transitions it was not induced from, so consulting it here is not
+        trusting a guess. See core/cognition/an_invented_kind.py.
+        """
+        from core.cognition.an_invented_kind import interpretation_of
+
+        run = interpretation_of(self.kind)
+        return run(cells) if run is not None else None
 
     def _positional(self, cells: tuple[Any, ...]) -> tuple[Any, ...] | None:
         from core.cognition.primitive_invention import IndexProgram
@@ -136,7 +153,10 @@ class Node:
 
             ordering = Ordering.from_json(self.parameters.get("ordering"))
             return ordering.describe() if ordering is not None else "an unreadable order"
-        return "an unreadable rule"
+        from core.cognition.an_invented_kind import KINDS
+
+        meaning = KINDS.get(self.kind)
+        return meaning.describe() if meaning is not None else "an unreadable rule"
 
 
 def as_node(rule: Any) -> Node | None:
