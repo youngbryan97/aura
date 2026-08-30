@@ -20,8 +20,8 @@ composed rather than chosen:
     what to take of it  its value · its size in doublings · the gap between a
                         pair · whether a pair is in order · how far it sits
                         from an edge
-    how to sum up       the mean · the largest · the smallest · the share that
-                        hold
+    how to combine them the mean · the largest · the smallest · the share
+                        that hold
 
 The measure a person added is one point in that space: neighbouring pairs, the
 gap between them in doublings, averaged, and read the other way up. So is
