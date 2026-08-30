@@ -355,7 +355,20 @@ def _a_word_the_language_was_missing(
     # first family that branches on the size of the thing is served by a maker
     # she wrote that is provably outside the closure of those three.
     from core.cognition.one_algebra import a_maker_she_wrote
+    from core.cognition.what_the_failures_have_in_common import why_nothing_fits
 
+    # Only where the LANGUAGE is what failed.
+    #
+    # Nothing fitting is not evidence that a word is missing: it is equally
+    # what a search that went badly looks like, and writing a new way of
+    # building words in answer to that is an expensive way of being wrong.
+    # The difference is readable — if something she can already say accounts
+    # for exactly the cases the best reading missed, then both halves are
+    # sayable and the whole is not, and what is missing is a way to join them.
+    why = why_nothing_fits(pairs)
+    if not why.is_the_language:
+        logger.info("not reaching for a new word: %s", why.describes())
+        return None
     wrote = a_maker_she_wrote(pairs, now_sayable=sayable)
     if wrote is not None:
         return f"a way of building words that I wrote ({wrote.name})"

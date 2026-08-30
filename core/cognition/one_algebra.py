@@ -398,6 +398,13 @@ def _where_each_came_from(
     return at
 
 
+#: How many words a hole is tried against. The search is quadratic in this,
+#: and a language that has grown holds hundreds — so it is a budget on one
+#: search rather than a limit on what she may know. The words are taken
+#: shortest first, which is the same preference the term order uses.
+_WORDS_TO_TRY = 24
+
+
 def a_maker_she_wrote(
     transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
     *,
@@ -427,9 +434,23 @@ def a_maker_she_wrote(
         return None
     deepest = _how_deep(transitions)
     constants = _numbers_the_problem_shows(transitions)
-    names = list(WHERE_FROM)
+    # Every word she has, including the ones earlier makers produced.
+    #
+    # Filled from the words she was GIVEN, a maker could never be built on
+    # what another maker made — so nothing composed with anything and each
+    # invention was an island. What she can write next has to be able to use
+    # what she wrote last, or the growth does not accumulate.
+    #
+    # Shortest first, and bounded: the search is quadratic in the number of
+    # words, and a language that has grown holds hundreds. The bound is a
+    # budget on this search rather than a claim about how much she may know.
+    from core.cognition.an_invented_kind import addressings
+    from core.cognition.what_it_costs_to_say import _symbols
+
+    every = addressings()
+    names = sorted(every, key=lambda name: (_symbols(name), name))[:_WORDS_TO_TRY]
     fillings = [
-        tuple(WHERE_FROM[name] for name in chosen)
+        tuple(every[name] for name in chosen)
         for chosen in _choose(names, max(1, holes))
     ]
 
