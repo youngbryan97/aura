@@ -122,4 +122,17 @@ def test_the_words_come_back_before_the_meanings_written_in_them():
 
 
 def test_nothing_is_kept_when_she_has_worked_nothing_out():
+    """Every store it consults, empty. It consults more of them than it did."""
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+
+    kinds.KINDS.clear()
+    kinds.WAYS_TO_BUILD.clear()
+    KINDS_OF_THING.clear()
+    derived = [
+        name
+        for name, word in list(kinds.WHERE_FROM.items())
+        if type(word).__name__ == "DerivedAddressing"
+    ]
+    for name in derived:
+        kinds.WHERE_FROM.pop(name, None)
     assert keeping.keep() is False

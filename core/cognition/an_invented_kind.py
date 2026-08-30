@@ -217,6 +217,15 @@ def addressings() -> dict[str, Any]:
             made.update(build(dict(WHERE_FROM)))
         except (TypeError, ValueError, KeyError):
             continue
+    # One word per behaviour. A maker produces the same thing several ways —
+    # "if this then here else here" is "here" — and every duplicate is another
+    # branch at every step of every search, bought for nothing.
+    try:
+        from core.cognition.one_thing_many_spellings import one_of_each
+
+        made = one_of_each(made)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
     _LAST_BUILT = (now, made)
     return made
 
