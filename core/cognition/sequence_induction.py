@@ -82,6 +82,62 @@ def _cells(inside: str) -> tuple[Any, ...] | None:
         return None
 
 
+def _a_meaning_worked_out(question: "SequenceQuestion") -> str | None:
+    """An answer from a meaning she induced, when the language has none.
+
+    The examples are before-and-after pairs, which is exactly what a meaning is
+    induced from: which two places each value is read from, and what is done
+    with the pair. Solved on half of them and held to the half it never saw,
+    so a meaning that fits everything it was shown and nothing else is refused
+    rather than admitted.
+
+    Named for what it does rather than numbered, and kept, so the next question
+    of this kind is answered by something she already knows.
+    """
+    from core.cognition.an_invented_kind import KINDS, admit, induce_from
+
+    pairs = [(one.before, one.after) for one in question.shown]
+
+    # Something she already knows first, which is what makes the second
+    # question of a kind cheaper than the first — and what makes one example
+    # enough once she has met the family before. The ordering path takes the
+    # same shortcut for the same reason.
+    for known in list(KINDS.values()):
+        if not all(known.read(before) == after for before, after in pairs):
+            continue
+        answer = known.read(tuple(question.asked))
+        if answer is None:
+            continue
+        return (
+            f"{list(answer)}\n\n"
+            f"I have met this before: {known.name}. I worked that meaning out "
+            "from examples of it earlier and kept it, so this one needed no "
+            "working out at all."
+        )
+
+    meaning = induce_from(pairs)
+    if meaning is None:
+        return None
+    answer = meaning.read(tuple(question.asked))
+    if answer is None:
+        return None
+    admit(meaning.name, meaning)
+    try:
+        from core.cognition.what_she_gave_meaning import keep
+
+        keep()
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pass  # no-op: an unkept meaning still answers this question
+    return (
+        f"{list(answer)}\n\n"
+        "No rule I had could say this, so I worked out what the examples are "
+        f"doing and gave it a meaning: {meaning.name}. It accounts for every "
+        "example you showed me, including the ones I did not use to work it "
+        "out, and I have kept it — ask me another of these and I will already "
+        "know it."
+    )
+
+
 def read_sequence_question(text: Any) -> SequenceQuestion | None:
     """The examples and the question, or None when this is not one.
 
@@ -252,6 +308,25 @@ def answer_sequence_question(text: Any) -> str:
                     "about cells from your examples and I can, or show me one "
                     "more example using these."
                 )
+            # Before saying she cannot: work out a MEANING from the examples.
+            #
+            # Everything above searches for a member of a language whose
+            # evaluation rules were written down. When the proof says no member
+            # of it can do this, the honest next move is not an apology — it is
+            # to ask whether the examples themselves describe an operation, and
+            # if they do, to give that operation a name and an executable body
+            # and go on using it.
+            #
+            # This is the only production caller of that, and it belongs here:
+            # at the point where the language is PROVEN insufficient, never
+            # beside a language that still might explain it. A wider net
+            # offered earlier would lose the simpler answer that was already
+            # right, which is the same reason the ordering search sits behind
+            # the same proof.
+            said = _a_meaning_worked_out(question)
+            if said is not None:
+                return said
+
             return (
                 "I cannot work this one out, and I can say why rather than "
                 "just that.\n\n"
@@ -263,6 +338,19 @@ def answer_sequence_question(text: Any) -> str:
                 "reads the values themselves, and that is a kind of rule I "
                 "have no way to write."
             )
+        # Nothing found, and nothing proved either way.
+        #
+        # The third state, and the commonest one. The positional proof needs
+        # the cells to stay put to say anything, so a family that CHANGES the
+        # values is neither settled nor refuted by it — and this exit returned
+        # an empty string, which the caller shows as nothing at all.
+        #
+        # "I have not proved I cannot" is not a reason to stop looking. It is
+        # the reason to look somewhere the proof does not reach: at what the
+        # examples are doing to the values themselves.
+        said = _a_meaning_worked_out(question)
+        if said is not None:
+            return said
         return ""
     try:
         result = tuple(found.apply(tuple(question.asked)))
