@@ -571,6 +571,22 @@ def _seconds_left_on(job: dict[str, Any]) -> float:
     return max(0.0, deadline - time.time())
 
 
+def _generation_deadline_open(job: dict[str, Any], *, started: bool) -> bool:
+    """Admission expires; an owned foreground continuation is already admitted.
+
+    The parent still owns cancellation and stall detection. Retry counts and
+    token ceilings remain in force, including when a draft needs repair.
+    """
+    if (
+        started
+        and job.get("foreground_request") is True
+        and job.get("progress_owned_completion") is True
+    ):
+        return True
+    deadline = _safe_float(job.get("deadline_unix"), 0.0)
+    return deadline <= 0.0 or time.time() < deadline
+
+
 def _seconds_to_decode(tokens: int) -> float:
     """How long this budget takes at the measured rate, or 0.0 if unmeasured."""
 
@@ -8568,9 +8584,8 @@ def _mlx_worker_loop(
                                     job_deadline_unix = _safe_float(
                                         job.get("deadline_unix"), 0.0
                                     )
-                                    if (
-                                        job_deadline_unix > 0.0
-                                        and time.time() >= job_deadline_unix
+                                    if not _generation_deadline_open(
+                                        job, started=total_generated_tokens > 0
                                     ):
                                         raise RuntimeError(
                                             "deadline_exceeded_before_decode:"
@@ -10300,9 +10315,8 @@ def _mlx_worker_loop(
                                                     completion_retry_reasons
                                                 )
                                             )
-                                            deadline_open = bool(
-                                                job_deadline_unix <= 0.0
-                                                or time.time() < job_deadline_unix
+                                            deadline_open = _generation_deadline_open(
+                                                job, started=total_generated_tokens > 0
                                             )
                                             if completion_only_failure and deadline_open:
                                                 # The generic wall stops stylistic retry

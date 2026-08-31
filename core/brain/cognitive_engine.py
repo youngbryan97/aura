@@ -8,6 +8,7 @@ import sqlite3
 import time
 import uuid
 from collections import deque
+from contextlib import suppress
 from typing import Any
 
 from core.consciousness.executive_authority import get_executive_authority
@@ -150,7 +151,8 @@ def _the_longest_this_turn_may_take(floor_s: float, *, user_facing: bool) -> flo
 
 
 async def _keep_the_cycle_open_while_it_is_working(
-    clock: Any, *, ceiling_at: float, user_facing: bool
+    clock: Any, *, ceiling_at: float, user_facing: bool,
+    runtime_context: dict[str, Any] | None = None,
 ) -> None:
     """Push the cycle deadline out while tokens are still arriving.
 
@@ -190,6 +192,10 @@ async def _keep_the_cycle_open_while_it_is_working(
                         if current_deadline is None:
                             return
                         clock.reschedule(max(current_deadline, loop.time() + max(15.0, quiet_for)))
+                        if runtime_context is not None:
+                            runtime_context["cognitive_cycle_deadline_monotonic"] = (
+                                time.monotonic() + clock.when() - loop.time()
+                            )
                     except (AttributeError, RuntimeError):
                         return
                 continue
@@ -220,6 +226,10 @@ async def _keep_the_cycle_open_while_it_is_working(
                 return
             try:
                 clock.reschedule(loop.time() + wanted)
+                if runtime_context is not None:
+                    runtime_context["cognitive_cycle_deadline_monotonic"] = (
+                        time.monotonic() + clock.when() - loop.time()
+                    )
             except (AttributeError, RuntimeError):
                 return
             if not said_it_once:
@@ -1576,6 +1586,7 @@ async def _commit_the_thought_with_retries(
     should_bypass_commit: Any,
     state: Any,
     temp_state: Any,
+    runtime_context: dict[str, Any] | None = None,
 ) -> tuple[Any, Any]:
     """Commit the thought, retrying inside the attempt budget.
 
@@ -1592,7 +1603,13 @@ async def _commit_the_thought_with_retries(
             )
             logger.info("🧠 [STATE] Test run state isolation: bypassing database commit.")
             break
-        _commit_budget = max(0.0, cycle_deadline_at - time.monotonic())
+        # Phase waits may have renewed this same cycle while it was working.
+        # Persistence must consume that renewal, not the original estimate.
+        commit_deadline = (
+            runtime_context.get("cognitive_cycle_deadline_monotonic", cycle_deadline_at)
+            if runtime_context is not None else cycle_deadline_at
+        )
+        _commit_budget = max(0.0, commit_deadline - time.monotonic())
         if _commit_budget <= 0.0:
             commit_outcome = "cycle_deadline_expired"
             record_degradation(
@@ -3667,6 +3684,7 @@ class CognitiveEngine:
                             user_facing=bool(
                                 self._is_user_facing_origin(origin) and not is_background
                             ),
+                            runtime_context=context,
                         )
                     )
                     _begin_pass_run("legacy_pipeline")
@@ -3822,6 +3840,8 @@ class CognitiveEngine:
                 # minutes.
                 if _clock_keeper is not None:
                     _clock_keeper.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await _clock_keeper
                 _close_provenance_tick(_provenance_tick)
                 try:
                     # vResilience: Avoid locals().get() for type stability
@@ -3916,6 +3936,7 @@ class CognitiveEngine:
         commit_outcome, state = await _commit_the_thought_with_retries(
             commit_outcome=commit_outcome,
             cycle_deadline_at=cycle_deadline_at,
+            runtime_context=context,
             is_test_run=is_test_run,
             max_retries=max_retries,
             origin=origin,

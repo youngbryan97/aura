@@ -22,6 +22,7 @@ Around that sat four more of the same shape:
   assistant-shaped message, with no user feedback, no correctness check and no
   persistence outcome.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +32,6 @@ import pytest
 
 from core.brain.cognitive_engine import CognitiveEngine
 from tests.chat_lane_support import chat_lane_source
-
 
 # ─────────────────────────────── the response belongs to this turn
 
@@ -289,7 +289,7 @@ def test_the_commit_loop_is_bounded_by_the_cycle_deadline():
 
     source = inspect.getsource(engine_mod)
 
-    assert "_commit_budget = max(0.0, cycle_deadline_at - time.monotonic())" in source
+    assert "_commit_budget = max(0.0, commit_deadline - time.monotonic())" in source
     assert "timeout=_commit_budget," in source
 
 

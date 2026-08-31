@@ -185,3 +185,98 @@ async def test_cycle_renews_past_estimate_without_shortening_initial_window():
             await keeper
     assert clock.rescheduled
     assert min(clock.rescheduled) >= initial
+
+
+@pytest.mark.asyncio
+async def test_cycle_renewal_reaches_commit_after_original_estimate_expired():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from core.brain.cognitive_engine import (
+        _commit_the_thought_with_retries,
+        _keep_the_cycle_open_while_it_is_working,
+    )
+
+    loop = asyncio.get_running_loop()
+    original = loop.time() - 1
+    context = {"cognitive_cycle_deadline_monotonic": original}
+    state = object()
+    repository = SimpleNamespace(commit=AsyncMock())
+
+    class Clock:
+        deadline = original
+
+        def when(self):
+            return self.deadline
+
+        def reschedule(self, deadline):
+            self.deadline = deadline
+
+    with bind_turn(TurnOutcome("commit-after-renewal", origin="desktop")):
+        progress.note_progress()
+        keeper = asyncio.create_task(_keep_the_cycle_open_while_it_is_working(
+            Clock(), ceiling_at=original, user_facing=True, runtime_context=context
+        ))
+        try:
+            await asyncio.sleep(1.1)
+        finally:
+            keeper.cancel()
+            await keeper
+        outcome, committed = await _commit_the_thought_with_retries(
+            commit_outcome="not_attempted", cycle_deadline_at=original,
+            runtime_context=context, is_test_run=False, max_retries=1,
+            origin="desktop", pre_turn_cognition={},
+            self=SimpleNamespace(state_repository=repository),
+            should_bypass_commit=False, state=state, temp_state=state,
+        )
+    assert context["cognitive_cycle_deadline_monotonic"] > loop.time()
+    assert outcome == "committed"
+    assert committed is state
+    repository.commit.assert_awaited_once_with(state, "cognitive_cycle")
+
+
+@pytest.mark.parametrize("foreground,owned,started,allowed", [
+    (True, True, True, True),
+    (True, True, False, False),
+    (True, False, True, False),
+    (False, True, True, False),
+    (False, False, False, False),
+])
+def test_worker_repair_uses_completion_ownership_not_expired_estimate(
+    foreground, owned, started, allowed,
+):
+    from core.brain.llm.mlx_worker import _generation_deadline_open
+
+    job = {"deadline_unix": 1.0, "foreground_request": foreground,
+           "progress_owned_completion": owned}
+    assert _generation_deadline_open(job, started=started) is allowed
+
+
+def test_worker_initial_decode_still_requires_unexpired_admission():
+    import time
+
+    from core.brain.llm.mlx_worker import _generation_deadline_open
+
+    assert _generation_deadline_open({"deadline_unix": time.time() + 60}, started=False)
+    assert _generation_deadline_open({}, started=False)
+
+
+@pytest.mark.asyncio
+async def test_expired_cycle_without_renewal_does_not_commit(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from core.brain import cognitive_engine as engine
+
+    monkeypatch.setattr(engine, "record_degradation", lambda *a, **kw: None)
+    repository = SimpleNamespace(commit=AsyncMock())
+    expired = engine.time.monotonic() - 1
+    outcome, _ = await engine._commit_the_thought_with_retries(
+        commit_outcome="not_attempted", cycle_deadline_at=expired,
+        runtime_context={"cognitive_cycle_deadline_monotonic": expired},
+        is_test_run=False, max_retries=1, origin="desktop", pre_turn_cognition={},
+        self=SimpleNamespace(state_repository=repository), should_bypass_commit=False,
+        state=object(), temp_state=object(),
+    )
+    assert outcome == "cycle_deadline_expired"
+    repository.commit.assert_not_awaited()

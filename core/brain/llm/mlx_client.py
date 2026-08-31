@@ -15666,6 +15666,7 @@ class MLXLocalClient:
         # still yields, so a dream cycle cannot sit on the one GPU while a
         # person waits.
         req["foreground_request"] = bool(foreground_request)
+        req["progress_owned_completion"] = bool(progress_owned_completion and foreground_request)
 
         # CP126 cac5c1a3: normalise the sampling parameters BEFORE the
         # mandatory stop sequences are appended, so the caller's list is
