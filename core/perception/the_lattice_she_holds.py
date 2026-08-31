@@ -76,6 +76,10 @@ class TheLatticeSheHolds:
     #: Readings that would not go into it, in a row. Several is evidence the
     #: thing has changed rather than that one glance was poor.
     would_not_fit: int = 0
+    #: Readings in a row with two things landing on one of its places. A thing
+    #: with places does not put two things in one of them, so something is
+    #: over it.
+    crowded_for: int = 0
     _built_from: frozenset[tuple[int, int]] = field(default_factory=frozenset)
 
     #: How many readings in a row have to refuse to fit before she accepts the
@@ -120,7 +124,7 @@ class TheLatticeSheHolds:
         Everything that lands on one of its places is in it. Everything else is
         furniture and is left out rather than allowed to define a row. The
         shape is the lattice's shape whatever this glance happened to contain,
-        which is the whole point of holding one.
+        which is what holding one is for.
 
         None when nothing landed in it at all, which is a reading of something
         else rather than a poor reading of this.
@@ -130,26 +134,39 @@ class TheLatticeSheHolds:
         room = _between(self.down_at)
         reach = _between(self.across_at)
         found: dict[tuple[int, int], Cell] = {}
+        howfar: dict[tuple[int, int], float] = {}
+        crowded = 0
         for y, x, text in said:
             words = str(text or "").strip()
             if not words:
                 continue
             row = _nearest_to(y, self.down_at)
             column = _nearest_to(x, self.across_at)
-            if abs(self.down_at[row] - y) > room or abs(self.across_at[column] - x) > reach:
+            down = abs(self.down_at[row] - y)
+            across = abs(self.across_at[column] - x)
+            if down > room or across > reach:
                 continue
             where = (row, column)
+            # Nearest wins, rather than giving up on the whole reading.
+            #
+            # A real capture had a system dialog sitting over the board, and
+            # its lines of prose landed on the board's places. Refusing the
+            # reading threw away the tiles that were perfectly visible beside
+            # it, every turn, and she read nothing for the whole run. A thing
+            # centred on a place is what is in that place; a line of prose
+            # that merely overlaps one is not, and the distance says which.
+            away = down + across
             if where in found:
-                # Two things on one place is a reading of something this
-                # lattice does not describe. Keeping the first would be
-                # inventing a board out of a coincidence.
-                self.would_not_fit += 1
-                return None
+                crowded += 1
+                if howfar.get(where, 0.0) <= away:
+                    continue
             found[where] = Cell(row=row, column=column, says=words, at=(x, y))
+            howfar[where] = away
         if not found:
             self.would_not_fit += 1
             return None
         self.would_not_fit = 0
+        self.crowded_for = self.crowded_for + 1 if crowded else 0
         return Arrangement(
             rows=self.rows,
             columns=self.columns,
@@ -161,6 +178,22 @@ class TheLatticeSheHolds:
     def has_changed(self) -> bool:
         """Whether what she is looking at is no longer the thing she measured."""
         return self.would_not_fit >= self.CHANGED_AFTER
+
+    def looks_covered(self) -> bool:
+        """Whether something is sitting over the thing.
+
+        A thing with places does not put two things in one of them. One
+        reading like that is a stray region; several in a row is a dialog, a
+        banner, or her own window in front of what she is trying to read — and
+        reading through it gives an answer that looks perfectly well formed and
+        is wrong, which is worse than not reading at all.
+
+        Measured on a real capture with a system permission dialog over the
+        board: reading through it put a quarter of the cells right and the
+        rule never formed. The same screen with the dialog gone put fifty-five
+        of sixty right and the rule came out at a hundred percent.
+        """
+        return self.crowded_for >= self.CHANGED_AFTER
 
     def as_memory(self) -> dict[str, Any]:
         return {

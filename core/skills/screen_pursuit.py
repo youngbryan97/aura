@@ -2562,6 +2562,13 @@ async def pursue_on_screen(
         # board does not have, and a rule about sliding along a row cannot
         # match rows that are not the board's.
         lattice = responds["lattice"]
+        if lattice.looks_covered() and not in_the_way["last"]:
+            # Something is over the thing, and reading through it gives an
+            # answer that looks well formed and is wrong.
+            logger.info("something is sitting over what she is reading")
+            await _put_her_own_window_away()
+            if target_app:
+                await _bring_the_thing_back_to_the_front(target_app)
         if lattice.has_changed():
             # Several readings in a row that will not go into it is the thing
             # having been replaced — a new game, a resized window — rather than
