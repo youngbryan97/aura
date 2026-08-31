@@ -127,3 +127,39 @@ def test_the_ruler_is_not_among_what_she_can_learn():
     before = what_it_costs_to_be(kinds.WHERE_FROM["here"], "here")
     look.remember_what_worked(["here"] * 50)
     assert what_it_costs_to_be(kinds.WHERE_FROM["here"], "here") == before
+
+
+def test_a_word_is_worth_trying_when_the_answer_is_a_function_of_what_it_says():
+    """The condition every term over a word has to satisfy.
+
+    If the same thing said by the word ever has to become two different
+    answers, no term over that word exists however long the search runs. If it
+    never does, one might. Agreement asks the narrower question — whether the
+    word IS the answer — which is that same condition with the function fixed
+    to identity.
+    """
+    from core.cognition.one_algebra import _agrees_with, _tells_her_the_answer
+
+    wanted = {4: (1, 2, 3, 0)}
+
+    def one_along(at, size):
+        return (at + 1) % size
+
+    def shifted(at, size):
+        return (at + 2) % size
+
+    # It never lands where the answer is, and it settles the answer everywhere.
+    assert _agrees_with(shifted, wanted) == 0
+    assert _tells_her_the_answer(shifted, wanted) == 4
+    # And a word that IS the answer is the same condition with identity.
+    assert _agrees_with(one_along, wanted) == 4
+    assert _tells_her_the_answer(one_along, wanted) == 4
+
+
+def test_a_word_that_says_one_thing_for_two_answers_settles_nothing():
+    from core.cognition.one_algebra import _tells_her_the_answer
+
+    def flat(_at, _size):
+        return 0
+
+    assert _tells_her_the_answer(flat, {4: (1, 2, 3, 0)}) == 1

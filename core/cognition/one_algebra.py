@@ -470,7 +470,7 @@ def a_maker_she_wrote(
     # before, so a prior that learned to propose rubbish loses time and keeps
     # nothing.
     names = in_the_order_worth_trying(
-        every, _agrees_with, wanted, shortest=_symbols
+        every, _tells_her_the_answer, wanted, shortest=_symbols
     )
     # And widening rather than a fixed slab of words: an easy family is one
     # whose answer is near the front, and paying a hard family's price to find
@@ -578,6 +578,38 @@ def _earns_its_place(
     if not worth.keep_it:
         logger.info("not keeping %s — %s", term.name, worth.describes())
     return worth.keep_it
+
+
+def _tells_her_the_answer(word: Any, wanted: dict[int, tuple[int, ...]]) -> int:
+    """Whether the answer is a function of what this word says.
+
+    The condition every term over a word has to satisfy, and the reason a word
+    is worth trying inside one. If the same thing said by the word ever has to
+    become two different answers, no term over that word can exist, however
+    long the search runs. If it never does, one might.
+
+    Strictly more than agreement, which asks whether the word IS the answer —
+    a special case, where the function is identity. Ordering by agreement put
+    the word criterion 6 needs at seventeenth of twenty-five, so it was only
+    reached in the last widening round after eighty thousand terms; the word
+    does not resemble the answer at all, it determines it, and one shift away
+    is as good as identity for anything that can be written over it.
+
+    Counted in places, so it is on the same scale agreement was.
+    """
+    told = 0
+    for size, found in wanted.items():
+        if size <= 0:
+            continue
+        says: dict[int, int] = {}
+        try:
+            for at in range(size):
+                said = int(word(at, size)) % size
+                if says.setdefault(said, found[at]) == found[at]:
+                    told += 1
+        except (ArithmeticError, IndexError, TypeError, ValueError):
+            continue
+    return told
 
 
 def _agrees_with(word: Any, wanted: dict[int, tuple[int, ...]]) -> int:
