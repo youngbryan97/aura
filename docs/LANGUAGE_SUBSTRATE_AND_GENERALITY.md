@@ -74,7 +74,6 @@ composition is worth 20, the learned library 24–27, the prior nothing measurab
 
 | Ref | Gap |
 |---|---|
-| A7 | Action-side abstractions (new actions from lower-level affordances) |
 | D2 | Battery scored WITH the foundation model for comparison |
 | C7 | A second concept formed from a different failure signature |
 | 1.1f | The basis families themselves being principled rather than author-chosen |
@@ -297,7 +296,7 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | Measure system integration | ✅ Established | As instrument, not consciousness claim |
 | Form concepts from failure patterns | ✅ Established | Hand-written repairs |
 | Frontier-general reasoning | 🔴 Not claimed | V5 protocol ready; no result yet |
-| Action-side abstractions | 🔴 Open | A7 |
+| Action-side abstractions | ✅ Established | Composition, repetition, branching and recovery over given actions |
 | Autonomous capability improvement loop | 🔴 Open | U8 |
 | Open-domain recurrent reasoning | 🔴 Not authorized | `ordinary_chat_authorized=false` |
 

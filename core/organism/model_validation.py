@@ -662,6 +662,10 @@ def install_runtime_validation() -> dict[str, Any]:
         # claim bound to a test that never runs is the unsupported claim this
         # suite exists to surface.
         "representation_language_growth",
+        # And what she can do to the actions she has. Same reason as above: an
+        # undeclared capability scores its test "n/a", which is a claim nobody
+        # ever checks.
+        "action_side_abstraction",
         "prompt_boundary_detection",
         # The 2026-08-11 corrections. Declared in the same commit that
         # registers their tests, for the reason the comment above records:
@@ -871,6 +875,33 @@ def install_runtime_validation() -> dict[str, Any]:
                 subject="symbolic cognition kernel boundary",
             ),
             owner="core/brain/symbolic_sandbox.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="she_composes_an_action_she_was_not_given",
+            description=(
+                "from the actions a world offers, she arrives at one nobody "
+                "wrote — repeating something until it settles, or recovering "
+                "from an act that changed nothing — and keeps it only where it "
+                "stands in for decisions on states it was not built from"
+            ),
+            required_capability="action_side_abstraction",
+            observation=Observation(
+                name="a_composed_action_earns_its_place_in_two_unlike_worlds",
+                value=True,
+                source=(
+                    "core/cognition/an_action_she_composed.py and "
+                    "tests/test_an_action_she_composed.py"
+                ),
+            ),
+            predict=lambda _m: _she_composes_an_action_she_was_not_given(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="action-side abstraction",
+            ),
+            owner="core/cognition/an_action_she_composed.py",
         )
     )
     suite.add_test(
@@ -3408,6 +3439,68 @@ def _symbolic_cognition_boundary_available() -> bool:
     from core.sandbox.untrusted_python import available_boundary
 
     return available_boundary() in {"seatbelt", "bubblewrap"}
+
+
+def _she_composes_an_action_she_was_not_given() -> bool:
+    """Two worlds sharing nothing, one algebra, and a refusal where it is due.
+
+    A line she steps along and a row of tiles that slides and merges. In each
+    she must arrive at an action she was not given and keep it; and where one
+    of the given actions already does the job, she must compose nothing, or the
+    measurement is not doing any work.
+    """
+    from core.cognition.an_action_she_composed import World, an_action_she_composed
+
+    def _step(by):
+        return lambda at: max(0, min(9, at + by))
+
+    line = World(
+        can_do={"one right": _step(1), "one left": _step(-1)},
+        can_tell={"at the left wall": lambda at: at == 0},
+    )
+    along = an_action_she_composed(
+        line, [(3, 9), (7, 9), (0, 9)], held_out=[(1, 9), (5, 9), (8, 9)]
+    )
+
+    def _slide(row):
+        kept = [one for one in row if one]
+        out, at = [], 0
+        while at < len(kept):
+            if at + 1 < len(kept) and kept[at] == kept[at + 1]:
+                out.append(kept[at] * 2)
+                at += 2
+            else:
+                out.append(kept[at])
+                at += 1
+        return tuple(out + [0] * (len(row) - len(out)))
+
+    def _right(row):
+        return tuple(reversed(_slide(tuple(reversed(row)))))
+
+    board = World(can_do={"left": _slide, "right": _right}, can_tell={})
+
+    def _moves(row):
+        return _slide(row) if _slide(row) != row else _right(row)
+
+    packed = [(2, 4, 0, 0), (8, 2, 0, 0), (4, 8, 0, 0)]
+    loose = [(0, 0, 2, 4), (0, 2, 0, 4), (0, 0, 8, 2), (2, 0, 0, 4)]
+    recovering = an_action_she_composed(
+        board,
+        [(one, _moves(one)) for one in [*packed[:2], *loose[:2]]],
+        held_out=[(one, _moves(one)) for one in [packed[2], loose[2], loose[3]]],
+    )
+    already = an_action_she_composed(
+        board,
+        [((0, 0, 2, 4), (2, 4, 0, 0))],
+        held_out=[((0, 0, 8, 2), (8, 2, 0, 0))],
+    )
+    return (
+        along is not None
+        and along[0].head == "until"
+        and recovering is not None
+        and recovering[0].head == "instead"
+        and already is None
+    )
 
 
 def _rlc_compute_continuation_contract_holds() -> bool:
