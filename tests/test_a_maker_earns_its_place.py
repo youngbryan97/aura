@@ -78,3 +78,27 @@ def test_a_family_too_small_to_hold_anything_back_is_not_refused_for_it():
     from core.cognition.one_algebra import Term, _earns_its_place
 
     assert _earns_its_place(Term("where"), [((1, 2), (2, 1))], 5)
+
+
+def test_the_budget_covers_admitting_a_candidate_and_not_only_finding_one():
+    """It was checked once per term, which bounds the search but not one
+    candidate's admission.
+
+    Putting a maker into the language rebuilds every word it makes and weighs
+    the result, and a maker that makes hundreds takes minutes on its own. A
+    thirty-second budget ran for over ten minutes, all of it inside a single
+    iteration the check at the top had already passed.
+    """
+    import time
+
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import a_maker_she_wrote
+
+    shown = [
+        (one, tuple(reversed(one)))
+        for one in [(1, 2, 3, 4), (5, 6, 7, 8), (1, 2, 3, 4, 5), (6, 7, 8, 9, 1)]
+    ]
+    assert WHERE_FROM  # the language she was given is there
+    began = time.monotonic()
+    a_maker_she_wrote(shown, now_sayable=lambda: False, holes=2, within=5.0)
+    assert time.monotonic() - began < 60.0

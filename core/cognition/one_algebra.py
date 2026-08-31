@@ -520,6 +520,18 @@ def a_maker_she_wrote(
                 name = f"a way she wrote: {term.name}"
                 if name in WAYS_TO_BUILD:
                     continue
+                # The clock again, before the expensive half.
+                #
+                # It was checked once per term, which bounds the search but
+                # not one candidate's admission: putting a maker into the
+                # language rebuilds every word it makes and weighs the result,
+                # and a maker that makes hundreds takes minutes on its own. A
+                # thirty-second budget ran for over ten, all of it inside a
+                # single iteration that the check at the top had already
+                # passed.
+                if time.monotonic() - began >= within:
+                    logger.info("gave up writing a maker after %.1fs", within)
+                    return None
                 before = len(addressings())
                 WAYS_TO_BUILD[name] = as_a_maker(term)
                 if now_sayable() and _earns_its_place(term, transitions, before):
