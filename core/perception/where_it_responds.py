@@ -24,7 +24,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.perception.what_is_there import EMPTY_CELL, Arrangement, arranged
+from core.perception.what_is_there import (
+    EMPTY_CELL,
+    Arrangement,
+    arranged,
+    the_part_laid_out_regularly,
+)
 
 logger = logging.getLogger("Aura.Responds")
 
@@ -362,7 +367,15 @@ def what_is_there(
         left, top, right, bottom = band
         if left <= x <= right and top <= y <= bottom:
             inside.append((y, x, said))
-    return arranged(inside, like=like)
+    # The part of it that is laid out, out of the page around it.
+    #
+    # A thing she acts in sits at an even pitch across and down and is full of
+    # its own places; a page is not. Read whole, 2048game.com came back as
+    # forty-four columns by thirty-seven rows, so of thirty moves only five
+    # could be compared with each other and the rule that governs the board
+    # scored nought out of five. She was playing correctly and learning
+    # nothing from it.
+    return arranged(the_part_laid_out_regularly(inside), like=like)
 
 
 def what_the_page_is_showing(
@@ -390,7 +403,15 @@ def what_the_page_is_showing(
         left, top, right, bottom = band
         if left <= x <= right and top <= y <= bottom:
             inside.append((y, x, text))
-    return arranged(inside, like=like)
+    # The part of it that is laid out, out of the page around it.
+    #
+    # A thing she acts in sits at an even pitch across and down and is full of
+    # its own places; a page is not. Read whole, 2048game.com came back as
+    # forty-four columns by thirty-seven rows, so of thirty moves only five
+    # could be compared with each other and the rule that governs the board
+    # scored nought out of five. She was playing correctly and learning
+    # nothing from it.
+    return arranged(the_part_laid_out_regularly(inside), like=like)
 
 
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:

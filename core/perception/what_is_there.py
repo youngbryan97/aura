@@ -22,7 +22,14 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-__all__ = ["Arrangement", "Cell", "arranged", "holds_in", "EMPTY_CELL"]
+__all__ = [
+    "Arrangement",
+    "Cell",
+    "arranged",
+    "holds_in",
+    "the_part_laid_out_regularly",
+    "EMPTY_CELL",
+]
 
 #: What an empty place looks like when the rest of the row is not empty. A gap
 #: has to be visible for a position to mean anything.
@@ -464,3 +471,87 @@ def _placed_in(
         down_at=rows,
         across_at=columns,
     )
+
+
+def _lattices(values: Sequence[float]) -> list[tuple[float, ...]]:
+    """Every even run these positions could be on, longest first.
+
+    A pitch is not given and must not be guessed: each gap that occurs between
+    neighbours is tried as one, and what comes back is every unbroken run of
+    three or more places at that pitch. Three is the least that shows a rhythm
+    — two positions have a gap and no rhythm.
+    """
+    seen = sorted(set(values))
+    if len(seen) < 3:
+        return [tuple(seen)]
+    found: dict[tuple[float, ...], None] = {}
+    for gap in sorted({round(b - a, 3) for a, b in zip(seen, seen[1:]) if b - a > 0}):
+        if gap <= 0:
+            continue
+        for begin in seen:
+            steps: dict[int, float] = {}
+            for one in seen:
+                away = (one - begin) / gap
+                if abs(away - round(away)) <= _SPACING_WOBBLE:
+                    steps[int(round(away))] = one
+            order = sorted(steps)
+            run, ends = 1, [order[0]] if order else []
+            for before, after in zip(order, order[1:]):
+                if after - before == 1:
+                    run += 1
+                    if run >= 3:
+                        found[tuple(steps[at] for at in range(after - run + 1, after + 1))] = None
+                else:
+                    run = 1
+    return sorted(found, key=len, reverse=True)[:24] or [tuple(seen)]
+
+
+def the_part_laid_out_regularly(
+    cells: Sequence[tuple[float, float, str]],
+) -> tuple[tuple[float, float, str], ...]:
+    """The part of a reading that is on a lattice, out of everything else.
+
+    A thing she acts in is laid out: its places sit at an even pitch across and
+    down, and it is FULL of them. A page around it is not — headings, links,
+    prose and adverts fall where they fall, and any rhythm among them is a
+    coincidence between two of them rather than a grid.
+
+    Nothing here knows what a board is. What it knows is that being laid out
+    means an even pitch in both directions at once, and that a thing is dense
+    in its own grid where a coincidence is not. Neither axis decides alone:
+    measured on a real page, the strongest rhythm among the x positions was a
+    spurious ninety-three shared by three pieces of furniture, beating the
+    board's own hundred and thirteen. It is the pair of axes, scored by how
+    much of the block is actually occupied, that picks the board out.
+
+    LIVE 2026-08-31 on 2048game.com: she read the whole page as the thing —
+    forty-four columns by thirty-seven rows — so of thirty moves only five were
+    comparable, the rule that governs the board scored nought out of five, and
+    every sentence she said about the position was narration over a reading
+    that was not of the board. She was playing correctly and learning nothing.
+    """
+    placed = [(y, x, said) for y, x, said in cells if str(said or "").strip()]
+    if len(placed) < 4:
+        return tuple(placed)
+
+    best: tuple[tuple[float, float, str], ...] = ()
+    best_score = 0.0
+    for across in _lattices([x for _y, x, _said in placed]):
+        wide = set(across)
+        for down in _lattices([y for y, _x, _said in placed]):
+            tall = set(down)
+            on_it = tuple(
+                (y, x, said) for y, x, said in placed if x in wide and y in tall
+            )
+            room = len(wide) * len(tall)
+            if room < 4 or len(on_it) < 4:
+                continue
+            # How much of the block it fills, times how much of it there is.
+            # A board is most of its own grid; a coincidence among furniture is
+            # a handful of places in a large one.
+            score = (len(on_it) / room) * len(on_it)
+            if score > best_score:
+                best, best_score = on_it, score
+    # Cropping to nothing is not a reading. Where no block stands out, the
+    # whole of it is the honest answer.
+    return best if len(best) >= 4 else tuple(placed)
