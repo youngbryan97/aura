@@ -1488,6 +1488,36 @@ async def clear_what_is_in_front(on_top: str) -> bool:
     return True
 
 
+async def _bring_the_thing_back_to_the_front(app: str) -> bool:
+    """Raise the window she was asked to act in, rather than close what is over it.
+
+    Whatever is in front, the thing she wants is behind it, and asking for it
+    is both gentler and more general than closing the other: it works for her
+    own window, for a notification, for anything.
+
+    LIVE 2026-08-31, asked to play a game in a browser: her own desktop window
+    was frontmost the whole run, so every reading was of her own interface —
+    LIVE NEURAL FEED, TELEMETRY, MEMORY, SETTINGS — and not one was of the
+    board. She pressed keys into herself for eighteen moves. Moving her own
+    surface aside covered only the companion bubble, which is not the window
+    that was in the way.
+    """
+    named = str(app or "").strip()
+    if not named:
+        return False
+    try:
+        from core.capabilities.host_automation import get_host_automation
+
+        receipt = await get_host_automation().focus_app(named)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        logger.debug("could not raise %r", named, exc_info=True)
+        return False
+    raised = bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False))
+    if raised:
+        logger.info("brought %r back to the front", named)
+    return raised
+
+
 async def _why_nothing_answers(
     mine: str, over: tuple[float, float, float, float] | None = None
 ) -> str:
@@ -1513,6 +1543,10 @@ async def _why_nothing_answers(
                 "My own window was over the board. I have moved it aside — "
                 "carrying on."
             )
+        # Ask for the thing back before closing anything. It is gentler and it
+        # covers every occluder rather than the one kind she can place.
+        if await _bring_the_thing_back_to_the_front(mine):
+            return f"{on_top} was in front. I have brought {mine} back — carrying on."
         # Try to move it before saying it cannot be moved.
         if await clear_what_is_in_front(on_top):
             return f"{on_top} was in front of this. I have closed it — carrying on."
