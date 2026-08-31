@@ -35,6 +35,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.cognition.something_she_keeps_true import (
+    what_it_rules_out,
+    what_to_hold_now,
+)
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
@@ -1088,6 +1092,60 @@ def _worth_holding(found: Any, whole: Any, seen: dict[Any, int] | None = None) -
 _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
+
+def _moves_she_will_not_make(
+    she_keeps: dict[str, Any],
+    went: Sequence[tuple[Any, bool]],
+    reading: Any,
+    names: Sequence[str],
+    knows: Any,
+    turn: int,
+) -> tuple[frozenset[str], str]:
+    """The moves she has already ruled out, before any looking ahead.
+
+    Two recordings of somebody playing well. Clearing 2048 in 989 moves, two
+    of the four directions evict the corner and they pressed neither, all
+    game. Beating a hard checkers engine three pieces down, every move that
+    would have broken their back row was never a candidate. The difference was
+    not that they searched further. Most of what a search considers, they were
+    not considering at all.
+
+    She needs something to hold before she can rule anything out, and it has to
+    be earned: at least one move watched for each move she could make, because
+    below that a property that separates the good from the bad has not been
+    given the chance to fail. That floor comes from the size of the choice
+    rather than from a number picked for it.
+
+    Only moves the rules can actually predict are ruled out. Anything she
+    cannot foresee the result of survives, which is why the way out and the
+    ways of asking are never removed by this.
+    """
+    if reading is None or not names or len(went) < len(names):
+        return frozenset(), ""
+    rules = getattr(knows, "rules", None)
+    expect = getattr(rules, "expect", None)
+    if not callable(expect):
+        return frozenset(), ""
+    sure = getattr(rules, "confidence", None)
+    if not callable(sure) or float(sure() or 0.0) <= 0.0:
+        return frozenset(), ""
+    if turn != she_keeps.get("at"):
+        kept, why = what_to_hold_now(she_keeps.get("it"), went)
+        she_keeps.update({"it": kept, "why": why, "at": turn})
+    it = she_keeps.get("it")
+    if it is None:
+        return frozenset(), ""
+    keeps, breaks = what_it_rules_out(it, reading, list(names), expect=expect)
+    if not keeps or not breaks:
+        # Nothing to rule out, or everything — and refusing every move is not
+        # holding something, it is being stuck.
+        return frozenset(), ""
+    return (
+        frozenset(breaks),
+        f"holding that {it.name}, so not {', '.join(sorted(breaks))}",
+    )
+
+
 def _what_there_is_to_aim_at(reading: Any) -> str:
     """What to prefer one situation over another by, when nobody said.
 
@@ -1820,6 +1878,16 @@ async def pursue_on_screen(
         }
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
+    #: Situations she has been in and whether things went well from there,
+    #: which is what a property gets weighed against. Watching somebody clear
+    #: 2048 in 989 moves and beat a hard checkers engine while three pieces
+    #: down, the difference was never how far they searched. It was that they
+    #: had decided on something to keep true, and most of what she considers
+    #: they never considered at all.
+    went: list[tuple[Any, bool]] = []
+    #: What she has settled on keeping true, and why. Named apart from the
+    #: line she is taking, which `decide` already calls `holding`.
+    she_keeps: dict[str, Any] = {"it": None, "why": "", "at": -1}
     #: Situations she was in and how things went from there, so a property her
     #: measure cannot account for has somewhere to come from. See
     #: core/agency/what_i_cannot_explain.py.
@@ -2408,6 +2476,8 @@ async def pursue_on_screen(
                 seen_after=laid_out,
             )
             history.append(attempt)
+            if pending["arranged"] is not None and attempt.progressed is not None:
+                went.append((pending["arranged"], bool(attempt.progressed)))
             if previous.chosen is not None:
                 # A key that never changes anything is not one of her actions
                 # in this world, whoever wrote it down.
@@ -2804,6 +2874,23 @@ async def pursue_on_screen(
             held_line = plan["held"].approach if plan["held"] is not None else ""
             unusual = stuck(history) or ended or offered_pacing
             weight = stakes if unusual else min(stakes, 0.3)
+            # What she has decided to keep true takes moves off the table
+            # before anything looks ahead, which is where holding something
+            # pays: the tree it searches is smaller at every level.
+            wont, ruled_out = _moves_she_will_not_make(
+                she_keeps,
+                went,
+                laid_out,
+                [option.name for option in available],
+                knows,
+                len(moves),
+            )
+            if wont:
+                available = [one for one in available if one.name not in wont]
+                if ruled_out != she_keeps.get("said"):
+                    she_keeps["said"] = ruled_out
+                    logger.info("%s", ruled_out)
+
             # Where each move would lead, when she has worked out how this
             # moves and there is anything to prefer one future over another by.
             ahead: dict[str, tuple[float, str]] = {}
