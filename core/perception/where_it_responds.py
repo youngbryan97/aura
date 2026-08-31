@@ -26,12 +26,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.perception.what_is_there import (
-    EMPTY_CELL,
-    Arrangement,
-    arranged,
-    the_part_laid_out_regularly,
-)
+from core.perception.what_is_there import EMPTY_CELL, Arrangement, arranged
 
 logger = logging.getLogger("Aura.Responds")
 
@@ -378,7 +373,7 @@ def what_is_there(
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
     _note_what_was_seen(inside)
-    return arranged(the_part_laid_out_regularly(inside, like=like), like=like)
+    return arranged(inside, like=like)
 
 
 def what_the_page_is_showing(
@@ -415,7 +410,7 @@ def what_the_page_is_showing(
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
     _note_what_was_seen(inside)
-    return arranged(the_part_laid_out_regularly(inside, like=like), like=like)
+    return arranged(inside, like=like)
 
 
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:
@@ -451,6 +446,6 @@ def _note_what_was_seen(cells: Sequence[tuple[float, float, str]]) -> None:
         return
     try:
         with open(where, "a", encoding="utf-8") as out:
-            out.write(json.dumps([[round(y, 1), round(x, 1), t] for y, x, t in cells]) + "\n")
+            out.write(json.dumps([[round(y, 6), round(x, 6), t] for y, x, t in cells]) + "\n")
     except OSError:
         pass
