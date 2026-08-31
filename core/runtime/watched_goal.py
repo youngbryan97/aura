@@ -376,6 +376,43 @@ def _named_app(text: str) -> str:
     return named.group(1).strip() if named else ""
 
 
+def _an_application_here(said: str) -> str:
+    """The installed application this names, or nothing.
+
+    Asked of the machine rather than of a list. A phrase may carry words
+    around the name — "the 2048 Game app", "2048 Game" — so the longest run
+    of its words that matches something installed is what it names.
+    """
+    from pathlib import Path as _Path
+
+    words = [
+        one
+        for one in re.split(r"[^\w.+-]+", str(said or ""))
+        if one and one.lower() not in {"the", "a", "an", "app", "application", "game"}
+    ]
+    if not words:
+        return ""
+    here = [
+        one
+        for folder in ("/Applications", "/System/Applications", str(_Path.home() / "Applications"))
+        for one in (_Path(folder).glob("*.app") if _Path(folder).is_dir() else ())
+    ]
+    if not here:
+        return ""
+    by_name = {one.stem.lower(): one.stem for one in here}
+    for take in range(len(words), 0, -1):
+        for at in range(0, len(words) - take + 1):
+            tried = " ".join(words[at : at + take]).lower()
+            if tried in by_name:
+                return by_name[tried]
+            starts = [
+                name for lowered, name in by_name.items() if lowered.startswith(tried)
+            ]
+            if len(starts) == 1:
+                return starts[0]
+    return ""
+
+
 def apps_named_in(text: str) -> tuple[str, ...]:
     """Applications a phrase could be naming, likeliest first.
 
@@ -567,6 +604,20 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # "acknowledge", "arc" in "search", "opera" in "cooperative". Matched as
     # substrings, an acknowledgement or a search became evidence that the goal
     # needs a browser.
+    # A place that is an application on this machine is an application.
+    #
+    # Anything named as somewhere to go counted as a page, so "open the 2048
+    # Game app and play it" was planned as a browser goal and stopped with
+    # "the browser is on nothing, not 2048.app". The app was installed the
+    # whole time. LIVE 2026-08-31.
+    #
+    # Nothing here holds a list of applications: it asks the machine what is
+    # installed, which is a fact about the machine rather than something I can
+    # keep up to date.
+    if where and not app and "://" not in text:
+        installed = _an_application_here(where)
+        if installed:
+            app, where = installed, ""
     in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
     return WatchedGoal(
         where=where,
