@@ -77,6 +77,8 @@ class Term:
             return f"a word (#{int(self.value or 0)})"
         if self.head == "through":
             return f"{self.parts[0].name} of {self.parts[1].name}"
+        if self.head == "over again":
+            return f"{self.parts[1].name}, {self.parts[0].name} times over"
         if self.head == "undo":
             return f"{self.parts[0].name} undone at {self.parts[1].name}"
         if self.head == "if":
@@ -157,6 +159,27 @@ def run(
     if head == "through":
         inner = run(term.parts[1], index, size, words, depth + 1) % max(1, size)
         return _apply(term.parts[0], inner, size, words, depth)
+    if head == "over again":
+        # Doing something as many times as the thing itself says to.
+        #
+        # Every other head composes a FIXED number of times, so what a term of
+        # length L can reach is a fixed number of steps. This one takes its
+        # count from the term, and the term can read the size — so "go half way
+        # along" is one short term here and needs a composition as long as the
+        # thing is anywhere else. That is why it adds something the others
+        # cannot: not a shorter way of saying what was sayable, but a shape no
+        # fixed-length composition has.
+        #
+        # The count is capped at the size, and that is not a budget. Walking a
+        # set of n places n times has already reached whatever cycle it is
+        # going to reach; past that, going round again says nothing new. So the
+        # cap is where the answers stop changing, which is the world's number
+        # rather than mine, and it makes this decidable at every size.
+        times = run(term.parts[0], index, size, words, depth + 1)
+        at = int(index)
+        for _ in range(max(0, min(int(times), max(1, size)))):
+            at = _apply(term.parts[1], at, size, words, depth)
+        return at % max(1, size)
     if head == "undo":
         wanted = run(term.parts[1], index, size, words, depth + 1) % max(1, size)
         found = [
@@ -319,7 +342,7 @@ def every_term(
     by_size: dict[int, list[Term]] = {1: [*leaves, *slots]}
     # Applying a word and undoing one take a term where the others take a
     # number, and they are what makes a term able to make words at all.
-    heads = (*HEADS, "through", "undo")
+    heads = (*HEADS, "through", "undo", "over again")
     # Every size, not every other one.
     #
     # Stepping by two was right while every head took two parts: one plus two
