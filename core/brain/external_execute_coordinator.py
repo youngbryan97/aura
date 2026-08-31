@@ -254,16 +254,50 @@ def _validate_post_action_receipt_outcome(
     )
     if verified_unknown_effect:
         return
-    if (
-        receipt.get("status") != result.get("status")
-        or str(receipt.get("error_status") or "")[:500] != result.get("error")
-        or receipt.get("effect_verified") is not result.get("effect_verified")
-        or receipt.get("transport_succeeded") is not result.get("transport_succeeded")
-        or receipt.get("retry_safe") is not result.get("retry_safe")
-        or receipt.get("manual_reconciliation_required")
-        is not result.get("manual_reconciliation_required")
-    ):
-        raise ValueError("post-action receipt outcome contradicts terminal transaction")
+    # Which field disagrees, not merely that one does.
+    #
+    # Six comparisons raised one sentence naming none of them, so a live
+    # contradiction — with the effect already completed and preserved — told
+    # nobody which half of the record to look at. That is the same fault as a
+    # contained exception without its raise site: the code knew and did not
+    # say.
+    disagrees = [
+        name
+        for name, mine, theirs in (
+            ("status", receipt.get("status"), result.get("status")),
+            (
+                "error",
+                str(receipt.get("error_status") or "")[:500],
+                result.get("error"),
+            ),
+            (
+                "effect_verified",
+                receipt.get("effect_verified"),
+                result.get("effect_verified"),
+            ),
+            (
+                "transport_succeeded",
+                receipt.get("transport_succeeded"),
+                result.get("transport_succeeded"),
+            ),
+            ("retry_safe", receipt.get("retry_safe"), result.get("retry_safe")),
+            (
+                "manual_reconciliation_required",
+                receipt.get("manual_reconciliation_required"),
+                result.get("manual_reconciliation_required"),
+            ),
+        )
+        if (mine != theirs if name in {"status", "error"} else mine is not theirs)
+    ]
+    if disagrees:
+        said = ", ".join(
+            f"{name} (receipt {receipt.get(name if name != 'error' else 'error_status')!r} "
+            f"against {result.get(name)!r})"
+            for name in disagrees
+        )
+        raise ValueError(
+            f"post-action receipt outcome contradicts terminal transaction on {said}"
+        )
 
 
 def _bounded_result(result: Mapping[str, Any]) -> dict[str, Any]:

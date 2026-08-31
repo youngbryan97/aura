@@ -4959,6 +4959,30 @@ from core.brain.llm.endogenous_client_hooks import (  # noqa: E402
 )
 
 
+def _is_internal_inference(cognitive_context: Any) -> bool:
+    """Whether this episode is her thinking to herself rather than for someone.
+
+    The context is a LIST of typed slots — it is declared as one three hundred
+    lines above — and this asked it for a key as though it were a mapping. So
+    every foreground episode raised AttributeError before it began, the failure
+    was contained as `client_error:AttributeError`, and that became an
+    integrity refusal that stopped browser actions dead. One wrong shape, and
+    the whole action lane was closed.
+
+    Read from whichever shape arrives: a slot saying so, or a mapping saying
+    so. Anything else means somebody is waiting, which is the safer answer of
+    the two — it keeps her to a person's deadline rather than a background
+    one.
+    """
+    if isinstance(cognitive_context, Mapping):
+        return bool(cognitive_context.get("internal_inference", False))
+    if isinstance(cognitive_context, (list, tuple)):
+        for slot in cognitive_context:
+            if isinstance(slot, Mapping) and slot.get("internal_inference"):
+                return True
+    return False
+
+
 class MLXLocalClient:
     """
     Parent-process client for the isolated MLX worker.
@@ -10619,9 +10643,7 @@ class MLXLocalClient:
                 deadline=deadline,
                 foreground_request=True,
                 stale_after=bounded_timeout_s,
-                a_person_is_waiting=not bool(
-                    (wire_cognitive_context or {}).get("internal_inference", False)
-                ),
+                a_person_is_waiting=not _is_internal_inference(wire_cognitive_context),
             )
             try:
                 await foreground_owner_cm.__aenter__()
