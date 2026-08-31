@@ -173,3 +173,49 @@ def test_the_answering_path_writes_one_before_reaching_for_a_written_one():
     wrote = source.index("a_maker_she_wrote(")
     handed = source.index('"one after another", one_after_another')
     assert wrote < handed
+
+
+def test_a_term_can_be_applied_to_a_word_and_not_only_a_word_to_a_term():
+    """Composition in both directions, which it only ever had in one.
+
+    A hole was kept in its own list and used only as the FIRST part of
+    "through" and "undo", so "that word, of this term" was sayable and "this
+    term, of what that word gives you" was not — although ``run`` has always
+    evaluated it. The term needed to build a maker on a word an earlier maker
+    made is five symbols long, computes its family correctly, and appeared in
+    none of sixty thousand candidates because nothing could produce its shape.
+    """
+    from core.cognition.one_algebra import Term, every_term
+
+    wanted = Term(
+        head="through",
+        parts=(
+            Term(head="plus", parts=(Term(head="where"), Term(head="fixed", value=1))),
+            Term(head="hole", value=0),
+        ),
+    )
+    for at, one in enumerate(every_term((0, 1, 2, 3), holes=2, deepest=4)):
+        if one == wanted:
+            break
+        if at > 400_000:  # pragma: no cover - the assertion below is the point
+            break
+    else:  # pragma: no cover
+        one = None
+    assert one == wanted
+
+
+def test_a_hole_can_stand_where_any_other_piece_stands():
+    """It is a piece like any other, so it belongs everywhere pieces go."""
+    from core.cognition.one_algebra import Term, every_term, holes_in
+
+    found = False
+    for at, one in enumerate(every_term((1,), holes=1, deepest=2)):
+        if one.head in {"plus", "minus"} and any(
+            part.head == "hole" for part in one.parts
+        ):
+            found = True
+            assert holes_in(one) >= 1
+            break
+        if at > 50_000:  # pragma: no cover
+            break
+    assert found

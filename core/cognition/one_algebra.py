@@ -276,25 +276,28 @@ def every_term(
     leaves += [Term("fixed", value=int(k)) for k in constants]
     slots = [Term("hole", value=n) for n in range(max(1, holes))]
     yield from leaves
-    by_size: dict[int, list[Term]] = {1: leaves}
-    words: list[Term] = list(slots)
+    # A hole is a piece like any other.
+    #
+    # It was kept in its own list and only ever used as the FIRST part of
+    # "through" and "undo", so the only composition she could write was "that
+    # word, of this term". The other direction — this term, of what that word
+    # gives you — was never generated at all, although `run` has always
+    # evaluated it. Criterion 6 is exactly that direction: a maker built on a
+    # word an earlier maker made. The term she needed was five symbols long,
+    # computed the family correctly, and did not appear in sixty thousand
+    # candidates because nothing could produce its shape.
+    by_size: dict[int, list[Term]] = {1: [*leaves, *slots]}
+    # Applying a word and undoing one take a term where the others take a
+    # number, and they are what makes a term able to make words at all.
+    heads = (*HEADS, "through", "undo")
     for size in range(3, 2 * max(1, deepest) + 2, 2):
         grown: list[Term] = []
         for left_size in range(1, size - 1):
             right_size = size - left_size - 1
             for left in by_size.get(left_size, ()):
                 for right in by_size.get(right_size, ()):
-                    for head in HEADS:
+                    for head in heads:
                         made = Term(head, parts=(left, right))
-                        grown.append(made)
-                        yield made
-            # Applying a word, and undoing one. These are the two heads that
-            # take a WORD rather than a number, and they are what makes a term
-            # able to be a way of making words at all.
-            for right in by_size.get(size - 2, ()):
-                for slot in words:
-                    for head in ("through", "undo"):
-                        made = Term(head, parts=(slot, right))
                         grown.append(made)
                         yield made
         # And branching, which is the one no amount of composing, undoing or
