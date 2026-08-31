@@ -163,6 +163,34 @@ async def test_multipart_inline_explanation_is_deliberate_chat_not_task_dispatch
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("compatibility", [False, True])
+@pytest.mark.parametrize("objective", [
+    "What is the difference between a prism and a mirror?",
+    "Explain this choice.",
+    "What do you think?",
+    "Describe yourself in a few words.",
+])
+async def test_chat_preserves_deliberation_selected_upstream(compatibility, objective, monkeypatch):
+    from core.phases.cognitive_routing import CognitiveRoutingPhase as CompatibilityRouting
+
+    phase_type = CompatibilityRouting if compatibility else CognitiveRoutingPhase
+    phase = phase_type(SimpleNamespace(
+        orchestrator=SimpleNamespace(cycle_count=100),
+        get=lambda name, default=None: default,
+    ))
+    if compatibility:
+        monkeypatch.setattr(phase, "_spawn_parallel_branch", lambda *args, **kwargs: None)
+    state = AuraState.default()
+    state.cognition.current_origin = "user"
+    state.cognition.current_mode = CognitiveMode.DELIBERATE
+    result = await phase.execute(state, objective=objective, priority=True)
+    assert result.cognition.current_mode is CognitiveMode.DELIBERATE
+    assert result.response_modifiers["intent_type"] == "CHAT"
+    assert result.response_modifiers["model_tier"] == "primary"
+    assert result.response_modifiers["deep_handoff"] is False
+
+
+@pytest.mark.asyncio
 async def test_short_inline_explanation_remains_reactive_chat():
     kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
     phase = CognitiveRoutingPhase(kernel)

@@ -298,7 +298,11 @@ class CognitiveRoutingPhase(BasePhase):
         branch for DELIBERATE turns.
         """
         # 1. No stimuli = no routing needed (unless autonomous objective already set)
-        if not state.cognition.working_memory and not state.cognition.current_objective:
+        if (
+            not state.cognition.working_memory
+            and not state.cognition.current_objective
+            and not objective
+        ):
             return state
 
         last_msg = state.cognition.working_memory[-1] if state.cognition.working_memory else None
@@ -509,7 +513,10 @@ class CognitiveRoutingPhase(BasePhase):
         ):
             selected_mode = (
                 CognitiveMode.DELIBERATE
-                if semantic_work.requires_deliberation
+                if (
+                    semantic_work.requires_deliberation
+                    or state.cognition.current_mode is CognitiveMode.DELIBERATE
+                )
                 else CognitiveMode.REACTIVE
             )
             logger.info(
@@ -525,7 +532,7 @@ class CognitiveRoutingPhase(BasePhase):
             new_state.response_modifiers["intent_type"] = "CHAT"
             new_state.response_modifiers["semantic_intent"] = (
                 "structured_reasoning"
-                if semantic_work.requires_deliberation
+                if selected_mode is CognitiveMode.DELIBERATE
                 else "casual"
             )
             new_state.response_modifiers["request_mood"] = request_mood.mood.value
@@ -703,6 +710,15 @@ class CognitiveRoutingPhase(BasePhase):
                 list(matched_skills or ())[:4],
             )
 
+        # Tone classification cannot revoke reasoning selected for this turn.
+        if (
+            not is_autonomous
+            and routing_origin in user_origins
+            and analysis.intent_type == "CHAT"
+            and state.cognition.current_mode is CognitiveMode.DELIBERATE
+        ):
+            cognitive_mode = CognitiveMode.DELIBERATE
+
         # Force DELIBERATE mode for AGI test battery runs (origin "test" or battery env vars active)
         if proof_run_active(origin=routing_origin):
             logger.info("🧭 Routing: AGI Battery/Test mode detected. Forcing DELIBERATE mode.")
@@ -728,7 +744,11 @@ class CognitiveRoutingPhase(BasePhase):
         # [PIPELINE OPTIMIZATION] Casual "think" bypass
         # If the query is short and contains "think" but no other deliberate keywords,
         # we default to REACTIVE to avoid expensive classification and 72B branching.
-        if "think" in lower_input and len(input_text) < 50:
+        if (
+            "think" in lower_input
+            and len(input_text) < 50
+            and cognitive_mode is not CognitiveMode.DELIBERATE
+        ):
             if not self._has_deliberate_keywords(input_text):
                 logger.info("🧭 Routing: Casual 'think' detected. Defaulting to REACTIVE.")
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE

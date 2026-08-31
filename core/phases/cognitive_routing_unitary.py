@@ -564,6 +564,7 @@ class CognitiveRoutingPhase(Phase):
             reflective_mode = CognitiveMode.REACTIVE
             if (
                 analysis.suggests_deliberate_mode
+                or (is_user_facing and state.cognition.current_mode is CognitiveMode.DELIBERATE)
                 or (contract.requires_memory_grounding and memory_salience > 0.55)
                 or (
                     contract.requires_state_reflection
@@ -597,7 +598,9 @@ class CognitiveRoutingPhase(Phase):
         if is_user_facing and (bool(route_meta.get("coding_request")) or technical_task):
             logger.info("🧭 Routing: coding-aware technical lane engaged.")
             new_state.cognition.current_mode = (
-                CognitiveMode.DELIBERATE if technical_task else CognitiveMode.REACTIVE
+                CognitiveMode.DELIBERATE
+                if technical_task or state.cognition.current_mode is CognitiveMode.DELIBERATE
+                else CognitiveMode.REACTIVE
             )
             self._stamp_llm_route(
                 new_state,
@@ -664,7 +667,10 @@ class CognitiveRoutingPhase(Phase):
         if is_user_facing and _looks_like_simple_dialogue_request(objective):
             selected_mode = (
                 CognitiveMode.DELIBERATE
-                if semantic_work.requires_deliberation
+                if (
+                    semantic_work.requires_deliberation
+                    or state.cognition.current_mode is CognitiveMode.DELIBERATE
+                )
                 else CognitiveMode.REACTIVE
             )
             logger.info(
@@ -799,7 +805,10 @@ class CognitiveRoutingPhase(Phase):
             )
             return new_state
 
-        if is_user_facing and analysis.suggests_deliberate_mode:
+        if is_user_facing and (
+            analysis.suggests_deliberate_mode
+            or state.cognition.current_mode is CognitiveMode.DELIBERATE
+        ):
             logger.info("🧭 Routing: Deliberate governed route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(

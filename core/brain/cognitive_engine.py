@@ -3105,6 +3105,14 @@ class CognitiveEngine:
         # a background motivation message instead of the user's input.
         state.cognition.current_objective = objective
         state.cognition.current_origin = origin
+        if not is_background:
+            # Each foreground turn owns its mode; neither a prior turn nor a
+            # later delivery-channel classifier may supply it implicitly.
+            state.cognition.current_mode = (
+                CognitiveMode.REACTIVE
+                if mode is ThinkingMode.FAST
+                else CognitiveMode.DELIBERATE
+            )
         bind_cognitive_execution_scope(
             state,
             objective,

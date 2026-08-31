@@ -8,7 +8,7 @@ from core.brain.cognitive_engine import CognitiveEngine
 from core.brain.foreground_latent_runtime import ForegroundLatentOutcome
 from core.brain.types import ThinkingMode, Thought
 from core.runtime.errors import get_degradation_tracker
-from core.state.aura_state import AuraState
+from core.state.aura_state import AuraState, CognitiveMode
 from core.utils.injected_blocks import stamp_runtime_payload
 
 
@@ -27,6 +27,29 @@ class StateRepositoryFixture:
         self.commits.append((state, args, kwargs))
         self.commit_snapshots.append(copy.deepcopy(state))
         self._current = state
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [ThinkingMode.FAST, ThinkingMode.SLOW, ThinkingMode.DEEP])
+async def test_new_turn_binds_selected_reasoning_mode_before_phases(monkeypatch, mode):
+    engine = CognitiveEngine()
+    state = AuraState.default()
+    expected = CognitiveMode.REACTIVE if mode is ThinkingMode.FAST else CognitiveMode.DELIBERATE
+    state.cognition.current_mode = (
+        CognitiveMode.DELIBERATE if expected is CognitiveMode.REACTIVE else CognitiveMode.REACTIVE
+    )
+    engine.state_repository = StateRepositoryFixture(state)
+    captured = {}
+
+    async def capture(state, objective, mode, origin, context=None, **kwargs):
+        captured["mode"] = state.cognition.current_mode
+        return Thought(id="mode-bound", content="ok", mode=mode)
+
+    monkeypatch.setattr(engine, "_run_thinking_loop", capture)
+    monkeypatch.setattr(engine, "_apply_cognitive_situation_frame", lambda state, objective, origin, context, **kwargs: context)
+    thought = await engine.think("Explain this choice.", mode=mode, origin="user")
+    assert thought.content == "ok"
+    assert captured["mode"] is expected
 
 
 @pytest.mark.asyncio
