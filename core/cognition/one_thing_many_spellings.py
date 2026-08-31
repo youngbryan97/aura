@@ -25,14 +25,47 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-__all__ = ["how_it_behaves", "one_of_each", "the_other_spellings"]
+__all__ = [
+    "also_compare_at",
+    "how_it_behaves",
+    "one_of_each",
+    "sizes_words_are_told_apart_at",
+    "the_other_spellings",
+]
 
 logger = logging.getLogger("Aura.OneThingManySpellings")
 
-#: Sizes a word is compared at. Two words agreeing on every place of every one
-#: of these agree everywhere she has looked, which is the strongest thing
-#: available and is not the same as agreeing everywhere.
+#: Sizes a word is compared at when nothing has asked about any others. Two
+#: words agreeing on every place of every one of these agree everywhere she has
+#: looked, which is the strongest thing available and is not the same as
+#: agreeing everywhere.
 _AT_SIZES = (3, 4, 5)
+
+#: And the sizes something has actually asked about, which are added to those.
+#:
+#: Deciding identity on three fixed sizes threw away the one word that answered
+#: a family of size six: it agreed with another word at three, four and five,
+#: so it was a duplicate by this measure and a duplicate is dropped. The answer
+#: left the language before the search could reach it, and the search then ran
+#: its whole budget looking for something no longer there.
+#:
+#: Sizes come from the world here as every other quantity does.
+_SIZES_ASKED_ABOUT: set[int] = set()
+
+
+def also_compare_at(sizes: Any) -> None:
+    """Remember a size something has been asked about, for telling words apart."""
+    for size in sizes or ():
+        try:
+            found = int(size)
+        except (TypeError, ValueError):
+            continue
+        if found > 1:
+            _SIZES_ASKED_ABOUT.add(found)
+
+
+def sizes_words_are_told_apart_at() -> tuple[int, ...]:
+    return tuple(sorted({*_AT_SIZES, *_SIZES_ASKED_ABOUT}))
 
 #: The spellings she knows for each behaviour, beyond the one in use.
 _ALSO_WRITTEN: dict[tuple[int, ...], tuple[str, ...]] = {}
@@ -42,7 +75,9 @@ def how_it_behaves(word: Any) -> tuple[int, ...] | None:
     """What a word does, as one comparable value, or None where it refuses."""
     try:
         return tuple(
-            int(word(at, size)) % size for size in _AT_SIZES for at in range(size)
+            int(word(at, size)) % size
+            for size in sizes_words_are_told_apart_at()
+            for at in range(size)
         )
     except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
         return None

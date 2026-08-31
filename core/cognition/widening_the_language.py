@@ -73,6 +73,17 @@ class DerivedAddressing:
 
     name: str
     at: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    #: Which kind of growth admitting this was, decided when it was admitted.
+    #:
+    #: A correspondence read off examples has no defining term, so admitting it
+    #: is not an abbreviation of anything — it is the one path here that can
+    #: add a distinction the old language could not draw. Whether it DID is a
+    #: question with an answer, and it was never asked: the same word may be
+    #: something a short term already says, in which case what she found was a
+    #: search she had not run.
+    growth: str = ""
+    #: The numbers that decided it, for whoever has to answer for the claim.
+    growth_evidence: Any = None
 
     def __call__(self, index: int, size: int) -> int:
         seen = self.at.get(int(size))
@@ -317,12 +328,70 @@ def widen_with_addressing(name: str, addressing: DerivedAddressing) -> str:
     said = str(name or "").strip()
     if not said or said in WHERE_FROM:
         return ""
+    _say_which_kind_of_growth_this_is(addressing, WHERE_FROM)
     WHERE_FROM[said] = addressing
     logger.info(
-        "the language grew: %d ways to say where a value comes from", len(WHERE_FROM)
+        "the language grew: %d ways to say where a value comes from (%s)",
+        len(WHERE_FROM),
+        addressing.growth or "not decided",
     )
     note_the_language_grew()
     return said
+
+
+def _say_which_kind_of_growth_this_is(
+    addressing: DerivedAddressing, language: dict[str, Any]
+) -> None:
+    """Decide, and record, what admitting this word actually did.
+
+    Three things are called growth and they are not the same. It may be
+    something a short term already says, in which case the finding was a search
+    she had not run. It may be something a LONG term says, past the length she
+    can search to, in which case what changed is reach. Or nothing in the old
+    language may say it at all, in which case the language now draws a line it
+    could not draw — and that one is only claimed when the search that found
+    nothing actually finished.
+
+    Bounded hard, because this runs while she is admitting a word and a slow
+    certificate is worse than an honest UNDECIDED.
+    """
+    from core.cognition.what_an_invention_buys import the_horizon_of
+    from core.cognition.which_kind_of_growth import which_kind_of_growth
+
+    lengths = sorted(addressing.at)
+    if not lengths:
+        return
+
+    def says_it(word: Any) -> bool:
+        try:
+            return all(
+                int(word(at, size)) % size == addressing.at[size][at]
+                for size in lengths
+                for at in range(len(addressing.at[size]))
+            )
+        except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
+            return False
+
+    try:
+        found = which_kind_of_growth(
+            says_it,
+            the_old_language=dict(language),
+            horizon=the_horizon_of(4),
+            # Five, because that is a bound the search actually EXHAUSTS —
+            # measured at one second — and an exhausted search to five says
+            # something, where an unfinished search to seven says only that
+            # the clock ran out. The certificate carries the bound, so the
+            # claim is "not at this length" and never "not at any length".
+            certify_to=5,
+            holes=1,
+            within=8.0,
+        )
+    except (ArithmeticError, ImportError, RuntimeError, TypeError, ValueError):
+        logger.debug("could not decide which kind of growth this was", exc_info=True)
+        return
+    # Frozen, so the certificate is written the way a frozen record is written.
+    object.__setattr__(addressing, "growth", found.kind)
+    object.__setattr__(addressing, "growth_evidence", found)
 
 
 def widen_with_operation(name: str, operation: DerivedOperation) -> str:

@@ -219,3 +219,80 @@ def test_a_hole_can_stand_where_any_other_piece_stands():
         if at > 50_000:  # pragma: no cover
             break
     assert found
+
+
+def test_a_maker_is_built_on_what_earlier_makers_made():
+    """Every maker was handed `dict(WHERE_FROM)` — the words she was GIVEN and
+    only those. So the language was W0 with M1(W0), M2(W0), M3(W0) beside it,
+    never M2(M1(W0)). Nothing she made could be made ON anything she had made,
+    which is the whole of what accumulating was supposed to mean.
+    """
+    from core.cognition import an_invented_kind as kinds
+    from core.cognition.a_kind_of_thing_she_named import (
+        KINDS_OF_THING,
+        a_kind_of_thing_she_named,
+        a_way_of_building_over,
+    )
+    from core.cognition.one_algebra import Term, as_a_maker, what_it_rests_on
+
+    was_ways, was_kinds = dict(kinds.WAYS_TO_BUILD), dict(KINDS_OF_THING)
+    kinds.WAYS_TO_BUILD.clear()
+    KINDS_OF_THING.clear()
+    try:
+        given = set(kinds.WHERE_FROM)
+        shown = [
+            (
+                one,
+                tuple(
+                    one[
+                        (
+                            kinds.WHERE_FROM["the far end"]
+                            if len(one) % 2 == 0
+                            else kinds.WHERE_FROM["one along"]
+                        )(at, len(one))
+                        % len(one)
+                    ]
+                    for at in range(len(one))
+                ),
+            )
+            for one in [
+                (1, 2, 3, 4), (5, 6, 7, 8), (9, 1, 2, 6), (4, 7, 2, 8),
+                (1, 2, 3, 4, 5), (6, 7, 8, 9, 1), (2, 4, 6, 8, 3), (5, 1, 9, 3, 7),
+            ]
+        ]
+        maker, _over = a_way_of_building_over(a_kind_of_thing_she_named(shown))
+        kinds.WAYS_TO_BUILD["over parity"] = maker
+        after_one = dict(kinds.addressings())
+        firsts = {one for one in after_one if one not in given}
+        assert firsts
+
+        shift = Term("plus", (Term("fixed", value=1), Term("hole", value=0)))
+        kinds.WAYS_TO_BUILD["a way she wrote: " + shift.name] = as_a_maker(shift)
+        now = kinds.addressings()
+        seconds = [one for one in now if one not in after_one]
+        assert seconds
+        on_the_first = [
+            one for one in seconds if what_it_rests_on(one, now) & firsts
+        ]
+        assert on_the_first, "no word the second maker made rests on the first's"
+    finally:
+        for store, before in ((kinds.WAYS_TO_BUILD, was_ways), (KINDS_OF_THING, was_kinds)):
+            store.clear()
+            store.update(before)
+
+
+def test_a_maker_is_held_to_a_size_it_was_never_fitted_at():
+    """Held-out examples are how a meaning is judged; the SIZE it was fitted at
+    is a second dimension of the same idea, and nothing looked at it."""
+    from core.cognition.one_algebra import Term, _holds_at_a_size_it_never_saw
+
+    shown = [((1, 2, 3, 4), (4, 3, 2, 1)), ((5, 6, 7, 8), (8, 7, 6, 5))]
+    good = Term("plus", (Term("fixed", value=1), Term("hole", value=0)))
+    assert _holds_at_a_size_it_never_saw(good, (lambda at, size: at,), shown)
+
+    def only_at_four(at, size):
+        if size != 4:
+            raise ValueError("not at that size")
+        return at
+
+    assert not _holds_at_a_size_it_never_saw(good, (only_at_four,), shown)

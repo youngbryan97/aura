@@ -195,8 +195,21 @@ _LAST_BUILT: tuple[Any, dict[str, Any]] | None = None
 
 
 def _what_the_language_is() -> Any:
-    """A value that changes exactly when the language does."""
-    return (tuple(sorted(WHERE_FROM)), tuple(sorted(WAYS_TO_BUILD)))
+    """A value that changes exactly when the language does.
+
+    Which sizes words are told apart at is part of what the language IS: widen
+    them and two words that were one become two again, so a cache that ignored
+    them would hand back a vocabulary built under the narrower reading.
+    """
+    try:
+        from core.cognition.one_thing_many_spellings import (
+            sizes_words_are_told_apart_at,
+        )
+
+        apart = sizes_words_are_told_apart_at()
+    except (ImportError, AttributeError):
+        apart = ()
+    return (tuple(sorted(WHERE_FROM)), tuple(sorted(WAYS_TO_BUILD)), apart)
 
 
 def addressings() -> dict[str, Any]:
@@ -212,9 +225,22 @@ def addressings() -> dict[str, Any]:
     if _LAST_BUILT is not None and _LAST_BUILT[0] == now:
         return _LAST_BUILT[1]
     made = dict(WHERE_FROM)
+    # Each maker builds on what the makers before it made.
+    #
+    # Every one of them was handed `dict(WHERE_FROM)` — the words she was
+    # GIVEN, and only those. So the language was W0 together with M1(W0),
+    # M2(W0), M3(W0) and so on, never M2(M1(W0)): a maker could be found
+    # while an earlier maker's word sat in its hole, and then be rebuilt
+    # against a vocabulary that word was not in. Nothing she made could be
+    # made ON anything she had made, which is the whole of what accumulating
+    # was supposed to mean.
+    #
+    # Order is the order she arrived at them, so a maker sees its
+    # predecessors and not its successors, and the vocabulary stays a
+    # foundation rather than a knot.
     for build in list(WAYS_TO_BUILD.values()):
         try:
-            made.update(build(dict(WHERE_FROM)))
+            made.update(build(dict(made)))
         except (TypeError, ValueError, KeyError):
             continue
     # One word per behaviour. A maker produces the same thing several ways —
@@ -391,6 +417,15 @@ def induce_from(
     pairs = [(tuple(before), tuple(after)) for before, after in transitions]
     if len(pairs) < ENOUGH_HELD_BACK + 1:
         return None
+    # Words are told apart at the sizes something has asked about, and this is
+    # the asking. Without it, identity was decided on three fixed sizes and the
+    # only word answering a family of size six was dropped as a duplicate.
+    try:
+        from core.cognition.one_thing_many_spellings import also_compare_at
+
+        also_compare_at({len(before) for before, _after in pairs})
+    except (ImportError, AttributeError, TypeError, ValueError):
+        logger.debug("could not widen where words are told apart", exc_info=True)
     solving = pairs[0::2]
     judging = pairs[1::2]
     if len(judging) < ENOUGH_HELD_BACK:

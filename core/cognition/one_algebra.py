@@ -39,11 +39,12 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 __all__ = [
     "HEADS",
     "Term",
+    "what_it_rests_on",
     "a_maker_she_wrote",
     "as_a_maker",
     "every_term",
@@ -197,10 +198,18 @@ def holes_in(term: Term) -> int:
 
 @dataclass(frozen=True)
 class Made:
-    """A word a maker made, kept with the term that made it."""
+    """A word a maker made, kept with the term and the words that made it."""
 
     term: Term
     words: tuple[Any, ...]
+    #: The NAMES of the words in its holes. Provenance, not decoration.
+    #:
+    #: Without it, whether a maker built on a word an earlier maker made was
+    #: answered by looking for one name inside another as text — which is a
+    #: guess about spelling, not a fact about construction. Two words with the
+    #: same name from different makers would confuse it, and a maker whose
+    #: product happened to contain a substring would satisfy it.
+    built_from: tuple[str, ...] = ()
 
     def __call__(self, index: int, size: int) -> int:
         return run(self.term, index, size, self.words)
@@ -220,12 +229,33 @@ def as_a_maker(term: Term) -> Callable[[dict[str, Any]], dict[str, Any]]:
         for chosen in _choose(names, takes):
             said = ", ".join(chosen)
             made[f"{term.name} [{said}]"] = Made(
-                term=term, words=tuple(words[name] for name in chosen)
+                term=term,
+                words=tuple(words[name] for name in chosen),
+                built_from=tuple(chosen),
             )
         return made
 
     make.term = term  # type: ignore[attr-defined]
     return make
+
+
+def what_it_rests_on(name: str, words: Mapping[str, Any]) -> frozenset[str]:
+    """Every word this one is built on, all the way down to what she was given.
+
+    A fact read off the construction rather than off the spelling. A word she
+    was given rests on nothing; a word a maker made rests on the words in its
+    holes and on everything THOSE rest on.
+    """
+    seen: set[str] = set()
+    edge = [name]
+    while edge:
+        here = edge.pop()
+        word = words.get(here)
+        for parent in getattr(word, "built_from", ()) or ():
+            if parent not in seen:
+                seen.add(parent)
+                edge.append(parent)
+    return frozenset(seen)
 
 
 def _choose(names: Sequence[str], takes: int) -> Iterator[tuple[str, ...]]:
@@ -290,7 +320,18 @@ def every_term(
     # Applying a word and undoing one take a term where the others take a
     # number, and they are what makes a term able to make words at all.
     heads = (*HEADS, "through", "undo")
-    for size in range(3, 2 * max(1, deepest) + 2, 2):
+    # Every size, not every other one.
+    #
+    # Stepping by two was right while every head took two parts: one plus two
+    # odd sizes is odd, so nothing even was ever needed. Branching takes
+    # THREE, and one plus three odd sizes is even — so the size an `if` needs
+    # was never walked, `by_size` never held an even bucket, and the branch
+    # loop below asked for children it could not be given.
+    #
+    # Branching is the head the docstring under it calls the one no amount of
+    # composing, undoing or repeating can produce. Not one has ever been
+    # produced either: zero in three hundred thousand terms, at any depth.
+    for size in range(3, 2 * max(1, deepest) + 2):
         grown: list[Term] = []
         for left_size in range(1, size - 1):
             right_size = size - left_size - 1
@@ -532,6 +573,8 @@ def a_maker_she_wrote(
                 if time.monotonic() - began >= within:
                     logger.info("gave up writing a maker after %.1fs", within)
                     return None
+                if not _holds_at_a_size_it_never_saw(term, words, transitions):
+                    continue
                 before = len(addressings())
                 WAYS_TO_BUILD[name] = as_a_maker(term)
                 if now_sayable() and _earns_its_place(term, transitions, before):
@@ -542,6 +585,42 @@ def a_maker_she_wrote(
                     return term
                 WAYS_TO_BUILD.pop(name, None)
     return None
+
+
+def _holds_at_a_size_it_never_saw(
+    term: Term, words: Sequence[Any], transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]]
+) -> bool:
+    """Whether it still says something at a length it was not fitted to.
+
+    Held-out examples are already how a meaning is judged. The SIZE it was
+    fitted at is a second dimension of the same idea, and nothing looked at
+    it: a term that works at four and five and falls apart at nine has been
+    tested at no length it did not see.
+
+    What can be checked there is what the family does not say: the family
+    gives no wanted answer at an unseen length, so the test is that the term
+    still names a place inside the thing, rather than raising or pointing
+    outside it. That catches a term that only holds where it was fitted.
+
+    It does NOT prove the term holds at every length, and nothing here should
+    be read as proving it. Passing at one unseen length is evidence of the
+    same kind as passing one unseen example — worth having, and not a theorem.
+    """
+    lengths = {len(before) for before, _after in transitions}
+    if not lengths:
+        return True
+    # Two lengths past the longest it saw, and one prime-ish length beside
+    # them, because a term keyed to even or odd alone survives the first.
+    beyond = max(lengths)
+    for size in (beyond + 1, beyond + 2, beyond + 5):
+        for at in range(size):
+            try:
+                said = run(term, at, size, words)
+            except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
+                return False
+            if not isinstance(said, int) or not 0 <= said % size < size:
+                return False
+    return True
 
 
 def _earns_its_place(

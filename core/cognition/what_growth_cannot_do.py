@@ -4,6 +4,38 @@ Growing the language she thinks in is worth doing, and there are exactly four
 places where it stops paying, each provable rather than cautionary. Written
 down here so a claim about growth has to survive them before it is made.
 
+**A word DEFINED as a term can never make anything newly expressible — and
+that is a fact about definitions, not about growth.** A word introduced as a
+term over words she already had can be substituted away: naming is a ``let``,
+and unfolding a ``let`` never changes what an expression denotes. So every
+behaviour sayable after admitting THAT KIND of word was sayable before, all the
+way down, however deep the stack of names.
+
+The mistake worth recording is the one made here first: concluding from this
+that no extension can add expressive power. Conservativity and eliminability
+are different properties. A definitional extension is eliminable and adds no
+meanings. A conservative extension that is NOT definitional adds no new
+theorems in the old vocabulary and CAN add distinctions the old vocabulary
+could not draw — a new sort, a primitive with no defining term, a witness for
+an existence the old theory proved without exhibiting. Only the first is closed
+off.
+
+So there are three different things "the language grew" can mean, and they want
+different evidence:
+
+    a shorter name        the meanings are the same set; what changed is length
+    a longer reach        the same meanings, and one crossed the length she can
+                          search to. Real for a mind with a budget, and
+                          measured by :mod:`core.cognition.what_an_invention_buys`
+    a new distinction     a behaviour no term of the old language denotes at
+                          all, admitted as a primitive rather than as an
+                          abbreviation
+
+Which of the three an admission is, is decidable enough to be worth deciding,
+and :mod:`core.cognition.which_kind_of_growth` decides it — refusing the third
+unless the search that found nothing actually finished, because a search that
+ran out of time has said nothing about the language.
+
 **A universal language cannot be made more expressive from inside.** If she can
 already express every computable function, then any new word she invents is
 computable, so its meaning was already there, so E(t+1) = E(t). Growth in what
@@ -44,6 +76,7 @@ __all__ = [
     "BOUNDED",
     "UNIVERSAL",
     "UNKNOWN",
+    "naming_cannot_add_a_meaning",
     "HowExpressive",
     "Refutation",
     "can_be_decided",
@@ -113,6 +146,29 @@ def how_expressive(
         because=f"{' and '.join(missing)}, so a word can still mean something new",
         meanings=meanings,
     )
+
+
+def naming_cannot_add_a_meaning(
+    says_it: Callable[[Any], bool],
+    *,
+    a_word_she_made: Any,
+    unfolds_to: Callable[[], Any],
+) -> bool:
+    """Check the substitution argument on one word, rather than assert it.
+
+    ``a_word_she_made`` is the named word; ``unfolds_to`` builds the same thing
+    written out of what she was given, with the name gone. If the two agree
+    everywhere they are asked, the name carried no meaning of its own — which
+    is the whole content of the theorem, on this word, in code.
+    """
+    try:
+        without = unfolds_to()
+    except (ArithmeticError, TypeError, ValueError):
+        return False
+    try:
+        return bool(says_it(a_word_she_made)) and bool(says_it(without))
+    except (ArithmeticError, TypeError, ValueError):
+        return False
 
 
 def what_a_new_word_can_buy(language: HowExpressive) -> str:
