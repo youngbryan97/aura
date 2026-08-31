@@ -2274,6 +2274,24 @@ async def pursue_on_screen(
             confirmed_here["value"] = am_i_there(
                 open_page or expect_page, seen, anchor["page"], anchor["app"]
             )
+            if confirmed_here["value"]:
+                # Arriving at a window is not the same as reading it.
+                #
+                # This check is about identity — the address, the title, the
+                # name of the window — and it is right to be: words on a
+                # screen can be borrowed from anyone's window. But the pixels
+                # she then reads are whatever is drawn on top, and her own
+                # interface is drawn on top of everything by design. LIVE
+                # 2026-08-31: Chrome held the address she was sent to, she
+                # confirmed she was there, and every reading for eighteen
+                # moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
+                # MEMORY, SETTINGS. She pressed keys into herself and her
+                # predictions about what would change were correct.
+                #
+                # So the thing is asked to the front once, here, before the
+                # first key. Asking is cheap and it is the only step that
+                # makes the pixels agree with the identity.
+                await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
             if not confirmed_here["value"]:
                 not_there["reason"] = (
                     f"{(open_page or expect_page)!r} is not what is in front of me — "
