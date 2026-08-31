@@ -1095,6 +1095,107 @@ _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
 
+def _by_what_followed(went: Sequence[tuple[Any, bool]]) -> list[tuple[Any, bool]]:
+    """The same situations, judged by how things went AFTER them.
+
+    Judged by the step out of it, a situation is good when the very next move
+    achieved something — and that teaches the opposite of what it should. In
+    2048 a scattered board has more pairs touching, so it scores on more of
+    its next moves, so "did that go well" measured a move at a time settles on
+    keeping the board scattered. Measured live over three hundred moves, what
+    she committed to was that the large values should NOT be gathered on one
+    line, which is precisely backwards, and she played worse than at random.
+
+    What somebody good at it is doing costs them merges now and pays much
+    later, and no measure taken a move at a time can see that. So a situation
+    is judged by the rate things went well from there onward.
+
+    The rate rather than the total, because a total rewards being early in the
+    run and nothing else, and that would rank every situation by when it
+    happened. Ranked against each other rather than against a level, so the
+    split cannot come out all one way.
+    """
+    if len(went) < 3:
+        return list(went)
+    after: list[float] = []
+    for at in range(len(went)):
+        rest = [one for _, one in went[at + 1 :]]
+        after.append(sum(rest) / len(rest) if rest else 0.0)
+    if len(set(after)) < 2:
+        return list(went)
+    ranked = sorted(range(len(after)), key=lambda one: after[one])
+    better = set(ranked[len(ranked) // 2 :])
+    return [(place, at in better) for at, (place, _) in enumerate(went)]
+
+
+def _by_how_much_room(
+    went: Sequence[tuple[Any, bool]],
+    names: Sequence[str],
+    expect: Callable[[Any, str], Any],
+) -> list[tuple[Any, bool]]:
+    """The same situations, judged by how much room each left her.
+
+    Whether a move went well is the caller's to say, and sometimes what it
+    says does not vary. Playing 2048 for three hundred moves, "the largest
+    thing did not get smaller" was true of very nearly every move she made, so
+    no property could tell the good states from the bad, so she committed to
+    nothing and ruled nothing out for the whole game. A measure that is always
+    true is not a measure.
+
+    What she always has instead is how much of her own future she can still
+    reach from here, which is what Klyubin and Polani's empowerment is for —
+    the thing to want when nobody has said what to want. It varies by
+    construction, because the split is at the middle of what she has actually
+    seen rather than at a number chosen for it.
+    """
+    if not went or not names:
+        return []
+
+    def step(one: Any, act: str) -> Any:
+        return _somewhere_else(one, act, expect)
+
+    # As far ahead as it takes for the measure to say something.
+    #
+    # One move ahead, nearly every 2048 board reaches four different places,
+    # so the measure was as flat as the one it was replacing. How crowded a
+    # thing is shows up in where she can get to, not in what she can press,
+    # and how far ahead that takes is a property of the thing rather than a
+    # number to pick: deepen while every situation still looks alike, and stop
+    # the moment they do not. Bounded by how many acts there are, because
+    # past that the tree is wider than the differences it could show.
+    room: list[int] = []
+    for ahead in range(1, max(2, len(names)) + 1):
+        room = [
+            what_is_still_open(
+                place, acts=names, step=step, named=repr, ahead=ahead
+            ).hers
+            for place, _ in went
+        ]
+        if len(set(room)) > 1:
+            break
+    if len(set(room)) < 2:
+        return list(went)
+    # The better half, by rank rather than by a level. A median split cannot
+    # come out all one way, which is the failure it is here to avoid.
+    ranked = sorted(range(len(room)), key=lambda one: room[one])
+    better = set(ranked[len(ranked) // 2 :])
+    return [
+        (place, at in better) for at, (place, _) in enumerate(went)
+    ]
+
+
+def _somewhere_else(place: Any, act: str, expect: Callable[[Any, str], Any]) -> Any:
+    """Where an act leaves things, or nothing when it leaves them as they were."""
+    try:
+        went_to = expect(place, act)
+    except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
+        return None
+    if went_to is None or went_to == place:
+        # not a failure: a move that changes nothing is not a move she has.
+        return None
+    return went_to
+
+
 def _moves_that_leave_her_nothing(
     reading: Any,
     names: Sequence[str],
@@ -1130,14 +1231,7 @@ def _moves_that_leave_her_nothing(
         return ()
 
     def step(place: Any, act: str) -> Any:
-        try:
-            went_to = expect(place, act)
-        except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
-            return None
-        if went_to is None or went_to == place:
-            # not a failure: a move that changes nothing is not a move she has.
-            return None
-        return went_to
+        return _somewhere_else(place, act, expect)
 
     def then_the_world(place: Any) -> tuple[Any, ...]:
         might = getattr(world, "might_do", None)
@@ -1265,7 +1359,13 @@ def _moves_she_will_not_make(
     if not callable(sure) or float(sure() or 0.0) <= 0.0:
         return frozenset(), ""
     if turn != she_keeps.get("at"):
-        kept, why = what_to_hold_now(she_keeps.get("it"), went)
+        kept, why = what_to_hold_now(she_keeps.get("it"), _by_what_followed(went))
+        if kept is None:
+            kept, why = what_to_hold_now(she_keeps.get("it"), went)
+        if kept is None:
+            kept, why = what_to_hold_now(
+                she_keeps.get("it"), _by_how_much_room(went, list(names), expect)
+            )
         she_keeps.update({"it": kept, "why": why, "at": turn})
     it = she_keeps.get("it")
     if it is None:

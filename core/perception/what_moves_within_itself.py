@@ -43,6 +43,13 @@ class MovesWithinItself:
     #: How often what appeared had not been anywhere in it.
     arrived: dict[tuple[int, int], int] = field(default_factory=dict)
     acts: int = 0
+    #: For each reporting place, the last number it showed, how many times it
+    #: went up, and how many times it went down. A reporter that never goes
+    #: down is a measure of progress, which is a thing worth having when
+    #: nobody has said what progress is.
+    _last: dict[tuple[int, int], float] = field(default_factory=dict)
+    _rose: dict[tuple[int, int], int] = field(default_factory=dict)
+    _fell: dict[tuple[int, int], int] = field(default_factory=dict)
 
     def saw(
         self,
@@ -67,6 +74,55 @@ class MovesWithinItself:
                 self.rearranged[where] = self.rearranged.get(where, 0) + 1
             else:
                 self.arrived[where] = self.arrived.get(where, 0) + 1
+            self._watch_the_number(where, text)
+
+    def _watch_the_number(self, where: tuple[int, int], text: str) -> None:
+        """Note which way a place's number went, where it holds one."""
+        try:
+            now = float(str(text).replace(",", "").strip())
+        except (TypeError, ValueError):
+            # not a failure: a place holding words holds no measure.
+            return
+        was = self._last.get(where)
+        self._last[where] = now
+        if was is None or now == was:
+            return
+        counted = self._rose if now > was else self._fell
+        counted[where] = counted.get(where, 0) + 1
+
+    def what_only_goes_up(self) -> frozenset[tuple[int, int]]:
+        """Reporting places whose number has never gone down.
+
+        A score. A move count. A total. Nobody had to say what progress is:
+        something on the screen has been keeping the tally the whole time, and
+        the thing that distinguishes it is that it only ever rises.
+
+        Only places that report, because a value inside the thing itself rises
+        and falls as she moves it about, and a tile that happens never to have
+        been beaten is a coincidence rather than a tally.
+        """
+        reports = self.the_things_that_report()
+        return frozenset(
+            where
+            for where in reports
+            if self._rose.get(where, 0) > 0 and not self._fell.get(where, 0)
+        )
+
+    def what_measures_doing_well(self) -> frozenset[tuple[int, int]]:
+        """The tally that rises when she does well, out of the ones that rise.
+
+        A move counter only goes up too, and it goes up whatever she does, so
+        it says nothing about whether what she did was any good. It is a clock.
+        What separates a score from a clock is that a score sometimes does not
+        move: it rises on the acts that achieved something and stands still on
+        the ones that did not, and standing still is the whole of its value as
+        a measure.
+        """
+        return frozenset(
+            where
+            for where in self.what_only_goes_up()
+            if self._rose.get(where, 0) < self.acts
+        )
 
     def the_thing_itself(self) -> frozenset[tuple[int, int]]:
         """The places whose contents move about rather than arrive.
@@ -103,6 +159,8 @@ class MovesWithinItself:
             "acts": self.acts,
             "rearranged": {f"{x},{y}": n for (x, y), n in self.rearranged.items()},
             "arrived": {f"{x},{y}": n for (x, y), n in self.arrived.items()},
+            "rose": {f"{x},{y}": n for (x, y), n in self._rose.items()},
+            "fell": {f"{x},{y}": n for (x, y), n in self._fell.items()},
         }
 
     @classmethod
@@ -131,6 +189,8 @@ class MovesWithinItself:
             rearranged=places(held.get("rearranged")),
             arrived=places(held.get("arrived")),
             acts=int(float(held.get("acts") or 0) * share),
+            _rose=places(held.get("rose")),
+            _fell=places(held.get("fell")),
         )
 
 
