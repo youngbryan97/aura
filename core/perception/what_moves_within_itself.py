@@ -52,6 +52,9 @@ class MovesWithinItself:
     #: The lowest each place has ever shown, so that going back to the
     #: beginning can be told from going backwards.
     _least: dict[tuple[int, int], float] = field(default_factory=dict)
+    #: How many readings each place has held anything in. A place that turns
+    #: up once is not one of the thing's own.
+    _stood_in: dict[tuple[int, int], int] = field(default_factory=dict)
 
     def saw(
         self,
@@ -71,6 +74,9 @@ class MovesWithinItself:
         if not before or not after:
             return
         self.acts += 1
+        for where, text in after.items():
+            if text:
+                self._stood_in[where] = self._stood_in.get(where, 0) + 1
         for where, text in after.items():
             if not text or before.get(where) == text:
                 continue
@@ -151,11 +157,19 @@ class MovesWithinItself:
         A place that has never changed is not in it, and that is deliberate:
         furniture inside a board's outline never changes, which is exactly how
         it got into the outline in the first place.
+
+        Nor is a place that has only ever been seen once. A score's text is
+        centred, so it SHIFTS as the number gets longer — 576 becomes 1024 a
+        few hundredths to the left, which is a value appearing where it was
+        not, having left where it was, and that is the exact signature of a
+        tile sliding. LIVE 2026-08-31, playing the real game: the board she
+        had settled on as four by four grew two more columns, and they were
+        made of the places the score used to be.
         """
         return frozenset(
             where
             for where, moved in self.rearranged.items()
-            if moved > self.arrived.get(where, 0)
+            if moved > self.arrived.get(where, 0) and self._stood_in.get(where, 0) > 1
         )
 
     def the_things_that_report(self) -> frozenset[tuple[int, int]]:
@@ -180,6 +194,7 @@ class MovesWithinItself:
             "acts": self.acts,
             "rearranged": {f"{x},{y}": n for (x, y), n in self.rearranged.items()},
             "arrived": {f"{x},{y}": n for (x, y), n in self.arrived.items()},
+            "stood_in": {f"{x},{y}": n for (x, y), n in self._stood_in.items()},
             "rose": {f"{x},{y}": n for (x, y), n in self._rose.items()},
             "fell": {f"{x},{y}": n for (x, y), n in self._fell.items()},
         }
@@ -210,6 +225,7 @@ class MovesWithinItself:
             rearranged=places(held.get("rearranged")),
             arrived=places(held.get("arrived")),
             acts=int(float(held.get("acts") or 0) * share),
+            _stood_in=places(held.get("stood_in")),
             _rose=places(held.get("rose")),
             _fell=places(held.get("fell")),
         )

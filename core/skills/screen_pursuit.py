@@ -1206,6 +1206,59 @@ def _somewhere_else(place: Any, act: str, expect: Callable[[Any, str], Any]) -> 
     return went_to
 
 
+def _in_the_same_grid(lattice: Any, before: Any, after: Any) -> bool:
+    """Whether both readings were laid into the grid she is holding.
+
+    Before she has one, a reading works out its own — and a reading of a game
+    that has not started yet puts the score, the best score, the title and the
+    instructions in it, because at that moment they are the only things there
+    to make a grid out of. Teaching the rule from those is teaching it that
+    pressing down moves the New Game button.
+
+    LIVE 2026-08-31, a hundred and fifty moves of the real game: every reading
+    after the third was four by four and the rule still only matched three in
+    four, because the first three were seven columns of furniture and every
+    comparison that touched one of them failed. A rule learned across two
+    different grids is not a rule about either.
+    """
+    if lattice is None or not getattr(lattice, "held", False):
+        return False
+    theirs = getattr(lattice, "down_at", ()), getattr(lattice, "across_at", ())
+    return all(
+        (getattr(one, "down_at", ()), getattr(one, "across_at", ())) == theirs
+        for one in (before, after)
+        if one is not None
+    )
+
+
+def _both_of_the_thing(app: str, before: Any, after: Any) -> bool:
+    """Whether both readings really are of the thing she is working in.
+
+    A reading that could not find the window is a reading of the WHOLE
+    DESKTOP, and it comes back looking like any other reading — same shape,
+    same fields, text and positions and all. Handed to the part of her that
+    works out where the thing's places are, it says the places are wherever
+    the dock and the menu bar and somebody's terminal happen to be.
+
+    LIVE 2026-08-31, playing the real game: focus slipped partway through a
+    hundred and thirteen moves, thirty-four readings were of the desktop, and
+    what she had worked out to be a four by four board became six by eighteen.
+    The rule she had already learned stopped matching, and nothing anywhere
+    said anything had gone wrong, because every one of those readings was a
+    perfectly good reading of something else.
+
+    Losing the window for a moment is ordinary and recoverable. Learning from
+    what was underneath it is not.
+    """
+    if not app:
+        return True
+    return all(
+        str((one or {}).get("scoped_to") or "") == app
+        for one in (before, after)
+        if isinstance(one, dict)
+    )
+
+
 def _moves_that_leave_her_nothing(
     reading: Any,
     names: Sequence[str],
@@ -2859,7 +2912,8 @@ async def pursue_on_screen(
                 # world's doing, and it is free at exactly this moment.
                 foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
                 world.watched(foretold, knows.rules.the_thing(laid_out))
-                knows.watched(pending["arranged"], previous.chosen.name, laid_out)
+                if _in_the_same_grid(responds["lattice"], pending["arranged"], laid_out):
+                    knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 # And whether it left her better off, against the kind of
                 # position it was made from. This is experience turning into
                 # skill: the same triple she learns the world's rules from
@@ -2937,7 +2991,9 @@ async def pursue_on_screen(
             # is the control: whatever still changed across it was changing
             # on its own, and a page whose advertising animates as often as
             # the task does cannot be separated any other way.
-            if pending["watched"]:
+            if pending["watched"] and _both_of_the_thing(
+                target_app or anchor["app"], pending["watched"], observation
+            ):
                 # The same places `noticed` uses, so the two sets can be
                 # intersected at all.
                 responds["moving"].saw(

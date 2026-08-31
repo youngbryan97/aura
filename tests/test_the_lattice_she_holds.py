@@ -280,6 +280,7 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
     band, moving, rules = Responsive(), MovesWithinItself(), HowItMoves()
     lattice = TheLatticeSheHolds()
     before, was, exact, seen = screen(grid, score), None, 0, 0
+    lately: list[bool] = []
     for _ in range(60):
         act = roll.choice(acts)
         went = _move(grid, act)
@@ -303,15 +304,22 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
             for c in range(4)
             if grid[r][c]
         }
+        right = {(one.row, one.column): one.says for one in laid.cells} == truth
         seen += 1
-        exact += {(one.row, one.column): one.says for one in laid.cells} == truth
+        exact += right
+        lately.append(right)
         if was is not None:
             rules.watched(was, act, laid)
         was, before = laid, after
 
     assert (lattice.rows, lattice.columns) == (4, 4)
     assert not lattice.looks_covered()
-    assert exact >= seen * 0.9, f"{exact}/{seen} readings exactly right"
+    # Not from the first move. Nothing has moved twice yet, so there is no
+    # evidence about where the thing's places are, and the early readings are
+    # worked out from whatever the screen happened to be showing. What is
+    # claimed is that she gets there and then stays there.
+    assert exact > seen // 2, f"{exact}/{seen} readings exactly right"
+    assert all(lately[-30:]), "once settled, every reading should be exact"
     # The misses are the first turns, before anything has moved twice and
     # there is any lattice to place them in.
     assert rules.confidence() > 0.9, rules.says()

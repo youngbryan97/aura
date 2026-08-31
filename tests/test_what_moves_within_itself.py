@@ -109,11 +109,17 @@ def test_one_act_settles_nothing_and_says_so() -> None:
 
 def test_it_is_not_about_boards() -> None:
     """Files being moved between folders, and a count of them underneath."""
-    before = {(0, 0): "notes.md", (0, 1): "todo.md", (1, 0): "", (5, 5): "2 files"}
-    after = {(0, 0): "notes.md", (0, 1): "", (1, 0): "todo.md", (5, 5): "1 file"}
-    moved, came = what_moved_within(before, after)
-    assert (1, 0) in moved
-    assert (5, 5) in came
+    watching = MovesWithinItself()
+    steps = [
+        {(0, 0): "notes.md", (0, 1): "todo.md", (1, 0): "plan.md", (5, 5): "3 files"},
+        {(0, 0): "notes.md", (0, 1): "todo.md", (1, 0): "", (5, 5): "2 files"},
+        {(0, 0): "notes.md", (0, 1): "", (1, 0): "todo.md", (5, 5): "2 files"},
+        {(0, 0): "", (0, 1): "notes.md", (1, 0): "todo.md", (5, 5): "2 files"},
+    ]
+    for before, after in zip(steps, steps[1:], strict=False):
+        watching.saw(before, after)
+    assert (0, 1) in watching.the_thing_itself()
+    assert (5, 5) in watching.the_things_that_report()
 
 
 def test_what_it_found_survives_the_process() -> None:
