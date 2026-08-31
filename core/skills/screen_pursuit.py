@@ -1372,6 +1372,7 @@ async def _the_best_reading_available(
     *,
     like: Any,
     in_a_browser: bool,
+    answering: frozenset[tuple[int, int]] | None = None,
 ) -> Any:
     """Ask the page what it is showing; look at the screen when it will not say.
 
@@ -1391,7 +1392,7 @@ async def _the_best_reading_available(
         what_the_page_is_showing,
     )
 
-    seen = what_is_there(observation, band, like=like)
+    seen = what_is_there(observation, band, like=like, answering=answering)
     if not in_a_browser:
         return seen
     try:
@@ -1791,6 +1792,7 @@ async def pursue_on_screen(
         Responsive,
         describe,
         noticed,
+        the_places_that_answer,
         what_is_there,
         within,
     )
@@ -2314,6 +2316,11 @@ async def pursue_on_screen(
         # reading properly.
         looking_at_the_thing = already or band is not None
         seen = within(observation, band, responds["state"])
+        # Which places answer to her, not merely their outline. See
+        # what_is_there: furniture inside the outline defines columns the
+        # board does not have, and a rule about sliding along a row cannot
+        # match rows that are not the board's.
+        answering = the_places_that_answer(responds["state"])
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         # The thing she is acting on, not the page it is drawn on.
@@ -2327,7 +2334,11 @@ async def pursue_on_screen(
         # eighty-four moves, and therefore a full language generation for
         # every single one of them — about twenty-eight seconds a move.
         whole = await _the_best_reading_available(
-            observation, band, like=pending["whole"], in_a_browser=bool(anchor["page"])
+            observation,
+            band,
+            like=pending["whole"],
+            in_a_browser=bool(anchor["page"]),
+            answering=answering,
         )
         laid_out = the_thing_itself(
             whole,

@@ -79,6 +79,12 @@ class Responsive:
     #: Acts since anything last answered her.
     unanswered: int = 0
 
+    #: The places that answer to her, as of the last time the band was worked
+    #: out. Kept because a BOX is not the same as a set of places: furniture
+    #: sitting inside the thing's outline is inside the box, and a lattice
+    #: built from it is not the thing's own.
+    _places: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+
     def as_memory(self) -> dict[str, Any]:
         """Where she found things happen, in a form that survives the process."""
         return {
@@ -175,6 +181,7 @@ class Responsive:
         ]
         if not repeated:
             return None
+        self._places = frozenset(repeated)
         xs = _middle(sorted(where[0] / 100.0 for where in repeated))
         ys = _middle(sorted(where[1] / 100.0 for where in repeated))
         return (
@@ -194,6 +201,23 @@ class Responsive:
 #: from the board to the whole window. Dropping the outermost tenth at each
 #: edge keeps the part that answers and loses the strays.
 TRIM = 0.1
+
+
+def the_places_that_answer(state: Any) -> frozenset[tuple[int, int]]:
+    """Where things happen because of her, one place at a time.
+
+    The band is these places' outline, and an outline is coarser than they
+    are: a score, a title and a New Game button all sit inside a board's
+    outline, and a grid worked out from them is not the board's grid. LIVE
+    2026-08-31 on a native app, with a clean reading of one window: the tiles
+    landed on columns 0, 3, 4 and 6 of a nine-column lattice the furniture
+    had defined, and no rule about sliding along a row could match, because
+    the rows were not rows of the board.
+    """
+    band = getattr(state, "band", None)
+    if callable(band):
+        band()  # works the places out, as a side effect of settling the box
+    return frozenset(getattr(state, "_places", frozenset()) or frozenset())
 
 
 def _middle(values: Sequence[float]) -> tuple[float, float]:
@@ -341,12 +365,24 @@ def what_is_there(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
     like: Arrangement | None = None,
+    answering: frozenset[tuple[int, int]] | None = None,
 ) -> Arrangement:
     """The same reading as :func:`within`, with a place for each thing in it.
 
     :func:`within` hands back the string she reads. This hands back what it
     was made from, so a plan about a corner or a bottom row can be checked
     against the thing itself rather than against prose about it.
+
+    ``answering`` is the set of places that move because of her, and where it
+    is known the grid is worked out from those alone. This matters more than
+    it sounds: the band is their OUTLINE, and a score, a title and a New Game
+    button all sit inside a board's outline. LIVE 2026-08-31 on a clean
+    reading of one window, the tiles landed on columns 0, 3, 4 and 6 of a
+    nine-column lattice the furniture had defined, and no rule about sliding
+    along a row could match, because those were not the board's rows.
+
+    Before she has settled which places answer, everything inside the band is
+    used, which is what she has.
     """
     inside: list[tuple[float, float, str]] = []
     for region in observation.get("layout") or []:
@@ -373,6 +409,17 @@ def what_is_there(
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
     _note_what_was_seen(inside, band)
+    if answering:
+        # A place is where a thing sits, to the nearest hundredth of the
+        # window — the same quantisation the answering places are counted in.
+        only = [
+            (y, x, said)
+            for y, x, said in inside
+            if (int(round(x * 100)), int(round(y * 100))) in answering
+        ]
+        # Cropping to nothing is not a reading.
+        if len(only) >= 4:
+            return arranged(only, like=like)
     return arranged(inside, like=like)
 
 
