@@ -52,3 +52,15 @@ latency separately from successful delivery. Audit the broader action and turn
 deadline callers for the same ownership conflict; this repair does not certify
 every tool or every nested caller. Repository-wide semantic review and long
 soaks remain separate, deferred work.
+
+## Forecast Authority
+
+The adjacent answer-clock code also changed the chosen primary model to the
+tertiary model when its reasoning estimate exceeded a fixed cap. A later branch
+reduced the requested answer allowance to fit that estimate. Both decisions
+have been removed. Forecasts may report duration and increase headroom; they
+cannot authorize a weaker cortex or a shorter foreground answer. Explicit
+output contracts and resource admission retain their independent roles.
+
+The forecast and completion regressions pass 45 tests. The desktop replay
+currently in progress uses `d1b2157fa`, before this forecast-only follow-up.

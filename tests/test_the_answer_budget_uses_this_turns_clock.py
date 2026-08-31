@@ -141,14 +141,8 @@ def test_a_prompt_that_eats_the_whole_clock_buys_no_answer():
     assert _allowed(seconds=10.0, prompt_chars=200_000) == 0
 
 
-def test_a_floor_the_clock_cannot_pay_for_is_not_a_longer_answer():
-    """It is no answer: generation is aborted and every token is discarded.
-
-    LIVE 2026-08-30, three times: a 1,024-token completion floor on a turn
-    that could afford about half that once reading a nine-thousand-character
-    prompt was counted. Aborted at 166.8s with nothing said.
-    """
-    import ast
+def test_foreground_answer_budget_is_not_reduced_to_fit_a_duration_estimate():
+    """Completion owns progress; a forecast may not shorten the answer."""
     import inspect
     from pathlib import Path
 
@@ -156,12 +150,7 @@ def test_a_floor_the_clock_cannot_pay_for_is_not_a_longer_answer():
 
     source = Path(inspect.getfile(inference_gate)).read_text(encoding="utf-8")
     at = source.index("[ANSWER BUDGET] %d tokens fit this turn's clock")
-    nearby = source[at : at + 1800]
-    assert "lowering the ceiling" in nearby, (
-        "the budget only ever raised; a floor beyond the clock produces a "
-        "cancellation rather than a long answer"
-    )
-    # And the lowering is guarded so an unmeasured rate cannot zero the budget.
-    tree = ast.parse("if 0 < _affordable < max_tokens:\n    pass")
-    assert isinstance(tree.body[0], ast.If)
-    assert "0 < _affordable < max_tokens" in nearby
+    end = source.index("serving_lane = self._cortex_serving_lane", at)
+    nearby = source[at:end]
+    assert "lowering the ceiling" not in nearby
+    assert "0 < _affordable < max_tokens" not in nearby
