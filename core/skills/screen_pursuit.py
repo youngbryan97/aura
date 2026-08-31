@@ -1027,8 +1027,8 @@ def _a_screenful(hands: Any) -> int:
     return max(A_SCREENFUL_AT_LEAST, int(height * MOST_OF_A_SCREEN))
 
 
-def _worth_holding(found: Any, whole: Any) -> Any:
-    """The block she found last time, if she really found one.
+def _worth_holding(found: Any, whole: Any, seen: dict[Any, int] | None = None) -> Any:
+    """The block worth carrying to the next glance.
 
     A reading taken before the page settles has no lattice in it — nothing
     drawn yet, or a panel over the top — and what comes back is the whole
@@ -1037,11 +1037,38 @@ def _worth_holding(found: Any, whole: Any) -> Any:
     thing at all. LIVE 2026-08-29: "reading 13x8" for an entire run on a
     four-by-four board, every comparison after the first discarded as
     unreadable, and no rule ever formed.
+
+    And the shape she carries is the one she has SETTLED on, not the one she
+    saw a moment ago. Anchoring on the last glance means one bad glance drops
+    the anchor and she begins again: live 2026-08-31 the readings went 3x4,
+    then unreadable, then 3x4, and one move in three could be compared with
+    another. A thing does not change shape, so the shape she has read most
+    often is the better guess about it than the shape she read last — and a
+    single misreading no longer costs her the thing.
     """
     if found is None or whole is None:
         return None
     inside = found.rows * found.columns < whole.rows * whole.columns
-    return found if inside else None
+    if not inside:
+        return None
+    # `is not None`, because an empty tally is falsy and the first shape would
+    # never be recorded — so it stayed empty, and nothing was ever settled.
+    if seen is not None:
+        seen[(found.rows, found.columns)] = seen.get((found.rows, found.columns), 0) + 1
+        settled = max(seen, key=lambda shape: (seen[shape], shape[0] * shape[1]))
+        if seen[settled] > 1 and (found.rows, found.columns) != settled:
+            # This glance disagrees with what it has usually been. Keep the
+            # shape rather than the glance; a short reading is placed inside a
+            # known shape, where a differently-shaped one cannot be compared
+            # at all.
+            return _AS_IT_USUALLY_IS.get(settled) or found
+        _AS_IT_USUALLY_IS[settled] = found
+    return found
+
+
+#: The last reading of each shape she has settled on, so a glance that
+#: disagrees can be placed in one rather than replace it.
+_AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
 def _what_there_is_to_aim_at(reading: Any) -> str:
@@ -2198,7 +2225,10 @@ async def pursue_on_screen(
             observation, band, like=pending["whole"], in_a_browser=bool(anchor["page"])
         )
         laid_out = the_thing_itself(
-            whole, like=_worth_holding(pending["arranged"], pending["whole"])
+            whole,
+            like=_worth_holding(
+                pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
+            ),
         )
 
         # Is this the thing she was asked to act in.
