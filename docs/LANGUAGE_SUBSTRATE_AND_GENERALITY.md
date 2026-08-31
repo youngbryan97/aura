@@ -302,10 +302,29 @@ impossible rather than merely hard:
   other reader of a strict answer already unwrapped the envelope; the graders
   were the outlier.
 
-17 of 43 generations hit the matched 20s deadline, because this model decodes
+On sixty items the number is stable: **0.6333**, against 0.65 on twenty.
+
+48 of 135 generations hit the matched 20s deadline, because this model decodes
 at 10.6 tokens a second and cannot fit three samples inside it. That is the
-measurement working rather than failing: the budget is matched, and a model
-that cannot answer inside it scores lower.
+measurement working rather than failing — the budget is matched, and a model
+that cannot answer inside it scores lower — but it does raise the question of
+what the budget is costing, which the same battery on a longer clock answers:
+
+| clock | overall | facts and ordering | arithmetic | code |
+|---|---|---|---|---|
+| 20s (matched) | 0.70 | 10/10 | 3/5 | 1/5 |
+| 90s (diagnostic, not a V5 result) | 0.90 | 10/10 | 5/5 | 3/5 |
+
+So most of what the matched budget costs is decode speed rather than
+reasoning: given time, arithmetic goes from 3/5 to 5/5. What remains after
+that is code, which is where the real gap is.
+
+One of the two remaining code failures was a defect and is fixed: the answer
+came back as `<answer><think>The user wants a Python function called`. The
+worker already had the rule — bytes before a thinking channel closes must
+never become the user surface — and the strict answer path was not applying
+it, so a model that began thinking inside its own envelope had that returned
+as its answer.
 
 Three things still stand between that and a capability measurement, and none of
 them is engineering:

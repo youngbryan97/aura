@@ -154,3 +154,24 @@ def test_an_answer_with_no_envelope_grades_exactly_as_it_did():
     assert not _exact_text_grader("Mars")("Venus")
     assert _exact_integer_grader(42)("42")
     assert not _exact_integer_grader(42)("42 apples")
+
+
+def test_thinking_inside_the_answer_envelope_is_not_the_answer():
+    """``split_native_thinking_generation`` already states the rule: bytes
+    before the closing marker are private-channel bytes and must never become
+    the user surface. The strict answer path did not apply it, so a model that
+    began thinking inside its own envelope had that returned as its answer —
+    observed live on the frontier battery, where a code item came back as
+    ``<answer><think>The user wants a Python function called``.
+    """
+    from core.brain.llm.mlx_worker import _the_surface_of
+
+    assert _the_surface_of("Tokyo") == "Tokyo"
+    assert _the_surface_of("<think>let me see</think>Tokyo") == "Tokyo"
+    # An opener with no close means the answer was never reached, and nothing
+    # is the honest result rather than the reasoning on its way there.
+    assert _the_surface_of("<think>The user wants a Python function") == ""
+    assert (
+        _the_surface_of("<think>ok</think>```python\ndef f(xs): return sum(xs)\n```")
+        == "```python\ndef f(xs): return sum(xs)\n```"
+    )

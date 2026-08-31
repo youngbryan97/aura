@@ -3853,6 +3853,29 @@ def _collapse_escape_noise(text: str) -> str:
     return re.sub(r"\\[nrt]", " ", text, flags=re.IGNORECASE)
 
 
+def _the_surface_of(body: str) -> str:
+    """The answer, with any private thinking taken out of it.
+
+    A reasoning model opens a thinking channel and closes it before the answer,
+    and ``split_native_thinking_generation`` already states the rule: bytes
+    before the closing marker are private-channel bytes and must never become
+    the user surface. The strict answer path did not apply it, so a model that
+    began thinking inside its own envelope had that thinking returned as its
+    answer — observed live 2026-08-30 on the frontier battery, where a code
+    item came back as "<answer><think>The user wants a Python function called".
+
+    An opener with no close means the answer was never reached, and the honest
+    result is nothing rather than the reasoning that was on its way there.
+    """
+    from core.brain.llm.chat_format import split_native_thinking_generation
+
+    text = str(body or "")
+    if "<think>" not in text and "</think>" not in text:
+        return text.strip()
+    channels = split_native_thinking_generation(text, native_thinking=True)
+    return str(getattr(channels, "surface", "") or "").strip()
+
+
 def _normalize_strict_answer_response(text: str, *, envelope_prefixed: bool) -> str:
     """Normalize strict proof output without changing the model-derived answer.
 
@@ -3875,12 +3898,12 @@ def _normalize_strict_answer_response(text: str, *, envelope_prefixed: bool) -> 
     # <answer> body is the model's exact value and must survive unaltered.
     match = _STRICT_ANSWER_ENVELOPE_RE.search(cleaned)
     if match:
-        answer = match.group(1).strip()
+        answer = _the_surface_of(match.group(1).strip())
         return f"<answer>{answer}</answer>" if answer else ""
     cleaned = _collapse_escape_noise(cleaned)
     match = _STRICT_ANSWER_ENVELOPE_RE.search(cleaned)
     if match:
-        answer = match.group(1).strip()
+        answer = _the_surface_of(match.group(1).strip())
         return f"<answer>{answer}</answer>" if answer else ""
 
     if not envelope_prefixed:
