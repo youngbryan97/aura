@@ -5688,6 +5688,7 @@ class LatentCortexService:
         )
         result["receipt"] = result_receipt
         action_policy_matches = action_policy_evidence is None
+        why_the_policy_did_not_match = ""
         if action_policy_evidence is not None:
             try:
                 from core.brain.llm.latent_cortex.epistemic_state import (
@@ -5777,9 +5778,20 @@ class LatentCortexService:
                 elif raw_handoff not in ({}, None):
                     raise ValueError("worker emitted unoffered external execution handoff")
                 action_policy_matches = True
-            except (ImportError, TypeError, ValueError):
+            except (ImportError, TypeError, ValueError) as exc:
+                # Nine checks above raise with nine different messages, and
+                # every one of them arrived here and became a bare False. The
+                # refusal downstream then said only
+                # "runtime_action_policy_receipt_mismatch", which is true of
+                # all nine and tells nobody which — and that refusal stops a
+                # browser action before it begins. The reason is already in
+                # hand; it costs nothing to keep it.
                 action_transitions.clear()
                 action_policy_matches = False
+                why_the_policy_did_not_match = f"{type(exc).__name__}: {exc}"
+                logger.info(
+                    "worker action policy did not match: %s", why_the_policy_did_not_match
+                )
         contract_errors: list[str] = []
         quality_receipt: dict[str, Any] | None = None
         host_incumbent: tuple[str, list[int]] | None = None
@@ -5980,6 +5992,8 @@ class LatentCortexService:
                 return failed
             if result.get("ok") is True and not action_policy_matches:
                 reason = "runtime_action_policy_receipt_mismatch"
+                if why_the_policy_did_not_match:
+                    reason = f"{reason}:{why_the_policy_did_not_match}"
                 failed = dict(result)
                 failed.update(self._record_failure(reason))
                 failed["receipt"] = result_receipt
