@@ -203,3 +203,54 @@ def test_it_will_not_refuse_every_move_when_they_all_end_it() -> None:
     wont, _ = _moves_she_will_not_make({}, _watched(), done, ACTS, _Knows(), turn=0)
     assert not wont or set(wont) < set(ACTS)
     assert len(dead) <= len(ACTS)
+
+
+def test_the_score_she_found_is_what_scores_a_stretch() -> None:
+    """The wiring for the habit: her measure comes off the screen.
+
+    Nobody tells her what progress is. Something on the screen has been
+    keeping the tally the whole time, and what distinguishes it is that it only
+    ever rises, does not rise on everything, and — unlike a tile that happens
+    never to have been beaten — is not something that moves about.
+    """
+    from core.perception.what_moves_within_itself import MovesWithinItself
+    from core.perception.where_it_responds import places_and_text
+    from core.skills.screen_pursuit import _how_much_the_tally_moved
+
+    AT = [(0.20, 0.35), (0.35, 0.35), (0.50, 0.35), (0.65, 0.35)]
+
+    def reading(score: int, row: list[str]) -> dict:
+        return {
+            "layout": [
+                {"text": str(score), "center_x": 0.47, "center_y": 0.14},
+                *[
+                    {"text": says, "center_x": x, "center_y": y}
+                    for (x, y), says in zip(AT, row, strict=True)
+                    if says
+                ],
+            ]
+        }
+
+    # Tiles sliding along a row, so their values move between places, and a
+    # score that rises only when two of them join.
+    frames = [
+        reading(0, ["2", "", "4", "8"]),
+        reading(0, ["", "2", "4", "8"]),
+        reading(0, ["", "", "2", "4"]),
+        reading(8, ["", "", "8", "4"]),
+        reading(8, ["", "8", "4", ""]),
+        reading(16, ["", "", "8", "8"]),
+    ]
+    moving = MovesWithinItself()
+    for before, after in zip(frames, frames[1:], strict=False):
+        moving.saw(places_and_text(before), places_and_text(after))
+
+    score_at = (round(0.47 * 100), round(0.14 * 100))
+    assert score_at in moving.what_measures_doing_well()
+    assert moving.what_measures_doing_well() == frozenset({score_at}), (
+        "a tile that moves about is not a tally"
+    )
+    assert _how_much_the_tally_moved(moving, frames[4], frames[5]) == 8.0
+    assert _how_much_the_tally_moved(moving, frames[1], frames[2]) == 0.0
+    # And nothing to say where she has found no tally.
+    assert _how_much_the_tally_moved(MovesWithinItself(), frames[0], frames[1]) is None
