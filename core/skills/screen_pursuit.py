@@ -39,6 +39,7 @@ from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
     what_to_hold_now,
 )
+from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
@@ -1094,6 +1095,78 @@ _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
 
+def _moves_that_leave_her_nothing(
+    reading: Any,
+    names: Sequence[str],
+    expect: Callable[[Any, str], Any],
+    world: Any = None,
+) -> tuple[str, ...]:
+    """Moves after which she would have nothing left to do.
+
+    How much of its own future a thing can still reach through its own acts is
+    what Klyubin and Polani called empowerment, and the usual use of it is
+    keeping options open. The floor of it is not a preference: in a game that
+    ends when nothing can move, a move that leaves her nothing is the losing
+    move, whatever else can be said for it.
+
+    Counted as distinct places she could bring about rather than as moves she
+    could make, because several moves that all leave the world the same are one
+    option and not several.
+
+    Her move alone is the wrong thing to look at, and looking at it alone made
+    this unable to fire at all. A board like 2048 fills up when the WORLD puts
+    something down, not when she slides; a slide either merges and leaves a
+    gap or changes nothing, so no move of hers has a full board on the other
+    side of it and no move of hers ever looked fatal. What she has to survive
+    is her move and then the world's, so the world's turn is taken here when
+    she has worked out what it does.
+
+    Only ruled out when she has nothing left WHATEVER the world does. Where
+    some of what the world might do leaves her stuck and some does not, that is
+    a risk and not a certainty, and refusing on a risk is how a thing talks
+    itself out of every move it has.
+    """
+    if not names:
+        return ()
+
+    def step(place: Any, act: str) -> Any:
+        try:
+            went_to = expect(place, act)
+        except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
+            return None
+        if went_to is None or went_to == place:
+            # not a failure: a move that changes nothing is not a move she has.
+            return None
+        return went_to
+
+    def then_the_world(place: Any) -> tuple[Any, ...]:
+        might = getattr(world, "might_do", None)
+        if not callable(might):
+            return (place,)
+        try:
+            ways = might(place)
+        except (AttributeError, TypeError, ValueError):
+            # not a failure: a world she cannot ask is a world she takes as
+            # leaving things where they are.
+            return (place,)
+        return tuple(way for way, _share in ways) or (place,)
+
+    dead: list[str] = []
+    for act in names:
+        after = step(reading, act)
+        if after is None:
+            continue
+        if all(
+            what_is_still_open(
+                then, acts=list(names), step=step, named=repr
+            ).hers
+            == 0
+            for then in then_the_world(after)
+        ):
+            dead.append(act)
+    return tuple(dead)
+
+
 def _within_a_move(
     wanted: Callable[[Any], bool],
     reading: Any,
@@ -1161,6 +1234,7 @@ def _moves_she_will_not_make(
     names: Sequence[str],
     knows: Any,
     turn: int,
+    world: Any = None,
 ) -> tuple[frozenset[str], str]:
     """The moves she has already ruled out, before any looking ahead.
 
@@ -1212,6 +1286,13 @@ def _moves_she_will_not_make(
             return frozenset(), ""
         she_keeps["it"] = it = nearer
     keeps, breaks = what_it_rules_out(it, reading, list(names), expect=expect)
+    dead = _moves_that_leave_her_nothing(reading, list(names), expect, world)
+    if dead and len(dead) < len(names):
+        # A move after which she has no move is how a game like this is lost,
+        # and no property she happens to be holding makes one worth making.
+        # Ruled out on its own account, before the rest of the weighing.
+        breaks = tuple(dict.fromkeys([*breaks, *dead]))
+        keeps = tuple(one for one in keeps if one not in dead)
     if not keeps or not breaks:
         # Nothing to rule out, or everything — and refusing every move is not
         # holding something, it is being stuck.
@@ -2960,6 +3041,7 @@ async def pursue_on_screen(
                 [option.name for option in available],
                 knows,
                 len(moves),
+                world,
             )
             if wont:
                 available = [one for one in available if one.name not in wont]

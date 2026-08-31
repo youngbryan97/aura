@@ -10,7 +10,13 @@ anything, and that it can never leave her with nothing to press.
 from __future__ import annotations
 
 from core.skills.screen_pursuit import _moves_she_will_not_make
-from tests.test_something_she_keeps_true import ACTS, _board, _moved, _watched
+from tests.test_something_she_keeps_true import (
+    ACTS,
+    _board,
+    _grid,
+    _moved,
+    _watched,
+)
 
 
 class _Rules:
@@ -120,3 +126,80 @@ def test_when_she_cannot_hold_it_she_wants_something_nearer_instead() -> None:
     _moves_she_will_not_make(keeps, seen, here, ACTS, _Knows(), turn=0)
     assert keeps["it"].name != "it holds a 512", "she should have stepped back"
     assert "256" in keeps["it"].name, keeps["it"].name
+
+
+def test_a_move_that_leaves_her_nothing_is_ruled_out_on_its_own_account() -> None:
+    """Losing this game is having no move. No property makes that worth doing.
+
+    Her own move can never fill this board — a slide either merges and leaves a
+    gap or changes nothing — so what she has to survive is her move and then
+    the world putting a tile down. The world here is the one that fills the
+    last square.
+    """
+    from core.skills.screen_pursuit import _moves_that_leave_her_nothing
+
+    locked = [[2, 4, 8, 16], [4, 8, 16, 32], [8, 16, 32, 64], [16, 32, 64, 128]]
+
+    class _FillsTheLastSquare:
+        """Puts a tile in the one empty place, which is what ends the game."""
+
+        def might_do(self, board):
+            grid = _grid(board)
+            empty = [
+                (r, c) for r in range(4) for c in range(4) if not grid[r][c]
+            ]
+            if len(empty) != 1:
+                return ()
+            row, col = empty[0]
+            grid[row][col] = locked[row][col]
+            return ((_board(grid), 1.0),)
+
+    # One slide right from a board with a single gap and no two neighbours
+    # alike, which the world then fills. Sliding up or down instead merges a
+    # pair and leaves her plenty.
+    nearly = _board([[4, 8, 16, 0], [4, 8, 16, 32], [8, 16, 32, 64], [16, 32, 64, 128]])
+    without_the_world = _moves_that_leave_her_nothing(nearly, ACTS, _moved)
+    assert not without_the_world, "her own slide cannot fill a board"
+
+    dead = _moves_that_leave_her_nothing(nearly, ACTS, _moved, _FillsTheLastSquare())
+    assert dead, "with the world taking its turn, the losing move is visible"
+    assert set(dead) < set(ACTS), "not every move ends it, so not all are refused"
+
+
+def test_a_risk_is_not_a_certainty_and_is_not_refused() -> None:
+    """Where some of what the world might do leaves her stuck and some does
+    not, refusing is how a thing talks itself out of every move it has."""
+    from core.skills.screen_pursuit import _moves_that_leave_her_nothing
+
+    class _MightOrMightNot:
+        def might_do(self, board):
+            grid = _grid(board)
+            empty = [
+                (r, c) for r in range(4) for c in range(4) if not grid[r][c]
+            ]
+            if len(empty) != 1:
+                return ()
+            row, col = empty[0]
+            locking = [
+                [2, 4, 8, 16], [4, 8, 16, 32], [8, 16, 32, 64], [16, 32, 64, 128],
+            ]
+            one = _grid(_board(grid))
+            one[row][col] = locking[row][col]
+            other = _grid(_board(grid))
+            # A tile that matches its neighbour, so she still has a merge.
+            other[row][col] = 4
+            return ((_board(one), 0.5), (_board(other), 0.5))
+
+    nearly = _board([[4, 8, 16, 0], [4, 8, 16, 32], [8, 16, 32, 64], [16, 32, 64, 128]])
+    assert not _moves_that_leave_her_nothing(nearly, ACTS, _moved, _MightOrMightNot())
+
+
+def test_it_will_not_refuse_every_move_when_they_all_end_it() -> None:
+    """When there is no way out she still moves, rather than sitting there."""
+    from core.skills.screen_pursuit import _moves_that_leave_her_nothing
+
+    done = _board([[2, 4, 2, 4], [4, 2, 4, 2], [2, 4, 2, 4], [4, 2, 4, 8]])
+    dead = _moves_that_leave_her_nothing(done, ACTS, _moved)
+    wont, _ = _moves_she_will_not_make({}, _watched(), done, ACTS, _Knows(), turn=0)
+    assert not wont or set(wont) < set(ACTS)
+    assert len(dead) <= len(ACTS)
