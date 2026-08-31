@@ -5710,19 +5710,46 @@ class LatentCortexService:
                     "checked_transitions",
                     "selected_actions",
                 }
-                if (
-                    not isinstance(policy_receipt, dict)
-                    or set(policy_receipt) != policy_fields
-                    or policy_receipt.get("schema") != action_policy_evidence["schema"]
-                    or policy_receipt.get("snapshot_sha256")
-                    != action_policy_evidence["snapshot_sha256"]
-                    or policy_receipt.get("bucket") != action_policy_evidence["bucket"]
-                    or policy_receipt.get("active") is not True
-                    or not isinstance(raw_trace, list)
-                    or not raw_trace
-                    or policy_receipt.get("actions_selected") != len(raw_trace)
-                ):
-                    raise ValueError("worker action policy receipt is incomplete")
+                # Nine conditions, and the one that fires is the one worth
+                # saying. Together they were "the receipt is incomplete",
+                # which is where the trail went cold on a browser action that
+                # never started.
+                if not isinstance(policy_receipt, dict):
+                    raise ValueError(
+                        "worker action policy receipt is incomplete: no receipt at all "
+                        f"(got {type(policy_receipt).__name__})"
+                    )
+                missing = policy_fields - set(policy_receipt)
+                extra = set(policy_receipt) - policy_fields
+                if missing or extra:
+                    raise ValueError(
+                        "worker action policy receipt is incomplete: fields differ"
+                        + (f", missing {sorted(missing)}" if missing else "")
+                        + (f", unexpected {sorted(extra)}" if extra else "")
+                    )
+                for part in ("schema", "snapshot_sha256", "bucket"):
+                    if policy_receipt.get(part) != action_policy_evidence[part]:
+                        raise ValueError(
+                            f"worker action policy receipt is incomplete: {part} differs "
+                            f"({policy_receipt.get(part)!r} against "
+                            f"{action_policy_evidence[part]!r})"
+                        )
+                if policy_receipt.get("active") is not True:
+                    raise ValueError(
+                        "worker action policy receipt is incomplete: it is not active"
+                    )
+                if not isinstance(raw_trace, list) or not raw_trace:
+                    raise ValueError(
+                        "worker action policy receipt is incomplete: no action trace "
+                        f"(got {type(raw_trace).__name__} of "
+                        f"{len(raw_trace) if isinstance(raw_trace, list) else 0})"
+                    )
+                if policy_receipt.get("actions_selected") != len(raw_trace):
+                    raise ValueError(
+                        "worker action policy receipt is incomplete: it counts "
+                        f"{policy_receipt.get('actions_selected')!r} action(s) and the "
+                        f"trace has {len(raw_trace)}"
+                    )
                 raw_executors = policy_receipt.get("executors")
                 if (
                     not isinstance(raw_executors, list)
