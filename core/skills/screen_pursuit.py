@@ -1291,11 +1291,29 @@ async def _move_her_own_surface_aside(
         from core.perception.ambient_presence import PresenceMode, get_ambient_presence
 
         presence = get_ambient_presence()
-        if presence.mode is not PresenceMode.BUBBLE or not presence.drawing_surface_attached():
-            return False
-        where = presence.bubble_position()
+        placeable = (
+            presence.mode is PresenceMode.BUBBLE and presence.drawing_surface_attached()
+        )
+        where = presence.bubble_position() if placeable else None
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return False
+        placeable, where = False, None
+    if not placeable:
+        # Her whole window, which she cannot place but can put away.
+        #
+        # This covered only the companion bubble, so in desktop mode her own
+        # window sat over the work and nothing here touched it. LIVE
+        # 2026-08-31: asked to play a game in a browser, every reading for
+        # eighteen moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
+        # MEMORY, SETTINGS — and the board appeared in none of them. She
+        # pressed arrow keys into herself and her predictions about what would
+        # change were correct, which is why it looked like playing.
+        #
+        # Asking the thing to the front is not enough on its own: hers is
+        # drawn above everything by design and comes straight back. Hiding is
+        # what a person does with their own window when it is over their work.
+        # Nothing closes, nothing stops, and it returns the moment it is
+        # wanted.
+        return await _put_her_own_window_away()
     if not where:
         return False
     left, top, right, bottom = (float(edge) for edge in over)
@@ -1486,6 +1504,31 @@ async def clear_what_is_in_front(on_top: str) -> bool:
         return False
     logger.info("%s is out of the way", on_top)
     return True
+
+
+async def _put_her_own_window_away() -> bool:
+    """Hide her own application, so what she was asked to act in is visible."""
+    from core.config import get_config
+
+    named = ""
+    try:
+        named = str(getattr(get_config(), "app_name", "") or "").strip()
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        named = ""
+    for candidate in (named, "Aura"):
+        if not candidate:
+            continue
+        try:
+            from core.capabilities.host_automation import get_host_automation
+
+            receipt = await get_host_automation().hide_app(candidate)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            logger.debug("could not put %r away", candidate, exc_info=True)
+            continue
+        if bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False)):
+            logger.info("put her own window away so the thing is visible")
+            return True
+    return False
 
 
 async def _bring_the_thing_back_to_the_front(app: str) -> bool:
@@ -2288,9 +2331,13 @@ async def pursue_on_screen(
                 # MEMORY, SETTINGS. She pressed keys into herself and her
                 # predictions about what would change were correct.
                 #
-                # So the thing is asked to the front once, here, before the
-                # first key. Asking is cheap and it is the only step that
-                # makes the pixels agree with the identity.
+                # So before the first key: her own window goes away and the
+                # thing is asked to the front. Asking alone is not enough —
+                # hers is drawn above everything and comes straight back —
+                # and putting hers away alone leaves the wrong window
+                # frontmost. Both, in that order, are what make the pixels
+                # agree with the identity.
+                await _put_her_own_window_away()
                 await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
             if not confirmed_here["value"]:
                 not_there["reason"] = (

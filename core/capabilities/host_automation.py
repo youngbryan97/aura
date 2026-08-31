@@ -571,6 +571,27 @@ class HostAutomationProvider:
         self._log_receipt(receipt)
         return receipt
 
+    async def hide_app(self, app_name: str) -> AutomationReceipt:
+        """Put an application's windows out of the way without stopping it.
+
+        Hers is the one this is for. Asked to act on something else, her own
+        window is in front of it — drawn above everything by design — and the
+        screen she reads is therefore her own interface rather than the thing.
+        Hiding is what a person does with their own window when it is over
+        their work: nothing closes, nothing stops, and the window comes back
+        the moment it is wanted.
+        """
+        script = f'''
+            tell application "System Events"
+                set visible of (first process whose name is {_as_applescript_string(app_name)}) to false
+            end tell
+        '''
+        receipt = await AppleScriptRunner.run(script, timeout=5.0)
+        receipt.action = "hide_app"
+        receipt.target = app_name
+        self._log_receipt(receipt)
+        return receipt
+
     async def get_frontmost_app(self) -> AutomationReceipt:
         """Get the name of the currently frontmost application."""
         script = 'tell application "System Events" to get name of first application process whose frontmost is true'
