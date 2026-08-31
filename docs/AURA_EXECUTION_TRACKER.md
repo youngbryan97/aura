@@ -52420,3 +52420,14 @@ skip; lint, compile and layering pass. The smoke run took 140.23 seconds while
 the separate desktop replay was generating, so it is not an idle-host timing
 measurement. The inherited perception diagnostic-write governance finding
 remains open. This reservation change has not yet been loaded into Aura.
+
+## Live Checkpoint 2026-08-31: Question Routing Repaired
+
+Native desktop replay on `bb124e5c3` answered the exact async-lock question as
+one model-authored response, without desktop execution or response replacement.
+Persisted full-mind path, delivery and completion checks pass; bounded-contract
+and legacy-fallback flags are false. Request time was 324.67 seconds. This closes
+the question-to-desktop routing reproduction, not latency, technical answer
+quality, cross-restart context, or RLC qualification. Background progress leaking
+into the chat indicator and turn-progress lock contention remain open. Details
+are appended to the foreground completion evidence record.

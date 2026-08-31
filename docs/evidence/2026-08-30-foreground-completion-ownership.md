@@ -125,3 +125,29 @@ retain their one-token behavior. Each request resets its prefill rate sample.
 Focused client, progress, resilience and clock tests: 139 passed in 99.10
 seconds. Smoke: 121 passed, one skip. Lint, compile, layering and governance
 passed. These counter changes have not yet been loaded into desktop Aura.
+
+## August 31: Desktop Question Routing Replay
+
+Signed-app launch at `bb124e5c3` verified source currency and revision token
+`3170bfaf40195b8d3421d67572520ff29f154b6f9bb3f508ae606230a48289bc`.
+The native composer submitted the exact async-lock follow-up at 09:51:07 PDT.
+Request `aura-chat-14abe513-219a-4ec6-807c-08756ca0ba62` delivered at 09:56:32;
+the route measured 324,670.49 ms. The answer was complete, model-authored and
+accepted, with no desktop execution. The persisted receipt reports
+`full_mind_path=true`, `bounded_contract_used=false`, `legacy_fallback_used=false`,
+`answer_delivery_proven=true`, and zero text mutations. RLC was not selected.
+
+The reply correctly distinguished suspending an async-lock waiter from running
+a no-await critical section. It introduced a C#-style `lock`/Monitor comparison;
+this is not a proof of Python-specific advice. The restarted desktop supplied
+zero recent exchanges, so this replay proves standalone question routing, not
+cross-restart conversational continuity. Latency remains poor. CPU-only test
+gates ran during generation; this is not an idle-host performance benchmark.
+
+The neural stream and terminal also showed background email activity briefly
+labelled as progress for the chat, event-loop lag of 5.333 and 6.145 seconds,
+a 347 ms blocking hold reported at `turn_progress.py:61`, transient health
+degradation, and repeated health-probe HTTP wait overruns. The runtime remained
+alive and delivered the answer. The worker reported sparse non-parametric
+memory, one private-channel persona warning and 1,774 total generated tokens.
+These findings remain open. Graceful shutdown completed at 09:57:24 PDT.
