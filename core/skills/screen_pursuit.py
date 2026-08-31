@@ -39,6 +39,7 @@ from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
     what_to_hold_now,
 )
+from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
@@ -1093,6 +1094,66 @@ _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
 
+def _within_a_move(
+    wanted: Callable[[Any], bool],
+    reading: Any,
+    names: Sequence[str],
+    expect: Callable[[Any, str], Any],
+) -> bool:
+    """Whether what she wants is true here, or one move from here."""
+    try:
+        if wanted(reading):
+            return True
+    except (ArithmeticError, AttributeError, TypeError, ValueError):
+        return False
+    for act in names:
+        try:
+            went_to = expect(reading, act)
+        except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
+            continue
+        if went_to is None:
+            continue
+        try:
+            if wanted(went_to):
+                return True
+        except (ArithmeticError, AttributeError, TypeError, ValueError):
+            continue
+    return False
+
+
+def _a_step_back(
+    wanted: Any,
+    went: Sequence[tuple[Any, bool]],
+    reading: Any,
+    names: Sequence[str],
+    expect: Callable[[Any, str], Any],
+) -> Any:
+    """What would have to be true for the thing she wants to be one move away.
+
+    Her own rule is what says whether something is near: a want is in reach of
+    a situation when one of her moves from there makes it true. One move and
+    not several, because the walking back supplies the depth — each thing it
+    finds is a move from the next, so a chain of three is three moves deep
+    without any of them being searched for together.
+    """
+
+    def in_reach(place: Any, want: Callable[[Any], bool]) -> bool:
+        return _within_a_move(want, place, names, expect)
+
+    way = a_way_to_get_there(
+        wanted.holds,
+        reading,
+        somewhere_like=[place for place, _ in went],
+        in_reach=in_reach,
+        called=wanted.name,
+    )
+    first = way.want_first
+    if first is None or first.name == wanted.name:
+        return None
+    logger.info("cannot hold that from here, so first: %s", first.name)
+    return first
+
+
 def _moves_she_will_not_make(
     she_keeps: dict[str, Any],
     went: Sequence[tuple[Any, bool]],
@@ -1135,6 +1196,21 @@ def _moves_she_will_not_make(
     it = she_keeps.get("it")
     if it is None:
         return frozenset(), ""
+    if not _within_a_move(it.holds, reading, list(names), expect):
+        # It is not true here and no move makes it true, so it cannot be held
+        # from where she is standing. Holding it anyway rules nothing out and
+        # steers nothing; it is a want with no purchase on the next move.
+        #
+        # This is where somebody clearing 2048 stopped wanting the far thing.
+        # Twenty moves from the tile they were playing for, no looking ahead
+        # reaches it, and they did not try. They wanted two of the thing below
+        # it instead, and every merge afterwards built the next merge's
+        # precondition. So walk back from what she is holding to what would
+        # put it within reach, and hold that.
+        nearer = _a_step_back(it, went, reading, list(names), expect)
+        if nearer is None:
+            return frozenset(), ""
+        she_keeps["it"] = it = nearer
     keeps, breaks = what_it_rules_out(it, reading, list(names), expect=expect)
     if not keeps or not breaks:
         # Nothing to rule out, or everything — and refusing every move is not

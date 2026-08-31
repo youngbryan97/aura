@@ -83,3 +83,40 @@ def test_what_she_holds_is_worked_out_once_a_turn() -> None:
     first = keeps["it"]
     _moves_she_will_not_make(keeps, [], HERE, ACTS, _Knows(), turn=4)
     assert keeps["it"] is first, "same turn, so not weighed again"
+
+
+def test_when_she_cannot_hold_it_she_wants_something_nearer_instead() -> None:
+    """The rebound, in the loop: not stuck, and not giving the plan up.
+
+    A board where every move breaks what she is holding. Rather than ruling
+    nothing out and playing at random, she walks back to something that would
+    put it within reach and holds that.
+    """
+    from core.cognition.something_she_keeps_true import SomethingTrue
+
+    keeps: dict = {
+        "at": 0,
+        "why": "",
+        # Wanting a tile that no single move from here can produce.
+        "it": SomethingTrue(
+            name="it holds a 512",
+            holds=lambda one: any(cell.says == "512" for cell in one.cells),
+            well_when_true=9,
+            times_true=9,
+            well_when_false=1,
+            times_false=9,
+        ),
+    }
+    here = _board([[2, 4, 0, 0], [0, 8, 0, 0], [0, 0, 16, 0], [0, 0, 0, 256]])
+    # Two of the places she has been are one move from a 512, because they
+    # hold two 256s that a single slide would put together. Three are not.
+    seen = [
+        (_board([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 256, 256]]), True),
+        (_board([[2, 4, 0, 0], [0, 8, 0, 0], [0, 0, 16, 0], [0, 0, 0, 256]]), False),
+        (_board([[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 4]]), False),
+        (_board([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 256], [0, 0, 0, 256]]), True),
+        (_board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 8]]), False),
+    ]
+    _moves_she_will_not_make(keeps, seen, here, ACTS, _Knows(), turn=0)
+    assert keeps["it"].name != "it holds a 512", "she should have stepped back"
+    assert "256" in keeps["it"].name, keeps["it"].name
