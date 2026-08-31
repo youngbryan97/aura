@@ -3582,6 +3582,26 @@ async def pursue_on_screen(
                 # out loud. The record of what she did is written only from
                 # what landed, so the two can never drift.
                 _say_it_did_not_land(step, out_loud=narrate)
+            if arrived:
+                # Let the world answer before anything reads it again.
+                #
+                # There was no wait here at all. The keystroke returned, the
+                # loop came round, and the next reading was of a board
+                # mid-slide — or of one the game had not started moving yet.
+                # Compared with the reading before it, that says nothing
+                # happened.
+                #
+                # It is not a small error. Of what she had kept about playing
+                # this game on 2026-08-30, ninety-eight of a hundred acts were
+                # written down as having changed nothing, and the only rule
+                # she ever confirmed was "this does not move", ninety-eight
+                # times. She was playing correctly and recording the opposite,
+                # and every part of her that learns from what happened —
+                # which acts do anything, how the thing moves, where it
+                # answers her — was being taught from that.
+                await _settled_after(
+                    pending["watched"] or {}, target_app or anchor["app"]
+                )
             if arrived and pacing["choice"] == SLOW_DOWN:
                 await let_the_voice_catch_up(narration_backlog())
             return arrived > 0
@@ -4018,14 +4038,37 @@ def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> No
         record_degradation("screen_pursuit", exc, severity="info", action="acted without saying so")
 
 
-async def _settled_after(
-    before: dict[str, Any], app: str, *, patience: float = 4.0
-) -> tuple[dict[str, Any], bool]:
-    """The screen once it has changed, and whether it changed at all.
+#: The longest a change has taken to appear, and how long a poll takes, both
+#: measured rather than chosen. Waiting is bounded by what this world has
+#: actually done, so a slow surface is waited for and a fast one is not.
+_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0}
 
-    An action that resets a surface is not done when the click returns; it is
-    done when the surface says so. Waiting on the change rather than on a
+
+def _how_long_to_wait() -> float:
+    """How long to give the world to answer, from how long it has taken.
+
+    Nothing is chosen here. Before she has seen a change there is no
+    measurement, so the old default stands; after that it is a little more
+    than the longest one she has seen, which is what "long enough" means when
+    the thing being waited on is the same thing every time.
+    """
+    longest = _ANSWERING_TOOK["longest"]
+    return max(1.0, longest * 2) if longest else 4.0
+
+
+async def _settled_after(
+    before: dict[str, Any], app: str, *, patience: float = 0.0
+) -> tuple[dict[str, Any], bool]:
+    """The screen once it has changed AND stopped changing, and whether it did.
+
+    An action that moves a surface is not done when the keystroke returns; it
+    is done when the surface says so. Waiting on the change rather than on a
     fixed delay means a slow page is waited for and a fast one is not.
+
+    Waiting for it to stop as well as to start is the part that was missing.
+    A board mid-slide has half moved, and half a move is not a state any rule
+    describes: taken as the result of the move it disagrees with every
+    hypothesis, including the true one.
 
     The second value is the part that matters. A click that lands on nothing
     still reports success — the click happened — so a caller that only waits
@@ -4035,15 +4078,24 @@ async def _settled_after(
     was = str(before.get("text") or "")
     started = time.monotonic()
     seen = before
-    while time.monotonic() - started < patience:
+    moved = False
+    while time.monotonic() - started < (patience or _how_long_to_wait()):
         await asyncio.sleep(0.3)
         try:
-            seen = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
+            now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
-        if str(seen.get("text") or "") != was:
-            return seen, True
-    return seen, False
+        said = str(now.get("text") or "")
+        if not moved and said != was:
+            moved = True
+            _ANSWERING_TOOK["longest"] = max(
+                _ANSWERING_TOOK["longest"], time.monotonic() - started
+            )
+        elif moved and said == str(seen.get("text") or ""):
+            # Changed, and now the same twice running: it has finished.
+            return now, True
+        seen = now
+    return seen, moved
 
 
 
