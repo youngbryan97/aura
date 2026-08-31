@@ -21,6 +21,7 @@ from core.cognition.something_she_keeps_true import (
     every_property_of,
     how_well_it_predicts,
     the_one_worth_holding,
+    what_to_hold_now,
     what_it_rules_out,
 )
 from core.perception.what_is_there import Arrangement, Cell
@@ -148,3 +149,55 @@ def test_how_it_weighs_is_visible():
     assert weighed
     said = str(weighed[0])
     assert "went well when it held" in said
+
+
+def test_she_lets_go_when_it_stops_telling_them_apart() -> None:
+    """The rebound: a broken anchor is re-chosen, not fought for."""
+    roll = random.Random(11)
+
+    def watched(anchor_at_the_bottom: bool) -> list[tuple[Arrangement, bool]]:
+        out = []
+        for _ in range(50):
+            grid = [[0] * 4 for _ in range(4)]
+            good = roll.random() < 0.5
+            for _ in range(roll.randrange(4, 9)):
+                grid[roll.randrange(4)][roll.randrange(4)] = roll.choice(
+                    [2, 4, 8, 16, 32, 64]
+                )
+            if good:
+                grid[3 if anchor_at_the_bottom else 0][3] = 512
+            out.append((_board(grid), good))
+        return out
+
+    early = watched(False)
+    holding = the_one_worth_holding(early)
+    assert holding is not None
+
+    kept, why = what_to_hold_now(holding, early)
+    assert kept is not None and kept.name == holding.name, why
+
+    moved, why = what_to_hold_now(holding, watched(True))
+    assert moved is not None
+    assert moved.name != holding.name, why
+    assert "stopped telling them apart" in why
+
+
+def test_the_weight_on_an_edge_is_a_property_she_can_hold() -> None:
+    named = {name for name, _ in every_property_of(_board([[2, 0, 0, 8]] * 4))}
+    assert "the largest things live along its last column" in named
+
+
+def test_holding_nothing_takes_up_the_best_one() -> None:
+    roll = random.Random(3)
+    seen = []
+    for _ in range(40):
+        grid = [[0] * 4 for _ in range(4)]
+        good = roll.random() < 0.5
+        for _ in range(roll.randrange(3, 8)):
+            grid[roll.randrange(4)][roll.randrange(4)] = roll.choice([2, 4, 8, 16])
+        if good:
+            grid[3][3] = 256
+        seen.append((_board(grid), good))
+    took, why = what_to_hold_now(None, seen)
+    assert took is not None, why
+    assert took.tells_them_apart > 0

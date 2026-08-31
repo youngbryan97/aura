@@ -37,6 +37,7 @@ from typing import Any
 
 __all__ = [
     "SomethingTrue",
+    "what_to_hold_now",
     "every_property_of",
     "how_well_it_predicts",
     "the_one_worth_holding",
@@ -92,13 +93,23 @@ def every_property_of(
     from somewhere, how much room is left. Those are the same comparisons
     every other term in this codebase is built from.
     """
-    from core.perception.what_is_there import Arrangement
-
-    if not isinstance(reading, Arrangement) or not reading.cells:
+    # What a reading has to offer, asked of it rather than imported.
+    #
+    # Cognition may not reach into perception, and it does not need to: a
+    # thing with places, each holding a value, is all this needs, and asking
+    # the reading whether it is one keeps it usable for anything shaped that
+    # way rather than for one class.
+    cells = getattr(reading, "cells", None)
+    if not cells or not hasattr(reading, "rows") or not hasattr(reading, "columns"):
         return
 
     def value_of(cell: Any) -> float:
-        got = cell.number()
+        try:
+            got = cell.number()
+        except (AttributeError, TypeError, ValueError):
+            # not a failure: a place holding something that is not a number
+            # holds nothing this can compare, which is an answer.
+            return 0.0
         return float(got) if got is not None else 0.0
 
     corners = {
@@ -116,6 +127,28 @@ def every_property_of(
         yield (
             f"values fall away along its {said}",
             _values_fall_away(along, value_of),
+        )
+    # The one that actually held for a whole game.
+    #
+    # Watching a person clear 2048: the anchor was the top right corner for
+    # four minutes, the board took it away from them, and they did NOT fight
+    # to put it back. They kept the right EDGE and let the anchor slide down
+    # it, rebuilding the ladder from wherever the big tile now sat, and
+    # finished with it in the opposite corner. What held for all 989 moves was
+    # not a corner. It was that the large values live on one edge.
+    #
+    # A corner is the special case of an edge where the anchor is at its end,
+    # so both are here and which one tells the good states from the bad is
+    # hers to find.
+    for said, edge in (
+        ("first row", ("row", 0)),
+        ("last row", ("row", -1)),
+        ("first column", ("column", 0)),
+        ("last column", ("column", -1)),
+    ):
+        yield (
+            f"the largest things live along its {said}",
+            _the_largest_live_along(edge, value_of),
         )
     yield ("more than half its places are empty", _mostly_empty)
 
@@ -161,6 +194,40 @@ def _values_fall_away(
             if not (rising or falling):
                 return False
         return settled > 0
+
+    return holds
+
+
+def _the_largest_live_along(
+    edge: tuple[str, int], value_of: Callable[[Any], float]
+) -> Callable[[Any], bool]:
+    """Whether the biggest things sit on one line of the thing.
+
+    Not where the single largest is, which a bad turn can take away, but where
+    the WEIGHT is — and weight moves slowly. That is why it survives a break
+    that a corner does not.
+    """
+    which, at = edge
+
+    def holds(reading: Any) -> bool:
+        cells = getattr(reading, "cells", ())
+        if len(cells) < 3:
+            return False
+        rows, columns = reading.rows, reading.columns
+        line = (at % rows) if which == "row" else (at % columns)
+        on_it = 0.0
+        everywhere = 0.0
+        for cell in cells:
+            value = value_of(cell)
+            everywhere += value
+            where = cell.row if which == "row" else cell.column
+            if where == line:
+                on_it += value
+        if everywhere <= 0:
+            return False
+        # More of the weight on that line than off it, which is what "the
+        # large things live there" means and needs no number chosen for it.
+        return on_it * 2 > everywhere
 
     return holds
 
@@ -269,3 +336,52 @@ def what_it_rules_out(
         # restore it are the ones that matter.
         return tuple(keeps or acts), ()
     return tuple(keeps), tuple(breaks)
+
+
+def what_to_hold_now(
+    holding: SomethingTrue | None,
+    watched: Sequence[tuple[Any, bool]],
+    *,
+    deepest: int = 2,
+) -> tuple[SomethingTrue | None, str]:
+    """What she should be keeping true now, given how the last while went.
+
+    The hardest part of holding something is knowing when to stop. Watching a
+    person clear 2048: their anchor was the top right corner for four minutes,
+    the board took it from them, and they did not fight to put it back. They
+    kept the edge, let the anchor slide along it, rebuilt from where the big
+    tile now was, and finished in the opposite corner.
+
+    Two failures are possible and they are opposite. Holding something the
+    board has made impossible is stubbornness, and every move spent restoring
+    it is spent. Dropping it because one turn went badly is thrashing, and
+    nothing is ever held long enough to pay.
+
+    What separates them is not how long it has been broken but whether it still
+    tells the good states from the bad. A property that has stopped predicting
+    has stopped being worth the moves it costs, whatever it once did — and if
+    something else predicts better on what she has seen since, that is what to
+    hold. Both are the measurement she already makes, asked again.
+    """
+    weighed = how_well_it_predicts(watched, deepest=deepest)
+    if not weighed:
+        return holding, "nothing seen yet"
+    best = weighed[0]
+    if holding is None:
+        if best.tells_them_apart <= 0:
+            return None, "nothing here tells the good from the bad"
+        return best, f"took up {best.name}"
+    mine = next(
+        (one for one in weighed if one.name == holding.name),
+        None,
+    )
+    if mine is None:
+        return holding, "nothing recent to weigh it against"
+    if mine.tells_them_apart <= 0 and best.tells_them_apart > 0:
+        # It has stopped saying anything and something else is saying
+        # something. That is the moment to let go, and it is not the same
+        # moment as a bad turn.
+        return best, f"{holding.name} stopped telling them apart; took up {best.name}"
+    if best.tells_them_apart > mine.tells_them_apart * 2:
+        return best, f"{best.name} tells them apart far better now"
+    return holding, "still worth holding"
