@@ -430,8 +430,8 @@ also carries the operational subcommands (`doctor`, `conformance`,
 
 Requirements: Python 3.12+, macOS on Apple Silicon, 64 GB RAM recommended. The
 primary model is `Aura-Cortex` (fused Qwen3.8-27B, migrated from the historical
-Qwen 2.5 32B); a 9B Brainstem fallback loads on demand. First boot takes 30–60
-seconds while Metal compiles shaders.
+32B checkpoint). The Brainstem fallback is 9B and loads on demand. First boot
+takes 30–60 seconds while Metal compiles shaders.
 
 Hardware honesty: Bryan's target machine is an M5-class Apple Silicon Mac with
 64 GB unified memory. The 27B Cortex is viable there as a primary conversation
@@ -781,7 +781,7 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 157 modules in `core/consciousness/`. The ones that do most of the
+There are 140 modules in `core/consciousness/`. The ones that do most of the
 load-bearing work:
 
 | Module | What it does | File |

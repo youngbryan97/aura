@@ -280,6 +280,28 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | U7 | Every subsystem earns its existence by ablation | Cathedral accumulation is the stated risk |
 | U8 | ✅ Measured against its own null | Keeping 7/7 against forgetting 5/7; the two it missed are exactly the two built on an earlier answer. Sequences 2.4x sooner. The world cost it first showed was a search listing every plan, not accumulation: 72,201ms to 1.2ms once fixed |
 
+### Why V5 has no result (checked 2026-08-30, not inferred)
+
+`tools/measure_frontier_gap.py` was run and behaved exactly as designed:
+`mode=synthetic_control`, `claim eligible: False`, a content-addressed evidence
+blob written. Nothing is broken and nothing is half-built. Three things stand
+between that and a capability measurement, and none of them is engineering:
+
+1. **The desktop runtime owns the model lane.** `_resolve_generate` returns the
+   synthetic control whenever the live instance answers on :8000, because the
+   CLI has no authenticated proof channel to the resident amplifier. Measuring
+   means the runtime is down for the run, or the signed-worker mode is used.
+2. **The signed-worker mode needs a reference.** `amplifier_mlx_worker_v5`
+   requires a signed reference artifact from a named frontier model plus pinned
+   Ed25519 keys for all five actor roles. Without a reference run there is no
+   gap to measure, only a candidate score.
+3. **Loading a model for the worker is a resource decision.** A second 32B
+   beside the live one is refused by this repository's own rule, and a smaller
+   model would measure that model rather than the one that serves.
+
+The honest status is therefore not "unfinished" but "unrun", and what it waits
+on is a decision about the machine and a reference run, not more code.
+
 ---
 
 ## The Current Scorecard
@@ -295,7 +317,7 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | Maintain identity across substrate swaps | ✅ Established | Hash-chained ghost line |
 | Measure system integration | ✅ Established | As instrument, not consciousness claim |
 | Form concepts from failure patterns | ✅ Established | Hand-written repairs |
-| Frontier-general reasoning | 🔴 Not claimed | V5 protocol ready; no result yet |
+| Frontier-general reasoning | 🔴 Not claimed | Protocol re-verified 2026-08-30: runs, refuses to claim, writes a content-addressed blob. A capability result is blocked on three things, none of them code — see below |
 | Action-side abstractions | ✅ Established | Composition, repetition, branching and recovery over given actions |
 | Autonomous capability improvement loop | ✅ Established | Within a domain; carried across two by different routes |
 | Open-domain recurrent reasoning | 🔴 Not authorized | `ordinary_chat_authorized=false` |
