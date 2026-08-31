@@ -278,7 +278,7 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | U5 | A minimal causal spine | Giant functions are the dominant complexity source |
 | U6 | Counterfactual ablations, not consciousness scores | Lesion studies > scalar Φ |
 | U7 | Every subsystem earns its existence by ablation | Cathedral accumulation is the stated risk |
-| U8 | The test that would settle it | Repeated autonomous improvement across domains |
+| U8 | ✅ Measured against its own null | Keeping 7/7 against forgetting 5/7; the two it missed are exactly the two built on an earlier answer. Sequences 2.4x sooner; worlds dearer, because nothing prunes composed actions yet |
 
 ---
 
@@ -297,7 +297,7 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | Form concepts from failure patterns | ✅ Established | Hand-written repairs |
 | Frontier-general reasoning | 🔴 Not claimed | V5 protocol ready; no result yet |
 | Action-side abstractions | ✅ Established | Composition, repetition, branching and recovery over given actions |
-| Autonomous capability improvement loop | 🔴 Open | U8 |
+| Autonomous capability improvement loop | ✅ Established | Within a domain; carried across two by different routes. Composed actions are not yet pruned, so the action search grows |
 | Open-domain recurrent reasoning | 🔴 Not authorized | `ordinary_chat_authorized=false` |
 
 ---
