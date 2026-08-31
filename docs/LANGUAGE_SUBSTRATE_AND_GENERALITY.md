@@ -280,6 +280,34 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | U7 | Every subsystem earns its existence by ablation | Cathedral accumulation is the stated risk |
 | U8 | ✅ Measured against its own null | Keeping 7/7 against forgetting 5/7; the two it missed are exactly the two built on an earlier answer. Sequences 2.4x sooner. The world cost it first showed was a search listing every plan, not accumulation: 72,201ms to 1.2ms once fixed |
 
+### Criterion 6: a maker built on a word an earlier maker made
+
+Still unproven, and for a reason worth writing down rather than a budget.
+
+Three things that had made it impossible are fixed. The generator could only
+apply a WORD to a term, never a term to a word, so the shape needed did not
+exist in the enumeration — five symbols long, computing the family correctly,
+absent from sixty thousand candidates. The search ordered words by whether
+each already puts places where they belong, which ranked the needed word
+seventeenth of twenty-five; ranked by whether the answer follows from what a
+word says, it is first. And the clock was checked once per term, which bounds
+the search but not one candidate's admission, so a thirty-second budget ran
+over ten minutes.
+
+What remains is not machinery. Fourteen of the twenty words the parity maker
+makes are outside what a term over the given words reaches. But every family
+built on one of them was answered by a SHORTER term over a given word instead:
+`take 3 times 3 times 3 minus a word (#0) [here]`, correct on all eight pairs.
+Arithmetic over `where`, `many` and the constants a problem shows is expressive
+enough to reach most index functions directly, and shortest-first correctly
+prefers those routes.
+
+So the capability is present — the shape is expressible and enumerated — and
+the criterion needs a family provably outside the FULL reach of the algebra,
+not merely built out of a new word. That is a harder construction than the
+criterion assumed, and the difficulty is a fact about how strong the base
+algebra is.
+
 ### V5, run against the real model (2026-08-30)
 
 Run with the model loaded: **candidate 0.65** on the four-class battery,
