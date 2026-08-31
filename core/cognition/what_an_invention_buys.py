@@ -40,6 +40,8 @@ from typing import Any
 
 __all__ = [
     "WhatItBought",
+    "WhatItPaidFor",
+    "does_it_pay_for_itself_across",
     "the_horizon_of",
     "the_shortest_way_to_say",
     "what_an_invention_buys",
@@ -181,3 +183,104 @@ def what_an_invention_buys(
     return WhatItBought(
         without=without, with_it=with_it, horizon=horizon, looked_to=looked_to
     )
+
+
+@dataclass(frozen=True)
+class WhatItPaidFor:
+    """Whether a word pays for itself over several tasks rather than one."""
+
+    #: Symbols to say all of them without it, counting only those both can say.
+    without: int
+    #: Symbols to say all of them with it.
+    with_it: int
+    #: What the word itself costs to carry, written out in the old language.
+    the_word_costs: int
+    #: How many tasks were weighed, and how many it helped.
+    over: int
+    helped: int
+
+    @property
+    def pays(self) -> bool:
+        """One task can always be shortened by a word made for it.
+
+        The question is whether the saving survives paying for the word once,
+        which is why the word's own length is on the other side of this.
+        """
+        return self.without > self.the_word_costs + self.with_it
+
+    def describes(self) -> str:
+        verdict = "pays for itself" if self.pays else "does not pay for itself"
+        return (
+            f"{verdict}: {self.without} symbols for {self.over} task(s) without it, "
+            f"{self.the_word_costs} to carry it plus {self.with_it} with it; "
+            f"it shortened {self.helped}"
+        )
+
+
+def does_it_pay_for_itself_across(
+    tasks: Sequence[Callable[[Any], bool]],
+    *,
+    given: Mapping[str, Any],
+    invented: Mapping[str, Any],
+    up_to: int = 9,
+    holes: int = 1,
+    within: float = 20.0,
+) -> WhatItPaidFor:
+    """Weigh a word over several tasks, paying for it once.
+
+    A word made for one task shortens that task; that is what making it did,
+    and reading it as evidence is reading the fitting rather than the word. A
+    word worth carrying shortens tasks it was not made for, by more than it
+    costs to carry — which is the ordinary description-length trade and needs
+    no weights, both sides being symbols.
+
+    Only tasks BOTH languages can say are counted. A task the old language
+    cannot say at this length is a different claim — that is reach, and
+    :func:`what_an_invention_buys` measures it — and mixing the two would let
+    one unreachable task pay for any word at all.
+    """
+    with_words = {**given, **invented}
+    the_word_costs = 0
+    for name in invented:
+        alone, _how, _done = the_shortest_way_to_say(
+            _just(invented[name]), given, up_to=up_to, holes=holes, within=within
+        )
+        the_word_costs += alone if alone is not None else up_to + 1
+
+    without = with_it = helped = counted = 0
+    for says_it in tasks:
+        old, _a, _b = the_shortest_way_to_say(
+            says_it, given, up_to=up_to, holes=holes, within=within
+        )
+        new, _c, _d = the_shortest_way_to_say(
+            says_it, with_words, up_to=up_to, holes=holes, within=within
+        )
+        if old is None or new is None:
+            continue
+        counted += 1
+        without += old
+        with_it += new
+        helped += new < old
+    return WhatItPaidFor(
+        without=without,
+        with_it=with_it,
+        the_word_costs=the_word_costs,
+        over=counted,
+        helped=helped,
+    )
+
+
+def _just(word: Any) -> Callable[[Any], bool]:
+    """Says-it for one word: anything behaving as it does, at the usual sizes."""
+
+    def says_it(other: Any) -> bool:
+        try:
+            return all(
+                int(other(at, size)) % size == int(word(at, size)) % size
+                for size in (4, 5, 6)
+                for at in range(size)
+            )
+        except (ArithmeticError, IndexError, TypeError, ValueError):
+            return False
+
+    return says_it

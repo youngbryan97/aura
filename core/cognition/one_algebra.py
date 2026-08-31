@@ -141,7 +141,17 @@ HEADS: dict[str, Callable[[int, int], int]] = {
 def run(
     term: Term, index: int, size: int, words: Sequence[Any], depth: int = 0
 ) -> int:
-    """What this term says, at this place, in a thing of this size."""
+    """What this term says, at this place, in a thing of this size.
+
+    Not remembered, and that was measured rather than assumed. A term is a pure
+    function of where it is asked and how long the thing is, so the same
+    question always has the same answer and caching is sound; a search walks
+    millions of terms sharing most of their parts, so the hit rate is high. It
+    is still a loss: keying on the term means hashing it, hashing a term walks
+    it, and walking it costs what running it costs — these are a few integer
+    operations, not a model call. Measured at two depths, remembering answers
+    did half as much work per second as not remembering them.
+    """
     if depth > 32:
         raise ValueError("a term that will not settle")
     head = term.head
