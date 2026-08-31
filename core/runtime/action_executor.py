@@ -37,7 +37,11 @@ from core.runtime.action_verification import (
     observe_action_effect,
 )
 from core.runtime.desktop_action_gateway import get_desktop_action_gateway
-from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.errors import (
+    FallbackClassification,
+    _raise_site,
+    record_degradation,
+)
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind, declare
 from core.runtime.network_gateway import get_network_gateway
@@ -838,9 +842,19 @@ class ActionExecutor:
                 failure_result = {
                     "ok": False,
                     "status": SkillStatus.FAILED_RECOVERABLE.value,
+                    # The type is not the reason.
+                    #
+                    # "external_execution_preparation_failed:ValueError" is
+                    # what the person is shown when an action refuses before
+                    # it starts, and it names none of the dozen things that
+                    # raise ValueError in preparation. Live 2026-08-31 it was
+                    # shown three times over a single afternoon for three
+                    # different causes. What the exception says, and where it
+                    # was raised, are both already known here.
                     "error": (
                         "external_execution_preparation_failed:"
-                        f"{type(exc).__name__}"
+                        f"{type(exc).__name__}: {exc}"
+                        f" [raised at {_raise_site(exc)}]"
                     ),
                     "will_receipt_id": will_receipt_id,
                     "action_expectation": expectation_contract.to_dict(),
