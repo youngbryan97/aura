@@ -16,11 +16,12 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.turn_progress import ToolActivity
 
 logger = logging.getLogger(__name__)
 _DEV_MODE_CALLBACK_ERRORS = (OSError, RuntimeError, TypeError, ValueError)
@@ -60,9 +61,11 @@ class ToolExecutionTrace:
     error: str | None = None
     execution_time_ms: float = 0.0
     origin: str = "unknown"
+    _progress_activity: ToolActivity | None = field(default=None, repr=False, compare=False)
     
     def to_dict(self) -> dict[str, Any]:
-        d = asdict(self)
+        d = asdict(replace(self, _progress_activity=None))
+        d.pop("_progress_activity")
         # Don't leak sensitive param details in logs
         d["params"] = {k: "***" if k in {"password", "token", "secret", "key"} else v 
                       for k, v in self.params.items()}
@@ -166,7 +169,7 @@ class DevMode:
         try:
             from core.runtime.turn_progress import tool_started
 
-            tool_started()
+            trace._progress_activity = tool_started()
         except ImportError:
             pass
 
@@ -192,7 +195,7 @@ class DevMode:
         try:
             from core.runtime.turn_progress import tool_finished
 
-            tool_finished()
+            tool_finished(trace._progress_activity)
         except ImportError:
             pass
 

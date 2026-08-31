@@ -52431,3 +52431,25 @@ the question-to-desktop routing reproduction, not latency, technical answer
 quality, cross-restart context, or RLC qualification. Background progress leaking
 into the chat indicator and turn-progress lock contention remain open. Details
 are appended to the foreground completion evidence record.
+
+## Checkpoint 2026-08-31: Foreground Progress Has a Turn Owner
+
+The shared progress timestamp and tool count let unrelated work renew a
+foreground deadline. Progress now belongs to the existing TurnOutcome.
+Model dispatch captures that owner for worker callbacks; tool completion
+uses its start handle. Finalization closes the reading. Duplicate completion,
+late callbacks, and exited tool tasks cannot keep another turn alive.
+
+Bound foreground endpoint and cycle waits now renew while their own work
+advances, including beyond the former total-duration ceiling. The watchdog
+thread captures the same owner. Unowned waits, background work, probes and
+evaluation requests retain bounded policies. Cancellation drains the endpoint
+task before returning; a worker's own TimeoutError is no longer confused with
+expiry of the surrounding wait. No prompts or answer token limits changed.
+
+Focused regression: 191 passed in 38.89 seconds. Smoke: 121 passed, one skip
+in 19.72 seconds. Lint, compile and layering pass. Governance remains red on
+the inherited perception diagnostic-write finding; no baseline changed.
+This checkpoint requires a source-matched live replay. Chat indicator
+attribution, false PARTIAL classification, repair budgets and latency remain
+open; this is not whole-runtime or RLC qualification.

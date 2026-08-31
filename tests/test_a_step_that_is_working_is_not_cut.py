@@ -59,8 +59,8 @@ def test_the_tool_loop_says_so() -> None:
     assert '"a_person_is_waiting": True,' in gate
 
 
-def test_the_ceiling_still_binds_both_ways() -> None:
-    """No bound is not the fix; the turn's own ceiling is."""
+def test_unowned_waits_keep_their_existing_ceiling() -> None:
+    """Owned foreground renewal is tested separately with executing tasks."""
 
     source = ast.unparse(_the_waiting_function())
     assert "USER_FACING_COMPLETION_DEADLINE_MAX_S" in source

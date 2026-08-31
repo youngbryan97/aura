@@ -16,6 +16,7 @@ from __future__ import annotations
 import time
 
 from core.runtime.turn_progress import (
+    capture_progress,
     forget_progress,
     normal_gap_between_tokens,
     note_progress,
@@ -180,11 +181,14 @@ def test_the_endpoint_waits_while_the_cortex_is_producing() -> None:
         return "the answer"
 
     async def run_user_facing() -> str:
-        forget_progress()
-        note_progress()
-        return await _await_while_it_is_working(
-            slow_but_working(), budget_s=0.15, user_facing=True
-        )
+        from core.runtime.turn_outcome import TurnOutcome, bind_turn
+
+        with bind_turn(TurnOutcome("foreground-wait", origin="desktop")):
+            note_progress()
+            return await _await_while_it_is_working(
+                slow_but_working(), budget_s=0.15, user_facing=True,
+                person_is_waiting=True,
+            )
 
     assert asyncio.run(run_user_facing()) == "the answer"
 
@@ -253,6 +257,7 @@ def test_reading_the_prompt_counts_as_working() -> None:
 
     client = MLXLocalClient(model_path="/models/test-small")
     client._current_request_id = "reading"
+    client._current_turn_progress = capture_progress()
     forget_progress()
     client._record_worker_stream_progress(
         {"id": "reading", "phase": "prefill",
@@ -374,10 +379,10 @@ def test_a_tool_in_flight_is_working_however_long_it_takes() -> None:
     _time.sleep(0.05)
     assert still_producing(within_s=0.01) is False
 
-    tool_started()
+    tool = tool_started()
     _time.sleep(0.05)
     assert still_producing(within_s=0.01) is True
-    tool_finished()
+    tool_finished(tool)
     assert still_producing(within_s=0.01) is True
 
 
@@ -385,11 +390,11 @@ def test_two_tools_at_once_both_have_to_finish() -> None:
     from core.runtime.turn_progress import tool_finished, tool_started
 
     forget_progress()
-    tool_started()
-    tool_started()
-    tool_finished()
+    first = tool_started()
+    second = tool_started()
+    tool_finished(first)
     assert still_producing(within_s=0.0001) is True
-    tool_finished()
+    tool_finished(second)
     import time as _time
 
     _time.sleep(0.05)
@@ -400,10 +405,10 @@ def test_a_stray_finish_cannot_drive_the_count_negative() -> None:
     from core.runtime.turn_progress import tool_finished, tool_started
 
     forget_progress()
-    tool_finished()
-    tool_finished()
-    tool_started()
-    tool_finished()
+    tool_finished(None)
+    tool = tool_started()
+    tool_finished(tool)
+    tool_finished(tool)
     import time as _time
 
     _time.sleep(0.05)

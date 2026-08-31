@@ -151,3 +151,31 @@ degradation, and repeated health-probe HTTP wait overruns. The runtime remained
 alive and delivered the answer. The worker reported sparse non-parametric
 memory, one private-channel persona warning and 1,774 total generated tokens.
 These findings remain open. Graceful shutdown completed at 09:57:24 PDT.
+
+## August 31: Owned Progress and Renewable Foreground Waits
+
+The next repair replaces process-global foreground progress with a reading
+attached to TurnOutcome. The MLX request captures it at dispatch, and the
+thread watchdog captures it before starting. Tool activity retains its original
+owner through completion and cancellation cleanup. Task exit removes abandoned
+activity; finalized turns reject late progress. Unbound compatibility callers
+cannot renew a bound foreground turn.
+
+The endpoint and cognitive-cycle clocks allow owned, advancing foreground work
+to finish beyond their old duration ceilings. The cycle never shortens the
+initial admitted window. Probes and evaluation calls do not receive this
+renewal. Endpoint cancellation awaits cleanup, and task-raised TimeoutError
+propagates as a worker failure rather than starting another wait.
+
+The focused test run passed 191 tests in 38.89 seconds, including concurrent
+turns, cross-context worker callbacks, abandoned tool activity, cancellation
+cleanup, bounded probes, and an answer completing beyond a reduced former
+ceiling. Smoke passed 121 with one skip in 19.72 seconds. Lint, compile and
+layering pass. Governance reports the unchanged raw diagnostic write in
+`core/perception/where_it_responds.py::_note_what_was_seen`.
+
+The earlier replacement runtime loaded the reservation-lifetime repair. Its
+code, workspace and shell-asset hashes matched, but a concurrent documentation
+commit changed the commit pin from `a5be9632e` to `992cbfde8`, so boot correctly
+reported `source_current=false`. No live result is attributed to the new
+progress changes yet.

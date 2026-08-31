@@ -53,6 +53,7 @@ from typing import Any, Iterable, Iterator, Mapping, Sequence
 from core.runtime.errors import record_degradation
 from core.security.structural_redaction import redact_structure, redact_text
 from core.runtime.lockdep import checked_lock
+from core.runtime.turn_progress import TurnProgress
 
 __all__ = [
     "OutcomeStatus",
@@ -354,6 +355,7 @@ class TurnOutcome:
     """
 
     __slots__ = (
+        "progress",
         "turn_id",
         "origin",
         "started_at",
@@ -375,6 +377,7 @@ class TurnOutcome:
     )
 
     def __init__(self, turn_id: str | None = None, *, origin: str = "unknown") -> None:
+        self.progress = TurnProgress()
         self.turn_id = str(turn_id or uuid.uuid4().hex)
         self.origin = str(origin or "unknown")
         self.started_at = time.time()
@@ -718,6 +721,8 @@ class TurnOutcome:
             )
             self._receipt = receipt
             self._finalized = True
+
+        self.progress.close()
 
         # Audit the prose against what actually ran, outside the lock and
         # after the answer is already served. The detector for Aura's

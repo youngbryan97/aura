@@ -521,63 +521,40 @@ async def _await_while_it_is_working(
     user_facing: bool,
     person_is_waiting: bool = False,
 ) -> Any:
-    """Wait out the endpoint budget, then keep waiting while tokens arrive.
+    """Renew a foreground wait from owned progress; keep probe waits bounded.
 
-    This is the sixth deadline a desktop turn passes through and it sat below
-    every other one: the gate had raised the turn to 557 seconds and this cut
-    the Cortex off at 150, so raising the others changed nothing.
-
-    The number is not what was wrong. A generation still emitting tokens is
-    working, and cancelling it returns half an answer or an apology; one that
-    has gone quiet is the case a deadline was standing in for, and it fails on
-    the very next slice. Bounded by the same ceiling the rest of the turn
-    uses, and background work keeps its budget exactly as it was — one GPU,
-    and a dream cycle does not get to hold it while somebody waits.
+    The endpoint owns worker liveness and cancellation. This outer wait must
+    drain that cancellation before returning, so a timed-out request cannot
+    leave its generation holding the lane.
     """
-
-    task = asyncio.ensure_future(coro)
-    try:
-        return await asyncio.wait_for(asyncio.shield(task), timeout=budget_s)
-    except TimeoutError:
-        if not user_facing:
-            task.cancel()
-            raise
     from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
-    from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
+    from core.runtime.turn_outcome import current_turn
+    from core.runtime.turn_progress import (
+        capture_progress,
+        normal_gap_between_tokens,
+        seconds_since_progress,
+        still_producing,
+    )
 
+    progress = capture_progress()
+    owned_foreground = user_facing and person_is_waiting and current_turn() is not None
+    task = asyncio.ensure_future(coro)
+    started = time.monotonic()
     try:
-        from core.brain.llm.thinking_reserve import seconds_to_decode
+        done, _ = await asyncio.wait({task}, timeout=budget_s)
+        if done:
+            return task.result()
+        if not user_facing:
+            raise TimeoutError
 
-        quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
-    except (ImportError, AttributeError, TypeError, ValueError):
-        quiet_for = normal_gap_between_tokens()
-    # How far past the budget this may go is proportional to the budget.
-    #
-    # It used to be "up to the user-facing ceiling", which is right for a turn
-    # and catastrophic for a probe: a two-second health check waited eight
-    # minutes, the inference probe never returned, and the runtime sat in
-    # CRITICAL with conversation recovering — blockers runtime_required_probes,
-    # probe:inference, critical:inference_gate.
-    #
-    # A caller that asked for two seconds is not asking to be waited on for
-    # eight minutes; one that asked for two minutes is. The ceiling still caps
-    # the whole thing.
-    # The ceiling this machine needs, not a flat one.
-    #
-    # 480 seconds cannot tell a turn that is running away from a turn that is
-    # working. On this host one generation of a thousand tokens against an
-    # eight-thousand-character prompt takes about a hundred seconds, and a tool
-    # loop is allowed several — so the bound stood below the cost of the work
-    # it was standing over. LIVE 2026-08-29, after the fix below had already
-    # stopped the proportional cut: "gave up 298s past its budget: last sign of
-    # work 0.3s ago", at exactly 480 seconds, while composing the answer.
-    #
-    # Measured, so a faster machine gets a shorter ceiling for free and a
-    # loaded one gets the room it needs. Only ever raises the flat bound, and
-    # only for somebody who is waiting.
-    limit = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
-    if person_is_waiting:
         try:
+            from core.brain.llm.thinking_reserve import seconds_to_decode
+
+            quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            quiet_for = normal_gap_between_tokens()
+        limit = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+        if person_is_waiting:
             from core.brain.llm.mlx_client import longest_a_turn_may_take
 
             limit = longest_a_turn_may_take(
@@ -586,56 +563,44 @@ async def _await_while_it_is_working(
                 max_tokens=_A_TURNS_ANSWER_TOKENS,
                 floor_s=limit,
             )
-        except (ImportError, AttributeError, TypeError, ValueError) as exc:
-            logger.debug("kept the flat turn ceiling: %s", exc)
-    ceiling = max(0.0, limit - float(budget_s))
-    # Proportional for a probe, the turn's own ceiling for a person.
-    #
-    # "user_facing" is true for anything on the foreground lane, which includes
-    # a two-second health check — and that check waited eight minutes here
-    # once, leaving the runtime in CRITICAL with conversation recovering. The
-    # multiplier exists for that, and it is the wrong bound for a turn.
-    #
-    # LIVE 2026-08-29: "Endpoint gave up 31s past its budget: last sign of work
-    # 0.2s ago, quiet window 20s". Nothing had gone quiet. A step of a turn was
-    # given 31 seconds, three times that as overrun, and was cut while working
-    # — after the six clocks above it had all been taught to wait. The person
-    # got a list of files instead of the answer.
-    #
-    # Whether somebody is sitting in front of this is a fact the caller has,
-    # and it is what separates the two cases. Nobody waiting keeps today's
-    # proportional bound, so a probe stays a probe.
-    overrun = ceiling if person_is_waiting else min(ceiling, max(0.0, float(budget_s) * 3.0))
-    ends_at = time.monotonic() + overrun
-    said_it_once = False
-    while time.monotonic() < ends_at:
-        if not still_producing(within_s=quiet_for):
-            break
-        if not said_it_once:
-            said_it_once = True
-            logger.info(
-                "Endpoint past its %.1fs budget and still producing; waiting for the "
-                "answer rather than cancelling it.",
-                budget_s,
-            )
-        try:
-            return await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
-        except TimeoutError:
-            continue
-    # Say which of the two ended it, because they need different fixes: a
-    # signal nobody is writing, and a generation that genuinely stopped.
-    from core.runtime.turn_progress import seconds_since_progress
+        ceiling = max(0.0, limit - float(budget_s))
+        overrun = ceiling if person_is_waiting else min(ceiling, max(0.0, float(budget_s) * 3.0))
+        ends_at = time.monotonic() + overrun
+        said_it_once = False
+        while owned_foreground or time.monotonic() < ends_at:
+            if task.done():
+                return task.result()
+            if not still_producing(within_s=quiet_for, progress=progress):
+                break
+            if not said_it_once:
+                said_it_once = True
+                logger.info(
+                    "Endpoint past its %.1fs estimate; owned work is still advancing.",
+                    budget_s,
+                )
+            interval = 2.0 if owned_foreground else min(2.0, max(0.0, ends_at - time.monotonic()))
+            done, _ = await asyncio.wait({task}, timeout=interval)
+            if done:
+                return task.result()
 
-    since = seconds_since_progress()
-    logger.warning(
-        "Endpoint gave up %.0fs past its budget: %s.",
-        max(0.0, float(budget_s)),
-        "nothing has ever been reported for this turn"
-        if since < 0.0
-        else f"last sign of work {since:.1f}s ago, quiet window {quiet_for:.0f}s",
-    )
-    task.cancel()
-    raise TimeoutError
+        since = seconds_since_progress(progress=progress)
+        logger.warning(
+            "Endpoint stopped %.1fs past its estimate: %s.",
+            max(0.0, time.monotonic() - started - float(budget_s)),
+            "no work reported for this request"
+            if since < 0.0
+            else f"last owned progress {since:.1f}s ago, quiet window {quiet_for:.0f}s",
+        )
+        raise TimeoutError
+    finally:
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                logger.warning("Endpoint cancellation cleanup failed: %s", exc)
 
 class _DeepLaneUnavailable(RuntimeError):
     """This host cannot admit the deep solver, so no lane is built for it."""
@@ -816,6 +781,7 @@ def _start_endpoint_wall_clock_watchdog(
     reason: str,
     timeout_s: float,
     user_facing: bool = False,
+    person_is_waiting: bool = False,
 ) -> tuple[threading.Event, dict[str, bool], "_WatchdogHandle"]:
     """Abort non-cooperative local inference on wall-clock time.
 
@@ -825,6 +791,11 @@ def _start_endpoint_wall_clock_watchdog(
     if the event loop is temporarily occupied.
     """
 
+    from core.runtime.turn_outcome import current_turn
+    from core.runtime.turn_progress import capture_progress
+
+    progress = capture_progress()
+    owned_foreground = user_facing and person_is_waiting and current_turn() is not None
     fired = threading.Event()
     aborted = {"value": False}
     holder: dict[str, Any] = {}
@@ -833,6 +804,8 @@ def _start_endpoint_wall_clock_watchdog(
     )
 
     def _abort() -> None:
+        if holder.get("cancelled"):
+            return
         # The reason this watchdog exists is a blocked event loop, and a
         # blocked loop reports no tokens — so the same signal that says a
         # turn is alive is exactly the one that says this watchdog is needed.
@@ -840,7 +813,7 @@ def _start_endpoint_wall_clock_watchdog(
         # case it kept meeting was the healthy one: a generation still writing
         # the answer, killed for taking longer than a number set before anyone
         # knew what the answer was.
-        if user_facing and time.monotonic() < ends_at:
+        if user_facing and (owned_foreground or time.monotonic() < ends_at):
             try:
                 from core.runtime.turn_progress import (
                     normal_gap_between_tokens,
@@ -848,7 +821,7 @@ def _start_endpoint_wall_clock_watchdog(
                 )
 
                 if still_producing(
-                    within_s=normal_gap_between_tokens()
+                    within_s=normal_gap_between_tokens(), progress=progress
                 ) and not holder.get("cancelled"):
                     again = threading.Timer(5.0, _abort)
                     again.daemon = True
@@ -4198,11 +4171,25 @@ class HealthAwareLLMRouter:
                     health_probe=bool(kwargs.get("health_probe", False)),
                 )
                 timeout_reason = f"endpoint_timeout:{ep.name}:{endpoint_budget:.1f}s"
+                from core.runtime.turn_origin import a_person_is_waiting
+                from core.runtime.turn_outcome import current_turn
+
+                turn_owner = current_turn()
+                person_waiting = bool(
+                    not is_bg
+                    and turn_owner is not None
+                    and a_person_is_waiting(turn_owner.origin)
+                    and not kwargs.get("health_probe", False)
+                    and not kwargs.get("benchmark_request", False)
+                    and not kwargs.get("proof_evaluation_contract", False)
+                    and not is_proof_evaluation_purpose(str(kwargs.get("purpose", "") or ""))
+                )
                 watchdog_fired, watchdog_aborted, watchdog = _start_endpoint_wall_clock_watchdog(
                     ep.client,
                     reason=timeout_reason,
                     timeout_s=endpoint_budget,
                     user_facing=not bool(is_bg),
+                    person_is_waiting=person_waiting,
                 )
                 try:
                     result = await _await_while_it_is_working(
@@ -4216,6 +4203,7 @@ class HealthAwareLLMRouter:
                         ),
                         budget_s=endpoint_budget,
                         user_facing=not bool(is_bg),
+                        person_is_waiting=person_waiting,
                     )
                     if watchdog_fired.is_set():
                         raise TimeoutError(timeout_reason)

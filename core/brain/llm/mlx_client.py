@@ -5183,6 +5183,7 @@ class MLXLocalClient:
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._current_request_id = ""
+        self._current_turn_progress = None
         self._current_request_progress_baseline_at = 0.0
         self._current_prompt_chars = 0
         self._current_requested_max_tokens = 0
@@ -6279,6 +6280,9 @@ class MLXLocalClient:
         first_token_hard_ceiling_s: float = 0.0,
         request_seq: int = 0,
     ) -> None:
+        from core.runtime.turn_progress import capture_progress
+
+        self._current_turn_progress = capture_progress()
         now = time.time()
         self._current_request_id = str(req_id or "")
         self._current_request_seq = max(0, int(request_seq or 0))
@@ -6404,10 +6408,10 @@ class MLXLocalClient:
         if done != last_done:
             self._prefill_observed_at = now
             self._prefill_observed_tokens = done
-        if done > last_done:
+        if done > last_done and getattr(self, "_current_turn_progress", None) is not None:
             from core.runtime.turn_progress import note_progress
 
-            note_progress()
+            note_progress(progress=self._current_turn_progress)
         self._current_prefill_tokens_processed = done
         self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
@@ -6459,7 +6463,8 @@ class MLXLocalClient:
         try:
             from core.runtime.turn_progress import note_progress
 
-            note_progress()
+            if getattr(self, "_current_turn_progress", None) is not None:
+                note_progress(progress=self._current_turn_progress)
         except ImportError:
             pass
         if self._current_first_token_at <= 0.0:
@@ -6504,6 +6509,7 @@ class MLXLocalClient:
         self._mark_progress()
 
     def _clear_active_generation_tracking(self) -> None:
+        self._current_turn_progress = None
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0

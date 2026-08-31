@@ -11,6 +11,7 @@ from core.runtime import turn_progress
 def progress_client(monkeypatch):
     client = MLXLocalClient(model_path="/models/test-small")
     client._current_request_id = "active"
+    client._current_turn_progress = turn_progress.capture_progress()
     client._current_first_token_at = 90.0
     client._last_token_progress_at = 100.0
     client._tokens_this_request = 16
@@ -19,7 +20,7 @@ def progress_client(monkeypatch):
     monkeypatch.setattr(mlx_client.time, "time", lambda: 102.0)
     monkeypatch.setitem(mlx_client._HOST_RATES, "decode", 0.0)
     renewals = []
-    monkeypatch.setattr(turn_progress, "note_progress", lambda: renewals.append(True))
+    monkeypatch.setattr(turn_progress, "note_progress", lambda **kw: renewals.append(True))
     return client, renewals
 
 

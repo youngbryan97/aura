@@ -13,23 +13,23 @@ it was only ever stopping the first kind. The second kind — a silent worker, a
 decode looping forever — is caught by watching the output, which is what the
 first-token ceiling, the livelock ceiling and the token sentinel already do.
 
-So there is one signal here and every clock asks it the same question: has
-anything arrived recently? A turn that is producing is not out of time. A turn
-that has gone quiet is, whatever its deadline says, and that is the case worth
-ending.
-
-The signal is one timestamp, written by the lane that decodes and read by the
-layers above it, because a turn is one thing happening once even though five
-places are waiting on it.
+Each TurnOutcome owns its progress. The model client captures that owner at
+dispatch; a tool keeps its completion handle. Readers use the same turn even
+when worker callbacks and tool completion run on different async tasks.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
+import weakref
 
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
+    "TurnProgress",
+    "ToolActivity",
+    "capture_progress",
     "note_progress",
     "tool_started",
     "tool_finished",
@@ -38,59 +38,98 @@ __all__ = [
     "forget_progress",
 ]
 
-_lock = checked_lock("core.runtime.turn_progress")
+class TurnProgress:
+    """Activity owned by one TurnOutcome, including callbacks on other tasks."""
 
-#: When a token was last seen, on the monotonic clock. Zero means nothing has
-#: been seen at all, which is silence rather than slowness.
-_last_progress_at: float = 0.0
+    def __init__(self) -> None:
+        self._lock = checked_lock("core.runtime.turn_progress")
+        self._last_at = 0.0
+        self._closed = False
+        self._tools: set[ToolActivity] = set()
 
-#: How many tools are running right now. A turn waiting on one is working, and
-#: it is working for as long as the tool takes — which is a fact about the
-#: tool, not about the decode rate. Sampling a timestamp cannot express that:
-#: a file read that takes twenty-five seconds looks exactly like a worker that
-#: has died, and live on 2026-08-28 a turn reading three files was cancelled
-#: for it. A count, because a turn may have more than one in flight.
-_tools_running: int = 0
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._last_at = 0.0
+            self._tools.clear()
 
 
-def note_progress() -> None:
-    """A token arrived. Called from the lane that decodes."""
+class ToolActivity:
+    """Completion handle bound to the turn and task that started the tool."""
 
-    global _last_progress_at
+    def __init__(self, progress: TurnProgress) -> None:
+        self.progress = progress
+        try:
+            task = asyncio.current_task()
+        except RuntimeError:
+            task = None
+        self._task = weakref.ref(task) if task is not None else None
+
+    def owner_is_running(self) -> bool:
+        if self._task is None:
+            return True
+        task = self._task()
+        return task is not None and not task.done()
+
+
+# Legacy unbound callers have no foreground authority. A bound turn always
+# owns a separate reading; background tokens cannot renew its clocks.
+_unbound_progress = TurnProgress()
+
+
+def capture_progress() -> TurnProgress:
+    from core.runtime.turn_outcome import current_turn
+
+    outcome = current_turn()
+    return outcome.progress if outcome is not None else _unbound_progress
+
+
+def note_progress(*, progress: TurnProgress | None = None) -> None:
+    """Publish advancing work to the captured owner, not the callback's context."""
+
+    state = progress if progress is not None else capture_progress()
     now = time.monotonic()
-    with _lock:
-        _last_progress_at = now
+    with state._lock:
+        if not state._closed:
+            state._last_at = now
 
 
-def tool_started() -> None:
-    """A tool is running. The turn is working until it finishes."""
-
-    global _tools_running, _last_progress_at
-    with _lock:
-        _tools_running += 1
-        _last_progress_at = time.monotonic()
-
-
-def tool_finished() -> None:
-    """That tool is done. Its finishing is itself a sign of life."""
-
-    global _tools_running, _last_progress_at
-    with _lock:
-        _tools_running = max(0, _tools_running - 1)
-        _last_progress_at = time.monotonic()
+def tool_started() -> ToolActivity:
+    state = capture_progress()
+    activity = ToolActivity(state)
+    now = time.monotonic()
+    with state._lock:
+        if not state._closed:
+            state._tools.add(activity)
+            state._last_at = now
+    return activity
 
 
-def seconds_since_progress() -> float:
+def tool_finished(activity: ToolActivity | None) -> None:
+    """Complete exactly this activity, even from a different async context."""
+
+    if activity is None:
+        return
+    state = activity.progress
+    now = time.monotonic()
+    with state._lock:
+        if activity in state._tools:
+            state._tools.remove(activity)
+            state._last_at = now
+
+
+def seconds_since_progress(*, progress: TurnProgress | None = None) -> float:
     """How long since anything arrived, or -1.0 when nothing ever has."""
 
-    with _lock:
-        last = _last_progress_at
+    state = progress if progress is not None else capture_progress()
+    with state._lock:
+        last = state._last_at
     if last <= 0.0:
         return -1.0
     return max(0.0, time.monotonic() - last)
 
 
-def still_producing(*, within_s: float) -> bool:
+def still_producing(*, within_s: float, progress: TurnProgress | None = None) -> bool:
     """True when a token arrived recently enough to call this turn alive.
 
     ``within_s`` is how long a gap between tokens is still normal. Above it
@@ -107,10 +146,12 @@ def still_producing(*, within_s: float) -> bool:
         return False
     if not (window > 0.0):
         return False
-    with _lock:
-        if _tools_running > 0:
+    state = progress if progress is not None else capture_progress()
+    with state._lock:
+        state._tools = {tool for tool in state._tools if tool.owner_is_running()}
+        if state._tools:
             return True
-    since = seconds_since_progress()
+    since = seconds_since_progress(progress=state)
     if since < 0.0:
         return False
     return since <= window
@@ -119,10 +160,10 @@ def still_producing(*, within_s: float) -> bool:
 def forget_progress() -> None:
     """Drop the reading. For tests, and between unrelated turns."""
 
-    global _last_progress_at, _tools_running
-    with _lock:
-        _last_progress_at = 0.0
-        _tools_running = 0
+    state = capture_progress()
+    with state._lock:
+        state._last_at = 0.0
+        state._tools.clear()
 
 
 def normal_gap_between_tokens(measured_for_64_tokens: float = 0.0) -> float:

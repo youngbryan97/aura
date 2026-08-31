@@ -160,10 +160,10 @@ async def _keep_the_cycle_open_while_it_is_working(
     first kind: a wedged worker never reaches here, and a decode looping
     forever is caught by the sentinel that reads the output.
 
-    So the deadline stands until the turn goes quiet. Bounded by the same
-    ceiling the wait outside it uses, so a turn cannot run indefinitely, and
-    it does nothing at all for background work — one GPU, and a dream cycle
-    does not get to hold it while somebody waits.
+    A bound foreground turn renews from its own progress. Its initial window
+    is never shortened. Unowned calls retain the historical ceiling, and
+    background work does not renew. Worker faults and user cancellation keep
+    their existing owners.
     """
 
     if not user_facing:
@@ -175,11 +175,24 @@ async def _keep_the_cycle_open_while_it_is_working(
     # foundation and does not reach up to the lane that times decoding.
     quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
     loop = asyncio.get_running_loop()
+    owned_foreground = current_turn() is not None
     said_it_once = False
     try:
         while True:
             await asyncio.sleep(1.0)
             now = time.monotonic()
+            if owned_foreground:
+                # Never shorten the admitted initial window. Once work starts,
+                # each fresh reading renews it; silence leaves the timer alone.
+                if still_producing(within_s=quiet_for):
+                    try:
+                        current_deadline = clock.when()
+                        if current_deadline is None:
+                            return
+                        clock.reschedule(max(current_deadline, loop.time() + max(15.0, quiet_for)))
+                    except (AttributeError, RuntimeError):
+                        return
+                continue
             if now >= ceiling_at:
                 return
             # Extended while the turn is under its ceiling, whether or not
