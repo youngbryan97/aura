@@ -285,6 +285,12 @@ def arranged(
         banded[-1].append((x, str(said).strip()))
     banded = [row for row in banded if row]
 
+    # Rows are still banded from what sits on them, where columns are read
+    # from the pitch. A board whose EDGE row is empty therefore reads a row
+    # short, and cannot do otherwise: an edge that nothing ever sat on leaves
+    # no trace to infer from. What covers it is the reading before — given the
+    # shape she already has, a short glance is placed inside it — which is why
+    # `like` matters more here than any inference could.
     columns = the_places_nothing_sits_in(
         _column_edges([x for row in banded for x, _said in row])
     )
