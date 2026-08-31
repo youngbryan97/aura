@@ -39,6 +39,7 @@ from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
     what_to_hold_now,
 )
+from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
 from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.runtime.errors import record_degradation
@@ -1095,37 +1096,46 @@ _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
 
 
-def _by_what_followed(went: Sequence[tuple[Any, bool]]) -> list[tuple[Any, bool]]:
-    """The same situations, judged by how things went AFTER them.
+def _expects(knows: Any) -> Callable[[Any, str], Any] | None:
+    """Her rule for what an act would do, when she has one she trusts."""
+    rules = getattr(knows, "rules", None)
+    expect = getattr(rules, "expect", None)
+    sure = getattr(rules, "confidence", None)
+    if not callable(expect) or not callable(sure):
+        return None
+    try:
+        trusted = float(sure() or 0.0)
+    except (TypeError, ValueError):
+        # not a failure: a confidence that is not a number is not one.
+        return None
+    return expect if trusted > 0.0 else None
 
-    Judged by the step out of it, a situation is good when the very next move
-    achieved something — and that teaches the opposite of what it should. In
-    2048 a scattered board has more pairs touching, so it scores on more of
-    its next moves, so "did that go well" measured a move at a time settles on
-    keeping the board scattered. Measured live over three hundred moves, what
-    she committed to was that the large values should NOT be gathered on one
-    line, which is precisely backwards, and she played worse than at random.
 
-    What somebody good at it is doing costs them merges now and pays much
-    later, and no measure taken a move at a time can see that. So a situation
-    is judged by the rate things went well from there onward.
+def _how_much_the_tally_moved(
+    moving: Any, before: Any, after: Any
+) -> float | None:
+    """How far the score she found on the screen went, across one act.
 
-    The rate rather than the total, because a total rewards being early in the
-    run and nothing else, and that would rank every situation by when it
-    happened. Ranked against each other rather than against a level, so the
-    split cannot come out all one way.
+    None when she has not found one, which is not a failure — plenty of things
+    keep no score, and she has other ways of telling whether a stretch went
+    well. Where there IS one it is the honest measure, because it was put
+    there to be exactly that and she did not have to be told.
     """
-    if len(went) < 3:
-        return list(went)
-    after: list[float] = []
-    for at in range(len(went)):
-        rest = [one for _, one in went[at + 1 :]]
-        after.append(sum(rest) / len(rest) if rest else 0.0)
-    if len(set(after)) < 2:
-        return list(went)
-    ranked = sorted(range(len(after)), key=lambda one: after[one])
-    better = set(ranked[len(ranked) // 2 :])
-    return [(place, at in better) for at, (place, _) in enumerate(went)]
+    from core.perception.where_it_responds import places_and_text
+
+    tally = moving.what_measures_doing_well()
+    if not tally or not isinstance(before, dict) or not isinstance(after, dict):
+        return None
+    was, now = places_and_text(before), places_and_text(after)
+
+    def number(seen: dict[tuple[int, int], str], at: tuple[int, int]) -> float:
+        try:
+            return float(str(seen.get(at, "")).replace(",", "").strip() or 0.0)
+        except (TypeError, ValueError):
+            # not a failure: a place showing words is not showing a number.
+            return 0.0
+
+    return sum(max(0.0, number(now, at) - number(was, at)) for at in tally)
 
 
 def _by_how_much_room(
@@ -1359,9 +1369,7 @@ def _moves_she_will_not_make(
     if not callable(sure) or float(sure() or 0.0) <= 0.0:
         return frozenset(), ""
     if turn != she_keeps.get("at"):
-        kept, why = what_to_hold_now(she_keeps.get("it"), _by_what_followed(went))
-        if kept is None:
-            kept, why = what_to_hold_now(she_keeps.get("it"), went)
+        kept, why = what_to_hold_now(she_keeps.get("it"), went)
         if kept is None:
             kept, why = what_to_hold_now(
                 she_keeps.get("it"), _by_how_much_room(went, list(names), expect)
@@ -2556,6 +2564,16 @@ async def pursue_on_screen(
         # each one. Where a thing is tends to keep, so it is remembered.
         "lattice": TheLatticeSheHolds.from_memory(knew.get("lattice") or {}),
     }
+    #: The few acts she reaches for, out of all the ones she could. A habit is
+    #: worth carrying between sittings, so it is remembered too.
+    reaches = TheOnesSheReachesFor.from_memory(
+        knew.get("reaches") or {}, TRUST_CARRIED_OVER
+    )
+    #: How the stretch in progress is going. A stretch is over once the score
+    #: has moved as many times as there are ways of leaning to compare, which
+    #: is how long it takes for the comparison to be worth making and is read
+    #: off the size of the choice rather than picked.
+    stretch: dict[str, int] = {"rises": 0}
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
     #: Whether she has confirmed being in the thing she was asked to act in.
@@ -2788,6 +2806,17 @@ async def pursue_on_screen(
             history.append(attempt)
             if pending["arranged"] is not None and attempt.progressed is not None:
                 went.append((pending["arranged"], bool(attempt.progressed)))
+            # What leaning on these acts has come to. The tally she found on
+            # the screen herself is the measure where there is one, because
+            # nobody has told her what progress is and something on the screen
+            # has been keeping score the whole time.
+            rose = _how_much_the_tally_moved(
+                responds["moving"], pending["watched"], observation
+            )
+            if rose is not None:
+                reaches.went(rose)
+                if rose > 0:
+                    stretch["rises"] += 1
             if previous.chosen is not None:
                 # A key that never changes anything is not one of her actions
                 # in this world, whoever wrote it down.
@@ -3207,6 +3236,39 @@ async def pursue_on_screen(
                 if ruled_out != she_keeps.get("said"):
                     she_keeps["said"] = ruled_out
                     logger.info("%s", ruled_out)
+
+            # And of what is left, the one she reaches for.
+            #
+            # Watching somebody clear 2048: two of the four keys, almost
+            # exclusively, and a third only when the board left them nothing
+            # else. Measured on the game, leaning on two of the four reaches
+            # more than twice what taking any legal move reaches, and beats
+            # every property of the board she could have held instead. It is
+            # not a fact about the board, so looking at the board never finds
+            # it; it is found by leaning on things and seeing what came of it.
+            foreseeable = [
+                one.name
+                for one in available
+                if _somewhere_else(laid_out, one.name, _expects(knows)) is not None
+            ] if laid_out is not None and _expects(knows) is not None else []
+            if foreseeable:
+                if not reaches.leaning_on:
+                    took_up = reaches.start_a_stretch(foreseeable)
+                    if took_up:
+                        logger.info("leaning on %s for a while", ", ".join(took_up))
+                elif stretch["rises"] >= len(reaches.ways_of_leaning(foreseeable)):
+                    reaches.end_the_stretch()
+                    stretch["rises"] = 0
+                    reaches.start_a_stretch(foreseeable)
+                wants = reaches.which_to_take(foreseeable, foreseeable)
+                if wants:
+                    # Everything she cannot foresee stays on the table: the way
+                    # out and the ways of asking are never narrowed by a habit.
+                    available = [
+                        one
+                        for one in available
+                        if one.name == wants or one.name not in foreseeable
+                    ]
 
             # Where each move would lead, when she has worked out how this
             # moves and there is anything to prefer one future over another by.
@@ -3705,6 +3767,7 @@ async def pursue_on_screen(
             # out costs her several moves of a fresh game every time.
             "moves_within": responds["moving"].as_memory(),
             "lattice": responds["lattice"].as_memory(),
+            "reaches": reaches.as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),

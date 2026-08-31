@@ -56,7 +56,7 @@ class TheOnesSheReachesFor:
         key = tuple(sorted(these))
         return (self.paid.get(key, 0.0) + 1.0) / (self.tried.get(key, 0) + 2.0)
 
-    def _worth_trying(self, acts: Sequence[str]) -> list[tuple[str, ...]]:
+    def ways_of_leaning(self, acts: Sequence[str]) -> list[tuple[str, ...]]:
         """One act at a time, and then two.
 
         Two, because what pays is not always any of them on its own. In 2048,
@@ -84,7 +84,7 @@ class TheOnesSheReachesFor:
         """
         if not acts:
             return ()
-        ways = self._worth_trying(acts)
+        ways = self.ways_of_leaning(acts)
         untried = [one for one in ways if not self.tried.get(tuple(sorted(one)))]
         self.leaning_on = (
             untried[0] if untried else max(ways, key=lambda one: (self.worth(one), one))
@@ -107,7 +107,7 @@ class TheOnesSheReachesFor:
 
     def settled(self, acts: Sequence[str]) -> bool:
         """Whether every way of leaning has had its turn."""
-        ways = self._worth_trying(acts)
+        ways = self.ways_of_leaning(acts)
         return bool(ways) and all(
             self.tried.get(tuple(sorted(one))) for one in ways
         )
@@ -123,7 +123,7 @@ class TheOnesSheReachesFor:
         """
         if not self.settled(acts):
             return ()
-        ways = self._worth_trying(acts)
+        ways = self.ways_of_leaning(acts)
         best = max(ways, key=lambda one: (self.worth(one), one))
         return () if len(best) >= len(acts) else tuple(sorted(best))
 
