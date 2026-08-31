@@ -94,7 +94,7 @@ What is actually claimed, and what each claim costs:
   is intractable and we did not solve it.
 - **The hardware target is specific.** Bryan's Apple Silicon M5-class
   machine, 64 GB unified memory. Lower-memory machines downshift their
-  model lanes. They do not get 32B heartbeat latency, and claiming
+  model lanes. They do not get resident Cortex heartbeat latency, and claiming
   otherwise would just be a benchmark run on hardware nobody has.
 - **Resource stakes persist and constrain action envelopes.** That's an
   operational metabolism analog. It is not biological metabolism.
@@ -781,7 +781,8 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 140 modules in `core/consciousness/`. The ones that do most of the
+There are 140 modules in `core/consciousness/` (157 total including subpackages
+`caa/`, `inner_light/`, and `mhaf/`). The ones that do most of the
 load-bearing work:
 
 | Module | What it does | File |

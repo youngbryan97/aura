@@ -97,7 +97,7 @@ The runner is deliberately narrower than the full battery and harder to inflate:
   decomposable and coupled systems so a constant or independent network cannot
   masquerade as integration.
 - **Hardware reality**: Bryan's tracked deployment target is M5-class Apple
-  Silicon with 64 GB unified memory; the auditor still classifies 32B 4-bit/8-bit
+  Silicon with 64 GB unified memory; the auditor still classifies heavy Cortex 4-bit/8-bit
   on lower-memory machines as non-real-time/high-pressure, not a heartbeat tier.
 - **Resource stakes**: the resource ledger persists degradation, exposes action
   envelopes, and can throttle large-model/tool use when viability drops.
@@ -545,7 +545,7 @@ conditions, and we acknowledge the limit.
 
 Fair. The A/B test uses Qwen2.5-1.5B-4bit for speed. The steering mechanism
 (contrastive activation addition (CAA) at middle layers) is architecturally
-identical to what runs on the production 32B model. Replication on larger
+identical to what runs on the production 27B Cortex model. Replication on larger
 models is on the roadmap.
 
 **"Free energy action is always 'rest'."**

@@ -122,7 +122,7 @@ where a path was expected, and the exception it raised was outside the
 handler, so one bad call killed the worker rather than the request; and
 `temperature=` is rejected by this mlx_vlm build.
 
-`core/config.py` still names `Qwen2.5-32B-Instruct` as `vision_model`. That
+`core/config.py` names `Aura-Cortex` as `vision_model`. That
 is the text cortex and cannot read an image at all. Sight goes to
 `MLXVisionClient` and its genuinely multimodal Qwen2-VL-2B, through
 `get_vision_client()` — constructing the client spawns a subprocess holding
@@ -169,7 +169,7 @@ over-generalising "one host is unreachable" into "I'm offline".
 
 - **No end-to-end voice latency number.** What the tests establish is that a
   structural dependency is gone: TTFA no longer scales with total reply
-  length. The figure on the live 32B under load has not been taken, and the
+  length. The figure on the live Cortex under load has not been taken, and the
   numbers in `config.py` describe components rather than the whole path.
 - **No addressivity accuracy.** The rungs are tested against transcripts
   chosen to be plausible, not sampled from real use. False-accept and
