@@ -61,13 +61,14 @@ which predicts the two battery failures exactly.
 **Current state**: The fitted affine-modulo operation space `f(i) = (a*i + b) mod m`
 subsumes the manual primitives and generates dozens of novel ones automatically.
 Grouping (objectness primitive #1) added — predicted failure went 0/10 → 10/10
-with no other shape moving (101 → 111 of 120). Full objecthood (cells as objects
+with no other shape moving (101 → 111 of 120; battery expanded to 130 with a secret-key
+control shape to preserve failable boundary). Full objecthood (cells as objects
 with properties) remains open.
 
 ### The ablation
 
 The ablation that matters ([`test_whether_an_abstraction_is_downstream_of_experience.py`](../tests/test_whether_an_abstraction_is_downstream_of_experience.py)):
-the learned library passes, the authored families do not. Of 120 problems:
+the learned library passes, the authored families do not. Of the 130-problem frozen battery:
 composition is worth 20, the learned library 24–27, the prior nothing measurable.
 
 ### What is NOT established
@@ -129,9 +130,9 @@ misleading premise, scientific inference) at specific task depths. It is not:
 
 [`core/brain/llm/semantic_neural_serving.py`](../core/brain/llm/semantic_neural_serving.py):
 refuses to serve unless the activation record says `active_by_default` and
-matches the active model descriptor. Admission is by an answer-blind parser
-over the public task grammar — unsupported language never acquires the model lane.
-Current package: `rlc-27b-recovery-05346acd618d1c925f16`.
+matches the active model descriptor. Admission is by an answer-blind parser over the public task grammar — unsupported
+language never acquires the model lane.
+Current package campaign: `rlc-27b-recovery`.
 
 ---
 
@@ -165,7 +166,7 @@ is pinned at a recorded-at boundary; evidence:
 
 ### z_Aura coverage
 
-Of 74 named dimensions: 48 present, 25 varying, **50 pinned at one value**
+Of 74 named dimensions: 48 present, 24 varying, **50 pinned at one value**
 across 1,629 turns. Each dead dimension was a reader naming an organ or key
 no writer publishes. Fixed: substrate now reads `conscious_substrate`; three
 collinear pairs separated; floor held by

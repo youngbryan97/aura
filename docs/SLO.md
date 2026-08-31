@@ -52,7 +52,7 @@ the inequality flips: lower is better, so failing means
 
 ## Out of scope
 
-* Anything requiring the 32B fused model: those run under
+* Anything requiring the resident Cortex fused model: those run under
   `aura_bench/` against a recorded ablation matrix, not this gate.
 * End-to-end latency from user message to streamed first token: that
   belongs in a separate UX-focused SLO once telemetry stabilises.

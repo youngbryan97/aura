@@ -42,15 +42,15 @@ which raw φ over a 256-state TPM means what it appears to mean.
 
 ## Why there is still no live number — the actual blocker
 
-`_maybe_record_phi_residual` (core/consciousness/affective_steering.py, ~line
-1290) resolves PhiCore with an **in-process** lookup:
+`_maybe_record_phi_residual` (`core/consciousness/affective_steering.py`, line
+1481) resolves PhiCore with an **in-process** lookup:
 
 ```python
 if not ServiceContainer.has("phi_core"):
     return
 ```
 
-Generation does not run in that process. `core/brain/llm/mlx_client.py:7515`:
+Generation does not run in that process. `core/brain/llm/mlx_client.py:12608`:
 
 ```python
 p = ctx.Process(

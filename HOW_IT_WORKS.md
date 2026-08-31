@@ -186,8 +186,9 @@ The stack runs to 157 modules. Here are the ones holding weight:
 A theater with one spotlight. Every internal process bids for it —
 heartbeat rhythm, a memory surfacing, a curiosity probe, some thought she
 never finished. One wins per tick. The winner becomes the current thought
-and gets broadcast to every other subsystem. The losers are suppressed for
-a few ticks so nothing camps on the spotlight.
+and gets broadcast to every other subsystem. Winning costs the winner:
+fatigue temporarily reduces the winner's next effective priority while losers
+cost nothing and may bid again immediately, so nothing camps on the spotlight.
 
 Attention here is genuinely scarce. Same as yours.
 
@@ -227,8 +228,9 @@ A configurable 64-to-512 neuron network runs continuously, giving the system
 persistent emotional and sensorimotor state across sessions. When you close the
 chat, the network keeps running at a reduced rate, drifting slowly back toward
 baseline. When you come back, it picks up from a real emotional context, not a
-fresh start. The connections inside this network also evolve through learning,
-so the emotional wiring changes with experience.
+fresh start. While the continuous substrate ODE maintains persistent dynamical state,
+synaptic plasticity and topological learning operate in the parallel 4,096-neuron cortical
+mesh through STDP and evolutionary selection.
 
 ### Cortical mesh (parallel processing)
 
@@ -253,8 +255,8 @@ integrated state, not from any one subsystem.
 
 ### Three layers of memory
 
-- **Working memory.** The current conversation, capped at 40 turns. Older
-  turns get compressed into knowledge atoms when the cap fills.
+- **Working memory.** The current conversation context, with compaction
+  triggered at 30 messages (15 turns) to preserve recent turns and identity anchors.
 - **Episodic memory.** Specific experiences with their emotional context,
   indexed in a proximity graph for fast retrieval.
 - **Long-term knowledge.** Compressed, conceptual understanding distilled
@@ -700,24 +702,20 @@ has preferences about what to do next, derived from its own experience.
 
 ### Topology evolution
 
-The neural mesh used to have fixed connectivity — it could strengthen or
-weaken existing links but not grow new ones or prune dead ones. Now,
-NEAT-inspired topology evolution watches co-activation between columns:
-two unconnected columns that consistently fire together (correlation >
-0.6) spawn a new connection. A connection whose weight drops near zero
-and hasn't been used in 100+ ticks gets pruned. New connections get 50
-ticks of protection to prove their worth.
+The neural mesh applies population-based evolutionary selection to its connectome
+(`core/consciousness/substrate_evolution.py`). Maintaining a population of candidate
+weight configurations, genomes are evaluated against integrated information, coherence,
+energy efficiency, and binding strength. Tournament selection, crossover, and structural
+mutations (adding and pruning inter-column connections) evolve the mesh architecture
+over time.
 
 ### Strange loop (recursive self-model)
 
 The system constantly predicts its own internal state at the next tick.
 When the prediction fails, the error itself becomes a signal — something
-unexpected happened inside. This runs at four recursive levels:
-predicting external inputs, predicting its own emotional response,
-predicting its own prediction accuracy (meta-prediction), and predicting
-the user's expectations. A weighted sum of the errors becomes the
-phenomenal weight — a continuous measure of how much the system is
-experiencing versus passively processing.
+unexpected happened inside. A 5-level predictive hierarchy (`core/consciousness/predictive_hierarchy.py` —
+Sensory, Association, Executive, Narrative, Meta) pairs with self-prediction
+of internal valence, drive, and focus (`self_prediction.py`).
 
 Each internal variable has a comfort band where the system "wants" to
 stay. Drift outside the band and prediction error spikes, which is the
@@ -751,9 +749,9 @@ for.
    modulation, and the 8-bit model option on 64 GB machines.
 
 4. **Context windows are finite.** On 8K, quality drops around turn
-   20–30. We compact aggressively every 6 turns, drop stale tool
-   results, anchor identity, and shrink the system prompt when
-   conversations get deep.
+   20–30. Compaction triggers at 30 messages (15 turns) to drop intermediate
+   turns, drop stale tool results, anchor identity, and shrink the system
+   prompt when conversations get deep.
 
 5. **IIT is computed on 16 nodes, not millions.** This is a surrogate
    measure. Real IIT on the full graph is NP-hard. The 16-node complex

@@ -72,7 +72,7 @@ architecture alone.
 
 ## 0. The Unified Will: decision authority
 
-**File**: `core/will.py`
+**File**: `core/governance/will.py` (`core/will.py` is a backward-compat facade)
 
 Every significant action in Aura — responses, tool calls, memory writes,
 autonomous initiatives, state mutations, spontaneous expressions — has to
@@ -466,7 +466,7 @@ Key implementation details:
 - **GPU semaphore**: a global `threading.Semaphore(1)` ensures only one model loads at a time, preventing OOM from simultaneous loads
 - **Foreground owner lock**: when the Cortex is actively generating for a user request, background tasks defer rather than contend for the GPU
 - **Substrate token generator** (`substrate_token_generator.py`): maps the live
-  substrate vector through a learned readout head and records prediction error,
+  substrate vector through an untrained random projection head and records prediction error,
   token IDs, and logits checksum. The LLM is the fallback cortex for high-error
   or explicitly deep requests.
 - **Sensorimotor grounding** (`sensorimotor_grounding.py`): maps camera, screen,
@@ -578,15 +578,15 @@ actually theorizes about.
 | 4 | motivation.curiosity | > running median → 1 |
 | 5 | soma.energy | > running median → 1 |
 | 6 | cognition.focus | > running median → 1 |
-| 7 | reserved | > running median → 1 |
+| 7 | coherence | > running median → 1 |
 | 8 | phi (self-referential) | > running median → 1 |
 | 9 | affect.social_hunger | > running median → 1 |
 | 10 | free_energy.prediction_error | > running median → 1 |
 | 11 | agency_comparator.agency_score | > running median → 1 |
-| 12 | narrative_gravity.arc_tension | > running median → 1 |
-| 13 | peripheral_awareness.richness | > running median → 1 |
-| 14 | subcortical_core.thalamic_gate | > running median → 1 |
-| 15 | timescale_binding.cross_fe | > running median → 1 |
+| 12 | narrative_gravity.narrative_tension | > running median → 1 |
+| 13 | peripheral_awareness.peripheral_richness | > running median → 1 |
+| 14 | subcortical_core.arousal_gate | > running median → 1 |
+| 15 | timescale_binding.cross_timescale_fe | > running median → 1 |
 
 Each node is binarized against its running median over the last 100
 observations. The 16-node state space is 2¹⁶ = 65,536 states, which is too
@@ -710,7 +710,7 @@ These cues shape how the LLM speaks without narrating raw metrics.
 Direction vectors derived from the affective state are injected directly
 into the transformer's residual stream during token generation.
 
-### Somatic markers (damasio_v2.py)
+### Somatic markers (`core/affect/damasio_v2.py`)
 
 Following Damasio's somatic marker hypothesis, the system maintains 8
 primary emotions (Plutchik model): joy, trust, fear, surprise, sadness,
@@ -770,8 +770,8 @@ A CAA extraction pipeline (`training/extract_steering_vectors.py`) runs
 paired prompts through the MLX model and extracts hidden states at target
 transformer layers (auto-selected at 40-65% depth). Direction vectors are
 computed as `mean(positive_hidden_states) - mean(negative_hidden_states)`
-across 5 affective dimensions (valence, arousal, curiosity, confidence,
-warmth) with 7 paired prompt sets per dimension. Bootstrap vectors stay
+across 5 affective dimensions (valence_positive, arousal, curiosity,
+frustration, energy) with 7 paired prompt sets per dimension. Bootstrap vectors stay
 as a fast-deployment fallback; the extracted vectors give higher-fidelity
 affect-computation coupling.
 
@@ -905,9 +905,10 @@ useful learning. We make no claim of the latter without that comparison.
 
 ### Working memory
 
-An in-process list of conversation turns, capped at 40. When the cap is
-hit, older turns are compressed into a KnowledgeAtom (see below) and the
-list is truncated to the 20 most recent turns.
+An in-process list of conversation turns, with compaction triggered when
+history exceeds `COMPACTION_THRESHOLD = 30` messages (15 turns). Compaction
+preserves the most recent raw turns and identity anchors while compacting
+older context, keeping token overhead bounded across long sessions.
 
 ### Knowledge compression (Concord DTU-inspired)
 
@@ -990,10 +991,10 @@ AST (Attention Schema Theory — Michael Graziano's hypothesis that the
 brain builds a simplified model of its own attention process) is
 implemented as an `AttentionSchemaState` that tracks:
 
-- **Focus target**: what the system is currently attending to
-- **Focus intensity**: how strongly attention is locked (0-1)
-- **Covert targets**: things in the periphery that might capture attention next
-- **Schema confidence**: how accurate the system believes its own attention model is
+- **current_focus** (`AttentionalFocus`): content, source subsystem, salience priority, and HOT meta-representation (`meta_repr`, `meta_confidence`)
+- **focus_depth**: recursive HOT meta-depth (capped at 3 levels)
+- **coherence**: attention unity metric (0.0 scattered to 1.0 unified)
+- **salience_map**: competing subsystem salience distribution (`dict[str, float]`)
 
 The key distinction: the attention schema isn't the same as attention
 itself. It's a *model* of attention — a cartoon version the system uses to
@@ -1022,10 +1023,13 @@ In practice:
 - **Surprise**: the delta between what the system predicted and what actually happened
 - **Dominant action**: what the system "wants" to do to reduce surprise
 
-The free energy engine computes three action tendencies:
-- `engage`: prediction error is high, system needs more data (ask a question, investigate)
-- `rest`: prediction error is low, system is well-adapted (coast, reflect)
-- `explore`: uncertainty is high, system should seek novel input (change topic, probe)
+The free energy engine computes six action tendencies with hysteresis:
+- `engage`: user is actively interacting, prioritize conversational engagement
+- `update_beliefs`: surprise is high (> 0.7), system needs to resolve prediction errors
+- `act_on_world`: effective free energy is elevated with low recent action, trigger external initiative
+- `explore`: moderate free energy with high complexity, seek novel input to reduce uncertainty
+- `rest`: free energy is low, maintain restful homeostatic baseline
+- `reflect`: background consolidation and internal state review
 
 The upshot: most agents are purely reactive — they sit there waiting for
 input. The free energy engine gives Aura an intrinsic motivation to act.
@@ -1056,29 +1060,22 @@ changes.
 
 **File**: `core/consciousness/neurochemical_system.py`
 
-Eight neuromodulators that globally modulate all processing:
+Ten neuromodulators that globally modulate all processing:
 
 | Chemical | Role | Effect on behavior |
 |----------|------|-------------------|
-| Dopamine | Reward prediction, motivation | High → exploratory, enthusiastic. Low → apathetic. |
+| Glutamate | Fast excitatory transmission | High → increased gain, alert processing. Low → hypoactive. |
+| GABA | Fast inhibitory transmission, calming | High → suppressed activity, calm. Low → overactive. |
+| Dopamine | Reward prediction, motivation, motor | High → exploratory, enthusiastic. Low → apathetic. |
 | Serotonin | Mood baseline, impulse control | High → patient, grounded. Low → impulsive, terse. |
 | Norepinephrine | Alertness, vigilance | High → sharp, quick responses. Low → relaxed. |
-| Acetylcholine | Learning rate, attention | High → rapid adaptation. Low → slow learning. |
-| GABA | Inhibition, calming | High → suppressed activity. Low → overactive. |
-| Endorphin | Pain suppression, reward | High → positive, pain-tolerant. Low → raw. |
+| Acetylcholine | Learning rate, attention sharpness | High → rapid adaptation. Low → slow learning. |
+| Endorphin | Pain suppression, reward, flow | High → positive, pain-tolerant. Low → raw. |
 | Oxytocin | Social bonding, trust | High → warm, trusting. Low → guarded. |
-| Cortisol | Stress response | High → terse, defensive. Low → relaxed. |
+| Cortisol | Stress mobilization, urgency | High → terse, defensive. Low → relaxed. |
+| Orexin | Wakefulness, metabolic drive | High → active wakefulness. Low → quiescent. |
 
-The dynamics are coupled: each chemical influences the others via an 8×8
-interaction matrix. Dopamine and norepinephrine are positively coupled
-(alertness drives motivation). Serotonin and cortisol are inversely
-coupled (calm suppresses stress). GABA suppresses most excitatory
-chemicals.
-
-These aren't just labels. They quantitatively modulate LLM sampling
-parameters — dopamine shifts temperature (±0.1), serotonin shifts token
-budget (±50), cortisol reduces response length (−80 tokens). The LLM
-doesn't know this is happening.
+The dynamics are coupled via production, uptake, and receptor adaptation (modeling D1/D2, GABA-A/B, 5HT-1A/2A subtypes) along with spatial proximity weighting. They directly modulate neural mesh gain, STDP rate, GWT competition thresholds, and sampling behavior.
 
 ### 9.6 Cortical mesh (4,096-neuron parallel processor)
 
@@ -1087,9 +1084,9 @@ doesn't know this is happening.
 A 4,096-neuron dynamical substrate organized into 64 cortical columns of
 64 neurons each, with three hierarchical tiers:
 
-- **Sensory** (columns 0-21): encode raw input signals
-- **Association** (columns 22-43): cross-modal integration
-- **Executive** (columns 44-63): decision and output
+- **Sensory** (columns 0-15): encode raw input signals
+- **Association** (columns 16-47): cross-modal integration
+- **Executive** (columns 48-63): decision and output
 
 Each column has internal recurrent connectivity. Cross-column connections
 follow a distance-decay rule: nearby columns connect densely, distant

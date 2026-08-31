@@ -127,7 +127,7 @@ of it. They would also note that today's violation count moved 246 → 110 → 2
 They asked for the ablation and it was worth asking for. It took three attempts
 to make honest — the first dropped the flag before it reached the solver, the
 second showed no contribution from the library because every problem pinned its
-shape unaided — and the third changed the battery. Of 120: composition is worth
+shape unaided — and the third changed the battery. Of 130: composition is worth
 20, the learned library 27, the prior nothing measurable.
 
 ### 2.4 The technically literate AI sceptic
@@ -290,9 +290,10 @@ visible as a change to the problems.
 4. ~~Objectness primitives~~ **half done**. Grouping added, prediction stated
    first, prediction FAILED — the form laid the even class down first and could
    not say the other order. Fixed, and "odd positions first" went 0/10 to 10/10
-   with no other shape moving. 101 to 111 of 120. What remains is objecthood in
-   the second sense: cells as objects with orderable properties, which
-   "reordered by the cells" needs and which is a different primitive. (3.4)
+   with no other shape moving (101 to 111 of 120; battery expanded to 130). What
+   remains is objecthood in the second sense: cells as objects with orderable
+   properties, which "reordered by the cells" addresses and "reordered by a secret key"
+   controls for. (3.4)
 5. **D2** — attempted, and it found something worth more than it was for. Of
    twelve questions put to the runtime, eleven came back as the canned failure
    rather than as answers, so the model's 0/12 measures the stack refusing to

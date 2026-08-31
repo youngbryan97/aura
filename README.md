@@ -516,10 +516,10 @@ Local LLM router with automatic failover:
 6. **Last resort** — rule-based static responses that can't fail.
 
 Lane names map to `core/config.py`: `fast_model` is the Cortex
-(`Aura-Cortex` / fused `Qwen3.8-27B`), `deep_model` the Solver
-(`Qwen2.5-72B-Instruct-4bit`), `chat_model` the Brainstem
-(`Qwen3.5-9B-4bit`), and `vision_model` is pinned to the Cortex build
-so vision and conversation share one identity.
+(`Aura-Cortex` / fused `Qwen3.8-27B`), `deep_model` defaults to the Cortex
+(promoted to `Qwen2.5-72B-Instruct-4bit` via `AURA_DEEP_MODEL`),
+`chat_model` the Brainstem (`Qwen3.5-9B-4bit`), and `vision_model` is
+pinned to the Cortex build so vision and conversation share one identity.
 
 Two non-LLM lanes were replaced in August 2026, each on a measurement:
 
@@ -612,7 +612,7 @@ decision the agent can make. Volition levels 0–3 gate progressively autonomous
 behavior up to and including self-modification.
 
 ### Skills (`core/skills/`, legacy wrappers in `skills/`)
-Roughly 80 modules: shell with sandboxing, web search and browse, coding, sleep and
+103 modules: shell with sandboxing, web search and browse, coding, sleep and
 dream consolidation, local media generation, social media (Twitter, Reddit),
 screen capture, filesystem, browser automation, network recon, malware
 analysis, self-evolution and self-repair, inter-agent messaging, knowledge
@@ -1084,15 +1084,15 @@ as a LoRA:
 python training/build_dataset_v3.py
 
 # 2. LoRA fine-tune on the local Cortex
-python -m mlx_lm lora --model models/Qwen2.5-32B-Instruct-4bit \
+python -m mlx_lm lora --model models/Aura-Cortex \
   --train --data training/data --adapter-path training/adapters/aura-personality \
   --num-layers -1 --batch-size 1 --iters 90153 --learning-rate 5e-6 \
   --grad-checkpoint --max-seq-length 4096
 
 # 3. Optional: fuse the adapter into the base model
-python -m mlx_lm fuse --model models/Qwen2.5-32B-Instruct-4bit \
+python -m mlx_lm fuse --model models/Aura-Cortex \
   --adapter-path training/adapters/aura-personality \
-  --save-path training/fused-model/Aura-32B-current
+  --save-path training/fused-model/Aura-Cortex-current
 ```
 
 The adapter auto-loads at boot via MLX. If you'd rather keep the adapter

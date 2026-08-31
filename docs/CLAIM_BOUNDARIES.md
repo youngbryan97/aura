@@ -88,7 +88,7 @@ The following claims are classified as **not proven** due to local environment o
 
 ### E. Concurrent Model-Lane Residency
 * **Status**: `strictly bounded — never all lanes at once`
-* **Boundary**: The 64 GB production host holds the resident 32B cortex plus at most one smaller warm lane inside the declared lane budget (`core/brain/lane_admission.py`). "All model lanes concurrently resident" is architecturally refused by admission control, not merely unproven — the degradation ladder swaps lanes; it never stacks them.
+* **Boundary**: The 64 GB production host holds the resident 27B cortex plus at most one smaller warm lane inside the declared lane budget (`core/brain/lane_admission.py`). "All model lanes concurrently resident" is architecturally refused by admission control, not merely unproven — the degradation ladder swaps lanes; it never stacks them.
 
 ### F. Corpus Coverage vs Answer Quality
 * **Status**: `presence demonstrated; encyclopedic answer quality not claimed`
@@ -96,7 +96,7 @@ The following claims are classified as **not proven** due to local environment o
 
 ### G. Recurrent-Depth Intelligence Gain
 * **Status**: `not proven`
-* **Blocker**: The 2026-07-12 A/B on the reflex model measured identical sealed-battery accuracy at loops=1 and loops=2 (claims-matrix row 27). The 32B configuration remains untested locally; no intelligence gain from recurrent depth is claimed.
+* **Blocker**: The 2026-07-12 A/B on the reflex model measured identical sealed-battery accuracy at loops=1 and loops=2 (claims-matrix row 27). The resident Cortex configuration remains untested locally in an unbudgeted A/B; no intelligence gain from recurrent depth is claimed.
 
 ### H. Arbitrary Reverse Engineering
 * **Status**: `strictly bounded`

@@ -267,7 +267,7 @@ paired tasks, p=0.044, on fewer verifier calls — by rejection sampling only.
 
 **Not measured.** One model (1.5B), one task family (multiplication), one
 difficulty band. p=0.044 is a real effect at the edge of the noise, not a
-settled one. Nothing here shows the gain transfers to the resident 32B, to
+settled one. Nothing here shows the gain transfers to the resident Cortex (27B), to
 reasoning tasks with long answers where "the same answer" needs a semantic
 judge rather than string equality, or to a verifier that is expensive enough
 to change the trade in the other direction.

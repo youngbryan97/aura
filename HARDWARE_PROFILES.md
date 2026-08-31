@@ -5,7 +5,7 @@ allowed to claim from a run on each one.
 
 Those two things are usually kept apart. They shouldn't be. A benchmark on
 an 8 GB laptop with mocked models and a benchmark on a 64 GB machine with
-the resident 32B are not the same measurement, and a number carried from
+the resident 27B are not the same measurement, and a number carried from
 the first to the second is just a number. Each profile below lists its
 allowed claims and its disallowed ones explicitly, so a result knows what
 hardware produced it.
@@ -48,7 +48,11 @@ hardware produced it.
 
 ## 3. Local Apple Silicon Profile
 * **Target Hardware**: Mac Studio / MacBook Pro, M5 Pro or better, 64GB+ Unified Memory. `core/config.py` and `core/runtime.py` both name M5 Pro 64 GB as the budget the tri-cameral tiers are sized against.
-* **Required Models**: the in-process MLX tiers — Cortex (`Qwen2.5-32B-Instruct-8bit`, foreground), Brainstem (`Qwen3.5-9B-4bit`, background), and Reflex (`Qwen2.5-1.5B-Instruct-4bit`, fast lane). There is no separate coder model: `core/brain/llm/local_code_model.py` runs code generation on Aura's own lane with persona steering bypassed, because steering corrupts symbolic output.
+* **Required Models**: the in-process MLX tiers —
+  - Cortex (`Aura-Cortex` / fused Qwen3.8-27B, foreground)
+  - Brainstem (`Qwen3.5-9B-4bit`, background)
+  - Reflex (`Qwen2.5-1.5B-Instruct-4bit`, fast lane)
+  There is no separate coder model: `core/brain/llm/local_code_model.py` runs code generation on Aura's own lane with persona steering bypassed, because steering corrupts symbolic output.
 * **Memory/Compute**: High-throughput CPU/GPU memory bandwidth.
 * **Allowed Claims**:
   - `governed runtime`, `persistent memory`, `causal internal state`, `affect steering`, `System 2 planning/search`, `self-repair`
@@ -64,8 +68,8 @@ hardware produced it.
 ---
 
 ## 4. Local High-Memory Profile
-* **Target Hardware**: Dedicated Workstation / Server, 128GB+ System RAM, 2x NVIDIA RTX 4090 or A6000 GPUs.
-* **Required Models**: Aura MLX 32B/72B lane artifacts. An optional local reasoning solver is fetched with `scripts/fetch_models.py --reasoning-solver`; the supported aliases are `r1-qwen32b`, `r1-qwen32b-8bit`, and `qwq32b`.
+* **Target Hardware**: High-memory Apple Silicon (e.g. M5 Ultra 192 GB+), or dedicated workstation with 128GB+ System RAM (note: MLX inference requires Apple Silicon).
+* **Required Models**: Aura MLX 27B/72B lane artifacts. An optional local reasoning solver is fetched with `scripts/fetch_models.py --reasoning-solver`; the supported aliases are `r1-qwen32b`, `r1-qwen32b-8bit`, `qwq32b`, `qwq-32b`, and `deepseek-r1-qwen32b`.
 * **Memory/Compute**: Massive local GPU memory allocation.
 * **Allowed Claims**: Same as Local Apple Silicon, plus:
   - `emergent intelligence` (locally evaluated on larger distributions)

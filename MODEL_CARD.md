@@ -47,7 +47,7 @@ and complex cognitive tasks.
 ### Intended Use
 Hot-swapped in for the deepest reasoning passes on 64GB-class desktops. It is
 the highest-capacity local lane but the slowest (~84s/pass), so it is not the
-default foreground model — the 32B Cortex handles standard turns and the Solver
+default foreground model — the 27B Cortex handles standard turns and the Solver
 is promoted only when a problem warrants it. Auto-detected/enabled via
 `AURA_DEEP_MODEL`.
 
@@ -61,7 +61,7 @@ is promoted only when a problem warrants it. Auto-detected/enabled via
 | **Architecture** | Transformer LLM (9B parameters, Qwen3.5-9B) |
 | **Runtime** | MLX on Apple Silicon |
 | **Quantization** | 4-bit (MLX native) |
-| **Context Window** | 4096 tokens |
+| **Context Window** | Dynamically measured from model config (default 32,768 tokens) |
 | **Inference** | Local, on-device |
 | **Reasoning mode** | Explicitly controlled |
 
@@ -94,7 +94,7 @@ maintenance reasoning. Never used for user-facing responses in production mode.
 
 ### Intended Use
 The lowest-latency local tier. Handles reflexive turns and lightweight
-routing/guard decisions when the 32B Cortex is warming or contended, so the
+routing/guard decisions when the 27B Cortex is warming or contended, so the
 conversation lane can answer immediately instead of waiting on the heavy
 model. Never used for substantive full-mind replies.
 

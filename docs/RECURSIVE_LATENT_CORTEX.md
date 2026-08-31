@@ -163,7 +163,7 @@ tail as current).
 ## Running it
 
 ```bash
-# Bounded lab run — 1.5B/7B only while the live 32B is resident
+# Bounded lab run — 1.5B/7B only while the live Cortex is resident
 caffeinate -dims .venv/bin/python tools/latent_cortex_lab.py \
   --model <mlx-dir> --experiments 1,2,3,5 --max-minutes 30
 ```
@@ -173,7 +173,7 @@ The live path needs no command: restart Aura and the worker gains the
 `AURA_LATENT_CORTEX=0` to disable.
 
 **Never double-launch a training protocol.** There is one, it is
-memory-hungry, and a second one beside the resident 32B will take the host
+memory-hungry, and a second one beside the resident Cortex will take the host
 down. See [CLAUDE.md](../CLAUDE.md) for the memory budget rules.
 
 ---
@@ -483,7 +483,7 @@ launched, bounded).
   deliberation routes DEEP passes through latent episodes automatically.
   Kill switch `AURA_LATENT_CORTEX=0`. Budgets damped by body pressure.
 - Lab runs (operator-launched, bounded, memory-safe — 1.5B/7B only while
-  the live 32B is resident):
+  the live Cortex is resident):
   `caffeinate -dims .venv/bin/python tools/latent_cortex_lab.py --model <mlx-dir> --experiments 1,2,3,5 --max-minutes 30`
 - Consolidation candidates land in `data/latent_cortex/consolidation_queue/`
   for the existing LoRA-compounding regression gates; nothing consolidates

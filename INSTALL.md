@@ -7,7 +7,7 @@
 - 32 GB RAM to run it at all. 64 GB to run it the way it's built.
 
 That second line is the honest one. The tracked target is an M5-class Mac
-with 64 GB unified memory, which has room for the 32B Cortex plus the 9B
+with 64 GB unified memory, which has room for the 27B Cortex plus the 9B
 Brainstem on demand. At 32 GB it works, but you're downshifting model lanes
 and you should not expect the latency numbers quoted elsewhere in this repo
 — those were measured on the 64 GB machine.
@@ -106,7 +106,7 @@ download. After that the cache is warm and boots are quick.
 State loads from SQLite. Nothing saved, and she starts fresh.
 
 The 9B Brainstem does not load at boot. That's deliberate — it's lazy so
-the 32B Cortex gets the memory it wants, and that's about 5 GB of
+the 27B Cortex gets the memory it wants, and that's about 5 GB of
 difference on a machine where 5 GB decides whether the Cortex loads at all.
 
 ## Optional: fine-tune personality
@@ -117,7 +117,7 @@ python training/build_dataset.py
 
 # Fine-tune the LoRA adapter (10–30 min)
 python -m mlx_lm lora \
-  --model mlx-community/Qwen2.5-32B-Instruct-4bit \
+  --model models/Aura-Cortex \
   --train \
   --data training/data \
   --adapter-path training/adapters/aura-personality \
@@ -150,7 +150,7 @@ requests outright.
 | `AURA_INTERNAL_ONLY` | from security profile | `1` rejects non-localhost requests |
 | `AURA_API_TOKEN` | unset | Bearer token for the local API |
 | `AURA_LORA_PATH` | auto-detected | Path to the LoRA adapter directory |
-| `AURA_MODEL` | `Qwen2.5-32B-Instruct-8bit` | Primary Cortex model |
+| `AURA_MODEL` | `Aura-Cortex` | Primary Cortex model (fused Qwen3.8-27B) |
 | `AURA_DEEP_MODEL` | auto-detected (72B) | Solver model for deep reasoning |
 | `AURA_BRAINSTEM_MODEL` | `Qwen3.5-9B-4bit` | Fast fallback (replaced Qwen2.5-7B on 2026-08-12) |
 | `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | CPU emergency fallback. Locked to the Cortex family — it is also the speculative draft and contrastive amateur, so it cannot drift from the Cortex distribution the way the Brainstem could |
@@ -167,7 +167,7 @@ requests outright.
 | `AURA_GOVERNANCE_MODE` | profile default | Governance posture for consequential actions |
 | `AURA_PROCESS_RSS_LIMIT_GB` | derived from total RAM | Hard RSS ceiling for the main process. A value you set is still capped by the safe-boot ceiling unless unsafe limits are explicitly allowed |
 | `AURA_MLX_MEMORY_LIMIT_GB` | derived from total RAM | MLX allocator ceiling, capped the same way |
-| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `24.0` | Refuse a 32B load below this much free memory |
+| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `24.0` | Refuse a heavy Cortex load below this much free memory (legacy env var name) |
 
 ### Debugging entry points
 
@@ -193,8 +193,8 @@ checks hit `/api/health`.
 
 ## Troubleshooting
 
-- **Out of memory.** Close other apps, or drop to a smaller model. The 32B
-  8-bit wants about 20 GB of GPU RAM and will not negotiate. On a smaller
+- **Out of memory.** Close other apps, or drop to a smaller model. The 27B
+  Cortex wants about 18–20 GB of GPU RAM and will not negotiate. On a smaller
   machine set `AURA_MODEL=Qwen3.5-9B-4bit` and take the smaller
   lane on purpose rather than discovering it under load.
 - **Model won't load.** Check that `mlx-lm` is installed

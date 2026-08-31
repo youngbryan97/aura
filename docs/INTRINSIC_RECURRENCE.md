@@ -106,7 +106,7 @@ until learned controller parameters are admitted.
 
 ## What has been established
 
-Working on a 1.5B vehicle so the resident 32B stays live. Every item below is
+Working on a 1.5B vehicle so the resident Cortex stays live. Every item below is
 bounded to what it measured; none of them authorize a broad claim.
 
 **Trained recurrence is not inert.** Package-depth trained parameters beat
@@ -124,7 +124,7 @@ one missed; it can never *erase* a shallow answer already proven correct
 (CP376). Source labels for the shallow arms are rejected unless the resource
 receipt records recurrence depth one.
 
-**Typed recurrent serving authority is durable, and narrow.** The resident 32B
+**Typed recurrent serving authority is durable, and narrow.** The resident Cortex
 holds `qualified_typed_only` authority for the `khop`, `modular`, and
 `register_trace` families at task depths 1, 2, 4 with recurrence depth four
 (CP357). Two independent cold loads each decoded 9/9 typed cases exactly; the

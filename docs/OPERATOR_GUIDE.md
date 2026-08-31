@@ -6,7 +6,7 @@ Running Aura on your own hardware, and what to do when it goes wrong.
 
 ## Requirements
 - macOS on Apple Silicon. The tracked target is M5-class.
-- 64 GB+ RAM. That's the reference target for the 32B Cortex plus sustained
+- 64 GB+ RAM. That's the reference target for the 27B Cortex plus sustained
   background loops — not a comfort margin.
 - 50 GB+ free disk for models and data.
 - Python 3.12.
@@ -156,7 +156,7 @@ malformed mutation cannot crash the parent process.
 - Stop: SIGTERM is graceful (drains receipts, revokes capability tokens).
 
 ## Model configuration
-- `AURA_MODEL`        — primary model name (default: Qwen2.5-32B-Instruct-8bit)
+- `AURA_MODEL`        — primary model name (default: `Aura-Cortex` / fused Qwen3.8-27B)
 - `AURA_DEEP_MODEL`   — heavy lane for solver tier
 - `AURA_LLM__MLX_DEEP_MODEL_PATH` — explicit on-disk path
 - There is no cloud fallback and no setting for one. Every lane the router
@@ -189,7 +189,7 @@ export AURA_DEEP_MODEL=DeepSeek-R1-Distill-Qwen-32B-4bit
 export AURA_LLM__MLX_DEEP_MODEL_PATH=/Users/bryan/Desktop/aura/models/DeepSeek-R1-Distill-Qwen-32B-4bit
 ```
 
-Keep this separate from the primary 32B desktop Cortex unless a live proof run
+Keep this separate from the primary 27B desktop Cortex unless a live proof run
 shows the alternate lane preserves Aura's conversation identity, RAM envelope,
 and full-mind route.
 
@@ -201,8 +201,8 @@ and full-mind route.
   purge as pressure climbs. The ceilings are set by
   `AURA_PROCESS_RSS_LIMIT_GB` (main process), `AURA_MLX_MEMORY_LIMIT_GB`
   (MLX allocator), `AURA_MLX_WORKER_RSS_LIMIT_GB` (inference worker), and
-  `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` (refuse a 32B load below this much
-  free memory). There is no `AURA_MEM_THRESHOLDS` variable.
+  `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` (refuse a heavy Cortex load below this much
+  free memory; env var name retained for compatibility). There is no `AURA_MEM_THRESHOLDS` variable.
 - Under sustained pressure the OOM shed ladder drops load bottom-up
   starting with the prompt KV cache; the current shed order is reported in
   `runtime_health_report()["integrity"]`.
@@ -216,9 +216,8 @@ and full-mind route.
   tokens.
 
 ## Governance lint
-`make governance-lint` fails the build if any code outside the allow-list
-makes a direct consequential call. The allow-list is defined in
-`tools/lint_governance.py:ALLOW_LIST`.
+`make governance-lint` fails the build if any code makes a direct consequential
+call exceeding the ratchet baseline enforced by `tools/lint_governance.py`.
 
 ## Physical actuation and Reality Reach
 

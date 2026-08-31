@@ -173,7 +173,7 @@ edges, not hypotheticals.
 
 **Cause**: The cognitive-rhythm loop marks progress at the top of each
 iteration; a single iteration that blocked on a saturated model (e.g. a
-background initiative running the full 32B with no bound) stopped re-marking
+background initiative running the full Cortex with no bound) stopped re-marking
 progress, so `is_alive()` declared `mind_tick` dead.
 **Likelihood**: Medium under sustained back-to-back turns (before fix).
 **Impact**: Whole runtime flips DEGRADED even though conversation works; the
@@ -240,7 +240,7 @@ launch via `launch_aura.sh` (which does not require provenance).
 ### F19: Quadratic conversation cost from a never-reused prompt cache
 
 **Cause**: The conversation path could not reuse KV, twice over.
-`_prompt_cache_entry_budget_for_model` gave the 32B a budget of **0** under
+`_prompt_cache_entry_budget_for_model` gave the Cortex a budget of **0** under
 `desktop_resource_guard_enabled()`, so the prompt-cache LRU was never
 constructed on the live desktop; and every live user turn carries
 `clean_user_surface_contract=True`, which was in the bypass list — so the

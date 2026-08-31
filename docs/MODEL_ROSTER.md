@@ -19,7 +19,7 @@ The tri-cameral architecture, tuned for an M5-class Apple Silicon Mac with
 | Lane | Model | Config key | Env override | Role |
 |---|---|---|---|---|
 | **Cortex** (Tier 2) | `Aura-Cortex` (`Qwen3.8-27B` fused, `qwen3_5`) | `fast_model` | `AURA_MODEL` | Daily interaction, primary conversation lane. Handles nearly everything |
-| **Solver** (Tier 3) | `Qwen2.5-72B-Instruct-4bit` | `deep_model` | `AURA_DEEP_MODEL` | Deep reasoning, hot-swapped only when the request needs it |
+| **Solver** (Tier 3) | `Qwen2.5-72B-Instruct-4bit` (override) / `Aura-Cortex` (default) | `deep_model` | `AURA_DEEP_MODEL` | Deep reasoning, hot-swapped specialist when requested |
 | **Brainstem** (Tier 1) | `Qwen3.5-9B-4bit` | `chat_model` | `AURA_BRAINSTEM_MODEL` | Heartbeat, telemetry, background tasks. Lazy-loaded |
 | **Reflex** | `Qwen2.5-1.5B-Instruct-4bit` | — | `AURA_FALLBACK_MODEL` | CPU emergency fallback |
 | **Vision** | `Aura-Cortex` (`Qwen3.8-27B`) | `vision_model` | — | Pinned to the Cortex build so vision and conversation share one identity |
@@ -173,7 +173,7 @@ the repo:
 
 | Field | State |
 |---|---|
-| `LLMConfig.whisper_model = "small.en"` | No reader resolves the ASR model through this field. The Whisper fallback takes its size from `core/senses/voice_engine.py` defaults |
+| `LLMConfig.whisper_model = "small.en"` | No reader resolves the ASR model through this field. The Whisper fallback takes its size from `core/senses/voice_engine.py` defaults (default `"base"`) or `core/voice/duplex/streaming_asr.py` |
 | `LLMConfig.embedding_model = "nomic-embed-text"` | **Dead.** No code reads it; the real embedding model is `REPO_ID` in `core/memory/embedding_model.py`. The name refers to a model this repository does not load |
 
 ---

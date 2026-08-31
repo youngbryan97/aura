@@ -97,7 +97,7 @@ bypassed.
 organ substrate (AffectEngineV2, ExistentialStakes on real host memory, the
 full Will gate stack incl. §9d, covenant seeds, AuraNow sampling) run
 headless with a declared realistic workload — NOT the full live mind (no
-32B cortex; the live instance is never touched by tooling). When the
+27B cortex; the live instance is never touched by tooling). When the
 desktop instance is up, the same tool auto-selects `live_api` mode and
 samples the actual running mind read-only. That is the strongest
 measurement, one command away after a restart:

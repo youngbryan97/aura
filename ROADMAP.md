@@ -99,7 +99,7 @@ code does not have. What it found on first run is in
   legal path to a consequential primitive; every action produces a
   drive-to-outcome receipt. **(shipped)**
 * Static analyzer: `tools/lint_governance.py` fails CI on any direct
-  consequential call outside the allow-list. **(shipped)**
+  consequential call exceeding the ratchet baseline. **(shipped)**
 * Capability token lifecycle: `core/agency/capability_token.py` —
   origin/scope/TTL/domain/approver/revocation/parent/child/side-effects,
   plus replay/expiry/cross-thread/post-shutdown rejection. **(shipped)**
@@ -108,8 +108,8 @@ code does not have. What it found on first run is in
 * Formal verifier: `core/self_modification/formal_verifier.py` — Z3 if
   available, AST-pattern fallback. **(shipped)**
 * Multiprocess organ isolation (Chromium-style): MLX inference runs in an
-  isolated spawn worker (`core/brain/llm/mlx_worker.py`, cooperative
-  soft-cancel included). Hierarchical-phi partition search runs in a spawn
+  isolated spawn worker (`core/brain/llm/mlx_worker.py`). Hierarchical-phi
+  partition search runs in a spawn
   process pool (`core/consciousness/hierarchical_phi.py`,
   `AURA_PHI_PROCESS_ISOLATION`) — it was pure-Python/GIL-bound and stole
   loop time from the main process. Motor cortex stays in-process BY
