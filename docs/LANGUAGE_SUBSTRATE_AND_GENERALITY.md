@@ -330,7 +330,11 @@ impossible rather than merely hard:
   other reader of a strict answer already unwrapped the envelope; the graders
   were the outlier.
 
-On sixty items the number is stable: **0.6333**, against 0.65 on twenty.
+On sixty items the number is stable: **0.6333**, against 0.65 on twenty, and
+0.6167 on a repeat of the same seed after the thinking-channel fix below — so
+that fix was worth about one item, inside the variation the deadline timing
+already produces. It is right on its own terms and it did not move this
+number.
 
 48 of 135 generations hit the matched 20s deadline, because this model decodes
 at 10.6 tokens a second and cannot fit three samples inside it. That is the
