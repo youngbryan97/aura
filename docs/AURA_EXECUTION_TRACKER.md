@@ -52403,3 +52403,20 @@ canonical tree and corrected to assert the intended absence of a named finish.
 The aggregate governance gate is red on a separately merged raw diagnostic
 write in `core/perception/where_it_responds.py::_note_what_was_seen`. No baseline
 was relaxed. Live replay of the clause-ownership repair remains required.
+
+## Checkpoint 2026-08-31: Reservation Lifetime Follows Its Owner
+
+The inference facade sized reservation TTL from admission wait time. A healthy
+generation could outlive that estimate, lose its reservation, and log expiry
+on release. The shared admission controller now supports a task-owned lifetime;
+the inference context binds its reservation to the acquiring task. Elapsed
+TTL cannot advertise that lane as free while the task is active, including
+cancellation cleanup. Explicit release still releases it. An exited owner is
+reclaimable, and callers without task ownership keep the existing TTL policy.
+This changes reservation lifetime, not generation fault or cancellation policy.
+
+Focused admission and arbitration tests pass 45/45. Smoke passes 121 with one
+skip; lint, compile and layering pass. The smoke run took 140.23 seconds while
+the separate desktop replay was generating, so it is not an idle-host timing
+measurement. The inherited perception diagnostic-write governance finding
+remains open. This reservation change has not yet been loaded into Aura.

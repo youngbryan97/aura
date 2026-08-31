@@ -279,6 +279,7 @@ class _LeaseRecord:
     preempt_requested: bool = False
     preempt_reason: str = ""
     on_preempt: Callable[[str], Any] | None = None
+    holder_task: asyncio.Task[Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -585,7 +586,12 @@ class ResourceAdmissionController:
     def _expire_leases_locked(self, now: float) -> list[_LeaseRecord]:
         expired: list[_LeaseRecord] = []
         for lease_id, lease in list(self._leases.items()):
-            if lease.expires_at > now:
+            # A held resource does not become available because its estimated
+            # duration elapsed. The task's cancellation/fault policy owns work;
+            # admission owns mutual exclusion until release or owner exit.
+            if lease.holder_task is not None and not lease.holder_task.done():
+                continue
+            if lease.holder_task is None and lease.expires_at > now:
                 continue
             expired.append(lease)
             self._leases.pop(lease_id, None)
@@ -594,7 +600,7 @@ class ResourceAdmissionController:
             self._append_history_locked(
                 lease.request,
                 AdmissionOutcome.EXPIRED,
-                "lease_ttl_expired",
+                "holder_task_finished" if lease.holder_task is not None else "lease_ttl_expired",
                 lease_id=lease_id,
             )
         return expired
@@ -805,7 +811,10 @@ class ResourceAdmissionController:
         request: AdmissionRequest,
         *,
         on_preempt: Callable[[str], Any] | None = None,
+        holder_task: asyncio.Task[Any] | None = None,
     ) -> AdmissionDecision:
+        if holder_task is not None and holder_task is not asyncio.current_task():
+            raise ValueError("admission holder must be the acquiring task")
         started = time.monotonic()
         deadline = started + float(request.timeout_s)
         initial_pressure = await self.pressure_snapshot_async()
@@ -814,6 +823,8 @@ class ResourceAdmissionController:
             existing_id = self._request_to_lease.get(request.request_id)
             existing = self._leases.get(existing_id or "")
             if existing is not None:
+                if holder_task is not None and existing.holder_task is not holder_task:
+                    raise ValueError("active admission lease belongs to another task")
                 return AdmissionDecision(
                     request_id=request.request_id,
                     outcome=AdmissionOutcome.ADMITTED,
@@ -854,6 +865,7 @@ class ResourceAdmissionController:
                             admitted_at=time.time(),
                             expires_at=now + float(request.lease_ttl_s),
                             on_preempt=on_preempt,
+                            holder_task=holder_task,
                         )
                         self._request_to_lease[request.request_id] = lease_id
                         self._waiters.pop(request.request_id, None)
@@ -1146,6 +1158,10 @@ class ResourceAdmissionController:
                     "admitted_at": lease.admitted_at,
                     "expires_at_monotonic": lease.expires_at,
                     "ttl_remaining_s": max(0.0, lease.expires_at - now_monotonic),
+                    "lifetime": "holder_task" if lease.holder_task is not None else "ttl",
+                    "holder_task_active": (
+                        not lease.holder_task.done() if lease.holder_task is not None else None
+                    ),
                     "preempt_requested": lease.preempt_requested,
                     "preempt_reason": lease.preempt_reason,
                 }

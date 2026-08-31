@@ -97,6 +97,7 @@ class ResourceArbitrator:
         priority: bool = False,
         timeout: float | None = None,  # noqa: ASYNC109 - compatibility API
         worker: str | ModelRuntimeAssignment | None = None,
+        _holder_task: asyncio.Task | None = None,
     ) -> bool:
         lane = self._worker_lane(worker)
         effective_timeout = (
@@ -117,7 +118,10 @@ class ResourceArbitrator:
             lease_ttl_s=max(30.0, effective_timeout + 30.0),
             metadata={"worker": lane, "legacy_facade": True},
         )
-        decision = await self._admission.acquire(request)
+        if _holder_task is None:
+            decision = await self._admission.acquire(request)
+        else:
+            decision = await self._admission.acquire(request, holder_task=_holder_task)
         if not decision.admitted:
             logger.warning(
                 "Inference admission denied worker=%s priority=%s outcome=%s reason=%s receipt=%s",
@@ -291,6 +295,7 @@ class ResourceArbitrator:
             priority=priority,
             timeout=timeout,
             worker=worker,
+            _holder_task=asyncio.current_task(),
         )
         if not acquired:
             raise TimeoutError(f"inference_token_timeout:{worker or 'default'}")
