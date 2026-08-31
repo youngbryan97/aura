@@ -31,7 +31,7 @@ true, and the moves that keep it.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import Any
 
@@ -99,6 +99,8 @@ def every_property_of(
     # thing with places, each holding a value, is all this needs, and asking
     # the reading whether it is one keeps it usable for anything shaped that
     # way rather than for one class.
+    yield from _properties_of_anything(reading)
+
     cells = getattr(reading, "cells", None)
     if not cells or not hasattr(reading, "rows") or not hasattr(reading, "columns"):
         return
@@ -150,7 +152,6 @@ def every_property_of(
             f"the largest things live along its {said}",
             _the_largest_live_along(edge, value_of),
         )
-    yield ("more than half its places are empty", _mostly_empty)
 
 
 def _the_largest_is_at(
@@ -198,6 +199,127 @@ def _values_fall_away(
     return holds
 
 
+def _places_in(thing: Any) -> list[tuple[Any, Any]]:
+    """Whatever this is, said as places holding things.
+
+    A laid-out thing has cells. A mapping has keys. Anything countable has
+    positions. All three are places holding things, and the properties below
+    only ever needed that much, so all three get them. Refusing everything
+    that is not laid out in rows was a limit on the shapes of world she could
+    hold anything true about, and nothing in the reasoning needed it.
+    """
+    cells = getattr(thing, "cells", None)
+    if cells:
+        out = []
+        for cell in cells:
+            where = (getattr(cell, "row", None), getattr(cell, "column", None))
+            out.append((where, cell))
+        return out
+    if isinstance(thing, Mapping):
+        return list(thing.items())
+    if isinstance(thing, (str, bytes)):
+        return []
+    if isinstance(thing, (Set, Sequence)):
+        return list(enumerate(thing))
+    return []
+
+
+def _held(one: Any) -> Any:
+    """What is at a place, as something comparable."""
+    asked = getattr(one, "number", None)
+    if callable(asked):
+        try:
+            got = asked()
+        except (AttributeError, TypeError, ValueError):
+            # not a failure: a place holding something unreadable holds
+            # nothing to compare, which is itself an answer.
+            return None
+        return got
+    return one
+
+
+def _properties_of_anything(thing: Any) -> Iterator[tuple[str, Callable[[Any], bool]]]:
+    """Properties that need only places and what is in them.
+
+    These are the ones that carry across shapes of world, and one of them is
+    the reason any of this was built: two places holding the same thing is the
+    precondition of every rule that combines, so wanting it is how a want for
+    something far away gets turned into a want for something near.
+    """
+    if not _places_in(thing):
+        return
+    yield ("two of its places hold the same thing", _two_the_same)
+    yield ("something in it can be told apart from the rest", _not_all_alike)
+    yield ("more than half its places are empty", _mostly_empty)
+    # And one for each thing actually in it.
+    #
+    # Somebody clearing 2048 did not want a 1024, they wanted two 512s, and
+    # before that two 256s. That vocabulary is not a list anybody wrote down;
+    # it is read off what is in front of them, and it is what lets a want for
+    # something far away become a want for something near.
+    for what in _things_in(thing):
+        yield (f"it holds a {what}", _holds_at_least(what, 1))
+        yield (f"it holds two {what}", _holds_at_least(what, 2))
+
+
+def _things_in(thing: Any) -> list[Any]:
+    """The distinct things it holds, in a settled order.
+
+    Bounded by what is there, so it needs no cutoff chosen for it.
+    """
+    seen: dict[str, Any] = {}
+    for _where, one in _places_in(thing):
+        held = _held(one)
+        if held is None or held == 0:
+            continue
+        seen.setdefault(str(held), held)
+    return [seen[key] for key in sorted(seen)]
+
+
+def _holds_at_least(what: Any, many: int) -> Callable[[Any], bool]:
+    def holds(thing: Any) -> bool:
+        found = 0
+        for _where, one in _places_in(thing):
+            if _held(one) == what:
+                found += 1
+                if found >= many:
+                    return True
+        return False
+
+    return holds
+
+
+def _two_the_same(thing: Any) -> bool:
+    seen: set[Any] = set()
+    for _where, one in _places_in(thing):
+        held = _held(one)
+        if held is None or held == 0:
+            continue
+        try:
+            if held in seen:
+                return True
+            seen.add(held)
+        except TypeError:
+            # not a failure: something that cannot be put in a set cannot be
+            # compared for sameness this way.
+            continue
+    return False
+
+
+def _not_all_alike(thing: Any) -> bool:
+    seen: set[Any] = set()
+    for _where, one in _places_in(thing):
+        held = _held(one)
+        try:
+            seen.add(held)
+        except TypeError:
+            # not a failure: see above.
+            continue
+        if len(seen) > 1:
+            return True
+    return False
+
+
 def _the_largest_live_along(
     edge: tuple[str, int], value_of: Callable[[Any], float]
 ) -> Callable[[Any], bool]:
@@ -232,9 +354,22 @@ def _the_largest_live_along(
     return holds
 
 
-def _mostly_empty(reading: Any) -> bool:
-    room = max(1, getattr(reading, "rows", 0) * getattr(reading, "columns", 0))
-    return len(getattr(reading, "cells", ())) * 2 < room
+def _mostly_empty(thing: Any) -> bool:
+    """How much room is left, whatever kind of thing it is.
+
+    A laid-out thing knows how many places it has whether or not they are
+    filled, so its emptiness is measured against that. Anything else only has
+    the places that are there, and emptiness there means places holding
+    nothing.
+    """
+    rows, columns = getattr(thing, "rows", 0), getattr(thing, "columns", 0)
+    if rows and columns:
+        return len(getattr(thing, "cells", ())) * 2 < rows * columns
+    places = _places_in(thing)
+    if not places:
+        return False
+    empty = sum(1 for _where, one in places if _held(one) in (None, 0, "", ()))
+    return empty * 2 > len(places)
 
 
 def how_well_it_predicts(
@@ -248,11 +383,14 @@ def how_well_it_predicts(
     """
     if not watched:
         return []
+    # Read the properties off everything she saw rather than off whichever
+    # came first. One empty state at the front used to mean no properties at
+    # all, and a property that only some states even have is exactly the kind
+    # worth weighing.
     found: dict[str, SomethingTrue] = {}
     for reading, _went in watched:
         for name, holds in every_property_of(reading, deepest=deepest):
             found.setdefault(name, SomethingTrue(name=name, holds=holds))
-        break
     weighed: list[SomethingTrue] = []
     for one in found.values():
         well_true = times_true = well_false = times_false = 0

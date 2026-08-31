@@ -78,7 +78,15 @@ def _moved(board: Arrangement, act: str) -> Arrangement:
 ACTS = ["left", "right", "up", "down"]
 
 
-def _watched(seed: int = 3, how_many: int = 60):
+def _watched(seed: int = 3, how_many: int = 60, corner: tuple[int, int] = (3, 3)):
+    """States that differ only in WHERE the big one is.
+
+    Every state has one, so "it holds a 256" is true of all of them and tells
+    nothing apart. Only its position separates the good from the bad, which is
+    the discrimination actually being claimed. Data where the good states are
+    the ones that have a big tile at all would be answered correctly by "it has
+    a big tile", and would prove nothing about corners.
+    """
     roll = random.Random(seed)
     seen = []
     for _turn in range(how_many):
@@ -89,7 +97,10 @@ def _watched(seed: int = 3, how_many: int = 60):
                 [2, 4, 8, 16, 32, 64, 128]
             )
         if in_the_corner:
-            grid[3][3] = 256
+            grid[corner[0]][corner[1]] = 256
+        else:
+            grid[corner[0]][corner[1]] = 0
+            grid[roll.randrange(1, 3)][roll.randrange(1, 3)] = 256
         seen.append((_board(grid), in_the_corner))
     return seen
 
@@ -164,8 +175,8 @@ def test_she_lets_go_when_it_stops_telling_them_apart() -> None:
                 grid[roll.randrange(4)][roll.randrange(4)] = roll.choice(
                     [2, 4, 8, 16, 32, 64]
                 )
-            if good:
-                grid[3 if anchor_at_the_bottom else 0][3] = 512
+            row = (3 if anchor_at_the_bottom else 0) if good else roll.randrange(1, 3)
+            grid[row][3 if good else roll.randrange(1, 3)] = 512
             out.append((_board(grid), good))
         return out
 
@@ -195,8 +206,7 @@ def test_holding_nothing_takes_up_the_best_one() -> None:
         good = roll.random() < 0.5
         for _ in range(roll.randrange(3, 8)):
             grid[roll.randrange(4)][roll.randrange(4)] = roll.choice([2, 4, 8, 16])
-        if good:
-            grid[3][3] = 256
+        grid[3 if good else 1][3 if good else 1] = 256
         seen.append((_board(grid), good))
     took, why = what_to_hold_now(None, seen)
     assert took is not None, why
