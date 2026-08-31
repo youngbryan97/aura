@@ -1897,7 +1897,19 @@ async def _bring_the_thing_back_to_the_front(app: str) -> bool:
     try:
         from core.capabilities.host_automation import get_host_automation
 
-        receipt = await get_host_automation().focus_app(named)
+        host = get_host_automation()
+        receipt = await host.focus_app(named)
+        raised = bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False))
+        if not raised:
+            # Not in front because it is not running.
+            #
+            # Raising a window asks the window system for a process by name,
+            # and there is no process. Asked to play a game that was not open,
+            # she would fail to raise it, read whatever happened to be
+            # frontmost, and play that instead — which on this machine means
+            # pressing arrow keys into somebody's editor. Starting it is the
+            # same request, one step earlier.
+            receipt = await host.launch_app(named)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         logger.debug("could not raise %r", named, exc_info=True)
         return False

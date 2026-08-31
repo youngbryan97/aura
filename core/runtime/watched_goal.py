@@ -376,15 +376,184 @@ def _named_app(text: str) -> str:
     return named.group(1).strip() if named else ""
 
 
-def _an_application_here(said: str) -> str:
+#: A question opens with a wh-word, or with an auxiliary in front of its
+#: subject. Both are closed classes of English, which is what makes testing
+#: for them different in kind from the list of doing-verbs this replaces:
+#: nobody invents a new way to start a question.
+_ASKS_RE = re.compile(
+    r"^\s*(?:what|when|where|which|who|whose|why|how)\b"
+    r"|^\s*(?:am|are|is|was|were|do|does|did|have|has|had|can|could|would|"
+    r"will|should)\s+(?:you|i|we|they|it|he|she|there|that|this)\b",
+    re.IGNORECASE,
+)
+
+#: "Can you play 2048" is somebody asking for it to be played, not somebody
+#: wondering whether it can be. The question mark on the end of a politely
+#: worded instruction does not make it a question.
+_ASKS_POLITELY_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:can|could|would|will)\s+you\b", re.IGNORECASE
+)
+
+
+def _is_asking(text: str) -> bool:
+    """Whether the turn is a question rather than something to be done."""
+    said = str(text or "").strip()
+    if _ASKS_POLITELY_RE.match(said):
+        return False
+    return said.endswith("?") or bool(_ASKS_RE.match(said))
+
+
+#: What was on the machine, and what the folders looked like when it was read.
+_INSTALLED: dict[bool, tuple[Any, tuple[Any, ...]]] = {}
+
+
+def _folders(only_chosen: bool) -> list[Any]:
+    from pathlib import Path as _Path
+
+    folders = [_Path("/Applications"), _Path.home() / "Applications"]
+    if not only_chosen:
+        folders.append(_Path("/System/Applications"))
+    return folders
+
+
+def _installed_here(only_chosen: bool = False) -> list[Any]:
+    """Every application bundle on this machine.
+
+    ``only_chosen`` leaves out what came with it. Half of Apple's own
+    applications are named after ordinary words — Mail, Notes, Music, Maps,
+    Messages, Home, Clock — so a whole sentence looked up against all of them
+    reads "help me find my keys" as a request to open Find My. What somebody
+    installed themselves carries no such risk, and which is which is where the
+    bundle sits rather than a list anybody has to keep.
+    """
+    folders = _folders(only_chosen)
+    try:
+        when = tuple(one.stat().st_mtime_ns for one in folders if one.is_dir())
+    except OSError:
+        # not a failure: a folder that will not say when it changed is read
+        # again, which is slower and never wrong.
+        when = None
+    kept = _INSTALLED.get(only_chosen)
+    if when is not None and kept is not None and kept[0] == when:
+        return list(kept[1])
+    found = tuple(
+        one for folder in folders for one in (folder.glob("*.app") if folder.is_dir() else ())
+    )
+    _INSTALLED[only_chosen] = (when, found)
+    return list(found)
+
+
+#: What each bundle answers to, against the folders as they were when read.
+_NAMES: dict[Any, dict[str, str]] = {}
+
+
+def _what_they_answer_to(here: list[Any]) -> dict[str, str]:
+    """Every name each of these bundles goes by, worked out once.
+
+    Kept, because working it out reads a property list per application and
+    this is asked on every turn somebody takes. Seventy applications came to
+    eighteen milliseconds of every ordinary sentence anybody said, which is a
+    thing to pay when somebody names a game and not a thing to pay for saying
+    good morning.
+    """
+    stamp = tuple(sorted(str(one) for one in here))
+    kept = _NAMES.get(stamp)
+    if kept is not None:
+        return kept
+    by_name: dict[str, str] = {}
+    for one in here:
+        called = _what_the_window_system_calls(one)
+        by_name.setdefault(one.stem.lower(), called)
+        by_name.setdefault(called.lower(), called)
+    _NAMES.clear()
+    _NAMES[stamp] = by_name
+    return by_name
+
+
+def _says_it_is_a_game(bundle: Any) -> bool:
+    """Whether the bundle declares itself a game.
+
+    Applications say what they are: 2048.app carries
+    ``public.app-category.games`` and Chess carries ``board-games``. That is
+    Apple's own taxonomy, written by whoever shipped the thing, and it is a
+    fact about the machine rather than a judgement anybody here has to make.
+    """
+    from plistlib import load as _read_plist
+
+    try:
+        with (bundle / "Contents" / "Info.plist").open("rb") as handle:
+            said = _read_plist(handle)
+    except (OSError, ValueError):
+        # not a failure: a bundle that will not say what it is has not said
+        # that it is a game.
+        return False
+    return "game" in str(said.get("LSApplicationCategoryType") or "").lower()
+
+
+#: The games on the machine, and what the folders looked like when that was
+#: worked out.
+_GAMES_HERE: dict[str, Any] = {"when": None, "found": ()}
+
+
+def _games_installed() -> tuple[tuple[str, str], ...]:
+    """Every installed game, as the names it answers to.
+
+    Read once and kept, against the folders' own timestamps. This is asked on
+    every turn somebody takes, and reading seventy bundles' worth of property
+    lists to find out took eighteen milliseconds of every ordinary sentence
+    anybody said. What is installed changes when something is installed, and
+    the folder it went into says when that was.
+    """
+    folders = _folders(only_chosen=False)
+    try:
+        when = tuple(one.stat().st_mtime_ns for one in folders if one.is_dir())
+    except OSError:
+        # not a failure: a folder that will not say when it changed is read
+        # again, which is slower and never wrong.
+        when = None
+    if when is not None and _GAMES_HERE["when"] == when:
+        return _GAMES_HERE["found"]
+    found = tuple(
+        (bundle.stem.lower(), _what_the_window_system_calls(bundle))
+        for bundle in _installed_here()
+        if _says_it_is_a_game(bundle)
+    )
+    _GAMES_HERE.update({"when": when, "found": found})
+    return found
+
+
+def _a_game_here(said: str) -> str:
+    """The installed game this names, if it names one.
+
+    Every application is looked at and not only what somebody installed
+    themselves, because saying it is a game is what makes the name safe to
+    match: Chess is Apple's and is a game, Mail is Apple's and is not.
+
+    The name has to appear whole. Matching a beginning is useful when the
+    words are already known to be a name and dangerous when they are a whole
+    sentence — "have a go at 2048" was answered with Google Chrome, on "go".
+    """
+    words = [one.lower() for one in re.split(r"[^\w.+-]+", str(said or "")) if one]
+    if not words:
+        return ""
+    runs = {
+        " ".join(words[at : at + take])
+        for take in range(1, min(4, len(words)) + 1)
+        for at in range(0, len(words) - take + 1)
+    }
+    for stem, called in _games_installed():
+        if {stem, called.lower()} & runs:
+            return called
+    return ""
+
+
+def _an_application_here(said: str, *, only_chosen: bool = False) -> str:
     """The installed application this names, or nothing.
 
     Asked of the machine rather than of a list. A phrase may carry words
     around the name — "the 2048 Game app", "2048 Game" — so the longest run
     of its words that matches something installed is what it names.
     """
-    from pathlib import Path as _Path
-
     words = [
         one
         for one in re.split(r"[^\w.+-]+", str(said or ""))
@@ -392,11 +561,7 @@ def _an_application_here(said: str) -> str:
     ]
     if not words:
         return ""
-    here = [
-        one
-        for folder in ("/Applications", "/System/Applications", str(_Path.home() / "Applications"))
-        for one in (_Path(folder).glob("*.app") if _Path(folder).is_dir() else ())
-    ]
+    here = _installed_here(only_chosen)
     if not here:
         return ""
     # By the name the window system uses, which is not always the filename.
@@ -406,11 +571,7 @@ def _an_application_here(said: str) -> str:
     # window — and she read a Finder window and her own panels alongside the
     # board. LIVE 2026-08-31. The bundle declares its own name; asking it is
     # the fix, and it works for every application without knowing any of them.
-    by_name: dict[str, str] = {}
-    for one in here:
-        called = _what_the_window_system_calls(one)
-        by_name.setdefault(one.stem.lower(), called)
-        by_name.setdefault(called.lower(), called)
+    by_name = _what_they_answer_to(here)
     for take in range(len(words), 0, -1):
         for at in range(0, len(words) - take + 1):
             tried = " ".join(words[at : at + take]).lower()
@@ -606,7 +767,27 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         (cue for clause in mood.actionable_clauses if (cue := _continuation(clause))),
         "",
     )
-    if not cue:
+    # Naming a game is enough, whatever verb was used for it.
+    #
+    # Whether a request was a thing to keep at was decided by a list of ways
+    # of saying so — keep going, playing, stepping through, over and over.
+    # "play 2048" was on it. "beat 2048" was not, nor "win at 2048", nor "try
+    # to get 2048", nor "have a go at 2048", and none of those reached the
+    # screen at all: this returning nothing is also what tells the classifier
+    # the message is not about the desktop, so she would have answered in
+    # conversation while the game sat there in front of her.
+    #
+    # A game is played over time by what it is, and the machine already knows
+    # which of the things on it are games because each one says so in its own
+    # bundle. Nothing here has to guess from the verb.
+    #
+    # Unless the sentence is asking rather than telling: "what is 2048 anyway"
+    # names it and wants nothing done with it. Asking is a closed class of
+    # words, which is what makes testing for it different in kind from the
+    # list of doing-verbs it replaces — nobody invents a new way to start a
+    # question.
+    named_game = "" if _is_asking(text) else _a_game_here(text)
+    if not cue and not named_game:
         return None
     if _nothing_to_watch(text):
         return None
@@ -648,6 +829,12 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         installed = _an_application_here(where)
         if installed:
             app, where = installed, ""
+    # And when no verb in the request happened to be one the reader knows, ask
+    # the machine about the whole request. What settles whether a request has
+    # a screen in it is not which verb it used; it is whether it names
+    # something that is here.
+    if not app and not where and "://" not in text:
+        app = named_game or _an_application_here(text, only_chosen=True)
     in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
     return WatchedGoal(
         where=where,
