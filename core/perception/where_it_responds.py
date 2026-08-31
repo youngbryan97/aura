@@ -372,7 +372,7 @@ def what_is_there(
     # could be compared with each other and the rule that governs the board
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
-    _note_what_was_seen(inside)
+    _note_what_was_seen(inside, band)
     return arranged(inside, like=like)
 
 
@@ -409,7 +409,7 @@ def what_the_page_is_showing(
     # could be compared with each other and the rule that governs the board
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
-    _note_what_was_seen(inside)
+    _note_what_was_seen(inside, band)
     return arranged(inside, like=like)
 
 
@@ -432,7 +432,10 @@ def describe(band: tuple[float, float, float, float] | None) -> str:
     return f"the part of the screen that responds to me ({left:.2f}–{right:.2f} across, {top:.2f}–{bottom:.2f} down)"
 
 
-def _note_what_was_seen(cells: Sequence[tuple[float, float, str]]) -> None:
+def _note_what_was_seen(
+    cells: Sequence[tuple[float, float, str]],
+    band: tuple[float, float, float, float] | None = None,
+) -> None:
     """Write down one reading, when asked to, so a crop can be fixed against
     what she actually sees rather than against what a browser reports.
 
@@ -446,6 +449,14 @@ def _note_what_was_seen(cells: Sequence[tuple[float, float, str]]) -> None:
         return
     try:
         with open(where, "a", encoding="utf-8") as out:
-            out.write(json.dumps([[round(y, 6), round(x, 6), t] for y, x, t in cells]) + "\n")
+            out.write(
+                json.dumps(
+                    {
+                        "band": list(band) if band else None,
+                        "cells": [[round(y, 6), round(x, 6), t] for y, x, t in cells],
+                    }
+                )
+                + "\n"
+            )
     except OSError:
         pass

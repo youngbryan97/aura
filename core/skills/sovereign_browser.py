@@ -251,17 +251,39 @@ class SovereignBrowserSkill(BaseSkill):
             logger.warning("read_content() error: %s", e)
             return ""
 
+    #: Why the last navigation did not happen, for whoever has to report it.
+    #:
+    #: Three different failures came back as a bare False and were reported as
+    #: "Failed to load start URL" — a page that timed out, a page that refused,
+    #: and a browser that was not there. Those want different answers and the
+    #: person is told the same thing about all of them, which is the shape of
+    #: fault this codebase keeps finding: a contained failure that drops why.
+    _why_it_would_not_load: str = ""
+
     async def _safe_browse(self, browser: PhantomBrowser, url: str) -> bool:
-        """Navigate with a timeout."""
+        """Navigate with a timeout, keeping the reason when it does not happen."""
+        self._why_it_would_not_load = ""
         try:
-            return await asyncio.wait_for(browser.browse(url), timeout=self.BROWSE_TIMEOUT)
+            got = await asyncio.wait_for(browser.browse(url), timeout=self.BROWSE_TIMEOUT)
         except TimeoutError:
             logger.warning("🕐 browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
+            self._why_it_would_not_load = (
+                f"it did not answer inside {self.BROWSE_TIMEOUT:.0f}s"
+            )
             return False
         except (RuntimeError, AttributeError) as e:
             record_degradation('sovereign_browser', e)
             logger.warning("browse(%s) error: %s", url[:80], e)
+            self._why_it_would_not_load = f"{type(e).__name__}: {e}"
             return False
+        if not got:
+            self._why_it_would_not_load = "the browser reported it did not load"
+        return bool(got)
+
+    def _could_not_load(self, url: str) -> str:
+        """What to tell the person, with the reason when there is one."""
+        why = self._why_it_would_not_load
+        return f"Failed to load start URL: {url}" + (f" — {why}" if why else "")
 
     def timeout_for(self, params: Any) -> float:
         """What THIS request will cost, not what browsing costs on average.
@@ -774,7 +796,7 @@ class SovereignBrowserSkill(BaseSkill):
         action_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if url and not await self._safe_browse(browser, url):
-            return {"ok": False, "error": f"Failed to load start URL: {url}"}
+            return {"ok": False, "error": self._could_not_load(url)}
 
         if not actions:
             return {"ok": False, "error": "Interact mode requires 'actions'."}
@@ -1916,7 +1938,7 @@ class SovereignBrowserSkill(BaseSkill):
         """
 
         if url and not await self._safe_browse(browser, url):
-            return {"ok": False, "error": f"Failed to load start URL: {url}"}
+            return {"ok": False, "error": self._could_not_load(url)}
 
         steps: list[dict[str, Any]] = []
         last_good_url = str(url or "")
