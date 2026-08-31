@@ -35,6 +35,21 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.LatentCortexService")
 
+#: What the worker writes only once it has actually selected actions.
+_WRITTEN_WHEN_ACTIONS_ARE_SELECTED = frozenset(
+    {"executors", "actions_selected", "checked_transitions", "selected_actions"}
+)
+
+
+class _ActionSelectionNeverRanError(Exception):
+    """The episode stopped before it chose any actions.
+
+    Not a ValueError, because every ValueError in that check means the worker
+    said something the host disagrees with, and this means the worker never
+    said anything.
+    """
+
+
 _GENERAL_LATENT_UNMEASURED_FLOOR_SECONDS = 120.0
 
 
@@ -5689,6 +5704,7 @@ class LatentCortexService:
         result["receipt"] = result_receipt
         action_policy_matches = action_policy_evidence is None
         why_the_policy_did_not_match = ""
+        never_selected_actions = False
         if action_policy_evidence is not None:
             try:
                 from core.brain.llm.latent_cortex.epistemic_state import (
@@ -5721,6 +5737,22 @@ class LatentCortexService:
                     )
                 missing = policy_fields - set(policy_receipt)
                 extra = set(policy_receipt) - policy_fields
+                # Never reaching action selection is not disagreeing about it.
+                #
+                # These four are written at the very end of a full episode. An
+                # episode that stopped earlier — on its budget, or on any of
+                # the ways one ends — has a receipt without them, and that was
+                # read as the worker's policy CONTRADICTING the host's. It is
+                # not a contradiction: nothing was claimed, so nothing can
+                # disagree. Reported as a mismatch it is ineligible for bypass,
+                # and a browser action that had cleared every authority gate
+                # was refused before it started.
+                #
+                # LIVE 2026-08-31, and this is what took the demo down.
+                if missing == _WRITTEN_WHEN_ACTIONS_ARE_SELECTED and not extra:
+                    raise _ActionSelectionNeverRanError(
+                        "the episode ended before it selected any actions"
+                    )
                 if missing or extra:
                     raise ValueError(
                         "worker action policy receipt is incomplete: fields differ"
@@ -5805,6 +5837,14 @@ class LatentCortexService:
                 elif raw_handoff not in ({}, None):
                     raise ValueError("worker emitted unoffered external execution handoff")
                 action_policy_matches = True
+            except _ActionSelectionNeverRanError as exc:
+                # A different thing from a mismatch, and it must not be
+                # reported as one: an episode that never got that far has made
+                # no claim about actions at all.
+                action_transitions.clear()
+                action_policy_matches = False
+                never_selected_actions = True
+                logger.info("no action policy to check: %s", exc)
             except (ImportError, TypeError, ValueError) as exc:
                 # Nine checks above raise with nine different messages, and
                 # every one of them arrived here and became a bare False. The
@@ -6018,7 +6058,15 @@ class LatentCortexService:
                 self._last_failure_receipt = result_receipt
                 return failed
             if result.get("ok") is True and not action_policy_matches:
-                reason = "runtime_action_policy_receipt_mismatch"
+                # Named apart, because they want opposite answers. A mismatch
+                # is an integrity failure and may never bypass. An episode
+                # that never selected an action has nothing to be wrong about,
+                # and the act it was rehearsing should go ahead without it.
+                reason = (
+                    "no_action_policy_to_check"
+                    if never_selected_actions
+                    else "runtime_action_policy_receipt_mismatch"
+                )
                 if why_the_policy_did_not_match:
                     reason = f"{reason}:{why_the_policy_did_not_match}"
                 failed = dict(result)

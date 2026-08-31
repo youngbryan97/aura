@@ -134,6 +134,20 @@ def _availability_failure(reason: str) -> str | None:
         # user-requested browser task and the browser, after every authority
         # gate ahead of it had been cleared.
         "answer_surface_unaffordable_before_execution",
+        # The episode ended before it selected any actions, so there is no
+        # action policy to agree or disagree with.
+        #
+        # This arrived as a MISMATCH — the receipt lacks the four fields a
+        # full episode writes at the end — and a mismatch is an integrity
+        # failure that may never bypass. So an episode stopping early refused
+        # the action it was rehearsing, and a browser task that had cleared
+        # every authority gate never pressed a key. Live 2026-08-31, and it is
+        # what took the demonstration down.
+        #
+        # Nothing was claimed, so nothing is being overridden: this is the
+        # same hand-off as no_resident_model, where the rehearsal cannot run
+        # and the act proceeds without it.
+        "no_action_policy_to_check",
     }:
         return normalized
     if normalized in {
@@ -171,6 +185,11 @@ def _availability_failure(reason: str) -> str | None:
     # read exactly like a safety decision. The posture here is the same one
     # `no_resident_model` already has: when the rehearsal cannot run, the
     # action proceeds without it.
+    # It may carry the reason it could not check, which does not change what
+    # it is.
+    if normalized.startswith("no_action_policy_to_check:"):
+        return normalized
+
     defect, _, kind = normalized.partition(":")
     if defect == "client_error" and kind.split("@", 1)[0] in {
         "AttributeError",

@@ -69,3 +69,27 @@ def test_a_contained_exception_says_where_it_was_raised():
     said = caught.getvalue()
     assert "where_it_happens" in said
     assert "raised at" in said
+
+
+def test_never_reaching_action_selection_is_not_disagreeing_about_it():
+    """Four fields are written at the very END of a full episode. An episode
+    that stopped earlier has a receipt without them, and that was read as the
+    worker's policy CONTRADICTING the host's — which is ineligible for bypass,
+    so a browser task that had cleared every authority gate never pressed a
+    key. Nothing was claimed, so nothing can disagree."""
+    assert _availability_failure("no_action_policy_to_check") is not None
+    assert (
+        _availability_failure("no_action_policy_to_check:ValueError: ended early")
+        is not None
+    )
+
+
+def test_a_policy_that_really_disagrees_still_stops_the_action():
+    """The distinction only means anything if the other half still holds."""
+    assert _availability_failure("runtime_action_policy_receipt_mismatch") is None
+    assert (
+        _availability_failure(
+            "runtime_action_policy_receipt_mismatch:ValueError: fields differ"
+        )
+        is None
+    )
