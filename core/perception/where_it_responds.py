@@ -371,12 +371,22 @@ def what_is_there(
     band: tuple[float, float, float, float] | None,
     like: Arrangement | None = None,
     answering: frozenset[tuple[int, int]] | None = None,
+    lattice: Any = None,
 ) -> Arrangement:
     """The same reading as :func:`within`, with a place for each thing in it.
 
     :func:`within` hands back the string she reads. This hands back what it
     was made from, so a plan about a corner or a bottom row can be checked
     against the thing itself rather than against prose about it.
+
+    ``lattice`` is the grid she is holding, and where she has one this reading
+    is placed into it and nothing else happens. That is the difference between
+    a video and a pile of photographs: the squares are there when they are
+    empty, so a board whose top row is empty this turn still has four rows and
+    a tile that has not moved keeps its address. Worked out afresh each time,
+    a reading is internally consistent and incomparable with the one before
+    it, and no rule about movement can be checked against a frame of reference
+    that moves too.
 
     ``answering`` is the set of places that move because of her, and where it
     is known the grid is worked out from those alone. This matters more than
@@ -414,6 +424,10 @@ def what_is_there(
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
     _note_what_was_seen(inside, band)
+    if lattice is not None and getattr(lattice, "held", False):
+        placed = lattice.fit(inside)
+        if placed is not None:
+            return placed
     if answering:
         # A place is where a thing sits, to the nearest hundredth of the
         # window — the same quantisation the answering places are counted in.
@@ -432,12 +446,19 @@ def what_the_page_is_showing(
     said: Sequence[tuple[float, float, str]],
     band: tuple[float, float, float, float] | None,
     like: Arrangement | None = None,
+    lattice: Any = None,
 ) -> Arrangement:
     """The same arrangement, built from what the page reported rather than seen.
 
     The page reader already hands back ``(y, x, text)`` in the shape the screen
     reader produces, which is what makes this three lines: everything
     downstream is unchanged and does not know which instrument was used.
+
+    The held grid is used here for the same reason it is used there, and it
+    matters more: two readers that each work out their own grid put the same
+    board in two frames of reference, and which one she gets depends on which
+    reader happened to see more this turn. Placed into the one she is holding,
+    they agree by construction.
     """
     inside: list[tuple[float, float, str]] = []
     for entry in said or ():
@@ -462,6 +483,10 @@ def what_the_page_is_showing(
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
     _note_what_was_seen(inside, band)
+    if lattice is not None and getattr(lattice, "held", False):
+        placed = lattice.fit(inside)
+        if placed is not None:
+            return placed
     return arranged(inside, like=like)
 
 

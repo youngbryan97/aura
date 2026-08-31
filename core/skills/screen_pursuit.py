@@ -1588,6 +1588,7 @@ async def _the_best_reading_available(
     like: Any,
     in_a_browser: bool,
     answering: frozenset[tuple[int, int]] | None = None,
+    lattice: Any = None,
 ) -> Any:
     """Ask the page what it is showing; look at the screen when it will not say.
 
@@ -1607,7 +1608,9 @@ async def _the_best_reading_available(
         what_the_page_is_showing,
     )
 
-    seen = what_is_there(observation, band, like=like, answering=answering)
+    seen = what_is_there(
+        observation, band, like=like, answering=answering, lattice=lattice
+    )
     if not in_a_browser:
         return seen
     try:
@@ -1622,7 +1625,7 @@ async def _the_best_reading_available(
         return seen
     if not said:
         return seen
-    from_page = what_the_page_is_showing(said, band, like=like)
+    from_page = what_the_page_is_showing(said, band, like=like, lattice=lattice)
     # Whichever shows the THING more clearly, not whichever holds more text.
     #
     # A page that draws its board on a canvas has no text in the board at all,
@@ -2001,6 +2004,7 @@ async def pursue_on_screen(
     from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
+    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.the_thing_itself import the_thing_itself
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
@@ -2448,6 +2452,9 @@ async def pursue_on_screen(
         "moving": MovesWithinItself.from_memory(
             knew.get("moves_within") or {}, TRUST_CARRIED_OVER
         ),
+        # The grid itself, held between glances rather than worked out from
+        # each one. Where a thing is tends to keep, so it is remembered.
+        "lattice": TheLatticeSheHolds.from_memory(knew.get("lattice") or {}),
     }
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
@@ -2554,6 +2561,14 @@ async def pursue_on_screen(
         # what_is_there: furniture inside the outline defines columns the
         # board does not have, and a rule about sliding along a row cannot
         # match rows that are not the board's.
+        lattice = responds["lattice"]
+        if lattice.has_changed():
+            # Several readings in a row that will not go into it is the thing
+            # having been replaced — a new game, a resized window — rather than
+            # a run of poor glances.
+            logger.info("what she was looking at has changed shape")
+            responds["lattice"] = lattice = TheLatticeSheHolds()
+            responds["moving"] = MovesWithinItself()
         answering = the_places_that_answer(responds["state"])
         # And of those, the ones whose contents move about rather than arrive.
         #
@@ -2566,9 +2581,16 @@ async def pursue_on_screen(
         moving = responds["moving"]
         if moving.settled():
             itself = moving.the_thing_itself()
-            narrowed = (answering & itself) if answering else itself
-            if narrowed:
-                answering = narrowed
+            if itself:
+                # Not intersected with the band. The band is where things
+                # happen and a score happens as reliably as a board does, so
+                # intersecting throws away places this found and the band
+                # missed, for nothing. Measured on a full run of the chain:
+                # intersecting gave three places and a two-by-two reading.
+                answering = itself
+                # And those places, gathered over acts rather than read off
+                # one glance, are what the grid is built from.
+                responds["lattice"].built_from(itself, moving.acts)
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         # The thing she is acting on, not the page it is drawn on.
@@ -2587,6 +2609,7 @@ async def pursue_on_screen(
             like=pending["whole"],
             in_a_browser=bool(anchor["page"]),
             answering=answering,
+            lattice=lattice,
         )
         laid_out = the_thing_itself(
             whole,
@@ -3574,6 +3597,7 @@ async def pursue_on_screen(
             # rather than a score reporting on it. Kept, because working it
             # out costs her several moves of a fresh game every time.
             "moves_within": responds["moving"].as_memory(),
+            "lattice": responds["lattice"].as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
