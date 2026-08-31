@@ -54,6 +54,8 @@ class Cell:
         try:
             return float(found.group(1).replace(",", "").replace(" ", ""))
         except ValueError:
+            # not a failure: being asked whether this cell holds a number and
+            # answering that it does not.
             return None
 
 

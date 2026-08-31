@@ -459,4 +459,6 @@ def _note_what_was_seen(
                 + "\n"
             )
     except OSError:
+        # not a failure: writing readings down is a favour to whoever is
+        # debugging, and it must never affect what she sees.
         pass

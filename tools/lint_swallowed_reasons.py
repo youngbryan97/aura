@@ -31,6 +31,12 @@ FAILURE back to somebody while dropping the reason it has in its hand:
 A handler is NOT swallowing when it logs the exception, records a degradation,
 re-raises, or puts the exception into what it hands back. Those all carry the
 reason somewhere a person can reach it.
+
+Some handlers return None as an ANSWER rather than as a failure — asking
+whether a cell holds a number, and being told it does not, is not something
+going wrong. Those say so with a comment beginning "not a failure:", which
+costs a sentence and makes the claim reviewable. Silence is never the way to
+claim it.
 """
 
 from __future__ import annotations
@@ -47,8 +53,9 @@ _CARRIERS = ("log", "record_degradation", "raise", "logger", "print", "warn")
 
 
 class _Swallowed(ast.NodeVisitor):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, lines: list[str]) -> None:
         self.path = path
+        self._lines = lines
         self.found: list[tuple[int, str, str]] = []
 
     def visit_Try(self, node: ast.Try) -> None:
@@ -58,6 +65,8 @@ class _Swallowed(ast.NodeVisitor):
 
     def _weigh(self, handler: ast.ExceptHandler) -> None:
         body = handler.body
+        if self._claims_it_is_an_answer(handler):
+            return
         said = ast.unparse(ast.Module(body=body, type_ignores=[]))
         # Anything that carries the reason out clears the handler.
         if any(one in said for one in _CARRIERS):
@@ -73,6 +82,15 @@ class _Swallowed(ast.NodeVisitor):
             kind = "a silent failure"
         if kind:
             self.found.append((handler.lineno, kind, said.strip().splitlines()[0][:60]))
+
+
+    def _claims_it_is_an_answer(self, handler: ast.ExceptHandler) -> bool:
+        """Whether the handler says, in words, that this is not a failure."""
+        first = handler.body[0].lineno if handler.body else handler.lineno
+        for line in self._lines[handler.lineno - 1 : first]:
+            if "not a failure:" in line:
+                return True
+        return False
 
 
 def _read_names(body: list[ast.stmt]) -> set[str]:
@@ -123,7 +141,7 @@ def look(paths: list[Path]) -> list[dict[str, object]]:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except (OSError, SyntaxError, UnicodeDecodeError):
             continue
-        walker = _Swallowed(path)
+        walker = _Swallowed(path, path.read_text(encoding="utf-8").splitlines())
         walker.visit(tree)
         for line, kind, said in walker.found:
             found.append(

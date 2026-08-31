@@ -227,12 +227,14 @@ class SovereignBrowserSkill(BaseSkill):
                 if browser.browser:
                     await browser.browser.close()
             except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+                # not a failure: shutting a browser that is already shut.
+                pass
             try:
                 if browser.playwright:
                     await browser.playwright.stop()
             except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+                # not a failure: stopping a driver that has already stopped.
+                pass
             browser.is_active = False
             browser.page = None
             browser.context = None
@@ -372,6 +374,8 @@ class SovereignBrowserSkill(BaseSkill):
             parsed = urllib.parse.urlsplit(observed_url)
             url_observed = parsed.scheme in {"http", "https"} and bool(parsed.netloc)
         except ValueError:
+            # not a failure: being asked whether what came back is a web
+            # address and answering that it is not.
             url_observed = False
 
         content = result.get("content")
@@ -633,7 +637,8 @@ class SovereignBrowserSkill(BaseSkill):
             import undetected_chromedriver as uc
             from selenium.common.exceptions import WebDriverException
             from selenium.webdriver.common.by import By
-        except ImportError:
+        except ImportError as why:
+            logger.info("no fallback browser driver: %s", why)
             return {"ok": False, "error": "Playwright failed and Selenium UC not installed."}
 
         driver: Any = None
@@ -740,7 +745,8 @@ class SovereignBrowserSkill(BaseSkill):
                                 try:
                                     if browser.page is not None:
                                         title = (await browser.page.title() or "").strip()
-                                except (RuntimeError, AttributeError, TypeError, ValueError):
+                                except (RuntimeError, AttributeError, TypeError, ValueError) as why:
+                                    logger.info("could not read the page title: %s", why)
                                     title = ""
                                 # Phase 39: Deep Synthesis — Provide major content for the LLM
                                 snippet_size = 5000
@@ -938,8 +944,10 @@ class SovereignBrowserSkill(BaseSkill):
         try:
             if browser.page:
                 final_url = browser.page.url
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (RuntimeError, AttributeError, TypeError, ValueError) as why:
+            # Where she ended up is how anyone checks she went where she meant
+            # to, so losing it silently loses the check as well.
+            logger.info("could not read where the browser ended up: %s", why)
 
         action_rows = [row for row in results if "action" in row]
         completed = len(action_rows) == len(actions) and all(

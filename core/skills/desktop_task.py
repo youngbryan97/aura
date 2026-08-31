@@ -123,6 +123,8 @@ def _requested_wait_seconds(objective: str) -> float:
     try:
         amount = float(match.group(1))
     except (TypeError, ValueError):
+        # not a failure: being asked how long a phrase means and answering
+        # that it names no length.
         return 0.0
     unit = match.group(2).lower()
     if unit.startswith("m") and not unit.startswith("ms"):
@@ -1927,8 +1929,8 @@ class DesktopTaskSkill(BaseSkill):
             completed = complete_truncated_tail(usable)
             if completed and len(completed) >= len(usable) * 0.5:
                 usable = completed
-        except _DESKTOP_TASK_RECOVERABLE_ERRORS:
-            pass
+        except _DESKTOP_TASK_RECOVERABLE_ERRORS as why:
+            logger.info("kept the shorter text: %s", why)
         return usable[:9000]
 
     async def _synthesize_self_summary_document(
@@ -2538,6 +2540,8 @@ class DesktopTaskSkill(BaseSkill):
 
             parts = urlsplit(candidate)
         except (TypeError, ValueError):
+            # not a failure: being asked whether this is a page address and
+            # answering that it is not.
             return False
         path = (parts.path or "/").rstrip("/")
         return bool(path and path != "")
@@ -2795,6 +2799,8 @@ class DesktopTaskSkill(BaseSkill):
                 try:
                     published = parsedate_to_datetime(raw)
                 except (TypeError, ValueError, OverflowError):
+                    # not a failure: an item without a readable date is an
+                    # item without a date, which is a thing items are.
                     published = None
         now = datetime.now(UTC)
         if published is not None:
@@ -3739,8 +3745,8 @@ class DesktopTaskSkill(BaseSkill):
             completed = complete_truncated_tail(text)
             if completed and len(completed) >= len(text) * 0.5:
                 text = completed
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as why:
+            logger.info("kept the text as it was: %s", why)
         return text
 
     @classmethod
@@ -6167,7 +6173,8 @@ class DesktopTaskSkill(BaseSkill):
             from core.perception.ambient_presence import get_ambient_presence
 
             observation = get_ambient_presence().fresh_observation_for(objective)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as why:
+            logger.info("could not take a fresh look at the screen: %s", why)
             return None
         if observation is None:
             return None
@@ -6279,7 +6286,8 @@ class DesktopTaskSkill(BaseSkill):
             from core.conversation.page_interaction import page_interaction_target
 
             url = page_interaction_target(objective)
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as why:
+            logger.info("could not work out which page this is about: %s", why)
             return None
         if not url:
             return None

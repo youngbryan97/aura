@@ -174,9 +174,14 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     ).replace("'", '"')
     try:
         receipt = await get_host_automation().execute_applescript(script)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as why:
+        logger.debug("could not read the window's bounds: %s", why)
         return None
     if not getattr(receipt, "success", False):
+        logger.debug(
+            "could not read the window's bounds: %s",
+            getattr(receipt, "error", "") or "the host refused",
+        )
         return None
     numbers = re.findall(r"-?\d+", str(getattr(receipt, "result", "") or ""))
     if len(numbers) < 4:
@@ -451,8 +456,11 @@ async def current_page_identity() -> dict[str, str]:
         from core.capabilities.browser_controller import get_browser_controller
 
         return await get_browser_controller().current_page()
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        return {"url": "", "title": "", "error": "unavailable"}
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as why:
+        # "unavailable" was true of a browser that is not running, one that
+        # refused, and one that is not installed, and told them apart for
+        # nobody.
+        return {"url": "", "title": "", "error": f"unavailable: {type(why).__name__}: {why}"}
 
 
 async def _ensure_page(expect_page: str) -> bool:
@@ -478,9 +486,15 @@ async def _ensure_page(expect_page: str) -> bool:
         from core.capabilities.browser_controller import get_browser_controller
 
         receipt = await get_browser_controller().focus_tab(expect_page)
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as why:
+        logger.info("could not bring %r to the front: %s", expect_page, why)
         return False
     if not getattr(receipt, "success", False):
+        logger.info(
+            "could not bring %r to the front: %s",
+            expect_page,
+            getattr(receipt, "error", "") or "the browser refused",
+        )
         return False
     page = await current_page_identity()
     here = f"{page.get('url', '')} {page.get('title', '')}".lower()
@@ -596,8 +610,11 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
     if "keys_sent" in evidence:
         try:
             return max(0, min(len(wanted), int(evidence["keys_sent"])))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as why:
+            # How many keys landed is the whole question here, so a count that
+            # will not parse is worth saying rather than falling through to a
+            # guess from the success flag.
+            logger.info("the host reported an unreadable key count: %s", why)
     return len(wanted) if bool(getattr(receipt, "success", False)) else 0
 
 
@@ -1128,7 +1145,8 @@ def _left_her_better_off(
 
         was = how_good(before, toward=toward, approach=approach)
         now = how_good(after, toward=toward, approach=approach)
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as why:
+        logger.debug("could not weigh whether that left her better off: %s", why)
         return False
     return now >= was
 
@@ -1513,7 +1531,8 @@ async def _put_her_own_window_away() -> bool:
     named = ""
     try:
         named = str(getattr(get_config(), "app_name", "") or "").strip()
-    except (AttributeError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, RuntimeError, TypeError, ValueError) as why:
+        logger.debug("could not read her own app name from the config: %s", why)
         named = ""
     for candidate in (named, "Aura"):
         if not candidate:
@@ -1998,7 +2017,15 @@ async def pursue_on_screen(
             )
         except TimeoutError:
             # A wedged capture is not a reason to keep acting blind.
-            return {"ok": False, "text": "", "layout": [], "error": "observe_timeout"}
+            logger.info(
+                "the screen did not answer inside %.1fs", OBSERVE_TIMEOUT_S
+            )
+            return {
+                "ok": False,
+                "text": "",
+                "layout": [],
+                "error": f"observe_timeout: no reading inside {OBSERVE_TIMEOUT_S:.1f}s",
+            }
 
     def satisfied(observation: dict[str, Any]) -> bool:
         reached = goal_reached(
@@ -2040,7 +2067,8 @@ async def pursue_on_screen(
         """
         try:
             from core.perception.blocking_overlay import assess_overlay
-        except ImportError:
+        except ImportError as why:
+            logger.info("cannot judge what is covering the content: %s", why)
             return None
         verdict = assess_overlay(observation, intending=intending["value"])
         if verdict.needs_person:
@@ -3429,6 +3457,8 @@ def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> No
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: nothing to publish to when there is no loop
+            # running, and closing the coroutine is the tidy way to say so.
             coroutine.close()
             return
         task = loop.create_task(coroutine)
@@ -3478,7 +3508,13 @@ def _where_it_asks(observation: dict[str, Any]) -> float | None:
         if any(phrase in text for phrase in ASKING_TO_CONFIRM):
             try:
                 return float(region.get("center_y", region.get("y")))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as why:
+                # A region whose position will not parse is a region dropped
+                # from the reading, and the reading is what everything about
+                # the board is worked out from.
+                logger.info(
+                    "a region was dropped for an unreadable position: %s", why
+                )
                 return None
     return None
 
