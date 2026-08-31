@@ -461,6 +461,18 @@ def looks_like_inline_answer_request(text: str) -> bool:
         return False
     if _INTROSPECTIVE_STATE_RE.search(lowered):
         return True
+    # Which clauses ask is already a learned language-surface decision. Use
+    # that shared judgement here instead of reducing questions to a short list
+    # of wh-words: polar questions ("Does this block?", "Is it safe?") ask for
+    # an answer just as directly. External effects were excluded above, so an
+    # asking clause that remains has words as its deliverable.
+    try:
+        from core.language.asking_clauses import asking_clauses
+
+        if asking_clauses(normalized):
+            return True
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass
     if looks_like_explanatory_dialogue_request(normalized):
         return True
     # "Tell me about yourself", "tell me something", "tell me a story".

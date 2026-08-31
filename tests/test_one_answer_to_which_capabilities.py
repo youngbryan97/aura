@@ -103,6 +103,21 @@ def test_long_explanation_requests_do_not_nominate_external_tools(skills, prompt
     ) == []
 
 
+def test_polar_code_explanation_does_not_nominate_the_repl(skills):
+    prompt = (
+        "Does an asyncio.Lock prevent other tasks from running while one task "
+        "holds it? Give a concise complete explanation and one small runnable "
+        "Python example."
+    )
+
+    assert select_capabilities(
+        prompt,
+        skills,
+        ceiling="sandboxed_compute",
+        admissible_scopes=frozenset({"read_only", "sandboxed_compute"}),
+    ) == []
+
+
 def test_mixed_research_then_explain_request_keeps_the_web_capability(skills):
     chosen = select_capabilities(
         "Find three recent articles online, read them, and explain what they agree on.",

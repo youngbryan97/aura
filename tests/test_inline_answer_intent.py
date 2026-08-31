@@ -35,6 +35,11 @@ PROBE_WITH_REPLY_CONTRACT = (
     "include the two numbers as you actually read them from your state — "
     "valence=<-1..1> and arousal=<0..1> — plus one short sentence."
 )
+POLAR_CODE_EXPLANATION = (
+    "Does an asyncio.Lock prevent other tasks from running while one task "
+    "holds it? Give a concise complete explanation and one small runnable "
+    "Python example."
+)
 
 
 class TestLiveReproducers:
@@ -56,6 +61,22 @@ class TestLiveReproducers:
         text = "Don't start a task — answer right here: what is 17 * 23?"
         assert looks_like_inline_answer_request(text) is True
         assert analyze_turn(text).intent_type == "CHAT"
+
+    def test_polar_question_with_inline_code_example_stays_chat(self):
+        assert looks_like_inline_answer_request(POLAR_CODE_EXPLANATION) is True
+        assert looks_like_multi_step_skill_request(POLAR_CODE_EXPLANATION) is False
+        assert analyze_turn(POLAR_CODE_EXPLANATION).intent_type == "CHAT"
+
+    @pytest.mark.parametrize(
+        "text",
+        (
+            "Is an asyncio.Lock reentrant?",
+            "Can another coroutine continue while this one awaits?",
+            "Would that lock block the operating-system thread?",
+        ),
+    )
+    def test_polar_questions_are_inline_answers(self, text):
+        assert looks_like_inline_answer_request(text) is True
 
 
 class TestGenuineTasksStillDispatch:

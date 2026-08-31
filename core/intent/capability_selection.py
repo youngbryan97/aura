@@ -135,8 +135,6 @@ def select_capabilities(
     # effect merely because its grammar is imperative. Without this boundary,
     # "show the distance updates" in a Dijkstra explanation nominated five
     # unrelated tools after the resident model had already produced an answer.
-    from core.runtime.skill_task_bridge import looks_like_inline_answer_request
-
     # ...unless the request points at something only looking can answer.
     #
     # LIVE, 2026-08-22: "there's a small python project at <path> — one of its
@@ -149,7 +147,14 @@ def select_capabilities(
     # The grammar was right: it does ask to be told something. What it asks to
     # be told is not knowable without running the project. A named address or
     # a path on this disk is the difference between answering and looking.
-    if looks_like_inline_answer_request(text) and not _wants_more_than_an_answer(text):
+    from core.intent.declared_capability import settles_by_computation
+    from core.runtime.skill_task_bridge import looks_like_inline_answer_request
+
+    if (
+        looks_like_inline_answer_request(text)
+        and not _wants_more_than_an_answer(text)
+        and not settles_by_computation(text)
+    ):
         return []
 
     from core.intent.declared_capability import (
@@ -163,7 +168,6 @@ def select_capabilities(
         producing_capabilities,
         rank_declaration_matches,
         requested_foundational_domains,
-        settles_by_computation,
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
 
