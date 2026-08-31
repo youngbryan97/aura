@@ -183,6 +183,11 @@ markers:
 	@echo "🔤 Checking keyword markers are matched as words, not substrings..."
 	@$(PYTHON) tools/lint_marker_matching.py
 
+swallowed:
+	@echo "🔇 Checking for failures whose reason is thrown away..."
+	@$(PYTHON) tools/lint_swallowed_reasons.py core interface skills
+
+
 writing:
 	@echo "✍️  Checking prose against docs/WRITING_RULES.md..."
 	@$(PYTHON) tools/lint_ai_writing.py
