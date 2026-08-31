@@ -8905,10 +8905,18 @@ class InferenceGate:
             )
             return None
         try:
-            result = await asyncio.wait_for(
-                client.generate_text_async(**gen_kwargs),
-                timeout=generation_timeout_s,
-            )
+            from core.brain.llm.mlx_client import MLXLocalClient
+
+            if isinstance(client, MLXLocalClient) and foreground_request and not is_background:
+                # The resident client owns request-matched progress, stalls,
+                # cancellation and completion. A second
+                # soft timer here discarded healthy answer continuations.
+                result = await client.generate_text_to_completion(**gen_kwargs)
+            else:
+                result = await asyncio.wait_for(
+                    client.generate_text_async(**gen_kwargs),
+                    timeout=generation_timeout_s,
+                )
         except TimeoutError:
             reason = f"inference_gate_generation_timeout:{label}:{generation_timeout_s:.1f}s"
             logger.error(

@@ -14044,6 +14044,7 @@ class MLXLocalClient:
         deadline: Deadline,
         *,
         foreground_request: bool = False,
+        progress_owned_completion: bool = False,
     ) -> dict[str, Any] | None:
         """Wait in short slices so dead workers fail fast instead of hanging the UI."""
         stall_after = self._stale_after(
@@ -14059,9 +14060,10 @@ class MLXLocalClient:
             deadline,
             foreground_request=foreground_request,
         )
-        while (time.monotonic() - wait_started) <= hard_cap:
+        progress_owned_completion = progress_owned_completion and foreground_request
+        while progress_owned_completion or (time.monotonic() - wait_started) <= hard_cap:
             remaining = deadline.remaining
-            if remaining is not None and remaining <= 0.0:
+            if not progress_owned_completion and remaining is not None and remaining <= 0.0:
                 if not self._still_producing(
                     within_s=token_stall_after, foreground_request=foreground_request
                 ):
@@ -14090,7 +14092,15 @@ class MLXLocalClient:
                         hard_cap,
                     )
 
-            slice_timeout = min(2.0, remaining) if remaining is not None else 2.0
+            # An expired soft deadline can still have an active decode. A
+            # zero-second future wait spins the parent instead of observing it.
+            slice_timeout = 2.0
+            if not progress_owned_completion:
+                if remaining and remaining > 0.0:
+                    slice_timeout = min(slice_timeout, remaining)
+                slice_timeout = min(
+                    slice_timeout, max(0.001, hard_cap - (time.monotonic() - wait_started))
+                )
             try:
                 return await _await_shared_future(future, timeout_s=slice_timeout)
             except TimeoutError:
@@ -14293,12 +14303,20 @@ class MLXLocalClient:
                     < self._current_prefill_tokens_total
                     and (time.time() - self._last_progress_at) < 5.0
                 )
-                if prefilling and elapsed_without_token <= livelock_ceiling:
+                advancing_prefill = (
+                    self._current_prefill_tokens_total > 0
+                    and self._current_prefill_tokens_processed < self._current_prefill_tokens_total
+                    and (time.time() - self._prefill_progress_at()) < stall_after
+                )
+                if progress_owned_completion:
+                    hard_first_token_ceiling = livelock_ceiling
+                elif prefilling and elapsed_without_token <= livelock_ceiling:
                     hard_first_token_ceiling = livelock_ceiling
                 if (
                     req_id == self._current_request_id
                     and request_started_at > 0.0
                     and self._current_first_token_at <= 0.0
+                    and not (progress_owned_completion and advancing_prefill)
                     and (
                         (
                             elapsed_without_token > max(
@@ -14541,6 +14559,35 @@ class MLXLocalClient:
                     _cancel_shared_future(future)
                     return None
         raise TimeoutError
+
+    async def generate_text_to_completion(self, prompt: str, **kwargs) -> str | None:
+        """Own foreground completion, including preparation and worker waiting.
+
+        An estimate bounds admission, not a healthy answer's lifetime. The
+        request's worker, prefill and token observations detect stalls; user
+        cancellation and memory-pressure enforcement remain authoritative.
+        """
+        deadline = kwargs.get("deadline")
+        if not isinstance(deadline, Deadline):
+            raise ValueError("foreground completion requires an admitted deadline")
+        if deadline.is_expired:
+            raise TimeoutError("foreground completion deadline expired before dispatch")
+        eligible = bool(kwargs.get("foreground_request")) and not any(
+            kwargs.get(flag, False)
+            for flag in (
+                "is_background", "benchmark_request", "proof_evaluation_contract",
+                "strict_answer_contract", "internal_inference_call", "health_probe",
+            )
+        )
+        kwargs["_progress_owned_completion"] = eligible
+        if eligible:
+            return await self.generate_text_async(prompt, **kwargs)
+        remaining = deadline.remaining
+        if remaining is None or not math.isfinite(remaining) or remaining <= 0.0:
+            raise TimeoutError("bounded generation has no finite remaining allowance")
+        return await asyncio.wait_for(
+            self.generate_text_async(prompt, **kwargs), timeout=remaining
+        )
 
     async def generate_text_async(self, prompt: str, **kwargs) -> str | None:
         """Alias for standard interface."""
@@ -15046,6 +15093,7 @@ class MLXLocalClient:
         retry once before giving up.
         """
         generation_result_sink = kwargs.pop("_generation_result_sink", None)
+        progress_owned_completion = bool(kwargs.pop("_progress_owned_completion", False))
         self._set_task_surface_control_receipt({})
         request_is_background = bool(kwargs.pop("is_background", False))
         foreground_request = bool(kwargs.pop("foreground_request", False))
@@ -15338,6 +15386,7 @@ class MLXLocalClient:
                 result = await self._generate_inner(
                     prompt,
                     _retry=True,
+                    progress_owned_completion=progress_owned_completion,
                     request_is_background=request_is_background,
                     foreground_request=foreground_request,
                     owner_label=owner_label,
@@ -15406,6 +15455,7 @@ class MLXLocalClient:
         request_is_background: bool = False,
         foreground_request: bool = False,
         owner_label: str = "",
+        progress_owned_completion: bool = False,
         **kwargs,
     ) -> str | None:
         """Core generation logic, extracted for retry support."""
@@ -15748,6 +15798,7 @@ class MLXLocalClient:
                 fut,
                 deadline,
                 foreground_request=foreground_request,
+                progress_owned_completion=progress_owned_completion,
             )
             if not res:
                 return None
@@ -15935,6 +15986,7 @@ class MLXLocalClient:
                         return await self._generate_inner(
                             prompt,
                             _retry=False,  # prevent recursion
+                            progress_owned_completion=progress_owned_completion,
                             request_is_background=request_is_background,
                             foreground_request=foreground_request,
                             owner_label=owner_label,

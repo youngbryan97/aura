@@ -52343,3 +52343,17 @@ injury, and no `RUNTIME-CHAT` fault.
 Focused turn, effect, empty-cycle, and delivery tests pass `50/50`; canonical
 smoke passes `121/121` with one environment-dependent skip. Compilation and
 layering pass. This telemetry-classification item is closed.
+
+## Checkpoint 2026-08-30: Foreground Completion Ownership
+
+The source-matched desktop locking comparison at `5bdb46395` failed: the
+inference gate cancelled an active answer at 259.8 seconds, while its worker
+finished at 297.32 seconds. Selected reasoning mode and second-pass watchdog
+activity were correct in that replay; answer delivery was not.
+
+Resident foreground generation now owns completion through request-scoped
+progress and failure detection rather than a total-duration kill. The initial
+and continued decodes share cache accounting, cancellation, progress and
+completion handling. Metrics include both passes. Focused regressions passed
+227 tests; source-matched desktop replay remains required. Details and open
+boundaries: `docs/evidence/2026-08-30-foreground-completion-ownership.md`.

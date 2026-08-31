@@ -4197,6 +4197,63 @@ def _runtime_prefill_step_size(model_path: str) -> int:
     return selected
 
 
+class _GenerationPasses:
+    """Resume a decoder through the same consumer and close each old stream."""
+
+    def __init__(self, generate, tap, prompt, kwargs):
+        self.generate = generate
+        self.pending = (tap, prompt, kwargs)
+        self.final_responses = []
+
+    def continue_with(self, prompt, kwargs):
+        if self.pending is not None:
+            raise RuntimeError("a generation continuation is already pending")
+        self.pending = (None, prompt, kwargs)
+
+    def __iter__(self):
+        while self.pending is not None:
+            tap, prompt, kwargs = self.pending
+            self.pending = None
+            responses = self.generate(tap, prompt, kwargs)
+            final = None
+            try:
+                for response in responses:
+                    final = response
+                    yield response
+                    if self.pending is not None:
+                        break
+            finally:
+                responses.close()
+                if final is not None:
+                    self.final_responses.append(final)
+
+
+def _generation_pass_performance(
+    responses, *, prompt_tokens, generation_tokens, first_token_seconds, stream_seconds
+):
+    samples = [
+        _generation_performance_snapshot(
+            response, fallback_prompt_tokens=prompt_tokens if index == 0 else 0,
+            fallback_generation_tokens=generation_tokens if len(responses) == 1 else 0,
+            first_token_seconds=first_token_seconds, stream_seconds=stream_seconds,
+        )
+        for index, response in enumerate(responses)
+    ]
+    result = dict(samples[-1])
+    for tokens_key, seconds_key, rate_key in (
+        ("prompt_tokens", "prefill_seconds", "prompt_tps"),
+        ("generation_tokens", "decode_seconds", "generation_tps"),
+    ):
+        result[tokens_key] = sum(sample[tokens_key] for sample in samples)
+        durations = [sample[seconds_key] for sample in samples]
+        duration = sum(durations) if all(value is not None for value in durations) else None
+        result[seconds_key] = duration
+        result[rate_key] = result[tokens_key] / duration if duration else 0.0
+    result["peak_memory_gb"] = max(sample["peak_memory_gb"] for sample in samples)
+    result["generation_passes"] = len(samples)
+    return result
+
+
 def _generation_stream_with_activity(
     generate: Any,
     model: Any,
@@ -9019,11 +9076,13 @@ def _mlx_worker_loop(
                                     )
                                     final_generation_response = None
 
-                                    for response in _gen_stream(
+                                    generation_passes = _GenerationPasses(
+                                        _gen_stream,
                                         _np_tap,
                                         gen_prompt,
                                         clean_kwargs,
-                                    ):
+                                    )
+                                    for response in generation_passes:
                                         final_generation_response = response
                                         if first_token_latency_s is None:
                                             first_token_latency_s = max(
@@ -9159,11 +9218,42 @@ def _mlx_worker_loop(
                                         semantic_surface = _channels_now.surface
                                         if (
                                             thinking_allowance > 0
+                                            and not thinking_overran
                                             and not _channels_now.boundary_closed
                                             and token_count >= thinking_allowance
                                         ):
                                             thinking_overran = True
-                                            break
+                                            answer_kwargs = dict(clean_kwargs)
+                                            answer_kwargs["max_tokens"] = max(
+                                                64, _safe_int(kwargs.get("max_tokens"), max_tokens)
+                                                - token_count,
+                                            )
+                                            boundary = "</think>\n"
+                                            boundary_tokens = tokenizer.encode(
+                                                boundary, add_special_tokens=False
+                                            )
+                                            if cache is not None:
+                                                answer_prompt = boundary_tokens
+                                                tokens.extend(boundary_tokens)
+                                            else:
+                                                answer_prompt = tokenizer.encode(
+                                                    f"{prompt}{current_response}{boundary}"
+                                                )
+                                                tokens = list(answer_prompt)
+                                            current_response += boundary
+                                            # The next pass prefills a channel boundary.
+                                            # A rollback from before that boundary is stale.
+                                            previous_cache_rollback = None
+                                            continuation_cache_rollback = None
+                                            logger.info(
+                                                "[WORKER] Continuing from private channel at "
+                                                "token %d with %d answer tokens available.",
+                                                token_count, answer_kwargs["max_tokens"],
+                                            )
+                                            generation_passes.continue_with(
+                                                answer_prompt, answer_kwargs
+                                            )
+                                            continue
 
                                         if (
                                             token_count % 8 == 0
@@ -9317,124 +9407,16 @@ def _mlx_worker_loop(
                                         if stop_hit:
                                             break
 
-                                    if thinking_overran:
-                                        # Writing "</think>" into the text
-                                        # would close the boundary for the
-                                        # splitter and change nothing for the
-                                        # model, which would carry on taking
-                                        # notes into what is now called the
-                                        # answer. The marker has to be in the
-                                        # context it is reading, so the
-                                        # thinking so far becomes prompt and
-                                        # the model answers from it.
-                                        _reasoning_so_far = current_response
-                                        _room_left = max(
-                                            64,
-                                            max(1, _safe_int(kwargs.get("max_tokens"), max_tokens))
-                                            - token_count,
-                                        )
-                                        logger.info(
-                                            "🧠 [WORKER] Thinking reached its allowance at token "
-                                            "%d of %d without an answer; closing the channel and "
-                                            "asking for one with the remaining %d.",
-                                            token_count,
-                                            _safe_int(kwargs.get("max_tokens"), max_tokens),
-                                            _room_left,
-                                        )
-                                        try:
-                                            _answer_kwargs = dict(clean_kwargs)
-                                            _answer_kwargs["max_tokens"] = _room_left
-                                            # With a cache the model's own KV
-                                            # already holds the prompt and
-                                            # every token it just wrote, so
-                                            # the only new thing to feed it is
-                                            # the marker. Without one there is
-                                            # nothing behind it and the whole
-                                            # context has to go in again.
-                                            #
-                                            # ``gen_prompt`` is a token array
-                                            # in the first case and a string in
-                                            # the second, so it is not what
-                                            # gets concatenated either way.
-                                            _answer_prompt = (
-                                                "</think>\n"
-                                                if cache is not None
-                                                else f"{prompt}{_reasoning_so_far}</think>\n"
-                                            )
-                                            _answered = ""
-                                            for _piece in _gen_stream(
-                                                None,
-                                                _answer_prompt,
-                                                _answer_kwargs,
-                                            ):
-                                                _answered += _piece.text
-                                                token_count += 1
-                                                # Say so, the way the first
-                                                # pass does.
-                                                #
-                                                # This loop writes the answer
-                                                # the person reads, and it
-                                                # counted its tokens without
-                                                # telling anyone. The parent
-                                                # watches token progress to
-                                                # tell a working generation
-                                                # from a wedged one, so the
-                                                # whole answer pass looked
-                                                # like silence — and at two
-                                                # thousand tokens on a 27B it
-                                                # is minutes of it.
-                                                #
-                                                # LIVE 2026-08-29: "Token
-                                                # progress stalled during
-                                                # generation (>40.0s)" beside
-                                                # "Cortex still sending
-                                                # heartbeats (2.2s ago)",
-                                                # twice, on a question about
-                                                # why turns were slow.
-                                                _second_pass_now = time.time()
-                                                if _should_emit_generation_progress(
-                                                    token_count,
-                                                    last_emit_at=last_progress_emit_at,
-                                                    now=_second_pass_now,
-                                                ):
-                                                    ipc_writer.put(
-                                                        {
-                                                            "id": job.get("id"),
-                                                            "action": "generate",
-                                                            "status": "progress",
-                                                            "tokens_generated": token_count,
-                                                            "timestamp": _second_pass_now,
-                                                        }
-                                                    )
-                                                    last_progress_emit_at = (
-                                                        _second_pass_now
-                                                    )
-                                            current_response = (
-                                                f"{_reasoning_so_far}</think>\n{_answered}"
-                                            )
-                                        except (RuntimeError, ValueError, TypeError, OSError) as exc:
-                                            # The thinking still stands, and
-                                            # the turn is no worse off than it
-                                            # was before this tried.
-                                            _record_mlx_degradation(
-                                                exc,
-                                                action=(
-                                                    "left the generation inside its private "
-                                                    "channel after the answer pass failed"
-                                                ),
-                                                severity="warning",
-                                            )
-
                                     generation_stream_elapsed_s = max(
                                         0.0,
                                         time.perf_counter() - generation_stream_started_at,
                                     )
                                     if final_generation_response is not None:
                                         generation_performance = (
-                                            _generation_performance_snapshot(
-                                                final_generation_response,
-                                                fallback_prompt_tokens=prefill_tokens,
-                                                fallback_generation_tokens=token_count,
+                                            _generation_pass_performance(
+                                                generation_passes.final_responses,
+                                                prompt_tokens=prefill_tokens,
+                                                generation_tokens=token_count,
                                                 first_token_seconds=first_token_latency_s,
                                                 stream_seconds=generation_stream_elapsed_s,
                                             )
