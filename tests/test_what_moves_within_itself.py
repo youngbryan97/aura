@@ -156,3 +156,40 @@ def test_the_pursuit_narrows_to_the_thing_with_it() -> None:
     at_score = (round(SCORE[0] / 100 * 100), round(SCORE[1] / 100 * 100))
     assert at_score in band.answered
     assert at_score not in itself
+
+
+def test_a_score_reading_the_same_as_a_tile_is_still_a_score() -> None:
+    """Early in a game the score passes through 4, 8 and 16, which are also
+    tile values. Asking only whether the value had been on the screen called
+    the score a tile, and every reporting place was swallowed the same way."""
+    before = {(0, 0): "8", (0, 1): "2", (9, 0): "8"}
+    # The score goes 8 -> 16 while a tile reading 8 is still sitting there.
+    after = {(0, 0): "8", (0, 1): "2", (9, 0): "16"}
+    moved, came = what_moved_within(before, after)
+    assert (9, 0) in came, "the score arrived at a value it did not move to"
+    assert (9, 0) not in moved
+
+
+def test_a_tally_going_back_to_the_start_is_a_new_game_not_a_fall() -> None:
+    """A score goes to nought when a new game begins. Counting that as falling
+    makes every tally look like it goes both ways, so she finds no measure of
+    progress at all from the second game onward — which is when she most needs
+    one."""
+    watching = MovesWithinItself()
+
+    def a_game(from_: int, to: int) -> None:
+        for score in range(from_, to, 4):
+            watching.saw(
+                {(0, 0): "2", (9, 0): str(score)},
+                {(0, 1): "2", (9, 0): str(score + 4)},
+            )
+
+    a_game(0, 40)
+    assert watching.what_measures_doing_well() == frozenset({(9, 0)})
+    # A new game: the score drops to nought and climbs again.
+    watching.saw({(0, 0): "2", (9, 0): "40"}, {(0, 1): "2", (9, 0): "0"})
+    a_game(0, 40)
+    assert watching.what_measures_doing_well() == frozenset({(9, 0)})
+    # A genuine fall, to somewhere above where it began, is still a fall.
+    watching.saw({(0, 0): "2", (9, 0): "40"}, {(0, 1): "2", (9, 0): "20"})
+    assert watching.what_measures_doing_well() == frozenset()

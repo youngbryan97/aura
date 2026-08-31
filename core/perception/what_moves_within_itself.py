@@ -26,7 +26,6 @@ when its changes have more often been rearrangements than arrivals.
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,6 +49,9 @@ class MovesWithinItself:
     _last: dict[tuple[int, int], float] = field(default_factory=dict)
     _rose: dict[tuple[int, int], int] = field(default_factory=dict)
     _fell: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: The lowest each place has ever shown, so that going back to the
+    #: beginning can be told from going backwards.
+    _least: dict[tuple[int, int], float] = field(default_factory=dict)
 
     def saw(
         self,
@@ -58,19 +60,27 @@ class MovesWithinItself:
     ) -> None:
         """Take one act's worth of evidence.
 
-        A value is counted as rearranged when it was in the region before and
-        is no longer where it was, which is what moving means. Counting mere
-        presence would call an unchanged place a rearrangement and the whole
-        screen would qualify.
+        A value is counted as rearranged when it was somewhere else before and
+        has LEFT that somewhere. Merely having been on the screen will not do,
+        and the difference is not a nicety: early in a game of 2048 the score
+        passes through 4, 8 and 16, which are also tile values, so a score that
+        happens to read 8 while a tile reads 8 was being called a tile. Every
+        reporting place on the screen was swallowed that way and she found no
+        score at all.
         """
         if not before or not after:
             return
         self.acts += 1
-        was = Counter(text for text in before.values() if text)
         for where, text in after.items():
             if not text or before.get(where) == text:
                 continue
-            if was.get(text):
+            came_from_somewhere = any(
+                other != where
+                and was_there == text
+                and after.get(other) != text
+                for other, was_there in before.items()
+            )
+            if came_from_somewhere:
                 self.rearranged[where] = self.rearranged.get(where, 0) + 1
             else:
                 self.arrived[where] = self.arrived.get(where, 0) + 1
@@ -85,10 +95,21 @@ class MovesWithinItself:
             return
         was = self._last.get(where)
         self._last[where] = now
+        least = self._least.get(where)
+        self._least[where] = now if least is None else min(least, now)
         if was is None or now == was:
             return
-        counted = self._rose if now > was else self._fell
-        counted[where] = counted.get(where, 0) + 1
+        if now > was:
+            self._rose[where] = self._rose.get(where, 0) + 1
+            return
+        if least is not None and now <= least:
+            # Back to where it began rather than backwards. A score goes to
+            # nought when a new game starts, and counting that as falling
+            # makes every tally on the screen look like it goes both ways —
+            # so she finds no measure of progress at all from the second game
+            # onward, which is exactly when she has most use for one.
+            return
+        self._fell[where] = self._fell.get(where, 0) + 1
 
     def what_only_goes_up(self) -> frozenset[tuple[int, int]]:
         """Reporting places whose number has never gone down.
