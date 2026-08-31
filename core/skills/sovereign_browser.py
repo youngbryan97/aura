@@ -277,7 +277,23 @@ class SovereignBrowserSkill(BaseSkill):
             self._why_it_would_not_load = f"{type(e).__name__}: {e}"
             return False
         if not got:
-            self._why_it_would_not_load = "the browser reported it did not load"
+            # The browser already knows why and keeps it on the navigation
+            # record: a redirect somewhere else, a page that never settled, a
+            # bot block. "It did not load" covers all of them and helps with
+            # none. LIVE 2026-08-31: 2048game.com began serving a captcha to
+            # her browser, which is why a task that had worked for days
+            # stopped — and what she reported was that the URL would not load.
+            why = getattr(browser, "_last_navigation", None) or {}
+            said = str(why.get("reason") or "").strip()
+            if said == "bot_block_or_captcha":
+                self._why_it_would_not_load = (
+                    "the site is blocking automated browsers (a captcha or bot "
+                    "check), so this is not something more tries will get past"
+                )
+            elif said:
+                self._why_it_would_not_load = said
+            else:
+                self._why_it_would_not_load = "the browser reported it did not load"
         return bool(got)
 
     def _could_not_load(self, url: str) -> str:
