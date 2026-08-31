@@ -20,17 +20,16 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 
-from core.runtime.background_policy import constitutive_compute_budget
+from core.runtime.background_policy import constitutive_compute_budget_async
 from core.runtime.errors import record_degradation
+from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
 
 from .mhaf.hrr import HRREncoder
 from .mhaf.phi_estimator import compute_local_phi
-from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Consciousness.MHAF")
 
@@ -241,7 +240,7 @@ class MycelialHypergraphAttractorField:
         """Background loop: sync node activations from live services."""
         while self._running:
             try:
-                budget = constitutive_compute_budget(
+                budget = await constitutive_compute_budget_async(
                     "mhaf",
                     0.5,
                     min_hz=0.1,

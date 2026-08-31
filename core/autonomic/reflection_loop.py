@@ -20,12 +20,12 @@ from core.container import ServiceContainer
 from core.governance_context import local_internal_governed_scope
 from core.runtime.background_policy import (
     background_loop_start_reason,
-    constitutive_compute_budget,
+    constitutive_compute_budget_async,
 )
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.state_ownership import state_root
+from core.runtime.task_ownership import create_tracked_task
 
 logger = logging.getLogger("Aura.AutonomicReflectionLoop")
 
@@ -128,7 +128,7 @@ class AutonomicReflectionLoop:
     async def _run_loop(self) -> None:
         while self.running:
             try:
-                budget = constitutive_compute_budget(
+                budget = await constitutive_compute_budget_async(
                     "autonomic_reflection_loop",
                     base_hz=0.1,
                     foreground_hz=0.1,

@@ -18,22 +18,22 @@ Public API (used by InferenceGate):
     pneuma.get_llm_temperature()    → precision-weighted temperature
 """
 
-from core.runtime.background_policy import constitutive_compute_budget
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
-from typing import Optional
 
 import numpy as np
 
-from .precision_engine import PrecisionEngine, PrecisionConfig
-from .neural_ode_flow import NeuralODEFlow
-from .information_geometric_tracker import InformationGeometricTracker
-from .topological_memory import TopologicalMemoryEngine
+from core.runtime.background_policy import constitutive_compute_budget_async
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
+from core.utils.task_tracker import get_task_tracker
+
 from .free_energy_oracle import FreeEnergyOracle
+from .information_geometric_tracker import InformationGeometricTracker
+from .neural_ode_flow import NeuralODEFlow
+from .precision_engine import PrecisionConfig, PrecisionEngine
+from .topological_memory import TopologicalMemoryEngine
 
 logger = logging.getLogger("PNEUMA")
 
@@ -51,7 +51,7 @@ class PNEUMA:
         self.feo = FreeEnergyOracle(epistemic_weight=0.4, pragmatic_weight=0.4, structural_weight=0.2)
 
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_interval = 0.5   # seconds between background ticks
         self._last_tick = 0.0
         self._tick_count = 0
@@ -81,7 +81,7 @@ class PNEUMA:
         """Background tick loop: advance FHN + ODE + IGTracker + Topo."""
         while self._running:
             try:
-                budget = constitutive_compute_budget(
+                budget = await constitutive_compute_budget_async(
                     "pneuma",
                     1.0 / self._tick_interval,
                     min_hz=0.1,
@@ -235,7 +235,7 @@ class PNEUMA:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_pneuma: Optional[PNEUMA] = None
+_pneuma: PNEUMA | None = None
 
 
 def get_pneuma() -> PNEUMA:

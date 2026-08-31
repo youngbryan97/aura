@@ -369,9 +369,11 @@ class ConsciousnessBridge:
             while self._running:
                 t0 = time.time()
                 try:
-                    from core.runtime.background_policy import constitutive_compute_budget
+                    from core.runtime.background_policy import (
+                        constitutive_compute_budget_async,
+                    )
 
-                    budget = constitutive_compute_budget(
+                    budget = await constitutive_compute_budget_async(
                         "consciousness_bridge",
                         self._INTEGRATION_HZ,
                         min_hz=0.5,

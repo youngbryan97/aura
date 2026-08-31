@@ -1016,7 +1016,7 @@ class AmbientPresence:
         while self._running:
             budget = None
             try:
-                budget = self._compute_budget(interval_s)
+                budget = await asyncio.to_thread(self._compute_budget, interval_s)
                 self._last_compute_budget = budget
                 result = await asyncio.wait_for(self.tick(), timeout=20.0)
                 consecutive_failures = 0

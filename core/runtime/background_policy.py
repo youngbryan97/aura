@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -533,6 +534,46 @@ def constitutive_compute_budget(
         reason=reason,
         foreground_active=foreground_active,
         memory_percent=memory_percent,
+    )
+
+
+async def constitutive_compute_budget_async(
+    component: str,
+    base_hz: float,
+    *,
+    min_hz: float = 0.5,
+    foreground_hz: float = 2.0,
+    memory_high_hz: float = 2.0,
+    memory_critical_hz: float = 0.5,
+    memory_high_percent: float = 85.0,
+    memory_critical_percent: float = 92.0,
+    compute_pressure_hz: float = 1.0,
+    failure_pressure_hz: float = 1.0,
+    max_failure_pressure: float = 0.75,
+    serves_foreground: bool = False,
+) -> ConstitutiveComputeBudget:
+    """Read the shared budget without blocking the asyncio event-loop thread.
+
+    Host-backed resource observations can walk the process tree and invoke
+    platform APIs.  The synchronous API remains available to synchronous
+    callers, but async runtime loops must yield while that observation runs so
+    lease renewal, answer delivery, and health probes remain schedulable.
+    """
+
+    return await asyncio.to_thread(
+        constitutive_compute_budget,
+        component,
+        base_hz,
+        min_hz=min_hz,
+        foreground_hz=foreground_hz,
+        memory_high_hz=memory_high_hz,
+        memory_critical_hz=memory_critical_hz,
+        memory_high_percent=memory_high_percent,
+        memory_critical_percent=memory_critical_percent,
+        compute_pressure_hz=compute_pressure_hz,
+        failure_pressure_hz=failure_pressure_hz,
+        max_failure_pressure=max_failure_pressure,
+        serves_foreground=serves_foreground,
     )
 
 

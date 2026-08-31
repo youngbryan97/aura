@@ -564,7 +564,9 @@ class ContinuousSensoryBuffer:
     async def _capture_loop(self):
         """Runs continuously in the background, updating Aura's visual working memory."""
         while self._is_active:
-            budget = self._compute_budget()
+            # Resource pressure includes a process-tree observation. Keep the
+            # host walk off the event loop so vision cannot stall conversation.
+            budget = await asyncio.to_thread(self._compute_budget)
             self._last_compute_budget = budget
             try:
                 if not self._screen_backend_ready():

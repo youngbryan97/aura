@@ -389,9 +389,11 @@ class UnifiedField:
             while self._running:
                 t0 = time.monotonic()
                 try:
-                    from core.runtime.background_policy import constitutive_compute_budget
+                    from core.runtime.background_policy import (
+                        constitutive_compute_budget_async,
+                    )
 
-                    budget = constitutive_compute_budget(
+                    budget = await constitutive_compute_budget_async(
                         "unified_field",
                         update_hz,
                         min_hz=0.5,
