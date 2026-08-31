@@ -52383,3 +52383,23 @@ progress cannot keep a stalled request alive. Focused tests: 139 passed;
 smoke: 121 passed, one skip; lint, compile, layering and governance passed.
 The counter repair is tested offline, not yet live. Full evidence is appended
 to `docs/evidence/2026-08-30-foreground-completion-ownership.md`.
+
+## Checkpoint 2026-08-31: Continuation Belongs to the Requested Clause
+
+The August 30 locking follow-up was misrouted because `read_watched_goal`
+matched `keep running` anywhere in the turn. That match bypassed cognition
+and created a desktop pursuit. The parser now requires the continuation to
+belong to an actionable clause from the shared request-mood substrate.
+Continuation verbs use that substrate's existing imperative, negation,
+quotation and mixed-clause handling. Explanation requests remain discussion;
+retrospective explanations preserve their temporal scope.
+
+Before repair, 24 of 26 new regression cases failed. After repair, 271 focused
+tests pass, including the chat shortcut that caused the live failure. Smoke
+passes 121 with one skip; lint, compile and layering pass. Four pre-existing
+tests that still rejected open-ended pursuits were reproduced on the unchanged
+canonical tree and corrected to assert the intended absence of a named finish.
+
+The aggregate governance gate is red on a separately merged raw diagnostic
+write in `core/perception/where_it_responds.py::_note_what_was_seen`. No baseline
+was relaxed. Live replay of the clause-ownership repair remains required.

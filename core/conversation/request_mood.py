@@ -108,13 +108,16 @@ _ACTION_VERBS = (
     # all, is decided by the object — "put the kettle on" names no surface
     # and reaches no lane.
     "put|place|paste|insert|append|attach|stick|rename|print|export|import|"
-    "empty|clear|add|remove|drop|share"
+    "empty|clear|add|remove|drop|share|"
+    # Continuation and observation take the same clause-level authority as
+    # one-shot actions. A mention of these verbs grants no authority.
+    "keep|watch|wait|monitor|step|stick|carry"
 )
 
 #: An imperative: optional politeness/discourse lead-in, then a bare verb.
 _IMPERATIVE_RE = re.compile(
     r"^\s*(?:(?:ok|okay|now|then|next|also|and|so|hey|please|quick|quickly|"
-    r"first|finally|alright|right)[,\s]+)*"
+    r"first|finally|alright|right|just)[,\s]+)*"
     rf"(?:please\s+)?(?:{_ACTION_VERBS})\b",
     re.IGNORECASE,
 )
@@ -179,6 +182,15 @@ _QUOTED_UTTERANCE_RE = re.compile(
 _MODAL_ACTION_DISCUSSION_RE = re.compile(
     r"^\s*(?:why|when|how|what)\s+(?:would|could|should|can)\s+"
     r"(?:you|someone|anyone|a\s+person|one)\b",
+    re.IGNORECASE,
+)
+
+# An action inside an explanation is its subject, not a delegated effect.
+# Keep this on the matrix clause so a separate "then open ..." still acts.
+_EXPLANATION_REQUEST_RE = re.compile(
+    r"^\s*(?:(?:please|just|now|then)\s+)*"
+    r"(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+    r"(?:explain|describe|tell\s+me)\s+(?:how|why|what|whether)\b",
     re.IGNORECASE,
 )
 
@@ -275,6 +287,8 @@ def _assess_clause(text: str) -> MoodVerdict:
     mention_reasons = [
         name for pattern, name in _MENTION_FRAMES if re.search(pattern, text, re.IGNORECASE)
     ]
+    if _EXPLANATION_REQUEST_RE.search(text):
+        mention_reasons.append("explanation_request")
     if action_outcome_question(text).asks_about_outcome:
         mention_reasons.append("retrospective_request")
     if (
@@ -297,7 +311,7 @@ def _assess_clause(text: str) -> MoodVerdict:
     # session and held a whole new conversation (measured live 2026-08-04).
     # Plain recollection markers ("yesterday", "last time") do NOT cancel —
     # "Ask ChatGPT what it said yesterday" is still an instruction.
-    cancelling = {"refusal_to_act", "hypothetical", "retrospective_request"}
+    cancelling = {"refusal_to_act", "hypothetical", "retrospective_request", "explanation_request"}
     temporal_scope = (
         "hypothetical"
         if "hypothetical" in mention_reasons

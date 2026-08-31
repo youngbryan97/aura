@@ -104,5 +104,8 @@ def test_a_target_named_without_any_introducing_verb_is_still_the_target(said, f
 def test_how_long_is_not_what(said):
     """One value in a request that names a thing is that thing's name, and a
     duration says how long rather than what. Neither is a state of the screen,
-    so neither makes this a goal with a finish."""
-    assert read_watched_goal(said) is None
+    so neither makes this a goal with a finish. A pursuit without a named
+    finish is supported; its duration is not evidence of a screen target."""
+    goal = read_watched_goal(said)
+    assert goal is not None
+    assert goal.success_when == ""

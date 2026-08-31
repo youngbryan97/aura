@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.conversation.request_mood import assess_request_mood
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 
@@ -531,7 +532,13 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     text = str(objective or "").strip()
     if not text:
         return None
-    cue = _continuation(text)
+    # A continuation cue must belong to a requested action. Looking anywhere
+    # in the turn let "can other tasks keep running?" start desktop control.
+    mood = assess_request_mood(text)
+    cue = next(
+        (cue for clause in mood.actionable_clauses if (cue := _continuation(clause))),
+        "",
+    )
     if not cue:
         return None
     if _nothing_to_watch(text):
