@@ -47,3 +47,17 @@ def test_a_goal_with_no_place_at_all_is_untouched():
     goal = read_watched_goal("keep refreshing the page until the build goes green")
     assert goal is not None
     assert not goal.target_app
+
+
+@pytest.mark.skipif(not HAS_2048, reason="that application is not installed here")
+def test_it_answers_with_the_name_the_window_system_uses():
+    """2048.app runs as a process called "2048 Game". Answering with the
+    filename meant window_bounds matched nothing, so the reading was never
+    cropped to the window — and she read a Finder window and her own panels
+    alongside the board."""
+    assert _an_application_here("the 2048 app") == "2048 Game"
+    assert _an_application_here("2048 Game") == "2048 Game"
+
+
+def test_an_application_named_the_same_either_way_is_unaffected():
+    assert _an_application_here("Safari") in {"Safari", ""}

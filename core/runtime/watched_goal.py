@@ -399,18 +399,48 @@ def _an_application_here(said: str) -> str:
     ]
     if not here:
         return ""
-    by_name = {one.stem.lower(): one.stem for one in here}
+    # By the name the window system uses, which is not always the filename.
+    #
+    # 2048.app runs as a process called "2048 Game". Answering "2048" meant
+    # window_bounds matched nothing, so the reading was never cropped to the
+    # window — and she read a Finder window and her own panels alongside the
+    # board. LIVE 2026-08-31. The bundle declares its own name; asking it is
+    # the fix, and it works for every application without knowing any of them.
+    by_name: dict[str, str] = {}
+    for one in here:
+        called = _what_the_window_system_calls(one)
+        by_name.setdefault(one.stem.lower(), called)
+        by_name.setdefault(called.lower(), called)
     for take in range(len(words), 0, -1):
         for at in range(0, len(words) - take + 1):
             tried = " ".join(words[at : at + take]).lower()
             if tried in by_name:
                 return by_name[tried]
-            starts = [
+            starts = {
                 name for lowered, name in by_name.items() if lowered.startswith(tried)
-            ]
+            }
             if len(starts) == 1:
-                return starts[0]
+                return next(iter(starts))
     return ""
+
+
+def _what_the_window_system_calls(bundle: Any) -> str:
+    """The name a running application answers to, from the bundle itself."""
+    from plistlib import load as _read_plist
+
+    where = bundle / "Contents" / "Info.plist"
+    try:
+        with where.open("rb") as handle:
+            said = _read_plist(handle)
+    except (OSError, ValueError):
+        # not a failure: a bundle without a readable plist still has a
+        # filename, and that is the next best name for it.
+        return bundle.stem
+    for key in ("CFBundleName", "CFBundleExecutable", "CFBundleDisplayName"):
+        named = str(said.get(key) or "").strip()
+        if named:
+            return named
+    return bundle.stem
 
 
 def apps_named_in(text: str) -> tuple[str, ...]:
