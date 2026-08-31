@@ -375,7 +375,7 @@ def what_is_there(
     # could be compared with each other and the rule that governs the board
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
-    return arranged(the_part_laid_out_regularly(inside), like=like)
+    return arranged(the_part_laid_out_regularly(inside, like=like), like=like)
 
 
 def what_the_page_is_showing(
@@ -411,7 +411,7 @@ def what_the_page_is_showing(
     # could be compared with each other and the rule that governs the board
     # scored nought out of five. She was playing correctly and learning
     # nothing from it.
-    return arranged(the_part_laid_out_regularly(inside), like=like)
+    return arranged(the_part_laid_out_regularly(inside, like=like), like=like)
 
 
 def _laid_out(cells: Sequence[tuple[float, float, str]]) -> str:

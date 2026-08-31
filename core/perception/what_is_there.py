@@ -508,6 +508,7 @@ def _lattices(values: Sequence[float]) -> list[tuple[float, ...]]:
 
 def the_part_laid_out_regularly(
     cells: Sequence[tuple[float, float, str]],
+    like: "Arrangement | None" = None,
 ) -> tuple[tuple[float, float, str], ...]:
     """The part of a reading that is on a lattice, out of everything else.
 
@@ -534,6 +535,17 @@ def the_part_laid_out_regularly(
     if len(placed) < 4:
         return tuple(placed)
 
+    # The shape it had last time, which it still has.
+    #
+    # A thing does not change size between glances. Cropping each glance on its
+    # own merits found the board and then found a different block next time —
+    # 44x37, then 21x20, 14x13, 9x9, 19x12 — and two readings that disagree
+    # about the shape cannot be compared at all, so half the moves became
+    # unreadable and nothing could be learned from them. The furniture around a
+    # thing changes; the thing does not.
+    was = (int(getattr(like, "rows", 0) or 0), int(getattr(like, "columns", 0) or 0))
+    knows_the_shape = was[0] >= 2 and was[1] >= 2
+
     best: tuple[tuple[float, float, str], ...] = ()
     best_score = 0.0
     for across in _lattices([x for _y, x, _said in placed]):
@@ -547,9 +559,25 @@ def the_part_laid_out_regularly(
             if room < 4 or len(on_it) < 4:
                 continue
             # How much of the block it fills, times how much of it there is.
-            # A board is most of its own grid; a coincidence among furniture is
+            # A thing is most of its own grid; a coincidence among furniture is
             # a handful of places in a large one.
+            #
+            # Two other scorings were tried against uniformly random furniture
+            # and both were worse on the real page, which is what this is for.
+            # A page is not random noise: its text sits in a few columns and
+            # its rhythms are short. Tuning against noise it will never see
+            # made it keep seventeen-by-seventeen blocks of nothing.
             score = (len(on_it) / room) * len(on_it)
+            if knows_the_shape and (len(down), len(wide)) == was:
+                # It is the shape she already knows it is, which is worth
+                # something and not everything. Made decisive, the first
+                # glance became the only glance: one furniture column crept
+                # into it and every reading afterwards kept the column,
+                # because nothing was allowed to beat the shape she had.
+                #
+                # A preference, so a block that is plainly fuller still wins
+                # and a tie goes to being comparable with the reading before.
+                score *= 1.5
             if score > best_score:
                 best, best_score = on_it, score
     # Cropping to nothing is not a reading. Where no block stands out, the
