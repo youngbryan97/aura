@@ -203,8 +203,32 @@ def battery_manifest(
     return {**body, "sha256": sha256_json(body)}
 
 
+#: The envelope the strict answer contract puts the answer in. It is the
+#: worker's own format (``_STRICT_ANSWER_ENVELOPE_RE`` in mlx_worker), and
+#: every other reader of a strict answer already unwraps it.
+_THE_CONTRACT_ENVELOPE = re.compile(r"(?is)<answer>\s*(.*?)\s*</answer>")
+
+
+def _the_answer_inside(text: str) -> str:
+    """The answer itself, out of the envelope the contract wraps it in.
+
+    These graders read the raw output, and a sealed measurement asks for the
+    strict answer contract, which returns ``<answer>Tokyo</answer>``. So the
+    text grader normalised that to "answerTokyoanswer", the integer grader's
+    full match failed on the tags, and the code grader found no fenced block.
+    Every class failed on the wrapper with the model answering correctly, and
+    the run scored zero — which is why this measurement has never produced a
+    number against a real model.
+
+    Where there is no envelope the text comes back as it was, so nothing that
+    graded before grades differently now.
+    """
+    found = _THE_CONTRACT_ENVELOPE.search(str(text or ""))
+    return found.group(1) if found else str(text or "")
+
+
 def _normalize_short_answer(text: str) -> str:
-    normalized = re.sub(r"[^\w\s+-]", "", str(text or "").casefold())
+    normalized = re.sub(r"[^\w\s+-]", "", _the_answer_inside(text).casefold())
     return " ".join(normalized.split())
 
 
@@ -217,14 +241,14 @@ def _exact_integer_grader(expected: int) -> Callable[[str], bool]:
     expected_text = str(expected)
 
     def grade(text: str) -> bool:
-        candidate = str(text or "").strip()
+        candidate = _the_answer_inside(text).strip()
         return bool(re.fullmatch(r"[+-]?\d+", candidate)) and candidate == expected_text
 
     return grade
 
 
 def _extract_python(text: str) -> str:
-    candidate = str(text or "").strip()
+    candidate = _the_answer_inside(text).strip()
     fenced = re.fullmatch(r"```(?:python|py)?\s*\n?(.*?)\n?```", candidate, re.DOTALL | re.I)
     return fenced.group(1).strip() if fenced else candidate
 

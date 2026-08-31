@@ -112,3 +112,45 @@ def test_checked_in_v5_artifact_is_a_control_not_a_capability_claim() -> None:
     assert evidence["payload"]["evidence_class"] == "synthetic_pipeline_control"
     assert evidence["payload"]["capability_claim_eligible"] is False
     assert evidence["payload"]["general_frontier_claim_eligible"] is False
+
+
+def test_a_grader_reads_the_answer_out_of_the_contract_envelope():
+    """A sealed measurement asks for the strict answer contract, which returns
+    ``<answer>Tokyo</answer>``.
+
+    These graders read the raw output. So the text grader normalised that to
+    "answerTokyoanswer", the integer grader's full match failed on the tags,
+    and the code grader found no fenced block — every class failing on the
+    wrapper with the model answering correctly. Measured 2026-08-30 against the
+    real model: candidate 0.0 before, 0.65 after, on the same battery.
+    """
+    from core.brain.frontier_gap import (
+        _exact_integer_grader,
+        _exact_text_grader,
+        _extract_python,
+    )
+
+    says_tokyo = _exact_text_grader("Tokyo")
+    assert says_tokyo("<answer>Tokyo</answer>")
+    assert says_tokyo("Tokyo")
+    assert not says_tokyo("<answer>Osaka</answer>")
+
+    says_the_number = _exact_integer_grader(258662)
+    assert says_the_number("<answer>258662</answer>")
+    assert says_the_number("258662")
+    assert not says_the_number("<answer>258663</answer>")
+    assert not says_the_number("<answer>about 258662</answer>")
+
+    assert _extract_python(
+        "<answer>```python\ndef f(xs): return sum(xs)\n```</answer>"
+    ) == "def f(xs): return sum(xs)"
+
+
+def test_an_answer_with_no_envelope_grades_exactly_as_it_did():
+    """Nothing that graded before grades differently now."""
+    from core.brain.frontier_gap import _exact_integer_grader, _exact_text_grader
+
+    assert _exact_text_grader("Mars")("Mars")
+    assert not _exact_text_grader("Mars")("Venus")
+    assert _exact_integer_grader(42)("42")
+    assert not _exact_integer_grader(42)("42 apples")

@@ -1284,7 +1284,17 @@ async def _resolve_generate() -> SolverSelection:
                     top_p=MATCHED_BUDGET["top_p"],
                     top_k=MATCHED_BUDGET["top_k"],
                     benchmark_request=True,
-                    proof_evaluation_contract=True,
+                    # One output contract, not two.
+                    #
+                    # Both were asked for, and the worker refuses that: two
+                    # exclusive contracts leave it with no single one to
+                    # honour. So every item of the diagnostic was refused with
+                    # ambiguous_output_contract and the run scored 0.0 — which
+                    # is why this mode has never produced a number, on top of
+                    # every reason of policy. The battery is four deterministic
+                    # classes wanting exact short answers, and both flags carry
+                    # the same sealed, uncached handling, so the strict answer
+                    # contract alone loses nothing.
                     strict_answer_contract=True,
                     disable_prompt_cache=True,
                     clear_prompt_cache=True,

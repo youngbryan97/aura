@@ -280,12 +280,35 @@ From an external reading of the codebase (documented in GENERALITY_TODO.md §U):
 | U7 | Every subsystem earns its existence by ablation | Cathedral accumulation is the stated risk |
 | U8 | ✅ Measured against its own null | Keeping 7/7 against forgetting 5/7; the two it missed are exactly the two built on an earlier answer. Sequences 2.4x sooner. The world cost it first showed was a search listing every plan, not accumulation: 72,201ms to 1.2ms once fixed |
 
-### Why V5 has no result (checked 2026-08-30, not inferred)
+### V5, run against the real model (2026-08-30)
 
-`tools/measure_frontier_gap.py` was run and behaved exactly as designed:
-`mode=synthetic_control`, `claim eligible: False`, a content-addressed evidence
-blob written. Nothing is broken and nothing is half-built. Three things stand
-between that and a capability measurement, and none of them is engineering:
+Run with the model loaded: **candidate 0.65** on the four-class battery,
+`mode=amplifier_mlx_unattested_diagnostic`, `claim eligible: False`. It is a
+diagnostic number, not a capability claim, and with no frontier reference there
+is no gap.
+
+Getting a number at all took two fixes, and both had made the measurement
+impossible rather than merely hard:
+
+* The generate call asked for **two exclusive output contracts** at once
+  (`proof_evaluation_contract` and `strict_answer_contract`). The worker
+  refuses that — two contracts leave it none to honour — so every item was
+  refused and the run scored 0.0.
+* With that fixed the model answered correctly and still scored 0.0. A sealed
+  measurement asks for the strict answer contract, which returns
+  `<answer>Tokyo</answer>`, and these graders read the raw output: the text
+  grader normalised that to "answerTokyoanswer", the integer grader's full
+  match failed on the tags, and the code grader found no fenced block. Every
+  other reader of a strict answer already unwrapped the envelope; the graders
+  were the outlier.
+
+17 of 43 generations hit the matched 20s deadline, because this model decodes
+at 10.6 tokens a second and cannot fit three samples inside it. That is the
+measurement working rather than failing: the budget is matched, and a model
+that cannot answer inside it scores lower.
+
+Three things still stand between that and a capability measurement, and none of
+them is engineering:
 
 1. **The desktop runtime owns the model lane.** `_resolve_generate` returns the
    synthetic control whenever the live instance answers on :8000, because the
@@ -317,7 +340,7 @@ on is a decision about the machine and a reference run, not more code.
 | Maintain identity across substrate swaps | ✅ Established | Hash-chained ghost line |
 | Measure system integration | ✅ Established | As instrument, not consciousness claim |
 | Form concepts from failure patterns | ✅ Established | Hand-written repairs |
-| Frontier-general reasoning | 🔴 Not claimed | Protocol re-verified 2026-08-30: runs, refuses to claim, writes a content-addressed blob. A capability result is blocked on three things, none of them code — see below |
+| Frontier-general reasoning | 🔴 Not claimed | First real-model number 2026-08-30: candidate 0.65 on the four-class battery, diagnostic mode, not claim-eligible. No frontier reference exists, so there is still no gap |
 | Action-side abstractions | ✅ Established | Composition, repetition, branching and recovery over given actions |
 | Autonomous capability improvement loop | ✅ Established | Within a domain; carried across two by different routes |
 | Open-domain recurrent reasoning | 🔴 Not authorized | `ordinary_chat_authorized=false` |
