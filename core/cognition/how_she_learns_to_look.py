@@ -58,6 +58,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.runtime.state_ownership import state_root
+
 __all__ = [
     "WhatWorkedBefore",
     "forget_what_worked",
@@ -71,7 +73,8 @@ __all__ = [
 
 logger = logging.getLogger("Aura.HowSheLearnsToLook")
 
-_KEPT_AT = Path.home() / ".aura" / "state" / "what_worked_when_she_invented.json"
+def _kept_at() -> Path:
+    return state_root() / "state" / "what_worked_when_she_invented.json"
 
 _WHAT_WORKED: dict[str, int] = {}
 _HOW_MANY_TIMES = [0]
@@ -186,14 +189,15 @@ def _keep() -> None:
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         written = json.dumps({"won": _WHAT_WORKED, "of": _HOW_MANY_TIMES[0]})
+        destination = _kept_at()
         with local_internal_governed_scope(
             "how_she_learns_to_look.keep", domain="state_mutation"
         ):
             get_file_write_gateway().ensure_directory(
-                _KEPT_AT.parent, source="how_she_learns_to_look"
+                destination.parent, source="how_she_learns_to_look"
             )
             get_file_write_gateway().write_text(
-                _KEPT_AT, written, source="how_she_learns_to_look"
+                destination, written, source="how_she_learns_to_look"
             )
     except (OSError, RuntimeError, TypeError, ValueError):
         logger.debug("could not keep what worked", exc_info=True)
@@ -202,7 +206,7 @@ def _keep() -> None:
 def recall() -> int:
     """What she learned about her own searching, from before this process."""
     try:
-        row = json.loads(_KEPT_AT.read_text())
+        row = json.loads(_kept_at().read_text())
     except (OSError, ValueError):
         return 0
     won = row.get("won")

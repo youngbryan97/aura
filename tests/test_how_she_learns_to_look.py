@@ -7,9 +7,6 @@ got worse while every number said it got better. Only the first is learned.
 
 from __future__ import annotations
 
-import pathlib
-import tempfile
-
 import pytest
 
 from core.cognition import an_invented_kind as kinds
@@ -19,13 +16,29 @@ from core.cognition.what_it_costs_to_say import _symbols
 
 
 @pytest.fixture(autouse=True)
-def _nowhere_near_her_state(monkeypatch):
-    monkeypatch.setattr(
-        look, "_KEPT_AT", pathlib.Path(tempfile.mkdtemp()) / "worked.json"
-    )
+def _nowhere_near_her_state(monkeypatch, tmp_path):
+    monkeypatch.setattr(look, "state_root", lambda: tmp_path)
     look.forget_what_worked()
     yield
     look.forget_what_worked()
+
+
+def test_search_history_round_trips_through_its_owned_state_root(tmp_path):
+    look.remember_what_worked(["here"])
+    assert look._kept_at() == tmp_path / "state" / "what_worked_when_she_invented.json"
+    assert look._kept_at().is_file()
+    look.forget_what_worked()
+    assert look.recall() == 1
+    assert look.how_often_it_worked("here").won == 1
+    assert look.how_often_it_worked("here").of == 1
+
+
+def test_search_history_does_not_cross_runtime_roots(monkeypatch, tmp_path):
+    look.remember_what_worked(["here"])
+    monkeypatch.setattr(look, "state_root", lambda: tmp_path / "other-runtime")
+    look.forget_what_worked()
+    assert look.recall() == 0
+    assert look.what_is_remembered() == ()
 
 
 SHOWN = [(1, 2, 3, 4), (5, 6, 7, 8), (9, 1, 2, 6), (4, 7, 2, 8)]

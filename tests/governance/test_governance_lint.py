@@ -37,6 +37,12 @@ def _run_lint() -> int:
     return proc.returncode
 
 
+def test_search_history_owns_governed_writes_not_raw_mutations():
+    path = "core/cognition/how_she_learns_to_look.py"
+    assert _canonical_owner("file_write_gateway", path)
+    assert not _canonical_owner("raw_file_mutation", path)
+
+
 def test_lint_passes_on_repo():
     rc = _run_lint()
     assert rc in (0,)  # accept 0 — anything else means a real violation in tree

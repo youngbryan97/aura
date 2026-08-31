@@ -169,6 +169,10 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "file_write_gateway": frozenset(
         {
+            # Search priors own one numeric-history file beneath the runtime
+            # state root. Callers supply word names, never paths; writes still
+            # cross the gateway inside a named internal governance scope.
+            "core/cognition/how_she_learns_to_look.py",
             # Engineering export owns one fixed artifacts/live_designs tree.
             # Caller-selected subdirectories are confined beneath that root;
             # bundle slugs and filenames are canonical single components, and
