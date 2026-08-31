@@ -47,6 +47,16 @@ __all__ = [
 logger = logging.getLogger("Aura.SomethingSheKeepsTrue")
 
 
+def _the_rate(went_well: int, times: int) -> float:
+    """How often out of how many, by Laplace's rule of succession.
+
+    One out of one is two thirds and not everything. A single observation is
+    evidence rather than proof, and a measure that cannot say so will always
+    prefer whatever it has seen least.
+    """
+    return (went_well + 1) / (times + 2)
+
+
 @dataclass(frozen=True)
 class SomethingTrue:
     """A property of a state, and how well holding it went."""
@@ -67,11 +77,35 @@ class SomethingTrue:
         The difference of two rates rather than one rate, because a property
         true of every state she has ever been in explains nothing however well
         those went.
+
+        Both rates are taken by Laplace's rule rather than by division, and it
+        is not a refinement. Without it a property seen once, that once went
+        well, reads as a certainty and beats a property measured forty times —
+        which is how anything ends up holding a superstition. It happened here:
+        a piece that appeared on one board took the top of the list from the
+        property that actually explained the games. The rule is the same one
+        used wherever else in this codebase a rate is taken from few trials,
+        and it needs nothing chosen for it.
         """
         if not self.times_true or not self.times_false:
             return 0.0
-        return (self.well_when_true / self.times_true) - (
+        plainly = (self.well_when_true / self.times_true) - (
             self.well_when_false / self.times_false
+        )
+        if plainly <= 0:
+            return min(0.0, plainly)
+        # Smoothing may make a claim smaller. It may never make one the counts
+        # do not support: with the two sides measured different numbers of
+        # times, Laplace alone reports a difference between two rates that are
+        # both nought, and an ending that never once happened comes back
+        # steerable.
+        return min(
+            plainly,
+            max(
+                0.0,
+                _the_rate(self.well_when_true, self.times_true)
+                - _the_rate(self.well_when_false, self.times_false),
+            ),
         )
 
     def __str__(self) -> str:
@@ -392,7 +426,7 @@ def how_well_it_predicts(
         for name, holds in every_property_of(reading, deepest=deepest):
             found.setdefault(name, SomethingTrue(name=name, holds=holds))
     weighed: list[SomethingTrue] = []
-    for one in found.values():
+    for one in list(found.values()):
         well_true = times_true = well_false = times_false = 0
         for reading, went in watched:
             try:
@@ -414,7 +448,33 @@ def how_well_it_predicts(
                 times_false=times_false,
             )
         )
+    # And the other way round for each of them.
+    #
+    # Everything above says what a state HAS. What the other side in a game of
+    # draughts is playing for is a GAP in her back row, and there was no way to
+    # say that: absence had no name. A property and its opposite are both
+    # properties, and the opposite costs nothing to weigh because it is the
+    # same counts the other way about.
+    both_ways = list(weighed)
+    weighed.extend(
+        SomethingTrue(
+            name=f"it is not so that {one.name}",
+            holds=_not(one.holds),
+            well_when_true=one.well_when_false,
+            times_true=one.times_false,
+            well_when_false=one.well_when_true,
+            times_false=one.times_true,
+        )
+        for one in both_ways
+    )
     return sorted(weighed, key=lambda one: -one.tells_them_apart)
+
+
+def _not(holds: Callable[[Any], bool]) -> Callable[[Any], bool]:
+    def other_way(thing: Any) -> bool:
+        return not holds(thing)
+
+    return other_way
 
 
 def the_one_worth_holding(

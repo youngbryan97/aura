@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import random
 
+
 from core.cognition.which_way_to_win import which_way_to_win
 from tests.two_sided_game_support import MINE, THEIRS, board_of
 
@@ -72,19 +73,33 @@ def test_an_ending_that_never_comes_is_not_a_plan() -> None:
 
 
 def test_a_rare_ending_she_can_steer_to_beats_a_common_one_she_cannot() -> None:
-    roll = random.Random(2)
+    # Two common endings that look exactly alike from the inside, so nothing
+    # about the places she passes through says which one is coming. And one
+    # rare ending that announces itself.
     runs = []
-    for _ in range(30):
-        # Coin-flip endings: common, and nothing about the places predicts it.
-        runs.append(([{"a": roll.randrange(3)} for _ in range(4)], "coin"))
+    for _ in range(15):
+        runs.append(([{"a": 0} for _ in range(4)], "coin"))
+    for _ in range(15):
+        runs.append(([{"a": 0} for _ in range(4)], "toss"))
     for _ in range(6):
         runs.append(([{"a": 9} for _ in range(4)], "earned"))
     ranked = which_way_to_win(
         {
             "coin": lambda finish: finish == "coin",
+            "toss": lambda finish: finish == "toss",
             "earned": lambda finish: finish == "earned",
         },
         runs,
     )
     assert ranked[0].name == "earned"
-    assert ranked[0].how_often < ranked[1].how_often
+    assert ranked[0].how_often < min(one.how_often for one in ranked[1:])
+    # The other two are not unsteerable — knowing there is no nine does raise
+    # the chance of each of them, and saying otherwise would be false. What
+    # the ordering promises is that the ending she can see coming most clearly
+    # goes first, whatever the counts say.
+    best = ranked[0].by_holding
+    assert best is not None
+    for other in ranked[1:]:
+        assert other.by_holding is None or (
+            other.by_holding.tells_them_apart < best.tells_them_apart
+        )
