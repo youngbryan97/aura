@@ -249,14 +249,17 @@ def test_reading_the_prompt_counts_as_working() -> None:
     the answer" and then, moments later, "Endpoint Cortex timed out".
     """
 
-    from pathlib import Path
+    from core.brain.llm.mlx_client import MLXLocalClient
 
-    source = Path("core/brain/llm/mlx_client.py").read_text()
-    prefill_branch = source[
-        source.index('elif res.get("phase") == "prefill":') :
-        source.index("self._mark_prefill_progress(")
-    ]
-    assert "note_progress" in prefill_branch, prefill_branch
+    client = MLXLocalClient(model_path="/models/test-small")
+    client._current_request_id = "reading"
+    forget_progress()
+    client._record_worker_stream_progress(
+        {"id": "reading", "phase": "prefill",
+         "prompt_tokens_processed": 64, "prompt_tokens_total": 128},
+        status="progress", action="generate",
+    )
+    assert still_producing(within_s=5.0)
 
 
 def test_the_wall_clock_watchdog_re_arms_while_work_is_arriving() -> None:

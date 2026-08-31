@@ -79,7 +79,7 @@ def test_the_client_counts_progress_as_first_token_progress() -> None:
 
     client = MLXLocalClient.__new__(MLXLocalClient)
     marked: list[object] = []
-    client._mark_token_progress = marked.append  # type: ignore[method-assign]
+    client._mark_token_progress = lambda req_id, **kw: marked.append((req_id, kw))
 
     # Frames shaped as the worker emits them: a progress frame carries the
     # token count, which is what makes it token progress rather than a bare
@@ -91,7 +91,10 @@ def test_the_client_counts_progress_as_first_token_progress() -> None:
             status=status,
             action="stream",
         )
-    assert marked == ["req-progress", "req-token"], marked
+    assert marked == [
+        ("req-progress", {"generated_tokens": 7}),
+        ("req-token", {"generated_tokens": 7}),
+    ], marked
 
 
 def test_a_progress_frame_without_a_token_count_is_only_liveness() -> None:

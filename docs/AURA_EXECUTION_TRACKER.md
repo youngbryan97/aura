@@ -52367,3 +52367,19 @@ on an apparently complete prefix. No prompt changed. Focused tests pass 96/96;
 smoke passes 121 with one skip. The next source-matched replay must still prove
 full delivery and answer quality. Timing ownership across tools and the outer
 cycle remains open; this checkpoint does not close the broader programme.
+
+## Checkpoint 2026-08-30: Measured Progress and Desktop Replay
+
+The `f16efaaad` desktop replay reached the full answer ending and concrete
+scenario. Stream time was 329.29 seconds; desktop delivery took about 366
+seconds. False PARTIAL classification, technical answer errors, inference
+lease expiry and exhausted repair budget remain open. A conversational
+follow-up incorrectly started desktop control; the runtime was gracefully
+stopped and that request-routing defect is the next repair.
+
+Client progress accounting now consumes cumulative token deltas and validates
+request identity before publishing advancing prefill. Repeated or stale
+progress cannot keep a stalled request alive. Focused tests: 139 passed;
+smoke: 121 passed, one skip; lint, compile, layering and governance passed.
+The counter repair is tested offline, not yet live. Full evidence is appended
+to `docs/evidence/2026-08-30-foreground-completion-ownership.md`.

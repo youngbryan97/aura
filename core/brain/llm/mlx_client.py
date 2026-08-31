@@ -6356,6 +6356,8 @@ class MLXLocalClient:
             )
         self._current_prefill_tokens_processed = 0
         self._current_prefill_tokens_total = 0
+        self._prefill_observed_at = 0.0
+        self._prefill_observed_tokens = 0
         self._mark_progress()
 
     def _mark_prefill_progress(
@@ -6402,11 +6404,17 @@ class MLXLocalClient:
         if done != last_done:
             self._prefill_observed_at = now
             self._prefill_observed_tokens = done
+        if done > last_done:
+            from core.runtime.turn_progress import note_progress
+
+            note_progress()
         self._current_prefill_tokens_processed = done
         self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
 
-    def _mark_token_progress(self, req_id: str | None = None) -> None:
+    def _mark_token_progress(
+        self, req_id: str | None = None, *, generated_tokens: int | None = None
+    ) -> None:
         now = time.time()
         normalized_req_id = str(req_id or "")
         if (
@@ -6421,13 +6429,24 @@ class MLXLocalClient:
             # malformed messages. It still proves the worker is alive.
             self._mark_progress()
             return
+        previous_count = int(getattr(self, "_tokens_this_request", 0) or 0)
+        if generated_tokens is None:
+            delta = 1  # Legacy visible-token frames carry one token each.
+        elif isinstance(generated_tokens, int) and not isinstance(generated_tokens, bool):
+            delta = generated_tokens - previous_count
+        else:
+            delta = 0
+        if delta <= 0:
+            # Duplicate, reordered or malformed counters prove no new decoding.
+            self._mark_progress()
+            return
         # Decode measured the same way prefill is: between two observations,
         # so queueing before the first token is not charged to writing.
         previous_at = float(getattr(self, "_last_token_progress_at", 0.0) or 0.0)
         if previous_at > 0.0 and self._current_first_token_at > 0.0:
             spent = now - previous_at
             if 0.005 < spent < 5.0:
-                observed = 1.0 / spent
+                observed = delta / spent
                 previous = _HOST_RATES["decode"]
                 _HOST_RATES["decode"] = (
                     observed if previous <= 0.0 else previous * 0.8 + observed * 0.2
@@ -6480,8 +6499,8 @@ class MLXLocalClient:
                         _COLD_FIRST_TOKEN_S[name] = (
                             spent if seen <= 0.0 else seen * 0.7 + spent * 0.3
                         )
-        self._tokens_since_spawn = int(getattr(self, "_tokens_since_spawn", 0) or 0) + 1
-        self._tokens_this_request = int(getattr(self, "_tokens_this_request", 0) or 0) + 1
+        self._tokens_since_spawn = int(getattr(self, "_tokens_since_spawn", 0) or 0) + delta
+        self._tokens_this_request = previous_count + delta
         self._mark_progress()
 
     def _clear_active_generation_tracking(self) -> None:
@@ -12638,19 +12657,15 @@ class MLXLocalClient:
         if action == "latent_reason":
             self._record_latent_progress(res)
         if status == "token":
-            self._mark_token_progress(res.get("id"))
+            self._mark_token_progress(
+                res.get("id"), generated_tokens=res.get("tokens_generated")
+            )
         elif res.get("phase") == "prefill":
             # Reading the prompt is the model working on this request, and on
             # a long one it is the larger half. Counting only decoded tokens
             # made a turn look silent for the whole of it, so a wait that
             # defers to progress gave up during the one part of the turn where
             # nothing could have arrived yet.
-            try:
-                from core.runtime.turn_progress import note_progress
-
-                note_progress()
-            except ImportError:
-                pass
             self._mark_prefill_progress(
                 res.get("id"),
                 processed=res.get("prompt_tokens_processed", 0),
@@ -12662,7 +12677,9 @@ class MLXLocalClient:
             self._mark_progress()
         elif res.get("tokens_generated") is not None:
             # A decoded token can be temporarily textless in the detokenizer.
-            self._mark_token_progress(res.get("id"))
+            self._mark_token_progress(
+                res.get("id"), generated_tokens=res.get("tokens_generated")
+            )
         else:
             self._mark_progress()
 

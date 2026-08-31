@@ -91,3 +91,37 @@ Other live observations remain open: the background reimplementation workspace
 write lacked governed context; the Reflex lane failed an embedding-engine
 eviction; the UI described a phi proxy as a measurement out of one while showing
 1.13. Those are recorded findings, not fixed by this completion change.
+
+## Replay: Full Ending, Incorrect Coverage Classification
+
+Source-matched desktop Aura at `f16efaaad` received the same locking request
+at 18:37:56 PDT. Request `aura-chat-1c7ace5a-784e-4895-a2ce-7159a20595df`
+delivered at 18:44:02. The response included the requested concrete scenario
+and its ending. Prefill took 32.58 seconds; decoding took 295.96 seconds;
+the stream took 329.29 seconds for 1,848 generated tokens. Peak MLX memory
+was 16.10 GB. The former deadline and prefix-stop failures did not recur.
+
+The route still labelled the response PARTIAL. Offline assessment of the
+persisted answer found the facet checker recognized compare and explain but
+missed the explicit choice and worked verification. The answer also confused
+async lock suspension with blocking and overstated exactly-once execution.
+An inference lease expired during generation and the later repair step had
+no transaction budget left. This is not full-mind or answer-quality closure.
+
+A follow-up asking whether an async lock permits other tasks to keep running
+was routed to desktop_task and computer_use. No desktop action was requested.
+Aura was gracefully stopped at 18:46 PDT to prevent that route continuing;
+shutdown completed cleanly. The watched-goal request parser is the next repair.
+
+## Progress Counter Ownership
+
+Worker progress now counts the cumulative generated-token delta instead of
+counting each batched event as one token. Duplicate, decreasing, malformed,
+wrong-request and idless counters cannot renew token progress. Advancing
+prefill updates the turn clock only after request ownership is established;
+repeated prefill messages do not renew it. Legacy visible-token messages
+retain their one-token behavior. Each request resets its prefill rate sample.
+
+Focused client, progress, resilience and clock tests: 139 passed in 99.10
+seconds. Smoke: 121 passed, one skip. Lint, compile, layering and governance
+passed. These counter changes have not yet been loaded into desktop Aura.
