@@ -177,3 +177,58 @@ def test_the_play_loop_says_which_of_the_two_worlds_it_is_in():
     for _ in range(6):
         settled.watched(still, "left", still)
     assert _what_she_is_not_reading(settled) == ""
+
+
+class _Says:
+    """A reading that answers however it is told to."""
+
+    def __init__(self, how, name="says"):
+        self._how = how
+        self.name = name
+
+    def read(self, cells):
+        return self._how(tuple(cells))
+
+
+def test_a_reading_that_is_right_under_one_renaming_blames_the_check():
+    """Live 2026-08-30: a frontier battery scored zero with the model
+    answering Tokyo, 258662 and Gia correctly, because the contract returns
+    ``<answer>Tokyo</answer>`` and the graders compared the raw text.
+
+    Searching harder and widening the language are both wrong answers to a
+    test that cannot recognise a correct answer.
+    """
+    from core.cognition.what_the_failures_have_in_common import (
+        A_CHECK_THAT_CANNOT_SEE_IT,
+    )
+
+    shown = [((1, 2, 3), (11, 12, 13)), ((4, 5, 6), (14, 15, 16)), ((7, 8, 9), (17, 18, 19))]
+    said = why_nothing_fits(shown, [_Says(lambda cells: cells)])
+    assert said.because == A_CHECK_THAT_CANNOT_SEE_IT
+
+
+def test_a_reading_that_already_fits_is_not_blamed_on_the_check():
+    shown = [((1, 2, 3), (11, 12, 13)), ((4, 5, 6), (14, 15, 16))]
+    said = why_nothing_fits(shown, [_Says(lambda cells: tuple(v + 10 for v in cells))])
+    assert "already fits" in said.because
+
+
+def test_a_genuinely_wrong_reading_is_not_blamed_on_the_check():
+    """No single renaming holds across the cases, so the reading is wrong."""
+    from core.cognition.what_the_failures_have_in_common import (
+        A_CHECK_THAT_CANNOT_SEE_IT,
+    )
+
+    shown = [((1, 2), (5, 9)), ((1, 2), (7, 3)), ((3, 4), (2, 8))]
+    said = why_nothing_fits(shown, [_Says(lambda cells: cells)])
+    assert said.because != A_CHECK_THAT_CANNOT_SEE_IT
+
+
+def test_one_case_is_a_renaming_of_anything():
+    """Two at least, for the same reason a cycle needs two turns."""
+    from core.cognition.what_the_failures_have_in_common import (
+        A_CHECK_THAT_CANNOT_SEE_IT,
+    )
+
+    said = why_nothing_fits([((1, 2), (7, 8))], [_Says(lambda cells: cells)])
+    assert said.because != A_CHECK_THAT_CANNOT_SEE_IT

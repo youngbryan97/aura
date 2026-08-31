@@ -13,6 +13,11 @@ fits, so: try harder, or change what trying means?
                               twice, came out two ways. No function of what
                               she can see fits, so neither of the other two
                               readings is even the right question.
+    a check that cannot see   every reading fails, and each says the wanted
+                              answer under one consistent renaming. The
+                              reading is right and the comparison is wrong,
+                              and no amount of searching or widening fixes a
+                              test that cannot recognise a correct answer.
 
 Treating the second as the first is the expensive mistake: more compute
 against a hypothesis space that does not contain the answer buys nothing, and
@@ -41,6 +46,7 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 __all__ = [
+    "A_CHECK_THAT_CANNOT_SEE_IT",
     "A_SEARCH_FAILURE",
     "SOMETHING_SHE_CANNOT_SEE",
     "how_much_the_failures_share",
@@ -64,6 +70,14 @@ A_SEARCH_FAILURE = "a search that went badly"
 #: Whatever is missing is missing from all of them at once, which is what a
 #: language being unable to say something looks like from inside.
 A_REPRESENTATION_FAILURE = "a language that cannot say it"
+
+#: Every reading fails, and each of them says the wanted answer under one
+#: consistent renaming. Measured live on 2026-08-30: a frontier battery scored
+#: zero with the model answering Tokyo, 258662 and Gia correctly, because the
+#: contract returns <answer>Tokyo</answer> and the graders compared the raw
+#: text. Searching harder and widening the language are both wrong answers to
+#: a test that cannot recognise a correct answer.
+A_CHECK_THAT_CANNOT_SEE_IT = "a check that cannot see the answer"
 
 #: The record is not a function of what she observed, so nothing that reads
 #: only what she observed can fit it. Asked before the other two, because both
@@ -198,6 +212,10 @@ def why_nothing_fits(
     # question the evidence has already closed.
     from core.cognition.something_she_cannot_see import what_she_cannot_see
 
+    blind = _a_check_that_cannot_see_it(pairs, hypotheses)
+    if blind is not None:
+        return blind
+
     unseen = what_she_cannot_see(pairs)
     if unseen.anything:
         return WhyNothingFits(
@@ -256,3 +274,55 @@ def why_nothing_fits(
     )
     logger.info("why nothing fits — %s", found.describes())
     return found
+
+
+def _a_check_that_cannot_see_it(
+    pairs: Sequence[tuple[tuple[Any, ...], tuple[Any, ...]]],
+    hypotheses: Sequence[Any] | None,
+) -> "WhyNothingFits | None":
+    """Whether every reading is right and the comparison cannot tell.
+
+    The signature is one consistent renaming. If what a reading says maps to
+    what was wanted by a single map that holds across every case — the same
+    thing always becoming the same other thing — then the reading has the
+    answer and the equality it is being judged by does not admit it.
+
+    Two cases at least, because one case is a renaming of anything.
+    """
+    if hypotheses is None or len(pairs) < 2:
+        return None
+    for one in hypotheses:
+        read = getattr(one, "read", None)
+        if not callable(read):
+            continue
+        renaming: dict[Any, Any] = {}
+        said_anything = False
+        consistent = True
+        for before, after in pairs:
+            try:
+                got = read(before)
+            except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
+                consistent = False
+                break
+            if got is None or len(got) != len(after):
+                consistent = False
+                break
+            if tuple(got) == tuple(after):
+                # It already passes, so there is nothing for a renaming to
+                # explain and this is not the failure being looked for.
+                consistent = False
+                break
+            said_anything = True
+            for mine, wanted in zip(got, after):
+                if renaming.setdefault(mine, wanted) != wanted:
+                    consistent = False
+                    break
+            if not consistent:
+                break
+        if consistent and said_anything and len(renaming) > 1:
+            return WhyNothingFits(
+                A_CHECK_THAT_CANNOT_SEE_IT,
+                considered=len(hypotheses),
+                together_on=len(pairs),
+            )
+    return None
