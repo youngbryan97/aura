@@ -154,3 +154,59 @@ def test_an_action_she_composed_survives_the_process():
 
 def test_nothing_is_composed_from_nothing():
     assert an_action_she_composed(_a_board(), []) is None
+
+
+def test_a_plan_that_works_for_every_state_is_searched_by_position():
+    """Listing every plan is one branch per action per step: eight actions and
+    a plan eighteen long is 8**18, which took seventy-two seconds for six
+    problems. Two plans leaving the pairs in the same places are the same plan
+    from there on."""
+    import time
+
+    from core.cognition.an_action_she_composed import _one_plan_for_all
+
+    def step(by):
+        return lambda at: max(0, min(19, at + by))
+
+    wide = World(
+        can_do={f"by {n}": step(n) for n in (-3, -2, -1, 1, 2, 3)}, can_tell={}
+    )
+    began = time.perf_counter()
+    # Six of "by 3" takes all three to the wall, where they clamp together.
+    assert _one_plan_for_all(wide, [(2, 19), (7, 19), (13, 19)], within=18) == 6
+    # And no plan takes them to three different places they cannot all reach.
+    assert _one_plan_for_all(wide, [(2, 0), (7, 5), (13, 19)], within=18) is None
+    assert time.perf_counter() - began < 5.0
+
+
+def test_what_an_action_does_is_remembered():
+    """An action is a function of the state and nothing else, so one composed
+    out of one composed out of one is a repetition inside a repetition and each
+    layer multiplies by however many turns the innermost takes."""
+    line = _a_line()
+    counted = {"asked": 0}
+
+    def counting(at):
+        counted["asked"] += 1
+        return max(0, min(9, at + 1))
+
+    world = World(can_do={"one right": counting}, can_tell={})
+    doing = Doing(head="until", parts=(Doing(head="do", value="one right"),))
+    assert what_it_does(doing, 0, world) == 9
+    first = counted["asked"]
+    assert what_it_does(doing, 0, world) == 9
+    assert counted["asked"] == first
+    assert what_it_does(doing, 0, line) == 9
+
+
+def test_a_world_can_refuse_to_remember():
+    """Right for a world whose actions are not pure functions of the state."""
+    rolling = {"n": 0}
+
+    def moves(at):
+        rolling["n"] += 1
+        return at + rolling["n"]
+
+    world = World(can_do={"on": moves}, can_tell={}, remembers=None)
+    doing = Doing(head="do", value="on")
+    assert what_it_does(doing, 0, world) != what_it_does(doing, 0, world)

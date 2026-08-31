@@ -65,7 +65,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
@@ -93,6 +93,12 @@ class World:
     can_do: dict[str, Callable[[Any], Any]]
     #: What she can tell about a state, by name. Each answers yes or no.
     can_tell: dict[str, Callable[[Any], bool]]
+    #: Answers already worked out, kept for as long as this world is. None
+    #: means do not remember, which is right for a world whose actions are not
+    #: pure functions of the state.
+    remembers: dict[tuple[int, Any], Any] | None = field(
+        default_factory=dict, compare=False, repr=False
+    )
 
     def act(self, state: Any, named: str) -> Any:
         return self.can_do[named](state)
@@ -143,9 +149,30 @@ _A_LOOP_RATHER_THAN_A_SETTLING = 64
 
 
 def what_it_does(doing: Doing, state: Any, world: World, depth: int = 0) -> Any:
-    """Where this action leaves the world, from here."""
+    """Where this action leaves the world, from here.
+
+    Remembered, because an action is a function of the state and nothing else.
+    Without that, an action she composed out of one she composed out of one she
+    composed is a repetition inside a repetition inside a repetition, and each
+    layer multiplies by however many turns the innermost takes: six kept
+    actions on a line took 194 seconds for six problems. Every one of those
+    turns asks the same question of the same state, and asking it once is the
+    same answer.
+    """
     if depth > 32:
         raise ValueError("an action that will not settle")
+    remembered = world.remembers
+    if remembered is not None:
+        mark = (id(doing), _key(state))
+        if mark in remembered:
+            return remembered[mark]
+        answer = _what_it_does(doing, state, world, depth)
+        remembered[mark] = answer
+        return answer
+    return _what_it_does(doing, state, world, depth)
+
+
+def _what_it_does(doing: Doing, state: Any, world: World, depth: int) -> Any:
     head = doing.head
     if head == "do":
         return world.act(state, str(doing.value))
@@ -366,16 +393,43 @@ def _one_plan_for_all(
     The same keys in the same order from each state. Where none exists, no
     arrangement of what she was given does uniformly what the composed action
     does, however well each state does on its own.
+
+    Walked over where the pairs have got to, not over the plans themselves.
+    Listing every plan is one branch per action per step — eight actions and a
+    plan eighteen long is 8**18, and that is what made six kept actions take
+    seventy-two seconds. What actually matters is where the pairs stand, and
+    two plans that leave them in the same places are the same plan from here
+    on, so the walk is over positions and finishes.
     """
     if not pairs:
         return None
     names = sorted(world.can_do)
-    plans: list[tuple[str, ...]] = [()]
+    wanted = tuple(want for _state, want in pairs)
+    edge = {tuple(state for state, _want in pairs)}
+    seen = set(edge)
     for length in range(1, max(1, int(within)) + 1):
-        plans = [(*plan, name) for plan in plans for name in names]
-        for plan in plans:
-            if all(_runs_to(world, state, plan) == wanted for state, wanted in pairs):
-                return length
+        nxt = set()
+        for here in edge:
+            for name in names:
+                went = []
+                for one in here:
+                    try:
+                        went.append(world.act(one, name))
+                    except (ArithmeticError, KeyError, TypeError, ValueError):
+                        went = None
+                        break
+                if went is None:
+                    continue
+                there = tuple(went)
+                if there == wanted:
+                    return length
+                mark = tuple(_key(one) for one in there)
+                if mark not in seen:
+                    seen.add(mark)
+                    nxt.add(there)
+        edge = nxt
+        if not edge:
+            return None
     return None
 
 
