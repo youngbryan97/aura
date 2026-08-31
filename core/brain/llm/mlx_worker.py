@@ -4197,6 +4197,29 @@ def _runtime_prefill_step_size(model_path: str) -> int:
     return selected
 
 
+def _generation_stream_with_activity(
+    generate: Any,
+    model: Any,
+    tokenizer: Any,
+    *,
+    prompt: Any,
+    generation_kwargs: dict[str, Any],
+    watchdog: Any,
+    tap: Any = None,
+):
+    """Every decode pass refreshes liveness only when the model yields."""
+    with tap if tap is not None else contextlib.nullcontext():
+        responses = generate(model, tokenizer, prompt=prompt, **generation_kwargs)
+        try:
+            for response in responses:
+                watchdog.activity()
+                yield response
+        finally:
+            close = getattr(responses, "close", None)
+            if callable(close):
+                close()
+
+
 def _build_prefill_progress_callback(
     watchdog: Any,
     writer: Any,
@@ -8964,21 +8987,15 @@ def _mlx_worker_loop(
                                     # The context exits on normal completion, break, or error
                                     # (GeneratorExit), so model.model is always restored.
                                     def _gen_stream(tap, prompt_text, generation_kwargs):
-                                        if tap is not None:
-                                            with tap:
-                                                yield from stream_generate(
-                                                    model,
-                                                    tokenizer,
-                                                    prompt=prompt_text,
-                                                    **generation_kwargs,
-                                                )
-                                        else:
-                                            yield from stream_generate(
-                                                model,
-                                                tokenizer,
-                                                prompt=prompt_text,
-                                                **generation_kwargs,
-                                            )
+                                        yield from _generation_stream_with_activity(
+                                            stream_generate,
+                                            model,
+                                            tokenizer,
+                                            prompt=prompt_text,
+                                            generation_kwargs=generation_kwargs,
+                                            watchdog=watchdog,
+                                            tap=tap,
+                                        )
 
                                     use_speculative = _speculative_eligible(
                                         draft_model,
@@ -9007,7 +9024,6 @@ def _mlx_worker_loop(
                                         gen_prompt,
                                         clean_kwargs,
                                     ):
-                                        watchdog.activity()
                                         final_generation_response = response
                                         if first_token_latency_s is None:
                                             first_token_latency_s = max(

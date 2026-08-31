@@ -11,6 +11,66 @@ from core.brain.llm.mlx_client import MLXLocalClient
 from core.runtime.shutdown_coordinator import clear_shutdown_request
 
 
+def test_all_decode_passes_refresh_worker_activity_only_on_yield():
+    from core.brain.llm.mlx_worker import _generation_stream_with_activity
+
+    activity = []
+    watchdog = SimpleNamespace(activity=lambda: activity.append("token"))
+
+    def generate(model, tokenizer, *, prompt, max_tokens):
+        assert model == "model" and tokenizer == "tokenizer"
+        yield prompt
+        yield max_tokens
+
+    for prompt in ("initial", "answer-continuation"):
+        before = len(activity)
+        stream = _generation_stream_with_activity(
+            generate, "model", "tokenizer", prompt=prompt,
+            generation_kwargs={"max_tokens": 2}, watchdog=watchdog,
+        )
+        assert len(activity) == before
+        assert next(stream) == prompt
+        assert len(activity) == before + 1
+        assert list(stream) == [2]
+        assert len(activity) == before + 2
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_decode_activity_stream_releases_generator_and_tap(fails):
+    from core.brain.llm.mlx_worker import _generation_stream_with_activity
+
+    events = []
+
+    @contextlib.contextmanager
+    def tap():
+        events.append("entered")
+        try:
+            yield
+        finally:
+            events.append("exited")
+
+    def generate(*args, **kwargs):
+        try:
+            yield "first"
+            if fails:
+                raise ValueError("decode failed")
+            yield "second"
+        finally:
+            events.append("closed")
+
+    stream = _generation_stream_with_activity(
+        generate, None, None, prompt="prompt", generation_kwargs={},
+        watchdog=SimpleNamespace(activity=lambda: events.append("activity")), tap=tap(),
+    )
+    assert next(stream) == "first"
+    if fails:
+        with pytest.raises(ValueError, match="decode failed"):
+            next(stream)
+    else:
+        stream.close()
+    assert events == ["entered", "activity", "closed", "exited"]
+
+
 class _ProcessProbe:
     def __init__(self) -> None:
         self.alive = True
