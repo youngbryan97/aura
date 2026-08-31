@@ -1384,7 +1384,7 @@ def _semantic_surface_stop_ready(
     generated_tokens: int,
     minimum_tokens: int | None = None,
 ) -> bool:
-    """Stop a bounded decode once its visible contract is demonstrably complete."""
+    """Assess visible coverage; this heuristic must not terminate decoding."""
 
     if not bool(job.get("semantic_completion_contract", False)):
         return False
@@ -9256,26 +9256,12 @@ def _mlx_worker_loop(
                                             continue
 
                                         if (
-                                            token_count % 8 == 0
-                                            and _semantic_surface_stop_ready(
-                                                job,
-                                                semantic_surface,
-                                                generated_tokens=token_count,
-                                            )
-                                        ):
-                                            semantic_contract_satisfied = True
-                                            logger.info(
-                                                "✅ [WORKER] Semantic completion contract satisfied at token %d.",
-                                                token_count,
-                                            )
-                                            break
-
-                                        if (
                                             job_deadline_unix > 0.0
                                             and progress_now >= job_deadline_unix
                                         ):
                                             if (
-                                                not semantic_terminal_grace_active
+                                                not keep_going_while_it_is_working
+                                                and not semantic_terminal_grace_active
                                                 and _semantic_terminal_grace_eligible(
                                                     job,
                                                     semantic_surface,
@@ -9284,9 +9270,7 @@ def _mlx_worker_loop(
                                             ):
                                                 # The parent keeps up to six seconds for
                                                 # delivery. Borrow at most four of them
-                                                # and 24 tokens; the first boundary that
-                                                # satisfies the semantic observer stops
-                                                # the decode above.
+                                                # and 24 tokens for a natural ending.
                                                 semantic_terminal_grace_active = True
                                                 semantic_terminal_grace_deadline_unix = (
                                                     progress_now + 4.0
@@ -9340,16 +9324,15 @@ def _mlx_worker_loop(
                                                 # allowed to SAY rather than how long
                                                 # it may take: the absolute token
                                                 # ceiling above, the sentinel, and
-                                                # the semantic contract that stops it
-                                                # the moment the answer is complete.
+                                                # the model's native end-of-turn.
                                                 if not deadline_passed_while_working:
                                                     deadline_passed_while_working = True
                                                     logger.info(
                                                         "⏳ [WORKER] Past the deadline at token "
                                                         "%d and still producing; letting it "
                                                         "finish. Bounded by the token ceiling, "
-                                                        "the loop sentinel and the semantic "
-                                                        "contract, not by the clock.",
+                                                        "the loop sentinel and native EOS, "
+                                                        "not by the clock.",
                                                         token_count,
                                                     )
                                             else:
@@ -10708,13 +10691,8 @@ def _mlx_worker_loop(
                         role_continuation_hit=role_continuation_hit,
                         configured_stop_hit=configured_stop_hit,
                         hard_token_limit_hit=hard_token_limit_hit,
-                        # Preserve natural EOS as the causal stop event. The
-                        # semantic label is reserved for our early-stop
-                        # mechanism, not a post-hoc relabel of model behavior.
-                        semantic_contract_satisfied=bool(
-                            semantic_contract_satisfied
-                            and preliminary_stop_reason != "eos"
-                        ),
+                        # Coverage is an observation, never a causal stop event.
+                        semantic_contract_satisfied=False,
                         generated_tokens=total_generated_tokens,
                         max_tokens=max(
                             1,
@@ -11265,6 +11243,8 @@ def _mlx_worker_loop(
                                 sentinel_aborted = False
                                 abort_reason = ""
                                 semantic_contract_satisfied = False
+                                stop_hit = False
+                                response = None
                                 for response in stream_generate(model, tokenizer, prompt=prompt, **clean_kwargs):
                                     watchdog.activity()
                                     token_count += 1
@@ -11332,22 +11312,6 @@ def _mlx_worker_loop(
                                             stop_hit = True
                                             break
 
-                                    semantic_stop_ready = bool(
-                                        token_count % 8 == 0
-                                        and _semantic_surface_stop_ready(
-                                            job,
-                                            full_text,
-                                            generated_tokens=token_count,
-                                        )
-                                    )
-                                    if semantic_stop_ready:
-                                        semantic_contract_satisfied = True
-                                        logger.info(
-                                            "✅ [WORKER] Stream semantic completion contract "
-                                            "satisfied at token %d.",
-                                            token_count,
-                                        )
-
                                     # Absolute cap check precedes emission so the
                                     # 8193rd token is never visible.
                                     if token_count > 8192:
@@ -11396,8 +11360,23 @@ def _mlx_worker_loop(
                                             }
                                         )
 
-                                    if stop_hit or semantic_stop_ready:
+                                    if stop_hit:
                                         break
+                                stream_completion_state = _semantic_completion_receipt_state(
+                                    job,
+                                    full_text,
+                                    generated_tokens=token_count,
+                                    generation_stop_reason=(
+                                        "sentinel_abort" if sentinel_aborted
+                                        else "configured_stop" if stop_hit
+                                        else "hard_token_limit" if token_count > 8192
+                                        else "eos" if getattr(response, "finish_reason", "") == "stop"
+                                        else str(getattr(response, "finish_reason", "") or "")
+                                    ),
+                                )
+                                semantic_contract_satisfied = bool(
+                                    stream_completion_state["semantic_completion_satisfied"]
+                                )
                             finally:
                                 watchdog.stop_job()
                     finally:

@@ -64,3 +64,30 @@ output contracts and resource admission retain their independent roles.
 
 The forecast and completion regressions pass 45 tests. The desktop replay
 currently in progress uses `d1b2157fa`, before this forecast-only follow-up.
+
+## Replay: Completion Observer Stopped the Answer
+
+The desktop replay at `d1b2157fa`, request
+`aura-chat-56ea3125-1d72-4666-8794-a5b367ae88a2`, survived the former outer
+deadline. It then failed delivery completeness: the worker stopped at token
+1632 on `Semantic completion contract satisfied`, while the route reported
+`missing_requested_objective_facets` and delivered PARTIAL at 18:26:02 PDT.
+The requested concrete failure scenario was absent. Prefill took 35.56 seconds;
+all decode passes took 287.05 seconds; total stream time was 323.92 seconds.
+The answer also made questionable claims about async locks and contention.
+Surviving the timer is proven by this replay; complete or correct answering is not.
+
+Both worker loops now leave termination to model EOS, explicit stop contracts,
+cancellation, output/resource limits and fault detection. The coverage observer
+runs after decoding; a sentence boundary and apparently covered prefix no longer
+stop a model still producing an answer. Streamed completion receipts are assessed
+after the stream rather than requiring an observer-triggered abort. A post-hoc
+coverage result cannot relabel a token limit as a semantic stop.
+
+Focused continuation, real MLX/cache, termination and ownership tests: 96 passed.
+Smoke: 121 passed, one skip. Live replay of this additional repair remains open.
+
+Other live observations remain open: the background reimplementation workspace
+write lacked governed context; the Reflex lane failed an embedding-engine
+eviction; the UI described a phi proxy as a measurement out of one while showing
+1.13. Those are recorded findings, not fixed by this completion change.

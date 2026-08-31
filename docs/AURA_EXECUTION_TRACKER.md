@@ -52357,3 +52357,13 @@ and continued decodes share cache accounting, cancellation, progress and
 completion handling. Metrics include both passes. Focused regressions passed
 227 tests; source-matched desktop replay remains required. Details and open
 boundaries: `docs/evidence/2026-08-30-foreground-completion-ownership.md`.
+
+## Checkpoint 2026-08-30: Coverage Cannot Stop an Unfinished Answer
+
+Desktop replay on `d1b2157fa` survived the former deadline, but the worker's
+coverage observer stopped decoding at token 1632 and the route delivered PARTIAL.
+Both decode loops now assess coverage after generation instead of terminating
+on an apparently complete prefix. No prompt changed. Focused tests pass 96/96;
+smoke passes 121 with one skip. The next source-matched replay must still prove
+full delivery and answer quality. Timing ownership across tools and the outer
+cycle remains open; this checkpoint does not close the broader programme.

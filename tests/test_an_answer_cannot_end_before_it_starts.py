@@ -219,11 +219,24 @@ def test_semantic_terminal_guard_requires_all_typed_continuation_contracts(job) 
     assert _build_semantic_guard(job) is None
 
 
-def test_both_decode_loops_stop_when_the_typed_semantic_contract_is_complete() -> None:
-    source = WORKER.read_text(encoding="utf-8")
-    assert source.count("_semantic_surface_stop_ready(") >= 3
-    assert "Stream semantic completion contract" in source
-    assert "if stop_hit or semantic_stop_ready:" in source
+def test_neither_decode_loop_lets_coverage_heuristics_terminate_the_answer() -> None:
+    import ast
+
+    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
+    loops = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.For)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "response"
+    ]
+    assert len(loops) >= 2
+    for loop in loops:
+        assert not any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_semantic_surface_stop_ready"
+            for node in ast.walk(loop)
+        ), "A covered prefix is not evidence that the model has finished."
 
 
 def test_no_mask_indexes_by_the_second_axis() -> None:
