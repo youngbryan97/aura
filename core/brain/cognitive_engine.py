@@ -5604,6 +5604,7 @@ class CognitiveEngine:
             router_kwargs = {
                 "messages": messages,
                 "origin": f"desktop_quick_{origin}",
+                "cognitive_mode": mode.name.lower(),
                 "prefer_tier": "primary",
                 "foreground_request": True,
                 "protected_foreground_lane": True,

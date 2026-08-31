@@ -1760,8 +1760,9 @@ async def test_desktop_owner_cannot_be_reopened_by_mislabeled_dialogue_contract(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [CognitiveMode.REACTIVE, CognitiveMode.DELIBERATE])
 async def test_foreground_origin_derives_clean_completion_without_caller_labels(
-    monkeypatch,
+    monkeypatch, mode,
 ):
     from core.phases.response_contract import build_response_contract
 
@@ -1769,7 +1770,7 @@ async def test_foreground_origin_derives_clean_completion_without_caller_labels(
     visible = "Explain why exact cache ownership matters."
     state.cognition.current_objective = visible
     state.cognition.current_origin = "user"
-    state.cognition.current_mode = CognitiveMode.REACTIVE
+    state.cognition.current_mode = mode
     mislabeled = build_response_contract(state, visible, is_user_facing=False)
     retry_owners = []
 
@@ -1813,6 +1814,7 @@ async def test_foreground_origin_derives_clean_completion_without_caller_labels(
     assert len(router.calls) == 1
     assert router.calls[0]["clean_user_surface_contract"] is True
     assert router.calls[0]["semantic_completion_contract"] is True
+    assert router.calls[0]["cognitive_mode"] == mode.value
     assert retry_owners == [None]
 
 

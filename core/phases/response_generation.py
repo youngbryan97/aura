@@ -2523,6 +2523,7 @@ class ResponseGenerationPhase(BasePhase):
                         )
                     think_coro = router.think(
                         messages=messages,
+                        cognitive_mode=str(state.cognition.current_mode.value),
                         priority=1.0 if not is_background else 0.5,
                         origin=f"response_generation_{origin}",
                         purpose="reply" if not is_background else "background",
@@ -3293,6 +3294,7 @@ class ResponseGenerationPhase(BasePhase):
                 retry_timeout = min(35.0, max(12.0, request_timeout * 0.5))
                 retried = await router.think(
                     messages=retry_messages,
+                    cognitive_mode=str(state.cognition.current_mode.value),
                     priority=1.0 if not is_background else 0.5,
                     origin=f"response_generation_{origin}",
                     purpose="reply" if not is_background else "background",

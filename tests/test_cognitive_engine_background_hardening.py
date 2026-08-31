@@ -1079,8 +1079,9 @@ async def test_cognitive_engine_desktop_memory_state_contract_uses_canonical_evi
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [ThinkingMode.FAST, ThinkingMode.SLOW, ThinkingMode.DEEP])
 async def test_cognitive_engine_desktop_quick_includes_live_mind_context_without_payload_duplication(
-    monkeypatch,
+    monkeypatch, mode,
 ):
     engine = CognitiveEngine()
     state = AuraState.default()
@@ -1102,7 +1103,7 @@ async def test_cognitive_engine_desktop_quick_includes_live_mind_context_without
     thought = await engine._run_thinking_loop(
         state,
         "You with me?",
-        ThinkingMode.FAST,
+        mode,
         "desktop_ui",
         context={
             "desktop_quick_reply_contract": True,
@@ -1127,6 +1128,7 @@ async def test_cognitive_engine_desktop_quick_includes_live_mind_context_without
     )
 
     assert thought.content.startswith("I am answering from the live mind path")
+    assert captured["cognitive_mode"] == mode.name.lower()
     assert captured["skip_runtime_payload"] is True
     grounding_prompt = captured["messages"][-2]["content"]
     assert "LIVE MIND CONTEXT" in grounding_prompt

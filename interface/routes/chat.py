@@ -6827,9 +6827,6 @@ async def _run_cognitive_engine_chat_turn(
     contract_binding_finished_at = time.perf_counter()
     expression_frame_ms = 0.0
     if compact_desktop_chat_contract:
-        from core.brain.types import ThinkingMode
-
-        mode = ThinkingMode.FAST
         existing_style_contract = str(context.get("response_style_contract") or "").strip()
         live_reply_token_budget = int(context.get("max_tokens") or 896)
         expression_frame_started_at = time.perf_counter()

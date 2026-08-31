@@ -15557,7 +15557,8 @@ async def test_compound_choice_reaches_engine_as_deep_self_contained_turn(monkey
 
 
 @pytest.mark.asyncio
-async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch):
+@pytest.mark.parametrize("selected_mode", ["FAST", "SLOW", "DEEP"])
+async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch, selected_mode):
     """The conversation lane is the one lane that MUST reuse KV.
 
     Its prompt is the whole conversation, so re-prefilling from token zero
@@ -15567,15 +15568,20 @@ async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch):
     lane's entry too) from an era when the 32B's cache budget was zero anyway.
     """
     from core.providers import engine_connection_pool as pool_module
+    from core.brain.types import ThinkingMode
     from interface.routes import chat as chat_routes
 
     user_message = "What's the weather like where you are?"
     answer = "I don't have a window, but the host reports a warm chassis today."
     calls = []
+    modes = []
+    expected_mode = ThinkingMode[selected_mode]
+    monkeypatch.setattr(chat_routes, "_select_cognitive_chat_mode", lambda *_args: expected_mode)
 
     class _FakeCognitiveEngine:
         async def think(self, objective, context=None, **kwargs):
             calls.append(dict(context or {}))
+            modes.append(kwargs.get("mode"))
             return SimpleNamespace(
                 content=answer, metadata=_bound_live_mind_controls_metadata()
             )
@@ -15618,6 +15624,7 @@ async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch):
     )
 
     assert len(calls) == 1
+    assert modes == [expected_mode]
     context = calls[0]
     assert context.get("compact_desktop_chat_contract") is True, (
         "this test is only meaningful on the compact desktop chat path"
@@ -15697,7 +15704,7 @@ def test_bounded_present_state_partition_stays_on_compact_conversation_lane():
         )
         is True
     )
-    # Compact ownership subsequently normalizes the selected mode to FAST.
+    # Compact transport preserves the independently selected cognitive mode.
     assert chat_routes._select_cognitive_chat_mode(
         user_message, user_message
     ) is ThinkingMode.DEEP
