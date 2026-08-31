@@ -20,13 +20,12 @@ about any of them; it knows what she did and what happened next.
 from __future__ import annotations
 
 import json
-
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.perception.what_is_there import EMPTY_CELL, Arrangement, arranged
+from core.perception.what_is_there import Arrangement, arranged
 
 logger = logging.getLogger("Aura.Responds")
 
@@ -96,7 +95,7 @@ class Responsive:
         }
 
     @classmethod
-    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> "Responsive":
+    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> Responsive:
         """Where she found things happen last time, discounted.
 
         A page can be rebuilt between visits, so what she knew about where it
@@ -231,8 +230,14 @@ def _middle(values: Sequence[float]) -> tuple[float, float]:
     return (kept[0], kept[-1])
 
 
-def _cells(observation: dict[str, Any]) -> dict[tuple[int, int], str]:
-    """The reading as text by position, rounded so a pixel of drift is not a change."""
+def places_and_text(observation: dict[str, Any]) -> dict[tuple[int, int], str]:
+    """The reading as text by position, rounded so a pixel of drift is not a change.
+
+    Public because anything comparing one reading against the next has to use
+    the same places these do. Two callers rounding differently would produce
+    two sets that cannot be intersected, and the mistake would look like a
+    board with nothing in it rather than like a bug.
+    """
     found: dict[tuple[int, int], str] = {}
     for region in observation.get("layout") or []:
         text = str(region.get("text") or "").strip()
@@ -261,7 +266,7 @@ def noticed(
     it was changing on its own, and a page whose advertising animates as
     often as the task does cannot be separated any other way.
     """
-    was, now = _cells(before), _cells(after)
+    was, now = places_and_text(before), places_and_text(after)
     if not was and not now:
         return state
     state.acts += 1
@@ -295,7 +300,7 @@ def noticed(
     return state
 
 
-def _changes_anyway(state: "Responsive | None") -> set[tuple[int, int]]:
+def _changes_anyway(state: Responsive | None) -> set[tuple[int, int]]:
     """Positions that have changed on every comparison so far.
 
     A clock, a tab strip, a rotating banner. They are not evidence that
@@ -316,7 +321,7 @@ def _changes_anyway(state: "Responsive | None") -> set[tuple[int, int]]:
 def within(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
-    state: "Responsive | None" = None,
+    state: Responsive | None = None,
 ) -> str:
     """The reading, kept to the part that answers to her.
 

@@ -2002,11 +2002,13 @@ async def pursue_on_screen(
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.the_thing_itself import the_thing_itself
+    from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import (
         Responsive,
         describe,
         noticed,
+        places_and_text,
         the_places_that_answer,
         what_is_there,
         within,
@@ -2438,7 +2440,14 @@ async def pursue_on_screen(
     anchor: dict[str, str] = {"page": expect_page.strip(), "app": target_app.strip()}
     #: Where her actions have been having their effects.
     responds: dict[str, Any] = {
-        "state": Responsive.from_memory(knew.get("responds") or {}, TRUST_CARRIED_OVER)
+        "state": Responsive.from_memory(knew.get("responds") or {}, TRUST_CARRIED_OVER),
+        # Answering to her is not the same as being the thing. A score, a move
+        # counter and a clock all answer to her, and in one frame they look
+        # exactly like a board. What a board does that none of them do is show
+        # her values that were already in it.
+        "moving": MovesWithinItself.from_memory(
+            knew.get("moves_within") or {}, TRUST_CARRIED_OVER
+        ),
     }
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
@@ -2546,6 +2555,20 @@ async def pursue_on_screen(
         # board does not have, and a rule about sliding along a row cannot
         # match rows that are not the board's.
         answering = the_places_that_answer(responds["state"])
+        # And of those, the ones whose contents move about rather than arrive.
+        #
+        # LIVE 2026-08-31, on the native app with a clean reading of one
+        # window: the tiles landed on columns 0, 3, 4 and 6 of a nine-column
+        # lattice, because a score and a title answer to her too and their
+        # positions were defining columns the board has not got. Five attempts
+        # to tell them apart inside one frame all failed, and had to: in one
+        # picture a board and a score panel are the same object.
+        moving = responds["moving"]
+        if moving.settled():
+            itself = moving.the_thing_itself()
+            narrowed = (answering & itself) if answering else itself
+            if narrowed:
+                answering = narrowed
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         # The thing she is acting on, not the page it is drawn on.
@@ -2744,6 +2767,12 @@ async def pursue_on_screen(
             # on its own, and a page whose advertising animates as often as
             # the task does cannot be separated any other way.
             if pending["watched"]:
+                # The same places `noticed` uses, so the two sets can be
+                # intersected at all.
+                responds["moving"].saw(
+                    places_and_text(pending["watched"]),
+                    places_and_text(observation),
+                )
                 noticed(
                     responds["state"],
                     pending["watched"],
@@ -3541,6 +3570,10 @@ async def pursue_on_screen(
         this_world,
         {
             "responds": responds["state"].as_memory(),
+            # Which of the places that answer to her are the thing itself,
+            # rather than a score reporting on it. Kept, because working it
+            # out costs her several moves of a fresh game every time.
+            "moves_within": responds["moving"].as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
