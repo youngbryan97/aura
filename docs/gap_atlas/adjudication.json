@@ -2,6 +2,7 @@
   "entries": {
     "001": {
       "bar": "A held-out latency/error prediction beats a candidate-count-only baseline on Aura's own recall traces.",
+      "campaign_run": "800 real recalls through core.memory.hybrid_store's retrieve over stores of 200 to 2,400 entries, timed on a monotonic clock. The fitted law explains 90.5% of the variance on 560 training recalls and, on 240 it never saw, predicts with an RMSE of 0.000324s against 0.000347s for candidate count alone - 6.4% better - and 0.001379s for predicting the mean. Doubling the candidate count moves the prediction up, which is the direction that would refute it if it were wrong (docs/evidence/retrieval_latency.json)",
       "card_subject": "ACT-R treats latency as part of the cognitive theory and fits model behavior to human timing.",
       "closed_by": [
         "core/science/retrieval_latency.py",
@@ -11,8 +12,8 @@
         "core/cognition/actr_activation.py",
         "core/ontogeny/calibration.py"
       ],
-      "note": "",
-      "outstanding": "fit core.science.retrieval_latency over 40+ real recalls and check the intervention direction",
+      "note": "The margin over candidate count is small because the two predictors are collinear here: this recall path scans every entry once per query word, so embedding_calls is query length times candidates. What the law adds over the baseline is that interaction.",
+      "outstanding": "",
       "plan": "Aura is not a human-subject lab. Transferable half is an Aura-native latency law fitted to her own retrieval work, registered with provenance.",
       "status": "closed",
       "verdict": "PARTIAL",

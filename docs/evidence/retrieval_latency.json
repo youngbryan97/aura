@@ -1,0 +1,43 @@
+{
+  "card": "001",
+  "claim_boundary": "core.memory.hybrid_store episodic recall on synthetic content, timed on this host; a latency law for that recall path, not for every store Aura reads",
+  "config": {
+    "held_out": 240,
+    "recalls": 800,
+    "seed": 1618033,
+    "store_sizes": [
+      200,
+      600,
+      1200,
+      2400
+    ],
+    "train": 560
+  },
+  "held_out": {
+    "candidates_only_rmse": 0.00034651,
+    "improvement": 0.0643,
+    "law_beats_candidates_only": true,
+    "law_rmse": 0.00032423,
+    "predict_the_mean_rmse": 0.001379
+  },
+  "intervention": {
+    "direction": "up",
+    "from_candidates": 600,
+    "predicted_after": 0.001907169252547978,
+    "predicted_before": 0.0010398687057900184,
+    "predicted_delta": 0.0008673005467579595,
+    "to_candidates": 1200
+  },
+  "law": {
+    "backend": "hybrid_episodic",
+    "explains_anything": true,
+    "intercept": 1.3736397096209549e-05,
+    "n": 560,
+    "per_candidate": 1.445500911263266e-06,
+    "per_embedding_call": 6.617990080660385e-08,
+    "per_store_hop": 0.0,
+    "r_squared": 0.9048101560961993
+  },
+  "median_seconds": 0.001506,
+  "schema": "aura.retrieval_latency.v1"
+}

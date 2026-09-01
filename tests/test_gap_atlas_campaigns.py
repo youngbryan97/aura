@@ -564,3 +564,46 @@ def test_the_developmental_evidence_carries_all_four_arms():
     ]
     assert payload["partner"]["transfers"]
     assert not payload["partner"]["per_context_variant_transfers"]
+
+
+# ── what recall costs, on Aura's own recall ───────────────────────────────
+#
+# Card 001. The traces are real: the campaign drives
+# core.memory.hybrid_store's retrieve and times it.
+
+
+def test_the_latency_campaign_times_the_real_recall_path():
+    import asyncio
+
+    from tools.campaigns.retrieval_latency_campaign import _collect
+
+    rows = asyncio.run(_collect(store_sizes=[100, 300], recalls=40, seed=7))
+    assert len(rows) >= 30
+    assert all(o.seconds > 0 for o in rows), "a recall that took no time was not timed"
+    assert all(o.backend == "hybrid_episodic" for o in rows)
+    # A bigger store costs more, which is the thing the law is about.
+    small = [o.seconds for o in rows if o.candidates == 100]
+    large = [o.seconds for o in rows if o.candidates == 300]
+    assert sum(large) / len(large) > sum(small) / len(small)
+
+
+def test_the_law_beats_candidate_count_alone_on_held_out_recalls():
+    payload = _sealed("retrieval_latency.json")
+    assert payload["card"] == "001"
+    held = payload["held_out"]
+    assert held["law_beats_candidates_only"]
+    assert held["law_rmse"] < held["candidates_only_rmse"]
+    # Both beat predicting the mean, which is the floor neither may fall to.
+    assert held["candidates_only_rmse"] < held["predict_the_mean_rmse"]
+    assert payload["config"]["held_out"] > 0
+    assert payload["law"]["explains_anything"]
+
+
+def test_the_law_predicts_the_right_direction_under_intervention():
+    """A law whose predicted direction is wrong is refuted by its own
+    coefficients, whatever its fit."""
+    payload = _sealed("retrieval_latency.json")
+    intervention = payload["intervention"]
+    assert intervention["to_candidates"] > intervention["from_candidates"]
+    assert intervention["direction"] == "up"
+    assert intervention["predicted_delta"] > 0
