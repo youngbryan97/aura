@@ -397,8 +397,12 @@
       "bar": "Latency and memory stay bounded over millions of firings while useful old procedures survive.",
       "plan": "ChunkStore.prune already implements the EV retraction. Run the accelerated lifetime with distribution shift against the W5 registry.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/continual_metrics.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "027": {
       "verdict": "PARTIAL",
@@ -645,8 +649,12 @@
       "bar": "Accelerated lifetime keeps critical knowledge inside bounded storage.",
       "plan": "Word ecology and keep-value already do this for two stores. Generalise retention value to all learned artifacts (W9).",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/continual_metrics.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "043": {
       "verdict": "PARTIAL",
@@ -792,8 +800,12 @@
       "bar": "Meta control produces held-out capability gains at equal compute.",
       "plan": "Matched meta/no-meta arms through the existing lesion registry and matched_budget.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "053": {
       "verdict": "PARTIAL",
@@ -818,8 +830,12 @@
       "bar": "Selective dissociations are reproducible and mechanistically explained.",
       "plan": "Performance-without-report and report-without-performance is directly testable with the existing lesion registry.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "055": {
       "verdict": "PARTIAL",
@@ -1023,8 +1039,12 @@
       "bar": "Affect improves exploration, recovery and allocation without paralysis.",
       "plan": "Matched affect lesions over long horizons through the existing registry.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "069": {
       "verdict": "PARTIAL",
@@ -1066,8 +1086,12 @@
       "bar": "One result favours one mechanism and falsifies another implementation.",
       "plan": "Aura implements GWT, IIT-like and active-inference constructs simultaneously and scores them additively. Design a discriminating perturbation.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "072": {
       "verdict": "PARTIAL",
@@ -1078,8 +1102,12 @@
       "bar": "Older Aura outperforms reset Aura on later stages because of prior structure.",
       "plan": "The decisive experiment (184). Staged curriculum spanning perception, causality, social, skill, metacognition, representation.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "073": {
       "verdict": "PARTIAL",
@@ -1287,8 +1315,12 @@
       "bar": "Fine-grained lesions produce reproducible selective deficits and quantify redundancy.",
       "plan": "LesionController is strong and subsystem-scale. Extend channels to projections and latent slices.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "087": {
       "verdict": "ABSENT",
@@ -1379,8 +1411,12 @@
       "bar": "Subsystem combinations demonstrate positive held-out synergy or are merged or removed.",
       "plan": "S(A,B) = perf(A+B) - max(perf(A),perf(B)) at matched compute. The matched-budget machinery to compute it honestly already exists.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "094": {
       "verdict": "PARTIAL",
@@ -1762,8 +1798,12 @@
       "bar": "Earlier-stage mastery causally improves later learning against a shuffled curriculum.",
       "plan": "The shuffled control is the whole test and is cheap.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "122": {
       "verdict": "PARTIAL",
@@ -1784,8 +1824,12 @@
       "bar": "Prior development improves first-N-episode performance on unseen families against reset Aura.",
       "plan": "Same experiment as 184, restricted to environments.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "124": {
       "verdict": "PARTIAL",
@@ -1850,8 +1894,12 @@
       "bar": "V(n+1) beats V(n) on frozen held-out environments with no safety regression.",
       "plan": "Promotion gates exist and are model-scoped. Widen to developmental checkpoints.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "130": {
       "verdict": "PROCESS",
@@ -2529,8 +2577,12 @@
       "bar": "The grown-reset gap grows with experience and survives matched memory, context and compute controls.",
       "plan": "THE decisive experiment. Everything in W1-W8 exists to make its causal chain auditable.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "185": {
       "verdict": "ABSENT",
@@ -2540,8 +2592,12 @@
       "bar": "Later checkpoints beat earlier ones on transfer tasks, not remembered ones.",
       "plan": "Checkpoint one lineage at several ages; evaluate frozen suites with no update during evaluation.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "186": {
       "verdict": "ABSENT",
@@ -2590,8 +2646,12 @@
       "bar": "Every retained organ has a capability contribution report or is classified as non-load-bearing.",
       "plan": "Full vs lesioned vs compute-matched vs random-state, per organ. The machinery exists; the coverage does not.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "190": {
       "verdict": "PARTIAL",
@@ -2738,8 +2798,12 @@
       "bar": "High-value skills are retained, harmful ones retired, and decision latency stays bounded as experience grows.",
       "plan": "Word ecology and chunk EV are two working economies for two stores. Generalise to all learned artifacts.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/continual_metrics.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "201": {
       "verdict": "ABSENT",
@@ -2749,8 +2813,12 @@
       "bar": "Developmental gains occur with bounded negative backward transfer and rollback catches damaging updates.",
       "plan": "interference_battery.py is the seed. Report BWT and FWT after every learning block.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/continual_metrics.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "202": {
       "verdict": "PARTIAL",
@@ -2761,8 +2829,12 @@
       "bar": "An offline phase improves future tasks more than a replay-only control without corrupting old competence.",
       "plan": "One consolidation epoch: replay, extract, distil, prune, safety regression.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/continual_metrics.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "203": {
       "verdict": "PARTIAL",
@@ -2795,8 +2867,12 @@
       "bar": "Claimed signatures persist as mechanism-specific effects after controlling for language output quality.",
       "plan": "Substrate-only endpoints and blinded lesions. Aura already retracted two claims for exactly this confound.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "206": {
       "verdict": "PARTIAL",
@@ -2806,8 +2882,12 @@
       "bar": "Some theories lose support and are simplified or removed when predictions fail.",
       "plan": "Formalise per-theory predictions and compute model evidence on shared perturbations.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "207": {
       "verdict": "ABSENT",
@@ -4830,8 +4910,12 @@
       "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
       "plan": "Unseen-environment generalisation. Card 123.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "A6.5": {
       "verdict": "PARTIAL",
@@ -4852,8 +4936,12 @@
       "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
       "plan": "Generation-to-generation improvement with promotion gates. Card 129.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/developmental_campaign.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "A6.7": {
       "verdict": "PARTIAL",
