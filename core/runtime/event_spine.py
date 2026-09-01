@@ -321,6 +321,11 @@ class Projection:
             mark = self._checkpoints.get(name)
         if mark is None:
             raise KeyError(f"no checkpoint named {name!r}")
+        # Fold everything outstanding first. A revert moves ``_applied`` past
+        # every event up to it, so an event appended and not yet advanced would
+        # be skipped for good — and in the per-lane case that is an event in a
+        # lane nobody asked to revert.
+        self.advance()
         restored = self.at(mark.seq, lanes=lanes)
         # One pass over the events since the checkpoint, outside the
         # projection lock. The first version scanned the whole log once per

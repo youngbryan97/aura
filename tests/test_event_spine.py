@@ -407,6 +407,26 @@ def test_reverting_reads_the_log_once_not_once_per_owned_key():
     finally:
         log.events = original  # type: ignore[method-assign]
 
-    # One pass to rebuild the state, one to see which kinds moved. Five owned
-    # keys across two reducers must not mean five more.
-    assert reads <= 2, f"the log was scanned {reads} times"
+    # Three passes, each for a different reason: fold what is outstanding,
+    # rebuild the state at the checkpoint, see which kinds moved. Five owned
+    # keys across two reducers must not add five more, which is what the
+    # first version did and what this bound is here to catch.
+    assert reads <= 3, f"the log was scanned {reads} times"
+
+
+def test_reverting_does_not_drop_an_event_nobody_had_folded_yet():
+    """A revert moves the applied mark past everything up to it, so anything
+    appended and not yet advanced would be skipped for good."""
+    log, projection = _steering_projection()
+    log.append("said", {"text": "do the thing"}, lane=Lane.CONVERSATION)
+    log.append("work.step", {"step": "a0"}, lane=Lane.WORK)
+    projection.advance()
+    projection.checkpoint("mark", lane=Lane.WORK)
+
+    # Appended, deliberately not advanced.
+    log.append("said", {"text": "actually, the other thing"}, lane=Lane.CONVERSATION)
+    log.append("work.step", {"step": "a1"}, lane=Lane.WORK)
+
+    after = projection.revert("mark", lanes=(Lane.WORK,))
+    assert len(after["said"]) == 2, "the un-advanced conversation event was dropped"
+    assert len(after["steps"]) == 1, "the work lane was not reverted"
