@@ -134,8 +134,13 @@
       "bar": "A consequential action reconstructs as a complete causal DAG from one trace bundle.",
       "plan": "Receipts, bus ring, tracer and action log exist; none is a causal parent graph. W3 keystone.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "012": {
       "verdict": "OVERSTATED",
@@ -215,8 +220,12 @@
       "bar": "A chunk fires under paraphrase when causal supports match and fails when a support is counterfactually removed.",
       "plan": "Generalization uses episode features and lesions, not read-dependencies. Compute the minimal support subgraph from the W3 DAG.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "019": {
       "verdict": "PARTIAL",
@@ -276,8 +285,12 @@
       "bar": "A hidden or missing observation cannot become a causal negative precondition.",
       "plan": "something_she_cannot_see.py is the closest analogue. Make epistemic status of absence first-class in compiled traces (W3 read-dependencies record UNOBSERVED distinctly from OBSERVED-FALSE).",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "024": {
       "verdict": "PARTIAL",
@@ -324,8 +337,13 @@
       "bar": "Root-cause a failed action without multi-log manual grep.",
       "plan": "Falls out of W3: one query over the event DAG.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "028": {
       "verdict": "PARTIAL",
@@ -750,8 +768,13 @@
       "bar": "Every consequential action traces to one cycle snapshot and its learning updates.",
       "plan": "Two phase loops with different clocks. An envelope, not a rewrite: cycle id on the W3 event.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "061": {
       "verdict": "PARTIAL",
@@ -762,8 +785,12 @@
       "bar": "Lesions show the broadcast contributes to episodic, procedural, perceptual and attentional learning.",
       "plan": "Workspace winners already influence cognition. Emit one LearningBroadcast carrying content, context, valence, prediction error and provenance.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "062": {
       "verdict": "PARTIAL",
@@ -803,8 +830,13 @@
       "bar": "All major decision organs consume the same snapshot hash.",
       "plan": "AuraNow, world state and workspace overlap. One immutable SituationSnapshot with a content hash (W3).",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "065": {
       "verdict": "PARTIAL",
@@ -862,8 +894,12 @@
       "bar": "One novel event updates multiple learning modes coherently.",
       "plan": "Consolidation coordinator keyed by the W3 evidence id.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "070": {
       "verdict": "PARTIAL",
@@ -910,8 +946,13 @@
       "bar": "Bottlenecks localise to phases and adaptive scheduling improves throughput.",
       "plan": "AURA_PASS_TRACE already names phases. Add phase latency and backpressure channels.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "074": {
       "verdict": "PARTIAL",
@@ -2092,8 +2133,12 @@
       "bar": "A compiled rule omits irrelevant context while keeping every necessary causal condition across held-out variants.",
       "plan": "Read-dependency capture on the W3 event, then the minimal support subgraph.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "177": {
       "verdict": "ABSENT",
@@ -3143,8 +3188,13 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Episodic memory tied to the decision cycle, so an episode has a cycle id. Card 060.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "A12.11": {
       "verdict": "PARTIAL",
@@ -3176,8 +3226,13 @@
       "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
       "plan": "Trace and explain tooling. Card 027.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "A12.14": {
       "verdict": "PARTIAL",
@@ -3286,8 +3341,12 @@
       "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
       "plan": "Explanation-based summarisation of a resolution trace. Card 018.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "A12.6": {
       "verdict": "PARTIAL",
@@ -3319,8 +3378,12 @@
       "bar": "Mutate upstream facts in property tests and require all/downstream derived objects to invalidate correctly.",
       "plan": "Support and dependency semantics. Card 176.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "A12.9": {
       "verdict": "PARTIAL",
@@ -3331,8 +3394,13 @@
       "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
       "plan": "Working memory as THE canonical situation. Card 064.",
       "wave": "W3",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "core/cognition/situation.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "A13.1": {
       "verdict": "PARTIAL",
