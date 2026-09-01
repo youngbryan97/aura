@@ -575,8 +575,12 @@
       "bar": "Temporal rules learned from event history are used in unrelated planning.",
       "plan": "Add before/after/interval/recurrence/lag operators with evidence rules to AtomSpace and MeTTa.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/temporal.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "038": {
       "verdict": "PARTIAL",
@@ -587,8 +591,12 @@
       "bar": "A learned symbolic rule quantifies over and executes an operation without translation glue.",
       "plan": "GroundedOp already binds symbols to executables. Widen it to the W5 Operator so tools, skills and Doings are the same term.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/temporal.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "039": {
       "verdict": "ABSENT",
@@ -759,8 +767,12 @@
       "bar": "Ablations quantify each proposal source and all action competence accumulates through one interface.",
       "plan": "Habits, planner, cortex, rules, world model and skills propose through different paths. One hub before governance, governance unchanged.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_hub.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "050": {
       "verdict": "PARTIAL",
@@ -1391,8 +1403,12 @@
       "bar": "Ill-typed learned programs are rejected before execution; typed composition gives reusable polymorphic operators.",
       "plan": "Atom types are strings. A compact parametric type layer over operators, effects and evidence.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_hub.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "092": {
       "verdict": "PARTIAL",
@@ -2452,8 +2468,12 @@
       "bar": "Full Aura decomposes unseen tasks better than the 27B baseline and improves with experience.",
       "plan": "Compile recurring decompositions into the W5 Procedure registry; the improvement-with-experience half is the developmental claim.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/trace_compiler.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "168": {
       "verdict": "PARTIAL",
@@ -3865,8 +3885,12 @@
       "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
       "plan": "Production rules as constrained semantics. Card 091's type layer.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_hub.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "A12.17": {
       "verdict": "PARTIAL",
@@ -4045,8 +4069,12 @@
       "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
       "plan": "An automatic exploration curriculum driven by what she cannot yet do. Card 219.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A13.10": {
       "verdict": "CAPABILITY",
@@ -4056,8 +4084,13 @@
       "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
       "plan": "Speed and coverage multipliers are a result, not a mechanism.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "core/cognition/automaticity.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.11": {
       "verdict": "PARTIAL",
@@ -4067,8 +4100,12 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "Curriculum, library and critic as three separable components.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/trace_compiler.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "A13.12": {
       "verdict": "PARTIAL",
@@ -4078,8 +4115,12 @@
       "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
       "plan": "Control primitives separated from learned programs. Card 067.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/trace_compiler.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "A13.13": {
       "verdict": "PARTIAL",
@@ -4089,8 +4130,12 @@
       "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
       "plan": "Prerequisite staging. Card 121.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A13.14": {
       "verdict": "PARTIAL",
@@ -4179,8 +4224,12 @@
       "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
       "plan": "Environment feedback into the skill's own success record.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/trace_compiler.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "A13.6": {
       "verdict": "PARTIAL",
@@ -4190,8 +4239,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Self-verification: the skill checks its own effect. Card 195.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/trace_compiler.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "A13.7": {
       "verdict": "PARTIAL",
@@ -4217,8 +4270,12 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Checkpointable curriculum and skills. Follows W12.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A13.9": {
       "verdict": "PARTIAL",
@@ -4228,8 +4285,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Transfer to a new world with the library intact. Card 123.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A2.1": {
       "verdict": "CAPABILITY",
