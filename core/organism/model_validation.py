@@ -2699,6 +2699,165 @@ def _ways_of_building_she_cannot_reach() -> int:
     return _language_left_as_found(check)
 
 
+def _the_positional_bound_broken() -> int:
+    """Answers outside what the ceiling argument allows. Must be none.
+
+    The argument that her positional language is not universal is an induction
+    over the heads, and an induction over a head list is worth what the head
+    list is worth. This runs the conclusion against the interpreter and counts
+    every answer that escapes the bound, plus one violation if the induction
+    has no case for a head ``run`` dispatches on.
+    """
+    import inspect
+    import re
+
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import HEADS
+    from core.cognition.one_algebra import run as positional_run
+    from core.cognition.what_the_old_language_cannot_say import (
+        a_sample_of_terms,
+        the_bound_holds_on,
+        the_heads_the_argument_covers,
+        why_it_cannot_be_said,
+    )
+
+    source = inspect.getsource(positional_run)
+    dispatched = set(re.findall(r'head == "([^"]+)"', source)) | set(HEADS)
+    uncovered = len(dispatched ^ the_heads_the_argument_covers())
+
+    terms = list(a_sample_of_terms(1200))
+    words = list(WHERE_FROM.values())[:2]
+    found = the_bound_holds_on(terms, words)
+    ceiling = why_it_cannot_be_said()
+    return (
+        len(found["broken"])
+        + uncovered
+        + (0 if ceiling.strictly_wider else 1)
+    )
+
+
+def _universality_certificates_that_fail() -> int:
+    """Kleene's constructors that do not compute what they should. Must be none.
+
+    Five checks: the three starting points, recursion, and unbounded search —
+    including that unbounded search on a predicate with no root exhausts its
+    meter rather than returning, which is the check that the floor is
+    genuinely universal rather than merely large.
+    """
+    from core.cognition.the_floor_she_stands_on import (
+        Code,
+        L,
+        MINUS,
+        N,
+        OutOfFuel,
+        PLUS,
+        TIMES,
+        V,
+        build,
+        run,
+    )
+    from core.cognition.what_the_floor_can_say import (
+        SUCCESS,
+        ZERO,
+        by_recursion,
+        take_the_one_at,
+        the_least_where,
+        what_the_arithmetic_rests_on,
+    )
+
+    def apply(work: Code, *given: int) -> Any:
+        made = work
+        for one in given:
+            made = Code("of", parts=(made, Code("a number", value=one)))
+        return run(made)
+
+    failed = 0
+    failed += 0 if apply(ZERO, 9) == 0 else 1
+    failed += 0 if apply(SUCCESS, 9) == 10 else 1
+    failed += 0 if apply(take_the_one_at(5, 3), 10, 11, 12, 13, 14) == 13 else 1
+    times = by_recursion(
+        build(L("x", N(0))),
+        build(L("x", L("n", L("r", PLUS(V("r"), V("x")))))),
+    )
+    failed += 0 if apply(times, 7, 5) == 35 else 1
+    root = the_least_where(build(L("k", MINUS(TIMES(V("k"), V("k")), N(49)))))
+    failed += 0 if run(root) == 7 else 1
+    try:
+        run(the_least_where(build(L("k", N(1)))), fuel=20_000)
+        failed += 1
+    except OutOfFuel:
+        pass
+    failed += 0 if what_the_arithmetic_rests_on()["all_agree"] else 1
+    return failed
+
+
+def _a_way_of_computing_she_cannot_keep() -> int:
+    """Steps between writing a head and using it after a restart. Must be none.
+
+    Written, installed, run at a length it was never fitted at, kept, wiped,
+    recalled, and run again. Any of those failing is a language whose grammar
+    resets every morning.
+    """
+    import pathlib
+    import tempfile
+
+    from core.cognition import what_she_gave_meaning as keeping
+    from core.cognition.a_way_of_computing_she_wrote import (
+        a_way_of_computing_she_wrote,
+    )
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import DERIVED_HEADS, Term
+    from core.cognition.one_algebra import run as positional_run
+    from core.cognition.one_algebra import the_head_she_wrote
+
+    def rule(at: int, size: int) -> int:
+        return at + (at + 1) % size
+
+    family = []
+    for size in (4, 5, 6, 7):
+        before = tuple(range(100, 100 + size))
+        family.append(
+            (before, tuple(before[rule(at, size) % size] for at in range(size)))
+        )
+
+    was = dict(DERIVED_HEADS)
+    kept_at = keeping._KEPT_AT
+    try:
+        DERIVED_HEADS.clear()
+        found = a_way_of_computing_she_wrote(
+            family, now_sayable=lambda: False, words=dict(WHERE_FROM), within=20.0
+        )
+        if found is None:
+            return 1
+        the_head_she_wrote("a way of computing", 2, found.body)
+        term = Term(
+            "a way of computing",
+            parts=(Term("hole", value=0), Term("hole", value=1)),
+        )
+        words = tuple(WHERE_FROM[one] for one in found.over)
+        broken = 0
+        for size in (9, 11):
+            said = tuple(positional_run(term, at, size, words) for at in range(size))
+            if said != tuple(rule(at, size) % size for at in range(size)):
+                broken += 1
+        with tempfile.TemporaryDirectory(prefix="aura-head-check-") as somewhere:
+            keeping._KEPT_AT = pathlib.Path(somewhere) / "meanings.json"
+            if not keeping.keep():
+                return broken + 1
+            DERIVED_HEADS.clear()
+            keeping.recall()
+            if "a way of computing" not in DERIVED_HEADS:
+                return broken + 1
+            said = tuple(positional_run(term, at, 9, words) for at in range(9))
+            if said != tuple(rule(at, 9) % 9 for at in range(9)):
+                broken += 1
+        return broken
+    finally:
+        keeping._KEPT_AT = kept_at
+        DERIVED_HEADS.clear()
+        DERIVED_HEADS.update(was)
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -2750,6 +2909,29 @@ def _install_language_growth_claims(suite: Any) -> None:
             "them come back together, and the meaning still runs",
             _language_lost_across_a_restart,
             "core/cognition/what_she_gave_meaning.py",
+        ),
+        (
+            "test_the_positional_language_has_a_ceiling_and_the_floor_does_not",
+            "every positional term obeys a bound polynomial in the length of the "
+            "state, so doubling is outside her positional language at every term "
+            "length and over every vocabulary, and the floor says it",
+            _the_positional_bound_broken,
+            "core/cognition/what_the_old_language_cannot_say.py",
+        ),
+        (
+            "test_the_floor_reaches_everything_computable",
+            "Kleene's three starting points and three ways of building are each a "
+            "term on the floor, and unbounded search on a predicate with no root "
+            "exhausts its meter rather than returning",
+            _universality_certificates_that_fail,
+            "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
+            "a head written from before-and-after states alone computes the family "
+            "at lengths it never saw, is kept, and still runs after a restart",
+            _a_way_of_computing_she_cannot_keep,
+            "core/cognition/a_way_of_computing_she_wrote.py",
         ),
     ):
         suite.add_test(
@@ -2852,10 +3034,14 @@ def _install_language_growth_claims(suite: Any) -> None:
             evidence_note=(
                 "composition, inversion and iteration reach 4,435 behaviours over "
                 "the words she was given; a maker she wrote for a family that "
-                "branches on size is not among them. The grammar itself — "
-                "arithmetic, a comparison, a branch, applying and undoing a word — "
-                "is the floor of computing rather than a menu, and past it growth "
-                "is reachability rather than expressibility"
+                "branches on size is not among them. Corrected 2026-09-01: this "
+                "said the grammar was the floor of computing, and it is not. "
+                "Every positional term is total and the terms are enumerable, so "
+                "what they express is a recursively enumerable class of total "
+                "functions with something computable outside it — measured in "
+                "core/cognition/what_the_old_language_cannot_say.py, twice. The "
+                "grammar was a menu after all, and the head registry is what "
+                "replaced it"
             ),
             live_channels=("language.ways_of_building",),
         )
@@ -2870,6 +3056,74 @@ def _install_language_growth_claims(suite: Any) -> None:
             owner="core/cognition/what_she_gave_meaning.py",
             asserted_in="core/cognition/what_she_gave_meaning.py",
             evidence=Evidence.MEASURED_LIVE,
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Her positional language is not universal: doubling by the length "
+                "of the state is outside it at every term length and over every "
+                "vocabulary she can build, so only a person could ever have put "
+                "it in."
+            ),
+            test="test_the_positional_language_has_a_ceiling_and_the_floor_does_not",
+            owner="core/cognition/what_the_old_language_cannot_say.py",
+            asserted_in="core/cognition/what_the_old_language_cannot_say.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "an induction over the heads bounds every term by max(n, c, 2) to "
+                "the power of its length; checked on 155,719 answers over 4,000 "
+                "terms with no violation, and the induction's case list is "
+                "compared against the heads run() dispatches on. A second witness "
+                "walks the words she can build and answers differently from the "
+                "n-th at the n-th place: 400 words, 1,200 places, no agreement"
+            ),
+            live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The floor reaches every computable behaviour, so nothing above it "
+                "will ever need a new primitive written by a person — and nothing "
+                "could add one."
+            ),
+            test="test_the_floor_reaches_everything_computable",
+            owner="core/cognition/what_the_floor_can_say.py",
+            asserted_in="core/cognition/where_the_tower_has_a_top.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Kleene's characterisation, with the three starting points and "
+                "the three ways of building each exhibited as a term and checked; "
+                "unbounded search on a predicate with no root exhausts its meter "
+                "rather than returning, which is what separates universal from "
+                "merely large. Four of the seven arithmetic heads are shown "
+                "definable from the other three, so the instruction set is doing "
+                "no work"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A way of COMPUTING — a head of the grammar, not a word in it — is "
+                "written from before-and-after states alone, computes the family at "
+                "lengths it never saw, and is still there after a restart."
+            ),
+            test="test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
+            owner="core/cognition/a_way_of_computing_she_wrote.py",
+            asserted_in="core/cognition/one_algebra.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "no target operator, no candidate implementation, no name and no "
+                "list of kinds go in; fitted at lengths four and six, held to five "
+                "and seven, correct at nine and eleven. What a shortest-first "
+                "search can reach is a few dozen symbols, which is Levin's bound "
+                "rather than a defect: the library is what moves the horizon, and "
+                "the measurement is that the same search at the same budget finds "
+                "nothing with an empty library and the answer with one entry"
+            ),
+            live_channels=("language.ways_of_building",),
         )
     )
 

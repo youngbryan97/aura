@@ -121,9 +121,9 @@ def what_each_part_says(
 ) -> Any:
     """Everything a word says at a state this long, as a list on the floor.
 
-    Finite because a word is a pure function of where it is asked and how long
-    the thing is. Handing this rather than one number is what lets a head read
-    a part somewhere other than here.
+    Finite because a word is a pure function of two numbers: where it is asked
+    and how long the state is. Handing this rather than one number is what lets
+    a head read a part somewhere other than here.
     """
     return from_list([int(word(at, size)) % max(1, size) for at in range(size)])
 
