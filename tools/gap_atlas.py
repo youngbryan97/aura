@@ -234,6 +234,8 @@ def render() -> int:
             entry = entries[card["id"]]
             mark = "x" if entry["status"] == "closed" else " "
             out.append(f"- [{mark}] **[{card['id']}] {card['title']}** — _{card['system']}_ · `{entry['verdict']}`")
+            if entry.get("card_subject"):
+                out.append(f"  - What the rival showed: {entry['card_subject']}")
             out.append(f"  - Bar: {entry['bar']}")
             out.append(f"  - Plan: {entry['plan']}")
             if entry.get("note"):

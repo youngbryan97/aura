@@ -18,7 +18,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "fit core.science.retrieval_latency over 40+ real recalls and check the intervention direction"
+      "outstanding": "fit core.science.retrieval_latency over 40+ real recalls and check the intervention direction",
+      "card_subject": "ACT-R treats latency as part of the cognitive theory and fits model behavior to human timing."
     },
     "002": {
       "verdict": "PARTIAL",
@@ -37,7 +38,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R retrieval latency is mechanistically tied to activation."
     },
     "003": {
       "verdict": "ABSENT",
@@ -57,7 +59,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R modules communicate through standardized buffers with well-defined visibility and requests."
     },
     "004": {
       "verdict": "PARTIAL",
@@ -78,7 +81,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R compiles multi-step procedures into faster direct productions as skill develops."
     },
     "005": {
       "verdict": "PARTIAL",
@@ -98,7 +102,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Compiled productions gain learned utility and compete with old rules."
     },
     "006": {
       "verdict": "PARTIAL",
@@ -117,7 +122,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R partial matching is used to explain graded retrieval errors and interference."
     },
     "007": {
       "verdict": "OVERSTATED",
@@ -135,7 +141,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R perceptual and motor modules make quantitative timing predictions for interaction."
     },
     "008": {
       "verdict": "ABSENT",
@@ -155,7 +162,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R research often models stable cognitive differences by identifiable parameters."
     },
     "009": {
       "verdict": "OVERSTATED",
@@ -173,7 +181,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R has extensive work connecting architecture timing/modules to neural measurements."
     },
     "010": {
       "verdict": "PARTIAL",
@@ -192,7 +201,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R culture emphasizes fit parameters and model-data comparison."
     },
     "011": {
       "verdict": "PARTIAL",
@@ -213,7 +223,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R event simulation yields clear stepwise traces."
     },
     "012": {
       "verdict": "OVERSTATED",
@@ -232,7 +243,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R has decades of published models across memory, HCI, language, skill and decision tasks."
     },
     "013": {
       "verdict": "PARTIAL",
@@ -253,7 +265,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R explains broad cognition with a comparatively compact set of mechanisms."
     },
     "014": {
       "verdict": "PARTIAL",
@@ -271,7 +284,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R base-level activation has extensive evidence for power-law practice/forgetting behavior."
     },
     "015": {
       "verdict": "PARTIAL",
@@ -290,7 +304,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Modern ACT-R work treats cognition as resource-rational, not just correct."
     },
     "016": {
       "verdict": "PARTIAL",
@@ -311,7 +326,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/brain/gwt_rlc_coupling.py"
-      ]
+      ],
+      "card_subject": "Soar architecture automatically creates a substate whenever its decision procedure reaches an impasse."
     },
     "017": {
       "verdict": "PARTIAL",
@@ -331,7 +347,8 @@
       "wired_by": [
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar can encounter impasses inside substates, yielding uniform recursive problem solving."
     },
     "018": {
       "verdict": "PARTIAL",
@@ -350,7 +367,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar chunking backtraces exactly which state facts and productions supported the resolving result."
     },
     "019": {
       "verdict": "PARTIAL",
@@ -370,7 +388,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar chunks create working-memory results/preferences that directly resolve future decisions."
     },
     "020": {
       "verdict": "PARTIAL",
@@ -392,7 +411,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/reasoning/native_system2.py"
-      ]
+      ],
+      "card_subject": "Soar has explicit better/worse, require/prohibit, reject, acceptable and indifferent preference semantics."
     },
     "021": {
       "verdict": "PARTIAL",
@@ -411,7 +431,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar uses mature production matching optimized for large rule sets."
     },
     "022": {
       "verdict": "PARTIAL",
@@ -431,7 +452,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar EBC contains mature trace structures for why chunks were generated."
     },
     "023": {
       "verdict": "PARTIAL",
@@ -450,7 +472,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar explicitly treats overgeneralization caused by negative/absence reasoning."
     },
     "024": {
       "verdict": "PARTIAL",
@@ -471,7 +494,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/reasoning/native_system2.py"
-      ]
+      ],
+      "card_subject": "Soar reinforcement learning updates numeric preferences in the same operator framework."
     },
     "025": {
       "verdict": "PARTIAL",
@@ -491,7 +515,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Soar uses the same state/operator cycle across domains."
     },
     "026": {
       "verdict": "PARTIAL",
@@ -510,7 +535,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "an accelerated lifetime run over millions of procedure firings with distribution shift"
+      "outstanding": "an accelerated lifetime run over millions of procedure firings with distribution shift",
+      "card_subject": "Soar has decades of experience with chunk utility and production growth."
     },
     "027": {
       "verdict": "PARTIAL",
@@ -530,7 +556,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar exposes mature traces over states/operators/preferences/productions."
     },
     "028": {
       "verdict": "PARTIAL",
@@ -551,7 +578,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar operators are a domain-portable state transformation abstraction."
     },
     "029": {
       "verdict": "PARTIAL",
@@ -572,7 +600,8 @@
       "wired_by": [
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Impasse resolution is intrinsically an occasion for learning in Soar."
     },
     "030": {
       "verdict": "PARTIAL",
@@ -592,7 +621,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Soar deliberately seeks broad behavior from a small fixed kernel plus learned knowledge."
     },
     "031": {
       "verdict": "PARTIAL",
@@ -612,7 +642,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS assumes all knowledge is experience-derived, revisable and resource-conditioned."
     },
     "032": {
       "verdict": "ABSENT",
@@ -630,7 +661,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS tracks evidential history to avoid treating the same evidence as independent confirmation."
     },
     "033": {
       "verdict": "PARTIAL",
@@ -650,7 +682,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS separates support frequency from confidence/evidence amount across reasoning."
     },
     "034": {
       "verdict": "ABSENT",
@@ -670,7 +703,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Every NARS task/concept/link has budget dimensions controlling processing and decay."
     },
     "035": {
       "verdict": "PARTIAL",
@@ -690,7 +724,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "a matched-compute A/B of the value-of-computation scheduler against the fixed cadences"
+      "outstanding": "a matched-compute A/B of the value-of-computation scheduler against the fixed cadences",
+      "card_subject": "NARS continuously allocates finite processor time among concurrent tasks according to dynamic priority."
     },
     "036": {
       "verdict": "PARTIAL",
@@ -709,7 +744,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "NARS can emit a current best answer and continue low-priority search."
     },
     "037": {
       "verdict": "PARTIAL",
@@ -726,7 +762,8 @@
       "closed_by": [
         "core/knowledge/temporal.py",
         "tests/test_temporal_hub_and_compiler.py"
-      ]
+      ],
+      "card_subject": "NARS processes logical and temporal information together and supports temporal induction."
     },
     "038": {
       "verdict": "PARTIAL",
@@ -742,7 +779,8 @@
       "closed_by": [
         "core/knowledge/temporal.py",
         "tests/test_temporal_hub_and_compiler.py"
-      ]
+      ],
+      "card_subject": "NARS represents operations in the same language as goals/events."
     },
     "039": {
       "verdict": "ABSENT",
@@ -762,7 +800,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "a search campaign comparing derived child budgets against fixed depth at equal compute"
+      "outstanding": "a search campaign comparing derived child budgets against fixed depth at equal compute",
+      "card_subject": "NARS assigns new inference tasks budgets based on truth/complexity/premises."
     },
     "040": {
       "verdict": "PARTIAL",
@@ -782,7 +821,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS concepts aggregate beliefs, tasks, goals and links around a term."
     },
     "041": {
       "verdict": "PARTIAL",
@@ -801,7 +841,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS evidence calculus gives explicit revision behavior."
     },
     "042": {
       "verdict": "PARTIAL",
@@ -821,7 +862,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "NARS storage competition uses budget values, not separate housekeeping only."
     },
     "043": {
       "verdict": "PARTIAL",
@@ -842,7 +884,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "NARS derives many behaviors from one theory of adaptation under insufficient knowledge/resources."
     },
     "044": {
       "verdict": "PARTIAL",
@@ -861,7 +904,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "NARS tasks decay/revive according to resource competition and feedback."
     },
     "045": {
       "verdict": "PARTIAL",
@@ -880,7 +924,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "NARS inference rules participate in resource allocation."
     },
     "046": {
       "verdict": "PARTIAL",
@@ -900,7 +945,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CLARION explicitly separates implicit neural-like knowledge and explicit rule-level knowledge."
     },
     "047": {
       "verdict": "PARTIAL",
@@ -919,7 +965,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CLARION emphasizes extracting explicit rules from implicit competence."
     },
     "048": {
       "verdict": "PARTIAL",
@@ -938,7 +985,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Explicit knowledge can shape/teach implicit processing in CLARION."
     },
     "049": {
       "verdict": "PARTIAL",
@@ -958,7 +1006,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CLARION unifies explicit and implicit action knowledge."
     },
     "050": {
       "verdict": "PARTIAL",
@@ -977,7 +1026,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "CLARION also links implicit and explicit non-action knowledge."
     },
     "051": {
       "verdict": "PARTIAL",
@@ -994,7 +1044,8 @@
       "closed_by": [
         "core/cognition/drive_sensitivity.py",
         "tests/test_kernel_board_and_lineage.py"
-      ]
+      ],
+      "card_subject": "CLARION explicitly integrates motivation with cognitive control."
     },
     "052": {
       "verdict": "PARTIAL",
@@ -1013,7 +1064,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "CLARION treats metacognition as an explicit control layer studied behaviorally."
     },
     "053": {
       "verdict": "PARTIAL",
@@ -1031,7 +1083,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CLARION has explicit flows among implicit learning, rule extraction and assimilation."
     },
     "054": {
       "verdict": "ABSENT",
@@ -1049,7 +1102,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "CLARION models cases where implicit competence and explicit access diverge."
     },
     "055": {
       "verdict": "PARTIAL",
@@ -1068,7 +1122,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "CLARION models movement from explicit deliberation to implicit skill."
     },
     "056": {
       "verdict": "ABSENT",
@@ -1087,7 +1142,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Dual systems need explicit handling of conflict between implicit and explicit knowledge."
     },
     "057": {
       "verdict": "PARTIAL",
@@ -1108,7 +1164,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "CLARION subsystem boundaries are derived from a coherent theory."
     },
     "058": {
       "verdict": "OVERSTATED",
@@ -1127,7 +1184,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "CLARION aims to model human learning, decision, motivation and metacognition."
     },
     "059": {
       "verdict": "PARTIAL",
@@ -1147,7 +1205,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "CLARION explicit rules can be refined as learning continues."
     },
     "060": {
       "verdict": "PARTIAL",
@@ -1168,7 +1227,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA repeatedly runs perception -> situational model -> attention/global broadcast -> procedure/action -> execution."
     },
     "061": {
       "verdict": "PARTIAL",
@@ -1187,7 +1247,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA uses each global broadcast to drive multiple continual learning processes."
     },
     "062": {
       "verdict": "PARTIAL",
@@ -1206,7 +1267,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LIDA treats learning what to attend to as an ongoing mode."
     },
     "063": {
       "verdict": "PARTIAL",
@@ -1225,7 +1287,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA learns objects/categories/relations into perceptual associative memory."
     },
     "064": {
       "verdict": "PARTIAL",
@@ -1246,7 +1309,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA combines percepts with retrieved associations before attention competition."
     },
     "065": {
       "verdict": "PARTIAL",
@@ -1265,7 +1329,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LIDA separates transient episodic, declarative and other memory stages."
     },
     "066": {
       "verdict": "PARTIAL",
@@ -1285,7 +1350,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA stores context/action/result procedural templates."
     },
     "067": {
       "verdict": "PARTIAL",
@@ -1305,7 +1371,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA separates action selection from motor-plan execution/learning."
     },
     "068": {
       "verdict": "PARTIAL",
@@ -1324,7 +1391,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "LIDA explicitly ties artificial feelings to attention, motivation and learning."
     },
     "069": {
       "verdict": "PARTIAL",
@@ -1342,7 +1410,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA expects one important event to update multiple memory/learning systems."
     },
     "070": {
       "verdict": "PARTIAL",
@@ -1361,7 +1430,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "LIDA literature maps cognitive-cycle mechanisms to neuroscience."
     },
     "071": {
       "verdict": "PARTIAL",
@@ -1380,7 +1450,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "LIDA has a relatively singular GWT-based functional theory."
     },
     "072": {
       "verdict": "PARTIAL",
@@ -1400,7 +1471,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "the staged developmental curriculum, grown against reset, over the sealed task blocks"
+      "outstanding": "the staged developmental curriculum, grown against reset, over the sealed task blocks",
+      "card_subject": "LIDA explicitly assumes a developmental learning period."
     },
     "073": {
       "verdict": "PARTIAL",
@@ -1420,7 +1492,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "LIDA provides a natural repeated unit for temporal cognition analysis."
     },
     "074": {
       "verdict": "PARTIAL",
@@ -1440,7 +1513,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA/NEF requires cognitive operations to compile into dynamics over neuron populations rather than exist only as Python/symbolic functions."
     },
     "075": {
       "verdict": "PARTIAL",
@@ -1460,7 +1534,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA uses one compositional high-dimensional vector algebra for binding, superposition, cleanup and transformation."
     },
     "076": {
       "verdict": "PARTIAL",
@@ -1479,7 +1554,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA can encode structured symbolic relations through vector binding while remaining neurally executable."
     },
     "077": {
       "verdict": "PARTIAL",
@@ -1498,7 +1574,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Spaun implements action selection/control through a neurally realized basal-ganglia/thalamus mechanism."
     },
     "078": {
       "verdict": "PARTIAL",
@@ -1517,7 +1594,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA working memory is realized by recurrent neural dynamics and can be analyzed for capacity, noise and decay."
     },
     "079": {
       "verdict": "SCALE",
@@ -1537,7 +1615,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Spaun maps visual input through neural processing into the same representational regime used by cognition."
     },
     "080": {
       "verdict": "OVERSTATED",
@@ -1556,7 +1635,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Spaun converts cognitive state into neurally generated motor trajectories."
     },
     "081": {
       "verdict": "PARTIAL",
@@ -1575,7 +1655,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Spaun famously demonstrates multiple tasks in a single fixed neural architecture rather than loading a different cognitive program for each task."
     },
     "082": {
       "verdict": "ABSENT",
@@ -1593,7 +1674,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Nengo/SPA gives direct access to decoded vector content and neural population activity."
     },
     "083": {
       "verdict": "PARTIAL",
@@ -1611,7 +1693,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Semantic pointers rely on cleanup/associative memory that retrieves structured concepts from noisy vectors."
     },
     "084": {
       "verdict": "PARTIAL",
@@ -1630,7 +1713,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA exposes how dimensionality, neuron count and noise constrain representational capacity."
     },
     "085": {
       "verdict": "PARTIAL",
@@ -1650,7 +1734,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Nengo models evolve in continuous time with biologically motivated synaptic/neuronal dynamics."
     },
     "086": {
       "verdict": "PARTIAL",
@@ -1669,7 +1754,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Nengo models support targeted removal of pathways/populations with interpretable effects."
     },
     "087": {
       "verdict": "ABSENT",
@@ -1687,7 +1773,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "NEF provides a principled translation from represented functions/dynamics into neural connections."
     },
     "088": {
       "verdict": "PARTIAL",
@@ -1707,7 +1794,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SPA offers one mathematical representational/dynamical framework for much of cognition."
     },
     "089": {
       "verdict": "PARTIAL",
@@ -1725,7 +1813,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Hyperon/MeTTa aims for programs, inference rules, types and metaprogramming to live in the same atom language."
     },
     "090": {
       "verdict": "PARTIAL",
@@ -1745,7 +1834,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Hyperon exposes multiple Spaces with distinct storage/query semantics as a core abstraction."
     },
     "091": {
       "verdict": "PARTIAL",
@@ -1764,7 +1854,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "MeTTa supports type-oriented program structure and checks beyond plain string atom types."
     },
     "092": {
       "verdict": "PARTIAL",
@@ -1783,7 +1874,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Hyperon pushes executable program structure into the same representational universe as knowledge."
     },
     "093": {
       "verdict": "ABSENT",
@@ -1802,7 +1894,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "CogPrime treats different cognitive processes helping each other as a central design principle."
     },
     "094": {
       "verdict": "PARTIAL",
@@ -1821,7 +1914,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CogPrime explicitly emphasizes conversion among declarative, procedural, episodic, attentional and other memory forms."
     },
     "095": {
       "verdict": "PARTIAL",
@@ -1840,7 +1934,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CogPrime stresses interaction between local pattern processes and global structures."
     },
     "096": {
       "verdict": "PARTIAL",
@@ -1859,7 +1954,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "MOSES searches program spaces while learning representations that make useful programs compact."
     },
     "097": {
       "verdict": "PARTIAL",
@@ -1878,7 +1974,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "MOSES jointly changes representation/search rather than optimizing only coefficients."
     },
     "098": {
       "verdict": "SCALE",
@@ -1899,7 +1996,8 @@
         "core/cognition/contract_health.py",
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "an AtomSpace load test at a million atoms; measured to 50k, where point reads stay under 5us"
+      "outstanding": "an AtomSpace load test at a million atoms; measured to 50k, where point reads stay under 5us",
+      "card_subject": "Hyperon is building a dedicated Rust/C/Python runtime for atom operations and module execution."
     },
     "099": {
       "verdict": "PARTIAL",
@@ -1917,7 +2015,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Hyperon has modules, interpreter/runtime boundaries, C and Python APIs and dedicated CI around the language."
     },
     "100": {
       "verdict": "PARTIAL",
@@ -1936,7 +2035,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "MeTTa treats multiple reductions/answers as normal rather than immediately selecting one."
     },
     "101": {
       "verdict": "PARTIAL",
@@ -1955,7 +2055,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "an ECAN stress campaign on a large learned graph against scan, random and top-degree"
+      "outstanding": "an ECAN stress campaign on a large learned graph against scan, random and top-degree",
+      "card_subject": "ECAN treats attention as an economic allocation over a large knowledge graph."
     },
     "102": {
       "verdict": "PARTIAL",
@@ -1974,7 +2075,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "A metagraph makes the structure of rules and programs available to the same query language."
     },
     "103": {
       "verdict": "OVERSTATED",
@@ -1995,7 +2097,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenCog/Hyperon architecture anticipates large/distributed knowledge and cognitive workloads."
     },
     "104": {
       "verdict": "PARTIAL",
@@ -2011,7 +2114,8 @@
       "closed_by": [
         "core/cognition/structure_mapping.py",
         "tests/test_environment_and_world.py"
-      ]
+      ],
+      "card_subject": "CogPrime explicitly targets reusable schematics and relational patterns across domains."
     },
     "105": {
       "verdict": "PARTIAL",
@@ -2030,7 +2134,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "PLN historically pursued common uncertain truth semantics for heterogeneous inference."
     },
     "106": {
       "verdict": "ABSENT",
@@ -2049,7 +2154,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "A self-hosting metaprogramming substrate can represent how inference itself should proceed."
     },
     "107": {
       "verdict": "ABSENT",
@@ -2067,7 +2173,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI is constructing an explicit whole-brain reference architecture rather than selecting isolated inspirations."
     },
     "108": {
       "verdict": "PARTIAL",
@@ -2085,7 +2192,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI WholeBIF-style work systematizes inter-region information flow."
     },
     "109": {
       "verdict": "ABSENT",
@@ -2103,7 +2211,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI explicitly extracts brain architecture from published neuroscience into structured resources."
     },
     "110": {
       "verdict": "PARTIAL",
@@ -2121,7 +2230,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI separates anatomical structure from hypotheses about function and works to derive/test those hypotheses."
     },
     "111": {
       "verdict": "ABSENT",
@@ -2139,7 +2249,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI ROSETTA-style work handles uncertain correspondence of brain regions across species."
     },
     "112": {
       "verdict": "PARTIAL",
@@ -2157,7 +2268,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI develops ontology alignment so anatomical terms from different sources can be reconciled."
     },
     "113": {
       "verdict": "PARTIAL",
@@ -2175,7 +2287,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI investigates hierarchical FF/FB organization as an architectural constraint."
     },
     "114": {
       "verdict": "PARTIAL",
@@ -2193,7 +2306,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI builds reference diagrams intended to coordinate multiple implementers."
     },
     "115": {
       "verdict": "ABSENT",
@@ -2211,7 +2325,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Whole-brain work forces explicit acknowledgment of scale, cell diversity and connectivity."
     },
     "116": {
       "verdict": "PARTIAL",
@@ -2230,7 +2345,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Brain architecture distinguishes different neuronal/circuit classes with different computational roles."
     },
     "117": {
       "verdict": "OVERSTATED",
@@ -2248,7 +2364,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI uses biological organization to constrain what architectures are plausible."
     },
     "118": {
       "verdict": "ABSENT",
@@ -2266,7 +2383,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Reference-architecture work must represent disputed/unknown mappings."
     },
     "119": {
       "verdict": "PROCESS",
@@ -2284,7 +2402,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI is a multi-researcher initiative with domain specialists reviewing reference architecture."
     },
     "120": {
       "verdict": "PARTIAL",
@@ -2302,7 +2421,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "WBAI treats its brain reference architecture as a versioned research artifact."
     },
     "121": {
       "verdict": "PARTIAL",
@@ -2320,7 +2440,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Whole-brain/developmental neuroscience can constrain which capacities emerge before others."
     },
     "122": {
       "verdict": "PARTIAL",
@@ -2338,7 +2459,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA is evaluated across many commercial/3D environments rather than one or a few hand-debugged interfaces."
     },
     "123": {
       "verdict": "PARTIAL",
@@ -2356,7 +2478,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA 2 demonstrates transfer to games/environments not used for training."
     },
     "124": {
       "verdict": "PARTIAL",
@@ -2374,7 +2497,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA operates in visually complex 3D worlds with objects, navigation and spatial relationships."
     },
     "125": {
       "verdict": "PARTIAL",
@@ -2392,7 +2516,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA maps language goals to keyboard/mouse actions across many games."
     },
     "126": {
       "verdict": "PARTIAL",
@@ -2410,7 +2535,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA learns a policy that directly connects language instructions, vision and action."
     },
     "127": {
       "verdict": "PARTIAL",
@@ -2428,7 +2554,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA evaluates sequences requiring sustained interaction in dynamic worlds."
     },
     "128": {
       "verdict": "PARTIAL",
@@ -2446,7 +2573,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SIMA 2 can generate additional interaction experience through self-directed play and use it for improvement."
     },
     "129": {
       "verdict": "PARTIAL",
@@ -2465,7 +2593,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "successive developmental checkpoints on the frozen environment bench"
+      "outstanding": "successive developmental checkpoints on the frozen environment bench",
+      "card_subject": "SIMA research explicitly uses generated interaction data to improve later agent versions."
     },
     "130": {
       "verdict": "PROCESS",
@@ -2483,7 +2612,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Many games force the agent to learn portable visual/action abstractions."
     },
     "131": {
       "verdict": "PARTIAL",
@@ -2501,7 +2631,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA grounds verbs/object relations through repeated interaction."
     },
     "132": {
       "verdict": "PARTIAL",
@@ -2519,7 +2650,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA seeks a common policy across worlds."
     },
     "133": {
       "verdict": "PARTIAL",
@@ -2538,7 +2670,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "a video-rate perception run against the current sparse screen reads"
+      "outstanding": "a video-rate perception run against the current sparse screen reads",
+      "card_subject": "Game agents continuously consume frame sequences and learn dynamics from visual change."
     },
     "134": {
       "verdict": "PARTIAL",
@@ -2556,7 +2689,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Broad interactive evaluation naturally exposes navigation/action recovery failures."
     },
     "135": {
       "verdict": "ABSENT",
@@ -2574,7 +2708,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Modern general-game agents can be evaluated amid other agents and language partners."
     },
     "136": {
       "verdict": "ABSENT",
@@ -2592,7 +2727,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large environment suites permit empirical curves of performance vs experience/model/compute."
     },
     "137": {
       "verdict": "PROCESS",
@@ -2610,7 +2746,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Generalization claims require held-out worlds rather than only held-out episodes."
     },
     "138": {
       "verdict": "SCALE",
@@ -2628,7 +2765,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA-style systems learn from enormous unlabeled video corpora before action-specific training."
     },
     "139": {
       "verdict": "SCALE",
@@ -2646,7 +2784,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA learns representations directly from rich image/video patches rather than tiny handcrafted observation vectors."
     },
     "140": {
       "verdict": "PARTIAL",
@@ -2665,7 +2804,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "run both world-model objectives at matched compute and score them on control"
+      "outstanding": "run both world-model objectives at matched compute and score them on control",
+      "card_subject": "JEPA predicts abstract representations, avoiding spending capacity on unpredictable pixel detail."
     },
     "141": {
       "verdict": "ABSENT",
@@ -2683,7 +2823,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA can learn broad physical regularities from observation before action-conditioned adaptation."
     },
     "142": {
       "verdict": "PARTIAL",
@@ -2701,7 +2842,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA 2-AC adds action conditioning to a strong pretrained visual representation."
     },
     "143": {
       "verdict": "OVERSTATED",
@@ -2719,7 +2861,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA 2 reports image-goal planning on robot arms in new setups with limited robot adaptation data."
     },
     "144": {
       "verdict": "PARTIAL",
@@ -2737,7 +2880,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large video training can encode persistent physical entities across occlusion/motion."
     },
     "145": {
       "verdict": "PARTIAL",
@@ -2755,7 +2899,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Video/robot world models capture which actions and motions are physically plausible."
     },
     "146": {
       "verdict": "SCALE",
@@ -2773,7 +2918,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large video models learn both short and longer-term temporal structure."
     },
     "147": {
       "verdict": "PARTIAL",
@@ -2791,7 +2937,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA evaluates learned visual representations on multiple downstream understanding/prediction tasks."
     },
     "148": {
       "verdict": "PARTIAL",
@@ -2809,7 +2956,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Modern predictive models can use ensembles/distributional predictions to represent uncertainty."
     },
     "149": {
       "verdict": "PARTIAL",
@@ -2827,7 +2975,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Action-conditioned world models enable imagined futures directly in visual latent space."
     },
     "150": {
       "verdict": "PARTIAL",
@@ -2845,7 +2994,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large visual pretraining encourages representations robust to viewpoint/background variation."
     },
     "151": {
       "verdict": "PROCESS",
@@ -2863,7 +3013,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large world-model projects quantify data mixtures, pretraining and downstream transfer."
     },
     "152": {
       "verdict": "EVIDENCE",
@@ -2881,7 +3032,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "V-JEPA-style results tie prediction quality to control performance, not reconstruction loss alone."
     },
     "153": {
       "verdict": "ABSENT",
@@ -2899,7 +3051,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large projects can study how world-model capability changes with data/model size."
     },
     "154": {
       "verdict": "CAPABILITY",
@@ -2917,7 +3070,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier models generally possess stronger base reasoning and instruction-following than a local 27B-class model."
     },
     "155": {
       "verdict": "OVERSTATED",
@@ -2935,7 +3089,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier training covers many languages and scripts at enormous scale."
     },
     "156": {
       "verdict": "CAPABILITY",
@@ -2954,7 +3109,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "a coding board run: full Aura against the 27B scaffold on a frozen suite"
+      "outstanding": "a coding board run: full Aura against the 27B scaffold on a frozen suite",
+      "card_subject": "Large frontier systems are stronger on broad code generation/debugging/repo tasks."
     },
     "157": {
       "verdict": "CAPABILITY",
@@ -2972,7 +3128,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Larger models and specialized reasoning training improve difficult math performance."
     },
     "158": {
       "verdict": "SCALE",
@@ -2990,7 +3147,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Frontier multimodal models jointly represent images/audio/video/text at high quality."
     },
     "159": {
       "verdict": "PARTIAL",
@@ -3008,7 +3166,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier models absorb enormous corpora and current multimodal data."
     },
     "160": {
       "verdict": "CAPABILITY",
@@ -3026,7 +3185,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier systems often support larger, better-trained context handling."
     },
     "161": {
       "verdict": "ENGINEERING",
@@ -3044,7 +3204,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Industrial frontier serving uses highly optimized distributed kernels, batching, cache management and hardware stacks."
     },
     "162": {
       "verdict": "SCALE",
@@ -3062,7 +3223,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier labs use huge preference/reasoning/tool-use datasets and reinforcement/post-training pipelines."
     },
     "163": {
       "verdict": "PROCESS",
@@ -3080,7 +3242,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large labs run broad adversarial evaluations and specialized safety teams."
     },
     "164": {
       "verdict": "PROCESS",
@@ -3098,7 +3261,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier labs run large multi-domain automated benchmark/evals farms."
     },
     "165": {
       "verdict": "PROCESS",
@@ -3116,7 +3280,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Widely used models are evaluated by many external groups."
     },
     "166": {
       "verdict": "CAPABILITY",
@@ -3134,7 +3299,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Larger pretrained models may contain more robust broad abstractions simply from training scale."
     },
     "167": {
       "verdict": "CAPABILITY",
@@ -3153,7 +3319,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "unseen-task decomposition against the 27B baseline, repeated as experience accumulates"
+      "outstanding": "unseen-task decomposition against the 27B baseline, repeated as experience accumulates",
+      "card_subject": "Strong frontier reasoning models often infer plans from vague language better than smaller models."
     },
     "168": {
       "verdict": "PARTIAL",
@@ -3172,7 +3339,8 @@
       "wired_by": [
         "core/cognition/contract_health.py"
       ],
-      "outstanding": "novel-tool trials counting demonstrations to competence against static descriptions"
+      "outstanding": "novel-tool trials counting demonstrations to competence against static descriptions",
+      "card_subject": "Frontier models have broad post-training on tool schemas and agentic formats."
     },
     "169": {
       "verdict": "ENGINEERING",
@@ -3190,7 +3358,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Industrial systems correlate latency, failure, model version and user outcomes across huge fleets."
     },
     "170": {
       "verdict": "ABSENT",
@@ -3209,7 +3378,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Mature architectures obtain leverage from a small number of canonical interfaces; Aura still has many organ-specific state representations."
     },
     "171": {
       "verdict": "ABSENT",
@@ -3228,7 +3398,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "NARS/PLN-style systems force evidence semantics to be explicit, while Aura mixes confidence floats, counts, Wilson bounds, model probabilities and receipts."
     },
     "172": {
       "verdict": "ABSENT",
@@ -3248,7 +3419,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R, Soar, CLARION and LIDA each gain from procedures being one first-class cognitive currency."
     },
     "173": {
       "verdict": "ABSENT",
@@ -3267,7 +3439,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "SPA and OpenCog emphasize representations that can move across mechanisms without losing identity."
     },
     "174": {
       "verdict": "PARTIAL",
@@ -3286,7 +3459,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R/Soar/CLARION make repeated deliberation naturally become compiled skill."
     },
     "175": {
       "verdict": "PARTIAL",
@@ -3306,7 +3480,8 @@
       "wired_by": [
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar turns failure-to-decide into a universal occasion for deeper cognition."
     },
     "176": {
       "verdict": "PARTIAL",
@@ -3325,7 +3500,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar EBC identifies which prior conditions actually supported a result."
     },
     "177": {
       "verdict": "ABSENT",
@@ -3344,7 +3520,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "NARS and ACT-R-like approaches make resource use part of cognitive selection."
     },
     "178": {
       "verdict": "PARTIAL",
@@ -3362,7 +3539,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Resource-rational systems decide whether thinking longer is worth it."
     },
     "179": {
       "verdict": "PARTIAL",
@@ -3377,7 +3555,8 @@
       "closed_by": [
         "core/science/calibration_layer.py",
         "tests/test_scientific_substrate.py"
-      ]
+      ],
+      "card_subject": "Competitor traditions validate probabilities/confidence against outcomes."
     },
     "180": {
       "verdict": "PARTIAL",
@@ -3395,7 +3574,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Active learning should be a universal option when uncertainty matters, not confined to one pursuit path."
     },
     "181": {
       "verdict": "PARTIAL",
@@ -3414,7 +3594,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LIDA/ECAN/modern agents learn what is worth processing."
     },
     "182": {
       "verdict": "PARTIAL",
@@ -3429,7 +3610,8 @@
       "closed_by": [
         "core/cognition/structure_mapping.py",
         "tests/test_environment_and_world.py"
-      ]
+      ],
+      "card_subject": "CogPrime-like schematic thinking and broad transfer require recognizing shared relations despite surface difference."
     },
     "183": {
       "verdict": "PARTIAL",
@@ -3447,7 +3629,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "CLARION and SPA/OpenCog together suggest durable cognition needs conversion among tacit skill, explicit rule and neural execution."
     },
     "184": {
       "verdict": "PARTIAL",
@@ -3465,7 +3648,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The central claim of a developmental architecture is that past life improves future learning."
     },
     "185": {
       "verdict": "ABSENT",
@@ -3483,7 +3667,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Development should produce a measurable relationship between experience history and competence."
     },
     "186": {
       "verdict": "ABSENT",
@@ -3501,7 +3686,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Strong generality requires transfer beyond superficially similar task signatures."
     },
     "187": {
       "verdict": "PARTIAL",
@@ -3520,7 +3706,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "No compared system fully solves open-ended operator invention either, but Hyperon/MOSES/representation-building approaches highlight the missing level."
     },
     "188": {
       "verdict": "PARTIAL",
@@ -3538,7 +3725,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "A truly self-extending language needs changes to evaluator semantics to be first-class, testable and reversible."
     },
     "189": {
       "verdict": "PARTIAL",
@@ -3557,7 +3745,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Mature science separates causal existence from useful performance contribution."
     },
     "190": {
       "verdict": "PARTIAL",
@@ -3577,7 +3766,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "ACT-R/NARS/Soar derive breadth from fewer core principles than Aura."
     },
     "191": {
       "verdict": "PARTIAL",
@@ -3595,7 +3785,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Cognitive modeling requires knowing whether fitted parameters are actually determined by data."
     },
     "192": {
       "verdict": "PRESENT",
@@ -3609,7 +3800,8 @@
       "note": "",
       "closed_by": [
         "core/evaluation/preregistration.py"
-      ]
+      ],
+      "card_subject": "External science reduces researcher degrees of freedom by freezing hypotheses/tests before seeing results."
     },
     "193": {
       "verdict": "PROCESS",
@@ -3627,7 +3819,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The mature comparison systems have broader communities and external validation."
     },
     "194": {
       "verdict": "PARTIAL",
@@ -3645,7 +3838,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Foundation-model and transfer research must separate learned priors from evaluation exposure."
     },
     "195": {
       "verdict": "PARTIAL",
@@ -3664,7 +3858,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Embodied learning requires proving that an action changed the intended world, not merely that a tool call succeeded."
     },
     "196": {
       "verdict": "PARTIAL",
@@ -3682,7 +3877,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "World models need stable identity across time/views."
     },
     "197": {
       "verdict": "PARTIAL",
@@ -3700,7 +3896,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Physical/cognitive environments evolve from milliseconds to days."
     },
     "198": {
       "verdict": "PARTIAL",
@@ -3720,7 +3917,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "an intervention campaign on the world model against its observational arm"
+      "outstanding": "an intervention campaign on the world model against its observational arm",
+      "card_subject": "Strong world understanding requires interventions, not only next-state prediction."
     },
     "199": {
       "verdict": "PARTIAL",
@@ -3739,7 +3937,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "ACT-R/Soar/SPA/Hyperon all benefit when learned components can be reused compositionally."
     },
     "200": {
       "verdict": "PARTIAL",
@@ -3758,7 +3957,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Long-lived architectures must avoid utility collapse as learned knowledge grows."
     },
     "201": {
       "verdict": "ABSENT",
@@ -3776,7 +3976,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Continual learning needs explicit forgetting metrics, not just persistence."
     },
     "202": {
       "verdict": "PARTIAL",
@@ -3795,7 +3996,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Biological/cognitive architectures often separate online experience from offline restructuring."
     },
     "203": {
       "verdict": "PARTIAL",
@@ -3814,7 +4016,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "repeated interaction with a partner, scored against the language prior"
+      "outstanding": "repeated interaction with a partner, scored against the language prior",
+      "card_subject": "Humanlike general intelligence requires learned models of other agents over time, not only pretrained social text knowledge."
     },
     "204": {
       "verdict": "PARTIAL",
@@ -3832,7 +4035,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Agent modeling should distinguish what Aura knows from what she believes another agent knows."
     },
     "205": {
       "verdict": "PARTIAL",
@@ -3851,7 +4055,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Consciousness-related claims require tests that cannot be passed just because the language model is competent."
     },
     "206": {
       "verdict": "PARTIAL",
@@ -3869,7 +4074,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "A pluralistic architecture should use disagreements between theories to learn, not simply implement them all."
     },
     "207": {
       "verdict": "ABSENT",
@@ -3887,7 +4093,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Scientific clarity improves when a computational mechanism is not granted a biological property by naming."
     },
     "208": {
       "verdict": "PARTIAL",
@@ -3906,7 +4113,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Highly integrated minds need tests for architectural invariants beyond unit behavior."
     },
     "209": {
       "verdict": "PARTIAL",
@@ -3925,7 +4133,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Complex architectures benefit from explicit mutation ownership/transactions."
     },
     "210": {
       "verdict": "PARTIAL",
@@ -3944,7 +4153,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Mature programs accumulate comparable experiments rather than isolated artifacts."
     },
     "211": {
       "verdict": "PARTIAL",
@@ -3962,7 +4172,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Comparative maturity requires strong baselines, not only Aura-minus-Aura lesions."
     },
     "212": {
       "verdict": "PRESENT",
@@ -3976,7 +4187,8 @@
       "note": "",
       "closed_by": [
         "core/evaluation/matched_budget.py"
-      ]
+      ],
+      "card_subject": "A lesion can appear harmful simply because it removes compute."
     },
     "213": {
       "verdict": "PROCESS",
@@ -3995,7 +4207,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Large research programs use scaling experiments to learn whether data, compute, model or representation is limiting."
     },
     "214": {
       "verdict": "PARTIAL",
@@ -4010,7 +4223,8 @@
       "closed_by": [
         "core/science/learning_audit.py",
         "tests/test_scientific_substrate.py"
-      ]
+      ],
+      "card_subject": "A developmental claim requires a complete loop from observation through learned change to later benefit."
     },
     "215": {
       "verdict": "ABSENT",
@@ -4028,7 +4242,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "The new RLC can execute supplied typed workflows compositionally, but general reasoning requires deriving those workflows."
     },
     "216": {
       "verdict": "PARTIAL",
@@ -4046,7 +4261,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "A stronger hybrid would let endogenous neural computation participate in continuing reasoning rather than only serialize an answer-bearing state."
     },
     "217": {
       "verdict": "PARTIAL",
@@ -4064,7 +4280,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "A true hybrid learner must know which substrate contributed to success and update accordingly."
     },
     "218": {
       "verdict": "ABSENT",
@@ -4082,7 +4299,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Skill learning should be measurable as decreasing reliance on expensive executive cognition."
     },
     "219": {
       "verdict": "PARTIAL",
@@ -4101,7 +4319,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SIMA-like self-play shows agents can generate their own training distribution; developmental Aura needs a broader safe version."
     },
     "220": {
       "verdict": "PARTIAL",
@@ -4119,7 +4338,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The project already distinguishes mechanisms from stronger philosophical claims, but enforcement can be universal."
     },
     "A1.1": {
       "verdict": "CAPABILITY",
@@ -4138,7 +4358,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Agents' Last Exam 52.7% and GDPval-AA v2 1747.8 Elo; one model is measured across professional analysis, science, coding, browsing, computer use and cyber."
     },
     "A1.10": {
       "verdict": "CAPABILITY",
@@ -4158,7 +4379,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "GPT-5.6 release reports strong long-context results into hundreds of thousands to million-token regimes."
     },
     "A1.11": {
       "verdict": "CAPABILITY",
@@ -4176,7 +4398,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenAI emphasizes higher coding performance with fewer output tokens and lower time/cost than competitors."
     },
     "A1.12": {
       "verdict": "CAPABILITY",
@@ -4191,7 +4414,8 @@
       "closed_by": [
         "core/cognition/tool_plan.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Programmatic tool programs retain only useful intermediate data."
     },
     "A1.13": {
       "verdict": "CAPABILITY",
@@ -4209,7 +4433,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Same agentic capabilities are delivered through stable product/API surfaces."
     },
     "A1.14": {
       "verdict": "CAPABILITY",
@@ -4227,7 +4452,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "GPT-5.6 adds cache breakpoints and predictable cache life."
     },
     "A1.15": {
       "verdict": "CAPABILITY",
@@ -4245,7 +4471,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "The family exposes max/ultra compute modes."
     },
     "A1.16": {
       "verdict": "PRESENT",
@@ -4260,7 +4487,8 @@
       "closed_by": [
         "core/engineering/"
       ],
-      "outstanding": "the computed-design problems already gate the formulas; the seeded OS-task run is the environment bench's"
+      "outstanding": "the computed-design problems already gate the formulas; the seeded OS-task run is the environment bench's",
+      "card_subject": "Sol reports 70.6% BenchCAD and 83.4% with Python."
     },
     "A1.17": {
       "verdict": "CAPABILITY",
@@ -4278,7 +4506,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The release places one model on a broad matrix instead of isolated flagship demonstrations."
     },
     "A1.18": {
       "verdict": "CAPABILITY",
@@ -4296,7 +4525,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "High-cost modes are opt-in and compared against efficient default."
     },
     "A1.19": {
       "verdict": "CAPABILITY",
@@ -4314,7 +4544,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Frontier release is tied to broad safety/capability evaluation and staged deployment."
     },
     "A1.2": {
       "verdict": "CAPABILITY",
@@ -4330,7 +4561,8 @@
       "closed_by": [
         "core/self_modification/coding_aci.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "GPT-5.6 Sol reports 64.6% on SWE-Bench Pro."
     },
     "A1.3": {
       "verdict": "CAPABILITY",
@@ -4345,7 +4577,8 @@
       "closed_by": [
         "core/self_modification/coding_aci.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Sol reports 88.8%; Ultra 91.9%."
     },
     "A1.4": {
       "verdict": "CAPABILITY",
@@ -4360,7 +4593,8 @@
       "closed_by": [
         "core/self_modification/coding_aci.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Sol reports 72.7%."
     },
     "A1.5": {
       "verdict": "CAPABILITY",
@@ -4380,7 +4614,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations"
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations",
+      "card_subject": "Sol reports 62.6%."
     },
     "A1.6": {
       "verdict": "CAPABILITY",
@@ -4395,7 +4630,8 @@
       "closed_by": [
         "core/cognition/tool_plan.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Sol reports 90.4%; Ultra 92.2%."
     },
     "A1.7": {
       "verdict": "CAPABILITY",
@@ -4411,7 +4647,8 @@
       "closed_by": [
         "core/cognition/tool_plan.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Disclosed in-memory programs coordinate tools, filter intermediate data and reduce model round trips."
     },
     "A1.8": {
       "verdict": "CAPABILITY",
@@ -4426,7 +4663,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Ultra coordinates four agents by default; selected evaluations include 16-agent configurations."
     },
     "A1.9": {
       "verdict": "CAPABILITY",
@@ -4441,7 +4679,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "OpenAI publishes one-agent vs multi-agent score/latency curves."
     },
     "A10.1": {
       "verdict": "PARTIAL",
@@ -4460,7 +4699,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder alternates problem solving with extending its DSL using learned abstractions."
     },
     "A10.10": {
       "verdict": "PARTIAL",
@@ -4478,7 +4718,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "The library and recognition model co-adapt."
     },
     "A10.11": {
       "verdict": "PARTIAL",
@@ -4496,7 +4737,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Research architecture makes contribution of each phase testable."
     },
     "A10.12": {
       "verdict": "PARTIAL",
@@ -4515,7 +4757,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder's language gives strong type/grammar constraints to synthesis."
     },
     "A10.13": {
       "verdict": "PARTIAL",
@@ -4533,7 +4776,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder's specialized search machinery is far more optimized for program induction than generic Python enumeration."
     },
     "A10.14": {
       "verdict": "PARTIAL",
@@ -4551,7 +4795,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Learned concepts are programs humans can inspect."
     },
     "A10.15": {
       "verdict": "PARTIAL",
@@ -4569,7 +4814,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder's core loop is small enough to study rigorously."
     },
     "A10.2": {
       "verdict": "ABSENT",
@@ -4588,7 +4834,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder's abstraction phase finds shared substructure across solved programs, not only abstractions proposed whole during one task."
     },
     "A10.3": {
       "verdict": "PARTIAL",
@@ -4606,7 +4853,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder trains a network to guide program search in the evolving language."
     },
     "A10.4": {
       "verdict": "PARTIAL",
@@ -4625,7 +4873,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder trains search guidance on imagined tasks generated from the current library."
     },
     "A10.5": {
       "verdict": "PARTIAL",
@@ -4643,7 +4892,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "It mixes replay of real tasks with dreaming."
     },
     "A10.6": {
       "verdict": "PARTIAL",
@@ -4661,7 +4911,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "New concepts build compositionally from earlier learned concepts."
     },
     "A10.7": {
       "verdict": "PARTIAL",
@@ -4679,7 +4930,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder is evaluated on drawing, scenes, programming, vector algebra and physics."
     },
     "A10.8": {
       "verdict": "CAPABILITY",
@@ -4697,7 +4949,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "DreamCoder rediscovers vector algebra and laws such as Newton/Coulomb in its domains."
     },
     "A10.9": {
       "verdict": "PARTIAL",
@@ -4715,7 +4968,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Library growth trades explanation compression against library complexity."
     },
     "A11.1": {
       "verdict": "ABSENT",
@@ -4733,7 +4987,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LILO uses Stitch to efficiently find lambda abstractions across a code corpus."
     },
     "A11.10": {
       "verdict": "PARTIAL",
@@ -4751,7 +5006,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Learned functions remain inspectable and documented."
     },
     "A11.11": {
       "verdict": "PARTIAL",
@@ -4766,7 +5022,8 @@
       "closed_by": [
         "core/cognition/autodoc.py",
         "tests/test_library_and_invention.py"
-      ]
+      ],
+      "card_subject": "Natural-language docs help proposal generation."
     },
     "A11.12": {
       "verdict": "PARTIAL",
@@ -4784,7 +5041,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LILO demonstrates a small loop can produce strong abstraction growth."
     },
     "A11.2": {
       "verdict": "SCALE",
@@ -4802,7 +5060,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Stitch is designed to refactor large program corpora more efficiently than DreamCoder's older compression."
     },
     "A11.3": {
       "verdict": "ABSENT",
@@ -4817,7 +5076,8 @@
       "closed_by": [
         "core/cognition/autodoc.py",
         "tests/test_library_and_invention.py"
-      ]
+      ],
+      "card_subject": "LILO derives names/docstrings from contextual uses."
     },
     "A11.4": {
       "verdict": "EVIDENCE",
@@ -4832,7 +5092,8 @@
       "closed_by": [
         "core/cognition/autodoc.py",
         "tests/test_library_and_invention.py"
-      ]
+      ],
+      "card_subject": "LILO reports AutoDoc improves synthesis because the LLM understands learned abstractions better."
     },
     "A11.5": {
       "verdict": "PARTIAL",
@@ -4850,7 +5111,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LILO repeatedly solves tasks, compresses libraries and documents them."
     },
     "A11.6": {
       "verdict": "CAPABILITY",
@@ -4868,7 +5130,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LILO reports stronger performance on string editing, scene reasoning and graphics composition."
     },
     "A11.7": {
       "verdict": "PARTIAL",
@@ -4883,7 +5146,8 @@
       "closed_by": [
         "core/cognition/autodoc.py",
         "tests/test_library_and_invention.py"
-      ]
+      ],
+      "card_subject": "LILO connects symbolic abstractions to language-model knowledge."
     },
     "A11.8": {
       "verdict": "PARTIAL",
@@ -4901,7 +5165,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Stitch searches explicitly for reusable lambda abstraction compression."
     },
     "A11.9": {
       "verdict": "PARTIAL",
@@ -4919,7 +5184,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "LILO separates contributions of synthesis/compression/documentation."
     },
     "A12.1": {
       "verdict": "PARTIAL",
@@ -4938,7 +5204,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Soar has explicit input, proposal, decision, application and output/processing semantics."
     },
     "A12.10": {
       "verdict": "PARTIAL",
@@ -4957,7 +5224,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar episodic storage is integrated with architecture timing."
     },
     "A12.11": {
       "verdict": "PARTIAL",
@@ -4975,7 +5243,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Soar's semantic memory is architecture-native, not an external RAG add-on."
     },
     "A12.12": {
       "verdict": "PARTIAL",
@@ -4995,7 +5264,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/brain/gwt_rlc_coupling.py"
-      ]
+      ],
+      "card_subject": "Failure to decide is an explicit architectural event that triggers subgoaling."
     },
     "A12.13": {
       "verdict": "PARTIAL",
@@ -5014,7 +5284,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar includes explain/trace/visualization around chunks and decisions."
     },
     "A12.14": {
       "verdict": "PARTIAL",
@@ -5034,7 +5305,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Soar's core concepts are few and stable despite decades of extensions."
     },
     "A12.15": {
       "verdict": "OVERSTATED",
@@ -5042,17 +5314,18 @@
         "core/"
       ],
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
-      "plan": "Decades of historical use is not a property Aura can implement.",
+      "plan": "Decades of applied use is not a property Aura can implement, and pretending otherwise would be the clearest kind of overclaim. The section bar it inherits IS implementable: every promoted claim bound to a commit, a model, hardware and tasks, reproducible by someone else. That is the replication pack, sealed with its tolerance so the author cannot decide afterwards how close is close enough.",
       "wave": "W10",
       "status": "closed",
-      "note": "",
+      "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
       "closed_by": [
         "core/science/replication_pack.py",
         "tests/test_complexity_and_replication.py"
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Soar has decades of applied cognitive-architecture work."
     },
     "A12.16": {
       "verdict": "PARTIAL",
@@ -5070,7 +5343,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Rule conditions/actions are structurally explicit."
     },
     "A12.17": {
       "verdict": "PARTIAL",
@@ -5090,7 +5364,8 @@
       "wired_by": [
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar can represent inability to select an operator."
     },
     "A12.18": {
       "verdict": "PARTIAL",
@@ -5108,7 +5383,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar uses mature machinery for matching large rule sets efficiently."
     },
     "A12.19": {
       "verdict": "PARTIAL",
@@ -5123,7 +5399,8 @@
       "closed_by": [
         "core/verify/lesion_registry.py",
         "tests/test_impasse_substate_and_invariants.py"
-      ]
+      ],
+      "card_subject": "Soar's procedural learning is controlled and inspectable."
     },
     "A12.2": {
       "verdict": "ABSENT",
@@ -5141,7 +5418,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Productions can propose/evaluate until no more changes before selection."
     },
     "A12.3": {
       "verdict": "PARTIAL",
@@ -5161,7 +5439,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/reasoning/native_system2.py"
-      ]
+      ],
+      "card_subject": "Selection semantics are part of architecture, not scattered scorer conventions."
     },
     "A12.4": {
       "verdict": "PARTIAL",
@@ -5182,7 +5461,8 @@
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
       ],
-      "outstanding": "a chunking campaign: a long episode compiled and re-run on unseen related states"
+      "outstanding": "a chunking campaign: a long episode compiled and re-run on unseen related states",
+      "card_subject": "Soar automatically compiles subgoal reasoning into productions when a result is created."
     },
     "A12.5": {
       "verdict": "PARTIAL",
@@ -5201,7 +5481,8 @@
       "wired_by": [
         "core/cognition/contract_health.py"
       ],
-      "outstanding": "the same campaign, scored on the minimal support the compiler kept"
+      "outstanding": "the same campaign, scored on the minimal support the compiler kept",
+      "card_subject": "Modern Soar improves correctness/generality of learned chunks by reasoning over explanations/dependencies."
     },
     "A12.6": {
       "verdict": "PARTIAL",
@@ -5221,7 +5502,8 @@
       "wired_by": [
         "core/cognition/contract_health.py"
       ],
-      "outstanding": "the same campaign, scored on firings compressed per compiled rule"
+      "outstanding": "the same campaign, scored on firings compressed per compiled rule",
+      "card_subject": "Soar documents cases where long reasoning collapses into one learned firing."
     },
     "A12.7": {
       "verdict": "PARTIAL",
@@ -5240,7 +5522,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Chunks can apply in related unseen situations."
     },
     "A12.8": {
       "verdict": "PARTIAL",
@@ -5258,7 +5541,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar distinguishes support and uses working-memory dependencies in learning."
     },
     "A12.9": {
       "verdict": "PARTIAL",
@@ -5278,7 +5562,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Soar has a clear current-state representation consumed by productions."
     },
     "A13.1": {
       "verdict": "PARTIAL",
@@ -5297,7 +5582,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Voyager chooses progressively useful tasks from environment state and progress."
     },
     "A13.10": {
       "verdict": "CAPABILITY",
@@ -5317,7 +5603,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The paper reports concrete environment progress against prior methods."
     },
     "A13.11": {
       "verdict": "PARTIAL",
@@ -5335,7 +5622,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Voyager's curriculum + skill library + iterative prompting is easy to ablate."
     },
     "A13.12": {
       "verdict": "PARTIAL",
@@ -5353,7 +5641,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Public code distinguishes environment primitives from learned reusable skills."
     },
     "A13.13": {
       "verdict": "PARTIAL",
@@ -5371,7 +5660,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Public curriculum code exposes observations progressively and has practical prerequisite logic."
     },
     "A13.14": {
       "verdict": "PARTIAL",
@@ -5390,7 +5680,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "The lifelong memory is executable and readable."
     },
     "A13.15": {
       "verdict": "PARTIAL",
@@ -5409,7 +5700,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Voyager uses top-k skill retrieval rather than exposing entire library."
     },
     "A13.2": {
       "verdict": "PARTIAL",
@@ -5429,7 +5721,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Voyager stores successful behaviors as executable JavaScript programs."
     },
     "A13.3": {
       "verdict": "PRESENT",
@@ -5443,7 +5736,8 @@
       "note": "",
       "closed_by": [
         "core/skills/skill_retrieval.py"
-      ]
+      ],
+      "card_subject": "Public code creates descriptions, embeddings and top-k retrieval for skills."
     },
     "A13.4": {
       "verdict": "PARTIAL",
@@ -5462,7 +5756,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Voyager reuses temporally extended skills in later programs."
     },
     "A13.5": {
       "verdict": "PARTIAL",
@@ -5480,7 +5775,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Programs are executed, errors observed, and revised iteratively."
     },
     "A13.6": {
       "verdict": "PARTIAL",
@@ -5498,7 +5794,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Voyager's iterative prompting uses self-verification plus environment feedback."
     },
     "A13.7": {
       "verdict": "PARTIAL",
@@ -5517,7 +5814,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Public code persists both and feeds them into future curriculum."
     },
     "A13.8": {
       "verdict": "PARTIAL",
@@ -5535,7 +5833,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Voyager persists skills, descriptions, vector DB and curriculum state."
     },
     "A13.9": {
       "verdict": "PARTIAL",
@@ -5553,7 +5852,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Voyager uses its skill library in new worlds and solves novel tasks."
     },
     "A2.1": {
       "verdict": "CAPABILITY",
@@ -5569,7 +5869,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Anthropic explicitly positions Fable 5 for ambitious coding projects, large migrations and multi-day autonomous sessions."
     },
     "A2.10": {
       "verdict": "ABSENT",
@@ -5585,7 +5886,8 @@
         "core/security/credential_broker.py",
         "core/sandbox/macos_sandbox.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Claude Code web keeps sensitive credentials outside the sandbox and uses a proxy to attach validated Git credentials."
     },
     "A2.11": {
       "verdict": "PARTIAL",
@@ -5602,7 +5904,8 @@
         "core/security/credential_broker.py",
         "core/sandbox/macos_sandbox.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Anthropic reports sandboxing cut permission prompts by 84%."
     },
     "A2.12": {
       "verdict": "PARTIAL",
@@ -5622,7 +5925,8 @@
       "wired_by": [
         "core/cognition/contract_health.py"
       ],
-      "outstanding": "fault-injected screen runs scoring recovery apart from success"
+      "outstanding": "fault-injected screen runs scoring recovery apart from success",
+      "card_subject": "Fable uses vision to check coding/design output against goals."
     },
     "A2.13": {
       "verdict": "PARTIAL",
@@ -5643,7 +5947,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Fable explicitly targets nested charts/tables/diagrams in files/PDFs."
     },
     "A2.14": {
       "verdict": "PARTIAL",
@@ -5658,7 +5963,8 @@
       "closed_by": [
         "core/learning/self_written_gate.py",
         "tests/test_shadow_evolution.py"
-      ]
+      ],
+      "card_subject": "Fable tests its own coding work."
     },
     "A2.15": {
       "verdict": "PARTIAL",
@@ -5676,7 +5982,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Anthropic publishes behavior learned from real user approvals/interruptions."
     },
     "A2.16": {
       "verdict": "PARTIAL",
@@ -5692,7 +5999,8 @@
         "core/security/credential_broker.py",
         "core/sandbox/macos_sandbox.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Anthropic's containment combines product permissions with hardened OS primitives."
     },
     "A2.17": {
       "verdict": "PARTIAL",
@@ -5707,7 +6015,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Anthropic exposes reusable agent building blocks."
     },
     "A2.18": {
       "verdict": "PARTIAL",
@@ -5726,7 +6035,8 @@
       "wired_by": [
         "core/cognition/growth_report.py"
       ],
-      "outstanding": "mid-execution steering measured on the event spine's lane rewind"
+      "outstanding": "mid-execution steering measured on the event spine's lane rewind",
+      "card_subject": "Anthropic observes experienced users interrupt agents to correct drift."
     },
     "A2.19": {
       "verdict": "PARTIAL",
@@ -5742,7 +6052,8 @@
         "tools/architecture_lint.py",
         "config/architecture_lint_coverage.json",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "Anthropic explicitly relies on OS containment rather than reimplementing all security semantics in the model/application."
     },
     "A2.2": {
       "verdict": "PARTIAL",
@@ -5758,7 +6069,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Fable 5 can work for days in agent harnesses."
     },
     "A2.3": {
       "verdict": "ABSENT",
@@ -5773,7 +6085,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Fable can delegate work to subagents during long projects."
     },
     "A2.4": {
       "verdict": "PARTIAL",
@@ -5789,7 +6102,8 @@
       "closed_by": [
         "core/runtime/governed_subagent.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Claude Code supports long-running jobs while the main agent continues."
     },
     "A2.5": {
       "verdict": "PARTIAL",
@@ -5808,7 +6122,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Claude Code supports hooks for automated checks/actions around lifecycle events."
     },
     "A2.6": {
       "verdict": "PARTIAL",
@@ -5827,7 +6142,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Claude Code checkpoints changes and supports rewind."
     },
     "A2.7": {
       "verdict": "ABSENT",
@@ -5845,7 +6161,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Users can reason separately about environment rollback and interaction history."
     },
     "A2.8": {
       "verdict": "PARTIAL",
@@ -5862,7 +6179,8 @@
         "core/security/credential_broker.py",
         "core/sandbox/macos_sandbox.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Claude Code uses macOS Seatbelt and Linux bubblewrap, including spawned subprocesses."
     },
     "A2.9": {
       "verdict": "PARTIAL",
@@ -5879,7 +6197,8 @@
         "core/security/credential_broker.py",
         "core/sandbox/macos_sandbox.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Claude Code sandbox networking flows through an external policy proxy."
     },
     "A3.1": {
       "verdict": "CAPABILITY",
@@ -5899,7 +6218,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Gemini 3.7 Flash supports up to 1M input tokens."
     },
     "A3.10": {
       "verdict": "CAPABILITY",
@@ -5917,7 +6237,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It reports strong research-reasoning scores in biology."
     },
     "A3.11": {
       "verdict": "CAPABILITY",
@@ -5938,7 +6259,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It reports 34.0% expert PDF comprehension."
     },
     "A3.12": {
       "verdict": "CAPABILITY",
@@ -5959,7 +6281,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It reports 84.5% without tools, 88.7% with tools on complex charts."
     },
     "A3.13": {
       "verdict": "CAPABILITY",
@@ -5974,7 +6297,8 @@
       "closed_by": [
         "core/cognition/tool_plan.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "AutomationBench and Harvey LAB-AA measure workflow/legal execution, not only puzzles."
     },
     "A3.14": {
       "verdict": "CAPABILITY",
@@ -5992,7 +6316,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Gemini Flash explicitly targets high throughput/cost effectiveness."
     },
     "A3.15": {
       "verdict": "CAPABILITY",
@@ -6010,7 +6335,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The model's breadth comes from large-scale training Aura cannot reproduce locally."
     },
     "A3.2": {
       "verdict": "CAPABILITY",
@@ -6032,7 +6358,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Gemini exposes these modalities in one native model surface."
     },
     "A3.3": {
       "verdict": "CAPABILITY",
@@ -6052,7 +6379,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Gemini reports 85.4% on LVBench."
     },
     "A3.4": {
       "verdict": "CAPABILITY",
@@ -6073,7 +6401,8 @@
       "wired_by": [
         "core/cognition/growth_report.py",
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Gemini reports 97.0% GDM-MRCR v2 at 128K."
     },
     "A3.5": {
       "verdict": "CAPABILITY",
@@ -6088,7 +6417,8 @@
       "closed_by": [
         "core/self_modification/coding_aci.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "Gemini 3.7 Flash reports 65.3%."
     },
     "A3.6": {
       "verdict": "CAPABILITY",
@@ -6103,7 +6433,8 @@
       "closed_by": [
         "core/self_modification/coding_aci.py",
         "tests/test_agent_surface.py"
-      ]
+      ],
+      "card_subject": "It reports 85.8%."
     },
     "A3.7": {
       "verdict": "CAPABILITY",
@@ -6122,7 +6453,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations"
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations",
+      "card_subject": "It reports 47.9%."
     },
     "A3.8": {
       "verdict": "CAPABILITY",
@@ -6141,7 +6473,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "a breadth board run across every capability against the bare cortex"
+      "outstanding": "a breadth board run across every capability against the bare cortex",
+      "card_subject": "It reports 26.3% pass rate on multimodal desktop/OS tasks."
     },
     "A3.9": {
       "verdict": "CAPABILITY",
@@ -6159,7 +6492,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It reports 53.6% on multidisciplinary expert reasoning."
     },
     "A4.1": {
       "verdict": "EVIDENCE",
@@ -6177,7 +6511,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen reports 73.0 with the reference harness."
     },
     "A4.10": {
       "verdict": "EVIDENCE",
@@ -6195,7 +6530,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen publishes harness details for several coding benchmarks."
     },
     "A4.2": {
       "verdict": "EVIDENCE",
@@ -6213,7 +6549,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen reports 61.7."
     },
     "A4.3": {
       "verdict": "EVIDENCE",
@@ -6231,7 +6568,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen reports 79.0 on its in-house benchmark."
     },
     "A4.4": {
       "verdict": "EVIDENCE",
@@ -6249,7 +6587,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen reports 89.2."
     },
     "A4.5": {
       "verdict": "EVIDENCE",
@@ -6267,7 +6606,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen reports 90.3."
     },
     "A4.6": {
       "verdict": "EVIDENCE",
@@ -6286,7 +6626,8 @@
       "wired_by": [
         "tools/evidence_report.py"
       ],
-      "outstanding": "a computer-use board run against the cortex-only arm"
+      "outstanding": "a computer-use board run against the cortex-only arm",
+      "card_subject": "Qwen's official card reports strong computer-use performance in its evaluation table."
     },
     "A4.7": {
       "verdict": "EVIDENCE",
@@ -6304,7 +6645,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen3.8 is natively multimodal."
     },
     "A4.8": {
       "verdict": "EVIDENCE",
@@ -6322,7 +6664,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The model card describes a large native context window."
     },
     "A4.9": {
       "verdict": "EVIDENCE",
@@ -6341,7 +6684,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Qwen supports explicit thinking/reasoning behavior."
     },
     "A5.1": {
       "verdict": "ABSENT",
@@ -6361,7 +6705,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenHands V1 explicitly moved away from per-subsystem mutable state to one ConversationState."
     },
     "A5.10": {
       "verdict": "PARTIAL",
@@ -6376,7 +6721,8 @@
       "closed_by": [
         "core/runtime/agent_workspace.py",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "LocalWorkspace and RemoteWorkspace isolate execution details."
     },
     "A5.11": {
       "verdict": "PARTIAL",
@@ -6395,7 +6741,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenHands automatically persists state mutations and event appends."
     },
     "A5.12": {
       "verdict": "PARTIAL",
@@ -6414,7 +6761,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Immutability/event sourcing supports replay and time travel."
     },
     "A5.13": {
       "verdict": "PARTIAL",
@@ -6430,7 +6778,8 @@
         "tools/architecture_lint.py",
         "config/architecture_lint_coverage.json",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "Pydantic models provide validation and schemas."
     },
     "A5.14": {
       "verdict": "PARTIAL",
@@ -6446,7 +6795,8 @@
         "tools/architecture_lint.py",
         "config/architecture_lint_coverage.json",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "OpenHands builds agents from LLM/tools/skills/condenser/security instead of deep subclasses."
     },
     "A5.15": {
       "verdict": "PARTIAL",
@@ -6462,7 +6812,8 @@
         "tools/architecture_lint.py",
         "config/architecture_lint_coverage.json",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "Agents/tools/configurations are stateless by default."
     },
     "A5.16": {
       "verdict": "PARTIAL",
@@ -6478,7 +6829,8 @@
       "closed_by": [
         "core/runtime/agent_workspace.py",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "OpenHands V1 explicitly learned from V0 coupling research benchmarks into product code."
     },
     "A5.17": {
       "verdict": "PARTIAL",
@@ -6495,7 +6847,8 @@
         "core/sandbox/macos_sandbox.py",
         "core/runtime/agent_workspace.py",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "The same stack can run local or isolated without rewriting the agent."
     },
     "A5.18": {
       "verdict": "ABSENT",
@@ -6513,7 +6866,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Every action/observation/state update is a typed event."
     },
     "A5.2": {
       "verdict": "PARTIAL",
@@ -6532,7 +6886,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenHands core models are immutable/type-safe and validated."
     },
     "A5.3": {
       "verdict": "ABSENT",
@@ -6551,7 +6906,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenHands uses immutable append-only events as an integration surface."
     },
     "A5.4": {
       "verdict": "ABSENT",
@@ -6569,7 +6925,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "OpenHands persists base state separately from incremental events for efficient recovery."
     },
     "A5.5": {
       "verdict": "PARTIAL",
@@ -6584,7 +6941,8 @@
       "closed_by": [
         "core/runtime/agent_workspace.py",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "Conversation transparently selects local or remote execution via workspace abstraction."
     },
     "A5.6": {
       "verdict": "PARTIAL",
@@ -6603,7 +6961,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Conversation owns initialize/run/pause/terminate lifecycle."
     },
     "A5.7": {
       "verdict": "PARTIAL",
@@ -6619,7 +6978,8 @@
       "closed_by": [
         "core/runtime/agent_workspace.py",
         "tests/test_event_spine.py"
-      ]
+      ],
+      "card_subject": "OpenHands V1 separates SDK core from CLI/web/app-specific logic."
     },
     "A5.8": {
       "verdict": "PARTIAL",
@@ -6639,7 +6999,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "card_subject": "Tools operate through typed action and observation contracts."
     },
     "A5.9": {
       "verdict": "PRESENT",
@@ -6659,7 +7020,8 @@
       "wired_by": [
         "core/config.py",
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "Visualization/persistence/stuck detection consume events without owning core state."
     },
     "A6.1": {
       "verdict": "PARTIAL",
@@ -6677,7 +7039,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA acts from screen-like observations and virtual keyboard/mouse across diverse 3D worlds without game-internal APIs."
     },
     "A6.10": {
       "verdict": "PARTIAL",
@@ -6695,7 +7058,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Embodied agents benefit from learned action policies."
     },
     "A6.11": {
       "verdict": "PARTIAL",
@@ -6713,7 +7077,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA's learned control transfers without storing only explicit scripts."
     },
     "A6.12": {
       "verdict": "PARTIAL",
@@ -6731,7 +7096,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA improves inside bounded virtual worlds."
     },
     "A6.2": {
       "verdict": "PARTIAL",
@@ -6749,7 +7115,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA 1 learned hundreds of language-following skills across commercial games; SIMA 2 extends reasoning/generalization."
     },
     "A6.3": {
       "verdict": "PARTIAL",
@@ -6767,7 +7134,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA 2 integrates Gemini reasoning with policy behavior."
     },
     "A6.4": {
       "verdict": "PARTIAL",
@@ -6785,7 +7153,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DeepMind demonstrates SIMA 2 completing tasks in a game it had not seen."
     },
     "A6.5": {
       "verdict": "PARTIAL",
@@ -6803,7 +7172,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "After human demonstration, SIMA 2 can learn in new games via self-directed play without additional human data."
     },
     "A6.6": {
       "verdict": "PARTIAL",
@@ -6821,7 +7191,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Experience from one agent generation trains a more capable next version."
     },
     "A6.7": {
       "verdict": "PARTIAL",
@@ -6839,7 +7210,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "card_subject": "SIMA 2's self-improvement loop uses tasks and estimated rewards to generate experience."
     },
     "A6.8": {
       "verdict": "PARTIAL",
@@ -6857,7 +7229,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "SIMA is trained for visual embodied interaction, not only generic multimodal QA."
     },
     "A6.9": {
       "verdict": "PARTIAL",
@@ -6875,7 +7248,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Generalization is demonstrated across multiple commercial/generated worlds."
     },
     "A7.1": {
       "verdict": "PARTIAL",
@@ -6894,7 +7268,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM reports SWE-bench 20% -> 50% and Polyglot 14.2% -> 30.7%."
     },
     "A7.10": {
       "verdict": "PARTIAL",
@@ -6912,7 +7287,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM includes no-self-improve and no-Darwin baselines."
     },
     "A7.11": {
       "verdict": "ABSENT",
@@ -6930,7 +7306,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The paper argues keeping diverse high-quality variants discovers better paths."
     },
     "A7.12": {
       "verdict": "PARTIAL",
@@ -6948,7 +7325,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM found better editing tools, context management and peer-review mechanisms."
     },
     "A7.13": {
       "verdict": "PARTIAL",
@@ -6966,7 +7344,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Public DGM code supports repeated SWE evaluations and score tolerance."
     },
     "A7.14": {
       "verdict": "PRESENT",
@@ -6981,7 +7360,8 @@
       "note": "",
       "closed_by": [
         "core/governance/"
-      ]
+      ],
+      "card_subject": "DGM experiments used safety precautions including sandboxing and human oversight."
     },
     "A7.15": {
       "verdict": "PARTIAL",
@@ -6999,7 +7379,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM records parent/children/archive metadata by generation."
     },
     "A7.2": {
       "verdict": "ABSENT",
@@ -7017,7 +7398,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM preserves a growing archive/tree rather than only the current best."
     },
     "A7.3": {
       "verdict": "ABSENT",
@@ -7035,7 +7417,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Low/medium performers can remain available as future parents."
     },
     "A7.4": {
       "verdict": "PARTIAL",
@@ -7053,7 +7436,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM modifies coding-agent implementation itself."
     },
     "A7.5": {
       "verdict": "PARTIAL",
@@ -7071,7 +7455,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Published improvements include tools/context/peer review that alter future agent behavior."
     },
     "A7.6": {
       "verdict": "ABSENT",
@@ -7089,7 +7474,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Public code selects parents from archive and penalizes overused lineages via child count in one mode."
     },
     "A7.7": {
       "verdict": "PARTIAL",
@@ -7107,7 +7493,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM uses SWE-bench/Polyglot evaluation rather than only self-authored tasks."
     },
     "A7.8": {
       "verdict": "PARTIAL",
@@ -7126,7 +7513,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Public code filters candidates that fail compilation/evaluation before archive update."
     },
     "A7.9": {
       "verdict": "PARTIAL",
@@ -7144,7 +7532,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DGM executes multiple candidate improvements concurrently."
     },
     "A8.1": {
       "verdict": "ABSENT",
@@ -7162,7 +7551,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "AlphaEvolve stores scored programs and chooses future prompts from the database."
     },
     "A8.10": {
       "verdict": "OVERSTATED",
@@ -7170,17 +7560,19 @@
         "core/"
       ],
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
-      "plan": "A specific mathematical result is a result, not a mechanism.",
+      "plan": "A specific mathematical discovery is a result, not a mechanism. The section bar - a sealed heterogeneous battery at matched budgets against the same weights - is the capability board, which refuses a claim on any capability with no cortex-only arm and voids itself when the suite moves.",
       "wave": "W13",
       "status": "closed",
-      "note": "",
+      "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
       "closed_by": [
-        "core/learning/shadow_archive.py",
-        "tests/test_shadow_evolution.py"
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "the board run itself: every capability scored against the bare cortex at matched budget",
+      "card_subject": "AlphaEvolve found 4x4 complex matrix multiplication with 48 scalar multiplications."
     },
     "A8.11": {
       "verdict": "OVERSTATED",
@@ -7188,17 +7580,19 @@
         "core/"
       ],
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
-      "plan": "Datacentre resource recovery is not applicable.",
+      "plan": "A rival's infrastructure result, not a property Aura can implement. The section bar - a multi-day session preserving state across restart - is answered by the event spine's replay and checkpoint boundaries.",
       "wave": "W13",
       "status": "closed",
-      "note": "",
+      "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
       "closed_by": [
-        "core/learning/shadow_archive.py",
-        "tests/test_shadow_evolution.py"
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
       ],
       "wired_by": [
-        "tools/evidence_report.py"
-      ]
+        "core/cognition/growth_report.py"
+      ],
+      "outstanding": "the same 72-hour autonomy run",
+      "card_subject": "A discovered heuristic reportedly recovers ~0.7% compute resources."
     },
     "A8.12": {
       "verdict": "OVERSTATED",
@@ -7206,17 +7600,19 @@
         "core/"
       ],
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
-      "plan": "Infrastructure impact is not applicable.",
+      "plan": "A rival's infrastructure result, not a property Aura can implement. The section bar - a multi-day session preserving state across restart - is answered by the event spine's replay and checkpoint boundaries.",
       "wave": "W13",
       "status": "closed",
-      "note": "",
+      "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
       "closed_by": [
-        "core/learning/shadow_archive.py",
-        "tests/test_shadow_evolution.py"
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
       ],
       "wired_by": [
-        "tools/evidence_report.py"
-      ]
+        "core/cognition/growth_report.py"
+      ],
+      "outstanding": "the same 72-hour autonomy run",
+      "card_subject": "Reported improvements include Spanner write amplification, TPU design and cache policies."
     },
     "A8.13": {
       "verdict": "PARTIAL",
@@ -7234,7 +7630,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Algorithmic outputs can often be exactly checked."
     },
     "A8.14": {
       "verdict": "SCALE",
@@ -7252,7 +7649,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Evolutionary discovery gains from huge numbers of evaluations."
     },
     "A8.15": {
       "verdict": "PARTIAL",
@@ -7270,7 +7668,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Prompts are informed by selected prior programs."
     },
     "A8.2": {
       "verdict": "PARTIAL",
@@ -7289,7 +7688,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "AlphaEvolve relies on evaluators that run and score candidate programs."
     },
     "A8.3": {
       "verdict": "PARTIAL",
@@ -7307,7 +7707,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "AlphaEvolve combines faster and stronger Gemini models to explore broadly and reason deeply."
     },
     "A8.4": {
       "verdict": "SCALE",
@@ -7325,7 +7726,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It repeatedly mutates promising code instead of single-shot synthesis."
     },
     "A8.5": {
       "verdict": "CAPABILITY",
@@ -7343,7 +7745,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "It improved known solutions on open math problems and rediscovered SOTA broadly."
     },
     "A8.6": {
       "verdict": "PARTIAL",
@@ -7361,7 +7764,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "AlphaEvolve can evolve more than isolated functions."
     },
     "A8.7": {
       "verdict": "PARTIAL",
@@ -7379,7 +7783,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Practical optimization uses accuracy/quality metrics beyond a single pass/fail."
     },
     "A8.8": {
       "verdict": "PARTIAL",
@@ -7397,7 +7802,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "DeepMind describes nontrivial solutions requiring many mutations."
     },
     "A8.9": {
       "verdict": "OVERSTATED",
@@ -7405,17 +7811,19 @@
         "core/"
       ],
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
-      "plan": "Deployment into a datacentre is not a bar for a sovereign local agent.",
+      "plan": "Deployment into a datacentre is a rival's result, not a property Aura can implement. The section bar it inherits - a multi-day session across restart and interruption that preserves state and meets a latency target - is one she should clear, and the event spine is the mechanism: state is a fold over an append-only log, so a restart replays rather than resumes from a guess.",
       "wave": "W13",
       "status": "closed",
-      "note": "",
+      "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
       "closed_by": [
-        "core/learning/shadow_archive.py",
-        "tests/test_shadow_evolution.py"
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
       ],
       "wired_by": [
-        "tools/evidence_report.py"
-      ]
+        "core/cognition/growth_report.py"
+      ],
+      "outstanding": "a 72-hour productive-autonomy run scored on milestones, interventions and rollback rate",
+      "card_subject": "Discovered algorithms affected data center scheduling, hardware, storage/compiler infrastructure."
     },
     "A9.1": {
       "verdict": "PARTIAL",
@@ -7433,7 +7841,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Godel Agent lets the agent dynamically modify its own logic/behavior."
     },
     "A9.10": {
       "verdict": "PARTIAL",
@@ -7451,7 +7860,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Unlike DGM, Godel Agent is not primarily an archive-based open-ended population."
     },
     "A9.2": {
       "verdict": "PARTIAL",
@@ -7469,7 +7879,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The paper contrasts its approach with fixed meta-learning pipelines."
     },
     "A9.3": {
       "verdict": "PARTIAL",
@@ -7487,7 +7898,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Improvements are guided by objectives rather than a menu of named patches."
     },
     "A9.4": {
       "verdict": "PARTIAL",
@@ -7505,7 +7917,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The paper reports iterative gains on reasoning and agent tasks."
     },
     "A9.5": {
       "verdict": "PARTIAL",
@@ -7523,7 +7936,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Godel Agent reports gains beyond a single software benchmark family."
     },
     "A9.6": {
       "verdict": "PARTIAL",
@@ -7541,7 +7955,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The paper evaluates performance and efficiency."
     },
     "A9.7": {
       "verdict": "PARTIAL",
@@ -7559,7 +7974,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "The object being optimized is the agent scaffold."
     },
     "A9.8": {
       "verdict": "PRESENT",
@@ -7574,7 +7990,8 @@
       "note": "",
       "closed_by": [
         "core/governance/"
-      ]
+      ],
+      "card_subject": "The more open the self-reference, the more important Aura's governance advantage becomes."
     },
     "A9.9": {
       "verdict": "PARTIAL",
@@ -7592,7 +8009,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "card_subject": "Godel Agent compares against designed agents."
     }
   },
   "rules": {
@@ -7606,6 +8024,7 @@
     },
     "two_reports": "Two independent reviews landed on 2026-09-01: a comparative architecture atlas (220 cards, ids 001-220) and a cross-system engineering audit (194 items, ids A1.1-A13.15). They overlap heavily and disagree in places. Both are held here under one adjudication, and where an item appears twice the second entry names the first rather than duplicating the work.",
     "what_closed_means": "A card is closed when the bar it names is established by a test that runs, and - where the bar is a claim about the SYSTEM rather than about a module - by a production caller that imports the module. Neither of those is the same as the capability being demonstrated at scale. Nine campaigns are built and have not been run: the developmental grown-versus-reset campaign, the capability board against the bare cortex, the baseline portfolio, the environment bench, continual metrics, the retrieval latency law, world-model calibration, replication on other hardware, and the red-team trend. tools/evidence_report.py names each one and what it would establish, and the claim ladder holds four claims at CAUSAL and none at USEFUL, asserted by a test. The reviews' central finding was that the architecture is ahead of its evidence; this work builds the machinery that measures the gap and does not close it.",
-    "gates": "make gap-atlas (every card adjudicated, every closed card's test and caller present), make architecture-lint (organ shape rules), make cognitive-complexity (the kernel ratchet, raising it requires a stated reason), plus the existing compile, smoke, lint, writing and layering."
+    "gates": "make gap-atlas (every card adjudicated, every closed card's test and caller present), make architecture-lint (organ shape rules), make cognitive-complexity (the kernel ratchet, raising it requires a stated reason), plus the existing compile, smoke, lint, writing and layering.",
+    "section_level_bars": "The second review gives ONE acceptance test per section, so 193 of its 194 cards carry a bar that belongs to the section rather than to the card. Every adjudication here addresses the card's own subject - its title and what the rival actually demonstrated, recorded as card_subject - and answers the section bar separately. Five cards where the two point in opposite directions say so explicitly: A8.9 through A8.12 and A12.15, where the card's subject is a rival's deployment result and the section bar is a property Aura can and does implement."
   }
 }
