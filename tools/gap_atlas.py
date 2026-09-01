@@ -287,6 +287,8 @@ def render() -> int:
                 out.append("  - Closed by: " + ", ".join(f"`{p}`" for p in entry["closed_by"]))
             if entry.get("wired_by"):
                 out.append("  - Wired by: " + ", ".join(f"`{p}`" for p in entry["wired_by"]))
+            if entry.get("campaign_run"):
+                out.append(f"  - Campaign run: {entry['campaign_run']}")
             if entry.get("outstanding"):
                 out.append(f"  - Still to run: {entry['outstanding']}")
         out.append("")
