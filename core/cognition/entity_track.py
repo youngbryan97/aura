@@ -104,6 +104,12 @@ _MAX_PERSISTENCE = 60
 #: that picking the winner is a coin flip dressed as a measurement.
 _AMBIGUITY_RATIO = 1.25
 
+#: Two candidates both within this distance are in the same place, whatever
+#: the ratio between them says. Without this floor a best distance of 1e-9 and
+#: a runner-up of 1e-8 read as a clean win at a ratio of ten, and a best of
+#: exactly zero divided the decision by nothing at all.
+_SAME_PLACE = 1e-6
+
 
 @dataclass
 class EntityTrack:
@@ -122,6 +128,11 @@ class EntityTrack:
     #: recognised as a known concept.
     concepts: tuple[str, ...] = ()
     lineage: tuple[str, ...] = ()
+    #: Geometry change per unit time, from the last two sightings. A thing
+    #: that kept moving while it was out of sight comes back where it was
+    #: GOING, and matching against where it was last seen breaks the track of
+    #: anything that moves — which is every case this module is for.
+    velocity: tuple[float, ...] = ()
 
     @property
     def persistence_budget(self) -> int:
@@ -132,11 +143,47 @@ class EntityTrack:
         return self.state in (TrackState.VISIBLE, TrackState.OCCLUDED, TrackState.AMBIGUOUS)
 
     def observe(self, observation: Observation) -> None:
+        previous = self.last_observation
+        elapsed = observation.at - self.last_seen
+        if (
+            previous is not None
+            and previous.geometry
+            and len(previous.geometry) == len(observation.geometry)
+            and elapsed > 0
+        ):
+            self.velocity = tuple(
+                (new - old) / elapsed
+                for new, old in zip(observation.geometry, previous.geometry, strict=True)
+            )
         self.support += 1
         self.misses = 0
         self.last_seen = observation.at
         self.last_observation = observation
         self.state = TrackState.VISIBLE
+
+    def predicted_at(self, at: float) -> Observation | None:
+        """Where this would be at ``at``, carrying its last measured motion.
+
+        None before there is anything to carry — one sighting is a position
+        and not a trajectory, and extrapolating from it invents the motion.
+        """
+        if self.last_observation is None:
+            return None
+        if not self.velocity or not self.last_observation.geometry:
+            return self.last_observation
+        elapsed = at - self.last_seen
+        if elapsed <= 0:
+            return self.last_observation
+        return replace(
+            self.last_observation,
+            at=at,
+            geometry=tuple(
+                position + speed * elapsed
+                for position, speed in zip(
+                    self.last_observation.geometry, self.velocity, strict=True
+                )
+            ),
+        )
 
     def miss(self) -> None:
         """A frame in which this track was not seen."""
@@ -153,6 +200,7 @@ class EntityTrack:
     def to_dict(self) -> dict[str, Any]:
         return {
             "track_id": self.track_id,
+            "velocity": list(self.velocity),
             "state": self.state.value,
             "support": self.support,
             "misses": self.misses,
@@ -202,20 +250,29 @@ class TrackStore:
         live: list[EntityTrack],
         already: dict[str, EntityTrack],
     ) -> EntityTrack:
-        scored = sorted(
-            (
-                (t.last_observation.distance(observation), t)
-                for t in live
-                if t.track_id not in already and t.last_observation is not None
-            ),
-            key=lambda pair: pair[0],
-        )
+        # Against where each track is EXPECTED to be, not where it was last
+        # seen. The two are the same for a thing that has not moved and for a
+        # track with one sighting, and they diverge exactly when it matters:
+        # a thing that crossed an occluder reappears a whole occlusion's worth
+        # of travel from its last sighting.
+        candidates = []
+        for track in live:
+            if track.track_id in already or track.last_observation is None:
+                continue
+            expected = track.predicted_at(observation.at) or track.last_observation
+            candidates.append((expected.distance(observation), track))
+        scored = sorted(candidates, key=lambda pair: pair[0])
         if not scored or scored[0][0] > self._match_threshold:
             return self._new_track_locked(observation)
         best_distance, best = scored[0]
         if len(scored) > 1:
             runner_up = scored[1][0]
-            close = best_distance <= 0 or runner_up <= best_distance * _AMBIGUITY_RATIO
+            # A near-zero best distance is the LEAST ambiguous case there is,
+            # not the most. Reading it as ambiguous refused every association
+            # the moment prediction made matches near-exact, and every track
+            # was rebuilt from scratch each frame — the tracker got worse the
+            # better its evidence became.
+            close = runner_up <= max(best_distance * _AMBIGUITY_RATIO, _SAME_PLACE)
             if close:
                 # Two things this could be. Starting a new track is honest;
                 # picking one writes a history that was never observed.

@@ -260,3 +260,77 @@ def test_reading_twice_is_what_stable_means():
     assert agreed
     _, agreed = observe_twice(lambda: next(readings))
     assert not agreed
+
+
+# ── a thing that kept moving comes back where it was going ────────────────
+#
+# Card 133. Running the tracking campaign found two defects, and both were
+# invisible to a test that only moved things a little.
+
+
+def test_a_track_carries_the_motion_it_measured():
+    from core.cognition.entity_track import EntityTrack, Observation
+
+    track = EntityTrack(track_id="t1")
+    track.observe(Observation(at=0.0, geometry=(0.0, 0.0)))
+    # One sighting is a position, not a trajectory.
+    assert track.velocity == ()
+    assert track.predicted_at(5.0).geometry == (0.0, 0.0)
+
+    track.observe(Observation(at=1.0, geometry=(4.0, 2.0)))
+    assert track.velocity == (4.0, 2.0)
+    assert track.predicted_at(3.0).geometry == pytest.approx((12.0, 6.0))
+
+
+def test_a_thing_that_crossed_an_occluder_is_still_one_thing():
+    """Matching on where it was last seen breaks the track of anything that
+    moves, which is every case this module is for."""
+    from core.cognition.entity_track import Observation, TrackStore
+
+    store = TrackStore(match_threshold=8.0)
+    x, hidden = 5.0, (40.0, 55.0)
+    seen: set[str] = set()
+    for step in range(20):
+        x += 4.0
+        if hidden[0] <= x <= hidden[1]:
+            for track in store.tracks():
+                track.miss()
+            continue
+        for track in store.update(
+            [Observation(at=float(step), geometry=(x, 50.0), label="one")]
+        ):
+            seen.add(track.track_id)
+    assert len(seen) == 1, f"the track broke into {len(seen)} things"
+
+
+def test_an_exact_match_is_the_least_ambiguous_case_not_the_most():
+    """A best distance of zero used to refuse the association outright, so the
+    tracker got worse the better its evidence became."""
+    from core.cognition.entity_track import Observation, TrackStore
+
+    store = TrackStore(match_threshold=5.0)
+    store.update([Observation(at=0.0, geometry=(0.0, 0.0), label="a")])
+    store.update([Observation(at=1.0, geometry=(1.0, 0.0), label="a")])
+    # Predicted exactly: one track, two more sightings, still one track.
+    store.update([Observation(at=2.0, geometry=(2.0, 0.0), label="a")])
+    store.update([Observation(at=3.0, geometry=(3.0, 0.0), label="a")])
+    assert len(store.tracks()) == 1
+    assert store.tracks()[0].support == 4
+
+
+def test_two_candidates_in_the_same_place_are_still_ambiguous():
+    """The floor must not turn the ambiguity check off."""
+    from core.cognition.entity_track import Observation, TrackStore
+
+    store = TrackStore(match_threshold=5.0)
+    store.update(
+        [
+            Observation(at=0.0, geometry=(0.0, 0.0), label="a"),
+            Observation(at=0.0, geometry=(0.0, 1.0), label="b"),
+        ]
+    )
+    before = len(store.tracks())
+    # Something exactly between them: neither track owns it.
+    store.update([Observation(at=1.0, geometry=(0.0, 0.5), label="?")])
+    assert len(store.tracks()) > before
+    assert store.report()["ambiguous_associations_refused"] >= 1

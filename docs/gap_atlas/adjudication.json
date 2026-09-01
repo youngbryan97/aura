@@ -2663,6 +2663,7 @@
     },
     "133": {
       "bar": "Moving objects stay continuously tracked and prediction beats sparse snapshots.",
+      "campaign_run": "200 frame sequences at an equal read budget of 10 frames to each arm. Carrying a track across consecutive frames and predicting one step ahead gives a mean error of 0.357 against 2.306 for a snapshot of the same span - 84.5% better, winning 200 of 200. Through an occluder the object stays one track where a snapshot sees two things. Running it found two defects: the tracker matched on where a thing was last seen rather than where it was going, and a best-match distance of zero was read as ambiguous, so associations were refused on the best possible evidence (docs/evidence/tracking_campaign.json)",
       "card_subject": "Game agents continuously consume frame sequences and learn dynamics from visual change.",
       "closed_by": [
         "core/science/environment_bench.py",
@@ -2672,7 +2673,7 @@
         "core/perception/"
       ],
       "note": "",
-      "outstanding": "a video-rate perception run against the current sparse screen reads",
+      "outstanding": "the video-rate half - driving this from a real screen at frame rate rather than from synthesised sequences - needs the live display and the resident model",
       "plan": "Video-rate feature stream with adaptive compression into the world model.",
       "status": "closed",
       "verdict": "PARTIAL",

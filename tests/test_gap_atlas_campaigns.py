@@ -643,3 +643,38 @@ def test_the_steering_evidence_reports_zero_false_success():
     counts = payload["counts"]
     assert counts["work_ran_past_the_correction"] == payload["of"]
     assert counts["overrun_survived_the_revert"] == 0
+
+
+# ── watching against glancing, at the same number of reads ────────────────
+#
+# Card 133.
+
+
+def test_continuous_tracking_predicts_better_than_a_snapshot_at_equal_reads():
+    import random
+
+    from tools.campaigns.tracking_campaign import one_sequence
+
+    rng = random.Random(51)
+    rows = [one_sequence(rng, objects=5, frames=60, stride=6) for _ in range(40)]
+    continuous = sum(r["continuous_error"] for r in rows)
+    sparse = sum(r["sparse_error"] for r in rows)
+    assert continuous < sparse
+    # Equal reads is the point; a continuous arm that simply looked more often
+    # would have shown nothing.
+    assert len({r["reads_per_arm"] for r in rows}) == 1
+
+
+def test_the_tracking_evidence_carries_the_occluder_case():
+    payload = _sealed("tracking_campaign.json")
+    assert payload["card"] == "133"
+    error = payload["next_step_error"]
+    assert error["continuous_beats_sparse"]
+    assert error["sequences_continuous_won"] == error["of"]
+    assert payload["equal_reads"]["reads_per_arm"] > 0
+
+    occluder = payload["through_an_occluder"]
+    assert occluder["frames_hidden"] > 0, "nothing was ever hidden"
+    assert occluder["stayed_one_thing"]
+    assert occluder["distinct_tracks"] == 1
+    assert occluder["a_snapshot_would_see"] > occluder["distinct_tracks"]

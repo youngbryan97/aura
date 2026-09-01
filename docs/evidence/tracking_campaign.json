@@ -1,0 +1,30 @@
+{
+  "card": "133",
+  "claim_boundary": "synthetic frame sequences through core.cognition.entity_track at an equal read budget; a claim about the tracker and the prediction it supports, not about reading a real screen at video rate",
+  "config": {
+    "frames": 60,
+    "objects": 5,
+    "seed": 1618033,
+    "sequences": 200,
+    "stride": 6
+  },
+  "equal_reads": {
+    "basis": "both arms read the same number of frames over the same span",
+    "reads_per_arm": 10.0
+  },
+  "next_step_error": {
+    "continuous_beats_sparse": true,
+    "continuous_mean": 0.3565,
+    "improvement": 0.8454,
+    "of": 200,
+    "sequences_continuous_won": 200,
+    "sparse_snapshot_mean": 2.3059
+  },
+  "schema": "aura.tracking_campaign.v1",
+  "through_an_occluder": {
+    "a_snapshot_would_see": 2,
+    "distinct_tracks": 1,
+    "frames_hidden": 4,
+    "stayed_one_thing": true
+  }
+}
