@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import pytest
+
+from core.learning.semantic_program_corpus import (
+    build_semantic_program_corpus,
+    project_example_to_ir,
+)
+
+
+def _character_offsets(text: str) -> tuple[tuple[int, int], ...]:
+    return tuple((index, index + 1) for index in range(len(text)))
+
+
+def test_corpus_splits_hold_out_complete_constructions() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=2)
+    constructions_by_split = {
+        split: {item.construction_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+
+    assert constructions_by_split == {
+        "train": {"sequential", "nominal_nested"},
+        "validation": {"fronted_operand"},
+        "test": {"reverse_clause"},
+    }
+    assert not (
+        constructions_by_split["train"]
+        & constructions_by_split["validation"]
+    )
+    assert not constructions_by_split["train"] & constructions_by_split["test"]
+
+
+def test_every_split_covers_all_operation_compositions() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=1)
+    expected = {
+        (first, second)
+        for first in ("add", "sub", "mul", "idiv")
+        for second in ("add", "sub", "mul", "idiv")
+    }
+
+    for split in ("train", "validation", "test"):
+        observed = {
+            (item.instructions[0].instruction.op, item.instructions[1].instruction.op)
+            for item in examples
+            if item.split == split
+        }
+        assert observed == expected
+
+
+def test_program_first_examples_execute_the_annotated_program() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=2)
+
+    for example in examples:
+        assert isinstance(example.program.run(example.inputs), int)
+        assert example.report_value == len(example.inputs) + len(example.instructions) - 1
+
+
+def test_noncommutative_language_preserves_operand_order() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=1)
+
+    sequential_sub = next(
+        item
+        for item in examples
+        if item.construction_id == "sequential"
+        and item.instructions[0].instruction.op == "sub"
+        and item.instructions[1].instruction.op == "sub"
+    )
+    reverse_division = next(
+        item
+        for item in examples
+        if item.construction_id == "reverse_clause"
+        and item.instructions[1].instruction.op == "idiv"
+    )
+
+    assert "Subtract " in sequential_sub.source_text
+    assert " from " in sequential_sub.source_text
+    assert "subtract " in sequential_sub.source_text
+    assert "integer-divide the intermediate quantity by" in reverse_division.source_text
+
+
+def test_contrast_groups_change_operations_over_identical_inputs() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=2)
+    groups: dict[str, list] = {}
+    for example in examples:
+        groups.setdefault(example.contrast_id, []).append(example)
+
+    assert groups
+    for group in groups.values():
+        assert len(group) == 16
+        assert len({item.inputs for item in group}) == 1
+        assert len({item.program.describe() for item in group}) == 16
+
+
+def test_character_attribution_projects_to_valid_token_ir() -> None:
+    example = build_semantic_program_corpus(examples_per_operation_pair=1)[-1]
+    offsets = _character_offsets(example.source_text)
+    ir = project_example_to_ir(
+        example,
+        source_token_ids=tuple(range(len(offsets))),
+        offset_mapping=offsets,
+        model_basis_receipt_sha256="a" * 64,
+        transducer_receipt_sha256="b" * 64,
+    )
+
+    assert ir.to_program() == example.program
+    assert ir.lower(example.inputs).program_sha == example.program.sha()
+    assert ir.receipt()["expected_answer_available"] is False
+
+
+def test_projection_refuses_missing_or_noncontiguous_offsets() -> None:
+    example = build_semantic_program_corpus(examples_per_operation_pair=1)[0]
+    offsets = list(_character_offsets(example.source_text))
+
+    with pytest.raises(ValueError, match="differ in length"):
+        project_example_to_ir(
+            example,
+            source_token_ids=(1,),
+            offset_mapping=offsets,
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+
+    first_input = example.input_spans[0]
+    offsets[first_input.start] = (0, 0)
+    with pytest.raises(ValueError, match="offsets"):
+        project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(offsets))),
+            offset_mapping=offsets,
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+
+
+def test_corpus_is_deterministic_and_seeded() -> None:
+    first = build_semantic_program_corpus(seed=9, examples_per_operation_pair=1)
+    replay = build_semantic_program_corpus(seed=9, examples_per_operation_pair=1)
+    changed = build_semantic_program_corpus(seed=10, examples_per_operation_pair=1)
+
+    assert first == replay
+    assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
