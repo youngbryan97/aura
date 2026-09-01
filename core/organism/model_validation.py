@@ -41,8 +41,8 @@ the document.
 from __future__ import annotations
 
 import logging
-import threading
 import pathlib
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -1166,6 +1166,31 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="semantic_neural_operations_recombine_beyond_family_templates",
+            description=(
+                "existing learned arithmetic tissue executes fresh public typed "
+                "operation compositions while coefficient and operand controls fail"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="typed_operation_composition_certificate_is_verified",
+                value=True,
+                source=(
+                    "artifacts/closeout/latent_cortex/"
+                    "typed_composition_canary_20260831/verification.json"
+                ),
+            ),
+            predict=lambda _m: _semantic_neural_composition_certificate_holds(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="semantic neural operation composition",
+            ),
+            owner="tools/verify_semantic_neural_composition_canary.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1496,6 +1521,31 @@ def install_runtime_validation() -> dict[str, Any]:
                 "mutation, ambiguity, and receipt-privacy controls. This is a strict "
                 "declared-grammar compiler, not general natural-language planning or "
                 "a behavioral reasoning-gain claim."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Across 96 fresh family-neutral typed workflows, Aura's existing "
+                "learned arithmetic tissue recombined public operations exactly, "
+                "while additive, multiplicative, and wrong-operand controls removed "
+                "the result on every workflow."
+            ),
+            test="semantic_neural_operations_recombine_beyond_family_templates",
+            owner="tools/verify_semantic_neural_composition_canary.py",
+            asserted_in=(
+                "artifacts/closeout/latent_cortex/"
+                "typed_composition_canary_20260831/verification.json"
+            ),
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "An independent verifier replayed all 96 answer-blind public "
+                "workflows against a separate integer reference and checked source, "
+                "task-set, row, and receipt identity. Treatment and all three causal "
+                "disruptions were 96/96. This is learned typed-operation "
+                "recombination, not natural-language transfer, open-domain gain, "
+                "resident decoded-answer superiority, or broader serving."
             ),
         )
     )
@@ -3016,6 +3066,66 @@ def _public_transition_compiler_contract_holds() -> bool:
         ):
             return False
     return True
+
+
+def _semantic_neural_composition_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    artifact_root = (
+        root
+        / "artifacts/closeout/latent_cortex/typed_composition_canary_20260831"
+    )
+    try:
+        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
+        verification = json.loads(
+            (artifact_root / "verification.json").read_text(encoding="utf-8")
+        )
+        source_hashes = result["source_sha256s"]
+        current_hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_hashes
+        }
+        verifier_path = root / "tools/verify_semantic_neural_composition_canary.py"
+        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    expected_counts = {
+        "treatment_exact": 96,
+        "additive_lesion_disrupted": 96,
+        "multiplicative_lesion_disrupted": 96,
+        "wrong_operand_disrupted": 96,
+    }
+    expected_boundary = (
+        "fresh family-neutral typed-operation recombination through existing learned "
+        "arithmetic tissue; this does not establish natural-language transfer, "
+        "open-domain reasoning gain, resident decoded-answer superiority, or broader "
+        "serving"
+    )
+    return bool(
+        result.get("schema") == "aura.rlc.semantic_neural_composition_canary.v1"
+        and result.get("passed") is True
+        and result.get("verdict") == "SUPPORTED_OPERATION_COMPOSITION"
+        and result.get("task_count") == 96
+        and result.get("counts") == expected_counts
+        and result.get("teacher_available_to_treatment") is False
+        and result.get("verifier_answer_available_to_treatment") is False
+        and result.get("private_trace_available_to_treatment") is False
+        and result.get("claim_boundary") == expected_boundary
+        and current_hashes == source_hashes
+        and verification.get("schema")
+        == "aura.rlc.semantic_neural_composition_verification.v1"
+        and verification.get("verified") is True
+        and verification.get("task_count") == 96
+        and verification.get("counts") == expected_counts
+        and verification.get("claim_boundary") == expected_boundary
+        and verification.get("input_receipt_sha256") == result.get("receipt_sha256")
+        and verification.get("task_set_sha256") == result.get("task_set_sha256")
+        and verification.get("producer_source_sha256s") == source_hashes
+        and verification.get("verifier_source_sha256") == verifier_sha
+    )
 
 
 def _neural_complete_engine_contract_holds() -> bool:

@@ -1,0 +1,22 @@
+{
+  "claim_boundary": "fresh family-neutral typed-operation recombination through existing learned arithmetic tissue; this does not establish natural-language transfer, open-domain reasoning gain, resident decoded-answer superiority, or broader serving",
+  "counts": {
+    "additive_lesion_disrupted": 96,
+    "multiplicative_lesion_disrupted": 96,
+    "treatment_exact": 96,
+    "wrong_operand_disrupted": 96
+  },
+  "input_receipt_sha256": "fd1b7ab94fb064f03a569c94d46f246f0b57a5084b95b86c1dfcbe1cc50ac7ec",
+  "producer_source_sha256s": {
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/learning/semantic_neural_composition.py": "7dd66cdd3afcd912507f4dc88fc49a43a3d53c3895f34fde7b7bb1d0895c75ba",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "tools/run_semantic_neural_composition_canary.py": "7fe4d3ff42c476f483786db182cac318a578341f8f7114faffb2c5a76c82af48"
+  },
+  "schema": "aura.rlc.semantic_neural_composition_verification.v1",
+  "task_count": 96,
+  "task_set_sha256": "967a4635c23b09034eb420d73099a228f0b556cdc43467c88e83723e5f49302b",
+  "verification_receipt_sha256": "1f3a39675d77e7caf327d35e96b4ef748fc821e7348b3612a0800995c7cd3d04",
+  "verified": true,
+  "verifier_source_sha256": "5484ab1d33f5623329e2bbe1a14195a43596bdeef31dd302958b3168128cd7cf"
+}
