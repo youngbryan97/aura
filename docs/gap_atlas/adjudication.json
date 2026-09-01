@@ -9,8 +9,12 @@
       "bar": "A held-out latency/error prediction beats a candidate-count-only baseline on Aura's own recall traces.",
       "plan": "Aura is not a human-subject lab. Transferable half is an Aura-native latency law fitted to her own retrieval work, registered with provenance.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/retrieval_latency.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "002": {
       "verdict": "PARTIAL",
@@ -21,8 +25,12 @@
       "bar": "Intervening on activation changes measured latency in the predicted direction with candidate count and backend fixed.",
       "plan": "The module already records the refutation (r^2 3.7e-5). Build the native law over retrieval work and register it.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/retrieval_latency.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "003": {
       "verdict": "ABSENT",
@@ -85,8 +93,12 @@
       "bar": "Predict which wrong memory is retrieved before the answer is observed.",
       "plan": "mismatch_penalty exists. Score commission-vs-omission typing on Aura's own recalls against her own outcomes.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/retrieval_latency.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "007": {
       "verdict": "OVERSTATED",
@@ -131,8 +143,12 @@
       "bar": "CI blocks any calibration claim lacking reproducible fit metadata.",
       "plan": "ActrParameters carries provenance; preregistration hashes plans. Missing: repo-wide ParameterRegistry separating FITTED from POLICY, plus a make gate.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/parameter_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "011": {
       "verdict": "PARTIAL",
@@ -183,8 +199,12 @@
       "bar": "Held-out retention curves beat recency-only and exponential baselines.",
       "plan": "The power law is implemented and never checked against Aura's own access history. Buildable offline.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/retrieval_latency.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "015": {
       "verdict": "PARTIAL",
@@ -1153,8 +1173,12 @@
       "bar": "Configured dimensions meet declared error and capacity targets with confidence bounds.",
       "plan": "Measure capacity against dimension and noise per channel; feeds the W6 parameter registry (these are FITTED, not POLICY).",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/parameter_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "085": {
       "verdict": "PARTIAL",
@@ -2056,8 +2080,12 @@
       "bar": "Every capability claim is reproducible from a single manifest with matched baselines.",
       "plan": "One EvalOrchestrator over versioned tasks, baselines, compute accounting, seeds and signed results. Overlaps 210.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/experiment_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "165": {
       "verdict": "PROCESS",
@@ -2115,8 +2143,12 @@
       "bar": "Regression detection catches distribution shift before subjective review.",
       "plan": "A local experiment warehouse with run metrics, version lineage and causal arm labels. Overlaps 164.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/experiment_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "170": {
       "verdict": "ABSENT",
@@ -2262,8 +2294,12 @@
       "bar": "Reliability diagrams and Brier scores stay calibrated across domains and aggregation improves decisions.",
       "plan": "calibration.py already computes Brier. Missing: one calibration layer every uncertainty source passes through.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/calibration_layer.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "180": {
       "verdict": "PARTIAL",
@@ -2401,8 +2437,12 @@
       "bar": "Claims no longer rest on unidentifiable point estimates and sensitivity reports generate automatically.",
       "plan": "ParameterRegistry separating FITTED from POLICY, with bootstrap intervals and sensitivity.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/parameter_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "192": {
       "verdict": "PRESENT",
@@ -2437,8 +2477,12 @@
       "bar": "Developmental gains survive tasks unlikely to be memorised and matched base-model controls.",
       "plan": "Procedurally generated private tasks plus a cortex-only baseline. The contamination risk is real for a pretrained cortex.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "195": {
       "verdict": "PARTIAL",
@@ -2642,8 +2686,12 @@
       "bar": "Every quantitative claim in the system card links to a machine-readable experiment record.",
       "plan": "The claims registry exists and binds claims to tests. Missing: the experiment record with hypothesis, hashes, arms, nulls and result.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/experiment_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "211": {
       "verdict": "PARTIAL",
@@ -2653,8 +2701,12 @@
       "bar": "Capability reports show value over internal lesions AND competitive external or simple baselines.",
       "plan": "baselines.py holds one mimic controller. Add the frozen portfolio: base cortex, cortex plus tools, search-only, symbolic-only, learned-only.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "212": {
       "verdict": "PRESENT",
@@ -2678,8 +2730,13 @@
       "bar": "An observed scaling slope identifies the bottleneck and predicts whether a proposed module helps.",
       "plan": "scale_sweep.py exists. Make the sweep a precondition for architectural expansion.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evaluation/scale_sweep.py",
+        "core/science/experiment_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "214": {
       "verdict": "PARTIAL",
@@ -2689,8 +2746,12 @@
       "bar": "A verifier automatically rejects a learning claim missing any causal link.",
       "plan": "observation ids -> update -> stored artifact -> later use -> outcome delta, checked end to end. Falls out of W3 plus W6.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/learning_audit.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "215": {
       "verdict": "ABSENT",
@@ -2760,8 +2821,12 @@
       "bar": "An automated report rejects any claim whose prerequisite evidence level is absent.",
       "plan": "The registry, test binding and liveness decay all exist. The LADDER does not: EXISTS -> WIRED -> CAUSAL -> USEFUL -> GENERALISES -> EXTERNALLY_REPLICATED -> THEORY_SUPPORT, with prerequisites enforced.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/claim_ladder.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A1.1": {
       "verdict": "CAPABILITY",
@@ -3828,8 +3893,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Aura has deep local receipts and one user. Population telemetry is not available; the transferable half is regression detection across her own runs.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/experiment_registry.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A2.16": {
       "verdict": "PARTIAL",
@@ -4144,8 +4213,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.10": {
       "verdict": "EVIDENCE",
@@ -4155,8 +4228,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.2": {
       "verdict": "EVIDENCE",
@@ -4166,8 +4243,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.3": {
       "verdict": "EVIDENCE",
@@ -4177,8 +4258,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.4": {
       "verdict": "EVIDENCE",
@@ -4188,8 +4273,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.5": {
       "verdict": "EVIDENCE",
@@ -4199,8 +4288,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.6": {
       "verdict": "EVIDENCE",
@@ -4210,8 +4303,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.7": {
       "verdict": "EVIDENCE",
@@ -4221,8 +4318,12 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.8": {
       "verdict": "EVIDENCE",
@@ -4232,8 +4333,12 @@
       "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A4.9": {
       "verdict": "EVIDENCE",
@@ -4244,8 +4349,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "wave": "W6",
-      "status": "open",
-      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+      "status": "closed",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
+      "closed_by": [
+        "core/science/baseline_portfolio.py",
+        "tests/test_scientific_substrate.py"
+      ]
     },
     "A5.1": {
       "verdict": "ABSENT",
