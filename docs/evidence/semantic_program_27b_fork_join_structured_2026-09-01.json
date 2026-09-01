@@ -1,0 +1,64 @@
+{
+  "schema": "aura.semantic_program_structured_decoder_verification.v1",
+  "source_commit": "6f23afdffc59b84c572386198e4b4661b4ec72c6",
+  "claim_boundary": "bounded resident-27B language-to-program transfer across independently crossed constructions and four-input three-step fork-join topologies in synthetic integer arithmetic; not fresh-cohort replication, broad-domain, frontier-reasoning, or serving evidence",
+  "corpus_kind": "fork_join_4x3_factorial16",
+  "feature_manifest_sha256": "b0d0b8ab844e7c1a4c1b2af3677a6a30613bf0535f205595f435a7165a3bde9d",
+  "model_basis_sha256": "afcdeabab11d9acf129b355b4665736342f3fd15ed7ff765e668c1a8e7a6e0ec",
+  "transducer_receipt_sha256": "71a4d6e1e67606f9d4d32e7c5c4a52d6f7e887403c0b1b3025c47d6efe49f582",
+  "campaign_report_sha256": "25eb503850f60ae4392013d1fa5aa04e548ce39c1ebf248f132ea70d697ad752",
+  "stored_model_sha256": "dc42bb7d8a16c17953036ca28cb1d163ff4e063845e10e3a4f48083b3a87beb7",
+  "stored_report_sha256": "f49c4a9631e7514b01e15cb4994556a74e21c8966b1672e3183e3a2c7d9acb1e",
+  "decoder_comparison": {
+    "independent_top1_program_exact": 794,
+    "structured_causal_program_exact": 819,
+    "program_exact_gain": 25,
+    "independent_top1_answer_exact": 795,
+    "structured_causal_answer_exact": 825,
+    "answer_exact_gain": 30,
+    "held_out_total": 864
+  },
+  "test": {
+    "total": 432,
+    "accepted": 432,
+    "program_exact": 410,
+    "answer_exact": 413,
+    "operation_exact": 432,
+    "argument_exact": 410,
+    "input_span_exact": 432
+  },
+  "validation": {
+    "total": 432,
+    "accepted": 432,
+    "program_exact": 409,
+    "answer_exact": 412,
+    "operation_exact": 431,
+    "argument_exact": 409,
+    "input_span_exact": 419
+  },
+  "paired_program_controls": {
+    "coefficient_lesion_test": {"treatment_only": 410, "control_only": 0, "one_sided_exact_p": 3.7818280418450374e-124},
+    "coefficient_lesion_validation": {"treatment_only": 409, "control_only": 0, "one_sided_exact_p": 7.563656083690075e-124},
+    "hidden_token_shuffle_test": {"treatment_only": 278, "control_only": 3, "one_sided_exact_p": 9.518456837394711e-79},
+    "hidden_token_shuffle_validation": {"treatment_only": 274, "control_only": 0, "one_sided_exact_p": 3.2944368572595385e-83},
+    "label_permutation_test": {"treatment_only": 410, "control_only": 0, "one_sided_exact_p": 3.7818280418450374e-124},
+    "label_permutation_validation": {"treatment_only": 409, "control_only": 0, "one_sided_exact_p": 7.563656083690075e-124}
+  },
+  "paired_answer_controls": {
+    "coefficient_lesion_test": {"treatment_only": 413, "control_only": 0, "one_sided_exact_p": 4.727285052306297e-125},
+    "coefficient_lesion_validation": {"treatment_only": 412, "control_only": 0, "one_sided_exact_p": 9.454570104612593e-125},
+    "hidden_token_shuffle_test": {"treatment_only": 239, "control_only": 3, "one_sided_exact_p": 3.3425134057886065e-67},
+    "hidden_token_shuffle_validation": {"treatment_only": 221, "control_only": 0, "one_sided_exact_p": 2.967364920549937e-67},
+    "label_permutation_test": {"treatment_only": 413, "control_only": 0, "one_sided_exact_p": 4.727285052306297e-125},
+    "label_permutation_validation": {"treatment_only": 409, "control_only": 0, "one_sided_exact_p": 7.563656083690075e-124}
+  },
+  "raw_feature_records_reloaded": 1296,
+  "task_rows_independently_recounted": 3888,
+  "campaign_replay_exact": true,
+  "deterministic_refit_exact": true,
+  "expected_answers_available_to_training": false,
+  "verification_sha256": "7a2d2361fd18d14f499c5d38060ea03639c3ea550ed4c0f324ff5cfc8209577d",
+  "verification_file_sha256": "bd8dc2953bc3b94a6ec5dc516d80f6ced249819c402e817b2bfdd3653f84aa1a",
+  "verified": true,
+  "serving_authority": false
+}
