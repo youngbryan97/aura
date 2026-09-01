@@ -1191,6 +1191,34 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="resident_semantic_composition_decode_is_causally_verified",
+            description=(
+                "the resident 27B serializes authenticated composed operation "
+                "state while ordinary, wire, coefficient-lesion, and wrong-state "
+                "controls fail"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="resident_composition_decode_certificate_is_verified",
+                value=True,
+                source=(
+                    "artifacts/closeout/latent_cortex/"
+                    "typed_composition_decode_canary_20260831/verification.json"
+                ),
+            ),
+            predict=lambda _m: (
+                _resident_semantic_neural_composition_decode_certificate_holds()
+            ),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="resident semantic composition decode",
+            ),
+            owner="tools/verify_semantic_neural_composition_decode_canary.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1546,6 +1574,32 @@ def install_runtime_validation() -> dict[str, Any]:
                 "disruptions were 96/96. This is learned typed-operation "
                 "recombination, not natural-language transfer, open-domain gain, "
                 "resident decoded-answer superiority, or broader serving."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "On eight fresh family-neutral typed workflows, Aura's resident "
+                "27B decoded the exact result from authenticated composed operation "
+                "state on every task, while ordinary decode, syntax wire, both "
+                "coefficient lesions, and matched wrong state solved none."
+            ),
+            test="resident_semantic_composition_decode_is_causally_verified",
+            owner="tools/verify_semantic_neural_composition_decode_canary.py",
+            asserted_in=(
+                "artifacts/closeout/latent_cortex/"
+                "typed_composition_decode_canary_20260831/verification.json"
+            ),
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Independent replay verified 8 treatment gains, zero regressions, "
+                "all five controls at 0/8, exact paired one-sided p=0.00390625, "
+                "and source, model, resident-manifest, composition-basis, row, and "
+                "50-event journal identity. This is resident serialization of "
+                "authenticated typed composition, not hidden-state internalization, "
+                "open-domain reasoning gain, unrestricted serving, static fusion, "
+                "or frontier performance."
             ),
         )
     )
@@ -3125,6 +3179,83 @@ def _semantic_neural_composition_certificate_holds() -> bool:
         and verification.get("task_set_sha256") == result.get("task_set_sha256")
         and verification.get("producer_source_sha256s") == source_hashes
         and verification.get("verifier_source_sha256") == verifier_sha
+    )
+
+
+def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    artifact_root = (
+        root
+        / "artifacts/closeout/latent_cortex/"
+        "typed_composition_decode_canary_20260831"
+    )
+    try:
+        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
+        verification = json.loads(
+            (artifact_root / "verification.json").read_text(encoding="utf-8")
+        )
+        journal_path = artifact_root / "result.json.journal.jsonl"
+        journal_sha = hashlib.sha256(journal_path.read_bytes()).hexdigest()
+        source_hashes = result["source_sha256s"]
+        current_hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_hashes
+        }
+        verifier_path = (
+            root / "tools/verify_semantic_neural_composition_decode_canary.py"
+        )
+        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    expected_boundary = (
+        "resident-model serialization of fresh family-neutral typed-operation "
+        "composition from authenticated learned tissue under matched causal controls; "
+        "not hidden-state internalization, open-domain reasoning gain, unrestricted "
+        "serving, static fusion, or frontier performance"
+    )
+    expected_exact = {
+        "ordinary_base": 0,
+        "matched_wire_base": 0,
+        "treatment": 8,
+        "additive_lesion": 0,
+        "multiplicative_lesion": 0,
+        "matched_wrong_state": 0,
+    }
+    arms = result.get("arms")
+    journal = verification.get("journal_identity")
+    return bool(
+        result.get("schema")
+        == "aura.rlc.semantic_neural_composition_decode_canary.v1"
+        and result.get("admitted") is True
+        and result.get("task_count") == 8
+        and result.get("decode_calls_per_arm_per_task") == 1
+        and isinstance(arms, dict)
+        and {arm: values.get("exact") for arm, values in arms.items()}
+        == expected_exact
+        and result.get("gain_count") == 8
+        and result.get("regression_count") == 0
+        and result.get("claim_boundary") == expected_boundary
+        and current_hashes == source_hashes
+        and verification.get("schema")
+        == "aura.rlc.semantic_neural_composition_decode_verification.v1"
+        and verification.get("verified") is True
+        and verification.get("source_commit") == result.get("source_commit")
+        and verification.get("source_sha256s") == source_hashes
+        and verification.get("independent_exact_by_arm") == expected_exact
+        and verification.get("gain_count") == 8
+        and verification.get("regression_count") == 0
+        and verification.get("paired_one_sided_exact_p") == 0.00390625
+        and verification.get("claim_boundary") == expected_boundary
+        and verification.get("input_receipt_sha256") == result.get("receipt_sha256")
+        and verification.get("verifier_source_sha256") == verifier_sha
+        and isinstance(journal, dict)
+        and journal.get("sha256") == journal_sha
+        and journal.get("event_count") == 50
+        and journal.get("decode_count") == 48
     )
 
 
