@@ -341,3 +341,72 @@ def test_a_crash_part_way_through_a_save_leaves_the_old_snapshot(tmp_path):
     bigger.save(path)
     reloaded = AtomSpace(max_atoms=1000)
     assert reloaded.load(path) == len(bigger)
+
+
+# ── the model that scores best is not the model that plans best ───────────
+#
+# Cards 140 and 198. Both are the same shape: the objective a model was
+# trained on cannot say which model is better, and only a second measurement
+# on control or under intervention can.
+
+
+def test_a_correlational_fit_predicts_observations_and_not_interventions():
+    from tools.campaigns.world_model_campaign import X_TO_Y, causal_arm
+
+    row = causal_arm(observations=400, interventions_seen=100, tested=200, seed=5)
+    assert row["causal_wins_under_intervention"]
+    # And the trap: the wrong model looks better on observations, which is why
+    # an observational score cannot settle it.
+    assert row["correlational_wins_on_observations"]
+    # The causal arm recovers roughly the real effect; the correlational one
+    # recovers the confound.
+    assert abs(row["causal_slope"] - X_TO_Y) < 0.15
+    assert row["correlational_slope"] > X_TO_Y * 2
+
+
+def test_the_two_objectives_choose_different_dimensions_from_one_dataset():
+    """Neither ranking is authored: both fall out of the same observations."""
+    from tools.campaigns.world_model_campaign import objective_arm
+
+    loud = objective_arm(
+        capacity=8, steps=4000, observed_dims=48, noise_scale=3.0, seed=5
+    )
+    assert loud["dims_both_kept"] == 0
+    assert loud["reconstruction_kept_signal_dims"] == 0
+    assert loud["latent_kept_signal_dims"] == loud["capacity"]
+    # The objective with the better reconstruction loss is the worse planner.
+    assert loud["reconstruction_loss"] < loud["latent_loss"]
+    assert loud["latent_control_success"] > loud["reconstruction_control_success"]
+    assert loud["loss_disagrees_with_control"]
+
+
+def test_the_two_objectives_agree_when_there_is_nothing_to_disagree_about():
+    """A result that held at every noise level would be a rigged one."""
+    from tools.campaigns.world_model_campaign import objective_arm
+
+    quiet = objective_arm(
+        capacity=8, steps=4000, observed_dims=48, noise_scale=0.25, seed=5
+    )
+    assert quiet["verdict"] == "no difference in planning"
+    assert quiet["reconstruction_kept_signal_dims"] == quiet["capacity"]
+
+
+def test_the_world_model_evidence_carries_the_sweep_not_a_single_point():
+    payload = _sealed("world_model_campaign.json")
+    assert set(payload["cards"]) == {"140", "198"}
+    causal = payload["causal"]
+    assert causal["causal_wins_under_intervention"] == causal["trials"]
+    assert causal["correlational_wins_on_observations"] == causal["trials"]
+    assert causal["median_causal_rmse"] < causal["median_correlational_rmse"]
+
+    sweep = payload["objective_sweep"]
+    assert len(sweep) >= 5
+    verdicts = {row["verdict"] for row in sweep}
+    # Both readings appear, so the headline is a crossover and not a constant.
+    assert "no difference in planning" in verdicts
+    assert "latent prediction plans better" in verdicts
+    # Latent prediction never loses, at any noise level.
+    assert all(
+        row["latent_control_success"] >= row["reconstruction_control_success"]
+        for row in sweep
+    )

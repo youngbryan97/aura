@@ -1,0 +1,106 @@
+{
+  "cards": [
+    "140",
+    "198"
+  ],
+  "causal": {
+    "causal_wins_under_intervention": 40,
+    "correlational_wins_on_observations": 40,
+    "median_causal_rmse": 1.6606,
+    "median_causal_slope": 0.4625,
+    "median_correlational_rmse": 3.0324,
+    "median_correlational_slope": 1.8649,
+    "trials": 40,
+    "true_effect": 0.4
+  },
+  "claim_boundary": "a linear structural causal model with hidden confounding, and two training objectives choosing a basis from the same synthetic observations at the same capacity; measures whether the comparison machinery names the right winner when the answer is known, not Aura's world model on any real environment",
+  "config": {
+    "capacity": 8,
+    "interventions_seen": 100,
+    "noise_scale": 3.0,
+    "observations": 400,
+    "observed_dims": 48,
+    "seed": 1618033,
+    "steps": 4000,
+    "tested": 200,
+    "trials": 40
+  },
+  "objective": {
+    "capacity": 8,
+    "compute_matched": true,
+    "dims_both_kept": 0,
+    "latent_control_success": 0.9700894348345185,
+    "latent_kept_signal_dims": 8,
+    "latent_loss": 5.480311493925161,
+    "latent_next_step_loss": 0.08643,
+    "loss_disagrees_with_control": true,
+    "noise_scale": 3.0,
+    "observed_dims": 48,
+    "reconstruction_control_success": 0.0,
+    "reconstruction_kept_signal_dims": 0,
+    "reconstruction_loss": 3.722479116080331,
+    "reconstruction_next_step_loss": 9.17848,
+    "signal_dims": 24,
+    "steps": 4000,
+    "verdict": "latent prediction plans better"
+  },
+  "objective_sweep": [
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 0.1,
+      "reconstruction_control_success": 0.9701,
+      "reconstruction_kept_signal_dims": 8,
+      "verdict": "no difference in planning"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 0.25,
+      "reconstruction_control_success": 0.9701,
+      "reconstruction_kept_signal_dims": 8,
+      "verdict": "no difference in planning"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 0.5,
+      "reconstruction_control_success": 0.9701,
+      "reconstruction_kept_signal_dims": 8,
+      "verdict": "no difference in planning"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 1.0,
+      "reconstruction_control_success": 0.0,
+      "reconstruction_kept_signal_dims": 0,
+      "verdict": "latent prediction plans better"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 2.0,
+      "reconstruction_control_success": 0.0,
+      "reconstruction_kept_signal_dims": 0,
+      "verdict": "latent prediction plans better"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 3.0,
+      "reconstruction_control_success": 0.0,
+      "reconstruction_kept_signal_dims": 0,
+      "verdict": "latent prediction plans better"
+    },
+    {
+      "latent_control_success": 0.9701,
+      "latent_kept_signal_dims": 8,
+      "noise_scale": 6.0,
+      "reconstruction_control_success": 0.0,
+      "reconstruction_kept_signal_dims": 0,
+      "verdict": "latent prediction plans better"
+    }
+  ],
+  "schema": "aura.world_model_campaign.v1"
+}

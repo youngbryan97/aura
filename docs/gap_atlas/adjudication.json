@@ -2792,6 +2792,7 @@
     },
     "140": {
       "bar": "A latent predictor beats the reconstruction objective on downstream planning at equal compute.",
+      "campaign_run": "two objectives choosing a basis from the same 48-channel observations at the same capacity of 8. Reconstruction ranks by variance and buys 0 of 8 signal channels; latent prediction ranks by predictability and buys 8 of 8. Reconstruction wins its own loss (3.72 against 5.48) and scores 0.0 on control while latent prediction scores 0.970 - the objective with the better loss is the worse planner. Swept across noise: identical below scale 1.0, latent prediction ahead at and above it, never behind (docs/evidence/world_model_campaign.json)",
       "card_subject": "JEPA predicts abstract representations, avoiding spending capacity on unpredictable pixel detail.",
       "closed_by": [
         "core/world_model/prediction_quality.py",
@@ -2801,7 +2802,7 @@
         "core/world_model/learned_world_model.py"
       ],
       "note": "",
-      "outstanding": "run both world-model objectives at matched compute and score them on control",
+      "outstanding": "",
       "plan": "The VRNN reconstructs observation vectors and folds reconstruction error into surprise. Add a latent-target objective as a second arm and measure.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -3904,6 +3905,7 @@
     },
     "198": {
       "bar": "A recovered causal graph predicts unseen interventions better than a correlational model.",
+      "campaign_run": "40 trials on a linear SCM with hidden confounding, equal rows to both arms. The causal arm recovers a slope of 0.463 against a true effect of 0.400; the correlational arm recovers 1.865, which is the confound. Under unseen interventions the causal arm wins 40 of 40 (RMSE 1.66 against 3.03) while the correlational arm wins 40 of 40 on observations - the reading that would have picked the wrong model (docs/evidence/world_model_campaign.json)",
       "card_subject": "Strong world understanding requires interventions, not only next-state prediction.",
       "closed_by": [
         "core/world_model/prediction_quality.py",
@@ -3914,7 +3916,7 @@
         "core/world_model/learned_world_model.py"
       ],
       "note": "",
-      "outstanding": "an intervention campaign on the world model against its observational arm",
+      "outstanding": "",
       "plan": "Structural causal hypotheses over learned entities, distinguished by intervention.",
       "status": "closed",
       "verdict": "PARTIAL",
