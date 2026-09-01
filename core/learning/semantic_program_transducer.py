@@ -8,9 +8,9 @@ proposes ``SemanticProgramIR``, whose validator remains the authority on type
 and causal structure.
 
 The legacy contract covers three public inputs and two binary instructions.
-The current contract derives its input and step geometry from the training
-examples while retaining exact legacy serialization for the published model.
-It remains a bounded compiler over a fixed binary primitive vocabulary.
+The current contract derives input, step, and per-step argument geometry from
+the training examples while retaining exact legacy serialization for published
+binary models. It remains a bounded compiler over a fixed primitive vocabulary.
 """
 
 from __future__ import annotations
@@ -27,17 +27,17 @@ import numpy as np
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
+    SemanticValue,
     TokenSpan,
+    normalize_semantic_value,
 )
 
 LEGACY_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
 SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v2"
-LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
-    "aura.semantic_program_transducer_receipt.v1"
-)
-SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
-    "aura.semantic_program_transducer_receipt.v2"
-)
+TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v3"
+LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v1"
+SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v2"
+TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v3"
 SEMANTIC_TRANSDUCER_INPUTS: Final = 3
 SEMANTIC_TRANSDUCER_STEPS: Final = 2
 SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS: Final = 24
@@ -50,21 +50,24 @@ _STRUCTURED_POINTER_BEAM: Final = 512
 _STRUCTURED_ARGUMENT_BEAM: Final = 1024
 
 
-def _pointer_roles(input_count: int, step_count: int) -> tuple[str, ...]:
+def _pointer_roles(
+    input_count: int,
+    argument_arities: Sequence[int],
+) -> tuple[str, ...]:
     return (
         *(f"input:{index}" for index in range(input_count)),
-        *(f"operation:{step}" for step in range(step_count)),
+        *(f"operation:{step}" for step in range(len(argument_arities))),
         *(
             f"argument:{step}:{position}"
-            for step in range(step_count)
-            for position in range(2)
+            for step, arity in enumerate(argument_arities)
+            for position in range(arity)
         ),
     )
 
 
 _POINTER_ROLES: Final = _pointer_roles(
     SEMANTIC_TRANSDUCER_INPUTS,
-    SEMANTIC_TRANSDUCER_STEPS,
+    (2,) * SEMANTIC_TRANSDUCER_STEPS,
 )
 
 _RECEIPT_FIELDS: Final = {
@@ -89,6 +92,7 @@ _RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {
     "shared_argument_support",
     "step_count",
 }
+_RECEIPT_FIELDS_V3: Final = _RECEIPT_FIELDS_V2 | {"argument_arities"}
 
 
 def _sha(value: Any) -> str:
@@ -165,7 +169,7 @@ class SemanticTransducerTrainingExample:
     split: str
     construction_id: str
     topology_id: str
-    public_inputs: tuple[int, ...]
+    public_inputs: tuple[SemanticValue, ...]
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -174,14 +178,11 @@ class SemanticTransducerTrainingExample:
         if (
             not 1 <= self.ir.n_inputs <= _MAX_TRANSDUCER_INPUTS
             or not 1 <= len(self.ir.instructions) <= _MAX_TRANSDUCER_STEPS
-            or any(len(instruction.args) != 2 for instruction in self.ir.instructions)
         ):
             raise ValueError("semantic transducer training geometry is unsupported")
-        if (
-            not isinstance(self.public_inputs, tuple)
-            or len(self.public_inputs) != self.ir.n_inputs
-            or any(type(value) is not int for value in self.public_inputs)
-        ):
+        if not isinstance(self.public_inputs, tuple) or len(self.public_inputs) != self.ir.n_inputs:
+            raise ValueError("semantic transducer public inputs are invalid")
+        if any(normalize_semantic_value(value) != value for value in self.public_inputs):
             raise ValueError("semantic transducer public inputs are invalid")
         if self.split not in {"train", "validation", "test"}:
             raise ValueError("semantic transducer split is invalid")
@@ -346,9 +347,7 @@ def _joint_pointer_assignment(
 ) -> tuple[tuple[TokenSpan, ...], tuple[float, ...]] | None:
     """Choose one globally compatible span for every learned pointer role."""
 
-    beam: list[tuple[float, tuple[TokenSpan, ...], tuple[float, ...]]] = [
-        (0.0, (), ())
-    ]
+    beam: list[tuple[float, tuple[TokenSpan, ...], tuple[float, ...]]] = [(0.0, (), ())]
     for role_candidates in candidates:
         expanded: list[tuple[float, tuple[TokenSpan, ...], tuple[float, ...]]] = []
         for total, spans, scores in beam:
@@ -456,76 +455,109 @@ def _structured_argument_assignment(
     input_spans: Sequence[TokenSpan],
     operation_spans: Sequence[TokenSpan],
     input_count: int,
-    step_count: int,
-) -> tuple[
-    tuple[tuple[int, int], ...],
-    tuple[tuple[TokenSpan, TokenSpan], ...],
-    tuple[tuple[float, float], ...],
-    tuple[tuple[float, float], ...],
-] | None:
+    argument_arities: Sequence[int] | None = None,
+    step_count: int | None = None,
+) -> (
+    tuple[
+        tuple[tuple[int, ...], ...],
+        tuple[tuple[TokenSpan, ...], ...],
+        tuple[tuple[float, ...], ...],
+        tuple[tuple[float, ...], ...],
+    ]
+    | None
+):
     """Find the strongest forward assignment that keeps every step causal."""
+
+    if argument_arities is None:
+        if type(step_count) is not int or step_count < 1:
+            raise ValueError("structured argument geometry is missing")
+        argument_arities = (2,) * step_count
+    elif step_count is not None and step_count != len(argument_arities):
+        raise ValueError("structured argument geometry disagrees")
 
     states: list[
         tuple[
             float,
-            tuple[tuple[int, int], ...],
-            tuple[tuple[TokenSpan, TokenSpan], ...],
-            tuple[tuple[float, float], ...],
-            tuple[tuple[float, float], ...],
+            tuple[tuple[int, ...], ...],
+            tuple[tuple[TokenSpan, ...], ...],
+            tuple[tuple[float, ...], ...],
+            tuple[tuple[float, ...], ...],
         ]
     ] = [(0.0, (), (), (), ())]
-    for step in range(step_count):
-        role_zero = f"argument:{step}:0"
-        role_one = f"argument:{step}:1"
-        zero = _best_argument_candidates(
-            pointer_candidates=pointer_candidates[role_zero],
-            pointer_head=pointer_heads[role_zero],
-            classifier=argument_heads[step][0],
-            hidden=hidden,
-            tokens=tokens,
-            input_spans=input_spans,
-            operation_spans=operation_spans,
-            current_step=step,
-            input_count=input_count,
-        )
-        one = _best_argument_candidates(
-            pointer_candidates=pointer_candidates[role_one],
-            pointer_head=pointer_heads[role_one],
-            classifier=argument_heads[step][1],
-            hidden=hidden,
-            tokens=tokens,
-            input_spans=input_spans,
-            operation_spans=operation_spans,
-            current_step=step,
-            input_count=input_count,
-        )
-        if not zero or not one:
-            return None
+    for step, arity in enumerate(argument_arities):
+        step_combinations: list[
+            tuple[
+                float,
+                tuple[int, ...],
+                tuple[TokenSpan, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+            ]
+        ] = [(0.0, (), (), (), ())]
+        for position in range(arity):
+            role = f"argument:{step}:{position}"
+            candidates = _best_argument_candidates(
+                pointer_candidates=pointer_candidates[role],
+                pointer_head=pointer_heads[role],
+                classifier=argument_heads[step][position],
+                hidden=hidden,
+                tokens=tokens,
+                input_spans=input_spans,
+                operation_spans=operation_spans,
+                current_step=step,
+                input_count=input_count,
+            )
+            if not candidates:
+                return None
+            step_combinations = [
+                (
+                    total + candidate.score,
+                    (*registers, candidate.register),
+                    (*spans, candidate.span),
+                    (*pointer_values, candidate.pointer_score),
+                    (*confidence_values, candidate.confidence),
+                )
+                for total, registers, spans, pointer_values, confidence_values in step_combinations
+                for candidate in candidates
+            ]
+            step_combinations.sort(
+                key=lambda item: (
+                    -item[0],
+                    item[1],
+                    tuple((span.start, span.end) for span in item[2]),
+                )
+            )
+            step_combinations = step_combinations[:_STRUCTURED_ARGUMENT_BEAM]
         expanded = []
         for total, arguments, spans, pointer_scores, confidences in states:
-            for left in zero:
-                for right in one:
-                    expanded.append(
-                        (
-                            total + left.score + right.score,
-                            (*arguments, (left.register, right.register)),
-                            (*spans, (left.span, right.span)),
-                            (*pointer_scores, (left.pointer_score, right.pointer_score)),
-                            (*confidences, (left.confidence, right.confidence)),
-                        )
+            for (
+                step_score,
+                step_arguments,
+                step_spans,
+                step_pointer_scores,
+                step_confidences,
+            ) in step_combinations:
+                expanded.append(
+                    (
+                        total + step_score,
+                        (*arguments, step_arguments),
+                        (*spans, step_spans),
+                        (*pointer_scores, step_pointer_scores),
+                        (*confidences, step_confidences),
                     )
+                )
         expanded.sort(
             key=lambda item: (
                 -item[0],
                 item[1],
                 tuple(
-                    (left.start, left.end, right.start, right.end)
-                    for left, right in item[2]
+                    tuple((span.start, span.end) for span in step_spans) for step_spans in item[2]
                 ),
             )
         )
         states = expanded[:_STRUCTURED_ARGUMENT_BEAM]
 
+    step_count = len(argument_arities)
     expected_outputs = set(range(input_count, input_count + step_count))
     terminal = input_count + step_count - 1
     for _, arguments, spans, pointer_scores, confidences in states:
@@ -547,6 +579,7 @@ class SemanticProgramTransducer:
     model_basis_sha256: str
     input_count: int
     step_count: int
+    argument_arities: tuple[int, ...]
     pointer_heads: dict[str, LinearPointerHead]
     operation_heads: tuple[LinearClassifierHead, ...]
     argument_heads: tuple[tuple[LinearClassifierHead, ...], ...]
@@ -560,12 +593,18 @@ class SemanticProgramTransducer:
         expected_schema = (
             LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if legacy
+            else TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
         )
-        roles = _pointer_roles(self.input_count, self.step_count)
+        roles = _pointer_roles(self.input_count, self.argument_arities)
         if (
             self.schema
-            not in {LEGACY_SEMANTIC_TRANSDUCER_SCHEMA, SEMANTIC_TRANSDUCER_SCHEMA}
+            not in {
+                LEGACY_SEMANTIC_TRANSDUCER_SCHEMA,
+                SEMANTIC_TRANSDUCER_SCHEMA,
+                TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            }
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
             or not _is_sha256(self.model_basis_sha256)
@@ -573,11 +612,25 @@ class SemanticProgramTransducer:
             or not 1 <= self.input_count <= _MAX_TRANSDUCER_INPUTS
             or type(self.step_count) is not int
             or not 1 <= self.step_count <= _MAX_TRANSDUCER_STEPS
+            or not isinstance(self.argument_arities, tuple)
+            or len(self.argument_arities) != self.step_count
+            or any(type(arity) is not int or arity not in {1, 2} for arity in self.argument_arities)
             or (legacy and (self.input_count, self.step_count) != (3, 2))
+            or (
+                self.schema in {LEGACY_SEMANTIC_TRANSDUCER_SCHEMA, SEMANTIC_TRANSDUCER_SCHEMA}
+                and self.argument_arities != (2,) * self.step_count
+            )
             or set(pointer_heads) != set(roles)
             or len(self.operation_heads) != self.step_count
             or len(self.argument_heads) != self.step_count
-            or any(len(heads) != 2 for heads in self.argument_heads)
+            or any(
+                len(heads) != arity
+                for heads, arity in zip(
+                    self.argument_heads,
+                    self.argument_arities,
+                    strict=True,
+                )
+            )
             or receipt.get("schema") != expected_schema
         ):
             raise ValueError("semantic transducer envelope is invalid")
@@ -585,12 +638,16 @@ class SemanticProgramTransducer:
         all_heads.extend(head for heads in self.argument_heads for head in heads)
         if any(head.width != self.hidden_size for head in all_heads):
             raise ValueError("semantic transducer heads disagree on hidden width")
-        expected_receipt_fields = _RECEIPT_FIELDS if legacy else _RECEIPT_FIELDS_V2
+        expected_receipt_fields = (
+            _RECEIPT_FIELDS
+            if legacy
+            else _RECEIPT_FIELDS_V3
+            if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            else _RECEIPT_FIELDS_V2
+        )
         if set(receipt) != expected_receipt_fields:
             raise ValueError("semantic transducer receipt fields are invalid")
-        receipt_body = {
-            key: value for key, value in receipt.items() if key != "receipt_sha256"
-        }
+        receipt_body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
         if (
             receipt.get("receipt_sha256") != _sha(receipt_body)
             or receipt.get("model_basis_sha256") != self.model_basis_sha256
@@ -603,7 +660,7 @@ class SemanticProgramTransducer:
             or not isinstance(receipt.get("training_topologies"), list)
             or not isinstance(receipt.get("primitive_support"), list)
             or not isinstance(receipt.get("register_support"), list)
-            or len(receipt["register_support"]) != self.step_count * 2
+            or len(receipt["register_support"]) != sum(self.argument_arities)
             or (
                 not legacy
                 and (
@@ -612,18 +669,45 @@ class SemanticProgramTransducer:
                     or receipt.get("classifier_sharing") != "across_step_slots"
                     or receipt.get("shared_argument_support")
                     != [
-                        sorted(int(label) for label in self.argument_heads[0][position].labels)
-                        for position in range(2)
+                        sorted(
+                            int(label)
+                            for label in next(
+                                heads[position]
+                                for heads, arity in zip(
+                                    self.argument_heads,
+                                    self.argument_arities,
+                                    strict=True,
+                                )
+                                if position < arity
+                            ).labels
+                        )
+                        for position in range(max(self.argument_arities))
                     ]
+                    or (
+                        self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        and receipt.get("argument_arities") != list(self.argument_arities)
+                    )
                     or any(
                         head.to_dict() != self.operation_heads[0].to_dict()
                         for head in self.operation_heads[1:]
                     )
                     or any(
-                        heads[position].to_dict()
-                        != self.argument_heads[0][position].to_dict()
-                        for heads in self.argument_heads[1:]
-                        for position in range(2)
+                        head.to_dict()
+                        != next(
+                            candidate_heads[position]
+                            for candidate_heads, candidate_arity in zip(
+                                self.argument_heads,
+                                self.argument_arities,
+                                strict=True,
+                            )
+                            if position < candidate_arity
+                        ).to_dict()
+                        for heads, arity in zip(
+                            self.argument_heads,
+                            self.argument_arities,
+                            strict=True,
+                        )
+                        for position, head in enumerate(heads[:arity])
                     )
                 )
             )
@@ -648,13 +732,9 @@ class SemanticProgramTransducer:
     ) -> dict[str, Any]:
         pointers = self.pointer_heads if pointer_heads is None else pointer_heads
         return {
-            "pointer_heads": {
-                role: pointers[role].to_dict() for role in sorted(pointers)
-            },
+            "pointer_heads": {role: pointers[role].to_dict() for role in sorted(pointers)},
             "operation_heads": [head.to_dict() for head in self.operation_heads],
-            "argument_heads": [
-                [head.to_dict() for head in heads] for heads in self.argument_heads
-            ],
+            "argument_heads": [[head.to_dict() for head in heads] for heads in self.argument_heads],
         }
 
     @property
@@ -672,9 +752,14 @@ class SemanticProgramTransducer:
             **self._coefficient_body(),
             "training_receipt": self.training_receipt,
         }
-        if self.schema == SEMANTIC_TRANSDUCER_SCHEMA:
+        if self.schema in {
+            SEMANTIC_TRANSDUCER_SCHEMA,
+            TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+        }:
             payload["input_count"] = self.input_count
             payload["step_count"] = self.step_count
+        if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+            payload["argument_arities"] = list(self.argument_arities)
         return payload
 
     def decode(
@@ -705,9 +790,9 @@ class SemanticProgramTransducer:
         spans: dict[str, TokenSpan] = {}
         pointer_scores: dict[str, float] = {}
         pointer_candidates: dict[str, tuple[tuple[TokenSpan, float], ...]] = {}
-        roles = _pointer_roles(self.input_count, self.step_count)
+        roles = _pointer_roles(self.input_count, self.argument_arities)
         for role in roles:
-            if self.schema != SEMANTIC_TRANSDUCER_SCHEMA:
+            if self.schema == LEGACY_SEMANTIC_TRANSDUCER_SCHEMA:
                 candidate_limit = 1
             elif role.startswith("input:"):
                 candidate_limit = _STRUCTURED_INPUT_CANDIDATES
@@ -724,10 +809,11 @@ class SemanticProgramTransducer:
             spans[role] = span
             pointer_scores[role] = score
 
-        if self.schema == SEMANTIC_TRANSDUCER_SCHEMA:
-            input_roles = tuple(
-                f"input:{index}" for index in range(self.input_count)
-            )
+        if self.schema in {
+            SEMANTIC_TRANSDUCER_SCHEMA,
+            TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+        }:
+            input_roles = tuple(f"input:{index}" for index in range(self.input_count))
             input_assignment = _joint_pointer_assignment(
                 tuple(pointer_candidates[role] for role in input_roles),
                 ordered=False,
@@ -759,24 +845,22 @@ class SemanticProgramTransducer:
                 pointer_heads=self.pointer_heads,
                 hidden=hidden,
                 tokens=tokens,
-                input_spans=tuple(
-                    spans[f"input:{index}"] for index in range(self.input_count)
-                ),
+                input_spans=tuple(spans[f"input:{index}"] for index in range(self.input_count)),
                 operation_spans=operation_spans,
                 input_count=self.input_count,
-                step_count=self.step_count,
+                argument_arities=self.argument_arities,
             )
-            if self.schema == SEMANTIC_TRANSDUCER_SCHEMA
+            if self.schema in {SEMANTIC_TRANSDUCER_SCHEMA, TYPED_SEMANTIC_TRANSDUCER_SCHEMA}
             else None
         )
-        arguments: list[tuple[int, int]] = []
+        arguments: list[tuple[int, ...]] = []
         if structured_arguments is not None:
             assigned_arguments, assigned_spans, assigned_scores, assigned_confidences = (
                 structured_arguments
             )
             arguments.extend(assigned_arguments)
             for step in range(self.step_count):
-                for position in range(2):
+                for position in range(self.argument_arities[step]):
                     role = f"argument:{step}:{position}"
                     spans[role] = assigned_spans[step][position]
                     pointer_scores[role] = assigned_scores[step][position]
@@ -784,7 +868,7 @@ class SemanticProgramTransducer:
         else:
             for step in range(self.step_count):
                 step_args: list[int] = []
-                for position in range(2):
+                for position in range(self.argument_arities[step]):
                     role = f"argument:{step}:{position}"
                     span = spans[role]
                     input_matches = [
@@ -810,28 +894,24 @@ class SemanticProgramTransducer:
                             argument = prior_result
                             confidence = min(
                                 pointer_scores[role],
-                                pointer_scores[
-                                    f"operation:{prior_result - self.input_count}"
-                                ],
+                                pointer_scores[f"operation:{prior_result - self.input_count}"],
                             )
                         else:
                             feature = _pool(hidden, span)
-                            label, confidence = self.argument_heads[step][position].predict(
-                                feature
-                            )
+                            label, confidence = self.argument_heads[step][position].predict(feature)
                             argument = int(label)
                     step_args.append(argument)
                     confidences[role] = confidence
-                arguments.append((step_args[0], step_args[1]))
+                arguments.append(tuple(step_args))
 
         instructions = tuple(
             SemanticIRInstruction(
                 op=operations[step],
                 args=arguments[step],
                 operation_span=spans[f"operation:{step}"],
-                argument_spans=(
-                    spans[f"argument:{step}:0"],
-                    spans[f"argument:{step}:1"],
+                argument_spans=tuple(
+                    spans[f"argument:{step}:{position}"]
+                    for position in range(self.argument_arities[step])
                 ),
                 depends_on=tuple(
                     sorted(
@@ -847,10 +927,7 @@ class SemanticProgramTransducer:
             ir = SemanticProgramIR(
                 source_token_ids=tokens,
                 source_text_sha256=source_text_sha256,
-                input_spans=tuple(
-                    spans[f"input:{index}"]
-                    for index in range(self.input_count)
-                ),
+                input_spans=tuple(spans[f"input:{index}"] for index in range(self.input_count)),
                 instructions=instructions,
                 report_value=self.input_count + self.step_count - 1,
                 model_basis_receipt_sha256=model_basis_sha256,
@@ -875,9 +952,7 @@ def _pool(hidden: np.ndarray, span: TokenSpan) -> np.ndarray:
 
 
 def _gold_spans(ir: SemanticProgramIR) -> dict[str, TokenSpan]:
-    spans = {
-        f"input:{index}": span for index, span in enumerate(ir.input_spans)
-    }
+    spans = {f"input:{index}": span for index, span in enumerate(ir.input_spans)}
     for step, instruction in enumerate(ir.instructions):
         spans[f"operation:{step}"] = instruction.operation_span
         for position, span in enumerate(instruction.argument_spans):
@@ -943,17 +1018,23 @@ def fit_semantic_program_transducer(
     if len(model_bases) != 1:
         raise ValueError("semantic transducer training spans multiple model bases")
     geometries = {
-        (item.ir.n_inputs, len(item.ir.instructions)) for item in training
+        (
+            item.ir.n_inputs,
+            tuple(len(instruction.args) for instruction in item.ir.instructions),
+        )
+        for item in training
     }
     if len(geometries) != 1:
         raise ValueError("semantic transducer training geometries differ")
     if any(item.hidden_states.shape[1] != hidden_size for item in training):
         raise ValueError("semantic transducer training hidden widths differ")
-    input_count, step_count = next(iter(geometries))
-    roles = _pointer_roles(input_count, step_count)
-    legacy = (input_count, step_count) == (
+    input_count, argument_arities = next(iter(geometries))
+    step_count = len(argument_arities)
+    roles = _pointer_roles(input_count, argument_arities)
+    legacy = (input_count, step_count, argument_arities) == (
         SEMANTIC_TRANSDUCER_INPUTS,
         SEMANTIC_TRANSDUCER_STEPS,
+        (2,) * SEMANTIC_TRANSDUCER_STEPS,
     )
 
     pointer_heads: dict[str, LinearPointerHead] = {}
@@ -964,12 +1045,10 @@ def fit_semantic_program_transducer(
         for item in training:
             span = _gold_spans(item.ir)[role]
             start_labels.extend(
-                int(index == span.start)
-                for index in range(item.hidden_states.shape[0])
+                int(index == span.start) for index in range(item.hidden_states.shape[0])
             )
             end_labels.extend(
-                int(index == span.end - 1)
-                for index in range(item.hidden_states.shape[0])
+                int(index == span.end - 1) for index in range(item.hidden_states.shape[0])
             )
         start_weight, start_bias = _fit_binary_head(
             token_features,
@@ -1017,10 +1096,7 @@ def fit_semantic_program_transducer(
                                 for item in training
                             ]
                         ),
-                        [
-                            str(item.ir.instructions[step].args[position])
-                            for item in training
-                        ],
+                        [str(item.ir.instructions[step].args[position]) for item in training],
                     )
                 )
             argument_heads.append((step_argument_heads[0], step_argument_heads[1]))
@@ -1033,11 +1109,7 @@ def fit_semantic_program_transducer(
                     for instruction in item.ir.instructions
                 ]
             ),
-            [
-                instruction.op
-                for item in training
-                for instruction in item.ir.instructions
-            ],
+            [instruction.op for item in training for instruction in item.ir.instructions],
         )
         shared_arguments = tuple(
             _fit_classifier(
@@ -1049,53 +1121,40 @@ def fit_semantic_program_transducer(
                         )
                         for item in training
                         for instruction in item.ir.instructions
+                        if len(instruction.args) > position
                     ]
                 ),
                 [
                     str(instruction.args[position])
                     for item in training
                     for instruction in item.ir.instructions
+                    if len(instruction.args) > position
                 ],
             )
-            for position in range(2)
+            for position in range(max(argument_arities))
         )
         operation_heads = [shared_operation for _ in range(step_count)]
-        argument_heads = [shared_arguments for _ in range(step_count)]
+        argument_heads = [shared_arguments[:arity] for arity in argument_arities]
 
     coefficient_body = {
-        "pointer_heads": {
-            role: pointer_heads[role].to_dict() for role in sorted(pointer_heads)
-        },
+        "pointer_heads": {role: pointer_heads[role].to_dict() for role in sorted(pointer_heads)},
         "operation_heads": [head.to_dict() for head in operation_heads],
-        "argument_heads": [
-            [head.to_dict() for head in heads] for heads in argument_heads
-        ],
+        "argument_heads": [[head.to_dict() for head in heads] for heads in argument_heads],
     }
     receipt_body = {
         "schema": LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA,
         "model_basis_sha256": next(iter(model_bases)),
         "hidden_size": hidden_size,
         "training_example_count": len(training),
-        "training_constructions": sorted(
-            {item.construction_id for item in training}
-        ),
+        "training_constructions": sorted({item.construction_id for item in training}),
         "training_topologies": sorted({item.topology_id for item in training}),
         "primitive_support": sorted(
-            {
-                instruction.op
-                for item in training
-                for instruction in item.ir.instructions
-            }
+            {instruction.op for item in training for instruction in item.ir.instructions}
         ),
         "register_support": [
-            sorted(
-                {
-                    item.ir.instructions[step].args[position]
-                    for item in training
-                }
-            )
+            sorted({item.ir.instructions[step].args[position] for item in training})
             for step in range(step_count)
-            for position in range(2)
+            for position in range(argument_arities[step])
         ],
         "coefficient_sha256": _sha(coefficient_body),
         "expected_answers_available": False,
@@ -1103,8 +1162,13 @@ def fit_semantic_program_transducer(
         "generated_compiler_text_available": False,
         "correctness_authority": False,
     }
+    typed = any(arity != 2 for arity in argument_arities)
     if not legacy:
-        receipt_body["schema"] = SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+        receipt_body["schema"] = (
+            TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if typed
+            else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+        )
         receipt_body["input_count"] = input_count
         receipt_body["step_count"] = step_count
         receipt_body["classifier_sharing"] = "across_step_slots"
@@ -1114,21 +1178,27 @@ def fit_semantic_program_transducer(
                     instruction.args[position]
                     for item in training
                     for instruction in item.ir.instructions
+                    if len(instruction.args) > position
                 }
             )
-            for position in range(2)
+            for position in range(max(argument_arities))
         ]
+        if typed:
+            receipt_body["argument_arities"] = list(argument_arities)
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
         schema=(
             LEGACY_SEMANTIC_TRANSDUCER_SCHEMA
             if legacy
+            else TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            if typed
             else SEMANTIC_TRANSDUCER_SCHEMA
         ),
         hidden_size=hidden_size,
         model_basis_sha256=next(iter(model_bases)),
         input_count=input_count,
         step_count=step_count,
+        argument_arities=argument_arities,
         pointer_heads=pointer_heads,
         operation_heads=tuple(operation_heads),
         argument_heads=tuple(argument_heads),
@@ -1182,18 +1252,35 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
     if schema == LEGACY_SEMANTIC_TRANSDUCER_SCHEMA:
         input_count = SEMANTIC_TRANSDUCER_INPUTS
         step_count = SEMANTIC_TRANSDUCER_STEPS
+        argument_arities = (2,) * step_count
         expected_fields = common_fields
     elif schema == SEMANTIC_TRANSDUCER_SCHEMA:
         input_count = payload.get("input_count")
         step_count = payload.get("step_count")
+        argument_arities = (2,) * step_count if type(step_count) is int else ()
         expected_fields = common_fields | {"input_count", "step_count"}
+    elif schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+        input_count = payload.get("input_count")
+        step_count = payload.get("step_count")
+        raw_arities = payload.get("argument_arities")
+        argument_arities = tuple(raw_arities) if isinstance(raw_arities, list) else ()
+        expected_fields = common_fields | {
+            "input_count",
+            "step_count",
+            "argument_arities",
+        }
     else:
         raise ValueError("serialized semantic transducer schema is invalid")
     if set(payload) != expected_fields:
         raise ValueError("serialized semantic transducer fields are invalid")
-    if type(input_count) is not int or type(step_count) is not int:
+    if (
+        type(input_count) is not int
+        or type(step_count) is not int
+        or len(argument_arities) != step_count
+        or any(type(arity) is not int or arity not in {1, 2} for arity in argument_arities)
+    ):
         raise ValueError("serialized semantic transducer geometry is invalid")
-    roles = _pointer_roles(input_count, step_count)
+    roles = _pointer_roles(input_count, argument_arities)
     raw_pointers = payload["pointer_heads"]
     raw_operations = payload["operation_heads"]
     raw_arguments = payload["argument_heads"]
@@ -1204,7 +1291,10 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         or len(raw_operations) != step_count
         or not isinstance(raw_arguments, list)
         or len(raw_arguments) != step_count
-        or any(not isinstance(heads, list) or len(heads) != 2 for heads in raw_arguments)
+        or any(
+            not isinstance(heads, list) or len(heads) != argument_arities[index]
+            for index, heads in enumerate(raw_arguments)
+        )
     ):
         raise ValueError("serialized semantic transducer topology is invalid")
     return SemanticProgramTransducer(
@@ -1213,16 +1303,11 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         model_basis_sha256=payload["model_basis_sha256"],
         input_count=input_count,
         step_count=step_count,
-        pointer_heads={
-            role: _pointer_head_from_dict(raw_pointers[role])
-            for role in roles
-        },
-        operation_heads=tuple(
-            _classifier_head_from_dict(value) for value in raw_operations
-        ),
+        argument_arities=argument_arities,
+        pointer_heads={role: _pointer_head_from_dict(raw_pointers[role]) for role in roles},
+        operation_heads=tuple(_classifier_head_from_dict(value) for value in raw_operations),
         argument_heads=tuple(
-            tuple(_classifier_head_from_dict(value) for value in heads)
-            for heads in raw_arguments
+            tuple(_classifier_head_from_dict(value) for value in heads) for heads in raw_arguments
         ),
         training_receipt=payload["training_receipt"],
     )
@@ -1237,6 +1322,7 @@ __all__ = [
     "SemanticProgramTransducer",
     "SemanticTransducerTrainingExample",
     "SemanticTransductionOutcome",
+    "TYPED_SEMANTIC_TRANSDUCER_SCHEMA",
     "fit_semantic_program_transducer",
     "semantic_program_transducer_from_dict",
 ]

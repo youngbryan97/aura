@@ -36,6 +36,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_sequence_corpus,
     project_example_to_ir,
 )
 from core.learning.semantic_program_ir import semantic_program_ir_from_dict
@@ -52,12 +53,14 @@ CHAIN_CORPUS_KIND: Final = "chain_3x2"
 FORK_JOIN_CORPUS_KIND: Final = "fork_join_4x3"
 FORK_JOIN_SOURCE_ORDER_CORPUS_KIND: Final = "fork_join_4x3_source_order"
 FORK_JOIN_FACTORIAL_CORPUS_KIND: Final = "fork_join_4x3_factorial16"
+SEQUENCE_CHAIN_CORPUS_KIND: Final = "sequence_chain_1x2_factorial"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
         FORK_JOIN_CORPUS_KIND,
         FORK_JOIN_FACTORIAL_CORPUS_KIND,
         FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+        SEQUENCE_CHAIN_CORPUS_KIND,
     }
 )
 
@@ -124,10 +127,7 @@ class SemanticFeatureConfig:
         if (
             self.schema not in {FEATURE_CONFIG_SCHEMA, FAMILY_FEATURE_CONFIG_SCHEMA}
             or self.corpus_kind not in SEMANTIC_CORPUS_KINDS
-            or (
-                self.schema == FEATURE_CONFIG_SCHEMA
-                and self.corpus_kind != CHAIN_CORPUS_KIND
-            )
+            or (self.schema == FEATURE_CONFIG_SCHEMA and self.corpus_kind != CHAIN_CORPUS_KIND)
             or type(self.seed) is not int
             or type(self.examples_per_operation_pair) is not int
             or self.examples_per_operation_pair < 1
@@ -181,6 +181,11 @@ def build_semantic_program_corpus_for_config(
         return build_semantic_program_fork_join_factorial_corpus(
             seed=config.seed,
             examples_per_cell=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == SEQUENCE_CHAIN_CORPUS_KIND:
+        return build_semantic_program_sequence_corpus(
+            seed=config.seed,
+            examples_per_operation_pair=config.examples_per_operation_pair,
         )
     raise AssertionError("validated semantic corpus kind is unreachable")
 
@@ -307,9 +312,7 @@ def _example_public_identity(example: SemanticProgramExample) -> dict[str, Any]:
         "construction_id": example.construction_id,
         "topology_id": example.topology_id,
         "split": example.split,
-        "source_text_sha256": hashlib.sha256(
-            example.source_text.encode("utf-8")
-        ).hexdigest(),
+        "source_text_sha256": hashlib.sha256(example.source_text.encode("utf-8")).hexdigest(),
         "inputs": list(example.inputs),
         "program": {
             "n_inputs": example.program.n_inputs,
@@ -418,12 +421,8 @@ def tokenize_with_offsets(tokenizer: Any, text: str) -> tuple[list[int], list[tu
         raise SemanticFeatureMaterializationError("local tokenizer result is not a mapping")
     raw_ids = encoded.get("input_ids")
     raw_offsets = encoded.get("offset_mapping")
-    if not isinstance(raw_ids, (list, tuple)) or not isinstance(
-        raw_offsets, (list, tuple)
-    ):
-        raise SemanticFeatureMaterializationError(
-            "local tokenizer omitted token ids or offsets"
-        )
+    if not isinstance(raw_ids, (list, tuple)) or not isinstance(raw_offsets, (list, tuple)):
+        raise SemanticFeatureMaterializationError("local tokenizer omitted token ids or offsets")
     token_ids = list(raw_ids)
     offsets: list[tuple[int, int]] = []
     for value in raw_offsets:
@@ -519,8 +518,7 @@ def validate_exclusive_lane_receipt(
         or accepted["worker_pid"] <= 0
         or not isinstance(accepted.get("worker_boot_id"), str)
         or not accepted["worker_boot_id"]
-        or os.path.realpath(str(accepted.get("model_path") or ""))
-        != os.path.realpath(checkpoint)
+        or os.path.realpath(str(accepted.get("model_path") or "")) != os.path.realpath(checkpoint)
     ):
         raise SemanticFeatureMaterializationError("exclusive model-lane receipt is invalid")
     if model_basis is not None and (
@@ -553,9 +551,7 @@ def _validate_hidden_observation(
             "local tokenizer ids differ from resident worker token ids"
         )
     if not isinstance(states, np.ndarray) or states.dtype != np.dtype("float32"):
-        raise SemanticFeatureMaterializationError(
-            "resident hidden states must be a float32 array"
-        )
+        raise SemanticFeatureMaterializationError("resident hidden states must be a float32 array")
     if (
         states.ndim != 2
         or states.shape[0] != len(local_token_ids)
@@ -568,9 +564,7 @@ def _validate_hidden_observation(
         )
     norms = np.linalg.norm(states, axis=1)
     if np.any(np.abs(norms - 1.0) > _NORMALIZATION_TOLERANCE):
-        raise SemanticFeatureMaterializationError(
-            "resident hidden states are not unit normalized"
-        )
+        raise SemanticFeatureMaterializationError("resident hidden states are not unit normalized")
     if not isinstance(receipt, Mapping):
         raise SemanticFeatureMaterializationError("resident feature receipt is missing")
     accepted_receipt = json.loads(_canonical_bytes(dict(receipt)))
@@ -741,22 +735,19 @@ def load_semantic_feature_record(
         raise SemanticFeatureMaterializationError("semantic feature array lengths differ")
     token_payload = body[array_offset : array_offset + token_bytes]
     hidden_payload = body[array_offset + token_bytes :]
-    if (
-        _sha_bytes(token_payload) != metadata.get("token_ids_sha256")
-        or _sha_bytes(hidden_payload) != metadata.get("hidden_states_sha256")
-    ):
+    if _sha_bytes(token_payload) != metadata.get("token_ids_sha256") or _sha_bytes(
+        hidden_payload
+    ) != metadata.get("hidden_states_sha256"):
         raise SemanticFeatureMaterializationError("semantic feature array hash differs")
     token_ids = np.frombuffer(token_payload, dtype="<i4").copy()
-    hidden_states = np.frombuffer(hidden_payload, dtype="<f4").reshape(
-        token_count, hidden_size
-    ).copy()
+    hidden_states = (
+        np.frombuffer(hidden_payload, dtype="<f4").reshape(token_count, hidden_size).copy()
+    )
     if np.any(token_ids < 0) or not np.all(np.isfinite(hidden_states)):
         raise SemanticFeatureMaterializationError("semantic feature arrays are invalid")
     norms = np.linalg.norm(hidden_states, axis=1)
     if np.any(np.abs(norms - 1.0) > _NORMALIZATION_TOLERANCE):
-        raise SemanticFeatureMaterializationError(
-            "semantic feature rows are not unit normalized"
-        )
+        raise SemanticFeatureMaterializationError("semantic feature rows are not unit normalized")
     ir = semantic_program_ir_from_dict(metadata["gold_ir"])
     if list(ir.source_token_ids) != token_ids.tolist():
         raise SemanticFeatureMaterializationError("gold IR token ids differ from record")
@@ -860,7 +851,9 @@ def load_semantic_feature_bundle(
     if not isinstance(records, list) or not 1 <= len(records) <= _MAX_EXAMPLES:
         raise SemanticFeatureMaterializationError("feature manifest records are invalid")
     allowed_names = {_MANIFEST_NAME, _STATUS_NAME, *(record.get("file", "") for record in records)}
-    observed_names = {path.name for path in root.iterdir() if path.name != ".aura_file_write_batch.lock"}
+    observed_names = {
+        path.name for path in root.iterdir() if path.name != ".aura_file_write_batch.lock"
+    }
     if observed_names != allowed_names:
         raise SemanticFeatureMaterializationError("feature bundle inventory differs")
     loaded: list[LoadedSemanticFeatureExample] = []
@@ -904,7 +897,9 @@ def load_semantic_feature_bundle(
             )
             for field in common_fields
         ):
-            raise SemanticFeatureMaterializationError("feature record identity differs from manifest")
+            raise SemanticFeatureMaterializationError(
+                "feature record identity differs from manifest"
+            )
     model_bases = manifest.get("model_bases")
     lane_receipts = manifest.get("lane_ownership_receipts")
     if not isinstance(model_bases, list) or not model_bases:
@@ -931,7 +926,9 @@ def load_semantic_feature_bundle(
         or item.metadata["lane_ownership_sha256"] not in accepted_lane_hashes
         for item in loaded
     ):
-        raise SemanticFeatureMaterializationError("feature record ownership is absent from manifest")
+        raise SemanticFeatureMaterializationError(
+            "feature record ownership is absent from manifest"
+        )
     if manifest["config_sha256"] != _sha(manifest["config"]):
         raise SemanticFeatureMaterializationError("feature manifest config hash differs")
     split_counts = Counter(str(item.metadata["split"]) for item in loaded)
@@ -951,9 +948,10 @@ def load_semantic_feature_bundle(
         raise SemanticFeatureMaterializationError(
             "feature manifest split construction inventory differs"
         )
-    if manifest.get("example_count") != len(loaded) or manifest.get(
-        "evidence_absence"
-    ) != _EVIDENCE_ABSENCE:
+    if (
+        manifest.get("example_count") != len(loaded)
+        or manifest.get("evidence_absence") != _EVIDENCE_ABSENCE
+    ):
         raise SemanticFeatureMaterializationError("feature manifest count or authority differs")
     if expected_examples is not None:
         expected = {item.example_id: _example_public_identity(item) for item in expected_examples}
@@ -1003,9 +1001,7 @@ def load_standard_semantic_feature_bundle(
     expected_corpus_sha256 = _sha(
         {
             "schema": "aura.semantic_program_selected_corpus.v1",
-            "examples": [
-                expected_identities[item.example_id] for item in expected_examples
-            ],
+            "examples": [expected_identities[item.example_id] for item in expected_examples],
         }
     )
     if expected_corpus_sha256 != bundle.manifest["corpus_sha256"]:
@@ -1073,11 +1069,7 @@ def _ensure_output_directory(gateway: FileWriteGateway, root: Path) -> None:
 
 
 def _partial_inventory(root: Path) -> set[str]:
-    return {
-        path.name
-        for path in root.iterdir()
-        if path.name != ".aura_file_write_batch.lock"
-    }
+    return {path.name for path in root.iterdir() if path.name != ".aura_file_write_batch.lock"}
 
 
 def _status_payload(
@@ -1124,7 +1116,10 @@ async def materialize_semantic_program_features(
             "examples": selected_identities,
         }
     )
-    config_body = {**config.to_dict(), "selected_example_ids": [item.example_id for item in selected]}
+    config_body = {
+        **config.to_dict(),
+        "selected_example_ids": [item.example_id for item in selected],
+    }
     config_sha256 = _sha(config_body)
     resolved_checkpoint, root = await asyncio.to_thread(
         _resolve_materialization_paths,
@@ -1139,7 +1134,11 @@ async def materialize_semantic_program_features(
         )
     accepted_tokenizer_identity = dict(measured_tokenizer_identity)
     if accepted_tokenizer_identity.get("identity_sha256") != _sha(
-        {key: value for key, value in accepted_tokenizer_identity.items() if key != "identity_sha256"}
+        {
+            key: value
+            for key, value in accepted_tokenizer_identity.items()
+            if key != "identity_sha256"
+        }
     ):
         raise SemanticFeatureMaterializationError("tokenizer identity hash differs")
     current_lane_receipt = validate_exclusive_lane_receipt(
@@ -1168,7 +1167,9 @@ async def materialize_semantic_program_features(
     allowed_partial = {_STATUS_NAME, *(f"{item.example_id}{_RECORD_SUFFIX}" for item in selected)}
     observed_partial = await asyncio.to_thread(_partial_inventory, root)
     if not observed_partial.issubset(allowed_partial):
-        raise SemanticFeatureMaterializationError("partial feature directory contains foreign files")
+        raise SemanticFeatureMaterializationError(
+            "partial feature directory contains foreign files"
+        )
 
     records: dict[str, LoadedSemanticFeatureExample] = {}
     for example in selected:
@@ -1261,9 +1262,7 @@ async def materialize_semantic_program_features(
             "topology_id": example.topology_id,
             "contrast_id": example.contrast_id,
             "inputs": list(example.inputs),
-            "source_text_sha256": hashlib.sha256(
-                example.source_text.encode("utf-8")
-            ).hexdigest(),
+            "source_text_sha256": hashlib.sha256(example.source_text.encode("utf-8")).hexdigest(),
             "corpus_sha256": corpus_sha256,
             "config_sha256": config_sha256,
             "tokenizer_identity_sha256": accepted_tokenizer_identity["identity_sha256"],
@@ -1291,12 +1290,12 @@ async def materialize_semantic_program_features(
             )
         records[example.example_id] = loaded
         progress_status = _status_payload(
-                complete=False,
-                reason="acquiring",
-                completed=len(records),
-                total=len(selected),
-                config_sha256=config_sha256,
-                corpus_sha256=corpus_sha256,
+            complete=False,
+            reason="acquiring",
+            completed=len(records),
+            total=len(selected),
+            config_sha256=config_sha256,
+            corpus_sha256=corpus_sha256,
         )
         await _write_bytes(
             writer,
@@ -1399,6 +1398,7 @@ __all__ = [
     "SemanticFeatureConfig",
     "SemanticFeatureMaterializationError",
     "SEMANTIC_CORPUS_KINDS",
+    "SEQUENCE_CHAIN_CORPUS_KIND",
     "build_semantic_program_corpus_for_config",
     "load_semantic_feature_bundle",
     "load_semantic_feature_record",

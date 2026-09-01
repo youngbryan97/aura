@@ -24,6 +24,28 @@ SEMANTIC_PROGRAM_IR_RECEIPT_SCHEMA: Final = "aura.semantic_program_ir_receipt.v1
 MAX_SEMANTIC_PROGRAM_TOKENS: Final = 512
 MAX_SEMANTIC_PROGRAM_INPUTS: Final = 8
 MAX_SEMANTIC_PROGRAM_STEPS: Final = 16
+MAX_SEMANTIC_SEQUENCE_ITEMS: Final = 64
+
+type SemanticValue = int | tuple[int, ...]
+
+
+def normalize_semantic_value(value: Any) -> SemanticValue:
+    """Convert untrusted JSON-shaped data into the closed exact value algebra."""
+
+    if type(value) is int:
+        return value
+    if isinstance(value, (list, tuple)) and len(value) <= MAX_SEMANTIC_SEQUENCE_ITEMS:
+        normalized = tuple(value)
+        if all(type(item) is int for item in normalized):
+            return normalized
+    raise ValueError("semantic value is outside the exact integer/sequence algebra")
+
+
+def semantic_value_to_json(value: SemanticValue) -> int | list[int]:
+    """Return the canonical JSON representation of one validated value."""
+
+    normalized = normalize_semantic_value(value)
+    return list(normalized) if isinstance(normalized, tuple) else normalized
 
 
 def _is_sha256(value: Any) -> bool:
@@ -152,11 +174,7 @@ class SemanticProgramIR:
                 span.validate_bound(token_count)
             expected_dependencies = tuple(
                 sorted(
-                    {
-                        argument - n_inputs
-                        for argument in instruction.args
-                        if argument >= n_inputs
-                    }
+                    {argument - n_inputs for argument in instruction.args if argument >= n_inputs}
                 )
             )
             if instruction.depends_on != expected_dependencies:
@@ -182,8 +200,7 @@ class SemanticProgramIR:
         return Program(
             n_inputs=self.n_inputs,
             instructions=tuple(
-                Instruction(instruction.op, instruction.args)
-                for instruction in self.instructions
+                Instruction(instruction.op, instruction.args) for instruction in self.instructions
             ),
         )
 
@@ -195,8 +212,7 @@ class SemanticProgramIR:
             {
                 "n_inputs": self.n_inputs,
                 "instructions": [
-                    [instruction.op, list(instruction.args)]
-                    for instruction in self.instructions
+                    [instruction.op, list(instruction.args)] for instruction in self.instructions
                 ],
                 "report_value": self.report_value,
             }
@@ -299,12 +315,16 @@ def semantic_program_ir_from_dict(payload: dict[str, Any]) -> SemanticProgramIR:
 
 
 __all__ = [
+    "MAX_SEMANTIC_SEQUENCE_ITEMS",
     "MAX_SEMANTIC_PROGRAM_INPUTS",
     "MAX_SEMANTIC_PROGRAM_STEPS",
     "MAX_SEMANTIC_PROGRAM_TOKENS",
     "SEMANTIC_PROGRAM_IR_SCHEMA",
     "SemanticIRInstruction",
     "SemanticProgramIR",
+    "SemanticValue",
     "TokenSpan",
+    "normalize_semantic_value",
+    "semantic_value_to_json",
     "semantic_program_ir_from_dict",
 ]

@@ -6,6 +6,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_sequence_corpus,
     project_example_to_ir,
 )
 
@@ -35,10 +36,7 @@ def test_corpus_splits_hold_out_complete_constructions() -> None:
         },
         "test": {"fronted_result_then", "reverse_result_prior"},
     }
-    assert not (
-        constructions_by_split["train"]
-        & constructions_by_split["validation"]
-    )
+    assert not (constructions_by_split["train"] & constructions_by_split["validation"])
     assert not constructions_by_split["train"] & constructions_by_split["test"]
 
 
@@ -189,8 +187,7 @@ def test_fork_join_corpus_holds_out_wording_and_graphs() -> None:
         "test": 3,
     }
     assert all(
-        not constructions[left] & constructions[right]
-        and not topologies[left] & topologies[right]
+        not constructions[left] & constructions[right] and not topologies[left] & topologies[right]
         for left, right in (
             ("train", "validation"),
             ("train", "test"),
@@ -254,20 +251,97 @@ def test_factorial_fork_join_separates_wording_from_graph_topology() -> None:
     examples = build_semantic_program_fork_join_factorial_corpus()
 
     assert len(examples) == 1296
-    assert {split: sum(item.split == split for item in examples) for split in (
-        "train",
-        "validation",
-        "test",
-    )} == {"train": 432, "validation": 432, "test": 432}
+    assert {
+        split: sum(item.split == split for item in examples)
+        for split in (
+            "train",
+            "validation",
+            "test",
+        )
+    } == {"train": 432, "validation": 432, "test": 432}
     for construction in {item.construction_id for item in examples}:
         selected = [item for item in examples if item.construction_id == construction]
         assert len({item.topology_id for item in selected}) == 9
         for position in range(3):
-            support = {
-                item.instructions[position].instruction.op for item in selected
-            }
+            support = {item.instructions[position].instruction.op for item in selected}
             assert support == {"add", "sub", "mul", "idiv"}
     assert all(
         list(item.input_spans) == sorted(item.input_spans, key=lambda span: span.start)
         for item in examples
     )
+
+
+def test_sequence_corpus_holds_out_complete_constructions() -> None:
+    examples = build_semantic_program_sequence_corpus()
+    constructions = {
+        split: {item.construction_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+
+    assert len(examples) == 540
+    assert {split: sum(item.split == split for item in examples) for split in constructions} == {
+        "train": 180,
+        "validation": 180,
+        "test": 180,
+    }
+    assert all(
+        not constructions[left] & constructions[right]
+        for left, right in (
+            ("train", "validation"),
+            ("train", "test"),
+            ("validation", "test"),
+        )
+    )
+
+
+def test_sequence_corpus_covers_every_typed_composition_per_split() -> None:
+    examples = build_semantic_program_sequence_corpus(examples_per_operation_pair=1)
+    expected = {
+        (first, second)
+        for first in ("unique", "sorted_up", "reversed_", "tail", "front")
+        for second in ("length", "total", "largest", "smallest", "head", "last")
+    }
+
+    for split in ("train", "validation", "test"):
+        observed = {
+            tuple(item.instruction.op for item in example.instructions)
+            for example in examples
+            if example.split == split
+        }
+        assert observed == expected
+
+
+def test_sequence_programs_are_exact_and_both_steps_are_load_bearing() -> None:
+    examples = build_semantic_program_sequence_corpus()
+
+    assert len({example.example_id for example in examples}) == len(examples)
+    for example in examples:
+        assert len(example.inputs) == 1
+        assert isinstance(example.inputs[0], tuple)
+        assert len(example.inputs[0]) >= 5
+        assert len(set(example.inputs[0])) < len(example.inputs[0])
+        assert len(example.instructions) == 2
+        assert tuple(len(item.instruction.args) for item in example.instructions) == (1, 1)
+        assert example.instructions[0].depends_on == ()
+        assert example.instructions[1].depends_on == (0,)
+        assert example.instructions[0].instruction.args == (0,)
+        assert example.instructions[1].instruction.args == (1,)
+        assert type(example.program.run(example.inputs)) is int
+        assert (
+            example.instructions[0].operation_span.start
+            < example.instructions[1].argument_spans[0].start
+        )
+        for instruction in example.instructions:
+            assert example.source_text[
+                instruction.operation_span.start : instruction.operation_span.end
+            ]
+        offsets = _character_offsets(example.source_text)
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(offsets))),
+            offset_mapping=offsets,
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+        assert ir.receipt()["all_steps_causally_load_bearing"] is True

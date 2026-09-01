@@ -23,7 +23,9 @@ from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
+    SemanticValue,
     TokenSpan,
+    normalize_semantic_value,
 )
 
 CorpusSplit = Literal["train", "validation", "test"]
@@ -35,6 +37,145 @@ _OPERATION_LANGUAGE: Final[dict[str, dict[str, str]]] = {
     "sub": {"verb": "subtract", "noun": "difference"},
     "mul": {"verb": "multiply", "noun": "product"},
     "idiv": {"verb": "integer-divide", "noun": "whole-number quotient"},
+}
+
+_SEQUENCE_TRANSFORMS: Final = (
+    "unique",
+    "sorted_up",
+    "reversed_",
+    "tail",
+    "front",
+)
+_SEQUENCE_AGGREGATES: Final = (
+    "length",
+    "total",
+    "largest",
+    "smallest",
+    "head",
+    "last",
+)
+_SEQUENCE_OPERATION_LANGUAGE: Final[dict[str, tuple[str, ...]]] = {
+    "unique": (
+        "duplicate removal",
+        "deduplication",
+        "retaining one copy of each value",
+        "removing repeated values",
+        "collapsing duplicates",
+        "keeping distinct values only",
+        "discarding extra copies",
+        "making the values unique",
+        "selecting one of every value",
+    ),
+    "sorted_up": (
+        "ascending sorting",
+        "ordering from low to high",
+        "increasing-order arrangement",
+        "sorting upward",
+        "placing values in ascending order",
+        "smallest-to-largest ordering",
+        "an ascending reorder",
+        "low-to-high sorting",
+        "increasing arrangement",
+    ),
+    "reversed_": (
+        "order reversal",
+        "reversing the order",
+        "backward arrangement",
+        "flipping the sequence",
+        "end-to-start ordering",
+        "a reverse traversal",
+        "turning the order around",
+        "last-to-first arrangement",
+        "sequence reversal",
+    ),
+    "tail": (
+        "dropping the first item",
+        "taking everything after the first item",
+        "removing the head",
+        "keeping the tail",
+        "discarding the initial value",
+        "trimming the first entry",
+        "selecting all but the first value",
+        "taking the sequence tail",
+        "omitting the leading item",
+    ),
+    "front": (
+        "dropping the final item",
+        "taking everything before the last item",
+        "removing the last value",
+        "keeping the front",
+        "discarding the terminal value",
+        "trimming the final entry",
+        "selecting all but the last value",
+        "taking the sequence front",
+        "omitting the trailing item",
+    ),
+    "length": (
+        "item counting",
+        "measuring the length",
+        "counting the entries",
+        "finding how many values remain",
+        "determining the item count",
+        "measuring its size",
+        "counting its members",
+        "obtaining the sequence length",
+        "computing the number of entries",
+    ),
+    "total": (
+        "summation",
+        "adding all values",
+        "computing the total",
+        "finding the sum",
+        "combining the entries by addition",
+        "totaling its members",
+        "accumulating every value",
+        "calculating the aggregate sum",
+        "summing the sequence",
+    ),
+    "largest": (
+        "maximum selection",
+        "finding the largest value",
+        "taking the maximum",
+        "selecting the greatest entry",
+        "identifying the highest value",
+        "choosing its maximum member",
+        "finding the top value",
+        "extracting the greatest number",
+        "determining the maximum",
+    ),
+    "smallest": (
+        "minimum selection",
+        "finding the smallest value",
+        "taking the minimum",
+        "selecting the least entry",
+        "identifying the lowest value",
+        "choosing its minimum member",
+        "finding the bottom value",
+        "extracting the least number",
+        "determining the minimum",
+    ),
+    "head": (
+        "first-item selection",
+        "taking the first value",
+        "selecting the head",
+        "extracting the initial entry",
+        "choosing the leading value",
+        "reading its first member",
+        "finding the value at the front",
+        "obtaining the head item",
+        "returning the initial value",
+    ),
+    "last": (
+        "last-item selection",
+        "taking the final value",
+        "selecting the last member",
+        "extracting the terminal entry",
+        "choosing the trailing value",
+        "reading its final member",
+        "finding the value at the end",
+        "obtaining the last item",
+        "returning the terminal value",
+    ),
 }
 
 
@@ -84,11 +225,7 @@ class ProgramTopology:
 
     @property
     def second_args(self) -> tuple[int, int]:
-        return (
-            (3, self.remaining_input)
-            if self.result_is_left
-            else (self.remaining_input, 3)
-        )
+        return (3, self.remaining_input) if self.result_is_left else (self.remaining_input, 3)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +255,7 @@ class SemanticProgramExample:
     topology_id: str
     split: CorpusSplit
     source_text: str
-    inputs: tuple[int, ...]
+    inputs: tuple[SemanticValue, ...]
     input_spans: tuple[CharacterSpan, ...]
     instructions: tuple[SemanticInstructionAnnotation, ...]
     report_value: int
@@ -138,6 +275,8 @@ class SemanticProgramExample:
             or not self.instructions
         ):
             raise ValueError("semantic corpus example envelope is invalid")
+        if any(normalize_semantic_value(value) != value for value in self.inputs):
+            raise ValueError("semantic corpus inputs are outside the exact value algebra")
         for span in self.input_spans:
             _validate_character_span(span, self.source_text)
         n_inputs = len(self.inputs)
@@ -618,9 +757,7 @@ def _fork_join(
         ),
     )
     input_labels = tuple(f"in{index}" for index in range(4))
-    source_order = tuple(
-        sorted(input_labels, key=lambda label: builder.span(label).start)
-    )
+    source_order = tuple(sorted(input_labels, key=lambda label: builder.span(label).start))
     return builder, source_order, annotations
 
 
@@ -843,8 +980,7 @@ def build_semantic_program_corpus(
                             topology,
                         )
                         contrast_id = (
-                            f"{construction_id}:{topology.topology_id}:"
-                            f"{sample_index}:{values}"
+                            f"{construction_id}:{topology.topology_id}:{sample_index}:{values}"
                         )
                         examples.append(
                             SemanticProgramExample(
@@ -860,9 +996,7 @@ def build_semantic_program_corpus(
                                 split=split,
                                 source_text=builder.text,
                                 inputs=values,
-                                input_spans=tuple(
-                                    builder.span(label) for label in input_labels
-                                ),
+                                input_spans=tuple(builder.span(label) for label in input_labels),
                                 instructions=annotations,
                                 report_value=4,
                                 contrast_id=contrast_id,
@@ -926,11 +1060,14 @@ def _build_fork_join_example(
     *,
     construction_id: str,
     split: CorpusSplit,
-    renderer: Callable[..., tuple[
-        _AnnotatedText,
-        tuple[str, str, str, str],
-        tuple[SemanticInstructionAnnotation, ...],
-    ]],
+    renderer: Callable[
+        ...,
+        tuple[
+            _AnnotatedText,
+            tuple[str, str, str, str],
+            tuple[SemanticInstructionAnnotation, ...],
+        ],
+    ],
     topology: ForkJoinTopology,
     operations: tuple[str, str, str],
     values: tuple[int, int, int, int],
@@ -943,8 +1080,7 @@ def _build_fork_join_example(
         if set(input_order) != {0, 1, 2, 3}:
             raise AssertionError("fork-join renderer did not expose every input once")
         register_map = {
-            old_register: new_register
-            for new_register, old_register in enumerate(input_order)
+            old_register: new_register for new_register, old_register in enumerate(input_order)
         }
         corpus_values = tuple(values[index] for index in input_order)
         corpus_annotations = tuple(
@@ -952,8 +1088,7 @@ def _build_fork_join_example(
                 instruction=Instruction(
                     item.instruction.op,
                     tuple(
-                        register_map.get(argument, argument)
-                        for argument in item.instruction.args
+                        register_map.get(argument, argument) for argument in item.instruction.args
                     ),
                 ),
                 operation_span=item.operation_span,
@@ -967,10 +1102,7 @@ def _build_fork_join_example(
         corpus_values = values
         corpus_annotations = annotations
         corpus_input_labels = tuple(f"in{index}" for index in range(4))
-    contrast_id = (
-        f"{construction_id}:{topology.topology_id}:"
-        f"{sample_index}:{corpus_values}"
-    )
+    contrast_id = f"{construction_id}:{topology.topology_id}:{sample_index}:{corpus_values}"
     return SemanticProgramExample(
         example_id=_fork_join_example_id(
             construction_id,
@@ -1035,6 +1167,243 @@ def build_semantic_program_fork_join_factorial_corpus(
     return tuple(examples)
 
 
+def _sequence_chain_example_id(
+    construction_id: str,
+    first_op: str,
+    second_op: str,
+    values: tuple[int, ...],
+    sample_index: int,
+) -> str:
+    body = f"{construction_id}|{first_op}|{second_op}|{values}|{sample_index}"
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
+def _render_sequence_chain(
+    *,
+    construction_index: int,
+    first_op: str,
+    second_op: str,
+    values: tuple[int, ...],
+) -> tuple[str, CharacterSpan, tuple[SemanticInstructionAnnotation, ...]]:
+    builder = _AnnotatedText()
+    first_phrase = _SEQUENCE_OPERATION_LANGUAGE[first_op][construction_index]
+    second_phrase = _SEQUENCE_OPERATION_LANGUAGE[second_op][construction_index]
+    register_name = (
+        "interim",
+        "prepared",
+        "derived",
+        "working set",
+        "transformed list",
+        "intermediate sequence",
+        "updated values",
+        "resulting series",
+        "processed sequence",
+    )[construction_index]
+    input_text = "[" + ", ".join(str(value) for value in values) + "]"
+
+    def append_input() -> None:
+        builder.append(input_text, label="input")
+
+    def append_first_operation() -> None:
+        builder.append(first_phrase, label="operation:0")
+
+    def append_second_operation() -> None:
+        builder.append(second_phrase, label="operation:1")
+
+    def define_result() -> None:
+        builder.append(register_name, label="result:0")
+
+    def reference_result() -> None:
+        builder.append(register_name, label="argument:1:0")
+
+    if construction_index == 0:
+        builder.append("Perform ")
+        append_first_operation()
+        builder.append(" on ")
+        append_input()
+        builder.append(", and call the output ")
+        define_result()
+        builder.append(". Then perform ")
+        append_second_operation()
+        builder.append(" on ")
+        reference_result()
+        builder.append(".")
+    elif construction_index == 1:
+        builder.append("Starting from ")
+        append_input()
+        builder.append(", use ")
+        append_first_operation()
+        builder.append(" to produce ")
+        define_result()
+        builder.append("; afterward use ")
+        append_second_operation()
+        builder.append(" on ")
+        reference_result()
+        builder.append(".")
+    elif construction_index == 2:
+        builder.append("After ")
+        append_first_operation()
+        builder.append(" is applied to ")
+        append_input()
+        builder.append(", name that sequence ")
+        define_result()
+        builder.append(". Return what ")
+        append_second_operation()
+        builder.append(" produces from ")
+        reference_result()
+        builder.append(".")
+    elif construction_index == 3:
+        builder.append("Take ")
+        append_input()
+        builder.append(" through ")
+        append_first_operation()
+        builder.append("; the new sequence is ")
+        define_result()
+        builder.append(". From ")
+        reference_result()
+        builder.append(", obtain the result by ")
+        append_second_operation()
+        builder.append(".")
+    elif construction_index == 4:
+        builder.append("For the values ")
+        append_input()
+        builder.append(", first carry out ")
+        append_first_operation()
+        builder.append(" and bind the outcome as ")
+        define_result()
+        builder.append(". Next evaluate ")
+        reference_result()
+        builder.append(" with ")
+        append_second_operation()
+        builder.append(".")
+    elif construction_index == 5:
+        builder.append("Transform ")
+        append_input()
+        builder.append(" via ")
+        append_first_operation()
+        builder.append(". Let ")
+        define_result()
+        builder.append(" denote that transformation; compute ")
+        append_second_operation()
+        builder.append(" over ")
+        reference_result()
+        builder.append(".")
+    elif construction_index == 6:
+        builder.append("Use ")
+        append_first_operation()
+        builder.append(" to turn ")
+        append_input()
+        builder.append(" into ")
+        define_result()
+        builder.append(". The final scalar comes from ")
+        append_second_operation()
+        builder.append(" on ")
+        reference_result()
+        builder.append(".")
+    elif construction_index == 7:
+        builder.append("Given ")
+        append_input()
+        builder.append(", apply ")
+        append_first_operation()
+        builder.append(" and call the outcome ")
+        define_result()
+        builder.append(". Evaluate ")
+        reference_result()
+        builder.append(" afterward through ")
+        append_second_operation()
+        builder.append(".")
+    elif construction_index == 8:
+        builder.append("Begin with ")
+        append_input()
+        builder.append(" and execute ")
+        append_first_operation()
+        builder.append("; refer to the result as ")
+        define_result()
+        builder.append(". Finish by ")
+        append_second_operation()
+        builder.append(" on ")
+        reference_result()
+        builder.append(".")
+    else:  # pragma: no cover - private caller pins the construction range
+        raise ValueError("sequence construction index is invalid")
+
+    input_span = builder.span("input")
+    instructions = (
+        SemanticInstructionAnnotation(
+            instruction=Instruction(first_op, (0,)),
+            operation_span=builder.span("operation:0"),
+            argument_spans=(input_span,),
+            depends_on=(),
+        ),
+        SemanticInstructionAnnotation(
+            instruction=Instruction(second_op, (1,)),
+            operation_span=builder.span("operation:1"),
+            argument_spans=(builder.span("argument:1:0"),),
+            depends_on=(0,),
+        ),
+    )
+    return builder.text, input_span, instructions
+
+
+def build_semantic_program_sequence_corpus(
+    *,
+    seed: int = 1414213,
+    examples_per_operation_pair: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build a typed sequence family with construction-held-out language."""
+
+    if examples_per_operation_pair < 1:
+        raise ValueError("sequence corpus needs at least one sample per operation pair")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    for construction_index in range(9):
+        construction_id = f"sequence-construction-{construction_index}"
+        split: CorpusSplit = (
+            "train"
+            if construction_index < 3
+            else "validation"
+            if construction_index < 6
+            else "test"
+        )
+        for first_op in _SEQUENCE_TRANSFORMS:
+            for second_op in _SEQUENCE_AGGREGATES:
+                for sample_index in range(examples_per_operation_pair):
+                    values = [rng.randint(1, 30) for _ in range(rng.randint(5, 8))]
+                    values[-1] = values[0]
+                    rng.shuffle(values)
+                    public_sequence = tuple(values)
+                    source_text, input_span, instructions = _render_sequence_chain(
+                        construction_index=construction_index,
+                        first_op=first_op,
+                        second_op=second_op,
+                        values=public_sequence,
+                    )
+                    example_id = _sequence_chain_example_id(
+                        construction_id,
+                        first_op,
+                        second_op,
+                        public_sequence,
+                        sample_index,
+                    )
+                    examples.append(
+                        SemanticProgramExample(
+                            example_id=example_id,
+                            construction_id=construction_id,
+                            topology_id="unary-sequence-chain",
+                            split=split,
+                            source_text=source_text,
+                            inputs=(public_sequence,),
+                            input_spans=(input_span,),
+                            instructions=instructions,
+                            report_value=2,
+                            contrast_id=hashlib.sha256(
+                                f"sequence|{first_op}|{second_op}|{public_sequence}".encode()
+                            ).hexdigest()[:24],
+                        )
+                    )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -1074,8 +1443,7 @@ def project_example_to_ir(
                 offset_mapping,
             ),
             argument_spans=tuple(
-                _character_to_token_span(span, offset_mapping)
-                for span in item.argument_spans
+                _character_to_token_span(span, offset_mapping) for span in item.argument_spans
             ),
             depends_on=item.depends_on,
         )
@@ -1083,12 +1451,9 @@ def project_example_to_ir(
     )
     return SemanticProgramIR(
         source_token_ids=tuple(source_token_ids),
-        source_text_sha256=hashlib.sha256(
-            example.source_text.encode("utf-8")
-        ).hexdigest(),
+        source_text_sha256=hashlib.sha256(example.source_text.encode("utf-8")).hexdigest(),
         input_spans=tuple(
-            _character_to_token_span(span, offset_mapping)
-            for span in example.input_spans
+            _character_to_token_span(span, offset_mapping) for span in example.input_spans
         ),
         instructions=instructions,
         report_value=example.report_value,
@@ -1107,5 +1472,6 @@ __all__ = [
     "build_semantic_program_corpus",
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
+    "build_semantic_program_sequence_corpus",
     "project_example_to_ir",
 ]

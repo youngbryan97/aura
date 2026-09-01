@@ -18,7 +18,10 @@ from core.learning.semantic_program_evaluation import (
 from core.learning.semantic_program_feature_materialization import (
     LoadedSemanticFeatureBundle,
 )
-from core.learning.semantic_program_ir import semantic_program_ir_from_dict
+from core.learning.semantic_program_ir import (
+    normalize_semantic_value,
+    semantic_program_ir_from_dict,
+)
 from core.learning.semantic_program_transducer import (
     SemanticProgramTransducer,
     SemanticTransducerTrainingExample,
@@ -52,7 +55,9 @@ def training_examples_from_feature_bundle(
             split=str(item.metadata["split"]),
             construction_id=str(item.metadata["construction_id"]),
             topology_id=str(item.metadata["topology_id"]),
-            public_inputs=tuple(int(value) for value in item.metadata["inputs"]),
+            public_inputs=tuple(
+                normalize_semantic_value(value) for value in item.metadata["inputs"]
+            ),
         )
         for item in bundle.examples
     )
@@ -68,8 +73,7 @@ def _one_sided_exact_p(*, treatment_only: int, control_only: int) -> float:
     if discordant == 0:
         return 1.0
     return sum(
-        math.comb(discordant, successes)
-        for successes in range(treatment_only, discordant + 1)
+        math.comb(discordant, successes) for successes in range(treatment_only, discordant + 1)
     ) / (2**discordant)
 
 
@@ -81,14 +85,8 @@ def _paired_control(
 ) -> dict[str, Any]:
     if metric not in {"program_exact", "answer_exact"}:
         raise ValueError(f"semantic campaign paired metric is unsupported: {metric}")
-    treatment = {
-        str(row["source_text_sha256"]): bool(row[metric])
-        for row in treatment_rows
-    }
-    control = {
-        str(row["source_text_sha256"]): bool(row[metric])
-        for row in control_rows
-    }
+    treatment = {str(row["source_text_sha256"]): bool(row[metric]) for row in treatment_rows}
+    control = {str(row["source_text_sha256"]): bool(row[metric]) for row in control_rows}
     if treatment.keys() != control.keys():
         raise ValueError("semantic campaign paired arms contain different tasks")
     treatment_only = sum(treatment[key] and not control[key] for key in treatment)
@@ -119,9 +117,7 @@ def run_semantic_program_campaign(
     examples = training_examples_from_feature_bundle(bundle)
     model = fit_semantic_program_transducer(examples)
     coefficient_control = coefficient_lesion(model)
-    permuted_model = fit_semantic_program_transducer(
-        label_permuted_training_examples(examples)
-    )
+    permuted_model = fit_semantic_program_transducer(label_permuted_training_examples(examples))
     arms: dict[str, dict[str, Any]] = {}
     for split in ("train", "validation", "test"):
         arms[f"treatment:{split}"] = evaluate_semantic_program_transducer(
@@ -130,15 +126,13 @@ def run_semantic_program_campaign(
             split=split,
         ).to_dict()
     for split in ("validation", "test"):
-        arms[f"hidden_token_shuffle:{split}"] = (
-            evaluate_semantic_program_transducer(
-                model,
-                examples,
-                split=split,
-                arm="hidden_token_shuffle",
-                hidden_transform=shuffle_hidden_tokens,
-            ).to_dict()
-        )
+        arms[f"hidden_token_shuffle:{split}"] = evaluate_semantic_program_transducer(
+            model,
+            examples,
+            split=split,
+            arm="hidden_token_shuffle",
+            hidden_transform=shuffle_hidden_tokens,
+        ).to_dict()
         arms[f"coefficient_lesion:{split}"] = evaluate_semantic_program_transducer(
             coefficient_control,
             examples,
@@ -174,16 +168,11 @@ def run_semantic_program_campaign(
             )
 
     held_out_treatment = sum(
-        arms[f"treatment:{split}"]["program_exact"]
-        for split in ("validation", "test")
+        arms[f"treatment:{split}"]["program_exact"] for split in ("validation", "test")
     )
-    held_out_total = sum(
-        arms[f"treatment:{split}"]["total"]
-        for split in ("validation", "test")
-    )
+    held_out_total = sum(arms[f"treatment:{split}"]["total"] for split in ("validation", "test"))
     held_out_answer_exact = sum(
-        arms[f"treatment:{split}"]["answer_exact"]
-        for split in ("validation", "test")
+        arms[f"treatment:{split}"]["answer_exact"] for split in ("validation", "test")
     )
     body = {
         "schema": SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA,

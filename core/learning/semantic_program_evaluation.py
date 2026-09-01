@@ -142,14 +142,8 @@ def evaluate_semantic_program_transducer(
         )
         attribution_exact = bool(
             predicted is not None
-            and tuple(
-                (step.operation_span, step.argument_spans)
-                for step in predicted.instructions
-            )
-            == tuple(
-                (step.operation_span, step.argument_spans)
-                for step in item.ir.instructions
-            )
+            and tuple((step.operation_span, step.argument_spans) for step in predicted.instructions)
+            == tuple((step.operation_span, step.argument_spans) for step in item.ir.instructions)
         )
         full_ir_exact = bool(
             program_exact
@@ -159,9 +153,7 @@ def evaluate_semantic_program_transducer(
             and predicted.source_token_ids == item.ir.source_token_ids
         )
         answer_emitted = predicted_answer is not None
-        answer_exact = bool(
-            predicted_answer is not None and predicted_answer == expected_answer
-        )
+        answer_exact = bool(predicted_answer is not None and predicted_answer == expected_answer)
         values = {
             "accepted": accepted,
             "program_exact": program_exact,
@@ -228,22 +220,15 @@ def coefficient_lesion(
 
     operations = tuple(lesion_classifier(head) for head in model.operation_heads)
     arguments = tuple(
-        tuple(lesion_classifier(head) for head in heads)
-        for heads in model.argument_heads
+        tuple(lesion_classifier(head) for head in heads) for heads in model.argument_heads
     )
     coefficient_body = {
-        "pointer_heads": {
-            role: pointers[role].to_dict() for role in sorted(pointers)
-        },
+        "pointer_heads": {role: pointers[role].to_dict() for role in sorted(pointers)},
         "operation_heads": [head.to_dict() for head in operations],
-        "argument_heads": [
-            [head.to_dict() for head in heads] for heads in arguments
-        ],
+        "argument_heads": [[head.to_dict() for head in heads] for heads in arguments],
     }
     receipt_body = {
-        key: value
-        for key, value in model.training_receipt.items()
-        if key != "receipt_sha256"
+        key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"
     }
     receipt_body["coefficient_sha256"] = _sha(coefficient_body)
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
@@ -253,6 +238,7 @@ def coefficient_lesion(
         model_basis_sha256=model.model_basis_sha256,
         input_count=model.input_count,
         step_count=model.step_count,
+        argument_arities=model.argument_arities,
         pointer_heads=pointers,
         operation_heads=operations,
         argument_heads=arguments,
@@ -318,10 +304,7 @@ def label_permuted_training_examples(
             transducer_receipt_sha256=current.ir.transducer_receipt_sha256,
         )
         replacements[id(current)] = replace(current, ir=ir)
-    return tuple(
-        replacements.get(id(item), item)
-        for item in examples
-    )
+    return tuple(replacements.get(id(item), item) for item in examples)
 
 
 __all__ = [

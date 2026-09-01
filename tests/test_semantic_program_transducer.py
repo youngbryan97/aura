@@ -228,6 +228,110 @@ def test_gold_programs_are_two_real_instructions() -> None:
     )
 
 
+_SEQUENCE_FIRST_OPS = ("unique", "sorted_up", "reversed_", "tail")
+_SEQUENCE_SECOND_OPS = ("length", "total", "largest", "smallest")
+
+
+def _unary_sequence_example(
+    first_op: str,
+    second_op: str,
+    *,
+    split: str = "train",
+    order: tuple[int, ...] | None = None,
+) -> SemanticTransducerTrainingExample:
+    roles = (
+        "input:0",
+        "operation:0",
+        "operation:1",
+        "argument:0:0",
+        "argument:1:0",
+    )
+    positions = order or tuple(range(len(roles)))
+    spans = {
+        role: TokenSpan(positions[index], positions[index] + 1) for index, role in enumerate(roles)
+    }
+    operations = (*_SEQUENCE_FIRST_OPS, *_SEQUENCE_SECOND_OPS)
+    ir = SemanticProgramIR(
+        source_token_ids=tuple(range(300, 310)),
+        source_text_sha256=hashlib.sha256(
+            f"{first_op}:{second_op}:{split}:{positions}".encode()
+        ).hexdigest(),
+        input_spans=(spans["input:0"],),
+        instructions=(
+            SemanticIRInstruction(
+                first_op,
+                (0,),
+                spans["operation:0"],
+                (spans["argument:0:0"],),
+                (),
+            ),
+            SemanticIRInstruction(
+                second_op,
+                (1,),
+                spans["operation:1"],
+                (spans["argument:1:0"],),
+                (0,),
+            ),
+        ),
+        report_value=2,
+        model_basis_receipt_sha256=_MODEL_BASIS,
+        transducer_receipt_sha256="b" * 64,
+    )
+    width = len(roles) + len(operations) + 2 + 1
+    hidden = np.zeros((10, width), dtype=np.float32)
+    hidden[:, -1] = 1.0
+    for role_index, role in enumerate(roles):
+        position = spans[role].start
+        hidden[position, -1] = 0.0
+        hidden[position, role_index] = 3.0
+    for step, operation in enumerate((first_op, second_op)):
+        position = spans[f"operation:{step}"].start
+        hidden[position, len(roles) + operations.index(operation)] = 3.0
+    for step, register in enumerate((0, 1)):
+        position = spans[f"argument:{step}:0"].start
+        hidden[position, len(roles) + len(operations) + register] = 3.0
+    hidden /= np.linalg.norm(hidden, axis=1, keepdims=True)
+    return SemanticTransducerTrainingExample(
+        ir=ir,
+        hidden_states=hidden,
+        split=split,
+        construction_id="sequence-train" if split == "train" else "sequence-held-out",
+        topology_id="unary-sequence-chain",
+        public_inputs=((3, 1, 3, 2),),
+    )
+
+
+def test_typed_transducer_learns_unary_sequence_programs() -> None:
+    training = [
+        _unary_sequence_example(first, second)
+        for first in _SEQUENCE_FIRST_OPS
+        for second in _SEQUENCE_SECOND_OPS
+    ]
+    model = fit_semantic_program_transducer(training)
+    held_out = _unary_sequence_example(
+        "unique",
+        "total",
+        split="test",
+        order=(4, 2, 0, 3, 1),
+    )
+
+    outcome = model.decode(
+        source_token_ids=held_out.ir.source_token_ids,
+        hidden_states=held_out.hidden_states,
+        source_text_sha256=held_out.ir.source_text_sha256,
+        model_basis_sha256=_MODEL_BASIS,
+    )
+    replay = semantic_program_transducer_from_dict(model.to_dict())
+
+    assert model.schema == "aura.semantic_program_transducer.v3"
+    assert model.argument_arities == (1, 1)
+    assert model.training_receipt["argument_arities"] == [1, 1]
+    assert outcome.accepted
+    assert outcome.ir is not None
+    assert outcome.ir.to_program() == held_out.ir.to_program()
+    assert replay.to_dict() == model.to_dict()
+
+
 def _three_step_example(
     operations: tuple[str, str, str],
     topology_index: int,
@@ -245,18 +349,13 @@ def _three_step_example(
     roles = (
         *(f"input:{index}" for index in range(4)),
         *(f"operation:{step}" for step in range(3)),
-        *(
-            f"argument:{step}:{position}"
-            for step in range(3)
-            for position in range(2)
-        ),
+        *(f"argument:{step}:{position}" for step in range(3) for position in range(2)),
     )
     positions = order or tuple(range(len(roles)))
     if len(positions) != len(roles) or len(set(positions)) != len(positions):
         raise ValueError("test role positions are invalid")
     spans = {
-        role: TokenSpan(positions[index], positions[index] + 1)
-        for index, role in enumerate(roles)
+        role: TokenSpan(positions[index], positions[index] + 1) for index, role in enumerate(roles)
     }
     instructions = tuple(
         SemanticIRInstruction(
@@ -268,11 +367,7 @@ def _three_step_example(
                 spans[f"argument:{step}:1"],
             ),
             depends_on=tuple(
-                sorted(
-                    register - 4
-                    for register in set(arguments[step])
-                    if register >= 4
-                )
+                sorted(register - 4 for register in set(arguments[step]) if register >= 4)
             ),
         )
         for step in range(3)
@@ -352,8 +447,7 @@ def test_geometry_is_learned_for_four_inputs_and_three_steps() -> None:
     ]
     assert len(model.pointer_heads) == 13
     assert all(
-        head.to_dict() == model.operation_heads[0].to_dict()
-        for head in model.operation_heads
+        head.to_dict() == model.operation_heads[0].to_dict() for head in model.operation_heads
     )
     assert all(
         heads[position].to_dict() == model.argument_heads[0][position].to_dict()
@@ -423,20 +517,26 @@ def test_prior_result_reference_resolves_from_unique_causal_definition_window() 
     tokens = (10, 11, 700, 701, 20, 21, 800, 801, 30, 800, 801, 700, 701)
     operation_spans = (TokenSpan(0, 1), TokenSpan(4, 5), TokenSpan(8, 9))
 
-    assert _resolve_prior_result_register(
-        token_ids=tokens,
-        reference_span=TokenSpan(9, 11),
-        operation_spans=operation_spans,
-        current_step=2,
-        input_count=4,
-    ) == 5
-    assert _resolve_prior_result_register(
-        token_ids=tokens,
-        reference_span=TokenSpan(11, 13),
-        operation_spans=operation_spans,
-        current_step=2,
-        input_count=4,
-    ) == 4
+    assert (
+        _resolve_prior_result_register(
+            token_ids=tokens,
+            reference_span=TokenSpan(9, 11),
+            operation_spans=operation_spans,
+            current_step=2,
+            input_count=4,
+        )
+        == 5
+    )
+    assert (
+        _resolve_prior_result_register(
+            token_ids=tokens,
+            reference_span=TokenSpan(11, 13),
+            operation_spans=operation_spans,
+            current_step=2,
+            input_count=4,
+        )
+        == 4
+    )
 
 
 def test_prior_result_reference_falls_back_when_antecedent_is_ambiguous() -> None:

@@ -17,12 +17,14 @@ from core.brain.llm.hidden_sequence_contract import (
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_sequence_corpus,
 )
 from core.learning.semantic_program_feature_materialization import (
     FAMILY_FEATURE_CONFIG_SCHEMA,
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    SEQUENCE_CHAIN_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
     build_semantic_program_corpus_for_config,
@@ -279,8 +281,7 @@ def test_source_order_fork_join_family_declares_observable_register_identity(
 
     assert len(corpus) == 576
     assert all(
-        list(example.input_spans)
-        == sorted(example.input_spans, key=lambda span: span.start)
+        list(example.input_spans) == sorted(example.input_spans, key=lambda span: span.start)
         for example in corpus
     )
 
@@ -296,11 +297,39 @@ def test_factorial_fork_join_family_reconstructs_from_declared_config() -> None:
     corpus = build_semantic_program_corpus_for_config(config)
 
     assert len(corpus) == 1296
-    assert {split: sum(item.split == split for item in corpus) for split in (
-        "train",
-        "validation",
-        "test",
-    )} == {"train": 432, "validation": 432, "test": 432}
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in (
+            "train",
+            "validation",
+            "test",
+        )
+    } == {"train": 432, "validation": 432, "test": 432}
+
+
+def test_sequence_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=1414213,
+        examples_per_operation_pair=2,
+        max_examples=540,
+        corpus_kind=SEQUENCE_CHAIN_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_sequence_corpus(
+        seed=1414213,
+        examples_per_operation_pair=2,
+    )
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in (
+            "train",
+            "validation",
+            "test",
+        )
+    } == {"train": 180, "validation": 180, "test": 180}
 
 
 def test_bundle_rejects_record_tampering(tmp_path: Path) -> None:

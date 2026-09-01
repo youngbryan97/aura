@@ -35,6 +35,7 @@ def _arguments() -> argparse.Namespace:
             "fork_join_4x3",
             "fork_join_4x3_source_order",
             "fork_join_4x3_factorial16",
+            "sequence_chain_1x2_factorial",
         ),
         default="chain_3x2",
     )
