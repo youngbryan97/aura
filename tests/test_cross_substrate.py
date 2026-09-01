@@ -15,6 +15,7 @@ from core.cognition.cognitive_vector import (
     Projection,
     bind,
     capacity,
+    stable_seed,
     random_vector,
     representational_similarity,
     reset_vector_registry_for_test,
@@ -106,7 +107,21 @@ def test_a_bigger_space_holds_more_bindings():
 
 
 def test_the_default_dimension_is_justified_by_that_curve():
-    assert capacity(DEFAULT_DIMENSION, pairs=8, distractors=200)["recovery_rate"] == 1.0
+    rates = [
+        capacity(DEFAULT_DIMENSION, pairs=8, distractors=200, seed=s)["recovery_rate"]
+        for s in range(12)
+    ]
+    assert min(rates) == 1.0, f"512 dropped a binding at seed {rates.index(min(rates))}"
+
+
+def test_a_concept_gets_the_same_vector_in_every_process():
+    """hash() on a string is salted per interpreter; seeding from it minted a
+    different "red" every boot, and made the capacity curve a fresh random draw
+    rather than a property of the dimension."""
+    assert stable_seed("red") == 3333378283
+    first = reset_vector_registry_for_test(dimension=64).concept("red")
+    second = reset_vector_registry_for_test(dimension=64).concept("red")
+    assert first == second
 
 
 # ── projections carry their measured fidelity ─────────────────────────────

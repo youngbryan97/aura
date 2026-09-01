@@ -2,7 +2,7 @@
   "organs": 117,
   "cross_package_edges": 1893,
   "dependency_entropy": 9.079,
-  "kernel_lines": 560834,
+  "kernel_lines": 560848,
   "history": [
     {
       "raised": [
@@ -81,6 +81,18 @@
         "kernel_lines": 560834
       },
       "because": "18 lines across four modules routing writes through the file-write gateway and narrowing three broad excepts: agent_workspace, coding_aci, where_it_responds, state_ref, operator_invention and experiment_registry. Every one removes a bypass the durable-write or enterprise ratchet was counting."
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 560834
+      },
+      "to": {
+        "kernel_lines": 560848
+      },
+      "because": "stable_seed(): a concept's vector was seeded from hash(name), salted per interpreter, so 'red' was a different vector in every process and the capacity curve was a fresh random draw rather than a property of the dimension"
     }
   ]
 }

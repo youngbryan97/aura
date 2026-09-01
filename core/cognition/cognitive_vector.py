@@ -40,6 +40,7 @@ the embedding store knows" becomes a measurement. Card 082.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import threading
 from collections.abc import Mapping, Sequence
@@ -83,6 +84,17 @@ def unit(vector: Sequence[float]) -> Vector:
     """Scale to length one. A zero vector stays zero rather than dividing."""
     magnitude = _norm(vector)
     return [0.0] * len(vector) if magnitude == 0 else [x / magnitude for x in vector]
+
+
+def stable_seed(name: str) -> int:
+    """The seed for a concept's vector, identical in every process.
+
+    ``hash()`` on a string is salted per interpreter, so seeding from it mints
+    a different vector for "red" on every boot: the cleanup memory cannot be
+    persisted, two runs cannot be compared, and a capacity measurement is a
+    fresh random draw each time rather than a property of the dimension.
+    """
+    return int.from_bytes(hashlib.blake2b(name.encode("utf-8"), digest_size=4).digest(), "big")
 
 
 def random_vector(dimension: int = DEFAULT_DIMENSION, *, seed: int | None = None) -> Vector:
@@ -274,7 +286,9 @@ class VectorRegistry:
             existing = self._concepts.get(name)
             if existing is not None:
                 return existing
-            vector = random_vector(self.dimension, seed=seed if seed is not None else hash(name) % (2**31))
+            vector = random_vector(
+                self.dimension, seed=seed if seed is not None else stable_seed(name)
+            )
             self._concepts[name] = vector
             self.cleanup.add(name, vector)
             return vector
