@@ -5137,6 +5137,14 @@
       "scope": "<module>.VSRCorpus.add"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/perception/where_it_responds.py",
+      "scope": "<module>._note_what_was_seen"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -5439,6 +5447,22 @@
       "count": 1,
       "path": "core/runtime/action_executor.py",
       "scope": "<module>.ActionExecutor._dispatch"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/agent_workspace.py",
+      "scope": "<module>.LocalWorkspace.write"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/agent_workspace.py",
+      "scope": "<module>.LocalWorkspace.write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -5991,6 +6015,14 @@
       "count": 1,
       "path": "core/self_modification/code_repair.py",
       "scope": "<module>.AutonomousCodeRepair._generate_ruff_candidate"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/coding_aci.py",
+      "scope": "<module>._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -14853,6 +14885,14 @@
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
+      "path": "core/organism/model_validation.py",
+      "scope": "<module>._historical_semantic_sources_hold"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
       "path": "core/perception/ambient_developer_stream.py",
       "scope": "<module>.AmbientDeveloperStream._collect_git_status"
     },
@@ -15175,6 +15215,14 @@
       "count": 1,
       "path": "core/sandbox/untrusted_python.py",
       "scope": "<module>._spawn"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/science/experiment_registry.py",
+      "scope": "<module>._commit"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
@@ -16090,6 +16138,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "561c1f8e7937b2f279ae675986c2227b7d7b2c03ae92e4dc562a3ff3602885aa",
+  "inventory_sha256": "39d9016993d70aa21b20e286070fdeb6e01865843fd4d6930053e697ad445216",
   "schema_version": 1
 }

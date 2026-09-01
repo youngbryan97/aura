@@ -3787,6 +3787,8 @@ def _historical_semantic_sources_hold(
     import json
     import subprocess
 
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
     binding_path = (
         root
         / "docs/evidence/semantic_program_27b_source_binding_2026-09-01.json"
@@ -3809,11 +3811,18 @@ def _historical_semantic_sources_hold(
             source_path = pathlib.PurePosixPath(relative)
             if source_path.is_absolute() or ".." in source_path.parts:
                 return False
-            payload = subprocess.run(
+            # Through the gateway, and byte-exact: the sha256 below attests to
+            # these bytes, so a decode between git and the digest would launder
+            # what the certificate claims.
+            payload = get_subprocess_gateway().run(
                 ["git", "show", f"{commit}:{relative}"],
                 cwd=root,
                 check=True,
                 capture_output=True,
+                text=False,
+                read_only=True,
+                accelerator_capability="none",
+                source="historical_semantic_sources",
             ).stdout
             if hashlib.sha256(payload).hexdigest() != expected:
                 return False

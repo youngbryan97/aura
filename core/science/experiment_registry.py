@@ -73,6 +73,7 @@ def _commit() -> str:
         out = get_subprocess_gateway().run(
             ["git", "rev-parse", "HEAD"],
             cwd=ROOT, timeout=5.0, read_only=True, source="experiment_registry",
+            accelerator_capability="none",
         )
         return out.stdout.strip() if out.returncode == 0 else "unknown"
     except (OSError, ImportError, RuntimeError, ValueError):
