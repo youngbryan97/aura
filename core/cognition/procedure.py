@@ -403,7 +403,7 @@ class ProcedureRegistry:
         """The procedures that apply here, best net value first.
 
         Backends compete directly: a chunk and a generalized rule are ranked by
-        the same number, which is the whole point of the currency.
+        the same number.
         """
         with self._lock:
             candidates = self._index.candidates(state)
