@@ -97,12 +97,24 @@ def _words_she_derived() -> dict[str, Any]:
     from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
     from core.cognition.a_kind_of_thing_she_named import written_down as kind_data
 
+    # And the ways of COMPUTING she wrote. A head is a term on the floor and
+    # there is no registry it could be looked up in, because the point of
+    # writing one is that nothing had written it down. A language whose
+    # grammar resets every morning has not grown either.
+    from core.cognition.one_algebra import DERIVED_HEADS
+    from core.cognition.the_floor_she_stands_on import written_down as floor_data
+
+    heads = {
+        name: {"takes": int(head.takes), "body": floor_data(head.body)}
+        for name, head in DERIVED_HEADS.items()
+    }
     return {
         "addressings": addressings,
         "operations": operations,
         "ways": sorted(named),
         "built": built,
         "wrote": wrote,
+        "heads": heads,
         "kinds_of_thing": {
             name: kind_data(kind) for name, kind in KINDS_OF_THING.items()
         },
@@ -126,6 +138,7 @@ def keep() -> bool:
     words = _words_she_derived()
     if not kinds and not any(words.values()):
         return False
+    _ = words.get("heads")
     body: dict[str, Any] = {"kinds": kinds, "language": words}
     try:
         from core.governance_context import local_internal_governed_scope
@@ -181,6 +194,20 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
     from core.cognition.a_kind_of_thing_she_named import read_back as read_kind
 
+    # The heads first. A word she wrote over a head she wrote has nothing to
+    # run if the head is not back, and it would be dropped as unreadable.
+    from core.cognition.one_algebra import the_head_she_wrote
+    from core.cognition.the_floor_she_stands_on import read_back as read_code
+
+    for name, row in (language.get("heads") or {}).items():
+        if not isinstance(row, dict):
+            continue
+        body = read_code(row.get("body"))
+        if body is None:
+            logger.info("a way of computing she wrote does not read back: %r", name)
+            continue
+        the_head_she_wrote(str(name), int(row.get("takes") or 2), body)
+        back += 1
     for name, row in (language.get("kinds_of_thing") or {}).items():
         kind = read_kind(row)
         if kind is None:

@@ -261,17 +261,15 @@ def _a_head_she_wrote(
 
     if len(term.parts) != written.takes:
         raise ValueError(f"{written.name!r} takes {written.takes} parts")
-    given: Any = written.body
-    for one in (
-        FloorCode("a number", value=int(index)),
-        FloorCode("a number", value=int(size)),
-    ):
-        given = FloorCode("of", parts=(given, one))
     tables = [_what_a_part_says(part, size, words, depth) for part in term.parts]
+    here = [run(part, index, size, words, depth + 1) % max(1, size)
+            for part in term.parts]
     try:
-        work = run_on_the_floor(given, fuel=_A_HEAD_MAY_SPEND)
-        for table in tables:
-            work = _apply_to_value(work, table)
+        work: Any = run_on_the_floor(written.body, fuel=_A_HEAD_MAY_SPEND)
+        # Outermost binder first: where it is, how long, what each part says
+        # here, then what each part says everywhere.
+        for given in (int(index), int(size), *here, *tables):
+            work = _apply_to_value(work, given)
         return int(work) % max(1, size)
     except (OutOfFuel, Stuck, TypeError) as exc:
         # A head that cannot answer here is a head that does not compute here,

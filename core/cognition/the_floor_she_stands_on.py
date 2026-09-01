@@ -656,16 +656,29 @@ def read_back(row: Any) -> Code | None:
     return Code(head=head, parts=tuple(parts), value=row.get("value"))
 
 
-def every_code(deepest: int = 3) -> Iterator[Code]:
+def every_code(
+    deepest: int = 3,
+    *,
+    variables: int = 2,
+    constants: Sequence[int] = (0, 1, 2),
+    also: Sequence[Code] = (),
+) -> Iterator[Code]:
     """Every term the floor admits, shortest first, up to that size.
 
     Here for the same reason the positional algebra has one: a claim that
     nothing shorter says a thing needs the shorter things to have been walked.
+
+    ``also`` is what she has already admitted, offered as leaves. That is the
+    only channel by which a long term becomes reachable — shortest-first over
+    a universal language reaches a few dozen symbols and no further, which is
+    Levin's bound rather than a defect here, and a library is what moves the
+    horizon rather than a bigger budget.
     """
     leaves = [
         Code("nothing"),
-        *(Code("a number", value=k) for k in (0, 1, 2)),
-        *(Code("the one it was given", value=n) for n in range(2)),
+        *(Code("a number", value=int(k)) for k in constants),
+        *(Code("the one it was given", value=n) for n in range(max(0, variables))),
+        *also,
     ]
     by_size: dict[int, list[Code]] = {1: list(leaves)}
     yield from leaves

@@ -446,6 +446,23 @@ def _a_word_the_language_was_missing(
     if wrote is not None:
         return f"a way of building words that I wrote ({wrote.name})"
 
+    # And when no word, no operation, no recipe and no maker will do: a way of
+    # COMPUTING she writes, standing where a head stands.
+    #
+    # The rung above every other one, and the last, because a head is a term
+    # on a universal floor. Everything before this is a term in the positional
+    # algebra, and core/cognition/what_the_old_language_cannot_say.py proves
+    # what those terms are bounded by: a polynomial in the length of the state
+    # whose degree is the length of the term, uniform over every vocabulary
+    # she can build. A family past that is not short of words.
+    #
+    # Refused unless it makes the family sayable, and taken out again when it
+    # does not, because a head is a branch at every step of every search from
+    # now on and that is the most expensive thing she can add.
+    said = _a_way_of_computing(pairs, sayable)
+    if said is not None:
+        return said
+
     # And the ones that were written down, tried after, because a way she can
     # reach by writing is worth more than one she can only be handed.
     kept = grow_until_sayable(
@@ -465,6 +482,56 @@ def _a_word_the_language_was_missing(
             + ")"
         )
     return f"a new way of MAKING words rather than a word ({kept[0].name})"
+
+
+def _a_way_of_computing(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+    sayable: Any,
+) -> str | None:
+    """Write a head, install it, and keep it only if the family becomes sayable."""
+    from core.cognition.a_way_of_computing_she_wrote import (
+        a_way_of_computing_she_wrote,
+    )
+    from core.cognition.an_invented_kind import addressings
+    from core.cognition.one_algebra import (
+        DERIVED_HEADS,
+        Term,
+        forget_the_head,
+        the_head_she_wrote,
+    )
+    from core.cognition.widening_the_language import widen_with_addressing
+
+    found = a_way_of_computing_she_wrote(
+        pairs,
+        now_sayable=sayable,
+        # What she has already written, offered as leaves. A head unreachable
+        # today because its pieces are missing is short tomorrow because they
+        # are not, and that is the whole of what accumulating means here.
+        already=tuple(one.body for one in DERIVED_HEADS.values()),
+    )
+    if found is None:
+        return None
+    name = f"a way of computing she wrote ({len(DERIVED_HEADS)})"
+    the_head_she_wrote(name, 2, found.body)
+    # A head is only reachable through a word written over it, so the word it
+    # was fitted on goes in with it.
+    every = addressings()
+    over = Term(name, parts=(Term("hole", value=0), Term("hole", value=1)))
+    from core.cognition.one_algebra import Made
+
+    word = Made(
+        term=over,
+        words=tuple(every[one] for one in found.over if one in every),
+        built_from=tuple(found.over),
+    )
+    if len(word.words) != 2:
+        forget_the_head(name)
+        return None
+    said = widen_with_addressing(f"{name}, over {' and '.join(found.over)}", word)
+    if said and sayable():
+        return f"a way of COMPUTING that I wrote rather than had ({found.describes()})"
+    forget_the_head(name)
+    return None
 
 
 def read_sequence_question(text: Any) -> SequenceQuestion | None:

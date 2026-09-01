@@ -68,25 +68,21 @@ _TWICE = Y(
 )
 
 
+def _over_everything(body):
+    """Close a body over everything a head is given, outermost binder first."""
+    return build(
+        L("at", L("n", L("here_first", L("here_second", L("all_first", L("all_second", body))))))
+    )
+
+
 def _doubling_head():
     """Two to the power of what the first part says here."""
-    return build(L("at", L("n", L("p", L("q", A(_TWICE, A(_NTH, V("p"), V("at"))))))))
+    return _over_everything(A(_TWICE, V("here_first")))
 
 
 def _the_other_part_head():
     """What the second part says at the place the first part names."""
-    return build(
-        L(
-            "at",
-            L(
-                "n",
-                L(
-                    "p",
-                    L("q", A(_NTH, V("q"), A(_NTH, V("p"), V("at")))),
-                ),
-            ),
-        )
-    )
+    return _over_everything(A(_NTH, V("all_second"), V("here_first")))
 
 
 @pytest.fixture
@@ -168,9 +164,7 @@ def test_a_head_that_will_not_stop_is_refused_rather_than_waited_on(
     _clean_registry,
 ) -> None:
     """A head is a term on a universal floor, so this case exists and is met."""
-    forever = build(
-        L("at", L("n", L("p", L("q", A(Y("go", L("k", A(V("go"), V("k")))), N(1))))))
-    )
+    forever = _over_everything(A(Y("go", L("k", A(V("go"), V("k")))), N(1)))
     the_head_she_wrote("never settles", 2, forever)
     term = Term("never settles", parts=(Term("where"), Term("where")))
     with pytest.raises(ValueError):
@@ -178,9 +172,9 @@ def test_a_head_that_will_not_stop_is_refused_rather_than_waited_on(
 
 
 def test_a_head_that_asks_for_nonsense_is_refused(_clean_registry) -> None:
-    the_head_she_wrote("asks for the first of a number", 2, build(
-        L("at", L("n", L("p", L("q", FST(N(1))))))
-    ))
+    the_head_she_wrote(
+        "asks for the first of a number", 2, _over_everything(FST(N(1)))
+    )
     term = Term("asks for the first of a number", parts=(Term("where"), Term("where")))
     with pytest.raises(ValueError):
         run(term, 0, 5, (_HERE, _ALONG))
@@ -192,12 +186,28 @@ def test_the_wrong_number_of_parts_is_refused(_clean_registry) -> None:
         run(Term("two to the", parts=(Term("where"),)), 0, 5, (_HERE, _ALONG))
 
 
-def test_the_registry_starts_empty_so_nothing_is_shipped_as_invented() -> None:
-    """What she wrote is what she kept, never what was in the source."""
-    import importlib
+def test_the_registry_ships_empty_so_nothing_is_shipped_as_invented() -> None:
+    """What she wrote is what she kept, never what was in the source.
 
-    fresh = importlib.reload(one_algebra)
-    assert fresh.DERIVED_HEADS == {} or set(fresh.DERIVED_HEADS) <= set(DERIVED_HEADS)
+    Read off the source rather than by reloading the module. Reloading builds
+    a second copy of the registry and of the arity table while other modules
+    still hold the first, which made every test that ran afterwards fail on a
+    head it could no longer find — an order dependence introduced by the test
+    rather than by the code.
+    """
+    import ast
+    import inspect
+    import pathlib as _pathlib
+
+    tree = ast.parse(
+        _pathlib.Path(inspect.getfile(one_algebra)).read_text(encoding="utf-8")
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == "DERIVED_HEADS":
+            assert isinstance(node.value, ast.Dict)
+            assert not node.value.keys, "a head was shipped rather than written"
+            return
+    raise AssertionError("DERIVED_HEADS is not declared where it was")
 
 
 def test_no_word_of_hers_says_the_diagonal() -> None:
