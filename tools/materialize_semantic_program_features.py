@@ -20,8 +20,19 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=271828)
-    parser.add_argument("--examples-per-operation-pair", type=int, default=1)
+    parser.add_argument(
+        "--examples-per-operation-pair",
+        "--examples-per-program-cell",
+        dest="examples_per_operation_pair",
+        type=int,
+        default=1,
+    )
     parser.add_argument("--max-examples", type=int, default=576)
+    parser.add_argument(
+        "--corpus-kind",
+        choices=("chain_3x2", "fork_join_4x3"),
+        default="chain_3x2",
+    )
     parser.add_argument(
         "--representation",
         choices=("final_hidden_v1", "lexical_contextual_v1"),
@@ -36,9 +47,11 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
     from mlx_lm.utils import load_tokenizer
 
     from core.brain.llm.mlx_client import get_mlx_client
-    from core.learning.semantic_program_corpus import build_semantic_program_corpus
     from core.learning.semantic_program_feature_materialization import (
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        FEATURE_CONFIG_SCHEMA,
         SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
         materialize_semantic_program_features,
         offset_tokenizer_for_worker,
         tokenizer_checkpoint_identity,
@@ -55,11 +68,14 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
         representation=args.representation,
         hidden_timeout_s=args.hidden_timeout_s,
         idle_wait_s=args.idle_wait_s,
+        corpus_kind=args.corpus_kind,
+        schema=(
+            FEATURE_CONFIG_SCHEMA
+            if args.corpus_kind == "chain_3x2"
+            else FAMILY_FEATURE_CONFIG_SCHEMA
+        ),
     )
-    corpus = build_semantic_program_corpus(
-        seed=config.seed,
-        examples_per_operation_pair=config.examples_per_operation_pair,
-    )
+    corpus = build_semantic_program_corpus_for_config(config)
     tokenizer_identity = await asyncio.to_thread(tokenizer_checkpoint_identity, model)
     tokenizer_wrapper = await asyncio.to_thread(load_tokenizer, model)
     offset_tokenizer = offset_tokenizer_for_worker(tokenizer_wrapper)

@@ -14,8 +14,13 @@ from core.brain.llm.hidden_sequence_contract import (
     hidden_sequence_channels,
     hidden_sequence_schema,
 )
-from core.learning.semantic_program_corpus import build_semantic_program_corpus
+from core.learning.semantic_program_corpus import (
+    build_semantic_program_corpus,
+    build_semantic_program_fork_join_corpus,
+)
 from core.learning.semantic_program_feature_materialization import (
+    FAMILY_FEATURE_CONFIG_SCHEMA,
+    FORK_JOIN_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
     load_semantic_feature_bundle,
@@ -224,6 +229,37 @@ def test_standard_loader_reconstructs_the_manifest_seed(tmp_path: Path) -> None:
     bundle = load_standard_semantic_feature_bundle(output)
 
     assert bundle.manifest["config"]["seed"] == 314159
+    assert len(bundle.examples) == 576
+
+
+def test_standard_loader_reconstructs_declared_fork_join_family(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "model"
+    checkpoint.mkdir()
+    output = tmp_path / "fork-join-features"
+    config = SemanticFeatureConfig(
+        seed=161803,
+        corpus_kind=FORK_JOIN_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+    corpus = build_semantic_program_fork_join_corpus(seed=config.seed)
+    asyncio.run(
+        materialize_semantic_program_features(
+            client=_FeatureClient(checkpoint),
+            tokenizer=_CharacterTokenizer(),
+            checkpoint=checkpoint,
+            output_directory=output,
+            corpus=corpus,
+            config=config,
+            lane_ownership_receipt=_lane_receipt(checkpoint),
+            tokenizer_identity=_tokenizer_identity(checkpoint),
+        )
+    )
+
+    bundle = load_standard_semantic_feature_bundle(output)
+
+    assert bundle.manifest["config"]["corpus_kind"] == FORK_JOIN_CORPUS_KIND
     assert len(bundle.examples) == 576
 
 

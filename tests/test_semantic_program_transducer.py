@@ -220,3 +220,134 @@ def test_gold_programs_are_two_real_instructions() -> None:
         Instruction("sub", (1, 2)),
         Instruction("idiv", (3, 0)),
     )
+
+
+def _three_step_example(
+    operations: tuple[str, str, str],
+    topology_index: int,
+    *,
+    split: str = "train",
+    order: tuple[int, ...] | None = None,
+) -> SemanticTransducerTrainingExample:
+    topologies = (
+        ((0, 1), (4, 2), (5, 3)),
+        ((1, 2), (0, 4), (5, 3)),
+        ((2, 3), (4, 1), (0, 5)),
+        ((0, 3), (2, 4), (1, 5)),
+    )
+    arguments = topologies[topology_index]
+    roles = (
+        *(f"input:{index}" for index in range(4)),
+        *(f"operation:{step}" for step in range(3)),
+        *(
+            f"argument:{step}:{position}"
+            for step in range(3)
+            for position in range(2)
+        ),
+    )
+    positions = order or tuple(range(len(roles)))
+    if len(positions) != len(roles) or len(set(positions)) != len(positions):
+        raise ValueError("test role positions are invalid")
+    spans = {
+        role: TokenSpan(positions[index], positions[index] + 1)
+        for index, role in enumerate(roles)
+    }
+    instructions = tuple(
+        SemanticIRInstruction(
+            op=operations[step],
+            args=arguments[step],
+            operation_span=spans[f"operation:{step}"],
+            argument_spans=(
+                spans[f"argument:{step}:0"],
+                spans[f"argument:{step}:1"],
+            ),
+            depends_on=tuple(
+                sorted(
+                    register - 4
+                    for register in set(arguments[step])
+                    if register >= 4
+                )
+            ),
+        )
+        for step in range(3)
+    )
+    token_count = 18
+    ir = SemanticProgramIR(
+        source_token_ids=tuple(range(200, 200 + token_count)),
+        source_text_sha256=hashlib.sha256(
+            f"{operations}:{topology_index}:{split}".encode()
+        ).hexdigest(),
+        input_spans=tuple(spans[f"input:{index}"] for index in range(4)),
+        instructions=instructions,
+        report_value=6,
+        model_basis_receipt_sha256=_MODEL_BASIS,
+        transducer_receipt_sha256="b" * 64,
+    )
+
+    width = len(roles) + len(_OPERATIONS) + 7 + 1
+    hidden = np.zeros((token_count, width), dtype=np.float32)
+    hidden[:, -1] = 1.0
+    for role_index, role in enumerate(roles):
+        position = spans[role].start
+        hidden[position, -1] = 0.0
+        hidden[position, role_index] = 3.0
+    for step, operation in enumerate(operations):
+        position = spans[f"operation:{step}"].start
+        hidden[position, len(roles) + _OPERATIONS.index(operation)] = 3.0
+    for step, registers in enumerate(arguments):
+        for position_index, register in enumerate(registers):
+            position = spans[f"argument:{step}:{position_index}"].start
+            hidden[position, len(roles) + len(_OPERATIONS) + register] = 3.0
+    hidden /= np.linalg.norm(hidden, axis=1, keepdims=True)
+    return SemanticTransducerTrainingExample(
+        ir=ir,
+        hidden_states=hidden,
+        split=split,
+        construction_id="three-step-train" if split == "train" else "held-out",
+        topology_id=f"topology-{topology_index}",
+        public_inputs=(24, 6, 3, 2),
+    )
+
+
+def test_geometry_is_learned_for_four_inputs_and_three_steps() -> None:
+    training = [
+        _three_step_example((first, second, third), topology)
+        for topology in range(4)
+        for first, second, third in zip(
+            _OPERATIONS,
+            _OPERATIONS[1:] + _OPERATIONS[:1],
+            _OPERATIONS[2:] + _OPERATIONS[:2],
+            strict=True,
+        )
+    ]
+    model = fit_semantic_program_transducer(training)
+    held_out = _three_step_example(
+        ("idiv", "sub", "mul"),
+        2,
+        split="test",
+        order=(12, 10, 8, 6, 4, 2, 0, 11, 9, 7, 5, 3, 1),
+    )
+
+    outcome = model.decode(
+        source_token_ids=held_out.ir.source_token_ids,
+        hidden_states=held_out.hidden_states,
+        source_text_sha256=held_out.ir.source_text_sha256,
+        model_basis_sha256=_MODEL_BASIS,
+    )
+
+    assert model.schema == "aura.semantic_program_transducer.v2"
+    assert (model.input_count, model.step_count) == (4, 3)
+    assert model.training_receipt["input_count"] == 4
+    assert model.training_receipt["step_count"] == 3
+    assert len(model.pointer_heads) == 13
+    assert outcome.ir is not None
+    assert outcome.ir.to_program() == held_out.ir.to_program()
+    assert semantic_program_transducer_from_dict(model.to_dict()).to_dict() == model.to_dict()
+
+
+def test_training_refuses_mixed_program_geometry() -> None:
+    mixed = _training()
+    mixed.append(_three_step_example(("add", "sub", "mul"), 0))
+
+    with pytest.raises(ValueError, match="geometries differ"):
+        fit_semantic_program_transducer(mixed)

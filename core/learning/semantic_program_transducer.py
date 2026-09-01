@@ -5,10 +5,10 @@ locate source spans; learned classifiers assign primitive and register meaning
 to those spans.  A deterministic decoder then proposes ``SemanticProgramIR``,
 whose validator remains the authority on type and causal structure.
 
-The first contract covers three public inputs and two binary instructions.  It
-is deliberately explicit about that boundary so a successful experiment is
-evidence for learned language-to-program transfer, not an unrestricted compiler
-claim.
+The legacy contract covers three public inputs and two binary instructions.
+The current contract derives its input and step geometry from the training
+examples while retaining exact legacy serialization for the published model.
+It remains a bounded compiler over a fixed binary primitive vocabulary.
 """
 
 from __future__ import annotations
@@ -27,24 +27,37 @@ from core.learning.semantic_program_ir import (
     TokenSpan,
 )
 
-SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
-SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
+LEGACY_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
+SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v2"
+LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
     "aura.semantic_program_transducer_receipt.v1"
+)
+SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v2"
 )
 SEMANTIC_TRANSDUCER_INPUTS: Final = 3
 SEMANTIC_TRANSDUCER_STEPS: Final = 2
 SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS: Final = 24
 
-_POINTER_ROLES: Final = (
-    "input:0",
-    "input:1",
-    "input:2",
-    "operation:0",
-    "operation:1",
-    "argument:0:0",
-    "argument:0:1",
-    "argument:1:0",
-    "argument:1:1",
+_MAX_TRANSDUCER_INPUTS: Final = 8
+_MAX_TRANSDUCER_STEPS: Final = 16
+
+
+def _pointer_roles(input_count: int, step_count: int) -> tuple[str, ...]:
+    return (
+        *(f"input:{index}" for index in range(input_count)),
+        *(f"operation:{step}" for step in range(step_count)),
+        *(
+            f"argument:{step}:{position}"
+            for step in range(step_count)
+            for position in range(2)
+        ),
+    )
+
+
+_POINTER_ROLES: Final = _pointer_roles(
+    SEMANTIC_TRANSDUCER_INPUTS,
+    SEMANTIC_TRANSDUCER_STEPS,
 )
 
 _RECEIPT_FIELDS: Final = {
@@ -63,6 +76,7 @@ _RECEIPT_FIELDS: Final = {
     "correctness_authority",
     "receipt_sha256",
 }
+_RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {"input_count", "step_count"}
 
 
 def _sha(value: Any) -> str:
@@ -114,10 +128,12 @@ class SemanticTransducerTrainingExample:
         hidden = _hidden_array(self.hidden_states)
         if hidden.shape[0] != len(self.ir.source_token_ids):
             raise ValueError("semantic transducer tokens and hidden rows differ")
-        if self.ir.n_inputs != SEMANTIC_TRANSDUCER_INPUTS:
-            raise ValueError("semantic transducer training input arity is unsupported")
-        if len(self.ir.instructions) != SEMANTIC_TRANSDUCER_STEPS:
-            raise ValueError("semantic transducer training step count is unsupported")
+        if (
+            not 1 <= self.ir.n_inputs <= _MAX_TRANSDUCER_INPUTS
+            or not 1 <= len(self.ir.instructions) <= _MAX_TRANSDUCER_STEPS
+            or any(len(instruction.args) != 2 for instruction in self.ir.instructions)
+        ):
+            raise ValueError("semantic transducer training geometry is unsupported")
         if (
             not isinstance(self.public_inputs, tuple)
             or len(self.public_inputs) != self.ir.n_inputs
@@ -253,6 +269,8 @@ class SemanticProgramTransducer:
 
     hidden_size: int
     model_basis_sha256: str
+    input_count: int
+    step_count: int
     pointer_heads: dict[str, LinearPointerHead]
     operation_heads: tuple[LinearClassifierHead, ...]
     argument_heads: tuple[tuple[LinearClassifierHead, ...], ...]
@@ -262,24 +280,37 @@ class SemanticProgramTransducer:
     def __post_init__(self) -> None:
         pointer_heads = dict(self.pointer_heads)
         receipt = json.loads(json.dumps(self.training_receipt, allow_nan=False))
+        legacy = self.schema == LEGACY_SEMANTIC_TRANSDUCER_SCHEMA
+        expected_schema = (
+            LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if legacy
+            else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+        )
+        roles = _pointer_roles(self.input_count, self.step_count)
         if (
-            self.schema != SEMANTIC_TRANSDUCER_SCHEMA
+            self.schema
+            not in {LEGACY_SEMANTIC_TRANSDUCER_SCHEMA, SEMANTIC_TRANSDUCER_SCHEMA}
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
             or not _is_sha256(self.model_basis_sha256)
-            or set(pointer_heads) != set(_POINTER_ROLES)
-            or len(self.operation_heads) != SEMANTIC_TRANSDUCER_STEPS
-            or len(self.argument_heads) != SEMANTIC_TRANSDUCER_STEPS
+            or type(self.input_count) is not int
+            or not 1 <= self.input_count <= _MAX_TRANSDUCER_INPUTS
+            or type(self.step_count) is not int
+            or not 1 <= self.step_count <= _MAX_TRANSDUCER_STEPS
+            or (legacy and (self.input_count, self.step_count) != (3, 2))
+            or set(pointer_heads) != set(roles)
+            or len(self.operation_heads) != self.step_count
+            or len(self.argument_heads) != self.step_count
             or any(len(heads) != 2 for heads in self.argument_heads)
-            or receipt.get("schema")
-            != SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            or receipt.get("schema") != expected_schema
         ):
             raise ValueError("semantic transducer envelope is invalid")
         all_heads = [*pointer_heads.values(), *self.operation_heads]
         all_heads.extend(head for heads in self.argument_heads for head in heads)
         if any(head.width != self.hidden_size for head in all_heads):
             raise ValueError("semantic transducer heads disagree on hidden width")
-        if set(receipt) != _RECEIPT_FIELDS:
+        expected_receipt_fields = _RECEIPT_FIELDS if legacy else _RECEIPT_FIELDS_V2
+        if set(receipt) != expected_receipt_fields:
             raise ValueError("semantic transducer receipt fields are invalid")
         receipt_body = {
             key: value for key, value in receipt.items() if key != "receipt_sha256"
@@ -296,7 +327,14 @@ class SemanticProgramTransducer:
             or not isinstance(receipt.get("training_topologies"), list)
             or not isinstance(receipt.get("primitive_support"), list)
             or not isinstance(receipt.get("register_support"), list)
-            or len(receipt["register_support"]) != 4
+            or len(receipt["register_support"]) != self.step_count * 2
+            or (
+                not legacy
+                and (
+                    receipt.get("input_count") != self.input_count
+                    or receipt.get("step_count") != self.step_count
+                )
+            )
             or any(
                 receipt.get(field) is not False
                 for field in (
@@ -335,13 +373,17 @@ class SemanticProgramTransducer:
         return str(value)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema": self.schema,
             "hidden_size": self.hidden_size,
             "model_basis_sha256": self.model_basis_sha256,
             **self._coefficient_body(),
             "training_receipt": self.training_receipt,
         }
+        if self.schema == SEMANTIC_TRANSDUCER_SCHEMA:
+            payload["input_count"] = self.input_count
+            payload["step_count"] = self.step_count
+        return payload
 
     def decode(
         self,
@@ -370,7 +412,8 @@ class SemanticProgramTransducer:
 
         spans: dict[str, TokenSpan] = {}
         pointer_scores: dict[str, float] = {}
-        for role in _POINTER_ROLES:
+        roles = _pointer_roles(self.input_count, self.step_count)
+        for role in roles:
             span, score = self.pointer_heads[role].decode(hidden)
             spans[role] = span
             pointer_scores[role] = score
@@ -378,7 +421,7 @@ class SemanticProgramTransducer:
         confidences: dict[str, float] = {}
         operations: list[str] = []
         arguments: list[tuple[int, int]] = []
-        for step in range(SEMANTIC_TRANSDUCER_STEPS):
+        for step in range(self.step_count):
             op_feature = _pool(hidden, spans[f"operation:{step}"])
             operation, confidence = self.operation_heads[step].predict(op_feature)
             operations.append(operation)
@@ -403,13 +446,13 @@ class SemanticProgramTransducer:
                 ),
                 depends_on=tuple(
                     sorted(
-                        argument - SEMANTIC_TRANSDUCER_INPUTS
+                        argument - self.input_count
                         for argument in set(arguments[step])
-                        if argument >= SEMANTIC_TRANSDUCER_INPUTS
+                        if argument >= self.input_count
                     )
                 ),
             )
-            for step in range(SEMANTIC_TRANSDUCER_STEPS)
+            for step in range(self.step_count)
         )
         try:
             ir = SemanticProgramIR(
@@ -417,12 +460,10 @@ class SemanticProgramTransducer:
                 source_text_sha256=source_text_sha256,
                 input_spans=tuple(
                     spans[f"input:{index}"]
-                    for index in range(SEMANTIC_TRANSDUCER_INPUTS)
+                    for index in range(self.input_count)
                 ),
                 instructions=instructions,
-                report_value=SEMANTIC_TRANSDUCER_INPUTS
-                + SEMANTIC_TRANSDUCER_STEPS
-                - 1,
+                report_value=self.input_count + self.step_count - 1,
                 model_basis_receipt_sha256=model_basis_sha256,
                 transducer_receipt_sha256=self.receipt_sha256,
             )
@@ -445,17 +486,14 @@ def _pool(hidden: np.ndarray, span: TokenSpan) -> np.ndarray:
 
 
 def _gold_spans(ir: SemanticProgramIR) -> dict[str, TokenSpan]:
-    return {
-        "input:0": ir.input_spans[0],
-        "input:1": ir.input_spans[1],
-        "input:2": ir.input_spans[2],
-        "operation:0": ir.instructions[0].operation_span,
-        "operation:1": ir.instructions[1].operation_span,
-        "argument:0:0": ir.instructions[0].argument_spans[0],
-        "argument:0:1": ir.instructions[0].argument_spans[1],
-        "argument:1:0": ir.instructions[1].argument_spans[0],
-        "argument:1:1": ir.instructions[1].argument_spans[1],
+    spans = {
+        f"input:{index}": span for index, span in enumerate(ir.input_spans)
     }
+    for step, instruction in enumerate(ir.instructions):
+        spans[f"operation:{step}"] = instruction.operation_span
+        for position, span in enumerate(instruction.argument_spans):
+            spans[f"argument:{step}:{position}"] = span
+    return spans
 
 
 def _fit_binary_head(features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, float]:
@@ -515,12 +553,19 @@ def fit_semantic_program_transducer(
     model_bases = {item.ir.model_basis_receipt_sha256 for item in training}
     if len(model_bases) != 1:
         raise ValueError("semantic transducer training spans multiple model bases")
+    geometries = {
+        (item.ir.n_inputs, len(item.ir.instructions)) for item in training
+    }
+    if len(geometries) != 1:
+        raise ValueError("semantic transducer training geometries differ")
     if any(item.hidden_states.shape[1] != hidden_size for item in training):
         raise ValueError("semantic transducer training hidden widths differ")
+    input_count, step_count = next(iter(geometries))
+    roles = _pointer_roles(input_count, step_count)
 
     pointer_heads: dict[str, LinearPointerHead] = {}
     token_features = np.concatenate([item.hidden_states for item in training], axis=0)
-    for role in _POINTER_ROLES:
+    for role in roles:
         start_labels: list[int] = []
         end_labels: list[int] = []
         for item in training:
@@ -550,7 +595,7 @@ def fit_semantic_program_transducer(
 
     operation_heads: list[LinearClassifierHead] = []
     argument_heads: list[tuple[LinearClassifierHead, LinearClassifierHead]] = []
-    for step in range(SEMANTIC_TRANSDUCER_STEPS):
+    for step in range(step_count):
         operation_heads.append(
             _fit_classifier(
                 np.stack(
@@ -596,7 +641,7 @@ def fit_semantic_program_transducer(
         ],
     }
     receipt_body = {
-        "schema": SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA,
+        "schema": LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA,
         "model_basis_sha256": next(iter(model_bases)),
         "hidden_size": hidden_size,
         "training_example_count": len(training),
@@ -618,7 +663,7 @@ def fit_semantic_program_transducer(
                     for item in training
                 }
             )
-            for step in range(SEMANTIC_TRANSDUCER_STEPS)
+            for step in range(step_count)
             for position in range(2)
         ],
         "coefficient_sha256": _sha(coefficient_body),
@@ -627,10 +672,25 @@ def fit_semantic_program_transducer(
         "generated_compiler_text_available": False,
         "correctness_authority": False,
     }
+    legacy = (input_count, step_count) == (
+        SEMANTIC_TRANSDUCER_INPUTS,
+        SEMANTIC_TRANSDUCER_STEPS,
+    )
+    if not legacy:
+        receipt_body["schema"] = SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+        receipt_body["input_count"] = input_count
+        receipt_body["step_count"] = step_count
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
+        schema=(
+            LEGACY_SEMANTIC_TRANSDUCER_SCHEMA
+            if legacy
+            else SEMANTIC_TRANSDUCER_SCHEMA
+        ),
         hidden_size=hidden_size,
         model_basis_sha256=next(iter(model_bases)),
+        input_count=input_count,
+        step_count=step_count,
         pointer_heads=pointer_heads,
         operation_heads=tuple(operation_heads),
         argument_heads=tuple(argument_heads),
@@ -669,7 +729,10 @@ def _classifier_head_from_dict(value: Any) -> LinearClassifierHead:
 def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransducer:
     """Load a transducer only when coefficients and receipt still agree."""
 
-    if not isinstance(payload, dict) or set(payload) != {
+    if not isinstance(payload, dict):
+        raise ValueError("serialized semantic transducer fields are invalid")
+    schema = payload.get("schema")
+    common_fields = {
         "schema",
         "hidden_size",
         "model_basis_sha256",
@@ -677,18 +740,32 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         "operation_heads",
         "argument_heads",
         "training_receipt",
-    }:
+    }
+    if schema == LEGACY_SEMANTIC_TRANSDUCER_SCHEMA:
+        input_count = SEMANTIC_TRANSDUCER_INPUTS
+        step_count = SEMANTIC_TRANSDUCER_STEPS
+        expected_fields = common_fields
+    elif schema == SEMANTIC_TRANSDUCER_SCHEMA:
+        input_count = payload.get("input_count")
+        step_count = payload.get("step_count")
+        expected_fields = common_fields | {"input_count", "step_count"}
+    else:
+        raise ValueError("serialized semantic transducer schema is invalid")
+    if set(payload) != expected_fields:
         raise ValueError("serialized semantic transducer fields are invalid")
+    if type(input_count) is not int or type(step_count) is not int:
+        raise ValueError("serialized semantic transducer geometry is invalid")
+    roles = _pointer_roles(input_count, step_count)
     raw_pointers = payload["pointer_heads"]
     raw_operations = payload["operation_heads"]
     raw_arguments = payload["argument_heads"]
     if (
         not isinstance(raw_pointers, dict)
-        or set(raw_pointers) != set(_POINTER_ROLES)
+        or set(raw_pointers) != set(roles)
         or not isinstance(raw_operations, list)
-        or len(raw_operations) != SEMANTIC_TRANSDUCER_STEPS
+        or len(raw_operations) != step_count
         or not isinstance(raw_arguments, list)
-        or len(raw_arguments) != SEMANTIC_TRANSDUCER_STEPS
+        or len(raw_arguments) != step_count
         or any(not isinstance(heads, list) or len(heads) != 2 for heads in raw_arguments)
     ):
         raise ValueError("serialized semantic transducer topology is invalid")
@@ -696,9 +773,11 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         schema=payload["schema"],
         hidden_size=payload["hidden_size"],
         model_basis_sha256=payload["model_basis_sha256"],
+        input_count=input_count,
+        step_count=step_count,
         pointer_heads={
             role: _pointer_head_from_dict(raw_pointers[role])
-            for role in _POINTER_ROLES
+            for role in roles
         },
         operation_heads=tuple(
             _classifier_head_from_dict(value) for value in raw_operations

@@ -92,6 +92,24 @@ class ProgramTopology:
 
 
 @dataclass(frozen=True, slots=True)
+class ForkJoinTopology:
+    """A three-step graph with two independent branches and one join."""
+
+    topology_id: str
+    arguments: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+
+    def __post_init__(self) -> None:
+        first, second, join = self.arguments
+        if (
+            not self.topology_id
+            or len(set((*first, *second))) != 4
+            or set((*first, *second)) != {0, 1, 2, 3}
+            or set(join) != {4, 5}
+        ):
+            raise ValueError("semantic fork-join topology is invalid")
+
+
+@dataclass(frozen=True, slots=True)
 class SemanticProgramExample:
     """One immutable program-first language example."""
 
@@ -201,6 +219,16 @@ def _example_id(
     inputs: tuple[int, int, int],
 ) -> str:
     body = f"{construction_id}|{topology_id}|{first_op}|{second_op}|{inputs}"
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
+def _fork_join_example_id(
+    construction_id: str,
+    topology_id: str,
+    operations: tuple[str, str, str],
+    inputs: tuple[int, int, int, int],
+) -> str:
+    body = f"{construction_id}|{topology_id}|{operations}|{inputs}"
     return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
 
 
@@ -512,6 +540,86 @@ def _reverse_clause(
     return builder, ("in0", "in1", "in2"), annotations
 
 
+def _fork_join(
+    operations: tuple[str, str, str],
+    values: tuple[int, int, int, int],
+    topology: ForkJoinTopology,
+    *,
+    opening: str,
+    branch_bridge: str,
+    join_bridge: str,
+    first_reference: str,
+    second_reference: str,
+    ending: str,
+) -> tuple[
+    _AnnotatedText,
+    tuple[str, str, str, str],
+    tuple[SemanticInstructionAnnotation, ...],
+]:
+    builder = _AnnotatedText()
+    builder.append(opening)
+    first_args = topology.arguments[0]
+    first_labels = _append_binary_verb(
+        builder,
+        op=operations[0],
+        operation_label="op0",
+        left=(str(values[first_args[0]]), f"in{first_args[0]}"),
+        right=(str(values[first_args[1]]), f"in{first_args[1]}"),
+    )
+    builder.append(f", naming it {first_reference}")
+    builder.append(branch_bridge)
+    second_args = topology.arguments[1]
+    second_labels = _append_binary_verb(
+        builder,
+        op=operations[1],
+        operation_label="op1",
+        left=(str(values[second_args[0]]), f"in{second_args[0]}"),
+        right=(str(values[second_args[1]]), f"in{second_args[1]}"),
+    )
+    builder.append(f", naming it {second_reference}")
+    builder.append(join_bridge)
+    join_args = topology.arguments[2]
+    references = {
+        4: (first_reference, "ref0"),
+        5: (second_reference, "ref1"),
+    }
+    join_labels = _append_binary_verb(
+        builder,
+        op=operations[2],
+        operation_label="op2",
+        left=references[join_args[0]],
+        right=references[join_args[1]],
+    )
+    builder.append(ending)
+    annotations = (
+        _annotation(
+            builder,
+            op=operations[0],
+            args=first_args,
+            operation_label="op0",
+            argument_labels=first_labels,
+            depends_on=(),
+        ),
+        _annotation(
+            builder,
+            op=operations[1],
+            args=second_args,
+            operation_label="op1",
+            argument_labels=second_labels,
+            depends_on=(),
+        ),
+        _annotation(
+            builder,
+            op=operations[2],
+            args=join_args,
+            operation_label="op2",
+            argument_labels=join_labels,
+            depends_on=(0, 1),
+        ),
+    )
+    return builder, ("in0", "in1", "in2", "in3"), annotations
+
+
 _CONSTRUCTIONS: Final = {
     "sequential_result_then": ("train", _sequential),
     "sequential_intermediate_after": (
@@ -564,6 +672,138 @@ _TOPOLOGIES: Final = (
     ProgramTopology("left_12_then_0", (1, 2), 0, True),
     ProgramTopology("1_then_right_02", (0, 2), 1, False),
     ProgramTopology("0_then_right_12", (1, 2), 0, False),
+)
+
+_FORK_JOIN_TOPOLOGIES: Final = (
+    ForkJoinTopology("pair_01_23_join_45", ((0, 1), (2, 3), (4, 5))),
+    ForkJoinTopology("pair_02_13_join_54", ((0, 2), (1, 3), (5, 4))),
+    ForkJoinTopology("pair_12_03_join_45", ((1, 2), (0, 3), (4, 5))),
+    ForkJoinTopology("pair_23_01_join_54", ((2, 3), (0, 1), (5, 4))),
+    ForkJoinTopology("pair_02_13_join_45", ((0, 2), (1, 3), (4, 5))),
+    ForkJoinTopology("pair_03_12_join_54", ((0, 3), (1, 2), (5, 4))),
+    ForkJoinTopology("pair_01_23_join_54", ((0, 1), (2, 3), (5, 4))),
+    ForkJoinTopology("pair_13_02_join_45", ((1, 3), (0, 2), (4, 5))),
+    ForkJoinTopology("pair_12_03_join_54", ((1, 2), (0, 3), (5, 4))),
+)
+
+_FORK_JOIN_CONSTRUCTIONS: Final = (
+    (
+        "fork_first_separate_finally",
+        "train",
+        partial(
+            _fork_join,
+            opening="First, ",
+            branch_bridge=". Separately, ",
+            join_bridge=". Finally, ",
+            first_reference="the first result",
+            second_reference="the second result",
+            ending=". Return the exact integer.",
+        ),
+    ),
+    (
+        "fork_begin_independently_combine",
+        "train",
+        partial(
+            _fork_join,
+            opening="Begin by ",
+            branch_bridge=". Independently, ",
+            join_bridge=". Combine them: ",
+            first_reference="result alpha",
+            second_reference="result beta",
+            ending=". Report the whole-number answer.",
+        ),
+    ),
+    (
+        "fork_compute_apart_then",
+        "train",
+        partial(
+            _fork_join,
+            opening="Compute ",
+            branch_bridge=". Apart from that, ",
+            join_bridge=". Then, ",
+            first_reference="the earlier value",
+            second_reference="the separate value",
+            ending=". Give the integer result.",
+        ),
+    ),
+    (
+        "fork_prepare_also_resolve",
+        "validation",
+        partial(
+            _fork_join,
+            opening="Prepare one branch: ",
+            branch_bridge=". Also prepare another: ",
+            join_bridge=". Resolve the two branches by ",
+            first_reference="branch one",
+            second_reference="branch two",
+            ending=". Return that number.",
+        ),
+    ),
+    (
+        "fork_form_in_parallel_merge",
+        "validation",
+        partial(
+            _fork_join,
+            opening="Form ",
+            branch_bridge=". In parallel, ",
+            join_bridge=". Merge those values: ",
+            first_reference="the former result",
+            second_reference="the latter result",
+            ending=". Use integer arithmetic.",
+        ),
+    ),
+    (
+        "fork_derive_elsewhere_finish",
+        "validation",
+        partial(
+            _fork_join,
+            opening="Derive ",
+            branch_bridge=". Elsewhere, ",
+            join_bridge=". Finish by ",
+            first_reference="the primary result",
+            second_reference="the auxiliary result",
+            ending=". Report the exact value.",
+        ),
+    ),
+    (
+        "fork_establish_separately_reconcile",
+        "test",
+        partial(
+            _fork_join,
+            opening="Establish ",
+            branch_bridge=". Separately establish ",
+            join_bridge=". Reconcile them: ",
+            first_reference="the initial branch",
+            second_reference="the other branch",
+            ending=". Return the integer.",
+        ),
+    ),
+    (
+        "fork_obtain_independently_conclude",
+        "test",
+        partial(
+            _fork_join,
+            opening="Obtain ",
+            branch_bridge=". Independently obtain ",
+            join_bridge=". Conclude by ",
+            first_reference="value one",
+            second_reference="value two",
+            ending=". Give the final number.",
+        ),
+    ),
+    (
+        "fork_produce_aside_join",
+        "test",
+        partial(
+            _fork_join,
+            opening="Produce ",
+            branch_bridge=". Aside from it, produce ",
+            join_bridge=". Join the results: ",
+            first_reference="the first quantity",
+            second_reference="the second quantity",
+            ending=". Report the integer result.",
+        ),
+    ),
 )
 
 
@@ -621,6 +861,69 @@ def build_semantic_program_corpus(
                                 ),
                                 instructions=annotations,
                                 report_value=4,
+                                contrast_id=contrast_id,
+                            )
+                        )
+    return tuple(examples)
+
+
+def build_semantic_program_fork_join_corpus(
+    *,
+    seed: int = 1618033,
+    examples_per_operation_triple: int = 1,
+) -> tuple[SemanticProgramExample, ...]:
+    """Return a construction- and topology-disjoint three-step corpus."""
+
+    if examples_per_operation_triple < 1:
+        raise ValueError("fork-join corpus needs at least one example per operation triple")
+    rng = random.Random(seed)
+    operations = tuple(_OPERATION_LANGUAGE)
+    examples: list[SemanticProgramExample] = []
+    for construction_index, (construction_id, split, renderer) in enumerate(
+        _FORK_JOIN_CONSTRUCTIONS
+    ):
+        topology = _FORK_JOIN_TOPOLOGIES[construction_index]
+        sample_values = tuple(
+            (
+                rng.randint(80, 97),
+                rng.randint(40, 59),
+                rng.randint(15, 29),
+                rng.randint(2, 9),
+            )
+            for _ in range(examples_per_operation_triple)
+        )
+        for first_op in operations:
+            for second_op in operations:
+                for join_op in operations:
+                    operation_tuple = (first_op, second_op, join_op)
+                    for sample_index, values in enumerate(sample_values):
+                        builder, input_labels, annotations = renderer(
+                            operation_tuple,
+                            values,
+                            topology,
+                        )
+                        contrast_id = (
+                            f"{construction_id}:{topology.topology_id}:"
+                            f"{sample_index}:{values}"
+                        )
+                        examples.append(
+                            SemanticProgramExample(
+                                example_id=_fork_join_example_id(
+                                    construction_id,
+                                    topology.topology_id,
+                                    operation_tuple,
+                                    values,
+                                ),
+                                construction_id=construction_id,
+                                topology_id=topology.topology_id,
+                                split=split,
+                                source_text=builder.text,
+                                inputs=values,
+                                input_spans=tuple(
+                                    builder.span(label) for label in input_labels
+                                ),
+                                instructions=annotations,
+                                report_value=6,
                                 contrast_id=contrast_id,
                             )
                         )
@@ -691,10 +994,12 @@ def project_example_to_ir(
 
 __all__ = [
     "CharacterSpan",
+    "ForkJoinTopology",
     "ProgramTopology",
     "SEMANTIC_PROGRAM_CORPUS_SCHEMA",
     "SemanticInstructionAnnotation",
     "SemanticProgramExample",
     "build_semantic_program_corpus",
+    "build_semantic_program_fork_join_corpus",
     "project_example_to_ir",
 ]

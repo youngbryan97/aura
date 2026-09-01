@@ -248,8 +248,11 @@ def coefficient_lesion(
     receipt_body["coefficient_sha256"] = _sha(coefficient_body)
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
+        schema=model.schema,
         hidden_size=model.hidden_size,
         model_basis_sha256=model.model_basis_sha256,
+        input_count=model.input_count,
+        step_count=model.step_count,
         pointer_heads=pointers,
         operation_heads=operations,
         argument_heads=arguments,

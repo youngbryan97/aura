@@ -34,6 +34,7 @@ from core.governance_context import local_internal_governed_scope
 from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
     build_semantic_program_corpus,
+    build_semantic_program_fork_join_corpus,
     project_example_to_ir,
 )
 from core.learning.semantic_program_ir import semantic_program_ir_from_dict
@@ -44,7 +45,13 @@ FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
 FEATURE_MANIFEST_SCHEMA: Final = "aura.semantic_program_feature_manifest.v1"
 FEATURE_STATUS_SCHEMA: Final = "aura.semantic_program_feature_status.v1"
 FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v2"
+FAMILY_FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v3"
 GOLD_PROJECTION_SCHEMA: Final = "aura.semantic_program_gold_projection.v1"
+CHAIN_CORPUS_KIND: Final = "chain_3x2"
+FORK_JOIN_CORPUS_KIND: Final = "fork_join_4x3"
+SEMANTIC_CORPUS_KINDS: Final = frozenset(
+    {CHAIN_CORPUS_KIND, FORK_JOIN_CORPUS_KIND}
+)
 
 _RECORD_MAGIC: Final = b"AURASPF1"
 _RECORD_SUFFIX: Final = ".spf"
@@ -102,11 +109,17 @@ class SemanticFeatureConfig:
     hidden_timeout_s: float = 120.0
     idle_wait_s: float = 300.0
     idle_poll_s: float = 1.0
+    corpus_kind: str = CHAIN_CORPUS_KIND
     schema: str = FEATURE_CONFIG_SCHEMA
 
     def __post_init__(self) -> None:
         if (
-            self.schema != FEATURE_CONFIG_SCHEMA
+            self.schema not in {FEATURE_CONFIG_SCHEMA, FAMILY_FEATURE_CONFIG_SCHEMA}
+            or self.corpus_kind not in SEMANTIC_CORPUS_KINDS
+            or (
+                self.schema == FEATURE_CONFIG_SCHEMA
+                and self.corpus_kind != CHAIN_CORPUS_KIND
+            )
             or type(self.seed) is not int
             or type(self.examples_per_operation_pair) is not int
             or self.examples_per_operation_pair < 1
@@ -120,7 +133,7 @@ class SemanticFeatureConfig:
             raise ValueError("semantic feature materialization config is invalid")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema": self.schema,
             "seed": self.seed,
             "examples_per_operation_pair": self.examples_per_operation_pair,
@@ -130,6 +143,27 @@ class SemanticFeatureConfig:
             "idle_wait_s": float(self.idle_wait_s),
             "idle_poll_s": float(self.idle_poll_s),
         }
+        if self.schema == FAMILY_FEATURE_CONFIG_SCHEMA:
+            payload["corpus_kind"] = self.corpus_kind
+        return payload
+
+
+def build_semantic_program_corpus_for_config(
+    config: SemanticFeatureConfig,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build the declared corpus family from one validated frozen config."""
+
+    if config.corpus_kind == CHAIN_CORPUS_KIND:
+        return build_semantic_program_corpus(
+            seed=config.seed,
+            examples_per_operation_pair=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == FORK_JOIN_CORPUS_KIND:
+        return build_semantic_program_fork_join_corpus(
+            seed=config.seed,
+            examples_per_operation_triple=config.examples_per_operation_pair,
+        )
+    raise AssertionError("validated semantic corpus kind is unreachable")
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +202,7 @@ def semantic_feature_config_from_manifest(
     """Recover the declared acquisition config without trusting its corpus."""
 
     raw = manifest.get("config")
-    expected_fields = {
+    legacy_fields = {
         "schema",
         "seed",
         "examples_per_operation_pair",
@@ -179,6 +213,15 @@ def semantic_feature_config_from_manifest(
         "idle_poll_s",
         "selected_example_ids",
     }
+    family_fields = legacy_fields | {"corpus_kind"}
+    schema = raw.get("schema") if isinstance(raw, Mapping) else None
+    expected_fields = (
+        legacy_fields
+        if schema == FEATURE_CONFIG_SCHEMA
+        else family_fields
+        if schema == FAMILY_FEATURE_CONFIG_SCHEMA
+        else set()
+    )
     if not isinstance(raw, Mapping) or set(raw) != expected_fields:
         raise SemanticFeatureMaterializationError(
             "feature manifest acquisition config fields differ"
@@ -192,6 +235,7 @@ def semantic_feature_config_from_manifest(
         hidden_timeout_s=raw["hidden_timeout_s"],
         idle_wait_s=raw["idle_wait_s"],
         idle_poll_s=raw["idle_poll_s"],
+        corpus_kind=raw.get("corpus_kind", CHAIN_CORPUS_KIND),
     )
     selected = raw["selected_example_ids"]
     if (
@@ -920,10 +964,7 @@ def load_standard_semantic_feature_bundle(
 
     bundle = load_semantic_feature_bundle(output_directory)
     config = semantic_feature_config_from_manifest(bundle.manifest)
-    corpus = build_semantic_program_corpus(
-        seed=config.seed,
-        examples_per_operation_pair=config.examples_per_operation_pair,
-    )
+    corpus = build_semantic_program_corpus_for_config(config)
     expected_examples = select_bounded_semantic_examples(
         corpus,
         max_examples=config.max_examples,
@@ -1325,14 +1366,19 @@ async def materialize_semantic_program_features(
 
 
 __all__ = [
+    "CHAIN_CORPUS_KIND",
+    "FAMILY_FEATURE_CONFIG_SCHEMA",
     "FEATURE_CONFIG_SCHEMA",
     "FEATURE_MANIFEST_SCHEMA",
     "FEATURE_RECORD_SCHEMA",
+    "FORK_JOIN_CORPUS_KIND",
     "LoadedSemanticFeatureBundle",
     "LoadedSemanticFeatureExample",
     "MaterializationResult",
     "SemanticFeatureConfig",
     "SemanticFeatureMaterializationError",
+    "SEMANTIC_CORPUS_KINDS",
+    "build_semantic_program_corpus_for_config",
     "load_semantic_feature_bundle",
     "load_semantic_feature_record",
     "load_standard_semantic_feature_bundle",

@@ -4,6 +4,7 @@ import pytest
 
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
+    build_semantic_program_fork_join_corpus,
     project_example_to_ir,
 )
 
@@ -167,3 +168,71 @@ def test_corpus_is_deterministic_and_seeded() -> None:
 
     assert first == replay
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
+def test_fork_join_corpus_holds_out_wording_and_graphs() -> None:
+    examples = build_semantic_program_fork_join_corpus()
+    constructions = {
+        split: {item.construction_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+    topologies = {
+        split: {item.topology_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+
+    assert len(examples) == 576
+    assert {split: len(values) for split, values in constructions.items()} == {
+        "train": 3,
+        "validation": 3,
+        "test": 3,
+    }
+    assert all(
+        not constructions[left] & constructions[right]
+        and not topologies[left] & topologies[right]
+        for left, right in (
+            ("train", "validation"),
+            ("train", "test"),
+            ("validation", "test"),
+        )
+    )
+
+
+def test_fork_join_corpus_covers_every_operation_triple_per_split() -> None:
+    examples = build_semantic_program_fork_join_corpus()
+    expected = {
+        (first, second, third)
+        for first in ("add", "sub", "mul", "idiv")
+        for second in ("add", "sub", "mul", "idiv")
+        for third in ("add", "sub", "mul", "idiv")
+    }
+
+    for split in ("train", "validation", "test"):
+        observed = {
+            tuple(item.instruction.op for item in example.instructions)
+            for example in examples
+            if example.split == split
+        }
+        assert observed == expected
+
+
+def test_fork_join_programs_are_exact_and_all_steps_are_load_bearing() -> None:
+    examples = build_semantic_program_fork_join_corpus()
+
+    for example in examples:
+        assert len(example.inputs) == 4
+        assert len(example.instructions) == 3
+        assert example.instructions[0].depends_on == ()
+        assert example.instructions[1].depends_on == ()
+        assert example.instructions[2].depends_on == (0, 1)
+        assert isinstance(example.program.run(example.inputs), int)
+        offsets = _character_offsets(example.source_text)
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(offsets))),
+            offset_mapping=offsets,
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+        assert ir.receipt()["all_steps_causally_load_bearing"] is True
