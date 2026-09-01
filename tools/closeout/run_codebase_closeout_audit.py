@@ -429,6 +429,27 @@ def write_manifest(out_dir: Path) -> dict[str, Any]:
     return manifest
 
 
+def _sample_files(files: list[Path], limit: int) -> list[Path]:
+    """Take an even stride across the tree rather than the first N.
+
+    Truncating a sorted list makes ``--max-files`` an "audit the top of the
+    alphabet" flag: the first twelve tracked paths are ``.aura/memfs`` and
+    ``.github``, none of them code, so a twelve-file run reported
+    ``code_line_count: 0`` and a FAIL verdict on a healthy tree. A sample of a
+    codebase has to contain some.
+
+    A stride keeps the sample deterministic — the same tree gives the same
+    sample — while spreading it across every directory the sort passes through.
+    """
+    limit = max(0, limit)
+    if limit == 0 or not files:
+        return []
+    if limit >= len(files):
+        return list(files)
+    stride = len(files) / limit
+    return [files[int(i * stride)] for i in range(limit)]
+
+
 def build_closeout_audit(
     *,
     out_dir: Path,
@@ -448,7 +469,7 @@ def build_closeout_audit(
     started = time.time()
     files = tracked_files()
     if max_files is not None:
-        files = files[:max(0, int(max_files))]
+        files = _sample_files(files, int(max_files))
 
     line_ledger = out_dir / "SOURCE_LINE_LEDGER.jsonl"
     file_ledger = out_dir / "SOURCE_FILE_LEDGER.jsonl"

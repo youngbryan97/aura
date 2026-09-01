@@ -1,8 +1,8 @@
 {
   "organs": 117,
   "cross_package_edges": 1893,
-  "dependency_entropy": 9.0794,
-  "kernel_lines": 560706,
+  "dependency_entropy": 9.0791,
+  "kernel_lines": 560815,
   "history": [
     {
       "raised": [
@@ -57,6 +57,18 @@
         "kernel_lines": 560706
       },
       "because": "31 lines across three intent and validation modules: a capability-question guard in desktop_objective_intent, a wh-question guard in skill_task_bridge, and the claim that model_validation had a test for and nobody had registered."
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 560706
+      },
+      "to": {
+        "kernel_lines": 560815
+      },
+      "because": "109 lines in core/conversation/response_reliability.py: a structured-payload check so the prose leak detector stops rejecting a well-formed JSON extraction for mentioning the user it was asked to extract."
     }
   ]
 }

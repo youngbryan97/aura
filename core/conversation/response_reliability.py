@@ -7404,10 +7404,42 @@ _INTERNAL_TASK_PROMPT_RE = re.compile(
 )
 
 
+def _is_structured_payload(body: str) -> bool:
+    """Whether this is a machine-readable object rather than prose.
+
+    Only a complete JSON object or array counts. A reply that merely contains
+    a brace is prose with a brace in it, and treating it as structured would
+    hand every prose detector an escape hatch.
+    """
+    text = body.strip()
+    if not text or text[0] not in "{[":
+        return False
+    try:
+        import json
+
+        json.loads(text)
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
 def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
     body = str(reply_text or "")
     if _INTERNAL_TASK_PROMPT_RE.search(body):
         return True
+    if _is_structured_payload(body):
+        # A structured payload is not commentary about answering.
+        #
+        # An extraction task returns JSON, and an extraction ABOUT the person
+        # says so: `{"action":"remember","content":"The user wants inspectable
+        # reliability proofs."}` mentions the user because that is the job, and
+        # the prose detector below reads any mention of the asking as
+        # commentary arriving where an answer should be. It rejected a
+        # perfectly formed result for doing exactly what was asked.
+        #
+        # The literal protocol pattern above still applies, because a payload
+        # can carry a leaked instruction inside a field.
+        return False
     try:
         from core.utils.an_answer import talks_about_the_asking
 

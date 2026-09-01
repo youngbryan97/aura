@@ -271,7 +271,7 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
-      "path": "tools/evaluate_unified_intrinsic_checkpoint.py",
+      "path": "tools/evaluate_recurrent_sft_falsification.py",
       "purpose": "evaluation"
     },
     {
@@ -282,7 +282,7 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
-      "path": "tools/evaluate_recurrent_sft_falsification.py",
+      "path": "tools/evaluate_unified_intrinsic_checkpoint.py",
       "purpose": "evaluation"
     },
     {
@@ -492,17 +492,6 @@
     },
     {
       "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_exclusion_ab.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
       "guard_symbol": "standalone_model_lane",
       "min_guard_sites": 1,
       "modules": [
@@ -531,6 +520,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/run_exclusion_ab.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "acquire_standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/run_falsification_matrix.py",
       "purpose": "evaluation"
     },
@@ -543,6 +543,17 @@
       ],
       "ownership_mode": "standalone_process",
       "path": "tools/run_generated_rollin_objective_canary.py"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/run_induced_neural_procedure_decode_canary.py",
+      "purpose": "evaluation"
     },
     {
       "expected_load_references": 1,
@@ -584,6 +595,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/run_recurrent_grpo_behavioral_canary.py",
+      "purpose": "training"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/run_recurrent_state_information_probe.py",
       "purpose": "evaluation"
     },
@@ -606,17 +628,6 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
-      "path": "tools/run_recurrent_grpo_behavioral_canary.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
       "path": "tools/run_rlc_checkpoint_sweep.py",
       "purpose": "evaluation"
     },
@@ -629,6 +640,17 @@
       ],
       "ownership_mode": "standalone_process",
       "path": "tools/run_rlc_reconciliation_sweep.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/run_semantic_neural_composition_decode_canary.py",
       "purpose": "evaluation"
     },
     {
