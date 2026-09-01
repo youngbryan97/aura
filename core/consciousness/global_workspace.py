@@ -454,6 +454,15 @@ class GlobalWorkspace:
         if not contenders:
             return self._candidates[0]
 
+        # Report the deadlock before settling it. Detecting a tie and breaking
+        # it locally leaves the architecture no wiser: the two rules below are
+        # fair, and fair is not the same as learned. The bus opens a substate
+        # and gives whatever can actually discriminate these candidates a
+        # chance to say so; when nothing can, the rules run exactly as before.
+        chosen = self._tie_through_impasse_bus(tied, by_source)
+        if chosen is not None:
+            return chosen
+
         least = min(self._fatigue.get(c.source, 0.0) for c in contenders)
         # Float fatigue values are produced by repeated subtraction, so compare
         # against the noise they accumulate rather than for exact equality.
@@ -463,6 +472,37 @@ class GlobalWorkspace:
         if len(freshest) == 1:
             return freshest[0]
         return freshest[self._tick % len(freshest)]
+
+    def _tie_through_impasse_bus(
+        self, tied: tuple[str, ...], by_source: dict
+    ) -> "CognitiveCandidate | None":
+        """Offer the tie to the architecture-wide impasse mechanism.
+
+        Returns the candidate a handler chose, or ``None`` when nothing
+        resolved it — in which case the local rules settle it. The workspace
+        never blocks on this: a bus that is missing, misconfigured or slow
+        must not cost a cognitive tick.
+        """
+        try:
+            from core.cognition.impasse import Impasse, ImpasseType
+            from core.cognition.substate import SubstateOutcome, get_impasse_bus
+
+            substate = get_impasse_bus().raise_impasse(
+                Impasse(ImpasseType.TIE, f"gw:{self._tick}", tied),
+                organ="global_workspace",
+                goal="broadcast one candidate",
+                context={
+                    "tick": self._tick,
+                    "fatigue": {s: self._fatigue.get(s, 0.0) for s in tied},
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - a tick is never worth a crash
+            logger.debug("impasse bus unavailable for GW tie: %s", exc)
+            return None
+        resolution = substate.resolution
+        if resolution is None or resolution.outcome is not SubstateOutcome.RESOLVED:
+            return None
+        return by_source.get(resolution.choice)
 
     def _fatigue_recovery(self) -> float:
         """Per-tick adaptation recovery, derived from the size of the field.

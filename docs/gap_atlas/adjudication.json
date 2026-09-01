@@ -197,8 +197,13 @@
       "bar": "Induced impasses in planning, memory, tool selection and representation search all enter one recursive mechanism.",
       "plan": "classify() and ImpasseLearner exist and stop at recording. Add CognitiveSubstate with inherited context, local goal, budget, parent event id and result channel.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "017": {
       "verdict": "PARTIAL",
@@ -208,8 +213,13 @@
       "bar": "Three unrelated domains generate nested subgoals with no new recursion code.",
       "plan": "Make substate nesting generic with cycle and budget bounds drawn from the W7 budget.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "018": {
       "verdict": "PARTIAL",
@@ -249,8 +259,13 @@
       "bar": "Tie, conflict and constraint failures fall out of the algebra rather than special cases.",
       "plan": "preference_semantics.py exists; check its coverage. Separate cognitive Preference from Will/governance AUTHORITY \u2014 conflating them is why a veto currently looks like a tie.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/preference_semantics.py",
+        "core/cognition/substate.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "021": {
       "verdict": "PARTIAL",
@@ -301,8 +316,13 @@
       "bar": "Symbolic and learned preferences combine transparently and lesions stay interpretable.",
       "plan": "Attach learned value to the same Preference record built in W4.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/preference_semantics.py",
+        "core/cognition/substate.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "025": {
       "verdict": "PARTIAL",
@@ -367,8 +387,13 @@
       "bar": "New decision domains produce learning records without author wiring.",
       "plan": "Make impasse resolution, repeated successful trace and prediction correction architecture-level learning events on the W3 bus.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "030": {
       "verdict": "PARTIAL",
@@ -720,8 +745,12 @@
       "bar": "Substrate disagreement is surfaced and evidence-seeking resolves it.",
       "plan": "Make implicit/explicit conflict a named impasse type on the W4 bus rather than a scoring blend.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "057": {
       "verdict": "PARTIAL",
@@ -2121,8 +2150,13 @@
       "bar": "Injected impasses in major organs trigger comparable subproblem handling and learning rather than silent fallback.",
       "plan": "One impasse bus; every decision system reports tie, conflict, rejection, no-change and constraint failure.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "176": {
       "verdict": "PARTIAL",
@@ -2510,8 +2544,12 @@
       "bar": "Property and fuzz tests fail any path violating an architectural invariant regardless of subsystem.",
       "plan": "The invariant decorator exists. Add the architecture-wide invariants: one authority path, one evidence lineage, no silent learner update, no unowned state mutation, no unmatched action consequence.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/architecture_invariants.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "209": {
       "verdict": "PARTIAL",
@@ -2522,8 +2560,12 @@
       "bar": "Fault injection mid-update leaves every involved store at a coherent prior or committed state.",
       "plan": "CognitiveTransaction with prepare, commit, rollback and event lineage over multi-store learning updates.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/transaction.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "210": {
       "verdict": "PARTIAL",
@@ -3215,8 +3257,13 @@
       "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
       "plan": "An impasse creates a substate. Card 016.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "A12.13": {
       "verdict": "PARTIAL",
@@ -3275,8 +3322,13 @@
       "bar": "Reliability diagrams, Brier/ECE/selective-risk curves across coding, tools, factual QA, visual tasks and self-modification.",
       "plan": "Impasse rather than forced choice - the workspace currently forces. Card 175.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "A12.18": {
       "verdict": "PARTIAL",
@@ -3297,8 +3349,12 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "Learning that can be switched off explicitly, which is what makes it ablatable.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/verify/lesion_registry.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "A12.2": {
       "verdict": "ABSENT",
@@ -3319,8 +3375,13 @@
       "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
       "plan": "Typed preferences: better, worse, require, prohibit, reject, indifferent. Card 020.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/preference_semantics.py",
+        "core/cognition/substate.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "A12.4": {
       "verdict": "PARTIAL",
@@ -3330,8 +3391,13 @@
       "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
       "plan": "Chunking that runs continuously rather than on request. Card 029.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/substate.py",
+        "core/consciousness/global_workspace.py",
+        "tests/test_impasse_substate_and_invariants.py"
+      ]
     },
     "A12.5": {
       "verdict": "PARTIAL",
