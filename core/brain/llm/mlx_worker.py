@@ -181,8 +181,7 @@ def _encode_hidden_sequence_response(
         raise ValueError("hidden sequence text must not be empty")
     if input_char_count > _HIDDEN_SEQUENCE_MAX_INPUT_CHARS:
         raise ValueError(
-            "hidden sequence input exceeds "
-            f"{_HIDDEN_SEQUENCE_MAX_INPUT_CHARS} characters"
+            f"hidden sequence input exceeds {_HIDDEN_SEQUENCE_MAX_INPUT_CHARS} characters"
         )
 
     raw_token_ids = tokenizer.encode(text)
@@ -196,10 +195,7 @@ def _encode_hidden_sequence_response(
     if token_count < 1:
         raise ValueError("hidden sequence tokenization was empty")
     if token_count > _HIDDEN_SEQUENCE_MAX_TOKENS:
-        raise ValueError(
-            "hidden sequence input exceeds "
-            f"{_HIDDEN_SEQUENCE_MAX_TOKENS} tokens"
-        )
+        raise ValueError(f"hidden sequence input exceeds {_HIDDEN_SEQUENCE_MAX_TOKENS} tokens")
     if any(token_id < 0 for token_id in token_ids):
         raise ValueError("hidden sequence token ids must be nonnegative")
 
@@ -207,15 +203,14 @@ def _encode_hidden_sequence_response(
         FINAL_HIDDEN_V1,
         HIDDEN_SEQUENCE_REPRESENTATIONS,
         LEXICAL_CONTEXTUAL_V1,
+        LEXICAL_MID_FINAL_V1,
         hidden_sequence_channels,
         hidden_sequence_schema,
     )
     from core.brain.nonparametric_generation import MLXEncoder
 
     if representation not in HIDDEN_SEQUENCE_REPRESENTATIONS:
-        raise ValueError(
-            f"unsupported hidden sequence representation: {representation}"
-        )
+        raise ValueError(f"unsupported hidden sequence representation: {representation}")
 
     if encoder_cache.get("encoder") is None:
         encoder_cache["encoder"] = MLXEncoder(model, tokenizer)
@@ -223,18 +218,17 @@ def _encode_hidden_sequence_response(
     with metal_semaphore:
         if representation == LEXICAL_CONTEXTUAL_V1:
             hidden = encoder.encode_lexical_contextual_sequence_ids(token_ids)
+        elif representation == LEXICAL_MID_FINAL_V1:
+            hidden = encoder.encode_lexical_mid_final_sequence_ids(token_ids)
         elif representation == FINAL_HIDDEN_V1:
             hidden = encoder.encode_hidden_sequence_ids(token_ids)
         else:  # Exhaustive guard if the shared contract grows.
-            raise ValueError(
-                f"unsupported hidden sequence representation: {representation}"
-            )
+            raise ValueError(f"unsupported hidden sequence representation: {representation}")
 
     shape = tuple(getattr(hidden, "shape", ()))
     if len(shape) != 2 or shape[0] != token_count:
         raise ValueError(
-            "hidden sequence shape does not match token count: "
-            f"tokens={token_count} shape={shape}"
+            f"hidden sequence shape does not match token count: tokens={token_count} shape={shape}"
         )
     hidden_size = int(shape[1])
     if hidden_size < 1 or hidden_size > _HIDDEN_SEQUENCE_MAX_WIDTH:
@@ -250,8 +244,7 @@ def _encode_hidden_sequence_response(
     if invalid_norms.size:
         row_index = int(invalid_norms[0])
         raise ValueError(
-            f"hidden sequence row {row_index} is not unit normalized: "
-            f"{float(norms[row_index])}"
+            f"hidden sequence row {row_index} is not unit normalized: {float(norms[row_index])}"
         )
     hidden_state_bytes = hidden_array.tobytes(order="C")
     hidden_state_sha256 = hashlib.sha256(hidden_state_bytes).hexdigest()
@@ -403,8 +396,7 @@ def _semantic_count_contract_retry_instruction(job: dict[str, Any]) -> str:
             requirement = f" The final answer must contain exactly {word_min} words."
         elif word_min > 0 and word_max >= word_min:
             requirement = (
-                f" The final answer must contain between {word_min} and "
-                f"{word_max} words inclusive."
+                f" The final answer must contain between {word_min} and {word_max} words inclusive."
             )
     elif kind == "sentence_count":
         sentence_count = _safe_int(contract.get("sentence_count"), 0)
@@ -491,9 +483,7 @@ def _generation_performance_snapshot(
         "prefill_seconds": prompt_tokens / prompt_tps if prompt_tps > 0.0 else None,
         "generation_tokens": generation_tokens,
         "generation_tps": generation_tps,
-        "decode_seconds": (
-            generation_tokens / generation_tps if generation_tps > 0.0 else None
-        ),
+        "decode_seconds": (generation_tokens / generation_tps if generation_tps > 0.0 else None),
         "first_token_seconds": first_token_seconds,
         "stream_seconds": max(0.0, _safe_float(stream_seconds, 0.0)),
         "peak_memory_gb": max(
@@ -583,19 +573,14 @@ def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     which is what a stateful conversation already is.
     """
 
-    return (
-        "user_surface"
-        if job.get("clean_user_surface_contract", False)
-        else "default"
-    )
+    return "user_surface" if job.get("clean_user_surface_contract", False) else "default"
 
 
 def _expected_empty_warmup_precompile(job: dict[str, Any]) -> bool:
     """True only for the bounded shader precompile where visible text is optional."""
 
     return bool(
-        job.get("warmup_precompile", False)
-        and 0 < _safe_int(job.get("max_tokens"), 0) <= 1
+        job.get("warmup_precompile", False) and 0 < _safe_int(job.get("max_tokens"), 0) <= 1
     )
 
 
@@ -648,9 +633,7 @@ def _live_recurrent_ceiling() -> int:
 
 
 def _surface_control_recurrent_loops(job: dict[str, Any]) -> int:
-    return admit_user_surface_recurrent_loops(
-        job.get("clean_user_surface_recurrent_loops")
-    )
+    return admit_user_surface_recurrent_loops(job.get("clean_user_surface_recurrent_loops"))
 
 
 # Typed finite-range admission for sampling controls crossing the IPC
@@ -737,9 +720,7 @@ def _seconds_to_decode(tokens: int) -> float:
         return 0.0
 
 
-def _record_budget_that_ran_out_thinking(
-    budget_tokens: int, model: str = ""
-) -> None:
+def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") -> None:
     """Tell the reserve this budget was proved too small for the channel."""
 
     try:
@@ -747,16 +728,12 @@ def _record_budget_that_ran_out_thinking(
             record_budget_that_ran_out_thinking,
         )
 
-        record_budget_that_ran_out_thinking(
-            budget_tokens=budget_tokens, model=model
-        )
+        record_budget_that_ran_out_thinking(budget_tokens=budget_tokens, model=model)
     except (ImportError, TypeError, ValueError):
         return
 
 
-def _record_decode_rate(
-    generated_tokens: int, elapsed_s: float, model: str = ""
-) -> None:
+def _record_decode_rate(generated_tokens: int, elapsed_s: float, model: str = "") -> None:
     """Tell the reserve how fast this generation decoded, and on what.
 
     The model matters and was not recorded. A 9B decodes at about fifteen
@@ -768,9 +745,7 @@ def _record_decode_rate(
     try:
         from core.brain.llm.thinking_reserve import record_decode_rate
 
-        record_decode_rate(
-            generated_tokens=generated_tokens, elapsed_s=elapsed_s, model=model
-        )
+        record_decode_rate(generated_tokens=generated_tokens, elapsed_s=elapsed_s, model=model)
     except (ImportError, TypeError, ValueError):
         return
 
@@ -983,7 +958,9 @@ def _apply_surface_generation_controls(
     if inner is not None and getattr(inner, "_recurrent_depth_config", None):
         state["recurrent_inner"] = inner
         state["had_recurrent_runtime_loops"] = hasattr(inner, "_recurrent_depth_runtime_loops")
-        state["recurrent_runtime_loops_before"] = getattr(inner, "_recurrent_depth_runtime_loops", None)
+        state["recurrent_runtime_loops_before"] = getattr(
+            inner, "_recurrent_depth_runtime_loops", None
+        )
         try:
             loops = _surface_control_recurrent_loops(job)
             inner._recurrent_depth_runtime_loops = loops
@@ -1031,9 +1008,7 @@ def _enforce_surface_controls_or_fail(job: dict[str, Any], state: dict[str, Any]
     """
     errors = list(state.get("apply_errors") or [])
     if errors and bool(job.get("clean_user_surface_contract", False)):
-        raise RuntimeError(
-            "surface_controls_unavailable:" + ";".join(errors)[:200]
-        )
+        raise RuntimeError("surface_controls_unavailable:" + ";".join(errors)[:200])
 
 
 def _restore_surface_generation_controls(state: dict[str, Any]) -> bool:
@@ -1088,11 +1063,7 @@ def _surface_generation_control_receipt(
     try:
         generation_max_tokens = max(
             1,
-            int(
-                state.get("generation_max_tokens_applied")
-                or job.get("max_tokens")
-                or 1
-            ),
+            int(state.get("generation_max_tokens_applied") or job.get("max_tokens") or 1),
         )
     except (TypeError, ValueError, OverflowError):
         generation_max_tokens = 1
@@ -1126,9 +1097,7 @@ def _surface_generation_control_receipt(
         "proof_evaluation_contract": bool(job.get("proof_evaluation_contract", False)),
         "operator_evidence_contract": bool(job.get("operator_evidence_contract", False)),
         "health_probe": bool(job.get("health_probe", False)),
-        "runtime_fact_status_contract": bool(
-            job.get("runtime_fact_status_contract", False)
-        ),
+        "runtime_fact_status_contract": bool(job.get("runtime_fact_status_contract", False)),
         "grounded_runtime_status_contract": bool(
             job.get("grounded_runtime_status_contract", False)
         ),
@@ -1138,24 +1107,14 @@ def _surface_generation_control_receipt(
         "completion_floor_applied": bool(job.get("completion_floor_applied", False)),
         "caller_requested_max_tokens": job.get("caller_requested_max_tokens"),
         "adaptive_suggested_max_tokens": job.get("adaptive_suggested_max_tokens"),
-        "output_contract_generation_floor": job.get(
-            "output_contract_generation_floor"
-        ),
+        "output_contract_generation_floor": job.get("output_contract_generation_floor"),
         "semantic_output_token_cap": job.get("semantic_output_token_cap"),
         "hard_output_token_ceiling": job.get("hard_output_token_ceiling"),
         "generation_stop_reason": state.get("generation_stop_reason"),
-        "generation_configured_stop_sequence": state.get(
-            "generation_configured_stop_sequence"
-        ),
-        "semantic_completion_contract": bool(
-            state.get("semantic_completion_contract", False)
-        ),
-        "semantic_completion_satisfied": bool(
-            state.get("semantic_completion_satisfied", False)
-        ),
-        "semantic_completion_incomplete": bool(
-            state.get("semantic_completion_incomplete", False)
-        ),
+        "generation_configured_stop_sequence": state.get("generation_configured_stop_sequence"),
+        "semantic_completion_contract": bool(state.get("semantic_completion_contract", False)),
+        "semantic_completion_satisfied": bool(state.get("semantic_completion_satisfied", False)),
+        "semantic_completion_incomplete": bool(state.get("semantic_completion_incomplete", False)),
         "semantic_completion_missing_part_count": max(
             0,
             _safe_int(state.get("semantic_completion_missing_part_count"), 0),
@@ -1172,24 +1131,12 @@ def _surface_generation_control_receipt(
         "semantic_completion_terminal_boundary": bool(
             state.get("semantic_completion_terminal_boundary", False)
         ),
-        "continuation_resume_requested": bool(
-            state.get("continuation_resume_requested", False)
-        ),
-        "continuation_resume_applied": bool(
-            state.get("continuation_resume_applied", False)
-        ),
-        "continuation_resume_available": bool(
-            state.get("continuation_resume_available", False)
-        ),
-        "conversation_resume_requested": bool(
-            state.get("conversation_resume_requested", False)
-        ),
-        "conversation_resume_applied": bool(
-            state.get("conversation_resume_applied", False)
-        ),
-        "conversation_resume_available": bool(
-            state.get("conversation_resume_available", False)
-        ),
+        "continuation_resume_requested": bool(state.get("continuation_resume_requested", False)),
+        "continuation_resume_applied": bool(state.get("continuation_resume_applied", False)),
+        "continuation_resume_available": bool(state.get("continuation_resume_available", False)),
+        "conversation_resume_requested": bool(state.get("conversation_resume_requested", False)),
+        "conversation_resume_applied": bool(state.get("conversation_resume_applied", False)),
+        "conversation_resume_available": bool(state.get("conversation_resume_available", False)),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -1200,30 +1147,20 @@ def _surface_generation_control_receipt(
     resume_handle = str(state.get("continuation_resume_handle") or "").strip().lower()
     if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
         receipt["continuation_resume_handle"] = resume_handle
-    resume_failure = str(
-        state.get("continuation_resume_failure_reason") or ""
-    ).strip()
+    resume_failure = str(state.get("continuation_resume_failure_reason") or "").strip()
     if resume_failure:
         receipt["continuation_resume_failure_reason"] = resume_failure[:120]
-    conversation_resume_handle = str(
-        state.get("conversation_resume_handle") or ""
-    ).strip().lower()
+    conversation_resume_handle = str(state.get("conversation_resume_handle") or "").strip().lower()
     if re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
         receipt["conversation_resume_handle"] = conversation_resume_handle
-    conversation_resume_failure = str(
-        state.get("conversation_resume_failure_reason") or ""
-    ).strip()
+    conversation_resume_failure = str(state.get("conversation_resume_failure_reason") or "").strip()
     if conversation_resume_failure:
-        receipt["conversation_resume_failure_reason"] = (
-            conversation_resume_failure[:120]
-        )
-    conversation_resume_output_sha256 = str(
-        state.get("conversation_resume_output_sha256") or ""
-    ).strip().lower()
+        receipt["conversation_resume_failure_reason"] = conversation_resume_failure[:120]
+    conversation_resume_output_sha256 = (
+        str(state.get("conversation_resume_output_sha256") or "").strip().lower()
+    )
     if re.fullmatch(r"[0-9a-f]{64}", conversation_resume_output_sha256):
-        receipt[
-            "conversation_resume_output_sha256"
-        ] = conversation_resume_output_sha256
+        receipt["conversation_resume_output_sha256"] = conversation_resume_output_sha256
     receipt["deterministic_repair_applied"] = any(
         bool(item.get("deterministic")) for item in receipt["text_mutations"]
     )
@@ -1265,15 +1202,11 @@ def _surface_generation_control_receipt(
     try:
         receipt["worker_verified"] = {
             "steering_engine_present": receipt_engine is not None,
-            "steering_engine_active": bool(
-                receipt_engine.is_active()
-            )
+            "steering_engine_active": bool(receipt_engine.is_active())
             if receipt_engine is not None
             else False,
             "surface_clamp_errors": list(state.get("apply_errors") or []),
-            "native_thinking_enabled": bool(
-                state.get("native_thinking_enabled", False)
-            ),
+            "native_thinking_enabled": bool(state.get("native_thinking_enabled", False)),
             "native_thinking_boundary_closed": bool(
                 state.get("native_thinking_boundary_closed", False)
             ),
@@ -1284,9 +1217,7 @@ def _surface_generation_control_receipt(
             # The rate is measured here and needed in the parent process,
             # which sizes the deadline. This receipt is the channel that
             # already crosses that boundary.
-            "decode_tokens_per_second": float(
-                state.get("decode_tokens_per_second") or 0.0
-            ),
+            "decode_tokens_per_second": float(state.get("decode_tokens_per_second") or 0.0),
         }
     except (AttributeError, RuntimeError, TypeError) as verify_exc:
         receipt["worker_verified"] = {
@@ -1294,9 +1225,7 @@ def _surface_generation_control_receipt(
             "steering_engine_active": False,
             "verification_error": f"{type(verify_exc).__name__}: {verify_exc}",
             "surface_clamp_errors": list(state.get("apply_errors") or []),
-            "native_thinking_enabled": bool(
-                state.get("native_thinking_enabled", False)
-            ),
+            "native_thinking_enabled": bool(state.get("native_thinking_enabled", False)),
             "native_thinking_boundary_closed": bool(
                 state.get("native_thinking_boundary_closed", False)
             ),
@@ -1307,15 +1236,14 @@ def _surface_generation_control_receipt(
             # The rate is measured here and needed in the parent process,
             # which sizes the deadline. This receipt is the channel that
             # already crosses that boundary.
-            "decode_tokens_per_second": float(
-                state.get("decode_tokens_per_second") or 0.0
-            ),
+            "decode_tokens_per_second": float(state.get("decode_tokens_per_second") or 0.0),
         }
-    receipt_hooks = list(getattr(receipt_engine, "_hooks", []) or []) if receipt_engine is not None else []
+    receipt_hooks = (
+        list(getattr(receipt_engine, "_hooks", []) or []) if receipt_engine is not None else []
+    )
     if receipt_hooks:
         effective_alphas = [
-            _safe_float(getattr(hook, "_last_effective_alpha", 0.0), 0.0)
-            for hook in receipt_hooks
+            _safe_float(getattr(hook, "_last_effective_alpha", 0.0), 0.0) for hook in receipt_hooks
         ]
         receipt["steering_effective_alpha_max"] = round(max(effective_alphas), 4)
         sync_stamps = [
@@ -1334,9 +1262,7 @@ def _surface_generation_control_receipt(
         )
     receipt["recurrent_depth_present"] = state.get("recurrent_inner") is not None
     if "recurrent_runtime_loops_applied" in state:
-        receipt["recurrent_runtime_loops_applied"] = state.get(
-            "recurrent_runtime_loops_applied"
-        )
+        receipt["recurrent_runtime_loops_applied"] = state.get("recurrent_runtime_loops_applied")
     requested_loops = receipt.get("recurrent_runtime_loops_requested")
     applied_loops = receipt.get("recurrent_runtime_loops_applied")
     recurrence_not_applicable = state.get("recurrent_inner") is None
@@ -1351,10 +1277,7 @@ def _surface_generation_control_receipt(
     receipt["applied"] = bool(
         receipt.get("surface_alpha_applied_ok")
         and receipt.get("recurrent_runtime_loops_applied_ok")
-        and (
-            "surface_alpha_applied" in state
-            or "recurrent_runtime_loops_applied" in state
-        )
+        and ("surface_alpha_applied" in state or "recurrent_runtime_loops_applied" in state)
     )
     for key in (
         "surface_quality_gate_enabled",
@@ -2097,9 +2020,7 @@ def _terminal_contract_refusal(
         # long enough to clear the word floor on its own. Handing this check
         # the COMBINED text made it inert on exactly this path: it measured
         # the prefix and passed. It has to see the model's own share.
-        continuation = (
-            text if model_continuation is None else str(model_continuation or "")
-        )
+        continuation = text if model_continuation is None else str(model_continuation or "")
         if _operator_evidence_model_contribution_insufficient(continuation):
             return "operator_evidence_model_contribution_insufficient"
     if bool(job.get("capability_inventory_contract", False)):
@@ -2211,8 +2132,7 @@ def _shrink_scaffold_to_context_window(
         if keep >= len(content):
             break
         shortened = (
-            content[:keep]
-            + "\n\n[... scaffold trimmed to fit the model's context window ...]"
+            content[:keep] + "\n\n[... scaffold trimmed to fit the model's context window ...]"
         )
         working[target]["content"] = shortened
         trimmed_note_parts.append(f"system[{target}] {len(content)}->{len(shortened)} chars")
@@ -2371,18 +2291,13 @@ def _record_exact_reply_token_evidence(
     job["exact_reply_token_count"] = token_count
     job["exact_reply_required_termination_headroom"] = required_termination_headroom
     job["exact_reply_available_termination_headroom"] = available_termination_headroom
-    job["exact_reply_content_capacity_sufficient"] = bool(
-        effective_native_cap >= token_count
-    )
+    job["exact_reply_content_capacity_sufficient"] = bool(effective_native_cap >= token_count)
     job["exact_reply_termination_headroom_sufficient"] = bool(
         available_termination_headroom >= required_termination_headroom
     )
-    job["exact_reply_native_capacity_sufficient"] = bool(
-        effective_native_cap >= token_requirement
-    )
+    job["exact_reply_native_capacity_sufficient"] = bool(effective_native_cap >= token_requirement)
     job["exact_reply_token_ceiling_valid"] = bool(
-        hard_output_token_ceiling <= 0
-        or hard_output_token_ceiling >= token_requirement
+        hard_output_token_ceiling <= 0 or hard_output_token_ceiling >= token_requirement
     )
     if effective_native_cap < token_requirement:
         logger.info(
@@ -2455,10 +2370,7 @@ def _repair_live_user_surface_truncated_tail(response_text: Any) -> str:
     text = str(response_text or "").strip()
     if len(text) < 80 or len(text.split()) < 12:
         return ""
-    sentence_ends = [
-        match.end()
-        for match in re.finditer(r"[.!?](?=(?:\s|$|\d))", text)
-    ]
+    sentence_ends = [match.end() for match in re.finditer(r"[.!?](?=(?:\s|$|\d))", text)]
     for end in reversed(sentence_ends):
         candidate = text[:end].strip()
         if re.search(r"(?:^|\s)\d+\.$", candidate):
@@ -2493,6 +2405,8 @@ _SELF_CONDITION_SIGNAL_INSTRUCTION = (
     "evidence. CPU, RAM, host load, and availability are supporting body context "
     "only and must not replace the condition answer."
 )
+
+
 def _job_needs_concrete_status_signal_guidance(job: dict[str, Any]) -> bool:
     if not bool(job.get("clean_user_surface_contract", False)):
         return False
@@ -2539,9 +2453,7 @@ def _with_initial_user_surface_guidance(
     # instructions and made a healthy resident lane fail boot deterministically.
     # Keep control-plane measurements clamped, but never prompt-shape them as
     # user prose.
-    if bool(job.get("health_probe", False)) or not _job_needs_concrete_status_signal_guidance(
-        job
-    ):
+    if bool(job.get("health_probe", False)) or not _job_needs_concrete_status_signal_guidance(job):
         return messages, prompt
     guidance = _LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION
     if isinstance(messages, list):
@@ -2549,11 +2461,7 @@ def _with_initial_user_surface_guidance(
         for message in guided_messages:
             if isinstance(message, dict) and str(message.get("role") or "").lower() == "system":
                 content = str(message.get("content") or "").rstrip()
-                message["content"] = (
-                    f"{content}\n{guidance}"
-                    if content
-                    else guidance
-                )
+                message["content"] = f"{content}\n{guidance}" if content else guidance
                 return guided_messages, prompt
         guided_messages.insert(
             0,
@@ -2581,7 +2489,7 @@ def _repair_live_user_surface_operational_status(
         from core.runtime import resource_psutil as psutil
 
         memory = psutil.virtual_memory()
-        available_gb = memory.available / (1024 ** 3)
+        available_gb = memory.available / (1024**3)
         cpu_percent = psutil.cpu_percent(interval=None)
         return (
             "I am with you. One live runtime signal I can perceive is RAM "
@@ -2671,8 +2579,7 @@ _SURFACE_RETRY_INSTRUCTIONS: dict[str, str] = {
         "an assistant. Answer as yourself."
     ),
     "question_back_non_answer": (
-        "Answer first, in your own words. A question back does not substitute for "
-        "the answer."
+        "Answer first, in your own words. A question back does not substitute for the answer."
     ),
     "low_signal_acknowledgement_placeholder": (
         "An acknowledgement is not an answer. Say the substance."
@@ -2702,7 +2609,8 @@ def _messages_with_user_surface_retry(
     self_condition_retry = ""
     semantic_count_retry = ""
     if any(
-        reason in {
+        reason
+        in {
             "host_telemetry_substituted_for_self_condition",
             "low_signal_self_condition_reply",
             "missing_self_condition_answer",
@@ -2710,15 +2618,16 @@ def _messages_with_user_surface_retry(
         for reason in reasons
     ):
         self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}"
-    if any(
-        reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-        for reason in reasons
-    ) and not self_condition_retry:
+    if (
+        any(
+            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
+            for reason in reasons
+        )
+        and not self_condition_retry
+    ):
         operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}"
     if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = (
-            f" {_semantic_count_contract_retry_instruction(job or {})}"
-        )
+        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}"
     retry_instruction = (
         "The previous assistant draft failed the live user-surface quality gate "
         f"for: {', '.join(reasons[:8]) or 'quality_gate_failed'}. Regenerate the "
@@ -2773,7 +2682,8 @@ def _build_user_surface_quality_retry_prompt(
     self_condition_retry = ""
     semantic_count_retry = ""
     if any(
-        reason in {
+        reason
+        in {
             "host_telemetry_substituted_for_self_condition",
             "low_signal_self_condition_reply",
             "missing_self_condition_answer",
@@ -2781,15 +2691,16 @@ def _build_user_surface_quality_retry_prompt(
         for reason in reasons
     ):
         self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}\n"
-    if any(
-        reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-        for reason in reasons
-    ) and not self_condition_retry:
+    if (
+        any(
+            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
+            for reason in reasons
+        )
+        and not self_condition_retry
+    ):
         operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}\n"
     if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = (
-            f" {_semantic_count_contract_retry_instruction(job or {})}\n"
-        )
+        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}\n"
     retry_note = (
         "\n\n[LIVE USER-SURFACE RETRY]\n"
         f"Previous assistant draft failed for: {', '.join(reasons[:8]) or 'quality_gate_failed'}.\n"
@@ -2836,9 +2747,7 @@ def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = Fa
 def _self_claim_retry_uses_original_context(reasons: Any) -> bool:
     """Self-claim correction resamples; it never adds a behavior instruction."""
 
-    return "self_claim_contradiction" in {
-        str(reason) for reason in (reasons or ()) if str(reason)
-    }
+    return "self_claim_contradiction" in {str(reason) for reason in (reasons or ()) if str(reason)}
 
 
 def _surface_retry_is_futile(reasons: Any) -> bool:
@@ -2885,12 +2794,9 @@ def _ontology_retry_permitted(
     """Allow one ontology repair only while caller time budgets remain open."""
     now = time.time() if now_unix is None else float(now_unix)
     deadline_open = job_deadline_unix <= 0.0 or now < job_deadline_unix
-    retry_wall_open = (
-        not user_surface
-        or not _surface_retry_wall_exceeded(
-            surface_retry_started,
-            surface_retry_wall_s,
-        )
+    retry_wall_open = not user_surface or not _surface_retry_wall_exceeded(
+        surface_retry_started,
+        surface_retry_wall_s,
     )
     allowed = (
         int(internal_attempt) < int(max_internal_retries)
@@ -2965,7 +2871,7 @@ def _telemetry_sanitization_failure_reasons(
     # is a hallucination signature. Proof/eval answers are exempt — large
     # integers, hashes, and numeric test vectors are legitimate exact
     # answers there, and correctness is the eval harness's job to score.
-    if not is_proof and re.search(r'\d{20,}', text):
+    if not is_proof and re.search(r"\d{20,}", text):
         reasons.append("unbounded_numeric_identifier")
 
     # 4) Corrupted lexical output is a model-state failure, not a usable
@@ -3041,16 +2947,12 @@ def _route_cooperative_partial_draft(
         existing = surface_control_state.get("surface_quality_gate_reasons")
         merged = [
             str(reason).strip()[:120]
-            for reason in (
-                list(existing) if isinstance(existing, (list, tuple)) else []
-            )
+            for reason in (list(existing) if isinstance(existing, (list, tuple)) else [])
             if str(reason).strip()
         ]
         merged.extend(bounded_reasons)
         surface_control_state["surface_quality_gate_passed"] = False
-        surface_control_state["surface_quality_gate_reasons"] = list(
-            dict.fromkeys(merged)
-        )[:8]
+        surface_control_state["surface_quality_gate_reasons"] = list(dict.fromkeys(merged))[:8]
         _remember_surface_quality_rejected_draft(
             surface_control_state,
             text,
@@ -3179,7 +3081,7 @@ def _strip_leading_chatml_prefix(text: str) -> str:
         changed = False
         for prefix in prefixes:
             if cleaned.startswith(prefix):
-                cleaned = cleaned[len(prefix):].lstrip("\n")
+                cleaned = cleaned[len(prefix) :].lstrip("\n")
                 changed = True
     return cleaned
 
@@ -3525,11 +3427,7 @@ def _build_operator_evidence_prompt(messages: Any, fallback_prompt: Any) -> tupl
     if caller_system:
         system_text = f"{system_text}\n\nCaller constraints:\n{caller_system}"
     prefix = _OPERATOR_EVIDENCE_PREFIX
-    prompt = (
-        f"System:\n{system_text}\n\n"
-        f"User:\n{user_text}\n\n"
-        f"Assistant:\n{prefix}"
-    )
+    prompt = f"System:\n{system_text}\n\nUser:\n{user_text}\n\nAssistant:\n{prefix}"
     return prompt, prefix
 
 
@@ -3623,13 +3521,9 @@ def _operator_evidence_model_contribution_insufficient(continuation: str) -> boo
     # caller ever passes the delivered answer here — clear a check whose whole
     # purpose is the model's share. The rule is proportional rather than a
     # second word count: a short, specific answer is fine, an echo is not.
-    scaffold_words = {
-        word.strip(".,;:").lower() for word in _OPERATOR_EVIDENCE_PREFIX.split()
-    }
+    scaffold_words = {word.strip(".,;:").lower() for word in _OPERATOR_EVIDENCE_PREFIX.split()}
     words = body.split()
-    own_words = [
-        word for word in words if word.strip(".,;:").lower() not in scaffold_words
-    ]
+    own_words = [word for word in words if word.strip(".,;:").lower() not in scaffold_words]
     if len(own_words) * 2 <= len(words):
         return True
     if _BACKEND_SYMBOLIC_SURFACE_MARKERS.search(body):
@@ -3767,9 +3661,7 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
     clean_surface = bool(job.get("clean_user_surface_contract", False))
     semantic_contract = bool(job.get("semantic_completion_contract", False))
     continuation_contract = bool(job.get("user_surface_continuation_contract", False))
-    terminal_hold_contract = bool(
-        job.get("semantic_terminal_hold_contract", False)
-    )
+    terminal_hold_contract = bool(job.get("semantic_terminal_hold_contract", False))
     if not (clean_surface and semantic_contract and terminal_hold_contract):
         return None
 
@@ -3777,9 +3669,7 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
         try:
             from core.runtime.structured_input import analyze_prompt_shape
 
-            shape = analyze_prompt_shape(
-                str(job.get("user_surface_validation_prompt") or "")
-            )
+            shape = analyze_prompt_shape(str(job.get("user_surface_validation_prompt") or ""))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _record_mlx_degradation(
                 exc,
@@ -3790,10 +3680,7 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
                 severity="warning",
             )
             return None
-        if not (
-            shape.requires_single_reply_coverage
-            and len(shape.question_segments) >= 2
-        ):
+        if not (shape.requires_single_reply_coverage and len(shape.question_segments) >= 2):
             return None
 
     import mlx.core as mx
@@ -3801,6 +3688,7 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
     terminal_ids = tuple(_first_token_suppression_ids(tokenizer))
     if not terminal_ids:
         return None
+
     def semantic_continuation_terminal_guard(
         tokens,
         logits,
@@ -3836,9 +3724,7 @@ def _schema_root_openers(schema: Any) -> tuple[str, ...]:
     if isinstance(declared, (list, tuple)):
         kinds = {str(item) for item in declared}
         openers = tuple(
-            character
-            for character, kind in (("{", "object"), ("[", "array"))
-            if kind in kinds
+            character for character, kind in (("{", "object"), ("[", "array")) if kind in kinds
         )
         if openers:
             return openers
@@ -4145,8 +4031,8 @@ def _matches_expected_strict_value_prefix(cleaned: str, expected_value: str) -> 
     if not candidate.startswith(expected):
         return False
     while candidate.startswith(expected * 2):
-        candidate = candidate[len(expected):]
-    suffix = candidate[len(expected):]
+        candidate = candidate[len(expected) :]
+    suffix = candidate[len(expected) :]
     if not suffix:
         return True
     first = suffix[0]
@@ -4244,9 +4130,7 @@ def _prefill_step_size_for_model(
         return base_step
 
     try:
-        available_gb = max(
-            0.0, float(getattr(pressure_snapshot, "available_gb", 0.0) or 0.0)
-        )
+        available_gb = max(0.0, float(getattr(pressure_snapshot, "available_gb", 0.0) or 0.0))
     except (TypeError, ValueError, OverflowError):
         return base_step
     level = str(getattr(pressure_snapshot, "level", "") or "").strip().lower()
@@ -4297,8 +4181,7 @@ def _serving_lane_output_cap(model_path: str, lane_name: str, requested: int) ->
     capped = min(admitted, int(lane.max_output_tokens))
     if capped < admitted:
         logger.info(
-            "🧠 [WORKER] Qualified %s output ceiling reduced %d→%d "
-            "(profile=%s).",
+            "🧠 [WORKER] Qualified %s output ceiling reduced %d→%d (profile=%s).",
             lane.name,
             admitted,
             capped,
@@ -4355,8 +4238,7 @@ def _runtime_prefill_step_size(model_path: str) -> int:
         profile_selected = min(selected, int(limits.prefill_chunk_tokens))
         if profile_selected < selected:
             logger.info(
-                "🧠 [WORKER] Qualified prefill ceiling reduced %d→%d "
-                "(profile=%s).",
+                "🧠 [WORKER] Qualified prefill ceiling reduced %d→%d (profile=%s).",
                 selected,
                 profile_selected,
                 str(getattr(limits, "profile_sha256", ""))[:12],
@@ -4411,9 +4293,11 @@ def _generation_pass_performance(
 ):
     samples = [
         _generation_performance_snapshot(
-            response, fallback_prompt_tokens=prompt_tokens if index == 0 else 0,
+            response,
+            fallback_prompt_tokens=prompt_tokens if index == 0 else 0,
             fallback_generation_tokens=generation_tokens if len(responses) == 1 else 0,
-            first_token_seconds=first_token_seconds, stream_seconds=stream_seconds,
+            first_token_seconds=first_token_seconds,
+            stream_seconds=stream_seconds,
         )
         for index, response in enumerate(responses)
     ]
@@ -4548,8 +4432,7 @@ def _prompt_cache_entry_token_cap_for_model(model_path: str) -> int:
         context_window = _prompt_cache_context_window_for_model(model_path)
         if (
             context_window > 0
-            and footprint.fixed_bytes_per_entry
-            + context_window * footprint.kv_bytes_per_token
+            and footprint.fixed_bytes_per_entry + context_window * footprint.kv_bytes_per_token
             <= _PROMPT_CACHE_TOTAL_BYTE_BUDGET
         ):
             return context_window
@@ -4618,10 +4501,7 @@ def _prompt_cache_footprint_for_model(model_path: str) -> _PromptCacheFootprint:
         config = text_config if isinstance(text_config, dict) else payload
         heads = int(config.get("num_attention_heads") or profile.num_attention_heads)
         kv_heads = int(config.get("num_key_value_heads") or profile.num_key_value_heads)
-        head_dim = int(
-            config.get("head_dim")
-            or (profile.hidden_size // heads if heads > 0 else 0)
-        )
+        head_dim = int(config.get("head_dim") or (profile.hidden_size // heads if heads > 0 else 0))
         activation_bytes = _dtype_width_bytes(config.get("dtype"), default=2)
         kv_layers = int(profile.full_attention_layers or profile.num_hidden_layers)
         if kv_layers < 1 or kv_heads < 1 or head_dim < 1:
@@ -4643,13 +4523,9 @@ def _prompt_cache_footprint_for_model(model_path: str) -> _PromptCacheFootprint:
                 value_heads
                 * value_dim
                 * key_dim
-                * _dtype_width_bytes(
-                    config.get("mamba_ssm_dtype"), default=activation_bytes
-                )
+                * _dtype_width_bytes(config.get("mamba_ssm_dtype"), default=activation_bytes)
             )
-            fixed_bytes = profile.linear_attention_layers * (
-                conv_bytes + state_bytes
-            )
+            fixed_bytes = profile.linear_attention_layers * (conv_bytes + state_bytes)
         return _PromptCacheFootprint(
             kv_bytes_per_token=kv_bytes,
             fixed_bytes_per_entry=fixed_bytes,
@@ -4707,12 +4583,14 @@ def _prompt_cache_total_byte_budget_for_model(model_path: str) -> int:
         else 0
     )
 
+
 class IPCWriterThread(threading.Thread):
     """
     ZENITH LOCKDOWN: Non-blocking IPC writer.
     Buffers responses in a local queue and writes to the multiprocessing pipe
     in a dedicated thread to prevent blocking the main inference loop.
     """
+
     def __init__(self, mp_queue: mp.Queue):
         super().__init__(name="MLX-IPC-Writer", daemon=True)
         self.mp_queue = mp_queue
@@ -4850,9 +4728,7 @@ class IPCWriterThread(threading.Thread):
 
         # join_thread has no timeout parameter; bound it via a helper thread
         # so a parent that stopped draining cannot wedge the death path.
-        flusher = threading.Thread(
-            target=_flush, name="MLX-IPC-TerminalFlush", daemon=True
-        )
+        flusher = threading.Thread(target=_flush, name="MLX-IPC-TerminalFlush", daemon=True)
         flusher.start()
         flusher.join(max(0.1, flush_timeout))
         return flushed.is_set()
@@ -4908,10 +4784,7 @@ class IPCWriterThread(threading.Thread):
                         action="lost essential IPC message on broken response pipe",
                         severity="critical",
                     )
-                if (
-                    self._consecutive_pipe_failures >= 3
-                    and not self.broken.is_set()
-                ):
+                if self._consecutive_pipe_failures >= 3 and not self.broken.is_set():
                     self.broken.set()
                     logger.critical(
                         "🛑 [MLX_IPC] Response pipe broken (%d consecutive failures); "
@@ -4919,6 +4792,7 @@ class IPCWriterThread(threading.Thread):
                         self._consecutive_pipe_failures,
                     )
                 continue
+
 
 class HeartbeatThread(threading.Thread):
     """
@@ -4930,6 +4804,7 @@ class HeartbeatThread(threading.Thread):
     detection.  Added parent-PID liveness check: if the parent process
     dies (crash, restart), the worker self-terminates to prevent orphans.
     """
+
     # An active job with no token/loop activity for this long is reported as
     # stalled in the heartbeat itself — liveness claims must carry progress
     # evidence, not just prove the process exists.
@@ -4966,7 +4841,10 @@ class HeartbeatThread(threading.Thread):
         while not self._stop_event.is_set():
             # [STABILITY v51] Self-terminate if parent died — prevents orphan workers
             if not self._parent_alive():
-                logger.critical("🛑 [MLX_HEARTBEAT] Parent process %s is dead. Self-terminating orphaned worker.", self._parent_pid)
+                logger.critical(
+                    "🛑 [MLX_HEARTBEAT] Parent process %s is dead. Self-terminating orphaned worker.",
+                    self._parent_pid,
+                )
                 os._exit(1)
             payload: dict[str, Any] = {
                 "status": "heartbeat",
@@ -4984,8 +4862,7 @@ class HeartbeatThread(threading.Thread):
                     payload.update(self.watchdog.snapshot())
                     if (
                         payload.get("active_job")
-                        and float(payload.get("job_age_s") or 0.0)
-                        > self.LOOP_STALL_REPORT_S
+                        and float(payload.get("job_age_s") or 0.0) > self.LOOP_STALL_REPORT_S
                     ):
                         payload["loop_stalled"] = True
                 except (AttributeError, TypeError, ValueError) as snap_exc:
@@ -5074,8 +4951,7 @@ class WorkerMemorySentinel(threading.Thread):
         """Hard-exit only when the sentinel was created inside a worker child."""
         if not self._hard_exit_allowed:
             logger.critical(
-                "MLX worker memory fuse refused hard exit outside an authorized child "
-                "process: %s",
+                "MLX worker memory fuse refused hard exit outside an authorized child process: %s",
                 reason,
             )
             self._stop_event.set()
@@ -5096,7 +4972,14 @@ class WorkerMemorySentinel(threading.Thread):
                     from core.utils.memory_monitor import get_memory_pressure_snapshot
 
                     snapshot = get_memory_pressure_snapshot()
-                except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as probe_exc:
+                except (
+                    ImportError,
+                    OSError,
+                    RuntimeError,
+                    AttributeError,
+                    TypeError,
+                    ValueError,
+                ) as probe_exc:
                     logger.debug("MLX worker memory pressure probe unavailable: %s", probe_exc)
                 rss_gb = self._sample_rss_gb()
 
@@ -5107,10 +4990,7 @@ class WorkerMemorySentinel(threading.Thread):
                     # parent health with a receipt instead of failing open
                     # silently until the host OOMs.
                     consecutive_blind += 1
-                    if (
-                        consecutive_blind >= self.BLIND_PROBE_THRESHOLD
-                        and not blind_reported
-                    ):
+                    if consecutive_blind >= self.BLIND_PROBE_THRESHOLD and not blind_reported:
                         blind_reported = True
                         blind_error = RuntimeError(
                             "memory_sentinel_blind: RSS and pressure probes both failing"
@@ -5176,9 +5056,17 @@ class WorkerMemorySentinel(threading.Thread):
                         self.writer.put(fuse_payload)
                     self._exit_for_memory_fuse(reason)
                     return
-            except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            except (
+                ImportError,
+                OSError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+            ) as exc:
                 logger.debug("MLX worker memory sentinel probe unavailable: %s", exc)
             time.sleep(0.5)
+
 
 # Set environment variables for MLX stability
 def _setup_worker_env():
@@ -5220,7 +5108,7 @@ def _setup_worker_env():
             if not any(sdk_path.startswith(pfx) for pfx in _sdk_allowed_prefixes):
                 raise RuntimeError(f"Suspicious SDK path rejected: {sdk_path}")
             os.environ["SDKROOT"] = sdk_path
-            os.environ["AURA_SDK_PATH"] = sdk_path # Cache for subsequent spawns
+            os.environ["AURA_SDK_PATH"] = sdk_path  # Cache for subsequent spawns
         except (OSError, RuntimeError, TimeoutError, ValueError) as e:
             _record_mlx_degradation(
                 e,
@@ -5273,7 +5161,9 @@ def _setup_worker_env():
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["MLX_FORCE_SERIAL_COMPILE"] = "1"
-    os.environ["METAL_COMPILER_TIMEOUT_MS"] = "60000"  # [FRONTIER UPGRADE] Extended for 32B model complex prompts
+    os.environ["METAL_COMPILER_TIMEOUT_MS"] = (
+        "60000"  # [FRONTIER UPGRADE] Extended for 32B model complex prompts
+    )
     os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
 
 
@@ -5345,9 +5235,7 @@ def _attach_certified_recurrent_adapter(
         "AURA_RLC_ACTIVATION_POINTER",
         "",
     ).strip()
-    activation_root = (
-        state_root() / "data/adapters/latent-cortex"
-    )
+    activation_root = state_root() / "data/adapters/latent-cortex"
     pointer_path = (
         Path(configured_pointer).expanduser()
         if configured_pointer
@@ -5355,9 +5243,7 @@ def _attach_certified_recurrent_adapter(
     )
     if not pointer_path.exists():
         if configured_pointer:
-            raise RuntimeError(
-                f"configured_recurrent_adapter_pointer_missing:{pointer_path}"
-            )
+            raise RuntimeError(f"configured_recurrent_adapter_pointer_missing:{pointer_path}")
         return inactive_worker_recurrent_adapter_activation(), None
 
     configured_trust_root = os.environ.get(
@@ -5376,9 +5262,7 @@ def _attach_certified_recurrent_adapter(
 
         trusted_root = read_live_adapter_trust_root(trust_root_path)
     except (ImportError, OSError, RuntimeError, ValueError) as exc:
-        raise RuntimeError(
-            f"recurrent_adapter_trust_root_unreadable:{trust_root_path}"
-        ) from exc
+        raise RuntimeError(f"recurrent_adapter_trust_root_unreadable:{trust_root_path}") from exc
 
     approved_root = activation_root / "releases"
     from core.brain.llm.latent_cortex.live_adapter_activation import (
@@ -5404,9 +5288,7 @@ def _attach_certified_recurrent_adapter(
         "reason": "certified_gain_proven",
         "receipt_sha256": receipt["receipt_sha256"],
         "activation_sha256": receipt["activation_sha256"],
-        "adapter_composite_identity_sha256": identity[
-            "composite_identity_sha256"
-        ],
+        "adapter_composite_identity_sha256": identity["composite_identity_sha256"],
         "campaign_name": receipt["campaign_name"],
         "claim_tier": receipt["claim_tier"],
         "verified_verdict": receipt["verified_verdict"],
@@ -5448,8 +5330,7 @@ def _load_unified_recurrent_shadow(
                 )
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 raise RuntimeError(
-                    f"configured_unified_recurrent_shadow_pointer_invalid:"
-                    f"{pointer_path}:{exc}"
+                    f"configured_unified_recurrent_shadow_pointer_invalid:{pointer_path}:{exc}"
                 ) from exc
         else:
             package = None
@@ -5529,8 +5410,7 @@ def _load_unified_recurrent_shadow(
     errors = shadow_load_receipt_errors(receipt)
     if errors:
         raise RuntimeError(
-            "configured_unified_recurrent_shadow_receipt_invalid:"
-            + ",".join(errors)
+            "configured_unified_recurrent_shadow_receipt_invalid:" + ",".join(errors)
         )
     return loaded, receipt
 
@@ -5601,8 +5481,7 @@ def _load_unified_recurrent_qualified_activation(
         activation = read_qualified_activation(activation_path)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise RuntimeError(
-            f"configured_unified_recurrent_qualified_activation_invalid:"
-            f"{activation_path}:{exc}"
+            f"configured_unified_recurrent_qualified_activation_invalid:{activation_path}:{exc}"
         ) from exc
     if loaded_shadow is None or shadow_status.get("loaded") is not True:
         # Authority fails closed, but the ordinary model worker does not.
@@ -5697,11 +5576,11 @@ def _handle_unified_recurrent_qualified_decode(
         loaded_shadow.receipt,
     ):
         raise RuntimeError("qualified_activation_shadow_identity_differs")
+
     def report_progress(event: Mapping[str, int | str]) -> None:
         log_progress = logger.info if canary_activation is not None else logger.debug
         log_progress(
-            "Unified recurrent qualified decode progress: stage=%s "
-            "generated=%s/%s",
+            "Unified recurrent qualified decode progress: stage=%s generated=%s/%s",
             event.get("stage"),
             event.get("generated_token_count"),
             event.get("maximum_token_count"),
@@ -5812,16 +5691,18 @@ def _validate_expert_adapter_dir(adapter_dir: str) -> Path:
     # than discovered afterwards by a detach that silently restores nothing.
     if not isinstance(adapter_config, dict):
         raise ValueError(f"expert_adapter_config_not_an_object:{path}")
-    fine_tune_type = str(
-        adapter_config.get("fine_tune_type")
-        or adapter_config.get("fine_tune")
-        # Absent means LoRA in mlx_lm's own default.
-        or "lora"
-    ).strip().lower()
-    if fine_tune_type not in _RESTORABLE_FINE_TUNE_TYPES:
-        raise ValueError(
-            f"expert_adapter_fine_tune_type_not_restorable:{fine_tune_type}:{path}"
+    fine_tune_type = (
+        str(
+            adapter_config.get("fine_tune_type")
+            or adapter_config.get("fine_tune")
+            # Absent means LoRA in mlx_lm's own default.
+            or "lora"
         )
+        .strip()
+        .lower()
+    )
+    if fine_tune_type not in _RESTORABLE_FINE_TUNE_TYPES:
+        raise ValueError(f"expert_adapter_fine_tune_type_not_restorable:{fine_tune_type}:{path}")
     has_weights = any(path.glob("*.safetensors")) or (path / "adapters.npz").is_file()
     if not has_weights:
         raise ValueError(f"expert_adapter_missing_weights:{path}")
@@ -5868,7 +5749,15 @@ def _attach_expert_adapter(model: Any, adapter_dir: str) -> list[tuple[str, Any]
 
     try:
         load_adapters(model, adapter_dir)
-    except (FileNotFoundError, KeyError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+    except (
+        FileNotFoundError,
+        KeyError,
+        RuntimeError,
+        AttributeError,
+        TypeError,
+        ValueError,
+        OSError,
+    ):
         # Unwind a partial wrap so the module tree stays exactly as it was.
         # (Even unwound-late these layers are identity: LoRA B initializes 0.)
         _detach_expert_adapter(model, _newly_wrapped())
@@ -5882,9 +5771,7 @@ def _attach_expert_adapter(model: Any, adapter_dir: str) -> list[tuple[str, Any]
     unrestorable = _unrestorable_wrapped(wrapped)
     if unrestorable:
         _detach_expert_adapter(model, wrapped)
-        raise RuntimeError(
-            "expert_adapter_attach_unrestorable:" + ",".join(unrestorable[:4])
-        )
+        raise RuntimeError("expert_adapter_attach_unrestorable:" + ",".join(unrestorable[:4]))
     if not wrapped:
         raise RuntimeError(f"expert_adapter_attach_wrapped_nothing:{adapter_dir}")
     return wrapped
@@ -5925,7 +5812,9 @@ def _process_message_content(messages: list[dict[str, Any]]) -> None:
                 if isinstance(fragment, dict) and fragment.get("type") == "text"
             ]
             if len(text_fragments) != len(content):
-                raise ValueError("Only text content fragments are supported in MLX worker chat templates.")
+                raise ValueError(
+                    "Only text content fragments are supported in MLX worker chat templates."
+                )
             message["content"] = "".join(text_fragments)
         elif content is None:
             message["content"] = ""
@@ -5966,12 +5855,8 @@ def _load_effective_context_window(model_path: str) -> int:
         if config_path.exists():
             config_payload = json.loads(config_path.read_text())
             text_config = config_payload.get("text_config")
-            context_config = (
-                text_config if isinstance(text_config, dict) else config_payload
-            )
-            max_position_embeddings = int(
-                context_config.get("max_position_embeddings") or 0
-            )
+            context_config = text_config if isinstance(text_config, dict) else config_payload
+            max_position_embeddings = int(context_config.get("max_position_embeddings") or 0)
             sliding_window = int(context_config.get("sliding_window") or 0)
             use_sliding_window = bool(context_config.get("use_sliding_window"))
     except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
@@ -6208,24 +6093,18 @@ class _PromptCacheLRU:
     def retained_tokens(self) -> int:
         """Total cached tokens across every lane. The real memory driver."""
         reusable = sum(
-            len(tokens)
-            for queue in self._lru.values()
-            for (_model_key, tokens) in queue
+            len(tokens) for queue in self._lru.values() for (_model_key, tokens) in queue
         )
         resumable = sum(len(binding.tokens) for binding in self._resume_bindings.values())
         return reusable + resumable
 
     def retained_entries(self) -> int:
-        return sum(len(queue) for queue in self._lru.values()) + len(
-            self._resume_bindings
-        )
+        return sum(len(queue) for queue in self._lru.values()) + len(self._resume_bindings)
 
     def retained_bytes(self) -> int:
         """Approximate KV bytes held. Reported to the OOM ladder, not guessed."""
         token_bytes = (
-            self.retained_tokens() * self.kv_bytes_per_token
-            if self.kv_bytes_per_token > 0
-            else 0
+            self.retained_tokens() * self.kv_bytes_per_token if self.kv_bytes_per_token > 0 else 0
         )
         rollback_bytes = sum(
             binding.one_token_rollback.nbytes
@@ -6263,9 +6142,8 @@ class _PromptCacheLRU:
         byte_budget = self.max_total_bytes
         if byte_budget <= 0 and self.max_total_tokens > 0 and self.kv_bytes_per_token > 0:
             byte_budget = self.max_total_tokens * self.kv_bytes_per_token
-        while (
-            self.retained_tokens() > self.max_total_tokens
-            or (byte_budget > 0 and self.retained_bytes() > byte_budget)
+        while self.retained_tokens() > self.max_total_tokens or (
+            byte_budget > 0 and self.retained_bytes() > byte_budget
         ):
             evicted = False
             for lane in lanes_by_drain_order:
@@ -6480,8 +6358,7 @@ class _PromptCacheLRU:
         logical_tokens = [*tokens, *appended]
         replay_tokens = [tokens[-1], *appended]
         logger.info(
-            "🎯 [PROMPT CACHE] %s exact resume — reused %d/%d tokens, "
-            "%d to prefill.",
+            "🎯 [PROMPT CACHE] %s exact resume — reused %d/%d tokens, %d to prefill.",
             resume_kind,
             len(tokens) - 1,
             len(logical_tokens),
@@ -6579,7 +6456,8 @@ class _PromptCacheLRU:
                 trim_prompt_cache(cache_entry.prompt_cache, 1)
                 logger.info(
                     "🎯 [PROMPT CACHE] exact hit — reused %d/%d tokens, 1 to prefill.",
-                    len(tokens) - 1, len(tokens),
+                    len(tokens) - 1,
+                    len(tokens),
                 )
                 return cache_entry.prompt_cache, tokens[-1:]
             # Untrimmable cache: putting it back keeps it available for the
@@ -6591,7 +6469,9 @@ class _PromptCacheLRU:
             prefix_len = len(result.shorter)
             logger.info(
                 "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",
-                prefix_len, len(tokens), len(tokens) - prefix_len,
+                prefix_len,
+                len(tokens),
+                len(tokens) - prefix_len,
             )
             return cache_entry.prompt_cache, tokens[prefix_len:]
 
@@ -6608,13 +6488,13 @@ class _PromptCacheLRU:
                 trim_prompt_cache(trimmed.prompt_cache, num_to_trim)
                 logger.info(
                     "🎯 [PROMPT CACHE] trimmed hit — reused %d/%d tokens, %d to prefill.",
-                    prefix, len(tokens), len(tokens) - prefix,
+                    prefix,
+                    len(tokens),
+                    len(tokens) - prefix,
                 )
                 return trimmed.prompt_cache, tokens[prefix:]
 
-        logger.info(
-            "🧊 [PROMPT CACHE] miss — prefilling all %d tokens.", len(tokens)
-        )
+        logger.info("🧊 [PROMPT CACHE] miss — prefilling all %d tokens.", len(tokens))
         return None, tokens
 
     def insert_cache(self, model_key: Any, tokens: list[int], prompt_cache: list[Any]) -> None:
@@ -6643,6 +6523,7 @@ class _PromptCacheLRU:
             self._delete(evict_model_key, list(evict_tokens))
         self._enforce_total_token_budget()
 
+
 class JobWatchdog(threading.Thread):
     """
     Kills the worker process if a job is active but no tokens have been generated
@@ -6653,6 +6534,7 @@ class JobWatchdog(threading.Thread):
     progress after 90s, the worker is stuck and must self-terminate so the
     parent can respawn it.
     """
+
     def __init__(self, timeout=60.0, writer: IPCWriterThread | None = None):
         super().__init__(daemon=True)
         self.timeout = timeout
@@ -6723,6 +6605,7 @@ class JobWatchdog(threading.Thread):
                         )
                 os._exit(2)
             time.sleep(1.0)
+
 
 def soft_cancel_requested(cancel_seq: Any, job_seq: int) -> bool:
     """True when the parent asked THIS job to stop between tokens.
@@ -6955,9 +6838,7 @@ def _run_nonparametric_ingest_job(
                 "nonparametric_ingest_receipt_persist_failed_after_memory_commit:"
                 f"pairs_ingested={pairs_ingested}:positions={positions_ingested}"
             )
-    state = stop_reason or (
-        "complete" if positions_ingested > 0 else "no_new_eligible_pairs"
-    )
+    state = stop_reason or ("complete" if positions_ingested > 0 else "no_new_eligible_pairs")
     return {
         "state": state,
         "pairs_considered": pairs_considered,
@@ -7013,7 +6894,10 @@ def _load_speculative_draft(model_path: str, target_tokenizer: Any) -> Any:
     generation falls back to the normal path.
     """
     enabled = str(_FLAG_SPECULATIVE_DECODING.value()).strip().lower() in {
-        "1", "true", "yes", "on",
+        "1",
+        "true",
+        "yes",
+        "on",
     }
     if not enabled:
         return None
@@ -7140,8 +7024,7 @@ class AffectiveSteeringAttachment:
 
 def _affective_attachment_available(engine: Any) -> bool:
     return bool(
-        getattr(engine, "_model_attached", False)
-        and (getattr(engine, "_hooks", None) or [])
+        getattr(engine, "_model_attached", False) and (getattr(engine, "_hooks", None) or [])
     )
 
 
@@ -7244,8 +7127,7 @@ def _attach_affective_steering(
 
         if _affective_attachment_available(engine):
             logger.info(
-                "Affective Steering Engine attached in neutral mode "
-                "(alpha=%.3f, hooks=%d).",
+                "Affective Steering Engine attached in neutral mode (alpha=%.3f, hooks=%d).",
                 float(getattr(engine, "_alpha", 0.0) or 0.0),
                 len(getattr(engine, "_hooks", []) or []),
             )
@@ -7477,8 +7359,8 @@ def _mlx_worker_loop(
     """
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - MLXWorker - %(levelname)s - %(message)s',
-        stream=sys.stderr
+        format="%(asctime)s - MLXWorker - %(levelname)s - %(message)s",
+        stream=sys.stderr,
     )
     logger = logging.getLogger("MLXWorker")
     worker_boot_id = uuid.uuid4().hex
@@ -7524,15 +7406,15 @@ def _mlx_worker_loop(
         {
             "status": "ok",
             "action": "capture_identity_bootstrap",
-            "worker_action_capture_identity": dict(
-                worker_capture_signing_identity.public_identity
-            ),
+            "worker_action_capture_identity": dict(worker_capture_signing_identity.public_identity),
         }
     )
 
     # Watchdog before heartbeat: the heartbeat publishes the watchdog's
     # job-progress snapshot so liveness claims carry inference evidence.
-    watchdog = JobWatchdog(timeout=360.0, writer=ipc_writer)  # Align with the protected foreground solver envelope.
+    watchdog = JobWatchdog(
+        timeout=360.0, writer=ipc_writer
+    )  # Align with the protected foreground solver envelope.
     watchdog.start()
 
     heartbeat = HeartbeatThread(
@@ -7568,8 +7450,7 @@ def _mlx_worker_loop(
         )
         if not device_contract.get("verified"):
             raise RuntimeError(
-                "model_worker_mlx_device_unverified:"
-                f"{device_contract.get('reason', 'unknown')}"
+                f"model_worker_mlx_device_unverified:{device_contract.get('reason', 'unknown')}"
             )
         device = "cpu" if requested_device == "cpu" else "gpu"
         logger.info(
@@ -7585,8 +7466,7 @@ def _mlx_worker_loop(
                 requested_device=requested_device,
             )
             logger.info(
-                "MLX worker disabled Metal wired-memory accounting for its "
-                "verified CPU device."
+                "MLX worker disabled Metal wired-memory accounting for its verified CPU device."
             )
         # Import the model stack only after the process-local device contract
         # is established. Import-time tensors must never inherit the desktop
@@ -7645,9 +7525,7 @@ def _mlx_worker_loop(
                     from core.runtime.resource_observation import get_resource_observer
 
                     _total_gb = float(
-                        get_resource_observer()
-                        .memory(include_process_tree=False)
-                        .total_bytes
+                        get_resource_observer().memory(include_process_tree=False).total_bytes
                     ) / float(1024**3)
                 except (ImportError, OSError, RuntimeError, AttributeError, ValueError, TypeError):
                     _total_gb = 0.0
@@ -7701,9 +7579,7 @@ def _mlx_worker_loop(
                 logger.info("Model loaded with Aura personality LoRA fused.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as adapter_exc:
                 personality_adapter_status["fallback_base_model"] = True
-                personality_adapter_status["error"] = (
-                    f"{type(adapter_exc).__name__}: {adapter_exc}"
-                )
+                personality_adapter_status["error"] = f"{type(adapter_exc).__name__}: {adapter_exc}"
                 _record_mlx_degradation(
                     adapter_exc,
                     action="loaded base model after personality LoRA load failed — trained identity NOT resident",
@@ -7798,9 +7674,7 @@ def _mlx_worker_loop(
                 # silent status field — readiness checks and the parent's
                 # supervision must be able to see it.
                 _record_mlx_degradation(
-                    RuntimeError(
-                        f"required_recurrent_depth_inactive:loops={expected_loops}"
-                    ),
+                    RuntimeError(f"required_recurrent_depth_inactive:loops={expected_loops}"),
                     action="initialized worker with required recurrent depth NOT applied",
                     severity="warning",
                 )
@@ -7810,9 +7684,7 @@ def _mlx_worker_loop(
             from core.brain.llm.model_artifact_profile import model_size_class as _msc
 
             recurrent_depth_status["required"] = (
-                _msc(str(model_path)) == "32b"
-                and not explicit_disable
-                and not size_disable
+                _msc(str(model_path)) == "32b" and not explicit_disable and not size_disable
             )
             recurrent_depth_status["reason"] = "recurrent_depth_error"
             recurrent_depth_status["error"] = f"{type(rd_exc).__name__}: {rd_exc}"
@@ -7829,14 +7701,11 @@ def _mlx_worker_loop(
         ) = _attach_certified_recurrent_adapter(
             model,
             model_path=str(model_path),
-            personality_adapter_path=(
-                personality_adapter_status["applied"] or None
-            ),
+            personality_adapter_path=(personality_adapter_status["applied"] or None),
         )
         if recurrent_adapter_activation["active"]:
             logger.info(
-                "🧠 Certified recurrent adapter ACTIVE — campaign=%s "
-                "projections=%d receipt=%s",
+                "🧠 Certified recurrent adapter ACTIVE — campaign=%s projections=%d receipt=%s",
                 recurrent_adapter_activation["campaign_name"],
                 recurrent_adapter_activation["loaded_projection_count"],
                 recurrent_adapter_activation["receipt_sha256"],
@@ -7858,8 +7727,7 @@ def _mlx_worker_loop(
         )
         if unified_recurrent_shadow_status["loaded"]:
             logger.info(
-                "Unified recurrent tissue loaded in SHADOW ONLY mode: "
-                "package=%s controller=%s",
+                "Unified recurrent tissue loaded in SHADOW ONLY mode: package=%s controller=%s",
                 unified_recurrent_shadow_status["package_id"],
                 unified_recurrent_shadow_status["controller_sha256"],
             )
@@ -7878,11 +7746,8 @@ def _mlx_worker_loop(
         )
         if unified_recurrent_qualified_activation_status["loaded"]:
             logger.info(
-                "Unified recurrent tissue admitted for QUALIFIED TYPED serving: "
-                "activation=%s",
-                unified_recurrent_qualified_activation_status["activation"][
-                    "activation_sha256"
-                ],
+                "Unified recurrent tissue admitted for QUALIFIED TYPED serving: activation=%s",
+                unified_recurrent_qualified_activation_status["activation"]["activation_sha256"],
             )
         else:
             logger.info(
@@ -7904,14 +7769,10 @@ def _mlx_worker_loop(
                 model_path=model_path,
                 worker_boot_id=worker_boot_id,
                 worker_source_path=Path(__file__),
-                worker_action_capture_identity=(
-                    worker_capture_signing_identity.public_identity
-                ),
+                worker_action_capture_identity=(worker_capture_signing_identity.public_identity),
                 tokenizer=tokenizer,
                 affective_steering_active=bool(_steering_active),
-                affective_steering_alpha=float(
-                    getattr(engine, "_alpha", 0.0) or 0.0
-                ),
+                affective_steering_alpha=float(getattr(engine, "_alpha", 0.0) or 0.0),
                 recurrent_adapter_activation=recurrent_adapter_activation,
             )
 
@@ -7928,9 +7789,7 @@ def _mlx_worker_loop(
                 "device": device,
                 "steering_active": bool(_steering_active),
                 "recurrent_depth": recurrent_depth_status,
-                "recurrent_adapter_activation": dict(
-                    recurrent_adapter_activation
-                ),
+                "recurrent_adapter_activation": dict(recurrent_adapter_activation),
                 "recurrent_adapter_activation_receipt": (
                     dict(recurrent_adapter_activation_receipt)
                     if recurrent_adapter_activation_receipt is not None
@@ -7952,6 +7811,7 @@ def _mlx_worker_loop(
             severity="critical",
         )
         import traceback
+
         err_detail = f"{e}\n{traceback.format_exc()}"
         logger.error("Worker Init Error: %s", err_detail)
         ipc_writer.put(
@@ -7998,7 +7858,9 @@ def _mlx_worker_loop(
         else None
     )
     if prompt_cache_lru is None:
-        logger.info("Prompt cache disabled for %s to protect RAM headroom.", os.path.basename(model_path))
+        logger.info(
+            "Prompt cache disabled for %s to protect RAM headroom.", os.path.basename(model_path)
+        )
     else:
         logger.info(
             "Prompt cache budget for %s: %d entries, per-entry token cap %d, "
@@ -8008,9 +7870,9 @@ def _mlx_worker_loop(
             prompt_cache_budget,
             prompt_cache_token_cap,
             prompt_cache_total_tokens,
-            prompt_cache_total_bytes / (1024 ** 3),
+            prompt_cache_total_bytes / (1024**3),
             prompt_cache_kv_bytes // 1024,
-            prompt_cache_fixed_bytes / (1024 ** 2),
+            prompt_cache_fixed_bytes / (1024**2),
         )
 
     # Expert-adapter residency: at most one domain adapter attached on top of
@@ -8080,9 +7942,7 @@ def _mlx_worker_loop(
 
                     messages = normalize_chat_continuation_messages(
                         messages,
-                        continuation_prompt_prefix(
-                            job.get("user_surface_continuation_partial")
-                        ),
+                        continuation_prompt_prefix(job.get("user_surface_continuation_partial")),
                     )
                 original_messages = messages
                 strict_answer_contract = bool(job.get("strict_answer_contract", False))
@@ -8136,7 +7996,9 @@ def _mlx_worker_loop(
                     continue
                 # disable_prompt_cache = bool(job.get("disable_prompt_cache", False)) or strict_answer_contract
                 prompt_cache_bypass = _job_requires_prompt_cache_bypass(job)
-                disable_prompt_cache = bool(job.get("disable_prompt_cache", False)) or prompt_cache_bypass
+                disable_prompt_cache = (
+                    bool(job.get("disable_prompt_cache", False)) or prompt_cache_bypass
+                )
                 exact_continuation_cache = _job_requires_exact_continuation_cache(job)
                 # Bypass no longer implies CLEAR: health probes fire between
                 # user turns, and clearing on every probe would evict the
@@ -8146,9 +8008,7 @@ def _mlx_worker_loop(
                 # or write; only an explicit request clears.
                 clear_prompt_cache = bool(job.get("clear_prompt_cache", False))
                 if clear_prompt_cache and prompt_cache_lru is not None:
-                    prompt_cache_lru.clear_model_key(
-                        (id(model), _prompt_cache_scope_for_job(job))
-                    )
+                    prompt_cache_lru.clear_model_key((id(model), _prompt_cache_scope_for_job(job)))
 
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""
@@ -8205,12 +8065,8 @@ def _mlx_worker_loop(
                         native_thinking = thinking_enabled_for_generation(
                             model_path,
                             cognitive_mode=job.get("cognitive_mode"),
-                            final_user_surface=bool(
-                                job.get("clean_user_surface_contract", False)
-                            ),
-                            answer_is_derived_here=_answer_is_derived_here(
-                                job, model=model_path
-                            ),
+                            final_user_surface=bool(job.get("clean_user_surface_contract", False)),
+                            answer_is_derived_here=_answer_is_derived_here(job, model=model_path),
                         )
                         # Which channel the search went down is the difference
                         # between an answer and a page of working, and nothing
@@ -8224,13 +8080,11 @@ def _mlx_worker_loop(
                         )
 
                         if _job_requires_exact_continuation_cache(job):
-                            conversation_resume_context = (
-                                conversation_resume_context_digest(
-                                    tokenizer,
-                                    messages,
-                                    tools=tools,
-                                    enable_thinking=native_thinking,
-                                )
+                            conversation_resume_context = conversation_resume_context_digest(
+                                tokenizer,
+                                messages,
+                                tools=tools,
+                                enable_thinking=native_thinking,
                             )
                         if (
                             conversation_resume_context
@@ -8317,8 +8171,7 @@ def _mlx_worker_loop(
                                     "action": "generate",
                                     "status": "error",
                                     "message": (
-                                        "chat_template_failed_with_tools:"
-                                        f"{type(e).__name__}:{e}"
+                                        f"chat_template_failed_with_tools:{type(e).__name__}:{e}"
                                     ),
                                 }
                             )
@@ -8339,8 +8192,7 @@ def _mlx_worker_loop(
                 min_p = _admit_sampling_control(job, "min_p")
                 repetition_penalty = _admit_sampling_control(job, "repetition_penalty")
                 artifact_generation_contract = bool(
-                    proof_evaluation_contract
-                    and _proof_prompt_expects_artifact(prompt)
+                    proof_evaluation_contract and _proof_prompt_expects_artifact(prompt)
                 )
 
                 if strict_answer_contract:
@@ -8404,7 +8256,7 @@ def _mlx_worker_loop(
 
                 # [v11.0 HARDENING] Structured Generation Overrides
                 if schema:
-                    temp = 0.0 # Force determinism for JSON
+                    temp = 0.0  # Force determinism for JSON
                     logger.info("🎯 [WORKER] Structured mode: temp=0.0 enforced.")
 
                 # Intelligence boosters: min_p sampling improves quality on smaller
@@ -8415,11 +8267,17 @@ def _mlx_worker_loop(
                 # halved. 1.2 is still well below the 1.5+ range that hurts
                 # natural prose; targets the token-level "something is shifting
                 # / something is moving" loops directly.
-                kwargs = {"max_tokens": max_tokens, "temperature": temp, "top_p": top_p, "repetition_penalty": repetition_penalty}
+                kwargs = {
+                    "max_tokens": max_tokens,
+                    "temperature": temp,
+                    "top_p": top_p,
+                    "repetition_penalty": repetition_penalty,
+                }
                 if make_sampler:
                     sampler_kwargs = {"temp": temp, "top_p": top_p}
                     try:
                         import inspect as _insp
+
                         _sparams = _insp.signature(make_sampler).parameters
                         if "min_p" in _sparams:
                             sampler_kwargs["min_p"] = min_p
@@ -8436,6 +8294,7 @@ def _mlx_worker_loop(
                 # Apply MLX penalties via logits processors
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
+
                     _rp = job.get("repetition_penalty", repetition_penalty)
                     _rcs = job.get("repetition_context_size", 64)
                     _pp = job.get("presence_penalty", 0.0)
@@ -8448,7 +8307,9 @@ def _mlx_worker_loop(
                         if lp:
                             logits_processors.extend(lp)
                 except ImportError as _exc:
-                    logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
+                    logger.debug(
+                        "Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc
+                    )
                 except (AttributeError, RuntimeError, TypeError) as e:
                     logger.warning("Could not apply penalty logits processors: %s", e)
 
@@ -8459,8 +8320,18 @@ def _mlx_worker_loop(
                 #    real dual-model contrastive decoding against a small same-family
                 #    amateur (e.g. Qwen2.5-1.5B vs the 32B cortex), subtracting the
                 #    amateur's lazy preferences within the cortex's plausible set.
-                _steer_on = _FLAG_REASONING_STEERING.value().strip().lower() in {"1", "true", "on", "yes"}
-                _cd_on = os.environ.get("AURA_CONTRASTIVE_DECODING", "").strip().lower() in {"1", "true", "on", "yes"}
+                _steer_on = _FLAG_REASONING_STEERING.value().strip().lower() in {
+                    "1",
+                    "true",
+                    "on",
+                    "yes",
+                }
+                _cd_on = os.environ.get("AURA_CONTRASTIVE_DECODING", "").strip().lower() in {
+                    "1",
+                    "true",
+                    "on",
+                    "yes",
+                }
                 _amateur_path = os.environ.get("AURA_CONTRASTIVE_AMATEUR_MODEL", "").strip()
                 if _steer_on or (_cd_on and _amateur_path):
                     try:
@@ -8471,15 +8342,21 @@ def _mlx_worker_loop(
                         reasoning_procs = build_reasoning_logits_processors(
                             tokenizer,
                             enable_steering=_steer_on,
-                            amateur_model_path=_amateur_path if (_cd_on and _amateur_path) else None,
+                            amateur_model_path=_amateur_path
+                            if (_cd_on and _amateur_path)
+                            else None,
                             alpha=_safe_float(_FLAG_CONTRASTIVE_ALPHA.value(), 0.5),
                             beta=_safe_float(_FLAG_CONTRASTIVE_BETA.value(), 0.1),
                             steering_scale=_safe_float(_FLAG_REASONING_STEERING_SCALE.value(), 1.0),
                         )
                         if reasoning_procs:
                             logits_processors.extend(reasoning_procs)
-                            logger.info("🧠 [WORKER] Reasoning processors ACTIVE (%d: steer=%s cd=%s).",
-                                        len(reasoning_procs), _steer_on, bool(_cd_on and _amateur_path))
+                            logger.info(
+                                "🧠 [WORKER] Reasoning processors ACTIVE (%d: steer=%s cd=%s).",
+                                len(reasoning_procs),
+                                _steer_on,
+                                bool(_cd_on and _amateur_path),
+                            )
                     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                         logger.warning("Could not apply reasoning logits processors: %s", e)
 
@@ -8487,9 +8364,7 @@ def _mlx_worker_loop(
                     try:
                         start_ids = _json_start_token_ids(tokenizer, schema)
                         if not start_ids:
-                            raise ValueError(
-                                "tokenizer spells no admissible JSON opening"
-                            )
+                            raise ValueError("tokenizer spells no admissible JSON opening")
 
                         def json_start_processor(tokens, logits, start_ids=start_ids):
                             if len(tokens) == 0:
@@ -8501,6 +8376,7 @@ def _mlx_worker_loop(
                                     mask[..., token_id] = 0.0
                                 return mask
                             return logits
+
                         logits_processors.append(json_start_processor)
                         logger.info(
                             "🎯 [WORKER] JSON start enforcement ACTIVE (%d openings).",
@@ -8519,9 +8395,7 @@ def _mlx_worker_loop(
                         strict_guard = build_nonempty_start_processor(tokenizer, positions=3)
                         if strict_guard is not None:
                             logits_processors.append(strict_guard)
-                            logger.info(
-                                "🎯 [WORKER] Strict contract non-empty start guard ACTIVE."
-                            )
+                            logger.info("🎯 [WORKER] Strict contract non-empty start guard ACTIVE.")
                     except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
                             e,
@@ -8591,6 +8465,7 @@ def _mlx_worker_loop(
                 _np_tap = None
                 try:
                     from core.brain.nonparametric_worker import maybe_build_foreground
+
                     _np_foreground = maybe_build_foreground(model, job=job)
                     if _np_foreground is not None:
                         _np_tap, _np_proc = _np_foreground
@@ -8604,7 +8479,6 @@ def _mlx_worker_loop(
                 stop_sequences = _merge_stop_sequences(job.get("stop_sequences") or [])
                 # We do NOT pass stop_words to stream_generate as it causes TypeError in some mlx-lm versions.
                 # Truncation is handled manually in the token loop via _truncate_role_continuation.
-
 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -8625,8 +8499,12 @@ def _mlx_worker_loop(
                     surface_control_state = _apply_surface_generation_controls(engine, model, job)
                     _enforce_surface_controls_or_fail(job, surface_control_state)
                     surface_quality_gate_enabled = _surface_quality_gate_enabled(job)
-                    surface_control_state["surface_quality_gate_enabled"] = surface_quality_gate_enabled
-                    surface_control_state["surface_quality_gate_passed"] = not surface_quality_gate_enabled
+                    surface_control_state["surface_quality_gate_enabled"] = (
+                        surface_quality_gate_enabled
+                    )
+                    surface_control_state[
+                        "surface_quality_gate_passed"
+                    ] = not surface_quality_gate_enabled
                     surface_control_state["surface_quality_gate_attempts"] = 0
                     surface_control_state["surface_quality_gate_reasons"] = []
                     surface_control_state["telemetry_sanitizer_reasons"] = []
@@ -8634,17 +8512,22 @@ def _mlx_worker_loop(
                     surface_control_state["text_mutations"] = []
                     surface_control_state["generation_max_tokens_applied"] = max_tokens
                     if conversation_resume_prepare_failure:
-                        surface_control_state[
-                            "conversation_resume_failure_reason"
-                        ] = conversation_resume_prepare_failure
+                        surface_control_state["conversation_resume_failure_reason"] = (
+                            conversation_resume_prepare_failure
+                        )
                     try:
                         with metal_semaphore:
                             # Proactive cache clearing under memory pressure
                             if mx and device != "cpu":
                                 try:
                                     from core.runtime import resource_psutil as psutil
-                                    if psutil.virtual_memory().percent > 90:  # 64GB — don't panic at 85%
-                                        logger.warning("⚠️ High memory pressure detected in worker. Clearing MLX cache.")
+
+                                    if (
+                                        psutil.virtual_memory().percent > 90
+                                    ):  # 64GB — don't panic at 85%
+                                        logger.warning(
+                                            "⚠️ High memory pressure detected in worker. Clearing MLX cache."
+                                        )
                                         mx.clear_cache()
                                 except (ImportError, OSError, AttributeError):
                                     logger.debug("Worker memory pressure probe unavailable")
@@ -8672,9 +8555,9 @@ def _mlx_worker_loop(
                                 )
                                 watchdog.start_job(str(job.get("id") or ""), "generate")
                                 try:
-                                    surface_control_state[
-                                        "instruction_shape_repair_applied"
-                                    ] = False
+                                    surface_control_state["instruction_shape_repair_applied"] = (
+                                        False
+                                    )
                                     surface_control_state["text_mutations"] = []
                                     current_response = ""
                                     token_count = 0
@@ -8720,9 +8603,7 @@ def _mlx_worker_loop(
                                     # request deadline at all and could decode
                                     # long past the caller's timeout until the
                                     # 360s watchdog hard-killed the process.
-                                    job_deadline_unix = _safe_float(
-                                        job.get("deadline_unix"), 0.0
-                                    )
+                                    job_deadline_unix = _safe_float(job.get("deadline_unix"), 0.0)
                                     if not _generation_deadline_open(
                                         job, started=total_generated_tokens > 0
                                     ):
@@ -8752,17 +8633,15 @@ def _mlx_worker_loop(
                                             TokenSentinel,
                                             get_refusal_fallback,
                                         )
+
                                         sentinel = TokenSentinel(
                                             check_interval=8,
                                             affect_interval=16,
                                             substrate_mem=substrate_mem,
                                             steering_hooks=_active_steering_hooks(engine),
-                                            boundary_context=str(
-                                                job.get("boundary_context") or ""
-                                            ),
+                                            boundary_context=str(job.get("boundary_context") or ""),
                                             prompt=(
-                                                _surface_validation_prompt(job)
-                                                or original_prompt
+                                                _surface_validation_prompt(job) or original_prompt
                                             ),
                                             generation_purpose=str(
                                                 job.get("request_purpose")
@@ -8778,9 +8657,7 @@ def _mlx_worker_loop(
                                             affect_expected=(
                                                 _affect_expected
                                                 and _safe_float(
-                                                    job.get(
-                                                        "clean_user_surface_steering_alpha"
-                                                    ),
+                                                    job.get("clean_user_surface_steering_alpha"),
                                                     1.0,
                                                 )
                                                 > 0.0
@@ -8816,20 +8693,25 @@ def _mlx_worker_loop(
                                     # response actually returned.
                                     try:
                                         from core.brain.llm.interoception_tap import maybe_build_tap
+
                                         # Bind the measurement to the request and
                                         # model that produced it; without this the
                                         # parent has only an attempt number and can
                                         # misattribute across attempts or models.
                                         intero_tap = maybe_build_tap(
                                             request_id=str(
-                                                job.get("request_id")
-                                                or job.get("trace_id")
-                                                or ""
+                                                job.get("request_id") or job.get("trace_id") or ""
                                             ),
                                             model_id=str(job.get("model") or ""),
                                             provider="mlx",
                                         )
-                                    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _intero_exc:
+                                    except (
+                                        ImportError,
+                                        AttributeError,
+                                        RuntimeError,
+                                        TypeError,
+                                        ValueError,
+                                    ) as _intero_exc:
                                         _record_mlx_degradation(
                                             _intero_exc,
                                             action="continued generation without interoception tap",
@@ -8872,20 +8754,26 @@ def _mlx_worker_loop(
                                     )
                                     cache = None
                                     remaining_tokens = tokens
-                                    continuation_resume_handle = str(
-                                        job.get("user_surface_continuation_resume_handle")
-                                        or ""
-                                    ).strip().lower()
-                                    conversation_resume_handle = str(
-                                        job.get("user_surface_conversation_resume_handle")
-                                        or ""
-                                    ).strip().lower()
-                                    surface_control_state[
-                                        "continuation_resume_requested"
-                                    ] = bool(continuation_resume_handle)
-                                    surface_control_state[
-                                        "conversation_resume_requested"
-                                    ] = bool(conversation_resume_handle)
+                                    continuation_resume_handle = (
+                                        str(
+                                            job.get("user_surface_continuation_resume_handle") or ""
+                                        )
+                                        .strip()
+                                        .lower()
+                                    )
+                                    conversation_resume_handle = (
+                                        str(
+                                            job.get("user_surface_conversation_resume_handle") or ""
+                                        )
+                                        .strip()
+                                        .lower()
+                                    )
+                                    surface_control_state["continuation_resume_requested"] = bool(
+                                        continuation_resume_handle
+                                    )
+                                    surface_control_state["conversation_resume_requested"] = bool(
+                                        conversation_resume_handle
+                                    )
                                     continuation_resume_applied = False
                                     conversation_resume_applied = False
                                     exact_resume_applied = False
@@ -8894,10 +8782,7 @@ def _mlx_worker_loop(
                                             "conversation_resume_failure_reason"
                                         ] = "conflicting_resume_handles"
                                         conversation_resume_handle = ""
-                                    if (
-                                        continuation_resume_handle
-                                        and prompt_cache_lru is not None
-                                    ):
+                                    if continuation_resume_handle and prompt_cache_lru is not None:
                                         (
                                             resumed_cache,
                                             resumed_remaining,
@@ -8930,9 +8815,7 @@ def _mlx_worker_loop(
                                         and conversation_append_prompt
                                         and prompt_cache_lru is not None
                                     ):
-                                        append_tokens = tokenizer.encode(
-                                            conversation_append_prompt
-                                        )
+                                        append_tokens = tokenizer.encode(conversation_append_prompt)
                                         (
                                             resumed_cache,
                                             resumed_remaining,
@@ -8966,12 +8849,12 @@ def _mlx_worker_loop(
                                             "conversation_resume_failure_reason",
                                             "append_or_cache_unavailable",
                                         )
-                                    surface_control_state[
-                                        "continuation_resume_applied"
-                                    ] = continuation_resume_applied
-                                    surface_control_state[
-                                        "conversation_resume_applied"
-                                    ] = conversation_resume_applied
+                                    surface_control_state["continuation_resume_applied"] = (
+                                        continuation_resume_applied
+                                    )
+                                    surface_control_state["conversation_resume_applied"] = (
+                                        conversation_resume_applied
+                                    )
                                     # Prefill cost is the whole endurance story, and
                                     # until now the only number anyone could see was
                                     # the planner's CHARACTER count — measured live at
@@ -8994,7 +8877,8 @@ def _mlx_worker_loop(
                                                 f"{len(str(m.get('content', '') or ''))}"
                                                 for m in (messages or ())
                                                 if isinstance(m, dict)
-                                            ) or "none",
+                                            )
+                                            or "none",
                                         )
                                     # Context-window admission BEFORE any Metal
                                     # work: reject with a typed, correlated error
@@ -9012,8 +8896,7 @@ def _mlx_worker_loop(
                                     )
                                     if (
                                         not exact_resume_applied
-                                        and len(tokens) + _output_reserve
-                                        > _request_context_window
+                                        and len(tokens) + _output_reserve > _request_context_window
                                     ):
                                         # Refusing was the ONLY response here, and
                                         # nothing upstream bounds a prompt against
@@ -9022,14 +8905,16 @@ def _mlx_worker_loop(
                                         # forever. Shed scaffold first; refuse only
                                         # if the request itself will not fit.
                                         _oversized_tokens = len(tokens)
-                                        prompt, tokens, _trim_note = _shrink_scaffold_to_context_window(
-                                            messages=messages,
-                                            prompt=prompt,
-                                            tokens=tokens,
-                                            window=_request_context_window,
-                                            output_reserve=_output_reserve,
-                                            tokenizer=tokenizer,
-                                            tools=tools,
+                                        prompt, tokens, _trim_note = (
+                                            _shrink_scaffold_to_context_window(
+                                                messages=messages,
+                                                prompt=prompt,
+                                                tokens=tokens,
+                                                window=_request_context_window,
+                                                output_reserve=_output_reserve,
+                                                tokenizer=tokenizer,
+                                                tools=tools,
+                                            )
                                         )
                                         if _trim_note:
                                             _record_mlx_degradation(
@@ -9069,10 +8954,13 @@ def _mlx_worker_loop(
                                         and not disable_prompt_cache
                                     ):
                                         remaining_tokens = tokens
-                                        cache, remaining_tokens = prompt_cache_lru.fetch_nearest_cache(
-                                            model_key, tokens,
-                                            can_trim_prompt_cache=_can_trim,
-                                            trim_prompt_cache=_do_trim
+                                        cache, remaining_tokens = (
+                                            prompt_cache_lru.fetch_nearest_cache(
+                                                model_key,
+                                                tokens,
+                                                can_trim_prompt_cache=_can_trim,
+                                                trim_prompt_cache=_do_trim,
+                                            )
                                         )
                                         if cache is None:
                                             # A miss still has to leave something
@@ -9111,15 +8999,21 @@ def _mlx_worker_loop(
                                     if (
                                         cache is not None
                                         and len(tokens) > 512
-                                        and 0 < len(tokens) - len(remaining_tokens)
+                                        and 0
+                                        < len(tokens) - len(remaining_tokens)
                                         < len(tokens) * 0.5
                                     ):
                                         _reused = len(tokens) - len(remaining_tokens)
                                         try:
                                             _divergent = tokenizer.decode(
-                                                tokens[_reused:_reused + 24]
+                                                tokens[_reused : _reused + 24]
                                             )
-                                        except (AttributeError, RuntimeError, TypeError, ValueError):
+                                        except (
+                                            AttributeError,
+                                            RuntimeError,
+                                            TypeError,
+                                            ValueError,
+                                        ):
                                             _divergent = "<undecodable>"
                                         try:
                                             # The REUSED head is the other half of
@@ -9129,7 +9023,12 @@ def _mlx_worker_loop(
                                             # that names the block whose volatility
                                             # is capping every conversation.
                                             _stable_head = tokenizer.decode(tokens[:_reused])
-                                        except (AttributeError, RuntimeError, TypeError, ValueError):
+                                        except (
+                                            AttributeError,
+                                            RuntimeError,
+                                            TypeError,
+                                            ValueError,
+                                        ):
                                             _stable_head = "<undecodable>"
                                         logger.info(
                                             "🔍 [PROMPT CACHE] prefix diverges at token %d "
@@ -9176,27 +9075,46 @@ def _mlx_worker_loop(
                                     # [STABILITY v57] Reset activity immediately before loop to maximize budget for prefill
                                     try:
                                         from mlx_lm.sample_utils import make_sampler
+
                                         if "sampler" not in kwargs:
                                             import inspect as _insp
+
                                             _sparams = _insp.signature(make_sampler).parameters
-                                            sampler_kwargs = {"temp": kwargs.get("temperature", 0.7)}
+                                            sampler_kwargs = {
+                                                "temp": kwargs.get("temperature", 0.7)
+                                            }
                                             if "top_p" in _sparams:
                                                 sampler_kwargs["top_p"] = kwargs.get("top_p", 1.0)
                                             if "min_p" in _sparams:
                                                 sampler_kwargs["min_p"] = kwargs.get("min_p", 0.0)
                                             if "repetition_penalty" in _sparams:
-                                                sampler_kwargs["repetition_penalty"] = kwargs.get("repetition_penalty", 1.0)
+                                                sampler_kwargs["repetition_penalty"] = kwargs.get(
+                                                    "repetition_penalty", 1.0
+                                                )
                                             if "repetition_context_size" in _sparams:
-                                                sampler_kwargs["repetition_context_size"] = kwargs.get("repetition_context_size", 20)
+                                                sampler_kwargs["repetition_context_size"] = (
+                                                    kwargs.get("repetition_context_size", 20)
+                                                )
                                             kwargs["sampler"] = make_sampler(**sampler_kwargs)
                                     except ImportError:
-                                        logger.debug("MLX make_sampler unavailable; using stream_generate defaults.")
+                                        logger.debug(
+                                            "MLX make_sampler unavailable; using stream_generate defaults."
+                                        )
 
                                     # [STABILITY v60] Definitive scrub of legacy kwargs.
                                     # New mlx-lm versions pass kwargs directly to generate_step which
                                     # throws TypeError if it sees 'temperature' or 'top_p' instead of 'temp'.
-                                    clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
-                                    clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
+                                    clean_keys = {
+                                        "temperature",
+                                        "top_p",
+                                        "min_p",
+                                        "repetition_penalty",
+                                        "repetition_context_size",
+                                        "stop_words",
+                                    }
+                                    clean_kwargs = {
+                                        k: v for k, v in kwargs.items() if k not in clean_keys
+                                    }
 
                                     prefill_tokens = (
                                         len(gen_prompt)
@@ -9264,8 +9182,7 @@ def _mlx_worker_loop(
                                         if first_token_latency_s is None:
                                             first_token_latency_s = max(
                                                 0.0,
-                                                time.perf_counter()
-                                                - generation_stream_started_at,
+                                                time.perf_counter() - generation_stream_started_at,
                                             )
 
                                         # ``mlx_lm.generate_step`` computes the
@@ -9282,9 +9199,7 @@ def _mlx_worker_loop(
                                             and prompt_cache_lru is not None
                                             and final_prompt_cache is not None
                                         ):
-                                            continuation_cache_rollback = (
-                                                previous_cache_rollback
-                                            )
+                                            continuation_cache_rollback = previous_cache_rollback
                                             previous_cache_rollback = (
                                                 _capture_prompt_cache_one_token_rollback(
                                                     final_prompt_cache
@@ -9296,7 +9211,9 @@ def _mlx_worker_loop(
 
                                         token_count += 1
                                         progress_now = time.time()
-                                        if use_speculative and getattr(response, "from_draft", False):
+                                        if use_speculative and getattr(
+                                            response, "from_draft", False
+                                        ):
                                             draft_accepted_tokens += 1
 
                                         tokens.append(response.token)
@@ -9318,7 +9235,9 @@ def _mlx_worker_loop(
                                             )
 
                                         current_response += response.text
-                                        current_response, role_continuation_hit = _truncate_role_continuation(current_response)
+                                        current_response, role_continuation_hit = (
+                                            _truncate_role_continuation(current_response)
+                                        )
 
                                         # Cooperative preemption is observed only
                                         # after accepting the token already yielded
@@ -9362,29 +9281,39 @@ def _mlx_worker_loop(
                                             if sentinel_signal.type == InterventionType.ABORT_LOOP:
                                                 logger.warning(
                                                     "🚨 [SENTINEL] Aborting loop at token %d: %s",
-                                                    token_count, sentinel_signal.reason,
+                                                    token_count,
+                                                    sentinel_signal.reason,
                                                 )
                                                 current_response = sentinel_signal.clean_prefix
                                                 sentinel_aborted = True
                                                 sentinel_loop_aborted = True
                                                 break
-                                            elif sentinel_signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
+                                            elif (
+                                                sentinel_signal.type
+                                                == InterventionType.ABORT_ONTOLOGY_VIOLATION
+                                            ):
                                                 logger.warning(
                                                     "🚨 [SENTINEL] Aborting due to ontological violation at token %d: %s",
-                                                    token_count, sentinel_signal.reason,
+                                                    token_count,
+                                                    sentinel_signal.reason,
                                                 )
                                                 sentinel_aborted = True
                                                 sentinel_ontology_aborted = True
                                                 break
-                                            elif sentinel_signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                                          InterventionType.ABORT_BOUNDARY):
+                                            elif sentinel_signal.type in (
+                                                InterventionType.ABORT_CAPITULATION,
+                                                InterventionType.ABORT_BOUNDARY,
+                                            ):
                                                 # Mid-generation abort: the LLM started capitulating.
                                                 # Replace response with deterministic refusal.
                                                 logger.warning(
                                                     "🚨 [SENTINEL] Aborting generation at token %d: %s",
-                                                    token_count, sentinel_signal.reason,
+                                                    token_count,
+                                                    sentinel_signal.reason,
                                                 )
-                                                current_response = get_refusal_fallback(seed=token_count)
+                                                current_response = get_refusal_fallback(
+                                                    seed=token_count
+                                                )
                                                 sentinel_aborted = True
                                                 break
 
@@ -9402,7 +9331,8 @@ def _mlx_worker_loop(
                                             thinking_overran = True
                                             answer_kwargs = dict(clean_kwargs)
                                             answer_kwargs["max_tokens"] = max(
-                                                64, _safe_int(kwargs.get("max_tokens"), max_tokens)
+                                                64,
+                                                _safe_int(kwargs.get("max_tokens"), max_tokens)
                                                 - token_count,
                                             )
                                             boundary = "</think>\n"
@@ -9425,7 +9355,8 @@ def _mlx_worker_loop(
                                             logger.info(
                                                 "[WORKER] Continuing from private channel at "
                                                 "token %d with %d answer tokens available.",
-                                                token_count, answer_kwargs["max_tokens"],
+                                                token_count,
+                                                answer_kwargs["max_tokens"],
                                             )
                                             generation_passes.continue_with(
                                                 answer_prompt, answer_kwargs
@@ -9548,7 +9479,9 @@ def _mlx_worker_loop(
                                         # the LAST admitted one (the old > check exposed
                                         # an 8193rd token past the documented limit).
                                         if token_count >= 8192:
-                                            logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
+                                            logger.warning(
+                                                "🏁 [WORKER] Hard token limit (8192) reached. Truncating."
+                                            )
                                             hard_token_limit_hit = True
                                             break
 
@@ -9572,14 +9505,12 @@ def _mlx_worker_loop(
                                         time.perf_counter() - generation_stream_started_at,
                                     )
                                     if final_generation_response is not None:
-                                        generation_performance = (
-                                            _generation_pass_performance(
-                                                generation_passes.final_responses,
-                                                prompt_tokens=prefill_tokens,
-                                                generation_tokens=token_count,
-                                                first_token_seconds=first_token_latency_s,
-                                                stream_seconds=generation_stream_elapsed_s,
-                                            )
+                                        generation_performance = _generation_pass_performance(
+                                            generation_passes.final_responses,
+                                            prompt_tokens=prefill_tokens,
+                                            generation_tokens=token_count,
+                                            first_token_seconds=first_token_latency_s,
+                                            stream_seconds=generation_stream_elapsed_s,
                                         )
                                         logger.info(
                                             "⏱️ [WORKER] generation performance: "
@@ -9629,7 +9560,9 @@ def _mlx_worker_loop(
                                     # Later attempts overwrite, so the shipped payload always
                                     # describes the response the caller actually receives.
                                     if intero_tap is not None:
-                                        _intero_final = intero_tap.finalize(attempt=internal_attempt)
+                                        _intero_final = intero_tap.finalize(
+                                            attempt=internal_attempt
+                                        )
                                         if _intero_final is not None:
                                             # CP126 0b3bbd3e: stamp the trace
                                             # with the job it measured. Without
@@ -9639,9 +9572,7 @@ def _mlx_worker_loop(
                                             # they belong together under
                                             # concurrent lanes.
                                             _intero_final["generation_id"] = str(
-                                                job.get("request_id")
-                                                or job.get("id")
-                                                or ""
+                                                job.get("request_id") or job.get("id") or ""
                                             )
                                             interoception_payload = _intero_final
 
@@ -9652,8 +9583,10 @@ def _mlx_worker_loop(
                                             logger.info(
                                                 "🛡️ [SENTINEL] Generation complete: %d interventions, "
                                                 "%d drift warnings, %d affect pulses over %d tokens",
-                                                diag["interventions"], diag["drift_warnings"],
-                                                diag["affect_pulses"], diag["tokens_processed"],
+                                                diag["interventions"],
+                                                diag["drift_warnings"],
+                                                diag["affect_pulses"],
+                                                diag["tokens_processed"],
                                             )
 
                                     native_channels = split_native_thinking_generation(
@@ -9718,9 +9651,7 @@ def _mlx_worker_loop(
                                             else "",
                                             native_channels.reasoning[-220:],
                                         )
-                                        _record_budget_that_ran_out_thinking(
-                                            max_tokens, model_path
-                                        )
+                                        _record_budget_that_ran_out_thinking(max_tokens, model_path)
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
@@ -9739,7 +9670,9 @@ def _mlx_worker_loop(
                                                 )
                                             ),
                                         }
-                                        trimmed_response = _trim_complete_operator_evidence(response_text)
+                                        trimmed_response = _trim_complete_operator_evidence(
+                                            response_text
+                                        )
                                         if trimmed_response != response_text:
                                             logger.warning(
                                                 "⚠️ [WORKER] Trimmed clipped/meta operator-evidence tail "
@@ -9765,19 +9698,15 @@ def _mlx_worker_loop(
                                     # written down anywhere a deadline could
                                     # read it.
                                     try:
-                                        _first_token_s = float(
-                                            first_token_latency_s or 0.0
-                                        )
+                                        _first_token_s = float(first_token_latency_s or 0.0)
                                     except (TypeError, ValueError):
                                         _first_token_s = 0.0
                                     if _first_token_s > 0.0:
-                                        _record_read_rate(
-                                            _prompt_chars_for_rate, _first_token_s
-                                        )
+                                        _record_read_rate(_prompt_chars_for_rate, _first_token_s)
                                     if token_count > 0 and _elapsed_decode_s > 0.0:
-                                        surface_control_state[
-                                            "decode_tokens_per_second"
-                                        ] = token_count / _elapsed_decode_s
+                                        surface_control_state["decode_tokens_per_second"] = (
+                                            token_count / _elapsed_decode_s
+                                        )
 
                                     if soft_cancelled or deadline_hit:
                                         # Preempted or deadline-stopped turn: retries
@@ -9841,17 +9770,16 @@ def _mlx_worker_loop(
                                                 response_text = ""
                                         logger.info(
                                             "✋ [WORKER] %s honored for job seq=%d after %d tokens.",
-                                            (
-                                                "Deadline stop"
-                                                if deadline_hit
-                                                else "Soft-cancel"
-                                            ),
+                                            ("Deadline stop" if deadline_hit else "Soft-cancel"),
                                             job_seq,
                                             token_count,
                                         )
                                         break
 
-                                    if proof_evaluation_contract and _proof_evaluation_fragment_incomplete(response_text):
+                                    if (
+                                        proof_evaluation_contract
+                                        and _proof_evaluation_fragment_incomplete(response_text)
+                                    ):
                                         if internal_attempt < max_internal_retries:
                                             logger.warning(
                                                 "⚠️ [WORKER] Incomplete proof/evaluation response on attempt %s "
@@ -9887,7 +9815,9 @@ def _mlx_worker_loop(
                                             current_response
                                         )
                                     ):
-                                        rejection_reasons = _operator_evidence_rejection_reasons(response_text)
+                                        rejection_reasons = _operator_evidence_rejection_reasons(
+                                            response_text
+                                        )
                                         if _operator_evidence_model_contribution_insufficient(
                                             current_response
                                         ):
@@ -9912,9 +9842,11 @@ def _mlx_worker_loop(
                                                 prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
-                                            prompt, operator_response_prefix = _build_operator_evidence_retry_prompt(
-                                                original_messages,
-                                                original_prompt,
+                                            prompt, operator_response_prefix = (
+                                                _build_operator_evidence_retry_prompt(
+                                                    original_messages,
+                                                    original_prompt,
+                                                )
                                             )
                                             _prepare_clean_retry_kwargs(kwargs, structured=False)
                                             continue
@@ -9939,7 +9871,10 @@ def _mlx_worker_loop(
                                             ] = True
                                             sentinel_loop_aborted = False
                                         elif internal_attempt < max_internal_retries:
-                                            logger.warning("⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt %s)...", internal_attempt + 1)
+                                            logger.warning(
+                                                "⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt %s)...",
+                                                internal_attempt + 1,
+                                            )
                                             if prompt_cache_lru is not None:
                                                 prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
@@ -9949,10 +9884,14 @@ def _mlx_worker_loop(
                                                     original_messages,
                                                     original_prompt,
                                                 )
-                                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
+                                            _prepare_clean_retry_kwargs(
+                                                kwargs, structured=bool(schema)
+                                            )
                                             continue
                                         else:
-                                            logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
+                                            logger.warning(
+                                                "🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix."
+                                            )
                                             break
 
                                     if sentinel_ontology_aborted:
@@ -9976,13 +9915,18 @@ def _mlx_worker_loop(
                                         )
                                         if ontology_retry_allowed:
                                             ontology_retry_count += 1
-                                            logger.warning("⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt %s)...", internal_attempt + 1)
+                                            logger.warning(
+                                                "⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt %s)...",
+                                                internal_attempt + 1,
+                                            )
                                             if prompt_cache_lru is not None:
                                                 prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             # Add a slight temperature penalty or just start fresh
-                                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
+                                            _prepare_clean_retry_kwargs(
+                                                kwargs, structured=bool(schema)
+                                            )
                                             continue
                                         else:
                                             logger.warning(
@@ -10039,9 +9983,9 @@ def _mlx_worker_loop(
                                                 authored_surface_repair_available=False,
                                             )
                                         )
-                                        surface_control_state[
-                                            "telemetry_sanitizer_reasons"
-                                        ] = sanitizer_reasons[:8]
+                                        surface_control_state["telemetry_sanitizer_reasons"] = (
+                                            sanitizer_reasons[:8]
+                                        )
                                         if sanitizer_reasons:
                                             logger.warning(
                                                 "🚨 [WORKER] Strict answer draft failed sanitizer "
@@ -10084,9 +10028,9 @@ def _mlx_worker_loop(
                                                     authored_surface_repair_available=False,
                                                 )
                                             )
-                                            surface_control_state[
-                                                "telemetry_sanitizer_reasons"
-                                            ] = sanitizer_reasons[:8]
+                                            surface_control_state["telemetry_sanitizer_reasons"] = (
+                                                sanitizer_reasons[:8]
+                                            )
                                             if sanitizer_reasons:
                                                 logger.warning(
                                                     "🚨 [WORKER] Strict value draft failed sanitizer "
@@ -10096,7 +10040,10 @@ def _mlx_worker_loop(
                                                 response_text = ""
                                                 break
                                             response_text = sanitized_text
-                                        if raw_strict_value_text.strip() and not response_text.strip():
+                                        if (
+                                            raw_strict_value_text.strip()
+                                            and not response_text.strip()
+                                        ):
                                             logger.warning(
                                                 "⚠️ [WORKER] Strict value draft rejected: %r",
                                                 raw_strict_value_text.strip()[:160],
@@ -10111,9 +10058,9 @@ def _mlx_worker_loop(
                                                 ),
                                             )
                                         )
-                                        surface_control_state[
-                                            "telemetry_sanitizer_reasons"
-                                        ] = sanitizer_reasons[:8]
+                                        surface_control_state["telemetry_sanitizer_reasons"] = (
+                                            sanitizer_reasons[:8]
+                                        )
                                         if sanitizer_reasons:
                                             if response_text:
                                                 logger.warning(
@@ -10168,9 +10115,11 @@ def _mlx_worker_loop(
                                             job,
                                             response_text,
                                         )
-                                        shaped_surface = _repair_live_user_surface_instruction_shape(
-                                            job,
-                                            response_text,
+                                        shaped_surface = (
+                                            _repair_live_user_surface_instruction_shape(
+                                                job,
+                                                response_text,
+                                            )
                                         )
                                         if shaped_surface != response_text:
                                             logger.info(
@@ -10191,10 +10140,15 @@ def _mlx_worker_loop(
                                                 authorship_effect="preserved",
                                             )
                                             response_text = shaped_surface
-                                        surface_control_state["surface_quality_gate_attempts"] = int(
-                                            surface_control_state.get("surface_quality_gate_attempts", 0)
-                                            or 0
-                                        ) + 1
+                                        surface_control_state["surface_quality_gate_attempts"] = (
+                                            int(
+                                                surface_control_state.get(
+                                                    "surface_quality_gate_attempts", 0
+                                                )
+                                                or 0
+                                            )
+                                            + 1
+                                        )
                                         rejection_reasons = _surface_quality_failure_reasons(
                                             job,
                                             response_text,
@@ -10212,7 +10166,10 @@ def _mlx_worker_loop(
                                                         unescaped_surface,
                                                     )
                                                 )
-                                                if "escaped_control_artifact" not in unescaped_reasons:
+                                                if (
+                                                    "escaped_control_artifact"
+                                                    not in unescaped_reasons
+                                                ):
                                                     logger.info(
                                                         "🛡️ [WORKER] Restored newlines the model "
                                                         "emitted as literal escapes."
@@ -10261,10 +10218,12 @@ def _mlx_worker_loop(
                                                 response_text = completed_surface
                                                 rejection_reasons = []
                                         if rejection_reasons:
-                                            telemetry_surface = _repair_live_user_surface_operational_status(
-                                                response_text,
-                                                rejection_reasons,
-                                                job,
+                                            telemetry_surface = (
+                                                _repair_live_user_surface_operational_status(
+                                                    response_text,
+                                                    rejection_reasons,
+                                                    job,
+                                                )
                                             )
                                             telemetry_reasons = _surface_quality_failure_reasons(
                                                 job,
@@ -10335,7 +10294,8 @@ def _mlx_worker_loop(
                                                     )
                                                     if (
                                                         candidate
-                                                        and candidate != str(response_text or "").strip()
+                                                        and candidate
+                                                        != str(response_text or "").strip()
                                                     ):
                                                         logger.info(
                                                             "🛡️ [WORKER] Repaired %s and revalidated the "
@@ -10367,8 +10327,12 @@ def _mlx_worker_loop(
                                                         repair_exc,
                                                     )
                                         if rejection_reasons:
-                                            surface_control_state["surface_quality_gate_passed"] = False
-                                            surface_control_state["surface_quality_gate_reasons"] = rejection_reasons[:8]
+                                            surface_control_state["surface_quality_gate_passed"] = (
+                                                False
+                                            )
+                                            surface_control_state[
+                                                "surface_quality_gate_reasons"
+                                            ] = rejection_reasons[:8]
                                             # Keep the draft. It is suppressed,
                                             # not deleted — the caller decides
                                             # whether serving it beats serving
@@ -10390,17 +10354,16 @@ def _mlx_worker_loop(
                                                 len(validation_resolution.prompt),
                                                 str(response_text or "").strip()[:280],
                                             )
-                                            if (
-                                                bool(job.get("capability_inventory_contract", False))
-                                                and set(rejection_reasons).issubset(
-                                                    {
-                                                        "truncated_tail",
-                                                        "too_thin_for_operational_status_turn",
-                                                        "too_thin_for_status_turn",
-                                                        "too_short_for_user_turn",
-                                                        "too_thin_for_user_turn",
-                                                    }
-                                                )
+                                            if bool(
+                                                job.get("capability_inventory_contract", False)
+                                            ) and set(rejection_reasons).issubset(
+                                                {
+                                                    "truncated_tail",
+                                                    "too_thin_for_operational_status_turn",
+                                                    "too_thin_for_status_turn",
+                                                    "too_short_for_user_turn",
+                                                    "too_thin_for_user_turn",
+                                                }
                                             ):
                                                 # Waive ONLY on evidence: a clipped draft
                                                 # that already shows categories, governance,
@@ -10420,8 +10383,12 @@ def _mlx_worker_loop(
                                                         "grounded capability inventory draft; downstream "
                                                         "deterministic completion finishes the tail."
                                                     )
-                                                    surface_control_state["surface_quality_gate_passed"] = True
-                                                    surface_control_state["surface_quality_gate_reasons"] = []
+                                                    surface_control_state[
+                                                        "surface_quality_gate_passed"
+                                                    ] = True
+                                                    surface_control_state[
+                                                        "surface_quality_gate_reasons"
+                                                    ] = []
                                                     surface_control_state[
                                                         "surface_quality_gate_exemption"
                                                     ] = "capability_inventory_minimum_grounding"
@@ -10479,14 +10446,20 @@ def _mlx_worker_loop(
                                                     "futile model retries.",
                                                     failure_contract,
                                                 )
-                                            if surface_wall_exceeded and internal_attempt < max_internal_retries:
+                                            if (
+                                                surface_wall_exceeded
+                                                and internal_attempt < max_internal_retries
+                                            ):
                                                 logger.warning(
                                                     "🛡️ [WORKER] Surface-gate retry wall (%.0fs) reached after "
                                                     "attempt %d; salvaging best draft instead of re-drafting.",
                                                     surface_retry_wall_s,
                                                     internal_attempt + 1,
                                                 )
-                                            if internal_attempt < max_internal_retries and not surface_wall_exceeded:
+                                            if (
+                                                internal_attempt < max_internal_retries
+                                                and not surface_wall_exceeded
+                                            ):
                                                 if surface_retry_started <= 0.0:
                                                     surface_retry_started = time.monotonic()
                                                 if _expand_user_surface_retry_budget(
@@ -10506,13 +10479,15 @@ def _mlx_worker_loop(
                                                 ):
                                                     prompt = original_prompt
                                                 else:
-                                                    prompt = _build_user_surface_quality_retry_prompt(
-                                                        tokenizer=tokenizer,
-                                                        messages=original_messages,
-                                                        tools=tools,
-                                                        fallback_prompt=original_prompt,
-                                                        reasons=rejection_reasons,
-                                                        job=job,
+                                                    prompt = (
+                                                        _build_user_surface_quality_retry_prompt(
+                                                            tokenizer=tokenizer,
+                                                            messages=original_messages,
+                                                            tools=tools,
+                                                            fallback_prompt=original_prompt,
+                                                            reasons=rejection_reasons,
+                                                            job=job,
+                                                        )
                                                     )
                                                 _prepare_clean_retry_kwargs(
                                                     kwargs,
@@ -10532,7 +10507,9 @@ def _mlx_worker_loop(
                                             # Is there anything else I can help with?" becomes
                                             # "You're welcome!" for a brief social turn.
                                             salvaged = ""
-                                            if "generic_assistant_language" in (rejection_reasons or []):
+                                            if "generic_assistant_language" in (
+                                                rejection_reasons or []
+                                            ):
                                                 try:
                                                     from core.conversation.response_reliability import (
                                                         repair_generic_assistant_language,
@@ -10541,20 +10518,32 @@ def _mlx_worker_loop(
                                                     _, _user_parts = _extract_message_parts(
                                                         original_messages, original_prompt
                                                     )
-                                                    _user_turn = _user_parts[-1] if _user_parts else ""
+                                                    _user_turn = (
+                                                        _user_parts[-1] if _user_parts else ""
+                                                    )
                                                     candidate = repair_generic_assistant_language(
                                                         _user_turn, response_text
                                                     )
                                                     if (
                                                         candidate.strip()
-                                                        and candidate.strip() != str(response_text or "").strip()
+                                                        and candidate.strip()
+                                                        != str(response_text or "").strip()
                                                         and not _surface_quality_failure_reasons(
                                                             job, candidate
                                                         )
                                                     ):
                                                         salvaged = candidate.strip()
-                                                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _salvage_exc:
-                                                    logger.debug("Generic-language salvage skipped: %s", _salvage_exc)
+                                                except (
+                                                    ImportError,
+                                                    AttributeError,
+                                                    RuntimeError,
+                                                    TypeError,
+                                                    ValueError,
+                                                ) as _salvage_exc:
+                                                    logger.debug(
+                                                        "Generic-language salvage skipped: %s",
+                                                        _salvage_exc,
+                                                    )
                                             if salvaged:
                                                 logger.info(
                                                     "🛡️ [WORKER] Salvaged a clean brief reply after generic-language "
@@ -10571,8 +10560,12 @@ def _mlx_worker_loop(
                                                     authorship_effect="preserved",
                                                 )
                                                 response_text = salvaged
-                                                surface_control_state["surface_quality_gate_passed"] = True
-                                                surface_control_state["surface_quality_gate_reasons"] = []
+                                                surface_control_state[
+                                                    "surface_quality_gate_passed"
+                                                ] = True
+                                                surface_control_state[
+                                                    "surface_quality_gate_reasons"
+                                                ] = []
                                             else:
                                                 best_draft, residual_reasons, salvage_repairs = (
                                                     _salvage_exhausted_user_surface(
@@ -10604,12 +10597,12 @@ def _mlx_worker_loop(
                                                         authorship_effect="preserved",
                                                     )
                                                     response_text = best_draft
-                                                    surface_control_state["surface_quality_gate_passed"] = (
-                                                        not residual_reasons
-                                                    )
-                                                    surface_control_state["surface_quality_gate_reasons"] = (
-                                                        residual_reasons[:8]
-                                                    )
+                                                    surface_control_state[
+                                                        "surface_quality_gate_passed"
+                                                    ] = not residual_reasons
+                                                    surface_control_state[
+                                                        "surface_quality_gate_reasons"
+                                                    ] = residual_reasons[:8]
                                                 else:
                                                     response_text = ""
                                             break
@@ -10621,7 +10614,7 @@ def _mlx_worker_loop(
                                         and not strict_answer_contract
                                         and not strict_value_contract
                                     ):
-                                        break # Success or not a structured task
+                                        break  # Success or not a structured task
 
                                     if strict_answer_contract or strict_value_contract:
                                         if internal_attempt < max_internal_retries:
@@ -10639,17 +10632,24 @@ def _mlx_worker_loop(
                                                         original_messages,
                                                         original_prompt,
                                                     )
-                                                strict_envelope_prefixed = bool(strict_answer_contract)
+                                                strict_envelope_prefixed = bool(
+                                                    strict_answer_contract
+                                                )
                                             if prompt_cache_lru is not None:
                                                 prompt_cache_lru.clear_model_key(model_key)
                                             if mx and device != "cpu":
                                                 _clear_mlx_cache(mx)
                                             _prepare_clean_retry_kwargs(kwargs, structured=True)
                                             continue
-                                        logger.warning("🚨 [WORKER] Strict contract exhausted internal retries.")
+                                        logger.warning(
+                                            "🚨 [WORKER] Strict contract exhausted internal retries."
+                                        )
                                         break
 
-                                    logger.warning("⚠️ [WORKER] Empty structured response on attempt %s. Retrying...", internal_attempt + 1)
+                                    logger.warning(
+                                        "⚠️ [WORKER] Empty structured response on attempt %s. Retrying...",
+                                        internal_attempt + 1,
+                                    )
                                 finally:
                                     watchdog.stop_job()
                     finally:
@@ -10672,8 +10672,7 @@ def _mlx_worker_loop(
                             )
 
                     expected_empty_precompile = bool(
-                        not response_text.strip()
-                        and _expected_empty_warmup_precompile(job)
+                        not response_text.strip() and _expected_empty_warmup_precompile(job)
                     )
                     if not response_text.strip():
                         if expected_empty_precompile:
@@ -10711,7 +10710,9 @@ def _mlx_worker_loop(
                             logger.warning(
                                 "⚠️ [WORKER] Generation yielded ZERO tokens. "
                                 "Prompt length: %d, token_count: %d, stop_sequences: %s",
-                                len(prompt), token_count, list(stop_sequences)[:4],
+                                len(prompt),
+                                token_count,
+                                list(stop_sequences)[:4],
                             )
                         if len(prompt) > 2000:
                             logger.debug("Prompt snippet: %s...", prompt[:100])
@@ -10731,7 +10732,9 @@ def _mlx_worker_loop(
                                 if prompt_cache_lru is not None:
                                     prompt_cache_lru.clear_model_key(model_key)
                             except (AttributeError, RuntimeError) as exc:
-                                logger.debug("Prompt cache clear failed after zero-token generation: %s", exc)
+                                logger.debug(
+                                    "Prompt cache clear failed after zero-token generation: %s", exc
+                                )
                             if mx and device != "cpu":
                                 _clear_mlx_cache(mx)
 
@@ -10745,13 +10748,21 @@ def _mlx_worker_loop(
                                     generation_health=0.0,
                                     cross_entropy=10.0,
                                 )
-                    except (RuntimeError, AttributeError, TypeError, ValueError) as steering_obs_exc:
+                    except (
+                        RuntimeError,
+                        AttributeError,
+                        TypeError,
+                        ValueError,
+                    ) as steering_obs_exc:
                         _record_mlx_degradation(
                             steering_obs_exc,
                             action="returned generation after affective steering observation failed",
                             severity="warning",
                         )
-                        logger.debug("Affective steering post-generation observation failed: %s", steering_obs_exc)
+                        logger.debug(
+                            "Affective steering post-generation observation failed: %s",
+                            steering_obs_exc,
+                        )
 
                     preliminary_stop_reason = _classify_generation_stop_reason(
                         soft_cancelled=soft_cancelled,
@@ -10785,8 +10796,7 @@ def _mlx_worker_loop(
                         max_tokens,
                     )
                     _spent_the_whole_budget = (
-                        _budget_applied > 0
-                        and int(total_generated_tokens) >= _budget_applied
+                        _budget_applied > 0 and int(total_generated_tokens) >= _budget_applied
                     )
                     if (
                         semantic_completion_state["semantic_completion_incomplete"]
@@ -10805,18 +10815,12 @@ def _mlx_worker_loop(
                             "missing_parts=%s quality=%s epistemic_covered=%s "
                             "terminal_boundary=%s tokens=%d stop=%s spent_budget=%s "
                             "thinking=%s deadline=%s",
-                            semantic_completion_state[
-                                "semantic_completion_missing_part_indexes"
-                            ],
-                            semantic_completion_state[
-                                "semantic_completion_quality_reasons"
-                            ],
+                            semantic_completion_state["semantic_completion_missing_part_indexes"],
+                            semantic_completion_state["semantic_completion_quality_reasons"],
                             semantic_completion_state[
                                 "semantic_completion_epistemic_partition_covered"
                             ],
-                            semantic_completion_state[
-                                "semantic_completion_terminal_boundary"
-                            ],
+                            semantic_completion_state["semantic_completion_terminal_boundary"],
                             total_generated_tokens,
                             repr(configured_stop_sequence) if configured_stop_sequence else "none",
                             bool(_spent_the_whole_budget),
@@ -10849,14 +10853,8 @@ def _mlx_worker_loop(
                         # ordinary turn — the diagnostic above is what showed
                         # it, reporting tokens=1024 and limit_hit=False in the
                         # same line.
-                        if (
-                            native_thinking is True
-                            and _spent_the_whole_budget
-                            and not deadline_hit
-                        ):
-                            _record_budget_that_ran_out_thinking(
-                                _budget_applied, model_path
-                            )
+                        if native_thinking is True and _spent_the_whole_budget and not deadline_hit:
+                            _record_budget_that_ran_out_thinking(_budget_applied, model_path)
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
@@ -10885,9 +10883,7 @@ def _mlx_worker_loop(
                     resume_required = _continuation_resume_should_bind(
                         generation_stop_reason=generation_stop_reason,
                         semantic_completion_incomplete=bool(
-                            semantic_completion_state[
-                                "semantic_completion_incomplete"
-                            ]
+                            semantic_completion_state["semantic_completion_incomplete"]
                         ),
                     )
                     continuation_resume_handle = ""
@@ -10900,9 +10896,7 @@ def _mlx_worker_loop(
                         # deadline, cancellation, or token ceiling can leave
                         # invisible tokens beyond the delivered text; none is
                         # an exact completed assistant message.
-                        and _conversation_resume_boundary_complete(
-                            generation_stop_reason
-                        )
+                        and _conversation_resume_boundary_complete(generation_stop_reason)
                         and not configured_stop_hit
                         and not role_continuation_hit
                         and not soft_cancelled
@@ -10936,25 +10930,22 @@ def _mlx_worker_loop(
                         else:
                             conversation_resume_handle = bound_resume_handle
                     if resume_required and not continuation_resume_handle:
-                        resume_unavailable_reason = (
-                            _continuation_resume_unavailable_reason(
-                                resume_required=resume_required,
-                                cache_lru_available=prompt_cache_lru is not None,
-                                cache_disabled=bool(
-                                    disable_prompt_cache
-                                    and not exact_continuation_cache
-                                ),
-                                final_cache_available=final_prompt_cache is not None,
-                                sentinel_aborted=bool(sentinel_aborted),
-                                response_present=bool(response_text.strip()),
-                            )
+                        resume_unavailable_reason = _continuation_resume_unavailable_reason(
+                            resume_required=resume_required,
+                            cache_lru_available=prompt_cache_lru is not None,
+                            cache_disabled=bool(
+                                disable_prompt_cache and not exact_continuation_cache
+                            ),
+                            final_cache_available=final_prompt_cache is not None,
+                            sentinel_aborted=bool(sentinel_aborted),
+                            response_present=bool(response_text.strip()),
                         )
                     else:
                         resume_unavailable_reason = ""
                     if resume_unavailable_reason:
-                        surface_control_state[
-                            "continuation_resume_failure_reason"
-                        ] = resume_unavailable_reason
+                        surface_control_state["continuation_resume_failure_reason"] = (
+                            resume_unavailable_reason
+                        )
                         logger.warning(
                             "Continuation resume capability unavailable after %s: %s",
                             generation_stop_reason,
@@ -10964,25 +10955,21 @@ def _mlx_worker_loop(
                         continuation_resume_handle
                     )
                     if continuation_resume_handle:
-                        surface_control_state[
-                            "continuation_resume_handle"
-                        ] = continuation_resume_handle
+                        surface_control_state["continuation_resume_handle"] = (
+                            continuation_resume_handle
+                        )
                     surface_control_state["conversation_resume_available"] = bool(
                         conversation_resume_handle
                     )
                     if conversation_resume_handle:
-                        surface_control_state[
-                            "conversation_resume_handle"
-                        ] = conversation_resume_handle
-                        surface_control_state[
-                            "conversation_resume_output_sha256"
-                        ] = hashlib.sha256(
+                        surface_control_state["conversation_resume_handle"] = (
+                            conversation_resume_handle
+                        )
+                        surface_control_state["conversation_resume_output_sha256"] = hashlib.sha256(
                             response_text.strip().encode("utf-8", "replace")
                         ).hexdigest()
                     elif conversation_bind_eligible:
-                        surface_control_state[
-                            "conversation_resume_failure_reason"
-                        ] = (
+                        surface_control_state["conversation_resume_failure_reason"] = (
                             "cache_lru_unavailable"
                             if prompt_cache_lru is None
                             else "final_cache_unavailable"
@@ -11033,7 +11020,9 @@ def _mlx_worker_loop(
                         "speculative": {
                             "enabled": bool(use_speculative),
                             "draft_tokens_accepted": int(draft_accepted_tokens),
-                        } if use_speculative else None,
+                        }
+                        if use_speculative
+                        else None,
                         "surface_control_receipt": _surface_generation_control_receipt(
                             job,
                             surface_control_state,
@@ -11043,9 +11032,7 @@ def _mlx_worker_loop(
                     # Contract-truth verdicts: callers must never have to
                     # infer these from the text.
                     if schema:
-                        generate_payload["schema_validated"] = not bool(
-                            schema_validation_failed
-                        )
+                        generate_payload["schema_validated"] = not bool(schema_validation_failed)
                         if schema_validation_failed:
                             generate_payload["schema_validation_failed"] = str(
                                 schema_validation_failed
@@ -11055,9 +11042,7 @@ def _mlx_worker_loop(
                             proof_contract_incomplete
                         )
                     if strict_value_contract:
-                        generate_payload["strict_value_seeded"] = bool(
-                            expected_strict_value
-                        )
+                        generate_payload["strict_value_seeded"] = bool(expected_strict_value)
                         if strict_value_normalized_from_draft:
                             generate_payload["strict_value_draft"] = (
                                 strict_value_normalized_from_draft
@@ -11076,12 +11061,14 @@ def _mlx_worker_loop(
                     logger.error("Generation failed: %s", e)
                     # The id is REQUIRED: an id-less error cannot resolve the
                     # parent's pending future, which then waits to deadline.
-                    ipc_writer.put({
-                        "id": job.get("id"),
-                        "status": "error",
-                        "action": "generate",
-                        "message": str(e),
-                    })
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "status": "error",
+                            "action": "generate",
+                            "message": str(e),
+                        }
+                    )
                 finally:
                     # [STABILITY v52] Guarantee VRAM gets purged after standard generation
                     # completes or fails. The next request starts from clean state.
@@ -11099,12 +11086,14 @@ def _mlx_worker_loop(
                         # None is fail-CLOSED: init crashes on failed steering
                         # attach, so a None engine here means the invariant
                         # broke — never a license to decode unsteered.
-                        ipc_writer.put({
-                            "id": job.get("id"),
-                            "action": "generate_batch",
-                            "status": "error",
-                            "message": "Affective steering is inactive; batch generation blocked.",
-                        })
+                        ipc_writer.put(
+                            {
+                                "id": job.get("id"),
+                                "action": "generate_batch",
+                                "status": "error",
+                                "message": "Affective steering is inactive; batch generation blocked.",
+                            }
+                        )
                         continue
                     from mlx_lm import batch_generate
                     from mlx_lm.sample_utils import make_sampler
@@ -11116,9 +11105,7 @@ def _mlx_worker_loop(
                             # Bounded input: an unbounded prompt string
                             # tokenizes into unbounded Metal work before any
                             # admission check can see it.
-                            raise ValueError(
-                                f"batch_prompt_too_large:{len(batch_prompt)}"
-                            )
+                            raise ValueError(f"batch_prompt_too_large:{len(batch_prompt)}")
                         n = max(1, min(16, _safe_int(job.get("n"), 4)))
                         batch_max_tokens = max(
                             1,
@@ -11131,9 +11118,7 @@ def _mlx_worker_loop(
                         )
                         # Finite-range temperature: NaN/inf reached the
                         # sampler unchecked through the bare float coercion.
-                        batch_temp = min(
-                            max(_safe_float(job.get("temperature"), 0.8), 0.0), 2.0
-                        )
+                        batch_temp = min(max(_safe_float(job.get("temperature"), 0.8), 0.0), 2.0)
                         token_ids = tokenizer.encode(batch_prompt)
                         batch_context_window = _serving_lane_context_window(
                             model_path,
@@ -11196,12 +11181,14 @@ def _mlx_worker_loop(
                         severity="degraded",
                     )
                     logger.error("Batched generation failed: %s", e)
-                    ipc_writer.put({
-                        "id": job.get("id"),
-                        "action": "generate_batch",
-                        "status": "error",
-                        "message": str(e),
-                    })
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "action": "generate_batch",
+                            "status": "error",
+                            "message": str(e),
+                        }
+                    )
                 finally:
                     if mx and device != "cpu":
                         _clear_mlx_cache(mx)
@@ -11226,6 +11213,7 @@ def _mlx_worker_loop(
                     sampler_kwargs = {"temp": temp, "top_p": top_p}
                     try:
                         import inspect as _insp2
+
                         _sparams2 = _insp2.signature(make_sampler).parameters
                         if "min_p" in _sparams2:
                             sampler_kwargs["min_p"] = min_p
@@ -11239,6 +11227,7 @@ def _mlx_worker_loop(
                 logits_processors = []
                 try:
                     from mlx_lm.sample_utils import make_logits_processors
+
                     _rp = repetition_penalty
                     _rcs = max(1, min(_safe_int(job.get("repetition_context_size"), 30), 512))
                     _pp = _admit_sampling_control(job, "presence_penalty")
@@ -11251,7 +11240,9 @@ def _mlx_worker_loop(
                         if lp:
                             logits_processors.extend(lp)
                 except ImportError as _exc:
-                    logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
+                    logger.debug(
+                        "Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc
+                    )
                 except (AttributeError, RuntimeError, TypeError) as e:
                     logger.warning("Could not apply penalty logits processors: %s", e)
 
@@ -11323,6 +11314,7 @@ def _mlx_worker_loop(
                                         TokenSentinel,
                                         get_refusal_fallback,
                                     )
+
                                     stream_sentinel = TokenSentinel(
                                         check_interval=8,
                                         affect_interval=16,
@@ -11331,15 +11323,17 @@ def _mlx_worker_loop(
                                         affect_expected=(
                                             _affect_expected
                                             and _safe_float(
-                                                job.get(
-                                                    "clean_user_surface_steering_alpha"
-                                                ),
+                                                job.get("clean_user_surface_steering_alpha"),
                                                 1.0,
                                             )
                                             > 0.0
                                         ),
                                     )
-                                except (ImportError, AttributeError, RuntimeError) as _stream_sent_exc:
+                                except (
+                                    ImportError,
+                                    AttributeError,
+                                    RuntimeError,
+                                ) as _stream_sent_exc:
                                     if bool(job.get("clean_user_surface_contract", False)):
                                         # Streamed tokens reach the user in real
                                         # time — there is no post-hoc retraction,
@@ -11361,8 +11355,17 @@ def _mlx_worker_loop(
                                     stream_sentinel = None
 
                                 # [STABILITY v60] Definitive scrub of legacy kwargs.
-                                clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
-                                clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
+                                clean_keys = {
+                                    "temperature",
+                                    "top_p",
+                                    "min_p",
+                                    "repetition_penalty",
+                                    "repetition_context_size",
+                                    "stop_words",
+                                }
+                                clean_kwargs = {
+                                    k: v for k, v in kwargs.items() if k not in clean_keys
+                                }
 
                                 # Context-window admission before streamed Metal work.
                                 _stream_prompt_text = str(prompt or "")
@@ -11421,13 +11424,17 @@ def _mlx_worker_loop(
                                 semantic_contract_satisfied = False
                                 stop_hit = False
                                 response = None
-                                for response in stream_generate(model, tokenizer, prompt=prompt, **clean_kwargs):
+                                for response in stream_generate(
+                                    model, tokenizer, prompt=prompt, **clean_kwargs
+                                ):
                                     watchdog.activity()
                                     token_count += 1
                                     token_text = response.text
                                     visible_len = len(full_text)
                                     full_text += token_text
-                                    full_text, role_continuation_hit = _truncate_role_continuation(full_text)
+                                    full_text, role_continuation_hit = _truncate_role_continuation(
+                                        full_text
+                                    )
 
                                     # ── Sentinel: mid-stream intervention ─────
                                     if stream_sentinel is not None:
@@ -11443,36 +11450,48 @@ def _mlx_worker_loop(
                                             logger.warning(
                                                 "🚨 [SENTINEL-STREAM] Aborting (%s) at token %d: %s",
                                                 sentinel_signal.type,
-                                                token_count, sentinel_signal.reason,
+                                                token_count,
+                                                sentinel_signal.reason,
                                             )
                                             sentinel_aborted = True
-                                            abort_reason = str(sentinel_signal.reason or sentinel_signal.type)
-                                            ipc_writer.put({
-                                                "id": job.get("id"),
-                                                "action": "stream",
-                                                "status": "sentinel_abort",
-                                                "text": "",
-                                                "tokens_generated": token_count,
-                                                "timestamp": time.time(),
-                                            })
+                                            abort_reason = str(
+                                                sentinel_signal.reason or sentinel_signal.type
+                                            )
+                                            ipc_writer.put(
+                                                {
+                                                    "id": job.get("id"),
+                                                    "action": "stream",
+                                                    "status": "sentinel_abort",
+                                                    "text": "",
+                                                    "tokens_generated": token_count,
+                                                    "timestamp": time.time(),
+                                                }
+                                            )
                                             break
-                                        elif sentinel_signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                                      InterventionType.ABORT_BOUNDARY):
+                                        elif sentinel_signal.type in (
+                                            InterventionType.ABORT_CAPITULATION,
+                                            InterventionType.ABORT_BOUNDARY,
+                                        ):
                                             logger.warning(
                                                 "🚨 [SENTINEL-STREAM] Aborting at token %d: %s",
-                                                token_count, sentinel_signal.reason,
+                                                token_count,
+                                                sentinel_signal.reason,
                                             )
                                             sentinel_aborted = True
-                                            abort_reason = str(sentinel_signal.reason or sentinel_signal.type)
+                                            abort_reason = str(
+                                                sentinel_signal.reason or sentinel_signal.type
+                                            )
                                             # Send the refusal as the final token
-                                            ipc_writer.put({
-                                                "id": job.get("id"),
-                                                "action": "stream",
-                                                "status": "sentinel_abort",
-                                                "text": get_refusal_fallback(seed=token_count),
-                                                "tokens_generated": token_count,
-                                                "timestamp": time.time(),
-                                            })
+                                            ipc_writer.put(
+                                                {
+                                                    "id": job.get("id"),
+                                                    "action": "stream",
+                                                    "status": "sentinel_abort",
+                                                    "text": get_refusal_fallback(seed=token_count),
+                                                    "tokens_generated": token_count,
+                                                    "timestamp": time.time(),
+                                                }
+                                            )
                                             break
 
                                     # Truncation runs BEFORE emission: raw tokens
@@ -11491,7 +11510,9 @@ def _mlx_worker_loop(
                                     # Absolute cap check precedes emission so the
                                     # 8193rd token is never visible.
                                     if token_count > 8192:
-                                        logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
+                                        logger.warning(
+                                            "🏁 [WORKER] Hard token limit (8192) reached. Truncating."
+                                        )
                                         break
 
                                     emit_text = (
@@ -11543,10 +11564,14 @@ def _mlx_worker_loop(
                                     full_text,
                                     generated_tokens=token_count,
                                     generation_stop_reason=(
-                                        "sentinel_abort" if sentinel_aborted
-                                        else "configured_stop" if stop_hit
-                                        else "hard_token_limit" if token_count > 8192
-                                        else "eos" if getattr(response, "finish_reason", "") == "stop"
+                                        "sentinel_abort"
+                                        if sentinel_aborted
+                                        else "configured_stop"
+                                        if stop_hit
+                                        else "hard_token_limit"
+                                        if token_count > 8192
+                                        else "eos"
+                                        if getattr(response, "finish_reason", "") == "stop"
                                         else str(getattr(response, "finish_reason", "") or "")
                                     ),
                                 )
@@ -11572,28 +11597,30 @@ def _mlx_worker_loop(
                     # One authoritative terminal frame, correlated to the
                     # request: consumers previously saw an id-less ok done
                     # even after a safety abort.
-                    ipc_writer.put({
-                        "id": job.get("id"),
-                        "status": "ok",
-                        "action": "stream_done",
-                        "aborted": bool(locals().get("sentinel_aborted", False)),
-                        "abort_reason": str(locals().get("abort_reason", "") or "")[:200],
-                        "tokens_generated": int(locals().get("token_count", 0) or 0),
-                        "semantic_completion_contract": bool(
-                            job.get("semantic_completion_contract", False)
-                        ),
-                        "semantic_completion_satisfied": bool(
-                            locals().get("semantic_contract_satisfied", False)
-                        ),
-                        "semantic_completion_incomplete": bool(
-                            job.get("semantic_completion_contract", False)
-                            and not locals().get("semantic_contract_satisfied", False)
-                        ),
-                        "prompt_tokenization": {
-                            "chars": len(locals().get("_stream_prompt_text", "") or ""),
-                            "tokens": int(locals().get("_stream_prompt_tokens", 0) or 0),
-                        },
-                    })
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "status": "ok",
+                            "action": "stream_done",
+                            "aborted": bool(locals().get("sentinel_aborted", False)),
+                            "abort_reason": str(locals().get("abort_reason", "") or "")[:200],
+                            "tokens_generated": int(locals().get("token_count", 0) or 0),
+                            "semantic_completion_contract": bool(
+                                job.get("semantic_completion_contract", False)
+                            ),
+                            "semantic_completion_satisfied": bool(
+                                locals().get("semantic_contract_satisfied", False)
+                            ),
+                            "semantic_completion_incomplete": bool(
+                                job.get("semantic_completion_contract", False)
+                                and not locals().get("semantic_contract_satisfied", False)
+                            ),
+                            "prompt_tokenization": {
+                                "chars": len(locals().get("_stream_prompt_text", "") or ""),
+                                "tokens": int(locals().get("_stream_prompt_tokens", 0) or 0),
+                            },
+                        }
+                    )
                 except (ImportError, AttributeError, RuntimeError) as e:
                     _record_mlx_degradation(
                         e,
@@ -11601,12 +11628,14 @@ def _mlx_worker_loop(
                         severity="degraded",
                     )
                     logger.error("Streaming failed: %s", e)
-                    ipc_writer.put({
-                        "id": job.get("id"),
-                        "status": "error",
-                        "action": "stream",
-                        "message": str(e),
-                    })
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "status": "error",
+                            "action": "stream",
+                            "message": str(e),
+                        }
+                    )
                 finally:
                     # [STABILITY v52] Guarantee VRAM gets purged after streaming
                     # completes or fails. The next request starts from clean state.
@@ -11673,9 +11702,7 @@ def _mlx_worker_loop(
                         ),
                         severity="critical",
                     )
-                    response.update(
-                        _state_application_quarantine_response(quarantine_exc)
-                    )
+                    response.update(_state_application_quarantine_response(quarantine_exc))
                 except (
                     ImportError,
                     OSError,
@@ -11695,10 +11722,7 @@ def _mlx_worker_loop(
                     response.update(
                         {
                             "status": "error",
-                            "message": (
-                                "nonparametric_ingest_failed:"
-                                f"{type(ingest_exc).__name__}"
-                            ),
+                            "message": (f"nonparametric_ingest_failed:{type(ingest_exc).__name__}"),
                         }
                     )
                 finally:
@@ -11757,9 +11781,7 @@ def _mlx_worker_loop(
                         encoder_cache=_hidden_encoder,
                         worker_identity=_current_worker_identity(),
                         metal_semaphore=metal_semaphore,
-                        representation=str(
-                            job.get("representation") or "final_hidden_v1"
-                        ),
+                        representation=str(job.get("representation") or "final_hidden_v1"),
                     )
                 except (
                     AttributeError,
@@ -11816,7 +11838,9 @@ def _mlx_worker_loop(
                         action="continued clear_cache response after prompt cache clear failed",
                         severity="warning",
                     )
-                    logger.debug("Prompt cache clear failed during worker clear_cache action: %s", exc)
+                    logger.debug(
+                        "Prompt cache clear failed during worker clear_cache action: %s", exc
+                    )
                 # The parent must be able to distinguish complete cache
                 # invalidation from a partially stale state.
                 ipc_writer.put(
@@ -11854,8 +11878,7 @@ def _mlx_worker_loop(
                     blocked = _unrestorable_wrapped(expert_adapter_state["wrapped"])
                     if blocked:
                         raise RuntimeError(
-                            "expert_adapter_swap_blocked_unrestorable:"
-                            + ",".join(blocked[:4])
+                            "expert_adapter_swap_blocked_unrestorable:" + ",".join(blocked[:4])
                         )
                     with metal_semaphore:
                         detached = 0
@@ -11923,9 +11946,7 @@ def _mlx_worker_loop(
                                 clear_exc,
                             )
                             try:
-                                prompt_cache_lru = _PromptCacheLRU(
-                                    max_size=prompt_cache_budget
-                                )
+                                prompt_cache_lru = _PromptCacheLRU(max_size=prompt_cache_budget)
                             except (RuntimeError, TypeError, ValueError):
                                 cache_invalidated = False
                         if mx and device != "cpu":
@@ -12011,8 +12032,7 @@ def _mlx_worker_loop(
                         _record_mlx_degradation(
                             identity_exc,
                             action=(
-                                "could not prove worker identity after expert "
-                                "adapter swap failure"
+                                "could not prove worker identity after expert adapter swap failure"
                             ),
                             severity="critical",
                         )
@@ -12112,14 +12132,10 @@ def _mlx_worker_loop(
                         response = _handle_unified_recurrent_qualified_decode(
                             job,
                             loaded_shadow=unified_recurrent_shadow,
-                            qualified_activation=(
-                                unified_recurrent_qualified_activation
-                            ),
+                            qualified_activation=(unified_recurrent_qualified_activation),
                             model=model,
                             contract_key=contract_key,
-                            consumed_canary_nonces=(
-                                consumed_unified_recurrent_canary_nonces
-                            ),
+                            consumed_canary_nonces=(consumed_unified_recurrent_canary_nonces),
                             cancel_check=lambda _job_seq=job_seq: soft_cancel_requested(
                                 cancel_seq,
                                 _job_seq,
@@ -12146,8 +12162,7 @@ def _mlx_worker_loop(
                     _record_mlx_degradation(
                         decode_exc,
                         action=(
-                            "reported unified recurrent qualified decode failure "
-                            "to parent IPC"
+                            "reported unified recurrent qualified decode failure to parent IPC"
                         ),
                         severity="warning",
                     )
@@ -12167,9 +12182,7 @@ def _mlx_worker_loop(
                         try:
                             cancel_seq.value = 0
                         except (AttributeError, OSError, TypeError, ValueError):
-                            logger.debug(
-                                "Qualified decode soft-cancel acknowledgement failed."
-                            )
+                            logger.debug("Qualified decode soft-cancel acknowledgement failed.")
                 ipc_writer.put(response)
 
             elif action == "latent_reason":
@@ -12214,9 +12227,7 @@ def _mlx_worker_loop(
                             job,
                         )
                         try:
-                            applied_alpha = surface_control_state.get(
-                                "surface_alpha_applied"
-                            )
+                            applied_alpha = surface_control_state.get("surface_alpha_applied")
                             if job.get("runtime_controls") is not None and (
                                 isinstance(applied_alpha, bool)
                                 or not isinstance(applied_alpha, (int, float))
@@ -12251,9 +12262,7 @@ def _mlx_worker_loop(
                                     progress=_latent_progress,
                                 )
                         finally:
-                            if not _restore_surface_generation_controls(
-                                surface_control_state
-                            ):
+                            if not _restore_surface_generation_controls(surface_control_state):
                                 worker_active = False
                                 ipc_writer.put(
                                     {
@@ -12288,9 +12297,7 @@ def _mlx_worker_loop(
                         ),
                         severity="critical",
                     )
-                    response.update(
-                        _state_application_quarantine_response(quarantine_exc)
-                    )
+                    response.update(_state_application_quarantine_response(quarantine_exc))
                 except (
                     ImportError,
                     RuntimeError,
@@ -12314,9 +12321,7 @@ def _mlx_worker_loop(
                         try:
                             cancel_seq.value = 0
                         except (AttributeError, OSError, TypeError, ValueError):
-                            logger.debug(
-                                "Latent episode soft-cancel acknowledgement failed."
-                            )
+                            logger.debug("Latent episode soft-cancel acknowledgement failed.")
                 ipc_writer.put(response)
                 if recycle_after_response:
                     logger.critical(
@@ -12348,11 +12353,14 @@ def _mlx_worker_loop(
                 severity="degraded",
             )
             import traceback
+
             tb = traceback.format_exc()
             resolved_action = locals().get("action") or "unknown"
             logger.error(
                 "❌ [WORKER] Unhandled error during '%s': %s\n%s",
-                resolved_action, e, tb,
+                resolved_action,
+                e,
+                tb,
             )
             # Correlate the failure (the parent cannot resolve an id-less
             # error) and keep the full traceback in worker logs only — raw
@@ -12360,18 +12368,14 @@ def _mlx_worker_loop(
             # surface into telemetry or metadata.
             resolved_job = locals().get("job")
             resolved_id = (
-                str(resolved_job.get("id") or "")
-                if isinstance(resolved_job, dict)
-                else ""
+                str(resolved_job.get("id") or "") if isinstance(resolved_job, dict) else ""
             )
             ipc_writer.put(
                 {
                     "id": resolved_id,
                     "status": "error",
                     "action": resolved_action,
-                    "message": (
-                        f"{resolved_action} failed: {type(e).__name__}: {str(e)[:240]}"
-                    ),
+                    "message": (f"{resolved_action} failed: {type(e).__name__}: {str(e)[:240]}"),
                 }
             )
 
@@ -12385,6 +12389,7 @@ def _mlx_worker_loop(
         prompt_cache_lru=prompt_cache_lru,
         mx_module=mx,
     )
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)

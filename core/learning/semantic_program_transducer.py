@@ -111,13 +111,25 @@ _RECEIPT_FIELDS_V5: Final = _RECEIPT_FIELDS_V4 | {
 
 _FINAL_CAUSAL_CHANNEL: Final = "final_causal_hidden"
 _LEXICAL_CHANNEL: Final = "input_token_embedding"
-_OPERATION_FEATURE_MODES: Final = (
+_MIDDLE_CAUSAL_CHANNEL: Final = "middle_causal_hidden"
+_OPERATION_FEATURE_MODES_V2: Final = (
     "span_mean",
     "lexical_mean",
     "contextual_mean",
     "contextual_last",
     "lexical_mean_contextual_last",
     "lexical_mean_contextual_mean_contextual_last",
+)
+_OPERATION_FEATURE_MODES_V3: Final = (
+    "span_mean",
+    "lexical_mean",
+    "middle_mean",
+    "middle_last",
+    "contextual_mean",
+    "contextual_last",
+)
+_OPERATION_FEATURE_MODES: Final = tuple(
+    dict.fromkeys((*_OPERATION_FEATURE_MODES_V2, *_OPERATION_FEATURE_MODES_V3))
 )
 _MAX_OPERATION_VIEWS: Final = 3
 
@@ -449,6 +461,13 @@ def _operation_feature_width(
         "lexical_mean_contextual_last": lexical + contextual,
         "lexical_mean_contextual_mean_contextual_last": lexical + 2 * contextual,
     }
+    if _MIDDLE_CAUSAL_CHANNEL in hidden_channels:
+        middle = _channel_width(
+            _MIDDLE_CAUSAL_CHANNEL,
+            hidden_channels=hidden_channels,
+            hidden_channel_widths=hidden_channel_widths,
+        )
+        widths.update({"middle_mean": middle, "middle_last": middle})
     try:
         return widths[mode]
     except KeyError as exc:
@@ -477,6 +496,7 @@ def _operation_feature(
         for index, name in enumerate(hidden_channels)
     }
     lexical = channels.get(_LEXICAL_CHANNEL)
+    middle = channels.get(_MIDDLE_CAUSAL_CHANNEL)
     contextual = channels.get(_FINAL_CAUSAL_CHANNEL)
     if lexical is None or contextual is None:
         raise ValueError("semantic multiview evidence channels are incomplete")
@@ -498,6 +518,14 @@ def _operation_feature(
             )
         ),
     }
+    if middle is not None:
+        middle_span = middle[span.start : span.end]
+        values.update(
+            {
+                "middle_mean": np.mean(middle_span, axis=0, dtype=np.float32),
+                "middle_last": middle_span[-1],
+            }
+        )
     try:
         return _normalized_feature(values[mode])
     except KeyError as exc:
@@ -1390,7 +1418,11 @@ def _fit_multiview_operation_head(
     labels = sorted({item.ir.instructions[step].op for item, step in rows})
     if len(constructions) < 2 or len(labels) < 2:
         raise ValueError("semantic multiview selection lacks construction or label support")
-    candidate_modes = tuple(_OPERATION_FEATURE_MODES)
+    candidate_modes = (
+        _OPERATION_FEATURE_MODES_V3
+        if _MIDDLE_CAUSAL_CHANNEL in hidden_channels
+        else _OPERATION_FEATURE_MODES_V2
+    )
     candidates = tuple(
         modes
         for count in range(1, min(_MAX_OPERATION_VIEWS, len(candidate_modes)) + 1)
@@ -1511,7 +1543,10 @@ def fit_semantic_program_transducer(
     if len(channel_geometries) != 1:
         raise ValueError("semantic transducer training channel geometries differ")
     hidden_channels, hidden_channel_widths = next(iter(channel_geometries))
-    multiview = hidden_channels == (_LEXICAL_CHANNEL, _FINAL_CAUSAL_CHANNEL)
+    multiview = hidden_channels in {
+        (_LEXICAL_CHANNEL, _FINAL_CAUSAL_CHANNEL),
+        (_LEXICAL_CHANNEL, _MIDDLE_CAUSAL_CHANNEL, _FINAL_CAUSAL_CHANNEL),
+    }
     input_count, argument_arities = next(iter(geometries))
     step_count = len(argument_arities)
     roles = _pointer_roles(input_count, argument_arities)

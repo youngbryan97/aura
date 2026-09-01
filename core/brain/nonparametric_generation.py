@@ -22,6 +22,7 @@ single stored entry can't lock generation into a repeat loop.
 
 Fail-open everywhere: any memory error defers to the bare model.
 """
+
 from __future__ import annotations
 
 import logging
@@ -120,6 +121,56 @@ class MLXEncoder:
         )
         return self._normalize_hidden_rows(combined)
 
+    def encode_lexical_mid_final_sequence_ids(self, ids: list[int]) -> np.ndarray:
+        """Capture lexical, midpoint, and final channels in one native forward.
+
+        The temporary layer wrapper observes the model's own forward rather
+        than reimplementing architecture-specific masks or hybrid attention.
+        It is restored in ``finally`` and the worker serializes calls under its
+        Metal semaphore, so no other request can observe the instrumentation.
+        """
+
+        import mlx.core as mx
+
+        token_ids = list(ids)
+        tensor = mx.array([token_ids])
+        layers = getattr(self._hidden_model, "layers", None)
+        if not isinstance(layers, list) or len(layers) < 2:
+            raise DecoderTopologyError(
+                "hidden backbone does not expose a capturable decoder layer list"
+            )
+        middle_index = (len(layers) - 1) // 2
+        original_layer = layers[middle_index]
+        captured: dict[str, Any] = {}
+
+        class _CapturingLayer:
+            def __getattr__(self, name: str) -> Any:
+                return getattr(original_layer, name)
+
+            def __call__(self, *args: Any, **kwargs: Any) -> Any:
+                output = original_layer(*args, **kwargs)
+                captured["middle"] = output
+                return output
+
+        lexical = _as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
+        layers[middle_index] = _CapturingLayer()
+        try:
+            final = self._hidden_model(tensor)
+        finally:
+            layers[middle_index] = original_layer
+        middle = captured.get("middle")
+        if middle is None:
+            raise DecoderTopologyError("midpoint decoder layer did not execute")
+        combined = np.concatenate(
+            (
+                self._normalize_hidden_rows(lexical),
+                self._normalize_hidden_rows(_as_float32_numpy(middle[0])),
+                self._normalize_hidden_rows(_as_float32_numpy(final[0])),
+            ),
+            axis=-1,
+        )
+        return self._normalize_hidden_rows(combined)
+
     @staticmethod
     def _normalize_hidden_rows(hidden: np.ndarray) -> np.ndarray:
         norms = np.linalg.norm(hidden, axis=-1, keepdims=True)
@@ -201,7 +252,9 @@ def _valid_vocab_token(token_id: Any, vocab_size: int) -> bool:
     return 0 <= value < int(vocab_size)
 
 
-def _gated_lambda(similarity: float, min_sim: float, free_energy: float | None, base_lam: float) -> float:
+def _gated_lambda(
+    similarity: float, min_sim: float, free_energy: float | None, base_lam: float
+) -> float:
     """λ scaled by how far the neighbor clears the confident-recall gate. 0 below the gate."""
     if similarity < min_sim:
         return 0.0
@@ -227,12 +280,16 @@ def _select_with_memory(
     bare = int(np.argmax(logits))
     if phi is not None and float(phi) < PHI_DORMANT:
         return bare, -1
-    neighbors = [nb for nb in memory.query(key, k=k) if int(getattr(nb, "index", -1)) != exclude_index]
+    neighbors = [
+        nb for nb in memory.query(key, k=k) if int(getattr(nb, "index", -1)) != exclude_index
+    ]
     if not neighbors:
         return bare, -1
     top = neighbors[0]
     min_sim = memory.min_similarity() if hasattr(memory, "min_similarity") else 0.98
-    lam = _gated_lambda(float(getattr(top, "similarity", -1.0)), float(min_sim), free_energy, base_lam)
+    lam = _gated_lambda(
+        float(getattr(top, "similarity", -1.0)), float(min_sim), free_energy, base_lam
+    )
     if lam <= 1e-6:
         return bare, -1
     knn = memory.knn_probs(neighbors, temperature=temperature)
@@ -269,12 +326,16 @@ def _blended_distribution(
     """
     if phi is not None and float(phi) < PHI_DORMANT:
         return None, -1
-    neighbors = [nb for nb in memory.query(key, k=k) if int(getattr(nb, "index", -1)) != exclude_index]
+    neighbors = [
+        nb for nb in memory.query(key, k=k) if int(getattr(nb, "index", -1)) != exclude_index
+    ]
     if not neighbors:
         return None, -1
     top = neighbors[0]
     min_sim = memory.min_similarity() if hasattr(memory, "min_similarity") else 0.98
-    lam = _gated_lambda(float(getattr(top, "similarity", -1.0)), float(min_sim), free_energy, base_lam)
+    lam = _gated_lambda(
+        float(getattr(top, "similarity", -1.0)), float(min_sim), free_energy, base_lam
+    )
     if lam <= 1e-6:
         return None, -1
     knn = memory.knn_probs(neighbors, temperature=temperature)
@@ -352,8 +413,15 @@ def generate_with_memory(
             try:
                 key = normalize(_as_float32_numpy(h[0, -1]))
                 next_id, last_index = _select_with_memory(
-                    memory, key, logits, k=k, temperature=temperature, phi=phi,
-                    free_energy=free_energy, base_lam=base_lam, exclude_index=last_index,
+                    memory,
+                    key,
+                    logits,
+                    k=k,
+                    temperature=temperature,
+                    phi=phi,
+                    free_energy=free_energy,
+                    base_lam=base_lam,
+                    exclude_index=last_index,
                 )
             except _GEN_ERRORS as exc:
                 record_degradation("nonparametric_generation_select", exc)
@@ -410,10 +478,7 @@ def make_nonparametric_logits_processor(
             seq_key = (len(token_list), int(token_list[-1]) if token_list else -1)
             with lock:
                 previous = state.get("seq_key")
-                continues = (
-                    previous is not None
-                    and seq_key[0] == previous[0] + 1
-                )
+                continues = previous is not None and seq_key[0] == previous[0] + 1
                 exclude_index = state["last_index"] if continues else -1
 
             if hidden_model is None:
@@ -422,8 +487,15 @@ def make_nonparametric_logits_processor(
             key = normalize(_as_float32_numpy(h[0, -1]))
             lg = _as_float32_numpy(logits).reshape(-1)
             mixture, fired = _blended_distribution(
-                memory, key, lg, k=k, temperature=temperature, phi=phi,
-                free_energy=free_energy, base_lam=base_lam, exclude_index=exclude_index,
+                memory,
+                key,
+                lg,
+                k=k,
+                temperature=temperature,
+                phi=phi,
+                free_energy=free_energy,
+                base_lam=base_lam,
+                exclude_index=exclude_index,
             )
             with lock:
                 state["last_index"] = fired

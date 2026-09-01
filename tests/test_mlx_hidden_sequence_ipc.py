@@ -224,6 +224,46 @@ def test_worker_emits_lexical_contextual_evidence_under_an_explicit_contract(
     ]
 
 
+def test_worker_emits_midpoint_evidence_under_the_shared_sequence_contract(
+    monkeypatch,
+) -> None:
+    from core.brain import nonparametric_generation
+    from core.brain.llm.hidden_sequence_contract import LEXICAL_MID_FINAL_V1
+    from core.brain.llm.mlx_worker import _encode_hidden_sequence_response
+
+    class Encoder:
+        def __init__(self, *_args) -> None:
+            pass
+
+        def encode_lexical_mid_final_sequence_ids(self, token_ids):
+            assert token_ids == [7, 9]
+            values = np.asarray(
+                [[1.0, 1.0, 2.0, 2.0, 3.0, 3.0], [1.0, -1.0, 2.0, -2.0, 3.0, -3.0]],
+                dtype=np.float32,
+            )
+            return values / np.linalg.norm(values, axis=1, keepdims=True)
+
+    monkeypatch.setattr(nonparametric_generation, "MLXEncoder", Encoder)
+    response = _encode_hidden_sequence_response(
+        model="model",
+        tokenizer=SimpleNamespace(encode=lambda _text: [7, 9]),
+        text="resolve this operation",
+        request_id="request-midpoint",
+        encoder_cache={},
+        worker_identity={"worker_boot_id": "basis-midpoint"},
+        metal_semaphore=contextlib.nullcontext(),
+        representation=LEXICAL_MID_FINAL_V1,
+    )
+
+    assert response["hidden_shape"] == [2, 6]
+    assert response["receipt"]["schema"] == "aura.hidden_sequence_encoding.v3"
+    assert response["receipt"]["channels"] == [
+        "input_token_embedding",
+        "middle_causal_hidden",
+        "final_causal_hidden",
+    ]
+
+
 def test_client_binds_requested_representation_to_response(monkeypatch) -> None:
     from core.brain.llm.hidden_sequence_contract import LEXICAL_CONTEXTUAL_V1
 
@@ -264,9 +304,7 @@ def test_worker_refuses_token_overflow_before_model_forward(monkeypatch) -> None
             raise AssertionError("token overflow must not construct the encoder")
 
     monkeypatch.setattr(nonparametric_generation, "MLXEncoder", Encoder)
-    tokenizer = SimpleNamespace(
-        encode=lambda _text: list(range(_HIDDEN_SEQUENCE_MAX_TOKENS + 1))
-    )
+    tokenizer = SimpleNamespace(encode=lambda _text: list(range(_HIDDEN_SEQUENCE_MAX_TOKENS + 1)))
     with pytest.raises(ValueError, match="exceeds 512 tokens"):
         _encode_hidden_sequence_response(
             model="model",
@@ -306,9 +344,7 @@ def test_client_returns_validated_hidden_sequence_and_exact_receipt(monkeypatch)
         result["hidden_states"],
         np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
     )
-    assert result["receipt"]["model_basis"] == worker_model_basis(
-        client._worker_identity
-    )
+    assert result["receipt"]["model_basis"] == worker_model_basis(client._worker_identity)
     assert captured["principal"] == "mlx_client.encode_hidden_sequence"
     request = captured["request"]
     assert isinstance(request, dict)
@@ -413,9 +449,7 @@ def test_client_enforces_character_bound_before_touching_worker(monkeypatch) -> 
     client = _resident_client(monkeypatch)
     client._req_q = queue.Queue()
     with pytest.raises(ValueError, match="exceeds 4096 characters"):
-        asyncio.run(
-            client.encode_hidden_sequence("x" * (_HIDDEN_SEQUENCE_MAX_INPUT_CHARS + 1))
-        )
+        asyncio.run(client.encode_hidden_sequence("x" * (_HIDDEN_SEQUENCE_MAX_INPUT_CHARS + 1)))
     assert client._req_q.empty()
     assert client._active_generations == 0
 

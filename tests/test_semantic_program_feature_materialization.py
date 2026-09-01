@@ -12,6 +12,7 @@ import pytest
 from core.brain.llm.hidden_sequence_contract import (
     FINAL_HIDDEN_V1,
     LEXICAL_CONTEXTUAL_V1,
+    LEXICAL_MID_FINAL_V1,
     hidden_sequence_channel_widths,
     hidden_sequence_channels,
     hidden_sequence_schema,
@@ -58,6 +59,13 @@ def test_hidden_sequence_channel_widths_follow_the_versioned_packing_contract() 
     )
     with pytest.raises(ValueError, match="divisible by two"):
         hidden_sequence_channel_widths(LEXICAL_CONTEXTUAL_V1, 10241)
+    assert hidden_sequence_channel_widths(LEXICAL_MID_FINAL_V1, 15360) == (
+        5120,
+        5120,
+        5120,
+    )
+    with pytest.raises(ValueError, match="divisible by three"):
+        hidden_sequence_channel_widths(LEXICAL_MID_FINAL_V1, 15361)
 
 
 class _CharacterTokenizer:

@@ -13,7 +13,10 @@ from typing import Final
 
 FINAL_HIDDEN_V1: Final = "final_hidden_v1"
 LEXICAL_CONTEXTUAL_V1: Final = "lexical_contextual_v1"
-HIDDEN_SEQUENCE_REPRESENTATIONS: Final = frozenset({FINAL_HIDDEN_V1, LEXICAL_CONTEXTUAL_V1})
+LEXICAL_MID_FINAL_V1: Final = "lexical_mid_final_v1"
+HIDDEN_SEQUENCE_REPRESENTATIONS: Final = frozenset(
+    {FINAL_HIDDEN_V1, LEXICAL_CONTEXTUAL_V1, LEXICAL_MID_FINAL_V1}
+)
 
 
 def hidden_sequence_schema(representation: str) -> str:
@@ -23,6 +26,8 @@ def hidden_sequence_schema(representation: str) -> str:
         return "aura.hidden_sequence_encoding.v1"
     if representation == LEXICAL_CONTEXTUAL_V1:
         return "aura.hidden_sequence_encoding.v2"
+    if representation == LEXICAL_MID_FINAL_V1:
+        return "aura.hidden_sequence_encoding.v3"
     raise ValueError(f"unsupported hidden sequence representation: {representation}")
 
 
@@ -33,6 +38,12 @@ def hidden_sequence_channels(representation: str) -> tuple[str, ...]:
         return ("final_causal_hidden",)
     if representation == LEXICAL_CONTEXTUAL_V1:
         return ("input_token_embedding", "final_causal_hidden")
+    if representation == LEXICAL_MID_FINAL_V1:
+        return (
+            "input_token_embedding",
+            "middle_causal_hidden",
+            "final_causal_hidden",
+        )
     raise ValueError(f"unsupported hidden sequence representation: {representation}")
 
 
@@ -51,4 +62,9 @@ def hidden_sequence_channel_widths(
             raise ValueError("lexical-contextual packed width is not divisible by two")
         width = packed_hidden_size // 2
         return (width, width)
+    if representation == LEXICAL_MID_FINAL_V1:
+        if packed_hidden_size % 3:
+            raise ValueError("lexical-mid-final packed width is not divisible by three")
+        width = packed_hidden_size // 3
+        return (width, width, width)
     raise ValueError(f"unsupported hidden sequence representation: {representation}")

@@ -168,15 +168,77 @@ def test_encoder_preserves_lexical_and_contextual_channels_in_one_forward():
         },
     )()
 
-    sequence = MLXEncoder(wrapper, Tokenizer()).encode_lexical_contextual_sequence_ids(
-        [2, 3]
-    )
+    sequence = MLXEncoder(wrapper, Tokenizer()).encode_lexical_contextual_sequence_ids([2, 3])
 
     assert backbone.calls == 1
     assert backbone.embedding_calls == 1
     assert sequence.shape == (2, 4)
     assert np.allclose(np.linalg.norm(sequence, axis=1), 1.0)
     assert not np.allclose(sequence[0, :2], sequence[0, 2:])
+
+
+def test_encoder_captures_midpoint_without_reimplementing_the_native_forward():
+    mx = pytest.importorskip("mlx.core")
+
+    from core.brain.nonparametric_generation import MLXEncoder
+
+    class Layer:
+        def __init__(self, amount):
+            self.amount = amount
+            self.calls = 0
+
+        def __call__(self, hidden):
+            self.calls += 1
+            return hidden + self.amount
+
+    class Backbone:
+        def __init__(self):
+            self.layers = [Layer(1.0), Layer(2.0), Layer(4.0), Layer(8.0)]
+            self.embedding_calls = 0
+            self.calls = 0
+
+        def embed_tokens(self, ids):
+            self.embedding_calls += 1
+            return mx.stack(
+                (ids.astype(mx.float32), mx.ones_like(ids).astype(mx.float32)),
+                axis=-1,
+            )
+
+        def __call__(self, ids):
+            self.calls += 1
+            hidden = self.embed_tokens(ids)
+            for layer in self.layers:
+                hidden = layer(hidden)
+            return hidden
+
+    class Tokenizer:
+        all_special_ids = []
+
+    backbone = Backbone()
+    original_middle = backbone.layers[1]
+    language = type(
+        "LanguageModel",
+        (),
+        {"args": type("Args", (), {"hidden_size": 2})(), "model": backbone},
+    )()
+    wrapper = type(
+        "HybridWrapper",
+        (),
+        {
+            "args": type("WrapperArgs", (), {"model_type": "qwen3_5"})(),
+            "language_model": language,
+        },
+    )()
+
+    sequence = MLXEncoder(wrapper, Tokenizer()).encode_lexical_mid_final_sequence_ids([2, 3])
+
+    assert backbone.calls == 1
+    assert backbone.embedding_calls == 2
+    assert all(layer.calls == 1 for layer in backbone.layers)
+    assert backbone.layers[1] is original_middle
+    assert sequence.shape == (2, 6)
+    assert np.allclose(np.linalg.norm(sequence, axis=1), 1.0)
+    assert not np.allclose(sequence[:, 2:4], sequence[:, 4:6])
 
 
 def test_cosine_from_l2_orthogonal_is_zero():
