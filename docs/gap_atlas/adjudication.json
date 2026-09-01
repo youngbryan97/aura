@@ -131,8 +131,12 @@
       "bar": "A subsystem predicts multiple neural/behavioural signatures without per-task refitting.",
       "plan": "There are no neural recordings to triangulate against. Buildable version is W7 traceability: every biological label declares mapping, grade and falsifier.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "010": {
       "verdict": "PARTIAL",
@@ -215,8 +219,12 @@
       "bar": "An adaptive policy solves more tasks at matched compute than fixed budgets.",
       "plan": "Duplicate of 178. Build once over the W7 CognitiveCost currency.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "016": {
       "verdict": "PARTIAL",
@@ -514,8 +522,12 @@
       "bar": "One mind-wide scheduler allocates compute across heterogeneous organs through the same budget.",
       "plan": "Four unrelated Budget classes today. Add priority/durability/quality/expected_cost/deadline as one record.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "035": {
       "verdict": "PARTIAL",
@@ -526,8 +538,12 @@
       "bar": "Adaptive allocation beats static frequencies at equal compute.",
       "plan": "Aura's loops are operationally scheduled. Value-per-compute scheduling over the W7 budget.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "036": {
       "verdict": "PARTIAL",
@@ -538,8 +554,12 @@
       "bar": "Later evidence improves or corrects an earlier output with revision lineage.",
       "plan": "Emission currently terminates the task. Represent residual uncertainty and let durable tasks continue at reduced budget.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "037": {
       "verdict": "PARTIAL",
@@ -575,8 +595,12 @@
       "bar": "Search keeps high-value branches better than fixed depth at equal compute.",
       "plan": "Derive child budgets from parent value, uncertainty, complexity and information gain (W7).",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "040": {
       "verdict": "PARTIAL",
@@ -645,8 +669,12 @@
       "bar": "Better completion/abandonment tradeoff on a mixed-duration task suite.",
       "plan": "Convert non-safety timeouts to value decay. Safety timeouts stay clocks.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "045": {
       "verdict": "PARTIAL",
@@ -657,8 +685,12 @@
       "bar": "At fixed wall time, learned inference ordering solves more held-out tasks.",
       "plan": "Learn per-rule expected cost and value for MeTTa and PLN operators (W7).",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "046": {
       "verdict": "PARTIAL",
@@ -1002,8 +1034,12 @@
       "bar": "Biological claims become auditable and discriminating experiments become possible.",
       "plan": "The NeuroCognitive mapping matrix is W7 traceability.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "071": {
       "verdict": "PARTIAL",
@@ -1453,8 +1489,12 @@
       "bar": "Every biological analogy in code or docs resolves to a versioned mapping record; unmapped labels are removed or marked metaphorical.",
       "plan": "Aura has many neuroscience-inspired organ names and no mapping register. Buildable today; this is the whole of W7.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "108": {
       "verdict": "PARTIAL",
@@ -1464,8 +1504,12 @@
       "bar": "Claims about cortex, basal ganglia or interoception state connectivity similarities and mismatches, not name resemblance.",
       "plan": "Bidirectional map between the W3 causal DAG and a declared information-flow graph.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "109": {
       "verdict": "ABSENT",
@@ -1475,8 +1519,12 @@
       "bar": "CI generates every neuroscience claim and its supporting or contradicting evidence from one ledger.",
       "plan": "EvidenceLedger with source, claim, species, confidence, computational consequence and code landing point.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "110": {
       "verdict": "PARTIAL",
@@ -1486,8 +1534,12 @@
       "bar": "Two competing mappings are tested and one is rejected using predicted signatures.",
       "plan": "Depends on 107.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "111": {
       "verdict": "ABSENT",
@@ -1497,8 +1549,12 @@
       "bar": "No neural analogy silently combines incompatible species findings.",
       "plan": "Species and homology confidence as required fields on every mapping record.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "112": {
       "verdict": "PARTIAL",
@@ -1508,8 +1564,12 @@
       "bar": "A query retrieves all Aura mechanisms and evidence attached to a biological circuit despite naming variation.",
       "plan": "Bounded region ontology, stable ids, linked from the mapping record.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "113": {
       "verdict": "PARTIAL",
@@ -1519,8 +1579,12 @@
       "bar": "Ablations distinguish feedforward recognition deficits from feedback or context deficits.",
       "plan": "Measure directionality, latency and information content over the W3 DAG.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "114": {
       "verdict": "PARTIAL",
@@ -1530,8 +1594,12 @@
       "bar": "Diagrams are automatically consistent with import and runtime wiring at frozen commits.",
       "plan": "Generate from the registry and contracts; a drift gate already exists.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "115": {
       "verdict": "ABSENT",
@@ -1541,8 +1609,12 @@
       "bar": "No neuroscience-based capability claim survives without a declared abstraction gap.",
       "plan": "Every analogy reports what is abstracted away: neurons, cell types, synapses, neuromodulators, geometry, delays, plasticity.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "116": {
       "verdict": "PARTIAL",
@@ -1563,8 +1635,12 @@
       "bar": "A bio-constrained candidate wins held-out tests or the biological hypothesis is explicitly rejected.",
       "plan": "Anatomy-constrained architecture search is a research programme, not a bar. Keep the rejection half.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "118": {
       "verdict": "ABSENT",
@@ -1574,8 +1650,12 @@
       "bar": "User-facing claims automatically downgrade when the underlying mapping evidence is weak.",
       "plan": "Confidence and competing interpretations on every analogy, wired into the claim ladder.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "119": {
       "verdict": "PROCESS",
@@ -1585,8 +1665,12 @@
       "bar": "Changes to high-level biological claims require independent review or stay explicitly unvalidated.",
       "plan": "Aura is one lineage; the honest mechanism is UNVALIDATED-BY-DEFAULT plus a review packet generator.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "120": {
       "verdict": "PARTIAL",
@@ -1596,8 +1680,12 @@
       "bar": "Two releases diff at the cognitive-mechanism level, not just source lines.",
       "plan": "Machine-readable reference architecture per release, generated from the registry.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "121": {
       "verdict": "PARTIAL",
@@ -2272,8 +2360,12 @@
       "bar": "Reasoning methods compare under a stable Pareto frontier and a learned stopping policy.",
       "plan": "One normalised CognitiveCost from time, memory pressure, model tier, tool risk and opportunity cost.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "178": {
       "verdict": "PARTIAL",
@@ -2283,8 +2375,12 @@
       "bar": "At matched compute, more work goes to consequential uncertain tasks and total reward rises.",
       "plan": "The value-of-computation controller over CognitiveCost. Absorbs 015.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "179": {
       "verdict": "PARTIAL",
@@ -2309,8 +2405,12 @@
       "bar": "Across three unrelated domains, information-seeking reduces uncertainty and improves later reward against a no-EIG control.",
       "plan": "Expected information gain as an action-value term available to System 2, tool choice, social inquiry and self-testing.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "181": {
       "verdict": "PARTIAL",
@@ -2642,8 +2742,12 @@
       "bar": "The system card separates implemented computation from biological interpretation automatically.",
       "plan": "Each module declares mechanism name, inspiration, literal claims, analogy limits and evidence. This is W7 and it is the cheapest high-value item in the report.",
       "wave": "W7",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/neuro_reference.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "208": {
       "verdict": "PARTIAL",
