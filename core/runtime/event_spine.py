@@ -322,6 +322,19 @@ class Projection:
         if mark is None:
             raise KeyError(f"no checkpoint named {name!r}")
         restored = self.at(mark.seq, lanes=lanes)
+        # One pass over the events since the checkpoint, outside the
+        # projection lock. The first version scanned the whole log once per
+        # owned key, which on a full 200,000-event log is millions of
+        # iterations to answer a question about a handful of kinds.
+        kinds_reverted: set[str] = (
+            set()
+            if lanes is None
+            else {
+                event.kind
+                for event in self._log.events(since=mark.seq)
+                if event.lane in lanes
+            }
+        )
         with self._lock:
             if lanes is None:
                 self._state = restored
@@ -333,12 +346,8 @@ class Projection:
                 owned = {
                     key
                     for reducer in self._reducers.values()
+                    if reducer.kinds & kinds_reverted
                     for key in reducer.owns
-                    if any(
-                        event.lane in lanes
-                        for event in self._log.events(since=mark.seq)
-                        if event.kind in reducer.kinds
-                    )
                 }
                 for key in owned:
                     if key in restored:

@@ -379,3 +379,34 @@ def test_reverting_an_unknown_checkpoint_says_so():
     _log, projection = _steering_projection()
     with pytest.raises(KeyError, match="no checkpoint named"):
         projection.revert("never-set")
+
+
+def test_reverting_reads_the_log_once_not_once_per_owned_key():
+    """The first version scanned the whole log per key, which on a full log is
+    millions of iterations to answer a question about a handful of kinds."""
+    log, projection = _steering_projection()
+    for i in range(4000):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+    projection.checkpoint("mark", lane=Lane.WORK)
+    for i in range(4000, 6000):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+
+    reads = 0
+    original = log.events
+
+    def _counted(*args, **kwargs):
+        nonlocal reads
+        reads += 1
+        return original(*args, **kwargs)
+
+    log.events = _counted  # type: ignore[method-assign]
+    try:
+        projection.revert("mark", lanes=(Lane.WORK,))
+    finally:
+        log.events = original  # type: ignore[method-assign]
+
+    # One pass to rebuild the state, one to see which kinds moved. Five owned
+    # keys across two reducers must not mean five more.
+    assert reads <= 2, f"the log was scanned {reads} times"
