@@ -44,6 +44,7 @@ from typing import Any
 from core.evidence.packet import EvidencePacket
 
 __all__ = [
+    "SCHEMA_VERSION",
     "CognitiveStateRef",
     "StateOwnershipError",
     "register_handoff",
@@ -51,6 +52,10 @@ __all__ = [
     "handoff_coverage",
     "reset_handoff_ledger_for_test",
 ]
+
+
+#: Schema version for the envelope as a cross-organ contract.
+SCHEMA_VERSION = "aura.cognition.state_ref.v1"
 
 
 class StateOwnershipError(RuntimeError):

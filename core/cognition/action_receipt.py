@@ -44,6 +44,7 @@ from enum import StrEnum
 from typing import Any
 
 __all__ = [
+    "SCHEMA_VERSION",
     "TransitionVerdict",
     "ActionTransitionReceipt",
     "verify_transition",
@@ -52,6 +53,11 @@ __all__ = [
     "get_receipt_ledger",
     "reset_receipt_ledger_for_test",
 ]
+
+
+#: Schema version for the receipt as a cross-organ contract. A learner that
+#: gates on this shape has to know when the shape moved.
+SCHEMA_VERSION = "aura.cognition.action_receipt.v1"
 
 
 class TransitionVerdict(StrEnum):

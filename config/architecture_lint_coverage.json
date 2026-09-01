@@ -1,0 +1,28 @@
+{
+  "composition": [
+    "core/cognition/procedure.py",
+    "core/cognition/cognitive_event.py",
+    "core/cognition/dual_knowledge.py",
+    "core/runtime/event_spine.py",
+    "core/science/claim_ladder.py"
+  ],
+  "stateless": [
+    "core/evidence/packet.py",
+    "core/cognition/cognitive_vector.py",
+    "core/cognition/structure_mapping.py",
+    "core/science/baseline_portfolio.py",
+    "core/science/retrieval_latency.py"
+  ],
+  "contract_version": [
+    "core/evidence/packet.py",
+    "core/evidence/state_ref.py",
+    "core/cognition/action_receipt.py"
+  ],
+  "research_isolation": [
+    "experiments",
+    "research"
+  ],
+  "declared_probes": [
+    "research/consciousness/introspective_accuracy.py"
+  ]
+}

@@ -4349,8 +4349,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "Mid-execution steering: redirect a running task without killing it. Needs the W12 spine to have a safe interruption point.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A2.19": {
       "verdict": "PARTIAL",
@@ -4360,8 +4364,13 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "Prefer the simpler hardened primitive. This is the W10 compression rule stated as a design principle.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/architecture_lint.py",
+        "config/architecture_lint_coverage.json",
+        "tests/test_event_spine.py"
+      ]
     },
     "A2.2": {
       "verdict": "PARTIAL",
@@ -4407,8 +4416,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Lifecycle hooks over the W12 event spine, so an extension point is an event subscription rather than a call site edit.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A2.6": {
       "verdict": "PARTIAL",
@@ -4419,8 +4432,12 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Automatic checkpoints on the W12 spine: a state delta is a checkpoint boundary.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A2.7": {
       "verdict": "ABSENT",
@@ -4430,8 +4447,12 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Rewinding code separately from conversation needs the two to be separable states. Falls out of W12.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A2.8": {
       "verdict": "PARTIAL",
@@ -4785,8 +4806,12 @@
       "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
       "plan": "One authoritative mutable projection, rebuilt from an append-only event log. Aura has many stores and no single source of truth; this is the W12 keystone.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.10": {
       "verdict": "PARTIAL",
@@ -4796,8 +4821,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "A workspace abstraction: the file surface an agent acts through, bounded and swappable.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/agent_workspace.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.11": {
       "verdict": "PARTIAL",
@@ -4808,8 +4837,12 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Auto-save on state change, once state change is one typed thing.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.12": {
       "verdict": "PARTIAL",
@@ -4820,8 +4853,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Time travel needs the durable log, not the ring. Follows A5.3.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.13": {
       "verdict": "PARTIAL",
@@ -4831,8 +4868,13 @@
       "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
       "plan": "Schema-generated interfaces so a contract change cannot leave a consumer stale.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/architecture_lint.py",
+        "config/architecture_lint_coverage.json",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.14": {
       "verdict": "PARTIAL",
@@ -4842,8 +4884,13 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "Composition over inheritance. A style rule, checkable by a lint on new organ classes.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/architecture_lint.py",
+        "config/architecture_lint_coverage.json",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.15": {
       "verdict": "PARTIAL",
@@ -4853,8 +4900,13 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Stateless components where state is not the point; the spine holds the state.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/architecture_lint.py",
+        "config/architecture_lint_coverage.json",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.16": {
       "verdict": "PARTIAL",
@@ -4865,8 +4917,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Research and production separation. Aura already has an exploratory/load-bearing distinction in the claim registry; make it structural.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/agent_workspace.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.17": {
       "verdict": "PARTIAL",
@@ -4877,8 +4933,13 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Optional container isolation. Seatbelt is the local answer; containers are for the replication packs in 193.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/sandbox/macos_sandbox.py",
+        "core/runtime/agent_workspace.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.18": {
       "verdict": "ABSENT",
@@ -4888,8 +4949,12 @@
       "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
       "plan": "The event stream AS the trajectory: inspectable, replayable, the thing learning reads. Follows A5.3.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.2": {
       "verdict": "PARTIAL",
@@ -4900,8 +4965,12 @@
       "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
       "plan": "Immutable typed components. CognitiveStateRef is the first of these; the rest follow it.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.3": {
       "verdict": "ABSENT",
@@ -4912,8 +4981,12 @@
       "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
       "plan": "An append-only event log the state is a fold over. bus_recorder keeps a RING - it forgets, so it cannot be the spine.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.4": {
       "verdict": "ABSENT",
@@ -4923,8 +4996,12 @@
       "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
       "plan": "Incremental event persistence through the write gateway, async lane, bounded.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.5": {
       "verdict": "PARTIAL",
@@ -4934,8 +5011,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Local and remote behind one API. Aura is local-first by design; scope to making the boundary explicit rather than to enabling remote.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/agent_workspace.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.6": {
       "verdict": "PARTIAL",
@@ -4946,8 +5027,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Pause and resume as a lifecycle contract on the spine.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.7": {
       "verdict": "PARTIAL",
@@ -4958,8 +5043,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Agent and application separation. Aura's interface layer already carries a DEPS boundary; make it a contract.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/agent_workspace.py",
+        "tests/test_event_spine.py"
+      ]
     },
     "A5.8": {
       "verdict": "PARTIAL",
@@ -4989,7 +5078,9 @@
       "status": "closed",
       "note": "",
       "closed_by": [
-        "core/runtime/state_ownership.py"
+        "core/runtime/state_ownership.py",
+        "core/runtime/event_spine.py",
+        "tests/test_event_spine.py"
       ]
     },
     "A6.1": {

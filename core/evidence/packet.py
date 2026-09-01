@@ -63,6 +63,7 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle avoidance
     from core.knowledge.atomspace import TruthValue
 
 __all__ = [
+    "SCHEMA_VERSION",
     "EvidenceKind",
     "EvidenceSource",
     "EvidencePacket",
@@ -76,6 +77,11 @@ __all__ = [
 #: Evidence-to-confidence lookahead. Matches ``atomspace._LOOKAHEAD`` so a
 #: packet and a PLN truth value report the same confidence for the same mass;
 #: a second constant here would silently fork the two scales.
+#: Schema version for the packet as a cross-organ contract. Bump it when a
+#: field is added, removed or changes meaning; a consumer reading an older
+#: shape then knows it is reading an older shape.
+SCHEMA_VERSION = "aura.evidence.packet.v1"
+
 LOOKAHEAD = 1.0
 
 #: Ceiling on accumulated mass, mirroring ``atomspace._MAX_COUNT``. Confidence
