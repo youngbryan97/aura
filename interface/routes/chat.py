@@ -3879,6 +3879,46 @@ def _append_turn_text_mutation(
     trace.update(summarize_text_mutation_authorship(mutations))
 
 
+async def _ground_executable_output_claims_for_delivery(
+    trace: dict[str, Any],
+    reply_text: Any,
+) -> str:
+    """Bind explicit Python-output claims to sandbox observations at egress."""
+
+    original = str(reply_text or "")
+    try:
+        from core.brain.verifiers.code_engine import ground_python_output_claims
+
+        grounding = await ground_python_output_claims(original)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "chat.executable_output_grounding",
+            exc,
+            severity="warning",
+            action="left the reply unchanged because executable grounding failed",
+        )
+        return original
+
+    trace["executable_output_grounding"] = grounding.to_dict()
+    if not grounding.changed:
+        return grounding.text
+    _append_turn_text_mutation(
+        trace,
+        stage="chat.executable_output_grounding",
+        method="sandbox_observed_stdout",
+        reasons=[
+            str(item.get("status") or "output_claim_unverified")
+            for item in grounding.receipts
+            if item.get("visible_text_changed")
+        ],
+        before=original,
+        after=grounding.text,
+        deterministic=False,
+        authorship_effect="augmented_by_runtime",
+    )
+    return grounding.text
+
+
 def _merge_turn_text_mutations(
     trace: dict[str, Any],
     mutations: Any,
@@ -21894,6 +21934,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     }
                 )
 
+            if not (
+                is_governed_action_status
+                or is_memory_state_status
+                or state_projection_authority is not None
+                or proof_status == "cognitive_engine_qualified_recurrent"
+                or proof_status == "protected_foreground"
+            ):
+                final_text = await _ground_executable_output_claims_for_delivery(
+                    _live_turn_trace,
+                    final_text,
+                )
+
             if is_benchmark:
                 blocked_reply = (
                     "Benchmark request attempted to use a non-canonical chat fastpath "
@@ -24812,6 +24864,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _final_reply = _grounded.text or _final_reply
         except _CHAT_RECOVERABLE_ERRORS as _exc:
             record_degradation("chat.grounded_claim_guard", _exc)
+
+        if not _qualified_exact_delivery:
+            _final_reply = await _ground_executable_output_claims_for_delivery(
+                _live_turn_trace,
+                _final_reply,
+            )
 
         # Custody, last. Every stage above rewrote this text; each was checked
         # against what the turn established, and this is where a fact the

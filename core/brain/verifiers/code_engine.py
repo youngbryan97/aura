@@ -17,22 +17,218 @@ failures still fail hard regardless.
 from __future__ import annotations
 
 import ast
+import asyncio
+import hashlib
 import re
+from dataclasses import dataclass
 from typing import Any
 
+from core.conversation.request_coverage import markdown_fences
+from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import record_degradation
 
 from .base import VerificationResult
-from core.runtime.atomic_writer import async_atomic_write_text
 
-_FENCE_RE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 # A line that looks like Python even without a fence (heuristic for inline code answers).
 _PY_HINT_RE = re.compile(r"^\s*(?:def |class |import |from \w+ import |async def )", re.MULTILINE)
+
+_OUTPUT_CLAIM_LABEL_RE = re.compile(
+    r"(?P<label>(?:^|\n)[ \t]*(?:#{1,6}[ \t]+)?"
+    r"(?:(?:typical|example|sample|expected|possible|actual|observed)[ \t]+)?"
+    r"(?:program[ \t]+)?(?:output|stdout|console[ \t]+output|prints?)"
+    r"(?:[ \t]*\([^\n)]*\))?[ \t]*:\s*)\Z",
+    re.IGNORECASE,
+)
+_PYTHON_FENCE_LANGUAGES = frozenset({"python", "python3", "py"})
+_OUTPUT_FENCE_LANGUAGES = frozenset({"", "console", "output", "plaintext", "stdout", "text"})
+_MAX_OUTPUT_CLAIMS = 3
+_OUTPUT_GROUNDING_DEADLINE_S = 15.0
+_ANSI_ESCAPE_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
+
+
+@dataclass(frozen=True)
+class ExecutableOutputGrounding:
+    """Visible reply plus receipts for Python-output claims checked at egress."""
+
+    text: str
+    receipts: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def changed(self) -> bool:
+        return any(bool(item.get("visible_text_changed")) for item in self.receipts)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "aura.executable_output_grounding.v1",
+            "claim_count": len(self.receipts),
+            "checked_count": sum(bool(item.get("checked")) for item in self.receipts),
+            "grounded_count": sum(
+                str(item.get("status") or "") in {"verified_match", "grounded_to_observation"}
+                for item in self.receipts
+            ),
+            "visible_text_changed": self.changed,
+            "claims": [dict(item) for item in self.receipts],
+        }
+
+
+def _observed_output_block(stdout: str) -> str:
+    visible = str(stdout or "").rstrip("\n") or "(no stdout)"
+    fence = "```"
+    while fence in visible:
+        fence += "`"
+    return f"\n\nOne observed run:\n\n{fence}text\n{visible}\n{fence}"
+
+
+def _normalize_captured_output(value: Any) -> str:
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = _ANSI_ESCAPE_RE.sub("", text)
+    text = "".join(char for char in text if char in {"\n", "\t"} or ord(char) >= 32)
+    return text.rstrip("\n")
+
+
+async def ground_python_output_claims(
+    candidate: str,
+    *,
+    sandbox: Any | None = None,
+) -> ExecutableOutputGrounding:
+    """Ground explicit Python-output claims in isolated execution.
+
+    Only adjacent pairs of an explicitly labelled Python fence and a prose-
+    labelled output fence qualify. A successful run replaces a mismatched
+    claim with captured stdout and labels it as one observation. If execution
+    cannot establish an output, the unsupported output section is removed
+    without discarding the surrounding explanation or source.
+    """
+
+    text = str(candidate or "")
+    fences = list(markdown_fences(text))
+    if len(fences) < 2:
+        return ExecutableOutputGrounding(text=text)
+
+    executor = sandbox
+    if executor is None:
+        try:
+            from core.brain.symbolic_sandbox import get_symbolic_sandbox
+
+            executor = get_symbolic_sandbox()
+        except (ImportError, RuntimeError) as exc:
+            record_degradation(
+                "executable_output_grounding",
+                exc,
+                severity="warning",
+                action="removed unsupported output claims because the sandbox was unavailable",
+            )
+
+    replacements: list[tuple[int, int, str]] = []
+    receipts: list[dict[str, Any]] = []
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _OUTPUT_GROUNDING_DEADLINE_S
+    for index, code_fence in enumerate(fences[:-1]):
+        if len(receipts) >= _MAX_OUTPUT_CLAIMS:
+            break
+        if not code_fence.closed or code_fence.language not in _PYTHON_FENCE_LANGUAGES:
+            continue
+        output_fence = fences[index + 1]
+        if not output_fence.closed or output_fence.language not in _OUTPUT_FENCE_LANGUAGES:
+            continue
+        between = text[code_fence.end : output_fence.start]
+        label_match = _OUTPUT_CLAIM_LABEL_RE.search(between)
+        if label_match is None:
+            continue
+
+        claim_start = code_fence.end + label_match.start("label")
+        claim_end = output_fence.end
+        claimed = _normalize_captured_output(output_fence.body)
+        receipt: dict[str, Any] = {
+            "claim_index": len(receipts),
+            "code_sha256": hashlib.sha256(code_fence.body.encode("utf-8")).hexdigest(),
+            "claimed_output_sha256": hashlib.sha256(claimed.encode("utf-8")).hexdigest(),
+            "checked": False,
+            "status": "sandbox_unavailable",
+            "visible_text_changed": True,
+        }
+        observed = ""
+        result = None
+        if executor is not None:
+            try:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    receipt["status"] = "shared_deadline_exhausted"
+                else:
+                    result = await asyncio.wait_for(
+                        executor.run(code_fence.body),
+                        timeout=remaining,
+                    )
+            except TimeoutError:
+                receipt["status"] = "execution_timed_out"
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "executable_output_grounding",
+                    exc,
+                    severity="warning",
+                    action="removed an output claim whose execution check failed",
+                )
+        if result is not None and bool(getattr(result, "ok", False)):
+            isolation = dict(getattr(result, "isolation", {}) or {})
+            if bool(isolation.get("sandboxed")):
+                observed = _normalize_captured_output(getattr(result, "stdout", ""))
+                receipt.update(
+                    {
+                        "checked": True,
+                        "observed_output_sha256": hashlib.sha256(
+                            observed.encode("utf-8")
+                        ).hexdigest(),
+                        "isolation_level": str(isolation.get("isolation_level") or ""),
+                        "comparison_normalization": "crlf_ansi_controls_terminal_newline_v1",
+                    }
+                )
+                if claimed == observed:
+                    receipt.update(
+                        {
+                            "status": "verified_match",
+                            "visible_text_changed": False,
+                        }
+                    )
+                else:
+                    receipt["status"] = "grounded_to_observation"
+                    replacements.append(
+                        (claim_start, claim_end, _observed_output_block(observed))
+                    )
+            else:
+                receipt["status"] = "isolation_unproven"
+        elif result is not None:
+            if bool(getattr(result, "timed_out", False)):
+                receipt["status"] = "execution_timed_out"
+            elif bool(getattr(result, "refused", False)):
+                receipt["status"] = "execution_refused"
+            else:
+                receipt["status"] = "execution_failed"
+
+        if receipt["visible_text_changed"] and receipt["status"] != "grounded_to_observation":
+            replacements.append(
+                (
+                    claim_start,
+                    claim_end,
+                    "\n\nThe isolated execution check did not verify an output, so no output is claimed here.",
+                )
+            )
+        receipts.append(receipt)
+
+    grounded = text
+    for start, end, replacement in reversed(replacements):
+        grounded = grounded[:start] + replacement + grounded[end:]
+    return ExecutableOutputGrounding(text=grounded, receipts=tuple(receipts))
 
 
 def extract_code_blocks(text: str) -> list[str]:
     """Pull fenced python blocks; fall back to the whole text if it parses as code."""
-    blocks = [m.group(1).strip() for m in _FENCE_RE.finditer(text or "") if m.group(1).strip()]
+    blocks = [
+        fence.body.strip()
+        for fence in markdown_fences(text)
+        if fence.closed
+        and fence.language in _PYTHON_FENCE_LANGUAGES | {""}
+        and fence.body.strip()
+    ]
     if blocks:
         return blocks
     body = str(text or "").strip()
@@ -272,7 +468,6 @@ class CodeTruthEngine:
             import tempfile
             from pathlib import Path
 
-            from core.runtime.atomic_writer import atomic_write_text
             from core.runtime.subprocess_gateway import get_subprocess_gateway
 
             if shutil.which("ruff") is None:

@@ -74,3 +74,34 @@ def test_importability_report_reports_compile_failure():
 
     assert report.ok is False
     assert report.stderr == "compile failed"
+
+
+def test_ordinary_run_and_call_methods_are_not_process_execution():
+    code = """
+import asyncio
+
+class CallableWork:
+    def run(self):
+        return 4
+
+async def main():
+    await asyncio.sleep(0)
+    print(CallableWork().run())
+
+asyncio.run(main())
+"""
+
+    assert CodeVerifier.analyze_safety(code) == {"safe": True, "warnings": []}
+
+
+def test_process_execution_stays_unsafe_when_run_is_receiver_qualified():
+    subprocess_report = CodeVerifier.analyze_safety(
+        "import subprocess\nsubprocess.run(['echo', 'unsafe'])\n"
+    )
+    os_report = CodeVerifier.analyze_safety("import os\nos.system('echo unsafe')\n")
+
+    assert subprocess_report["safe"] is False
+    assert "Imports dangerous module: subprocess" in subprocess_report["warnings"]
+    assert os_report["safe"] is False
+    assert "Imports dangerous module: os" in os_report["warnings"]
+    assert "Calls banned attribute/method: system" in os_report["warnings"]

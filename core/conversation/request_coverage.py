@@ -9,6 +9,7 @@ reply.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from core.conversation.requested_reply_shape import (
@@ -632,31 +633,94 @@ def _numbered_answer_sections(body: Any) -> dict[int, str]:
     return sections
 
 
+@dataclass(frozen=True)
+class MarkdownFence:
+    """One source-aligned fenced Markdown block."""
+
+    start: int
+    end: int
+    body_start: int
+    body_end: int
+    marker: str
+    info: str
+    body: str
+    closed: bool
+
+    @property
+    def language(self) -> str:
+        info = self.info.strip().lower()
+        return info.split(maxsplit=1)[0] if info else ""
+
+
+_MARKDOWN_FENCE_LINE_RE = re.compile(
+    r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)"
+)
+
+
+def markdown_fences(text: Any) -> tuple[MarkdownFence, ...]:
+    """Parse fenced Markdown once for all semantic consumers.
+
+    Backticks, tildes, longer closing fences, indentation, and unclosed blocks
+    share one source-span contract. A closing line contains only the matching
+    marker and whitespace; a fence-shaped line with text is content.
+    """
+
+    source = str(text or "")
+    fences: list[MarkdownFence] = []
+    opening: tuple[int, int, str, str] | None = None
+    offset = 0
+    for line in source.splitlines(keepends=True):
+        marker_match = _MARKDOWN_FENCE_LINE_RE.match(line)
+        if opening is None:
+            if marker_match is not None:
+                marker = marker_match.group("fence")
+                opening = (
+                    offset,
+                    offset + len(line),
+                    marker,
+                    str(marker_match.group("info") or "").strip(),
+                )
+        else:
+            start, body_start, marker, info = opening
+            close_re = re.compile(
+                rf"^[ \t]{{0,3}}{re.escape(marker[0])}{{{len(marker)},}}[ \t]*(?:\r?\n)?$"
+            )
+            if close_re.fullmatch(line):
+                fences.append(
+                    MarkdownFence(
+                        start=start,
+                        end=offset + len(line),
+                        body_start=body_start,
+                        body_end=offset,
+                        marker=marker,
+                        info=info,
+                        body=source[body_start:offset],
+                        closed=True,
+                    )
+                )
+                opening = None
+        offset += len(line)
+    if opening is not None:
+        start, body_start, marker, info = opening
+        fences.append(
+            MarkdownFence(
+                start=start,
+                end=len(source),
+                body_start=body_start,
+                body_end=len(source),
+                marker=marker,
+                info=info,
+                body=source[body_start:],
+                closed=False,
+            )
+        )
+    return tuple(fences)
+
+
 def _markdown_fence_spans(text: str) -> tuple[tuple[int, int], ...]:
     """Return byte-aligned spans occupied by fenced Markdown code blocks."""
 
-    spans: list[tuple[int, int]] = []
-    open_start: int | None = None
-    open_char = ""
-    open_width = 0
-    offset = 0
-    for line in text.splitlines(keepends=True):
-        marker = re.match(r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})", line)
-        if marker is not None:
-            fence = marker.group("fence")
-            if open_start is None:
-                open_start = offset
-                open_char = fence[0]
-                open_width = len(fence)
-            elif fence[0] == open_char and len(fence) >= open_width:
-                spans.append((open_start, offset + len(line)))
-                open_start = None
-                open_char = ""
-                open_width = 0
-        offset += len(line)
-    if open_start is not None:
-        spans.append((open_start, len(text)))
-    return tuple(spans)
+    return tuple((fence.start, fence.end) for fence in markdown_fences(text))
 
 
 def _offset_is_inside_markdown_fence(

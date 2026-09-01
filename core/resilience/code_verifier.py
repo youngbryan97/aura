@@ -37,7 +37,7 @@ _DANGEROUS_CALLS = frozenset({
 _BANNED_ATTRS = frozenset({
     "__class__", "__subclasses__", "__mro__", "__globals__", 
     "__subclasshook__", "__init__", "__func__", "__self__", "__dict__",
-    "system", "popen", "execl", "execv", "execvp", "call", "run",
+    "system", "popen", "execl", "execv", "execvp",
     "check_output", "check_call", "Popen"
 })
 
