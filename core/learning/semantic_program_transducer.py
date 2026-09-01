@@ -1428,52 +1428,60 @@ def _fit_multiview_operation_head(
         for count in range(1, min(_MAX_OPERATION_VIEWS, len(candidate_modes)) + 1)
         for modes in combinations(candidate_modes, count)
     )
+    labels_by_row = tuple(item.ir.instructions[step].op for item, step in rows)
+    features_by_mode = {
+        mode: tuple(
+            _operation_feature(
+                item.hidden_states,
+                item.ir.instructions[step].operation_span,
+                mode=mode,
+                hidden_channels=hidden_channels,
+                hidden_channel_widths=hidden_channel_widths,
+            )
+            for item, step in rows
+        )
+        for mode in candidate_modes
+    }
+    fold_indices: dict[str, tuple[tuple[int, ...], tuple[int, ...]]] = {}
+    fold_heads: dict[tuple[str, str], LinearClassifierHead] = {}
+    for held_out_construction in constructions:
+        fit_indices = tuple(
+            index
+            for index, (item, _) in enumerate(rows)
+            if item.construction_id != held_out_construction
+        )
+        held_out_indices = tuple(
+            index
+            for index, (item, _) in enumerate(rows)
+            if item.construction_id == held_out_construction
+        )
+        if (
+            {labels_by_row[index] for index in fit_indices} != set(labels)
+            or not held_out_indices
+        ):
+            continue
+        fold_indices[held_out_construction] = (fit_indices, held_out_indices)
+        for mode in candidate_modes:
+            fold_heads[(held_out_construction, mode)] = _fit_classifier(
+                np.stack([features_by_mode[mode][index] for index in fit_indices]),
+                [labels_by_row[index] for index in fit_indices],
+            )
     scored: list[tuple[int, int, int, tuple[str, ...]]] = []
     for modes in candidates:
         correct = 0
         total = 0
         valid = True
         for held_out_construction in constructions:
-            fit_rows = tuple(row for row in rows if row[0].construction_id != held_out_construction)
-            held_out_rows = tuple(
-                row for row in rows if row[0].construction_id == held_out_construction
-            )
-            if {item.ir.instructions[step].op for item, step in fit_rows} != set(
-                labels
-            ) or not held_out_rows:
+            fold = fold_indices.get(held_out_construction)
+            if fold is None:
                 valid = False
                 break
-            heads = tuple(
-                _fit_classifier(
-                    np.stack(
-                        [
-                            _operation_feature(
-                                item.hidden_states,
-                                item.ir.instructions[step].operation_span,
-                                mode=mode,
-                                hidden_channels=hidden_channels,
-                                hidden_channel_widths=hidden_channel_widths,
-                            )
-                            for item, step in fit_rows
-                        ]
-                    ),
-                    [item.ir.instructions[step].op for item, step in fit_rows],
-                )
-                for mode in modes
-            )
-            for item, step in held_out_rows:
-                features = tuple(
-                    _operation_feature(
-                        item.hidden_states,
-                        item.ir.instructions[step].operation_span,
-                        mode=mode,
-                        hidden_channels=hidden_channels,
-                        hidden_channel_widths=hidden_channel_widths,
-                    )
-                    for mode in modes
-                )
+            _, held_out_indices = fold
+            heads = tuple(fold_heads[(held_out_construction, mode)] for mode in modes)
+            for index in held_out_indices:
+                features = tuple(features_by_mode[mode][index] for mode in modes)
                 correct += int(
-                    _multiview_prediction(heads, features) == item.ir.instructions[step].op
+                    _multiview_prediction(heads, features) == labels_by_row[index]
                 )
                 total += 1
         if valid and total:
@@ -1491,19 +1499,8 @@ def _fit_multiview_operation_head(
     correct, _, _, selected_modes = max(scored)
     selected_heads = tuple(
         _fit_classifier(
-            np.stack(
-                [
-                    _operation_feature(
-                        item.hidden_states,
-                        item.ir.instructions[step].operation_span,
-                        mode=mode,
-                        hidden_channels=hidden_channels,
-                        hidden_channel_widths=hidden_channel_widths,
-                    )
-                    for item, step in rows
-                ]
-            ),
-            [item.ir.instructions[step].op for item, step in rows],
+            np.stack(features_by_mode[mode]),
+            labels_by_row,
         )
         for mode in selected_modes
     )

@@ -11,7 +11,9 @@ import pytest
 from core.learning.semantic_program_basis import (
     SemanticRepresentationCompatibilityError,
     bind_examples_to_compatible_training_session,
+    bind_training_examples_to_shared_representation,
     establish_semantic_representation_compatibility,
+    establish_semantic_training_representation_compatibility,
 )
 from core.learning.semantic_program_transducer import fit_semantic_program_transducer
 from tests.test_semantic_program_transducer import _training
@@ -139,4 +141,73 @@ def test_compatibility_refuses_incomplete_identity() -> None:
             model=model,
             training_manifest=_manifest(training_basis, manifest_hash="1" * 64),
             replication_manifest=_manifest(fresh_basis, manifest_hash="2" * 64),
+        )
+
+
+def test_shared_training_joins_compatible_sessions_without_changing_evidence() -> None:
+    arithmetic_basis = _basis(boot="a" * 32, pid=111)
+    sequence_basis = _basis(boot="b" * 32, pid=222)
+    _, arithmetic = _model_for_basis(arithmetic_basis)
+    sequence = tuple(
+        replace(
+            item,
+            ir=replace(
+                item.ir,
+                model_basis_receipt_sha256=_sha(sequence_basis),
+            ),
+        )
+        for item in arithmetic
+    )
+    before = [np.array(item.hidden_states, copy=True) for item in (*arithmetic, *sequence)]
+    compatibility = establish_semantic_training_representation_compatibility(
+        {
+            "arithmetic": _manifest(arithmetic_basis, manifest_hash="1" * 64),
+            "sequence": _manifest(sequence_basis, manifest_hash="2" * 64),
+        }
+    )
+
+    bound = bind_training_examples_to_shared_representation(
+        {"arithmetic": arithmetic, "sequence": sequence},
+        compatibility=compatibility,
+    )
+
+    assert len(bound) == len(arithmetic) + len(sequence)
+    assert {item.ir.model_basis_receipt_sha256 for item in bound} == {
+        compatibility["target_training_session_basis_sha256"]
+    }
+    assert all(
+        item.construction_id.startswith(("arithmetic:", "sequence:"))
+        for item in bound
+    )
+    assert all(
+        np.array_equal(item.hidden_states, expected)
+        for item, expected in zip(bound, before, strict=True)
+    )
+
+
+def test_shared_training_refuses_representation_drift_and_cross_source_examples() -> None:
+    arithmetic_basis = _basis(boot="a" * 32, pid=111)
+    sequence_basis = _basis(boot="b" * 32, pid=222)
+    drifted_basis = _basis(boot="c" * 32, pid=333, source="f" * 64)
+    manifests = {
+        "arithmetic": _manifest(arithmetic_basis, manifest_hash="1" * 64),
+        "sequence": _manifest(sequence_basis, manifest_hash="2" * 64),
+    }
+    with pytest.raises(
+        SemanticRepresentationCompatibilityError,
+        match="neural functions differ",
+    ):
+        establish_semantic_training_representation_compatibility(
+            {**manifests, "drifted": _manifest(drifted_basis, manifest_hash="3" * 64)}
+        )
+
+    compatibility = establish_semantic_training_representation_compatibility(manifests)
+    _, arithmetic = _model_for_basis(arithmetic_basis)
+    with pytest.raises(
+        SemanticRepresentationCompatibilityError,
+        match="outside its session basis",
+    ):
+        bind_training_examples_to_shared_representation(
+            {"arithmetic": arithmetic, "sequence": arithmetic},
+            compatibility=compatibility,
         )
