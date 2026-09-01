@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.brain.llm.chat_format import render_chat_template  # noqa: E402
 from core.brain.llm.latent_cortex.semantic_neural_composition_decode import (  # noqa: E402
     SemanticNeuralCompositionDecodeState,
     execute_composition_decode_state,
@@ -53,6 +54,7 @@ ARMS: Final = (
     "matched_wrong_state",
 )
 SOURCE_PATHS: Final = (
+    "core/brain/llm/chat_format.py",
     "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json",
     "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors",
     "core/brain/llm/latent_cortex/semantic_neural_composition_decode.py",
@@ -194,13 +196,15 @@ def _wrong_state_index(
 
 def _prompt_tokens(tokenizer: Any, objective: str, channel: str = "") -> tuple[int, ...]:
     content = objective if not channel else f"{objective}\n\n{channel}"
+    rendered = render_chat_template(
+        tokenizer,
+        [{"role": "user", "content": content}],
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
     return tuple(
         int(token)
-        for token in tokenizer.apply_chat_template(
-            [{"role": "user", "content": content}],
-            add_generation_prompt=True,
-            tokenize=True,
-        )
+        for token in tokenizer.encode(rendered, add_special_tokens=False)
     )
 
 

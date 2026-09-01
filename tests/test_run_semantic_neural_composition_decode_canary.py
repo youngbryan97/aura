@@ -5,9 +5,28 @@ from tools.run_semantic_neural_composition_decode_canary import (
     ARMS,
     _arm_order,
     _cohort,
+    _prompt_tokens,
     _state_arms,
     _wrong_state_index,
 )
+
+
+class _ThinkingTokenizer:
+    chat_template = "composition-test-{{ enable_thinking }}"
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.encoded = ""
+
+    def apply_chat_template(self, messages, **kwargs):
+        self.calls.append(dict(kwargs))
+        channel = "<think>" if kwargs.get("enable_thinking", True) else "<answer>"
+        return channel + str(messages[-1]["content"])
+
+    def encode(self, value, *, add_special_tokens):
+        assert add_special_tokens is False
+        self.encoded = str(value)
+        return [11, 12, 13]
 
 
 def test_arm_order_is_complete_deterministic_and_rotated() -> None:
@@ -16,6 +35,14 @@ def test_arm_order_is_complete_deterministic_and_rotated() -> None:
     assert all(set(order) == set(ARMS) and len(order) == len(ARMS) for order in orders)
     assert orders == [_arm_order(f"task-{index}") for index in range(24)]
     assert len({order[0] for order in orders}) == len(ARMS)
+
+
+def test_structured_prefill_opens_the_answer_channel() -> None:
+    tokenizer = _ThinkingTokenizer()
+
+    assert _prompt_tokens(tokenizer, "objective", "state") == (11, 12, 13)
+    assert tokenizer.calls[-1]["enable_thinking"] is False
+    assert tokenizer.encoded == "<answer>objective\n\nstate"
 
 
 def test_all_causal_states_share_protocol_but_not_result() -> None:

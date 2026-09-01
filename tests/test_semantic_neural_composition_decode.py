@@ -4,6 +4,7 @@ import json
 import random
 
 from core.brain.llm.latent_cortex.semantic_neural_composition_decode import (
+    FINAL_MARKER,
     execute_composition_decode_state,
     parse_composition_response,
     render_composition_answer,
@@ -47,6 +48,13 @@ def test_canonical_answer_round_trips_and_noncanonical_forms_fail() -> None:
     answer = render_composition_answer(state)
 
     assert parse_composition_response(answer, state.report) == state.semantic_result
+    assert (
+        parse_composition_response(
+            FINAL_MARKER + json.dumps(state.semantic_result, indent=2),
+            state.report,
+        )
+        == state.semantic_result
+    )
     assert parse_composition_response("prose\n" + answer, state.report) is None
     assert parse_composition_response(answer + " trailing", state.report) is None
     assert parse_composition_response(

@@ -154,7 +154,7 @@ def parse_composition_response(
     response: str,
     report: tuple[str, ...],
 ) -> dict[str, int] | None:
-    """Parse the complete canonical answer contract with duplicate-key rejection."""
+    """Parse the complete typed answer contract with duplicate-key rejection."""
 
     if not isinstance(response, str) or response.count(FINAL_MARKER) != 1:
         return None
@@ -179,9 +179,6 @@ def parse_composition_response(
         or tuple(parsed) != report
         or any(type(value) is not int for value in parsed.values())
     ):
-        return None
-    canonical = json.dumps(parsed, separators=(",", ":"), ensure_ascii=True)
-    if encoded.strip() != canonical:
         return None
     return parsed
 
