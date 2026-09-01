@@ -209,3 +209,92 @@ def test_divergence_names_what_differed_rather_than_passing_or_failing_on_it():
         Environment("def456", "other-model", "linux-x86", "3.13"), replicator="external",
     )
     assert set(attempt.divergence()["differed_on"]) == {"commit", "model", "hardware", "python"}
+
+
+# ── the contracts publish rather than sit ─────────────────────────────────
+
+def test_both_cognitive_fragments_register_and_carry_real_counts():
+    from core.cognition.contract_health import install
+    from core.runtime.health_fragments import collect_health_fragments
+
+    assert install() == {"contracts": True, "growth": True}
+    fragments = collect_health_fragments()
+    for name in ("cognitive_contracts", "cognitive_growth"):
+        assert fragments[name]["registered"], name
+
+
+def test_the_contract_fragment_reports_traffic_not_capability():
+    from core.cognition.contract_health import contract_health_fragment
+
+    fragment = contract_health_fragment()
+    assert set(fragment["evidence"]) >= {"duplicate_assertions_refused", "unattributed_assertions"}
+    assert "coverage" in fragment["state_handoffs"]
+    assert "organs_reporting" in fragment["impasse_bus"]
+
+
+def test_importing_the_fragment_is_what_registers_the_invariants():
+    from core.cognition.contract_health import contract_health_fragment
+
+    assert contract_health_fragment()["architecture_invariants"]["checked"] >= 5
+
+
+def test_a_ledger_that_raises_is_reported_not_fatal(monkeypatch):
+    import core.cognition.contract_health as module
+
+    def explode():
+        raise RuntimeError("store is closed")
+
+    assert "unavailable" in module._safe("probe", explode)
+
+
+def test_the_expected_fragments_include_both_cognitive_ones():
+    from core.runtime.health_fragments import EXPECTED_FRAGMENTS
+
+    assert "cognitive_contracts" in EXPECTED_FRAGMENTS
+    assert "cognitive_growth" in EXPECTED_FRAGMENTS
+
+
+def test_the_evidence_report_runs_and_finds_no_contradiction():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "evidence_report", ROOT / "tools/evidence_report.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["evidence_report"] = module
+    spec.loader.exec_module(module)
+    picture = module.gather()
+    assert picture["claims"]["claims"] >= 4
+    assert module.contradictions(picture) == []
+
+
+def test_the_evidence_report_names_the_campaigns_that_have_not_been_run():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "evidence_report", ROOT / "tools/evidence_report.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["evidence_report"] = module
+    spec.loader.exec_module(module)
+    campaigns = module.campaign_surface()
+    assert "developmental_campaign" in campaigns
+    assert all("establishes" in entry and "needs" in entry for entry in campaigns.values())
+
+
+def test_no_claim_stands_above_causal_without_a_campaign_behind_it():
+    from core.science.claim_ladder import Rung, get_ladder
+
+    for claim in get_ladder().claims():
+        assert (claim.rung or 0) <= Rung.CAUSAL, (
+            f"{claim.statement!r} claims {claim.rung}; no campaign has been run"
+        )
+
+
+def test_raising_the_complexity_ratchet_requires_a_reason():
+    baseline = json.loads((ROOT / "config/cognitive_complexity_baseline.json").read_text())
+    for entry in baseline.get("history", []):
+        assert entry["because"].strip(), (
+            "a ratchet that can be reset without a reason is a number, not a ratchet"
+        )
+        assert set(entry["raised"]) <= set(entry["to"])

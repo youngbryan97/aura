@@ -281,6 +281,20 @@ class CognitiveIntegrationLayer:
             self.setup()
 
         logger.info("🧠 CognitiveIntegrationLayer: Initializing Advanced Intelligence Pipeline...")
+        # Publish the cognitive contract and growth fragments, and register the
+        # architecture invariants. Called here rather than relying on an import
+        # side effect: a module is imported once per process, so a registration
+        # that only happens at import cannot be re-established after a reset or
+        # a hot reload — the same reason memory_facade calls its own register.
+        # The direction matters too: core/runtime is a foundation and may not
+        # reach into core/cognition, so cognition publishes and the surface asks.
+        try:
+            from core.cognition.contract_health import install as install_cognitive_health
+
+            install_cognitive_health()
+        except (ImportError, RuntimeError) as exc:
+            logger.debug("cognitive contract health unavailable: %s", exc)
+
         try:
             # The kernel's belief dependency is load-bearing: it snapshots the
             # service during start and otherwise remains on axioms for the whole

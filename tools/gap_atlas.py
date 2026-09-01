@@ -18,6 +18,11 @@ opinions without them:
 * A closed item with no test. ``status: closed`` requires ``closed_by``, and
   every path in it must exist. A gap is not closed because code exists; it is
   closed when the named test runs.
+* A closed item whose bar demands INTEGRATION and whose module nothing calls.
+  A bar that says "every", "all" or "architecture-wide" is a claim about the
+  system, not about a module, and a module only tests import themselves is at
+  EXISTS, not WIRED. Those entries carry ``wired_by`` naming a production
+  caller, and ``--check`` verifies that the caller imports the module.
 * Evidence that has moved. Every path named in ``evidence`` must still be in
   the tree, so a refactor that deletes the module an adjudication rests on
   fails here rather than leaving a stale judgement standing.
@@ -74,6 +79,51 @@ def load() -> tuple[list[dict], dict]:
     return cards, adjudication
 
 
+#: Words in a bar that make it a claim about the SYSTEM rather than about a
+#: module. An entry whose bar contains one of these has to name a production
+#: caller, because a module only its own tests import has not integrated
+#: anything.
+INTEGRATION_WORDS = (
+    "every ", "all ", "architecture-wide", "most cross", "each major", "universal",
+)
+
+
+def _module_paths(entry: dict) -> list[str]:
+    return [
+        path for path in entry.get("closed_by", [])
+        if path.startswith("core/") and path.endswith(".py")
+    ]
+
+
+def _integration_problems(cid: str, entry: dict) -> list[str]:
+    bar = (entry.get("bar") or "").lower()
+    if not any(word in bar for word in INTEGRATION_WORDS):
+        return []
+    modules = _module_paths(entry)
+    if not modules:
+        return []
+    wired_by = entry.get("wired_by") or []
+    if not wired_by:
+        return [
+            f"[{cid}]: the bar claims something about the whole system "
+            f"({bar[:60]}...) and names only module(s) {modules}. Name a production "
+            "caller in wired_by, or restate the bar as what the module establishes."
+        ]
+    problems = []
+    for caller in wired_by:
+        path = ROOT / caller
+        if not path.exists():
+            problems.append(f"[{cid}]: wired_by names {caller}, which does not exist")
+            continue
+        text = path.read_text(errors="replace")
+        dotted = [m[:-3].replace("/", ".") for m in modules]
+        if not any(name in text for name in dotted):
+            problems.append(
+                f"[{cid}]: wired_by names {caller}, which does not import any of {dotted}"
+            )
+    return problems
+
+
 def check() -> int:
     cards, adjudication = load()
     entries = adjudication.get("entries", {})
@@ -102,6 +152,7 @@ def check() -> int:
             for path in closed_by:
                 if not (ROOT / path.split("::")[0]).exists():
                     problems.append(f"[{cid}]: closed_by names {path}, which does not exist")
+            problems.extend(_integration_problems(cid, entry))
 
     orphans = set(entries) - {card["id"] for card in cards}
     problems.extend(f"[{cid}]: adjudicated but not a card in the report" for cid in sorted(orphans))

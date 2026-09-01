@@ -25,7 +25,7 @@ seeds. A replication that differs on any of them is still useful and is a
 different claim, so :meth:`Replication.divergence` names what differed rather
 than passing or failing on it. "Reproduced on different hardware" is a
 stronger result than "reproduced", and "reproduced on a different model" is a
-weaker one; flattening both to a boolean loses the part worth knowing.
+weaker one. A boolean cannot hold that distinction.
 """
 
 from __future__ import annotations

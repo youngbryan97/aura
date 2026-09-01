@@ -35,6 +35,8 @@ HEALTH_FRAGMENTS_SCHEMA = "aura.runtime.health_fragments.v1"
 #: foundation may hold, rather than as imports, which it may not. A name here
 #: with no registration is reported as missing.
 EXPECTED_FRAGMENTS: tuple[str, ...] = (
+    "cognitive_contracts",
+    "cognitive_growth",
     "external_reach",
     "memory_inventory",
     "sealed_artifacts",

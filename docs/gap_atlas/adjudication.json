@@ -14,6 +14,9 @@
       "closed_by": [
         "core/science/retrieval_latency.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "002": {
@@ -30,6 +33,9 @@
       "closed_by": [
         "core/science/retrieval_latency.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "003": {
@@ -47,6 +53,9 @@
       "closed_by": [
         "core/evidence/state_ref.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "004": {
@@ -65,6 +74,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "005": {
@@ -82,6 +94,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "006": {
@@ -98,6 +113,9 @@
       "closed_by": [
         "core/science/retrieval_latency.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "007": {
@@ -113,6 +131,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "008": {
@@ -130,6 +151,9 @@
         "core/cognition/drive_sensitivity.py",
         "core/science/parameter_registry.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "009": {
@@ -145,6 +169,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "010": {
@@ -161,6 +188,9 @@
       "closed_by": [
         "core/science/parameter_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "011": {
@@ -179,6 +209,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "012": {
@@ -195,6 +228,9 @@
         "core/science/capability_board.py",
         "core/evaluation/preregistration.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "013": {
@@ -213,6 +249,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "014": {
@@ -228,6 +267,9 @@
       "closed_by": [
         "core/science/retrieval_latency.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "015": {
@@ -244,6 +286,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "016": {
@@ -261,6 +306,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/brain/gwt_rlc_coupling.py"
       ]
     },
     "017": {
@@ -277,6 +326,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/contract_health.py"
       ]
     },
     "018": {
@@ -293,6 +346,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "019": {
@@ -310,6 +366,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "020": {
@@ -328,6 +387,10 @@
         "core/cognition/preference_semantics.py",
         "core/cognition/substate.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/reasoning/native_system2.py"
       ]
     },
     "021": {
@@ -344,6 +407,9 @@
       "closed_by": [
         "core/cognition/procedure.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "022": {
@@ -361,6 +427,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "023": {
@@ -377,6 +446,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "024": {
@@ -394,6 +466,10 @@
         "core/cognition/preference_semantics.py",
         "core/cognition/substate.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/reasoning/native_system2.py"
       ]
     },
     "025": {
@@ -411,6 +487,9 @@
       "closed_by": [
         "core/cognition/kernel_cycle.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "026": {
@@ -426,6 +505,9 @@
       "closed_by": [
         "core/science/continual_metrics.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "027": {
@@ -443,6 +525,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "028": {
@@ -461,6 +546,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "029": {
@@ -478,6 +566,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/contract_health.py"
       ]
     },
     "030": {
@@ -495,6 +587,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "031": {
@@ -512,6 +607,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "032": {
@@ -527,6 +625,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "033": {
@@ -544,6 +645,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "034": {
@@ -561,6 +665,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "035": {
@@ -577,6 +684,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "036": {
@@ -593,6 +703,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "037": {
@@ -642,6 +755,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "040": {
@@ -659,6 +775,9 @@
       "closed_by": [
         "core/cognition/concept_handle.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "041": {
@@ -675,6 +794,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "042": {
@@ -692,6 +814,9 @@
       "closed_by": [
         "core/science/continual_metrics.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "043": {
@@ -710,6 +835,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "044": {
@@ -726,6 +854,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "045": {
@@ -742,6 +873,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "046": {
@@ -759,6 +893,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "047": {
@@ -775,6 +912,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "048": {
@@ -791,6 +931,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "049": {
@@ -808,6 +951,9 @@
       "closed_by": [
         "core/cognition/action_hub.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "050": {
@@ -824,6 +970,9 @@
       "closed_by": [
         "core/cognition/concept_handle.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "051": {
@@ -857,6 +1006,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "053": {
@@ -872,6 +1024,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "054": {
@@ -887,6 +1042,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "055": {
@@ -903,6 +1061,9 @@
       "closed_by": [
         "core/cognition/automaticity.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "056": {
@@ -919,6 +1080,9 @@
       "closed_by": [
         "core/cognition/substate.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "057": {
@@ -937,6 +1101,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "058": {
@@ -953,6 +1120,9 @@
         "core/verify/lesion_registry.py",
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "059": {
@@ -970,6 +1140,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "060": {
@@ -988,6 +1161,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "061": {
@@ -1004,6 +1180,9 @@
       "closed_by": [
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "062": {
@@ -1020,6 +1199,9 @@
       "closed_by": [
         "core/cognition/attention_policy.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "063": {
@@ -1036,6 +1218,9 @@
       "closed_by": [
         "core/cognition/concept_handle.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "064": {
@@ -1054,6 +1239,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "065": {
@@ -1070,6 +1258,9 @@
       "closed_by": [
         "core/cognition/abstraction_lineage.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "066": {
@@ -1087,6 +1278,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "067": {
@@ -1104,6 +1298,9 @@
         "core/cognition/automaticity.py",
         "core/cognition/action_receipt.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "068": {
@@ -1120,6 +1317,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "069": {
@@ -1135,6 +1335,9 @@
       "closed_by": [
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "070": {
@@ -1151,6 +1354,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "071": {
@@ -1167,6 +1373,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "072": {
@@ -1183,6 +1392,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "073": {
@@ -1200,6 +1412,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "074": {
@@ -1217,6 +1432,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "075": {
@@ -1234,6 +1452,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "076": {
@@ -1250,6 +1471,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "077": {
@@ -1266,6 +1490,9 @@
         "core/cognition/action_hub.py",
         "core/cognition/cognitive_vector.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "078": {
@@ -1282,6 +1509,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "079": {
@@ -1299,6 +1529,9 @@
         "core/cognition/cognitive_vector.py",
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "080": {
@@ -1315,6 +1548,9 @@
         "core/cognition/automaticity.py",
         "core/cognition/action_receipt.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "081": {
@@ -1331,6 +1567,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "082": {
@@ -1346,6 +1585,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "083": {
@@ -1361,6 +1603,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "084": {
@@ -1377,6 +1622,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "085": {
@@ -1394,6 +1642,9 @@
         "core/cognition/cognitive_vector.py",
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "086": {
@@ -1410,6 +1661,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "087": {
@@ -1425,6 +1679,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "088": {
@@ -1442,6 +1699,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "089": {
@@ -1457,6 +1717,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "090": {
@@ -1474,6 +1737,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "091": {
@@ -1490,6 +1756,9 @@
       "closed_by": [
         "core/cognition/action_hub.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "092": {
@@ -1506,6 +1775,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "093": {
@@ -1522,6 +1794,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "094": {
@@ -1538,6 +1813,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "095": {
@@ -1554,6 +1832,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "096": {
@@ -1570,6 +1851,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "097": {
@@ -1586,6 +1870,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "098": {
@@ -1602,6 +1889,10 @@
         "core/knowledge/atomspace.py",
         "core/knowledge/spaces.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/cognition/growth_report.py"
       ]
     },
     "099": {
@@ -1617,6 +1908,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "100": {
@@ -1633,6 +1927,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "101": {
@@ -1648,6 +1945,9 @@
       "closed_by": [
         "core/cognition/attention_policy.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "102": {
@@ -1664,6 +1964,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "103": {
@@ -1681,6 +1984,10 @@
         "core/knowledge/atomspace.py",
         "core/knowledge/spaces.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/cognition/growth_report.py"
       ]
     },
     "104": {
@@ -1713,6 +2020,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "106": {
@@ -1729,6 +2039,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "107": {
@@ -1744,6 +2057,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "108": {
@@ -1759,6 +2075,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "109": {
@@ -1774,6 +2093,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "110": {
@@ -1789,6 +2111,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "111": {
@@ -1804,6 +2129,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "112": {
@@ -1819,6 +2147,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "113": {
@@ -1834,6 +2165,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "114": {
@@ -1849,6 +2183,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "115": {
@@ -1864,6 +2201,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "116": {
@@ -1880,6 +2220,9 @@
         "core/cognition/cognitive_vector.py",
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "117": {
@@ -1895,6 +2238,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "118": {
@@ -1910,6 +2256,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "119": {
@@ -1925,6 +2274,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "120": {
@@ -1940,6 +2292,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "121": {
@@ -1955,6 +2310,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "122": {
@@ -1970,6 +2328,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "123": {
@@ -1985,6 +2346,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "124": {
@@ -2000,6 +2364,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "125": {
@@ -2015,6 +2382,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "126": {
@@ -2030,6 +2400,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "127": {
@@ -2045,6 +2418,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "128": {
@@ -2060,6 +2436,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "129": {
@@ -2075,6 +2454,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "130": {
@@ -2090,6 +2472,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "131": {
@@ -2105,6 +2490,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "132": {
@@ -2120,6 +2508,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "133": {
@@ -2135,6 +2526,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "134": {
@@ -2150,6 +2544,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "135": {
@@ -2165,6 +2562,9 @@
       "closed_by": [
         "core/cognition/agent_model.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "136": {
@@ -2180,6 +2580,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "137": {
@@ -2195,6 +2598,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "138": {
@@ -2210,6 +2616,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "139": {
@@ -2225,6 +2634,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "140": {
@@ -2240,6 +2652,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "141": {
@@ -2255,6 +2670,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "142": {
@@ -2270,6 +2688,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "143": {
@@ -2285,6 +2706,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "144": {
@@ -2300,6 +2724,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "145": {
@@ -2315,6 +2742,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "146": {
@@ -2330,6 +2760,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "147": {
@@ -2345,6 +2778,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "148": {
@@ -2360,6 +2796,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "149": {
@@ -2375,6 +2814,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "150": {
@@ -2390,6 +2832,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "151": {
@@ -2405,6 +2850,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "152": {
@@ -2420,6 +2868,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "153": {
@@ -2435,6 +2886,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "154": {
@@ -2450,6 +2904,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "155": {
@@ -2465,6 +2922,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "156": {
@@ -2480,6 +2940,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "157": {
@@ -2495,6 +2958,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "158": {
@@ -2510,6 +2976,9 @@
       "closed_by": [
         "core/cognition/cognitive_vector.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "159": {
@@ -2525,6 +2994,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "160": {
@@ -2540,6 +3012,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "161": {
@@ -2555,6 +3030,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "162": {
@@ -2570,6 +3048,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "163": {
@@ -2585,6 +3066,9 @@
       "closed_by": [
         "core/science/redteam_ledger.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "164": {
@@ -2600,6 +3084,9 @@
       "closed_by": [
         "core/science/experiment_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "165": {
@@ -2615,6 +3102,9 @@
       "closed_by": [
         "core/science/replication_pack.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "166": {
@@ -2630,6 +3120,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "167": {
@@ -2645,6 +3138,9 @@
       "closed_by": [
         "core/cognition/trace_compiler.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "168": {
@@ -2660,6 +3156,9 @@
       "closed_by": [
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "169": {
@@ -2675,6 +3174,9 @@
       "closed_by": [
         "core/science/experiment_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "170": {
@@ -2691,6 +3193,9 @@
       "closed_by": [
         "core/evidence/state_ref.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "171": {
@@ -2707,6 +3212,9 @@
       "closed_by": [
         "core/evidence/packet.py",
         "tests/test_evidence_independence.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "172": {
@@ -2724,6 +3232,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "173": {
@@ -2740,6 +3251,9 @@
       "closed_by": [
         "core/cognition/concept_handle.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "174": {
@@ -2756,6 +3270,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "175": {
@@ -2772,6 +3289,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/contract_health.py"
       ]
     },
     "176": {
@@ -2788,6 +3309,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "177": {
@@ -2804,6 +3328,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "178": {
@@ -2819,6 +3346,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "179": {
@@ -2849,6 +3379,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "181": {
@@ -2865,6 +3398,9 @@
       "closed_by": [
         "core/cognition/attention_policy.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "182": {
@@ -2895,6 +3431,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "184": {
@@ -2910,6 +3449,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "185": {
@@ -2925,6 +3467,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "186": {
@@ -2940,6 +3485,9 @@
       "closed_by": [
         "core/cognition/procedure.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "187": {
@@ -2956,6 +3504,9 @@
       "closed_by": [
         "core/cognition/operator_invention.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "188": {
@@ -2971,6 +3522,9 @@
       "closed_by": [
         "core/cognition/operator_invention.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "189": {
@@ -2987,6 +3541,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "190": {
@@ -3004,6 +3561,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "191": {
@@ -3019,6 +3579,9 @@
       "closed_by": [
         "core/science/parameter_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "192": {
@@ -3048,6 +3611,9 @@
       "closed_by": [
         "core/science/replication_pack.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "194": {
@@ -3063,6 +3629,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "195": {
@@ -3079,6 +3648,9 @@
       "closed_by": [
         "core/cognition/action_receipt.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "196": {
@@ -3094,6 +3666,9 @@
       "closed_by": [
         "core/cognition/entity_track.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "197": {
@@ -3109,6 +3684,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "198": {
@@ -3125,6 +3703,9 @@
       "closed_by": [
         "core/world_model/prediction_quality.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "199": {
@@ -3141,6 +3722,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "200": {
@@ -3157,6 +3741,9 @@
       "closed_by": [
         "core/science/continual_metrics.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "201": {
@@ -3172,6 +3759,9 @@
       "closed_by": [
         "core/science/continual_metrics.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "202": {
@@ -3188,6 +3778,9 @@
       "closed_by": [
         "core/science/continual_metrics.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "203": {
@@ -3203,6 +3796,9 @@
       "closed_by": [
         "core/cognition/agent_model.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "204": {
@@ -3218,6 +3814,9 @@
       "closed_by": [
         "core/cognition/agent_model.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "205": {
@@ -3234,6 +3833,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "206": {
@@ -3249,6 +3851,9 @@
       "closed_by": [
         "core/science/organ_accounting.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "207": {
@@ -3264,6 +3869,9 @@
       "closed_by": [
         "core/science/neuro_reference.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "208": {
@@ -3280,6 +3888,9 @@
       "closed_by": [
         "core/cognition/architecture_invariants.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "209": {
@@ -3296,6 +3907,9 @@
       "closed_by": [
         "core/cognition/transaction.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "210": {
@@ -3312,6 +3926,9 @@
       "closed_by": [
         "core/science/experiment_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "211": {
@@ -3327,6 +3944,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "212": {
@@ -3357,6 +3977,9 @@
         "core/evaluation/scale_sweep.py",
         "core/science/experiment_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "214": {
@@ -3387,6 +4010,9 @@
       "closed_by": [
         "core/cognition/operator_invention.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "216": {
@@ -3402,6 +4028,9 @@
       "closed_by": [
         "core/cognition/operator_invention.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "217": {
@@ -3417,6 +4046,9 @@
       "closed_by": [
         "core/cognition/dual_knowledge.py",
         "tests/test_cross_substrate.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "218": {
@@ -3432,6 +4064,9 @@
       "closed_by": [
         "core/cognition/automaticity.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "219": {
@@ -3448,6 +4083,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "220": {
@@ -3463,6 +4101,9 @@
       "closed_by": [
         "core/science/claim_ladder.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.1": {
@@ -3479,6 +4120,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.10": {
@@ -3495,6 +4139,10 @@
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py",
         "core/cognition/cognitive_cost.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A1.11": {
@@ -3510,6 +4158,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A1.12": {
@@ -3540,6 +4191,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.14": {
@@ -3555,6 +4209,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A1.15": {
@@ -3570,6 +4227,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A1.16": {
@@ -3599,6 +4259,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.18": {
@@ -3614,6 +4277,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A1.19": {
@@ -3629,6 +4295,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.2": {
@@ -3691,6 +4360,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A1.6": {
@@ -3768,6 +4440,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.10": {
@@ -3783,6 +4458,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.11": {
@@ -3798,6 +4476,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.12": {
@@ -3814,6 +4495,9 @@
       "closed_by": [
         "core/knowledge/spaces.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.13": {
@@ -3829,6 +4513,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.14": {
@@ -3844,6 +4531,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.15": {
@@ -3859,6 +4549,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.2": {
@@ -3875,6 +4568,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.3": {
@@ -3890,6 +4586,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.4": {
@@ -3906,6 +4605,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.5": {
@@ -3921,6 +4623,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.6": {
@@ -3936,6 +4641,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.7": {
@@ -3951,6 +4659,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.8": {
@@ -3966,6 +4677,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A10.9": {
@@ -3981,6 +4695,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.1": {
@@ -3996,6 +4713,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.10": {
@@ -4011,6 +4731,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.11": {
@@ -4041,6 +4764,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.2": {
@@ -4056,6 +4782,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.3": {
@@ -4101,6 +4830,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.6": {
@@ -4116,6 +4848,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.7": {
@@ -4146,6 +4881,9 @@
       "closed_by": [
         "core/cognition/library_compression.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A11.9": {
@@ -4161,6 +4899,9 @@
       "closed_by": [
         "core/cognition/wake_sleep.py",
         "tests/test_library_and_invention.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A12.1": {
@@ -4177,6 +4918,9 @@
       "closed_by": [
         "core/cognition/kernel_cycle.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A12.10": {
@@ -4193,6 +4937,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.11": {
@@ -4208,6 +4955,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A12.12": {
@@ -4224,6 +4974,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/brain/gwt_rlc_coupling.py"
       ]
     },
     "A12.13": {
@@ -4240,6 +4994,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.14": {
@@ -4257,6 +5014,9 @@
         "config/cognitive_complexity_baseline.json",
         "core/science/organ_accounting.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A12.15": {
@@ -4272,6 +5032,9 @@
       "closed_by": [
         "core/science/replication_pack.py",
         "tests/test_complexity_and_replication.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A12.16": {
@@ -4287,6 +5050,9 @@
       "closed_by": [
         "core/cognition/action_hub.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A12.17": {
@@ -4303,6 +5069,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.18": {
@@ -4318,6 +5088,9 @@
       "closed_by": [
         "core/cognition/procedure.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.19": {
@@ -4348,6 +5121,9 @@
       "closed_by": [
         "core/cognition/kernel_cycle.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A12.3": {
@@ -4364,6 +5140,10 @@
         "core/cognition/preference_semantics.py",
         "core/cognition/substate.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "core/reasoning/native_system2.py"
       ]
     },
     "A12.4": {
@@ -4380,6 +5160,10 @@
         "core/cognition/substate.py",
         "core/consciousness/global_workspace.py",
         "tests/test_impasse_substate_and_invariants.py"
+      ],
+      "wired_by": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.5": {
@@ -4395,6 +5179,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.6": {
@@ -4411,6 +5198,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.7": {
@@ -4427,6 +5217,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.8": {
@@ -4442,6 +5235,9 @@
       "closed_by": [
         "core/cognition/cognitive_event.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A12.9": {
@@ -4459,6 +5255,9 @@
         "core/cognition/cognitive_event.py",
         "core/cognition/situation.py",
         "tests/test_cognitive_event_dag.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.1": {
@@ -4475,6 +5274,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.10": {
@@ -4491,6 +5293,10 @@
         "core/science/environment_bench.py",
         "core/cognition/automaticity.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py",
+        "tools/evidence_report.py"
       ]
     },
     "A13.11": {
@@ -4506,6 +5312,9 @@
       "closed_by": [
         "core/cognition/trace_compiler.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.12": {
@@ -4521,6 +5330,9 @@
       "closed_by": [
         "core/cognition/trace_compiler.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.13": {
@@ -4536,6 +5348,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.14": {
@@ -4552,6 +5367,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.15": {
@@ -4568,6 +5386,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.2": {
@@ -4585,6 +5406,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.3": {
@@ -4615,6 +5439,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.5": {
@@ -4630,6 +5457,9 @@
       "closed_by": [
         "core/cognition/trace_compiler.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.6": {
@@ -4645,6 +5475,9 @@
       "closed_by": [
         "core/cognition/trace_compiler.py",
         "tests/test_temporal_hub_and_compiler.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.7": {
@@ -4661,6 +5494,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A13.8": {
@@ -4676,6 +5512,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A13.9": {
@@ -4691,6 +5530,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A2.1": {
@@ -4756,6 +5598,9 @@
       "closed_by": [
         "core/cognition/action_receipt.py",
         "tests/test_cognitive_identity_contracts.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A2.13": {
@@ -4773,6 +5618,10 @@
         "tests/test_cross_substrate.py",
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A2.14": {
@@ -4803,6 +5652,9 @@
       "closed_by": [
         "core/science/experiment_registry.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A2.16": {
@@ -4849,6 +5701,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A2.19": {
@@ -4928,6 +5783,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A2.6": {
@@ -4944,6 +5802,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A2.7": {
@@ -4959,6 +5820,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A2.8": {
@@ -5009,6 +5873,10 @@
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py",
         "core/cognition/cognitive_cost.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.10": {
@@ -5024,6 +5892,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A3.11": {
@@ -5041,6 +5912,10 @@
         "tests/test_cross_substrate.py",
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.12": {
@@ -5058,6 +5933,10 @@
         "tests/test_cross_substrate.py",
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.13": {
@@ -5088,6 +5967,9 @@
       "closed_by": [
         "core/cognition/cognitive_cost.py",
         "tests/test_cost_budget_and_neuro.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A3.15": {
@@ -5103,6 +5985,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A3.2": {
@@ -5121,6 +6006,10 @@
         "tests/test_cross_substrate.py",
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.3": {
@@ -5137,6 +6026,10 @@
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py",
         "core/cognition/cognitive_cost.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.4": {
@@ -5154,6 +6047,10 @@
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py",
         "core/cognition/cognitive_cost.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py",
+        "tools/evidence_report.py"
       ]
     },
     "A3.5": {
@@ -5199,6 +6096,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A3.8": {
@@ -5214,6 +6114,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A3.9": {
@@ -5229,6 +6132,9 @@
       "closed_by": [
         "core/science/capability_board.py",
         "tests/test_kernel_board_and_lineage.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.1": {
@@ -5244,6 +6150,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.10": {
@@ -5259,6 +6168,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.2": {
@@ -5274,6 +6186,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.3": {
@@ -5289,6 +6204,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.4": {
@@ -5304,6 +6222,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.5": {
@@ -5319,6 +6240,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.6": {
@@ -5334,6 +6258,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.7": {
@@ -5349,6 +6276,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.8": {
@@ -5364,6 +6294,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A4.9": {
@@ -5380,6 +6313,9 @@
       "closed_by": [
         "core/science/baseline_portfolio.py",
         "tests/test_scientific_substrate.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A5.1": {
@@ -5397,6 +6333,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.10": {
@@ -5428,6 +6367,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.12": {
@@ -5444,6 +6386,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.13": {
@@ -5540,6 +6485,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.2": {
@@ -5556,6 +6504,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.3": {
@@ -5572,6 +6523,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.4": {
@@ -5587,6 +6541,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.5": {
@@ -5618,6 +6575,9 @@
       "closed_by": [
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A5.7": {
@@ -5651,6 +6611,9 @@
         "core/cognition/procedure.py",
         "core/cognition/procedure_adapters.py",
         "tests/test_procedure_currency.py"
+      ],
+      "wired_by": [
+        "core/cognition/contract_health.py"
       ]
     },
     "A5.9": {
@@ -5667,6 +6630,10 @@
         "core/runtime/state_ownership.py",
         "core/runtime/event_spine.py",
         "tests/test_event_spine.py"
+      ],
+      "wired_by": [
+        "core/config.py",
+        "core/cognition/growth_report.py"
       ]
     },
     "A6.1": {
@@ -5682,6 +6649,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.10": {
@@ -5697,6 +6667,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.11": {
@@ -5712,6 +6685,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.12": {
@@ -5727,6 +6703,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.2": {
@@ -5742,6 +6721,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.3": {
@@ -5757,6 +6739,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.4": {
@@ -5772,6 +6757,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.5": {
@@ -5787,6 +6775,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A6.6": {
@@ -5802,6 +6793,9 @@
       "closed_by": [
         "core/science/developmental_campaign.py",
         "tests/test_developmental_science.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.7": {
@@ -5817,6 +6811,9 @@
       "closed_by": [
         "core/cognition/curriculum_optimiser.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "core/cognition/growth_report.py"
       ]
     },
     "A6.8": {
@@ -5832,6 +6829,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A6.9": {
@@ -5847,6 +6847,9 @@
       "closed_by": [
         "core/science/environment_bench.py",
         "tests/test_environment_and_world.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.1": {
@@ -5863,6 +6866,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.10": {
@@ -5878,6 +6884,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.11": {
@@ -5893,6 +6902,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.12": {
@@ -5908,6 +6920,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.13": {
@@ -5923,6 +6938,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.14": {
@@ -5953,6 +6971,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.2": {
@@ -5968,6 +6989,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.3": {
@@ -5983,6 +7007,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.4": {
@@ -5998,6 +7025,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.5": {
@@ -6013,6 +7043,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.6": {
@@ -6028,6 +7061,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.7": {
@@ -6043,6 +7079,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.8": {
@@ -6059,6 +7098,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A7.9": {
@@ -6074,6 +7116,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.1": {
@@ -6089,6 +7134,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.10": {
@@ -6104,6 +7152,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.11": {
@@ -6119,6 +7170,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.12": {
@@ -6134,6 +7188,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.13": {
@@ -6149,6 +7206,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.14": {
@@ -6164,6 +7224,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.15": {
@@ -6179,6 +7242,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.2": {
@@ -6195,6 +7261,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.3": {
@@ -6210,6 +7279,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.4": {
@@ -6225,6 +7297,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.5": {
@@ -6240,6 +7315,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.6": {
@@ -6255,6 +7333,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.7": {
@@ -6270,6 +7351,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.8": {
@@ -6285,6 +7369,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A8.9": {
@@ -6300,6 +7387,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.1": {
@@ -6315,6 +7405,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.10": {
@@ -6330,6 +7423,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.2": {
@@ -6345,6 +7441,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.3": {
@@ -6360,6 +7459,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.4": {
@@ -6375,6 +7477,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.5": {
@@ -6390,6 +7495,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.6": {
@@ -6405,6 +7513,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.7": {
@@ -6420,6 +7531,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     },
     "A9.8": {
@@ -6450,6 +7564,9 @@
       "closed_by": [
         "core/learning/shadow_archive.py",
         "tests/test_shadow_evolution.py"
+      ],
+      "wired_by": [
+        "tools/evidence_report.py"
       ]
     }
   },

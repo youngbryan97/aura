@@ -165,7 +165,12 @@ def unmapped() -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write", action="store_true", help="lower the baseline to today")
+    parser.add_argument("--write", action="store_true", help="move the baseline to today")
+    parser.add_argument(
+        "--because", default="",
+        help="why the baseline moved. Required when any number goes UP: a ratchet "
+             "that can be reset without a reason is a number, not a ratchet.",
+    )
     parser.add_argument("--redundant", action="store_true", help="organs sharing an invariant")
     args = parser.parse_args()
 
@@ -175,8 +180,26 @@ def main() -> int:
         return 0
 
     if args.write or not BASELINE.exists():
+        previous = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
+        went_up = [k for k in current if k in previous and current[k] > previous[k]]
+        if went_up and not args.because.strip():
+            print(
+                "cognitive-complexity: "
+                + ", ".join(f"{k} rose from {previous[k]} to {current[k]}" for k in went_up)
+                + ". Pass --because with the reason; a ratchet that can be reset "
+                "without one is a number, not a ratchet.",
+                file=sys.stderr,
+            )
+            return 1
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps(current, indent=2) + "\n")
+        history = previous.get("history", [])
+        if went_up:
+            history = [*history, {"raised": went_up, "from": {k: previous[k] for k in went_up},
+                                  "to": {k: current[k] for k in went_up},
+                                  "because": args.because.strip()}]
+        BASELINE.write_text(
+            json.dumps({**current, "history": history}, indent=2) + "\n"
+        )
         print(f"cognitive-complexity: baseline written {current}")
         return 0
 
@@ -184,7 +207,8 @@ def main() -> int:
     regressions = [
         f"{key}: {current[key]} > baseline {baseline[key]}"
         for key in current
-        if key in baseline and current[key] > baseline[key]
+        if key in baseline and isinstance(baseline[key], (int, float))
+        and current[key] > baseline[key]
     ]
     for line in regressions:
         print(f"cognitive-complexity: {line}", file=sys.stderr)
@@ -195,7 +219,10 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    improvements = {k: (baseline[k], current[k]) for k in current if current[k] < baseline.get(k, current[k])}
+    improvements = {
+        k: (baseline[k], current[k]) for k in current
+        if isinstance(baseline.get(k), (int, float)) and current[k] < baseline[k]
+    }
     print(f"cognitive-complexity: within baseline {current}"
           + (f"; improved {improvements}" if improvements else ""))
     return 0

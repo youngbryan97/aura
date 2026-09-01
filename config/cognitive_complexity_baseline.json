@@ -1,6 +1,38 @@
 {
   "organs": 117,
   "cross_package_edges": 1893,
-  "dependency_entropy": 9.0792,
-  "kernel_lines": 560414
+  "dependency_entropy": 9.0794,
+  "kernel_lines": 560631,
+  "history": [
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 1893,
+        "dependency_entropy": 9.0792,
+        "kernel_lines": 560414
+      },
+      "to": {
+        "cross_package_edges": 1894,
+        "dependency_entropy": 9.08,
+        "kernel_lines": 560629
+      },
+      "because": "the cognitive contracts were wired into the runtime health surface: two health fragments and one boot import, which is the edge that makes contract_health and growth_report reachable from a live report rather than only from tests. 215 kernel lines and one cross-package edge for the thing that says whether any of the contracts are load-bearing."
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 560629
+      },
+      "to": {
+        "kernel_lines": 560631
+      },
+      "because": "two lines: the registration moved from core/runtime/foundations into core/cognition/cognitive_integration_layer, because a foundation may not reach into cognition. The subsystem publishes and the surface asks, which is the direction memory_facade already uses."
+    }
+  ]
 }
