@@ -625,13 +625,40 @@ def _attach_health_probe_state(
     return enriched, status_code
 
 
-def _reset_health_probe_state_for_test() -> None:
+def _reset_health_probe_state_for_test(*, drain_s: float = 1.0) -> None:
+    """Return the probe lane to a known state, draining anything still in flight.
+
+    Popping only the DONE futures was not enough, and the way it failed is worth
+    keeping. A probe released at the end of one test finishes on an executor
+    thread, and its done-callback writes a fresh boot-health cache entry. That
+    write lands after the NEXT test has set its own cache and patched the TTL,
+    so the next test's first poll is served from a cache it did not write, never
+    starts a probe, and reports zero timeouts where it expected one. The test
+    passed alone and failed in the file, which is the signature of exactly this.
+
+    So the reset waits for the in-flight probes rather than skipping them. A
+    test that ends by calling this has therefore finished writing before the
+    next one sets up, which is the whole fix. It deliberately does NOT clear the
+    cache: callers store the cache they want and then reset, and clearing here
+    would throw away what they just set.
+
+    ``drain_s`` bounds the wait, so a probe that will not settle is abandoned
+    rather than hanging the suite.
+    """
     with _HEALTH_PROBE_STATE_LOCK:
-        for surface, future in list(_HEALTH_PROBE_FUTURES.items()):
-            if future.done():
-                _HEALTH_PROBE_FUTURES.pop(surface, None)
-                _HEALTH_PROBE_GENERATIONS.pop(surface, None)
-                _HEALTH_PROBE_STARTED_AT.pop(surface, None)
+        pending = [future for future in _HEALTH_PROBE_FUTURES.values() if not future.done()]
+    for future in pending:
+        try:
+            future.exception(timeout=drain_s)
+        except Exception:  # noqa: BLE001 - drained either way
+            # A probe that raised or will not settle is drained either way; the
+            # point is that it is no longer about to write.
+            pass
+    with _HEALTH_PROBE_STATE_LOCK:
+        for surface in list(_HEALTH_PROBE_FUTURES):
+            _HEALTH_PROBE_FUTURES.pop(surface, None)
+            _HEALTH_PROBE_GENERATIONS.pop(surface, None)
+            _HEALTH_PROBE_STARTED_AT.pop(surface, None)
         _HEALTH_PROBE_STATE.update(
             generation=0,
             consecutive_failures=0,
@@ -644,7 +671,6 @@ def _reset_health_probe_state_for_test() -> None:
             last_failure_at_unix=0.0,
             escalated=False,
         )
-
 
 def _reset_boot_health_cache_for_test() -> None:
     with _boot_health_cache_lock:

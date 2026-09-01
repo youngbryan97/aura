@@ -41,17 +41,17 @@
   },
   "STDP trajectory divergence": {
     "ok": true,
-    "divergence": 0.4511
+    "divergence": 0.3914
   },
   "FE scales with prediction error": {
     "ok": true,
-    "fe_low_pe": 0.2643,
-    "fe_high_pe": 0.2811,
-    "urgency_low": 0.2662
+    "fe_low_pe": 0.2648,
+    "fe_high_pe": 0.282,
+    "urgency_low": 0.267
   },
   "Action urgency scales with FE": {
     "ok": true,
-    "urgency_high_pe": 0.3176
+    "urgency_high_pe": 0.3191
   },
   "Critical depletion changes inference": {
     "ok": true,
@@ -75,7 +75,7 @@
   "Circumplex produces diverse narratives": {
     "ok": true,
     "distinct_narratives": 4,
-    "examples": "['Somatically alert and energized.', 'Somatically tired and withdrawn.', 'Somatically calm and settled.']"
+    "examples": "['Somatically calm and settled.', 'Somatically tense and overloaded.', 'Somatically tired and withdrawn.']"
   },
   "State reversal: positive -> more tokens": {
     "ok": "True",
@@ -88,7 +88,7 @@
   },
   "Substrate idle drift (100 ticks)": {
     "ok": true,
-    "L2_drift": 6.0148
+    "L2_drift": 6.0105
   },
   "Homeostasis degradation changes context": {
     "ok": true,
@@ -98,7 +98,7 @@
   "FE responds to prediction error": {
     "ok": true,
     "fe_low": 0.263,
-    "fe_high": 0.2719,
+    "fe_high": 0.272,
     "action_low": "rest",
     "action_high": "rest"
   },
@@ -132,12 +132,12 @@
   },
   "Perturbation propagates to other neurons": {
     "ok": true,
-    "neurons_affected": 61,
+    "neurons_affected": 63,
     "total_neurons": 64
   },
   "Shuffled W produces different trajectory": {
     "ok": true,
-    "divergence": 6.9782
+    "divergence": 6.9799
   },
   "State transfer carries behavioral bias": {
     "ok": true,
@@ -154,7 +154,7 @@
   },
   "Zero W produces degenerate dynamics": {
     "ok": true,
-    "divergence_vs_real": 2.356
+    "divergence_vs_real": 2.3389
   },
   "Full stack effective dimensionality": {
     "ok": true,
@@ -184,11 +184,11 @@
   },
   "Perturbation complexity (intact system)": {
     "ok": true,
-    "complexity": 0.3247
+    "complexity": 0.3245
   },
   "Intact vs shuffled divergence": {
     "ok": true,
-    "final_state_divergence": 4.9952
+    "final_state_divergence": 4.9853
   },
   "Phi=0 removes GWT boost (anesthesia)": {
     "ok": true,
@@ -198,6 +198,6 @@
   "Will produces valid decisions": {
     "ok": true,
     "outcome": "proceed",
-    "receipt": "will_68d88901d03"
+    "receipt": "will_6888a003a84"
   }
 }

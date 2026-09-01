@@ -124,8 +124,15 @@ _ABOUT_HER_HOST_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Her half of the exchange, named as a place rather than as an instrument.
+#: "Is anything failing on your side?" names no subsystem and is unmistakably
+#: about her; the whole point of asking it that way is not to have to know what
+#: her parts are called. It stays narrow because it still needs a trouble or
+#: enquiry word beside it, so "I will handle it on your side" is not a question
+#: about her condition, and "my deploy is failing" has no possessive at all.
 _SELF_SUBJECT_RE = re.compile(
     r"\b(?:you'?re|yours|of\s+yours|are\s+you)\b|"
+    r"\bon\s+your\s+(?:side|end)\b|"
     rf"\byour\s+(?:\w+\s+){{0,2}}(?:{_HER_PARTS})\b",
     re.IGNORECASE,
 )
