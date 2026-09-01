@@ -1,0 +1,26 @@
+{
+  "claim_boundary": "a family-blind procedure induced from support examples transfers on fresh inputs through learned arithmetic tissue under composition, coefficient, wrong-input, and no-procedure controls; not natural-language compilation, open-domain reasoning, resident decode, unrestricted serving, or frontier performance",
+  "counts": {
+    "coefficient_lesion_disrupted": 96,
+    "no_procedure_exact": 1,
+    "treatment_exact": 96,
+    "wrong_input_disrupted": 96
+  },
+  "input_receipt_sha256": "1be0d3fbef4081093280578b99eabab458a1cf58d10523e8e3e7e16e7f2a3c36",
+  "null_found": 0,
+  "producer_source_sha256s": {
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/learning/induced_neural_procedure.py": "3578de9e2a07a5470e26e87571524477d89a0f1650fb011927b71f8a297e993a",
+    "core/learning/procedure_induction.py": "a87e5ad2d9985bc886a2dcb3b1cad87443fd42e263ea5c0f474e6625cb1e537a",
+    "core/learning/semantic_neural_composition.py": "7dd66cdd3afcd912507f4dc88fc49a43a3d53c3895f34fde7b7bb1d0895c75ba",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "tools/run_induced_neural_procedure_canary.py": "665e6806401fb393f1eb86dfee48b475287c7082606bc90d448f0e71d40bf96c"
+  },
+  "program_sha": "sha256:4a6b1b5bef844bd80700aecec86429b135ee039a4d27113ff8ab37e4c924b2b1",
+  "schema": "aura.rlc.induced_neural_procedure_verification.v1",
+  "task_count": 96,
+  "task_set_sha256": "831b0468085fa4c71998b4e367217f24c971d44fe4f5ec1088a1924d8a5bf327",
+  "verification_receipt_sha256": "1738791aa2343b45ad2f2f548e95070ca192d661fb77c214d7833b9a0e4fc195",
+  "verified": true,
+  "verifier_source_sha256": "71ebcefb9289cf5c08d678ae40702e7cdceff0fd36507ab5a8b75a5061d98502"
+}

@@ -52453,3 +52453,25 @@ the inherited perception diagnostic-write finding; no baseline changed.
 This checkpoint requires a source-matched live replay. Chat indicator
 attribution, false PARTIAL classification, repair budgets and latency remain
 open; this is not whole-runtime or RLC qualification.
+
+## Checkpoint 2026-08-31: An Induced Procedure Reaches Learned Neural Tissue
+
+A generic procedure inducer received sixteen input-output examples with no
+family label and no family solver. It considered 4,104 programs, found no
+depth-one shortcut, and froze the depth-two expression
+`idiv(add(in0, in1), in2)`. A family-blind SSA lowerer then allocated its live
+values over the existing four-register public workflow and executed the frozen
+procedure through Aura's learned arithmetic tissue.
+
+On 96 fresh inputs the treatment was exact 96/96. A coefficient lesion and a
+guaranteed wrong-input control disrupted 96/96; the no-procedure constant
+control solved 1/96. Fifteen searches against shuffled support outputs found no
+program. An independent verifier replayed every row and checked source,
+program, task-set and receipt identity. The registered result is
+`SUPPORTED_INDUCED_NEURAL_PROCEDURE`.
+
+This closes a bounded family-compiler gap. It does not establish
+natural-language compilation, open-domain reasoning, resident decode,
+unrestricted serving or frontier performance. The next bridge is a learned
+token-level semantic transducer that maps language into validated typed IR,
+followed by resident decoded-answer controls.

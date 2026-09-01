@@ -268,6 +268,7 @@ program traces instead of answers. That is where the gain came from.
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
 | Capability gain, **trained intrinsic** recurrence, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
 | Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
+| Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -290,6 +291,17 @@ rows before the frozen adjudicator returned `BOUNDED_WOW_SIGNAL` again. This
 is evidence that the bounded typed tissue/executor mechanism is portable
 across two model generations; it is not a head-to-head 27B-versus-32B quality
 benchmark because the cohorts and model identities differ.
+
+The next bridge now works without a family-specific compiler. A generic
+enumerative inducer received sixteen input-output examples, no family label and
+no family solver, froze `idiv(add(in0, in1), in2)`, and passed it through a
+family-blind SSA lowerer into the existing learned arithmetic tissue. That path
+was exact on 96/96 fresh inputs. Coefficient and guaranteed-wrong-input lesions
+disrupted all 96, the no-procedure control solved 1/96, no depth-one shortcut
+fit, and fifteen shuffled-output searches found no program. This establishes
+bounded procedure acquisition and neural execution over a fixed primitive
+vocabulary. It does not establish natural-language compilation, resident
+decode, open-domain reasoning or unrestricted serving.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there

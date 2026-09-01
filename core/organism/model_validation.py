@@ -1219,6 +1219,32 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="family_blind_procedure_acquisition_reaches_neural_tissue",
+            description=(
+                "a procedure induced without a family label transfers through "
+                "learned arithmetic tissue while composition, coefficient, "
+                "wrong-input, and no-procedure controls fail"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="induced_neural_procedure_certificate_is_verified",
+                value=True,
+                source=(
+                    "artifacts/closeout/latent_cortex/"
+                    "induced_neural_procedure_canary_20260831/verification.json"
+                ),
+            ),
+            predict=lambda _m: _induced_neural_procedure_certificate_holds(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="family-blind induced neural procedure",
+            ),
+            owner="tools/verify_induced_neural_procedure_canary.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1600,6 +1626,31 @@ def install_runtime_validation() -> dict[str, Any]:
                 "authenticated typed composition, not hidden-state internalization, "
                 "open-domain reasoning gain, unrestricted serving, static fusion, "
                 "or frontier performance."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "From sixteen input-output examples with no family label or family "
+                "solver, Aura induced a two-operation procedure and executed it "
+                "exactly through learned neural tissue on 96 fresh inputs."
+            ),
+            test="family_blind_procedure_acquisition_reaches_neural_tissue",
+            owner="tools/verify_induced_neural_procedure_canary.py",
+            asserted_in=(
+                "artifacts/closeout/latent_cortex/"
+                "induced_neural_procedure_canary_20260831/verification.json"
+            ),
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Independent replay verified 96/96 treatment exact, 96/96 "
+                "coefficient-lesion disruptions, 96/96 wrong-input disruptions, "
+                "1/96 for the no-procedure control, no depth-one shortcut, and zero "
+                "fits across 15 shuffled-output nulls. The primitive vocabulary and "
+                "value types were fixed. This is not natural-language compilation, "
+                "open-domain reasoning, resident decode, unrestricted serving, or "
+                "frontier performance."
             ),
         )
     )
@@ -3256,6 +3307,78 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
         and journal.get("sha256") == journal_sha
         and journal.get("event_count") == 50
         and journal.get("decode_count") == 48
+    )
+
+
+def _induced_neural_procedure_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    artifact_root = (
+        root
+        / "artifacts/closeout/latent_cortex/"
+        "induced_neural_procedure_canary_20260831"
+    )
+    try:
+        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
+        verification = json.loads(
+            (artifact_root / "verification.json").read_text(encoding="utf-8")
+        )
+        source_hashes = result["source_sha256s"]
+        current_hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_hashes
+        }
+        verifier_path = root / "tools/verify_induced_neural_procedure_canary.py"
+        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    expected_counts = {
+        "treatment_exact": 96,
+        "coefficient_lesion_disrupted": 96,
+        "wrong_input_disrupted": 96,
+        "no_procedure_exact": 1,
+    }
+    expected_boundary = (
+        "a family-blind procedure induced from support examples transfers on fresh "
+        "inputs through learned arithmetic tissue under composition, coefficient, "
+        "wrong-input, and no-procedure controls; not natural-language compilation, "
+        "open-domain reasoning, resident decode, unrestricted serving, or frontier performance"
+    )
+    program = result.get("program")
+    return bool(
+        result.get("schema") == "aura.rlc.induced_neural_procedure_canary.v1"
+        and result.get("admitted") is True
+        and result.get("verdict") == "SUPPORTED_INDUCED_NEURAL_PROCEDURE"
+        and result.get("support_count") == 16
+        and result.get("task_count") == 96
+        and result.get("null_runs") == 15
+        and result.get("null_found") == 0
+        and result.get("single_primitive_shortcut") is False
+        and isinstance(program, dict)
+        and program.get("expression") == "idiv(add(in0, in1), in2)"
+        and program.get("depth") == 2
+        and result.get("counts") == expected_counts
+        and result.get("family_label_available_to_inducer") is False
+        and result.get("family_solver_available_to_inducer") is False
+        and result.get("support_outputs_available_to_inducer") is True
+        and result.get("evaluation_outputs_available_to_treatment") is False
+        and result.get("claim_boundary") == expected_boundary
+        and current_hashes == source_hashes
+        and verification.get("schema")
+        == "aura.rlc.induced_neural_procedure_verification.v1"
+        and verification.get("verified") is True
+        and verification.get("program_sha") == program.get("sha")
+        and verification.get("task_count") == 96
+        and verification.get("counts") == expected_counts
+        and verification.get("null_found") == 0
+        and verification.get("task_set_sha256") == result.get("task_set_sha256")
+        and verification.get("producer_source_sha256s") == source_hashes
+        and verification.get("verifier_source_sha256") == verifier_sha
+        and verification.get("claim_boundary") == expected_boundary
+        and verification.get("input_receipt_sha256") == result.get("receipt_sha256")
     )
 
 

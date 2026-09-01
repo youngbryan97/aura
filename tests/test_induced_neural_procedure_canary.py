@@ -36,3 +36,20 @@ def test_independent_replay_rejects_a_resealed_row_change() -> None:
         assert "replay differs" in str(exc)
     else:  # pragma: no cover - the verifier must fail closed.
         raise AssertionError("resealed row tamper passed independent replay")
+
+
+def test_verified_result_is_registered_with_its_boundary() -> None:
+    from core.organism.model_validation import (
+        _induced_neural_procedure_certificate_holds,
+        get_suite,
+        install_runtime_validation,
+    )
+
+    install_runtime_validation()
+    claims = {claim.test: claim for claim in get_suite().claims()}
+
+    assert _induced_neural_procedure_certificate_holds() is True
+    claim = claims["family_blind_procedure_acquisition_reaches_neural_tissue"]
+    assert claim.evidence.value == "measured_synthetic"
+    assert "not natural-language compilation" in claim.evidence_note
+    assert "open-domain reasoning" in claim.evidence_note
