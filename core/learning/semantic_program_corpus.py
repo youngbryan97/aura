@@ -16,6 +16,7 @@ import hashlib
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Final, Literal
 
 from core.learning.procedure_induction import Instruction, Program
@@ -27,7 +28,7 @@ from core.learning.semantic_program_ir import (
 
 CorpusSplit = Literal["train", "validation", "test"]
 
-SEMANTIC_PROGRAM_CORPUS_SCHEMA: Final = "aura.semantic_program_corpus.v2"
+SEMANTIC_PROGRAM_CORPUS_SCHEMA: Final = "aura.semantic_program_corpus.v3"
 
 _OPERATION_LANGUAGE: Final[dict[str, dict[str, str]]] = {
     "add": {"verb": "add", "noun": "sum"},
@@ -281,6 +282,10 @@ def _sequential(
     second_op: str,
     values: tuple[int, int, int],
     topology: ProgramTopology,
+    *,
+    result_phrase: str = "that result",
+    connector: str = ". Then ",
+    ending: str = " using whole-number arithmetic.",
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
     first_left, first_right = _first_arguments(values, topology)
@@ -292,11 +297,11 @@ def _sequential(
         right=first_right,
         capitalize=True,
     )
-    builder.append(". Then ")
+    builder.append(connector)
     second_left, second_right = _second_arguments(
         values,
         topology,
-        result=("that result", "ref0"),
+        result=(result_phrase, "ref0"),
     )
     second_args = _append_binary_verb(
         builder,
@@ -305,7 +310,7 @@ def _sequential(
         left=second_left,
         right=second_right,
     )
-    builder.append(" using whole-number arithmetic.")
+    builder.append(ending)
     annotations = (
         _annotation(
             builder,
@@ -390,6 +395,10 @@ def _fronted_operand(
     second_op: str,
     values: tuple[int, int, int],
     topology: ProgramTopology,
+    *,
+    result_phrase: str = "the obtained value",
+    reserved_role: str = "the earlier operand",
+    connector: str = "; afterward, ",
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
     builder.append("Using ")
@@ -397,7 +406,7 @@ def _fronted_operand(
         str(values[topology.remaining_input]),
         label=f"in{topology.remaining_input}",
     )
-    builder.append(" as the later operand, first ")
+    builder.append(" as the reserved operand, first ")
     first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
@@ -406,11 +415,11 @@ def _fronted_operand(
         left=first_left,
         right=first_right,
     )
-    builder.append("; afterward, ")
+    builder.append(connector)
     second_left, second_right = _second_arguments(
         values,
         topology,
-        result=("the obtained value", "ref0"),
+        result=(result_phrase, "ref0"),
         remaining_label="ref_remaining",
     )
     second_args = _append_binary_verb(
@@ -418,11 +427,11 @@ def _fronted_operand(
         op=second_op,
         operation_label="op1",
         left=(
-            "the obtained value" if second_left[1] == "ref0" else "that earlier operand",
+            result_phrase if second_left[1] == "ref0" else reserved_role,
             second_left[1],
         ),
         right=(
-            "the obtained value" if second_right[1] == "ref0" else "that earlier operand",
+            result_phrase if second_right[1] == "ref0" else reserved_role,
             second_right[1],
         ),
     )
@@ -453,13 +462,17 @@ def _reverse_clause(
     second_op: str,
     values: tuple[int, int, int],
     topology: ProgramTopology,
+    *,
+    result_phrase: str = "the intermediate quantity",
+    bridge: str = ", obtain that quantity: ",
+    ending: str = ". Report the whole-number result.",
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
     builder.append("Before you ")
     second_left, second_right = _second_arguments(
         values,
         topology,
-        result=("the intermediate quantity", "ref0"),
+        result=(result_phrase, "ref0"),
     )
     second_args = _append_binary_verb(
         builder,
@@ -468,7 +481,7 @@ def _reverse_clause(
         left=second_left,
         right=second_right,
     )
-    builder.append(", obtain that quantity: ")
+    builder.append(bridge)
     first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
@@ -477,7 +490,7 @@ def _reverse_clause(
         left=first_left,
         right=first_right,
     )
-    builder.append(". Report the whole-number result.")
+    builder.append(ending)
     annotations = (
         _annotation(
             builder,
@@ -500,10 +513,50 @@ def _reverse_clause(
 
 
 _CONSTRUCTIONS: Final = {
-    "sequential": ("train", _sequential),
+    "sequential_result_then": ("train", _sequential),
+    "sequential_intermediate_after": (
+        "train",
+        partial(
+            _sequential,
+            result_phrase="the intermediate value",
+            connector=". After that, ",
+        ),
+    ),
     "nominal_nested": ("train", _nominal_nested),
-    "fronted_operand": ("validation", _fronted_operand),
-    "reverse_clause": ("test", _reverse_clause),
+    "fronted_obtained_afterward": ("train", _fronted_operand),
+    "reverse_intermediate_before": ("train", _reverse_clause),
+    "sequential_obtained_afterward": (
+        "validation",
+        partial(
+            _sequential,
+            result_phrase="the obtained value",
+            connector=". Afterward, ",
+        ),
+    ),
+    "fronted_intermediate_then": (
+        "validation",
+        partial(
+            _fronted_operand,
+            result_phrase="the intermediate value",
+            connector="; then, ",
+        ),
+    ),
+    "reverse_result_prior": (
+        "test",
+        partial(
+            _reverse_clause,
+            result_phrase="that result",
+            bridge=", first produce it: ",
+        ),
+    ),
+    "fronted_result_then": (
+        "test",
+        partial(
+            _fronted_operand,
+            result_phrase="that result",
+            connector="; then, ",
+        ),
+    ),
 }
 
 _TOPOLOGIES: Final = (

@@ -170,6 +170,7 @@ def _encode_hidden_sequence_response(
     encoder_cache: dict[str, Any],
     worker_identity: Mapping[str, Any],
     metal_semaphore: Any,
+    representation: str = "final_hidden_v1",
 ) -> dict[str, Any]:
     """Encode one bounded token sequence with one non-generative forward."""
 
@@ -202,13 +203,32 @@ def _encode_hidden_sequence_response(
     if any(token_id < 0 for token_id in token_ids):
         raise ValueError("hidden sequence token ids must be nonnegative")
 
+    from core.brain.llm.hidden_sequence_contract import (
+        FINAL_HIDDEN_V1,
+        HIDDEN_SEQUENCE_REPRESENTATIONS,
+        LEXICAL_CONTEXTUAL_V1,
+        hidden_sequence_channels,
+        hidden_sequence_schema,
+    )
     from core.brain.nonparametric_generation import MLXEncoder
+
+    if representation not in HIDDEN_SEQUENCE_REPRESENTATIONS:
+        raise ValueError(
+            f"unsupported hidden sequence representation: {representation}"
+        )
 
     if encoder_cache.get("encoder") is None:
         encoder_cache["encoder"] = MLXEncoder(model, tokenizer)
     encoder = encoder_cache["encoder"]
     with metal_semaphore:
-        hidden = encoder.encode_hidden_sequence_ids(token_ids)
+        if representation == LEXICAL_CONTEXTUAL_V1:
+            hidden = encoder.encode_lexical_contextual_sequence_ids(token_ids)
+        elif representation == FINAL_HIDDEN_V1:
+            hidden = encoder.encode_hidden_sequence_ids(token_ids)
+        else:  # Exhaustive guard if the shared contract grows.
+            raise ValueError(
+                f"unsupported hidden sequence representation: {representation}"
+            )
 
     shape = tuple(getattr(hidden, "shape", ()))
     if len(shape) != 2 or shape[0] != token_count:
@@ -247,7 +267,7 @@ def _encode_hidden_sequence_response(
         "hidden_shape": [token_count, hidden_size],
         "hidden_dtype": "float32_le",
         "receipt": {
-            "schema": "aura.hidden_sequence_encoding.v1",
+            "schema": hidden_sequence_schema(representation),
             "request_id": request_id,
             "action": "encode_hidden_sequence",
             "input_char_count": input_char_count,
@@ -262,6 +282,8 @@ def _encode_hidden_sequence_response(
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
             "model_basis": worker_model_basis(worker_identity),
+            "representation": representation,
+            "channels": list(hidden_sequence_channels(representation)),
             "forward_passes": 1,
             "causal_full_sequence": True,
             "sampling": False,
@@ -11735,6 +11757,9 @@ def _mlx_worker_loop(
                         encoder_cache=_hidden_encoder,
                         worker_identity=_current_worker_identity(),
                         metal_semaphore=metal_semaphore,
+                        representation=str(
+                            job.get("representation") or "final_hidden_v1"
+                        ),
                     )
                 except (
                     AttributeError,

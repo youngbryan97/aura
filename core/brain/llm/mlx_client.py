@@ -11886,6 +11886,7 @@ class MLXLocalClient:
         text: str,
         *,
         timeout_s: float = 8.0,
+        representation: str = "final_hidden_v1",
     ) -> dict[str, Any] | None:
         """Return token-level resident hidden states without generating text.
 
@@ -11902,6 +11903,14 @@ class MLXLocalClient:
             raise ValueError(
                 "hidden sequence input exceeds "
                 f"{_HIDDEN_SEQUENCE_MAX_INPUT_CHARS} characters"
+            )
+        from core.brain.llm.hidden_sequence_contract import (
+            HIDDEN_SEQUENCE_REPRESENTATIONS,
+        )
+
+        if representation not in HIDDEN_SEQUENCE_REPRESENTATIONS:
+            raise ValueError(
+                f"unsupported hidden sequence representation: {representation}"
             )
 
         process = getattr(self, "_process", None)
@@ -11965,6 +11974,7 @@ class MLXLocalClient:
                 "seq": self._job_seq_counter,
                 "action": action,
                 "text": text,
+                "representation": representation,
             }
             future = _new_shared_future()
             self._pending_generations[request_id] = future
@@ -12029,12 +12039,18 @@ class MLXLocalClient:
         if response.get("status") != "ok":
             message = str(response.get("message") or "worker rejected request")
             raise RuntimeError(f"hidden sequence worker error: {message[:240]}")
-        return self._validate_hidden_sequence_response(text, response)
+        return self._validate_hidden_sequence_response(
+            text,
+            response,
+            representation=representation,
+        )
 
     def _validate_hidden_sequence_response(
         self,
         text: str,
         response: Mapping[str, Any],
+        *,
+        representation: str = "final_hidden_v1",
     ) -> dict[str, Any]:
         token_ids = response.get("token_ids")
         hidden_state_bytes = response.get("hidden_state_bytes")
@@ -12080,11 +12096,15 @@ class MLXLocalClient:
             "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
             "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
         }
+        from core.brain.llm.hidden_sequence_contract import (
+            hidden_sequence_channels,
+            hidden_sequence_schema,
+        )
         from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
 
         expected_identity = worker_model_basis(self.get_worker_identity_snapshot())
         expected_receipt = {
-            "schema": "aura.hidden_sequence_encoding.v1",
+            "schema": hidden_sequence_schema(representation),
             "request_id": response.get("id"),
             "action": "encode_hidden_sequence",
             "input_char_count": len(text),
@@ -12095,6 +12115,8 @@ class MLXLocalClient:
             "transport": "packed_float32_le",
             "limits": expected_limits,
             "model_basis": expected_identity,
+            "representation": representation,
+            "channels": list(hidden_sequence_channels(representation)),
             "forward_passes": 1,
             "causal_full_sequence": True,
             "sampling": False,

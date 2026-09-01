@@ -93,6 +93,35 @@ class MLXEncoder:
         """Encode every prefix position with one causal model forward."""
 
         hidden = self._hidden_sequence_from_ids(list(ids))
+        return self._normalize_hidden_rows(hidden)
+
+    def encode_lexical_contextual_sequence_ids(self, ids: list[int]) -> np.ndarray:
+        """Combine stable token identity with final causal context.
+
+        The embedding lookup is not a second transformer forward.  Each
+        channel is normalized independently, then assigned equal energy before
+        the combined row is normalized.  A linear reader can therefore retain
+        lexical identity without losing the contextual state needed for
+        reference resolution.
+        """
+
+        import mlx.core as mx
+
+        token_ids = list(ids)
+        tensor = mx.array([token_ids])
+        lexical = _as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
+        contextual = self._hidden_sequence_from_tensor(tensor)
+        combined = np.concatenate(
+            (
+                self._normalize_hidden_rows(lexical),
+                self._normalize_hidden_rows(contextual),
+            ),
+            axis=-1,
+        )
+        return self._normalize_hidden_rows(combined)
+
+    @staticmethod
+    def _normalize_hidden_rows(hidden: np.ndarray) -> np.ndarray:
         norms = np.linalg.norm(hidden, axis=-1, keepdims=True)
         return np.divide(
             hidden,
@@ -107,7 +136,10 @@ class MLXEncoder:
     def _hidden_sequence_from_ids(self, ids: list[int]) -> np.ndarray:
         import mlx.core as mx
 
-        h = self._hidden_model(mx.array([ids]))
+        return self._hidden_sequence_from_tensor(mx.array([ids]))
+
+    def _hidden_sequence_from_tensor(self, token_ids: Any) -> np.ndarray:
+        h = self._hidden_model(token_ids)
         return _as_float32_numpy(h[0])
 
     def encode_tokens(self, text: str) -> list[int]:

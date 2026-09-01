@@ -24,6 +24,12 @@ from typing import Any, Final, Protocol
 
 import numpy as np
 
+from core.brain.llm.hidden_sequence_contract import (
+    HIDDEN_SEQUENCE_REPRESENTATIONS,
+    LEXICAL_CONTEXTUAL_V1,
+    hidden_sequence_channels,
+    hidden_sequence_schema,
+)
 from core.governance_context import local_internal_governed_scope
 from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
@@ -36,7 +42,7 @@ from core.runtime.file_write_gateway import FileWriteGateway, get_file_write_gat
 FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
 FEATURE_MANIFEST_SCHEMA: Final = "aura.semantic_program_feature_manifest.v1"
 FEATURE_STATUS_SCHEMA: Final = "aura.semantic_program_feature_status.v1"
-FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v1"
+FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v2"
 GOLD_PROJECTION_SCHEMA: Final = "aura.semantic_program_gold_projection.v1"
 
 _RECORD_MAGIC: Final = b"AURASPF1"
@@ -80,6 +86,7 @@ class HiddenSequenceClient(Protocol):
         text: str,
         *,
         timeout_s: float = 8.0,
+        representation: str = "final_hidden_v1",
     ) -> dict[str, Any] | None: ...
 
 
@@ -89,7 +96,8 @@ class SemanticFeatureConfig:
 
     seed: int = 271828
     examples_per_operation_pair: int = 1
-    max_examples: int = 256
+    max_examples: int = 576
+    representation: str = LEXICAL_CONTEXTUAL_V1
     hidden_timeout_s: float = 120.0
     idle_wait_s: float = 300.0
     idle_poll_s: float = 1.0
@@ -103,6 +111,7 @@ class SemanticFeatureConfig:
             or self.examples_per_operation_pair < 1
             or type(self.max_examples) is not int
             or not 1 <= self.max_examples <= _MAX_EXAMPLES
+            or self.representation not in HIDDEN_SEQUENCE_REPRESENTATIONS
             or not 1.0 <= float(self.hidden_timeout_s) <= 3600.0
             or not 0.0 <= float(self.idle_wait_s) <= 86400.0
             or not 0.05 <= float(self.idle_poll_s) <= 60.0
@@ -115,6 +124,7 @@ class SemanticFeatureConfig:
             "seed": self.seed,
             "examples_per_operation_pair": self.examples_per_operation_pair,
             "max_examples": self.max_examples,
+            "representation": self.representation,
             "hidden_timeout_s": float(self.hidden_timeout_s),
             "idle_wait_s": float(self.idle_wait_s),
             "idle_poll_s": float(self.idle_poll_s),
@@ -423,6 +433,7 @@ def _validate_hidden_observation(
     text: str,
     local_token_ids: Sequence[int],
     checkpoint: Path,
+    representation: str,
 ) -> tuple[np.ndarray, dict[str, Any], dict[str, Any]]:
     if not isinstance(observation, Mapping):
         raise SemanticFeatureMaterializationError("resident feature observation is malformed")
@@ -456,7 +467,7 @@ def _validate_hidden_observation(
         raise SemanticFeatureMaterializationError("resident feature receipt is missing")
     accepted_receipt = json.loads(_canonical_bytes(dict(receipt)))
     required = {
-        "schema": "aura.hidden_sequence_encoding.v1",
+        "schema": hidden_sequence_schema(representation),
         "action": "encode_hidden_sequence",
         "input_char_count": len(text),
         "token_count": len(local_token_ids),
@@ -464,6 +475,8 @@ def _validate_hidden_observation(
         "hidden_state_bytes": states.nbytes,
         "hidden_state_sha256": _sha_bytes(states.astype("<f4", copy=False).tobytes()),
         "transport": "packed_float32_le",
+        "representation": representation,
+        "channels": list(hidden_sequence_channels(representation)),
         "forward_passes": 1,
         "causal_full_sequence": True,
         "sampling": False,
@@ -1021,6 +1034,7 @@ async def materialize_semantic_program_features(
             observation = await client.encode_hidden_sequence(
                 example.source_text,
                 timeout_s=float(config.hidden_timeout_s),
+                representation=config.representation,
             )
             if observation is not None:
                 break
@@ -1054,6 +1068,7 @@ async def materialize_semantic_program_features(
             text=example.source_text,
             local_token_ids=local_token_ids,
             checkpoint=resolved_checkpoint,
+            representation=config.representation,
         )
         current_lane_receipt = validate_exclusive_lane_receipt(
             current_lane_receipt,

@@ -89,6 +89,10 @@ def test_client_refuses_partial_or_stale_model_lane_ownership(monkeypatch) -> No
 
 
 def _valid_worker_response(client, request, *, hidden_states=None):
+    from core.brain.llm.hidden_sequence_contract import (
+        hidden_sequence_channels,
+        hidden_sequence_schema,
+    )
     from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
     from core.brain.llm.mlx_worker import (
         _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
@@ -101,22 +105,24 @@ def _valid_worker_response(client, request, *, hidden_states=None):
         hidden_states if hidden_states is not None else [[1.0, 0.0], [0.0, 1.0]],
         dtype="<f4",
     )
+    hidden_size = int(states.shape[1])
     hidden_state_bytes = states.tobytes(order="C")
+    representation = request.get("representation", "final_hidden_v1")
     return {
         "id": request["id"],
         "action": "encode_hidden_sequence",
         "status": "ok",
         "token_ids": token_ids,
         "hidden_state_bytes": hidden_state_bytes,
-        "hidden_shape": [2, 2],
+        "hidden_shape": [2, hidden_size],
         "hidden_dtype": "float32_le",
         "receipt": {
-            "schema": "aura.hidden_sequence_encoding.v1",
+            "schema": hidden_sequence_schema(representation),
             "request_id": request["id"],
             "action": "encode_hidden_sequence",
             "input_char_count": len(request["text"]),
             "token_count": len(token_ids),
-            "hidden_size": 2,
+            "hidden_size": hidden_size,
             "hidden_state_bytes": len(hidden_state_bytes),
             "hidden_state_sha256": hashlib.sha256(hidden_state_bytes).hexdigest(),
             "transport": "packed_float32_le",
@@ -126,6 +132,8 @@ def _valid_worker_response(client, request, *, hidden_states=None):
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
             "model_basis": worker_model_basis(client.get_worker_identity_snapshot()),
+            "representation": representation,
+            "channels": list(hidden_sequence_channels(representation)),
             "forward_passes": 1,
             "causal_full_sequence": True,
             "sampling": False,
@@ -175,6 +183,73 @@ def test_worker_encodes_every_token_with_one_non_generative_forward(monkeypatch)
     assert response["receipt"]["generated_tokens"] == 0
     assert response["receipt"]["generated_text"] is False
     assert response["receipt"]["model_basis"] == {"worker_boot_id": "basis-1"}
+
+
+def test_worker_emits_lexical_contextual_evidence_under_an_explicit_contract(
+    monkeypatch,
+) -> None:
+    from core.brain import nonparametric_generation
+    from core.brain.llm.hidden_sequence_contract import LEXICAL_CONTEXTUAL_V1
+    from core.brain.llm.mlx_worker import _encode_hidden_sequence_response
+
+    class Encoder:
+        def __init__(self, *_args) -> None:
+            pass
+
+        def encode_lexical_contextual_sequence_ids(self, token_ids):
+            assert token_ids == [7, 9]
+            return np.asarray(
+                [[0.5, 0.5, 0.5, 0.5], [0.5, -0.5, 0.5, -0.5]],
+                dtype=np.float32,
+            )
+
+    monkeypatch.setattr(nonparametric_generation, "MLXEncoder", Encoder)
+    response = _encode_hidden_sequence_response(
+        model="model",
+        tokenizer=SimpleNamespace(encode=lambda _text: [7, 9]),
+        text="resolve this reference",
+        request_id="request-multiscale",
+        encoder_cache={},
+        worker_identity={"worker_boot_id": "basis-2"},
+        metal_semaphore=contextlib.nullcontext(),
+        representation=LEXICAL_CONTEXTUAL_V1,
+    )
+
+    assert response["hidden_shape"] == [2, 4]
+    assert response["receipt"]["schema"] == "aura.hidden_sequence_encoding.v2"
+    assert response["receipt"]["representation"] == LEXICAL_CONTEXTUAL_V1
+    assert response["receipt"]["channels"] == [
+        "input_token_embedding",
+        "final_causal_hidden",
+    ]
+
+
+def test_client_binds_requested_representation_to_response(monkeypatch) -> None:
+    from core.brain.llm.hidden_sequence_contract import LEXICAL_CONTEXTUAL_V1
+
+    client = _resident_client(monkeypatch)
+
+    class ReplyingQueue:
+        def put(self, request, *_args):
+            states = np.asarray(
+                [[0.5, 0.5, 0.5, 0.5], [0.5, -0.5, 0.5, -0.5]],
+                dtype=np.float32,
+            )
+            client._pending_generations[request["id"]].set_result(
+                _valid_worker_response(client, request, hidden_states=states)
+            )
+
+    client._req_q = ReplyingQueue()
+    result = asyncio.run(
+        client.encode_hidden_sequence(
+            "bind both channels",
+            representation=LEXICAL_CONTEXTUAL_V1,
+        )
+    )
+
+    assert result is not None
+    assert result["hidden_states"].shape == (2, 4)
+    assert result["receipt"]["representation"] == LEXICAL_CONTEXTUAL_V1
 
 
 def test_worker_refuses_token_overflow_before_model_forward(monkeypatch) -> None:
@@ -239,6 +314,7 @@ def test_client_returns_validated_hidden_sequence_and_exact_receipt(monkeypatch)
     assert isinstance(request, dict)
     assert request["action"] == "encode_hidden_sequence"
     assert request["text"] == "compose this operation"
+    assert request["representation"] == "final_hidden_v1"
     assert isinstance(request["id"], str) and request["id"]
     assert client._active_generations == 0
     assert client._pending_generations == {}

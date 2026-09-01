@@ -121,6 +121,64 @@ def test_encoder_converts_real_mlx_bfloat16_and_encodes_sequence_once():
     assert np.allclose(np.linalg.norm(sequence, axis=1), 1.0)
 
 
+def test_encoder_preserves_lexical_and_contextual_channels_in_one_forward():
+    mx = pytest.importorskip("mlx.core")
+
+    from core.brain.nonparametric_generation import MLXEncoder
+
+    class Backbone:
+        def __init__(self):
+            self.calls = 0
+            self.embedding_calls = 0
+
+        def embed_tokens(self, ids):
+            self.embedding_calls += 1
+            lexical = mx.stack(
+                (ids.astype(mx.float32), mx.ones_like(ids).astype(mx.float32)),
+                axis=-1,
+            )
+            return lexical
+
+        def __call__(self, ids):
+            self.calls += 1
+            contextual = mx.stack(
+                (
+                    mx.ones_like(ids).astype(mx.float32),
+                    ids.astype(mx.float32) * 2.0,
+                ),
+                axis=-1,
+            )
+            return contextual
+
+    class Tokenizer:
+        all_special_ids = []
+
+    backbone = Backbone()
+    language = type(
+        "LanguageModel",
+        (),
+        {"args": type("Args", (), {"hidden_size": 2})(), "model": backbone},
+    )()
+    wrapper = type(
+        "HybridWrapper",
+        (),
+        {
+            "args": type("WrapperArgs", (), {"model_type": "qwen3_5"})(),
+            "language_model": language,
+        },
+    )()
+
+    sequence = MLXEncoder(wrapper, Tokenizer()).encode_lexical_contextual_sequence_ids(
+        [2, 3]
+    )
+
+    assert backbone.calls == 1
+    assert backbone.embedding_calls == 1
+    assert sequence.shape == (2, 4)
+    assert np.allclose(np.linalg.norm(sequence, axis=1), 1.0)
+    assert not np.allclose(sequence[0, :2], sequence[0, 2:])
+
+
 def test_cosine_from_l2_orthogonal_is_zero():
     # two orthogonal unit vectors are sqrt(2) apart → cosine 0
     assert abs(cosine_from_l2(np.sqrt(2.0))) < 1e-6

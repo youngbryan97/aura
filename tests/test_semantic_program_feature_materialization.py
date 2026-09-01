@@ -9,6 +9,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from core.brain.llm.hidden_sequence_contract import (
+    LEXICAL_CONTEXTUAL_V1,
+    hidden_sequence_channels,
+    hidden_sequence_schema,
+)
 from core.learning.semantic_program_corpus import build_semantic_program_corpus
 from core.learning.semantic_program_feature_materialization import (
     SemanticFeatureConfig,
@@ -46,8 +51,15 @@ class _FeatureClient:
         self.checkpoint = checkpoint
         self.calls = 0
 
-    async def encode_hidden_sequence(self, text: str, *, timeout_s: float = 8.0):
+    async def encode_hidden_sequence(
+        self,
+        text: str,
+        *,
+        timeout_s: float = 8.0,
+        representation: str = "final_hidden_v1",
+    ):
         assert timeout_s == 120.0
+        assert representation == LEXICAL_CONTEXTUAL_V1
         self.calls += 1
         token_ids = [ord(character) for character in text]
         states = np.zeros((len(token_ids), 8), dtype=np.float32)
@@ -64,7 +76,7 @@ class _FeatureClient:
             "token_ids": token_ids,
             "hidden_states": states,
             "receipt": {
-                "schema": "aura.hidden_sequence_encoding.v1",
+                "schema": hidden_sequence_schema(representation),
                 "request_id": f"request-{self.calls}",
                 "action": "encode_hidden_sequence",
                 "input_char_count": len(text),
@@ -79,6 +91,8 @@ class _FeatureClient:
                     "max_hidden_size": 32768,
                 },
                 "model_basis": basis,
+                "representation": representation,
+                "channels": list(hidden_sequence_channels(representation)),
                 "forward_passes": 1,
                 "causal_full_sequence": True,
                 "sampling": False,
@@ -119,7 +133,7 @@ def test_selection_retains_every_construction_topology_and_operation_pair() -> N
         seed=271828,
         examples_per_operation_pair=2,
     )
-    selected = select_bounded_semantic_examples(corpus, max_examples=256)
+    selected = select_bounded_semantic_examples(corpus, max_examples=576)
 
     cells = {
         (
@@ -129,10 +143,10 @@ def test_selection_retains_every_construction_topology_and_operation_pair() -> N
         )
         for item in selected
     }
-    assert len(selected) == 256
-    assert len(cells) == 256
+    assert len(selected) == 576
+    assert len(cells) == 576
     with pytest.raises(ValueError, match="factorial corpus cell"):
-        select_bounded_semantic_examples(corpus, max_examples=255)
+        select_bounded_semantic_examples(corpus, max_examples=575)
 
 
 def test_offset_tokenization_matches_worker_without_special_tokens() -> None:
@@ -172,14 +186,14 @@ def test_materialization_publishes_only_after_cpu_reload(tmp_path: Path) -> None
     )
 
     assert result.complete
-    assert result.completed_examples == 256
-    assert client.calls == 256
+    assert result.completed_examples == 576
+    assert client.calls == 576
     bundle = load_semantic_feature_bundle(output, expected_examples=corpus)
-    assert len(bundle.examples) == 256
+    assert len(bundle.examples) == 576
     assert bundle.manifest["split_counts"] == {
-        "test": 64,
-        "train": 128,
-        "validation": 64,
+        "test": 128,
+        "train": 320,
+        "validation": 128,
     }
     assert not any(item.metadata.get("source_text") for item in bundle.examples)
 

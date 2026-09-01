@@ -17,7 +17,12 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=271828)
     parser.add_argument("--examples-per-operation-pair", type=int, default=1)
-    parser.add_argument("--max-examples", type=int, default=256)
+    parser.add_argument("--max-examples", type=int, default=576)
+    parser.add_argument(
+        "--representation",
+        choices=("final_hidden_v1", "lexical_contextual_v1"),
+        default="lexical_contextual_v1",
+    )
     parser.add_argument("--hidden-timeout-s", type=float, default=120.0)
     parser.add_argument("--idle-wait-s", type=float, default=0.0)
     return parser.parse_args()
@@ -43,6 +48,7 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
         seed=args.seed,
         examples_per_operation_pair=args.examples_per_operation_pair,
         max_examples=args.max_examples,
+        representation=args.representation,
         hidden_timeout_s=args.hidden_timeout_s,
         idle_wait_s=args.idle_wait_s,
     )

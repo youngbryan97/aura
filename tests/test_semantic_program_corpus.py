@@ -20,9 +20,18 @@ def test_corpus_splits_hold_out_complete_constructions() -> None:
     }
 
     assert constructions_by_split == {
-        "train": {"sequential", "nominal_nested"},
-        "validation": {"fronted_operand"},
-        "test": {"reverse_clause"},
+        "train": {
+            "fronted_obtained_afterward",
+            "nominal_nested",
+            "reverse_intermediate_before",
+            "sequential_intermediate_after",
+            "sequential_result_then",
+        },
+        "validation": {
+            "fronted_intermediate_then",
+            "sequential_obtained_afterward",
+        },
+        "test": {"fronted_result_then", "reverse_result_prior"},
     }
     assert not (
         constructions_by_split["train"]
@@ -80,21 +89,21 @@ def test_noncommutative_language_preserves_operand_order() -> None:
     sequential_sub = next(
         item
         for item in examples
-        if item.construction_id == "sequential"
+        if item.construction_id == "sequential_result_then"
         and item.instructions[0].instruction.op == "sub"
         and item.instructions[1].instruction.op == "sub"
     )
     reverse_division = next(
         item
         for item in examples
-        if item.construction_id == "reverse_clause"
+        if item.construction_id == "reverse_result_prior"
         and item.instructions[1].instruction.op == "idiv"
     )
 
     assert "Subtract " in sequential_sub.source_text
     assert " from " in sequential_sub.source_text
     assert "subtract " in sequential_sub.source_text
-    assert "integer-divide the intermediate quantity by" in reverse_division.source_text
+    assert "integer-divide that result by" in reverse_division.source_text
 
 
 def test_contrast_groups_change_operations_over_identical_inputs() -> None:
