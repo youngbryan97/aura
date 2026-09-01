@@ -323,6 +323,39 @@ it was never fitted to.
 The library is offered as leaves. That is the only channel by which a long term
 becomes reachable.
 
+### The rule for what to try first is a term — `the_order_she_tries_them_in.py`
+
+`how_she_learns_to_look` already says the honest thing about its two halves:
+the order may be learned and the ruler may not, because a rule that learns to
+propose rubbish loses time and keeps nothing. What it did not do is make the
+order an *object*. The counts were learned; the expression combining them was
+Python, and a Python expression is the next authored level up — the same shape
+of gap `growing_at_any_level` left one level down.
+
+`THE_ORDER` is a 22-symbol floor term taking five numbers and giving a score.
+It is installed and removed by the code that installs and removes a head, and
+nothing in the pipeline knows which of the two it is holding. The order over
+her real vocabulary is identical to what the Python expression gave, checked,
+with the integer rounding checked separately so a change of representation
+cannot smuggle in a change of behaviour.
+
+This is one component of `M_t` becoming an artifact of the same kind as the
+things `M_t` produces. It is not meta-invention: nothing here writes a better
+rule, and there is a test asserting the rule in force at import is the authored
+one, so a later change to that has to arrive with experiment H's evidence.
+
+### A head is priced before it is kept
+
+Objection 16 — the library eventually worsens search — was answered by hoping.
+A word is one more thing to put in a hole; a head is one more shape at every
+node of every term, so it multiplies. `what_a_head_costs_the_search` counts
+both sides in the same unit as everywhere else here, terms she would otherwise
+walk: the maker search above walked the positional space at that depth and
+returned nothing, so that count is what the head must be cheaper than; the head
+search reports where its answer appeared; and the enumerator is counted with
+the head and without it for the branches it adds. No threshold and no
+weighting. It pays, or it comes straight back out.
+
 ### Information flow
 
     experience
@@ -573,11 +606,14 @@ Never a reflex on confusion, and never a search over every program.
 
 **New.** `the_floor_she_stands_on.py`, `the_floor_reading_itself.py`,
 `what_the_floor_can_say.py`, `what_the_old_language_cannot_say.py`,
-`a_way_of_computing_she_wrote.py`, `where_the_tower_has_a_top.py`.
+`a_way_of_computing_she_wrote.py`, `where_the_tower_has_a_top.py`,
+`the_order_she_tries_them_in.py`. Also modified: `how_she_learns_to_look.py`
+scores through the term; `keeping_the_language_small.py` prices a head.
 
 **Tests.** `test_the_floor_she_stands_on.py` (72),
-`test_a_head_she_wrote.py` (12), `test_a_way_of_computing_she_wrote.py` (8),
-`test_every_head_survives_a_restart.py` (20).
+`test_a_head_she_wrote.py` (12), `test_a_way_of_computing_she_wrote.py` (10),
+`test_every_head_survives_a_restart.py` (20),
+`test_the_order_she_tries_them_in.py` (7). 121 new tests.
 
 **Persistence.** Heads are kept as their term, never as a name and never
 pickled, and recalled before the words that are written over them.
@@ -604,17 +640,20 @@ still takes a callable and still has no runtime caller;
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
 | **F** | Cross-domain transfer with a negative control | **not run** |
 | **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **not run** |
-| **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** Architecturally available and not demonstrated — see Part XIII |
+| **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** One component of the mechanism — the rule for what to try first — is now a term, replaceable and lesionable by the head path; nothing writes a better one, and no gain is claimed |
 | **I** | A second generation with no human code between | **not run** |
 | **J** | Post-freeze tasks by an independent party | **not run** |
 
-**Controls.** Implemented: shuffled/contradictory residuals refused; a family
-already sayable produces nothing; one length holds nothing back; a fake head
+**Controls.** Implemented: shuffled and contradictory residuals refused; a
+family already sayable produces nothing; one length holds nothing back; a head
 that never settles or asks for nonsense is refused; the invented head is
-lesioned and the reach goes with it. Required and not implemented: random
-candidate generator, fixed-DSL enumerator with a larger budget, retrieval,
-macro-only compression, inline expansion, equal-persistent-bytes, matched
-compute across GROWN and RESET.
+lesioned and the reach goes with it; a search order that will not answer sends
+every word to the back rather than stopping the search, and the order lesion
+restores the previous order exactly; a head that costs more search than it
+saves is taken back out. Required and not implemented: random candidate
+generator, fixed-DSL enumerator with a larger budget, retrieval, macro-only
+compression, inline expansion, equal-persistent-bytes, matched compute across
+GROWN and RESET.
 
 **Falsifiers.** The thesis fails if a larger search budget with no language
 growth matches the grown condition; if every claimed distinction is a macro; if
@@ -796,13 +835,17 @@ whole mitigation, and it is not a proof.
 - The library moving the search horizon: the same family, search and budget
   finds nothing with an empty library and the answer with one entry.
 - Every head the interpreter runs surviving a restart, which was false before.
+- The rule deciding what to try first computing, as a term, exactly what the
+  Python expression computed, over her real vocabulary — and being replaceable
+  and lesionable by the same path a head is.
 
 ### Not established
 
-- Meta-invention. The proposer is still Python. The floor makes it
-  representable — the interpreter is a term, so a proposer can be one — and
-  nothing here demonstrates that she writes a better proposer. Experiments H
-  and I are not run and no recursive self-improvement is claimed.
+- Meta-invention. The rule for what to try first is a term; the search that
+  would replace it is not. Nothing here demonstrates that she writes a better
+  rule, and the test suite asserts the rule in force at import is the authored
+  one so that a later change cannot pass unnoticed. Experiments H and I are not
+  run and no recursive self-improvement is claimed.
 - Cross-domain transfer, developmental compounding, and post-freeze evaluation.
 - That the head mechanism helps on any real task family beyond the synthetic
   ones here.
@@ -862,20 +905,22 @@ Done, in order, each piece surviving into the final architecture:
 6. Derived heads, dispatched, enumerated, persisted, removable, metered.
 7. Head synthesis from residual structure, wired into the live ladder.
 8. The regress theorem, the executed gate argument, and the claims.
+9. The search-cost gate, so a head that costs more than it saves cannot stay.
+10. The search order as a term, replaceable and lesionable by the head path.
 
 Next, in the order that keeps every step in the final architecture:
 
-9. The search-cost probe and the inline-expansion control, so a head that
-   lengthens search cannot be admitted.
-10. The dependency graph: quarantine, cascade, rebuild.
-11. Compile `an_operation_that_generalises` into the floor and delete the
+11. The inline-expansion control, so a name that bought nothing cannot pass as
+   an abstraction. The search-cost probe is done.
+12. The dependency graph: quarantine, cascade, rebuild.
+13. Compile `an_operation_that_generalises` into the floor and delete the
     second algebra (B3).
-12. Widen the rule schema so its shape is a term rather than a signature (B2).
-13. Make the proposer a term and persist it. Only then are H and I even
-    possible.
-14. Freeze; commission the sealed family; run F, G, H, I and J.
+14. Widen the rule schema so its shape is a term rather than a signature (B2).
+15. Make the whole proposer a term, not only its ordering, and persist it. Only
+    then are H and I even possible.
+16. Freeze; commission the sealed family; run F, G, H, I and J.
 
-If step 13 needs a new human-written mechanism to pass, the design has failed
+If step 15 needs a new human-written mechanism to pass, the design has failed
 and this document should say so.
 
 ---
