@@ -978,12 +978,6 @@ class CodeREPLSkill(BaseSkill):
         # real API instead of an AttributeError. Nothing found here is a claim
         # that the code is right — only that nothing was decidably wrong.
         code = _without_a_path_preamble_for(code, library)
-        if library:
-            code = _without_a_path_preamble_for(code, library)
-        if library:
-            code = _without_a_path_preamble_for(code, library)
-        if library:
-            code = _without_a_path_preamble_for(code, library)
         will_not_work = await asyncio.to_thread(
             _what_will_not_work_in_this_code, code, library
         )
@@ -1051,7 +1045,14 @@ class CodeREPLSkill(BaseSkill):
                 "error": "No execution backend available.",
             }
 
+        declared_retryable = result.get("retryable") is True
         result = normalize_code_repl_model_result(result)
+        # A program or policy error is deterministic for this exact snippet.
+        # Backends with an infrastructure failure can explicitly opt in.
+        # This field stays outside the stable model-evidence schema: the
+        # dispatcher consumes it, while serialization still exposes only the
+        # bounded execution evidence.
+        result["retryable"] = declared_retryable
 
         # Detect newly generated files
         new_files: list[str] = []

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.skills.code_repl import _is_a_sandbox_limit
+from core.skills.code_repl import CodeREPLSkill, _is_a_sandbox_limit
 
 
 @pytest.mark.parametrize(
@@ -51,6 +51,16 @@ def test_success_is_never_a_sandbox_limit() -> None:
     assert _is_a_sandbox_limit({"ok": True, "stdout": "125.0"}) is False
 
 
+def test_runner_names_an_unavailable_module_as_a_terminal_refusal() -> None:
+    from core.sandbox.runner import run_untrusted
+
+    result = run_untrusted("import asyncio\nprint(asyncio)", timeout=2)
+
+    assert result["status"] == "error"
+    assert "asyncio" in result["repr"]
+    assert _is_a_sandbox_limit({"ok": False, **result}) is False
+
+
 def test_the_chain_falls_through_on_a_limit() -> None:
     """Read from the code, so the fall-through cannot quietly disappear."""
     import inspect
@@ -60,3 +70,22 @@ def test_the_chain_falls_through_on_a_limit() -> None:
     source = inspect.getsource(code_repl)
     assert "if result is not None and _is_a_sandbox_limit(result):" in source
     assert "result = None" in source
+
+
+@pytest.mark.asyncio
+async def test_a_deterministic_sandbox_refusal_declares_no_retry(tmp_path) -> None:
+    skill = CodeREPLSkill()
+    skill._session_dirs["terminal-refusal"] = tmp_path
+
+    result = await skill.execute(
+        {
+            "code": "import asyncio\nprint(asyncio.Lock())",
+            "session_id": "terminal-refusal",
+            "capture_files": False,
+        },
+        {},
+    )
+
+    assert result["ok"] is False
+    assert result["retryable"] is False
+    assert "network" in result["error"]

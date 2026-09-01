@@ -13,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -1389,6 +1389,14 @@ def _maturity_enforcement_enabled() -> bool:
 def _is_transient(err: str) -> bool:
     """Checks if an error is likely transient (network, timeout, etc)."""
     return any(x in str(err).lower() for x in ["timeout", "network", "retry", "limit"])
+
+
+def _declared_retryability(output: Any) -> bool | None:
+    """Return a producer's typed retry decision, when it supplied one."""
+    if not isinstance(output, Mapping):
+        return None
+    retryable = output.get("retryable")
+    return retryable if type(retryable) is bool else None
 
 
 @lru_cache(maxsize=2048)
@@ -7437,7 +7445,10 @@ class CapabilityEngine(AuraBaseModule):
                     )
 
                 last_error = self._extract_error(output)
-                if not _is_transient(last_error):
+                declared_retryability = _declared_retryability(output)
+                if declared_retryability is False:
+                    break
+                if declared_retryability is not True and not _is_transient(last_error):
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
                 _record_capability_degradation(
