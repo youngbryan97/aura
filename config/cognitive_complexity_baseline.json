@@ -1,0 +1,6 @@
+{
+  "organs": 117,
+  "cross_package_edges": 1893,
+  "dependency_entropy": 9.0792,
+  "kernel_lines": 560414
+}

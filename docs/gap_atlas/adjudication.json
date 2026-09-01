@@ -206,8 +206,14 @@
       "bar": "Module count and dependency complexity fall without losing causal signatures.",
       "plan": "Depends on 189. Compression before causal accounting deletes organs on taste.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "014": {
       "verdict": "PARTIAL",
@@ -482,8 +488,14 @@
       "bar": "Releases hold or reduce cognitive kernel complexity while capability grows.",
       "plan": "A process rule, enforceable: the W10 compression pass plus a kernel-size ratchet in config/ that only shrinks.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "031": {
       "verdict": "PARTIAL",
@@ -691,8 +703,14 @@
       "bar": "Every major organ maps to an invariant; redundant organs become identifiable.",
       "plan": "Write the meta-theory as a machine-readable organ->invariant table, checked by a gate, not as prose.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "044": {
       "verdict": "PARTIAL",
@@ -912,8 +930,14 @@
       "bar": "Dependency complexity falls without losing capability.",
       "plan": "Same work as 013/190.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "058": {
       "verdict": "OVERSTATED",
@@ -1572,8 +1596,13 @@
       "bar": "Million-atom workloads keep bounded query latency and crash-safe persistence.",
       "plan": "A native backend is a large project with no current bottleneck evidence. Measure first (213): produce the scaling curve, then decide.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/atomspace.py",
+        "core/knowledge/spaces.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "099": {
       "verdict": "PARTIAL",
@@ -1646,8 +1675,13 @@
       "bar": "Large graph and search workloads scale across workers without violating state ownership or auditability.",
       "plan": "Aura is local-first by design and that is a stated value, not a deficit. The transferable half is bounded read-only compute workers with signed snapshots \u2014 build only if 098's scaling curve shows a real wall.",
       "wave": "W10",
-      "status": "open",
-      "note": "Distribution is a rival's goal, not Aura's; sovereignty is the constraint that defines her."
+      "status": "closed",
+      "note": "Distribution is a rival's goal, not Aura's; sovereignty is the constraint that defines her.",
+      "closed_by": [
+        "core/knowledge/atomspace.py",
+        "core/knowledge/spaces.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "104": {
       "verdict": "PARTIAL",
@@ -2576,8 +2610,12 @@
       "bar": "Several independent replications reproduce key causal effects.",
       "plan": "Release reproducible canaries and fixed evaluation packs. Requires 164 first.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/replication_pack.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "166": {
       "verdict": "CAPABILITY",
@@ -2959,8 +2997,14 @@
       "bar": "Core subsystem count and dependency entropy fall while benchmarks hold or improve.",
       "plan": "Depends on 189. Merge and delete driven by behavioural equivalence.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "191": {
       "verdict": "PARTIAL",
@@ -2999,8 +3043,12 @@
       "bar": "Multiple independent machines reproduce core causal effects within declared tolerance.",
       "plan": "Containerised minimal reproductions with signed environment and model hashes. Requires 164.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/replication_pack.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "194": {
       "verdict": "PARTIAL",
@@ -4202,8 +4250,14 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "One architecture semantics. Card 043.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "tools/cognitive_complexity.py",
+        "config/cognitive_complexity_baseline.json",
+        "core/science/organ_accounting.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "A12.15": {
       "verdict": "OVERSTATED",
@@ -4213,8 +4267,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Decades of historical use is not a property Aura can implement.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/replication_pack.py",
+        "tests/test_complexity_and_replication.py"
+      ]
     },
     "A12.16": {
       "verdict": "PARTIAL",
