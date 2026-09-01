@@ -48,6 +48,24 @@ def test_every_split_covers_all_operation_compositions() -> None:
         assert observed == expected
 
 
+def test_every_split_covers_distinct_register_graphs() -> None:
+    examples = build_semantic_program_corpus(examples_per_operation_pair=1)
+    expected = {
+        ((0, 1), (3, 2)),
+        ((1, 2), (3, 0)),
+        ((0, 2), (1, 3)),
+        ((1, 2), (0, 3)),
+    }
+
+    for split in ("train", "validation", "test"):
+        observed = {
+            tuple(item.instruction.args for item in example.instructions)
+            for example in examples
+            if example.split == split
+        }
+        assert observed == expected
+
+
 def test_program_first_examples_execute_the_annotated_program() -> None:
     examples = build_semantic_program_corpus(examples_per_operation_pair=2)
 

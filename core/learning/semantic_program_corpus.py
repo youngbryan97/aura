@@ -27,7 +27,7 @@ from core.learning.semantic_program_ir import (
 
 CorpusSplit = Literal["train", "validation", "test"]
 
-SEMANTIC_PROGRAM_CORPUS_SCHEMA: Final = "aura.semantic_program_corpus.v1"
+SEMANTIC_PROGRAM_CORPUS_SCHEMA: Final = "aura.semantic_program_corpus.v2"
 
 _OPERATION_LANGUAGE: Final[dict[str, dict[str, str]]] = {
     "add": {"verb": "add", "noun": "sum"},
@@ -65,11 +65,38 @@ class SemanticInstructionAnnotation:
 
 
 @dataclass(frozen=True, slots=True)
+class ProgramTopology:
+    """A two-step register graph independent of operations and wording."""
+
+    topology_id: str
+    first_args: tuple[int, int]
+    remaining_input: int
+    result_is_left: bool
+
+    def __post_init__(self) -> None:
+        if (
+            not self.topology_id
+            or len(set(self.first_args)) != 2
+            or set(self.first_args) | {self.remaining_input} != {0, 1, 2}
+        ):
+            raise ValueError("semantic program topology is invalid")
+
+    @property
+    def second_args(self) -> tuple[int, int]:
+        return (
+            (3, self.remaining_input)
+            if self.result_is_left
+            else (self.remaining_input, 3)
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class SemanticProgramExample:
     """One immutable program-first language example."""
 
     example_id: str
     construction_id: str
+    topology_id: str
     split: CorpusSplit
     source_text: str
     inputs: tuple[int, ...]
@@ -84,6 +111,7 @@ class SemanticProgramExample:
             self.schema != SEMANTIC_PROGRAM_CORPUS_SCHEMA
             or not self.example_id
             or not self.construction_id
+            or not self.topology_id
             or self.split not in {"train", "validation", "test"}
             or not self.source_text.strip()
             or not 1 <= len(self.inputs) <= 8
@@ -166,11 +194,12 @@ def _validate_character_span(span: CharacterSpan, text: str) -> None:
 
 def _example_id(
     construction_id: str,
+    topology_id: str,
     first_op: str,
     second_op: str,
     inputs: tuple[int, int, int],
 ) -> str:
-    body = f"{construction_id}|{first_op}|{second_op}|{inputs}"
+    body = f"{construction_id}|{topology_id}|{first_op}|{second_op}|{inputs}"
     return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
 
 
@@ -216,34 +245,72 @@ def _append_binary_verb(
     return left[1], right[1]
 
 
+def _argument(
+    values: tuple[int, int, int],
+    index: int,
+) -> tuple[str, str]:
+    return str(values[index]), f"in{index}"
+
+
+def _first_arguments(
+    values: tuple[int, int, int],
+    topology: ProgramTopology,
+) -> tuple[tuple[str, str], tuple[str, str]]:
+    return (
+        _argument(values, topology.first_args[0]),
+        _argument(values, topology.first_args[1]),
+    )
+
+
+def _second_arguments(
+    values: tuple[int, int, int],
+    topology: ProgramTopology,
+    *,
+    result: tuple[str, str],
+    remaining_label: str | None = None,
+) -> tuple[tuple[str, str], tuple[str, str]]:
+    remaining = (
+        str(values[topology.remaining_input]),
+        remaining_label or f"in{topology.remaining_input}",
+    )
+    return (result, remaining) if topology.result_is_left else (remaining, result)
+
+
 def _sequential(
     first_op: str,
     second_op: str,
     values: tuple[int, int, int],
+    topology: ProgramTopology,
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
+    first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
         op=first_op,
         operation_label="op0",
-        left=(str(values[0]), "in0"),
-        right=(str(values[1]), "in1"),
+        left=first_left,
+        right=first_right,
         capitalize=True,
     )
     builder.append(". Then ")
+    second_left, second_right = _second_arguments(
+        values,
+        topology,
+        result=("that result", "ref0"),
+    )
     second_args = _append_binary_verb(
         builder,
         op=second_op,
         operation_label="op1",
-        left=("that result", "ref0"),
-        right=(str(values[2]), "in2"),
+        left=second_left,
+        right=second_right,
     )
     builder.append(" using whole-number arithmetic.")
     annotations = (
         _annotation(
             builder,
             op=first_op,
-            args=(0, 1),
+            args=topology.first_args,
             operation_label="op0",
             argument_labels=first_args,
             depends_on=(),
@@ -251,7 +318,7 @@ def _sequential(
         _annotation(
             builder,
             op=second_op,
-            args=(3, 2),
+            args=topology.second_args,
             operation_label="op1",
             argument_labels=second_args,
             depends_on=(0,),
@@ -264,38 +331,54 @@ def _nominal_nested(
     first_op: str,
     second_op: str,
     values: tuple[int, int, int],
+    topology: ProgramTopology,
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     first = _OPERATION_LANGUAGE[first_op]
     second = _OPERATION_LANGUAGE[second_op]
     builder = _AnnotatedText()
     builder.append("Return the ")
     builder.append(second["noun"], label="op1")
-    builder.append(" of the ")
-    builder.begin("ref0")
-    builder.append(first["noun"], label="op0")
     builder.append(" of ")
-    builder.append(str(values[0]), label="in0")
-    builder.append(" and ")
-    builder.append(str(values[1]), label="in1")
-    builder.finish("ref0")
-    builder.append(" divided by " if second_op == "idiv" else " and ")
-    builder.append(str(values[2]), label="in2")
+    first_left, first_right = _first_arguments(values, topology)
+
+    def append_first_expression() -> None:
+        builder.begin("ref0")
+        builder.append("the ")
+        builder.append(first["noun"], label="op0")
+        builder.append(" of ")
+        builder.append(first_left[0], label=first_left[1])
+        builder.append(" divided by " if first_op == "idiv" else " and ")
+        builder.append(first_right[0], label=first_right[1])
+        builder.finish("ref0")
+
+    remaining = _argument(values, topology.remaining_input)
+    joiner = " divided by " if second_op == "idiv" else " and "
+    if topology.result_is_left:
+        append_first_expression()
+        builder.append(joiner)
+        builder.append(remaining[0], label=remaining[1])
+        second_args = ("ref0", remaining[1])
+    else:
+        builder.append(remaining[0], label=remaining[1])
+        builder.append(joiner)
+        append_first_expression()
+        second_args = (remaining[1], "ref0")
     builder.append(". Use integer arithmetic.")
     annotations = (
         _annotation(
             builder,
             op=first_op,
-            args=(0, 1),
+            args=topology.first_args,
             operation_label="op0",
-            argument_labels=("in0", "in1"),
+            argument_labels=(first_left[1], first_right[1]),
             depends_on=(),
         ),
         _annotation(
             builder,
             op=second_op,
-            args=(3, 2),
+            args=topology.second_args,
             operation_label="op1",
-            argument_labels=("ref0", "in2"),
+            argument_labels=second_args,
             depends_on=(0,),
         ),
     )
@@ -306,32 +389,49 @@ def _fronted_operand(
     first_op: str,
     second_op: str,
     values: tuple[int, int, int],
+    topology: ProgramTopology,
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
     builder.append("Using ")
-    builder.append(str(values[2]), label="in2")
+    builder.append(
+        str(values[topology.remaining_input]),
+        label=f"in{topology.remaining_input}",
+    )
     builder.append(" as the later operand, first ")
+    first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
         op=first_op,
         operation_label="op0",
-        left=(str(values[0]), "in0"),
-        right=(str(values[1]), "in1"),
+        left=first_left,
+        right=first_right,
     )
     builder.append("; afterward, ")
+    second_left, second_right = _second_arguments(
+        values,
+        topology,
+        result=("the obtained value", "ref0"),
+        remaining_label="ref_remaining",
+    )
     second_args = _append_binary_verb(
         builder,
         op=second_op,
         operation_label="op1",
-        left=("the obtained value", "ref0"),
-        right=("that earlier operand", "ref2"),
+        left=(
+            "the obtained value" if second_left[1] == "ref0" else "that earlier operand",
+            second_left[1],
+        ),
+        right=(
+            "the obtained value" if second_right[1] == "ref0" else "that earlier operand",
+            second_right[1],
+        ),
     )
     builder.append(". Return the integer result.")
     annotations = (
         _annotation(
             builder,
             op=first_op,
-            args=(0, 1),
+            args=topology.first_args,
             operation_label="op0",
             argument_labels=first_args,
             depends_on=(),
@@ -339,7 +439,7 @@ def _fronted_operand(
         _annotation(
             builder,
             op=second_op,
-            args=(3, 2),
+            args=topology.second_args,
             operation_label="op1",
             argument_labels=second_args,
             depends_on=(0,),
@@ -352,30 +452,37 @@ def _reverse_clause(
     first_op: str,
     second_op: str,
     values: tuple[int, int, int],
+    topology: ProgramTopology,
 ) -> tuple[_AnnotatedText, tuple[str, str, str], tuple[SemanticInstructionAnnotation, ...]]:
     builder = _AnnotatedText()
     builder.append("Before you ")
+    second_left, second_right = _second_arguments(
+        values,
+        topology,
+        result=("the intermediate quantity", "ref0"),
+    )
     second_args = _append_binary_verb(
         builder,
         op=second_op,
         operation_label="op1",
-        left=("the intermediate quantity", "ref0"),
-        right=(str(values[2]), "in2"),
+        left=second_left,
+        right=second_right,
     )
     builder.append(", obtain that quantity: ")
+    first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
         op=first_op,
         operation_label="op0",
-        left=(str(values[0]), "in0"),
-        right=(str(values[1]), "in1"),
+        left=first_left,
+        right=first_right,
     )
     builder.append(". Report the whole-number result.")
     annotations = (
         _annotation(
             builder,
             op=first_op,
-            args=(0, 1),
+            args=topology.first_args,
             operation_label="op0",
             argument_labels=first_args,
             depends_on=(),
@@ -383,7 +490,7 @@ def _reverse_clause(
         _annotation(
             builder,
             op=second_op,
-            args=(3, 2),
+            args=topology.second_args,
             operation_label="op1",
             argument_labels=second_args,
             depends_on=(0,),
@@ -399,11 +506,18 @@ _CONSTRUCTIONS: Final = {
     "reverse_clause": ("test", _reverse_clause),
 }
 
+_TOPOLOGIES: Final = (
+    ProgramTopology("left_01_then_2", (0, 1), 2, True),
+    ProgramTopology("left_12_then_0", (1, 2), 0, True),
+    ProgramTopology("1_then_right_02", (0, 2), 1, False),
+    ProgramTopology("0_then_right_12", (1, 2), 0, False),
+)
+
 
 def build_semantic_program_corpus(
     *,
     seed: int = 271828,
-    examples_per_operation_pair: int = 8,
+    examples_per_operation_pair: int = 2,
 ) -> tuple[SemanticProgramExample, ...]:
     """Return deterministic examples with construction-disjoint splits."""
 
@@ -413,43 +527,50 @@ def build_semantic_program_corpus(
     examples: list[SemanticProgramExample] = []
     operations = tuple(_OPERATION_LANGUAGE)
     for construction_id, (split, renderer) in _CONSTRUCTIONS.items():
-        sample_values = tuple(
-            (
-                rng.randint(11, 97),
-                rng.randint(3, 31),
-                rng.randint(2, 9),
+        for topology in _TOPOLOGIES:
+            sample_values = tuple(
+                (
+                    rng.randint(60, 97),
+                    rng.randint(20, 49),
+                    rng.randint(2, 9),
+                )
+                for _ in range(examples_per_operation_pair)
             )
-            for _ in range(examples_per_operation_pair)
-        )
-        for first_op in operations:
-            for second_op in operations:
-                for sample_index, values in enumerate(sample_values):
-                    builder, input_labels, annotations = renderer(
-                        first_op,
-                        second_op,
-                        values,
-                    )
-                    contrast_id = f"{construction_id}:{sample_index}:{values}"
-                    examples.append(
-                        SemanticProgramExample(
-                            example_id=_example_id(
-                                construction_id,
-                                first_op,
-                                second_op,
-                                values,
-                            ),
-                            construction_id=construction_id,
-                            split=split,
-                            source_text=builder.text,
-                            inputs=values,
-                            input_spans=tuple(
-                                builder.span(label) for label in input_labels
-                            ),
-                            instructions=annotations,
-                            report_value=4,
-                            contrast_id=contrast_id,
+            for first_op in operations:
+                for second_op in operations:
+                    for sample_index, values in enumerate(sample_values):
+                        builder, input_labels, annotations = renderer(
+                            first_op,
+                            second_op,
+                            values,
+                            topology,
                         )
-                    )
+                        contrast_id = (
+                            f"{construction_id}:{topology.topology_id}:"
+                            f"{sample_index}:{values}"
+                        )
+                        examples.append(
+                            SemanticProgramExample(
+                                example_id=_example_id(
+                                    construction_id,
+                                    topology.topology_id,
+                                    first_op,
+                                    second_op,
+                                    values,
+                                ),
+                                construction_id=construction_id,
+                                topology_id=topology.topology_id,
+                                split=split,
+                                source_text=builder.text,
+                                inputs=values,
+                                input_spans=tuple(
+                                    builder.span(label) for label in input_labels
+                                ),
+                                instructions=annotations,
+                                report_value=4,
+                                contrast_id=contrast_id,
+                            )
+                        )
     return tuple(examples)
 
 
@@ -517,6 +638,7 @@ def project_example_to_ir(
 
 __all__ = [
     "CharacterSpan",
+    "ProgramTopology",
     "SEMANTIC_PROGRAM_CORPUS_SCHEMA",
     "SemanticInstructionAnnotation",
     "SemanticProgramExample",
