@@ -198,12 +198,43 @@ class AttentionValue:
         return {"sti": self.sti, "lti": self.lti, "vlti": self.vlti}
 
 
+#: Per-atom cap on distinct tracked sources. Beyond it the oldest folds into
+#: the unattributed pool: bookkeeping that grows without bound is a leak, and
+#: an atom with this many witnesses is not the case deduplication protects.
+_MAX_SOURCES_PER_ATOM = 256
+
+
 @dataclass
 class _Record:
     atom: Atom
     tv: TruthValue
     av: AttentionValue = field(default_factory=AttentionValue)
     added_at: float = field(default_factory=time.time)
+    #: Each source's LATEST contribution to this atom's truth, keyed by the
+    #: observation identity that produced it. A source restating itself
+    #: replaces its own entry rather than adding a second one, which is what
+    #: makes a mirror of an accumulating store idempotent.
+    sources: dict[str, TruthValue] = field(default_factory=dict)
+    #: Everything asserted without an identity, accumulated the old way.
+    unattributed: TruthValue | None = None
+
+
+def _fold(rec: "_Record") -> TruthValue:
+    """Recompute an atom's truth from its per-source contributions.
+
+    Each source contributes once, whatever it has said most recently. The
+    unattributed pool joins as one more contribution, so a store still passing
+    bare truth values is not silently dropped — it is just not deduplicated.
+    """
+    contributions = list(rec.sources.values())
+    if rec.unattributed is not None:
+        contributions.append(rec.unattributed)
+    if not contributions:
+        return TruthValue()
+    folded = contributions[0]
+    for extra in contributions[1:]:
+        folded = folded.revise(extra)
+    return folded
 
 
 # ── Unification ───────────────────────────────────────────────────────────
@@ -284,21 +315,42 @@ class AtomSpace:
         self._max_atoms = int(max_atoms)
         self._forgotten_total = 0
         self._derived_total = 0
+        # Evidence bookkeeping: revisions refused as duplicates, and revisions
+        # that arrived with no identity to check.
+        self._duplicate_assertions = 0
+        self._unattributed_assertions = 0
 
     # ── store ─────────────────────────────────────────────────────────
 
-    def add(self, atom: Atom, tv: TruthValue | None = None) -> TruthValue:
+    def add(
+        self, atom: Atom, tv: TruthValue | None = None, *, source: str | None = None
+    ) -> TruthValue:
         """Insert an atom (and its recursive outgoing set), revising the TV.
 
         Re-adding an existing atom merges truth by PLN revision — the Hyperon
         semantics for repeated assertion. Returns the atom's current TV.
+
+        ``source`` names the observation this assertion comes from, and it is
+        what stops one observation being heard ten times. PLN revision assumes
+        its two arguments are independent estimates and has no way to check;
+        asserting ``TruthValue(0.9, 4.0)`` ten times from one sensor reading
+        used to take confidence from 0.44 to 0.98. When a source is given and
+        this atom's truth already rests on it, the revision is skipped and the
+        current value returned unchanged.
+
+        Omitting ``source`` keeps the old behaviour, because most of the
+        repository has no identity to give yet. That path is *unattributed*
+        rather than independent, and ``evidence_report()`` counts it so the
+        difference stays visible instead of being assumed away.
         """
         if not _pattern_is_ground(atom):
             raise ValueError("cannot add a pattern (Variable) to the AtomSpace")
         with self._lock:
-            return self._add_locked(atom, tv)
+            return self._add_locked(atom, tv, source=source)
 
-    def _add_locked(self, atom: Atom, tv: TruthValue | None) -> TruthValue:
+    def _add_locked(
+        self, atom: Atom, tv: TruthValue | None, *, source: str | None = None
+    ) -> TruthValue:
         if isinstance(atom, Link):
             for child in atom.outgoing:
                 if child not in self._records:
@@ -307,12 +359,60 @@ class AtomSpace:
         rec = self._records.get(atom)
         if rec is None:
             rec = _Record(atom=atom, tv=tv if tv is not None else TruthValue())
+            if tv is not None:
+                if source is not None:
+                    rec.sources[source] = tv
+                else:
+                    rec.unattributed = tv
             self._records[atom] = rec
             atype = atom.atype if isinstance(atom, (Node, Link)) else "Unknown"
             self._by_type.setdefault(atype, set()).add(atom)
-        elif tv is not None:
-            rec.tv = rec.tv.revise(tv)
+            return rec.tv
+        if tv is None:
+            return rec.tv
+        if source is None:
+            self._unattributed_assertions += 1
+            rec.unattributed = tv if rec.unattributed is None else rec.unattributed.revise(tv)
+        else:
+            previous = rec.sources.get(source)
+            if previous is not None:
+                self._duplicate_assertions += 1
+                if previous.strength == tv.strength and previous.count == tv.count:
+                    return rec.tv
+            rec.sources[source] = tv
+            if len(rec.sources) > _MAX_SOURCES_PER_ATOM:
+                # An atom with thousands of distinct witnesses is past the point
+                # where per-source bookkeeping buys anything; fold the oldest
+                # into the unattributed pool rather than growing without bound.
+                oldest = next(iter(rec.sources))
+                folded = rec.sources.pop(oldest)
+                rec.unattributed = (
+                    folded if rec.unattributed is None else rec.unattributed.revise(folded)
+                )
+        rec.tv = _fold(rec)
         return rec.tv
+
+    def evidence_sources(self, atom: Atom) -> frozenset[str]:  # noqa: D402
+        """The observation identities this atom's truth value rests on."""
+        with self._lock:
+            rec = self._records.get(atom)
+            return frozenset(rec.sources) if rec else frozenset()
+
+    def evidence_report(self) -> dict[str, Any]:
+        """How much of this space's belief can name where it came from.
+
+        ``unattributed_assertions`` is not an error count. It is the number of
+        revisions that could not be checked for independence, which is the
+        honest reading of a store still being migrated onto sourced evidence.
+        """
+        with self._lock:
+            attributed = sum(1 for r in self._records.values() if r.sources)
+            return {
+                "atoms": len(self._records),
+                "atoms_with_sources": attributed,
+                "duplicate_assertions_refused": self._duplicate_assertions,
+                "unattributed_assertions": self._unattributed_assertions,
+            }
 
     def get_tv(self, atom: Atom) -> TruthValue | None:
         with self._lock:
@@ -819,8 +919,15 @@ def assert_claim(
     *,
     domain: str = "world",
     stimulate: bool = True,
+    source: str | None = None,
 ) -> tuple[Atom, TruthValue]:
     """Assert a natural-language claim into the space and return its revised TV.
+
+    ``source`` names the observation behind the claim. Without one, repeated
+    assertion of the same claim revises PLN-style and accumulates confidence;
+    with one, a source restating itself replaces its own contribution. Callers
+    mirroring a store that already accumulates evidence want the latter, or
+    both sides count the same evidence.
 
     Uses the same propositional encoder as the deduction prover
     (``core/reasoning/belief_consistency.encode_belief``) so the atom
@@ -848,12 +955,15 @@ def assert_claim(
         a_node = concept(("¬" if ante_neg else "") + ante)
         c_node = concept(("¬" if cons_neg else "") + cons)
         atom: Atom = implication(a_node, c_node)
-        out_tv = space.add(atom, tv)
+        out_tv = space.add(atom, tv, source=source)
     else:
         atom = concept(encoded.core_key)
-        out_tv = space.add(atom, tv.negation() if encoded.negated else tv)
+        out_tv = space.add(atom, tv.negation() if encoded.negated else tv, source=source)
     ev = evaluation(predicate("claim_domain"), atom, concept(domain))
-    space.add(ev, TruthValue(1.0, 1.0))
+    # The domain link is a stipulation about the claim, not evidence for it;
+    # it is asserted under its own identity so re-asserting a claim does not
+    # accumulate confidence in what domain it belongs to.
+    space.add(ev, TruthValue(1.0, 1.0), source=f"claim_domain:{domain}")
     if stimulate:
         space.stimulate(atom)
     return atom, out_tv

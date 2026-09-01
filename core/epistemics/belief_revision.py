@@ -421,6 +421,13 @@ class BeliefRevisionEngine:
         value: implication-shaped beliefs become Implication links (fuel for
         the deduction chainer), and every assertion stimulates its atom so the
         attention economy tracks what Aura is actually thinking about.
+
+        The mirror asserts under the belief's own identity. ``evidence_count``
+        is already the belief's ACCUMULATED mass, so revising it into the atom
+        on every update counted the same evidence on both sides — five updates
+        to one belief left the atom holding far more evidence than the belief
+        it mirrors, and a boot that re-mirrored the store did it again. Under
+        an identity the atom takes the belief's current mass and nothing more.
         """
         try:
             from core.knowledge.atomspace import TruthValue, assert_claim, get_atomspace
@@ -430,6 +437,7 @@ class BeliefRevisionEngine:
                 belief.content,
                 TruthValue(belief.confidence, max(belief.evidence_count, 1e-6)),
                 domain=belief.domain,
+                source=f"belief:{belief.id}",
             )
         except (ImportError, ValueError, TypeError, RuntimeError, AttributeError) as e:
             _record_belief_revision_degradation(

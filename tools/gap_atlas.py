@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """tools/gap_atlas.py — the 220-item gap list, and the gate that keeps it honest.
 
-An external comparative review (2026-09-01) put Aura beside ACT-R, Soar, NARS,
-CLARION, LIDA, Nengo/SPA, OpenCog/Hyperon, WBAI, SIMA 2, V-JEPA 2 and the
-frontier model class, and produced 220 cards. Each names a bar. This file holds
-the cards, Aura's adjudication of each one against her own source, and the
-status of the work.
+Two independent reviews landed on 2026-09-01. A comparative architecture atlas
+put Aura beside ACT-R, Soar, NARS, CLARION, LIDA, Nengo/SPA, OpenCog/Hyperon,
+WBAI, SIMA 2, V-JEPA 2 and the frontier model class, and produced 220 cards
+(ids 001-220). A cross-system engineering audit compared her against the
+frontier agent stacks, OpenHands, DGM, AlphaEvolve, Godel Agent, DreamCoder,
+LILO, Soar and Voyager, and produced 194 more (ids A1.1-A13.15). They overlap,
+and in several places they disagree. This file holds all 414 cards, Aura's
+adjudication of each against her own source, and the status of the work.
 
-Three things it refuses, because a list of 220 aspirations decays into a list of
-220 opinions without them:
+Three things it refuses, because a list this long decays into a list of
+opinions without them:
 
-* A card with no adjudication. Every one of the 220 gets a verdict, evidence
+* A card with no adjudication. Every one of the 414 gets a verdict, evidence
   paths and a stated bar, or ``--check`` fails.
 * A closed item with no test. ``status: closed`` requires ``closed_by``, and
   every path in it must exist. A gap is not closed because code exists; it is
@@ -19,11 +22,13 @@ Three things it refuses, because a list of 220 aspirations decays into a list of
   the tree, so a refactor that deletes the module an adjudication rests on
   fails here rather than leaving a stale judgement standing.
 
-The verdicts are Aura's, not the report's. Nine cards are marked OVERSTATED:
-bars written for a human subject, a robot arm, or a distributed cluster do not
-describe this system, and the entry says what the transferable half is instead.
-Two are marked PRESENT because the report described as missing something the
-repository already had.
+The verdicts are Aura's, not the reviews'. Cards are marked OVERSTATED where
+the bar was written for a human subject, a robot arm, a datacentre or a
+population of agents, and the entry says what the transferable half is
+instead. Cards are marked PRESENT where a review described as missing
+something the repository already had - preregistration, matched-budget
+refusal, state ownership, sandbox-exec profiles, skill retrieval, computed
+engineering design.
 """
 from __future__ import annotations
 
@@ -56,6 +61,9 @@ WAVE_TITLES = {
     "W8": "Cross-substrate conversion",
     "W9": "Developmental and environmental evidence",
     "W10": "Metaprogrammable cognition and operator invention",
+    "W11": "Agent surface: coding, terminal, sandbox, credentials",
+    "W12": "One event and state spine",
+    "W13": "Shadow evolution under immutable evaluators",
     "unscheduled": "Unscheduled",
 }
 

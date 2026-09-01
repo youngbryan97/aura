@@ -34,8 +34,12 @@
       "bar": "Most cross-organ cognitive handoffs carry content, provenance, confidence, state version and causal receipt; a port lesion gives a selective deficit.",
       "plan": "Land core/cognition/ports.py over CognitiveStateRef. Aura's organs are services, not ACT-R buffers.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/state_ref.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "004": {
       "verdict": "PARTIAL",
@@ -369,8 +373,12 @@
       "bar": "Belief-producing APIs cannot omit provenance and evidence semantics.",
       "plan": "Provenance types exist in at least four stores with different shapes. One EvidencePacket, adapters for the rest.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "032": {
       "verdict": "ABSENT",
@@ -380,8 +388,12 @@
       "bar": "Duplicate derivations do not increase confidence; independent observations do.",
       "plan": "TruthValue.revise says 'two independent estimates' and never checks. Adding the same evidence twice inflates count. This is a live defect, not a philosophy gap.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "033": {
       "verdict": "PARTIAL",
@@ -393,8 +405,12 @@
       "bar": "Cross-store beliefs keep calibrated uncertainty after conversion.",
       "plan": "AtomSpace has strength/count; others use floats and Wilson bounds. Adapters onto EvidencePacket.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "034": {
       "verdict": "ABSENT",
@@ -492,8 +508,12 @@
       "bar": "Contradictory cross-module evidence yields predictable calibrated belief change.",
       "plan": "Centralise fusion invariants in the W1 evidence module; PLN revision becomes one backend.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "042": {
       "verdict": "PARTIAL",
@@ -1257,8 +1277,12 @@
       "bar": "Cross-system evidence combination is mathematically defined and duplicate evidence cannot inflate confidence.",
       "plan": "Same as 032/171. This is the single most load-bearing contract in the report.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "106": {
       "verdict": "ABSENT",
@@ -1974,8 +1998,12 @@
       "bar": "At least 80 percent of cross-subsystem cognitive handoffs use one contract and duplicate adapters are removed.",
       "plan": "CognitiveStateRef: identity, time, provenance, uncertainty, ownership, representation links, causal parents. P0 keystone.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/state_ref.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "171": {
       "verdict": "ABSENT",
@@ -1986,8 +2014,12 @@
       "bar": "Synthetic duplicate evidence cannot inflate belief; independent evidence raises confidence predictably.",
       "plan": "EvidencePacket with source ids, dependence set, mass and merge rules. The single most load-bearing item in the report.",
       "wave": "W1",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evidence/packet.py",
+        "tests/test_evidence_independence.py"
+      ]
     },
     "172": {
       "verdict": "ABSENT",
@@ -2543,6 +2575,2180 @@
       "wave": "W6",
       "status": "open",
       "note": ""
+    },
+    "A1.1": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/inference_gate.py",
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "One breadth board comparing full Aura to the same Qwen weights under matched budgets. matched_budget.py already refuses unmatched verdicts; the board is what is missing.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.10": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/context/"
+      ],
+      "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
+      "plan": "Long-context evaluation on delayed and multi-session tasks; memory must beat raw context or it is overhead.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.11": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/llm/"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Per-token and per-answer cost accounting on the W7 CognitiveCost currency.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.12": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/capability_engine.py"
+      ],
+      "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
+      "plan": "Intermediate-result reduction inside the tool-plan IR rather than through the model.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.13": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "interface/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "A stable programmatic surface. Aura is an instrument, not a product; scope to what her own tooling needs.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.14": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/llm/"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Explicit prompt-cache control. Aura's 15-turn ceiling was a prompt-cache defect; the control is worth having.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.15": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/learning/adaptive_halting.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Variable reasoning effort is the W7 value-of-computation controller.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.16": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/engineering/"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "core/engineering already computes and draws physical designs from Findings. This is closer to PRESENT than the audit knows.",
+      "wave": "W11",
+      "status": "open",
+      "note": "core/engineering/ computes a design and draws it, with a DEPS rule forbidding it from reaching anything that generates a number, and 29 published-answer problems gating the formulas. The audit did not see it."
+    },
+    "A1.17": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Benchmark diversity is the W6 eval orchestrator plus the W9 environment families.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.18": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/learning/adaptive_halting.py"
+      ],
+      "bar": "Reliability diagrams, Brier/ECE/selective-risk curves across coding, tools, factual QA, visual tasks and self-modification.",
+      "plan": "Selective expensive compute is 178 again.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.19": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Deployment-scale evaluation is not available to a single-machine agent; the transferable half is the sealed battery.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.2": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/self_modification/",
+        "core/architect/code_graph.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "A coding ACI: typed repo navigation, bounded views, structural edits, test selection, failure summarisation, rollback, repo memory.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.3": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/runtime/overt_action_loop.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Terminal competence as execution engineering: a typed terminal surface with effect verification, not a shell string.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.4": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Long-horizon repo tasks with repeated test/fix cycles over the same ACI.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.5": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/skills/screen_pursuit.py",
+        "core/perception/"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "Standardised observation/action protocol with effect verification. Overlaps 122/132.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.6": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/capability_engine.py"
+      ],
+      "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
+      "plan": "Parallel evidence collection with source dedup, over the tool-plan IR.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.7": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/capability_engine.py",
+        "core/cognition/an_action_she_composed.py"
+      ],
+      "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
+      "plan": "A typed tool-plan IR - map/filter/join/assert/retry/branch/loop over typed tool results - authored by the model, executed under governance. Doing ASTs are the seed.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.8": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/runtime/autonomy_conductor.py"
+      ],
+      "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
+      "plan": "Governed subagents with isolated contexts and explicit budgets; commitment stays central.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A1.9": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/runtime/autonomy_conductor.py"
+      ],
+      "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
+      "plan": "Measure whether fanout beats one worker at equal compute before adding workers.",
+      "wave": "W11",
+      "status": "open",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+    },
+    "A10.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/widening_the_language.py",
+        "core/sleep/"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "A wake-sleep loop: solve, abstract, dream. Aura has all three phases and no loop that runs them as one cycle.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/widening_the_language.py"
+      ],
+      "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
+      "plan": "Joint language and search learning - the two halves must move together.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/lesion_registry.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Clean wake / abstraction / dream ablations.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/one_algebra.py",
+        "core/cognition/rule_ir.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "A typed functional DSL discipline. one_algebra.py is exactly this and is not yet universal.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Compiled symbolic search rather than interpreted enumeration.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.14": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/a_kind_of_thing_she_named.py"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "An interpretable learned library a human can read.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/causal_influence.py"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "A focused mechanism with a clear causal role - the discipline, not a feature.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.2": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/cognition/keeping_the_language_small.py",
+        "core/cognition/an_ecology_of_words.py"
+      ],
+      "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
+      "plan": "CORPUS-WIDE compression: refactor the whole library against every solved trace, not one primitive at a time. This is the biggest real gap in the second audit.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.3": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/the_ones_she_reaches_for.py"
+      ],
+      "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
+      "plan": "A learned recognition model that proposes what to try, trained on real replay. The current prior is close to a no-op.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sleep/",
+        "core/brain/imagination.py"
+      ],
+      "bar": "Ablate dream vs replay vs both; require improved held-out search without more spurious abstractions or forgetting.",
+      "plan": "Dreamed problems: generate tasks from the library to train the recogniser.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/protected_memory.py"
+      ],
+      "bar": "Ablate dream vs replay vs both; require improved held-out search without more spurious abstractions or forgetting.",
+      "plan": "Replay of solved problems alongside dreams.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/growing_at_any_level.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Abstractions built on abstractions - multilayer, not flat.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/discovery/analogical_leap.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Transfer across domains. Card 182/186.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.8": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/cognition/primitive_invention.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Rediscovering known concepts is the evidence that compression found real structure.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A10.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/what_it_costs_to_say.py"
+      ],
+      "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
+      "plan": "An explicit MDL objective over the library. what_it_costs_to_say.py is the seed.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.1": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/cognition/keeping_the_language_small.py"
+      ],
+      "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
+      "plan": "Global abstraction discovery over the corpus of solutions, not greedy local extraction. Same as A10.2.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "The library as a readable product.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
+      "plan": "Model-guided synthesis that uses library semantics rather than only names.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "A specialised clean pipeline. Aura's version must not become a fourth synthesis path - fold into the W5 registry.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.2": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Compression that scales to the whole solution corpus.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.3": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/cognition/a_kind_of_thing_she_named.py"
+      ],
+      "bar": "Opaque vs AutoDoc vs no-name A/B on held-out synthesis/search.",
+      "plan": "Natural-language names and docstrings for learned abstractions, generated and kept only if they measurably help.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.4": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Opaque vs AutoDoc vs no-name A/B on held-out synthesis/search.",
+      "plan": "The A/B that says whether names help the solver. Without it, naming is decoration.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/widening_the_language.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Synthesise, compress, document, iterate - as one loop.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.6": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/cognition/"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Harder tasks in the evaluated domains.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/relation_language.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Linguistically grounded libraries: the name and the semantics agree.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/what_an_invention_buys.py"
+      ],
+      "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
+      "plan": "Near-optimal reusable abstractions, measured by what they buy.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A11.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/lesion_registry.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Ablate documentation and compression separately.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A12.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/cognitive_engine.py",
+        "core/kernel/"
+      ],
+      "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
+      "plan": "A formal decision cycle: propose, elaborate to quiescence, prefer, select, apply. Card 025.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Episodic memory tied to the decision cycle, so an episode has a cycle id. Card 060.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "A12.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Semantic memory integrated with reasoning rather than beside it.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
+      "plan": "An impasse creates a substate. Card 016.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "Trace and explain tooling. Card 027.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "A12.14": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "One architecture semantics. Card 043.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A12.15": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Decades of historical use is not a property Aura can implement.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A12.16": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/rule_ir.py"
+      ],
+      "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
+      "plan": "Production rules as constrained semantics. Card 091's type layer.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A12.17": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Reliability diagrams, Brier/ECE/selective-risk curves across coding, tools, factual QA, visual tasks and self-modification.",
+      "plan": "Impasse rather than forced choice - the workspace currently forces. Card 175.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.18": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Indexed production matching. Card 021.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A12.19": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/lesion_registry.py"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "Learning that can be switched off explicitly, which is what makes it ablatable.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.2": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/consciousness/global_workspace.py"
+      ],
+      "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
+      "plan": "Parallel elaboration run to quiescence before selection. The workspace sorts and takes the head instead.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.3": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/preference_semantics.py"
+      ],
+      "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
+      "plan": "Typed preferences: better, worse, require, prohibit, reject, indifferent. Card 020.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
+      "plan": "Chunking that runs continuously rather than on request. Card 029.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "A12.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py"
+      ],
+      "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
+      "plan": "Explanation-based summarisation of a resolution trace. Card 018.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "A12.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
+      "plan": "Many firings compressed into one rule. Card 174.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A12.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py"
+      ],
+      "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
+      "plan": "Transfer through generalised chunks. Card 019.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A12.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/causal_influence.py"
+      ],
+      "bar": "Mutate upstream facts in property tests and require all/downstream derived objects to invalidate correctly.",
+      "plan": "Support and dependency semantics. Card 176.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "A12.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_state.py",
+        "core/being/aura_now.py"
+      ],
+      "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
+      "plan": "Working memory as THE canonical situation. Card 064.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "A13.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curiosity_engine.py",
+        "core/curriculum/"
+      ],
+      "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
+      "plan": "An automatic exploration curriculum driven by what she cannot yet do. Card 219.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.10": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/skills/"
+      ],
+      "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
+      "plan": "Speed and coverage multipliers are a result, not a mechanism.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/agency_core.py"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "Curriculum, library and critic as three separable components.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/capabilities/host_automation.py"
+      ],
+      "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
+      "plan": "Control primitives separated from learned programs. Card 067.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curriculum/"
+      ],
+      "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
+      "plan": "Prerequisite staging. Card 121.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.14": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "Skills as inspectable code. Card 092.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/skill_retrieval.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Retrieve only the few relevant skills - already how retrieval works; make top-k a measured parameter.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py",
+        "core/agency/macro_skill.py"
+      ],
+      "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
+      "plan": "An EXECUTABLE skill library. Aura's already is - macro_skill.py registers a learned macro as a callable tool. The gap is the typed option schema.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.3": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/skills/skill_retrieval.py"
+      ],
+      "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
+      "plan": "Skill descriptions plus vector retrieval already exist, written for exactly this defect: a macro that reached the model as prose and could not be invoked.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py"
+      ],
+      "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
+      "plan": "Recursive composition of learned skills. Present in the library; not typed. Card 199.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
+      "plan": "Environment feedback into the skill's own success record.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/turn_receipt.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Self-verification: the skill checks its own effect. Card 195.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py"
+      ],
+      "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
+      "plan": "Completed and failed task tracking as first-class state.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/persistence/"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Checkpointable curriculum and skills. Follows W12.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A13.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Transfer to a new world with the library intact. Card 123.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "A2.1": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/self_modification/",
+        "core/runtime/durable_workflow.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Multi-day project objectives with milestone scoring, intervention count, false-success rate and rollback rate. Indefinite heartbeat survival is not the same thing.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.10": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/security/governance_vault.py"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Scoped, short-lived credentials per action rather than ambient ones. Real security work with a clear test: a compromised child cannot reach what it was not scoped to.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/security/approval_required.py",
+        "core/security/action_risk_classifier.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Risk classification exists. Permission fatigue falls when the OS enforces, because more can be allowed by default.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/perception/frame_quality.py",
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "Vision self-QA: she looks at what she did and checks it. Overlaps the W2 action receipt.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "A2.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Document and chart understanding through the resident model's own multimodal path, measured against text extraction.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.14": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/self_test_synthesizer.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Self-written tests exist as a synthesiser. The bar is that they gate her own changes.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A2.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/telemetry.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Aura has deep local receipts and one user. Population telemetry is not available; the transferable half is regression detection across her own runs.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "A2.16": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/security/"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Defence in depth: application governance plus OS isolation plus credential scoping. Two of three exist.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.17": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "interface/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "An SDK is a product concern. Scope to a stable internal surface her own organs use.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.18": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "Mid-execution steering: redirect a running task without killing it. Needs the W12 spine to have a safe interruption point.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A2.19": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "Prefer the simpler hardened primitive. This is the W10 compression rule stated as a design principle.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "A2.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/durable_workflow.py",
+        "core/organism/eternal_lifecycle.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Aura already runs for days; what is unmeasured is PRODUCTIVE days. Score milestones, not uptime.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.3": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/runtime/autonomy_conductor.py"
+      ],
+      "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
+      "plan": "Governed subagents with isolated contexts, explicit budgets and central commitment. Same item as A1.8.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/durable_workflow.py",
+        "core/brain/reasoning_background.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Background reasoning jobs exist. What is missing is a first-class task surface with budgets and results that rejoin the turn.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A2.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/event_bus.py",
+        "core/verify/invariants.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Lifecycle hooks over the W12 event spine, so an extension point is an event subscription rather than a call site edit.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A2.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/durable_workflow.py",
+        "core/persistence/"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Automatic checkpoints on the W12 spine: a state delta is a checkpoint boundary.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A2.7": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/persistence/"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Rewinding code separately from conversation needs the two to be separable states. Falls out of W12.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A2.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sandbox/macos_sandbox.py",
+        "core/security/sandbox.py"
+      ],
+      "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
+      "plan": "sandbox-exec profiles already exist in core/sandbox/macos_sandbox.py with file, network and exec constraints. The gap is COVERAGE: host action does not universally pass through it.",
+      "wave": "W11",
+      "status": "open",
+      "note": "The audit reports this absent. It is implemented and not universally enforced, which is a different and cheaper problem."
+    },
+    "A2.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/security/egress_monitor.py",
+        "core/security/egress_privacy.py"
+      ],
+      "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
+      "plan": "Egress is monitored, not proxied. A local proxy with an allowlist puts the decision below Python.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.1": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/context/"
+      ],
+      "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
+      "plan": "Context capacity is the resident model's, not the architecture's. The bar Aura must clear is not degrading it - card A4.8.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.10": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/science/scientist.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Scientific reasoning suites; core/science and the frontier discovery engine are the Aura-side hooks.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.11": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Document understanding, same as A2.13.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.12": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Chart understanding, same as A2.13.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.13": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/capability_engine.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Enterprise workflow evaluation is not Aura's purpose. The transferable half is multi-step tool workflows with verified outcomes.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.14": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/llm/"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Latency at quality is the W7 cost currency plus kernel work in 161.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.15": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/learning/lora_trainer.py"
+      ],
+      "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
+      "plan": "Post-training scale is out of reach and out of scope; use self-generated verified trajectories - card 162.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.2": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/multimodal/",
+        "core/senses/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Unified multimodal input through the resident model rather than a federation of pipelines converting everything to text.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.3": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Long video. Overlaps 133 and 146; scope to a frame stream with adaptive compression.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.4": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/context/",
+        "core/memory/"
+      ],
+      "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
+      "plan": "Long-range retrieval measured against memory: if persistent memory does not beat raw context on delayed tasks, it is overhead.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.5": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Same coding ACI as A1.2.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.6": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/runtime/overt_action_loop.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Same terminal surface as A1.3.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.7": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "Same computer-use programme as A1.5.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.8": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "Same breadth board as A1.1.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A3.9": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Held-out knowledge tasks with a contamination control - card 194.",
+      "wave": "W11",
+      "status": "open",
+      "note": ""
+    },
+    "A4.1": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/brain/inference_gate.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.10": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.2": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.3": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.4": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/brain/inference_gate.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.5": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/sandbox/runner.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.6": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.7": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.8": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/context/"
+      ],
+      "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A4.9": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/brain/llm/",
+        "core/learning/adaptive_halting.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
+      "wave": "W6",
+      "status": "open",
+      "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice."
+    },
+    "A5.1": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/world_state.py",
+        "core/being/aura_now.py",
+        "core/persistence/"
+      ],
+      "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
+      "plan": "One authoritative mutable projection, rebuilt from an append-only event log. Aura has many stores and no single source of truth; this is the W12 keystone.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "A workspace abstraction: the file surface an agent acts through, bounded and swappable.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/persistence/",
+        "core/runtime/file_write_gateway.py"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Auto-save on state change, once state change is one typed thing.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/bus_recorder.py",
+        "core/observability/tracing.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Time travel needs the durable log, not the ring. Follows A5.3.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/schemas.py"
+      ],
+      "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
+      "plan": "Schema-generated interfaces so a contract change cannot leave a consumer stale.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.14": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
+      "plan": "Composition over inheritance. A style rule, checkable by a lint on new organ classes.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Stateless components where state is not the point; the spine holds the state.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.16": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/",
+        "experiments/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Research and production separation. Aura already has an exploratory/load-bearing distinction in the claim registry; make it structural.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.17": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sandbox/macos_sandbox.py",
+        "docker/"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Optional container isolation. Seatbelt is the local answer; containers are for the replication packs in 193.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.18": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/observability/unified_action_log.py"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "The event stream AS the trajectory: inspectable, replayable, the thing learning reads. Follows A5.3.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evidence/state_ref.py",
+        "core/schemas.py"
+      ],
+      "bar": "Static/schema audit plus fuzz/property tests: malformed payloads must fail at construction, not after routing or persistence.",
+      "plan": "Immutable typed components. CognitiveStateRef is the first of these; the rest follow it.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.3": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/event_bus.py",
+        "core/observability/bus_recorder.py"
+      ],
+      "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
+      "plan": "An append-only event log the state is a fold over. bus_recorder keeps a RING - it forgets, so it cannot be the spine.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.4": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/runtime/file_write_gateway.py"
+      ],
+      "bar": "Month-scale synthetic run with crash/restart/schema upgrade and bounded disk; measure recovery time and data-loss window.",
+      "plan": "Incremental event persistence through the write gateway, async lane, bounded.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sovereignty/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Local and remote behind one API. Aura is local-first by design; scope to making the boundary explicit rather than to enabling remote.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/lifecycle.py",
+        "core/runtime/durable_workflow.py"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Pause and resume as a lifecycle contract on the spine.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "interface/",
+        "core/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Agent and application separation. Aura's interface layer already carries a DEPS boundary; make it a contract.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py",
+        "core/capabilities/host_automation.py"
+      ],
+      "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
+      "plan": "Typed Action, Observation and Executor. This is the W5 Operator plus the W2 action receipt.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A5.9": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/runtime/state_ownership.py"
+      ],
+      "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
+      "plan": "state_ownership.py exists and was written for exactly this defect: tests writing into live learning state. The gap is coverage, not absence.",
+      "wave": "W12",
+      "status": "open",
+      "note": ""
+    },
+    "A6.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
+      "plan": "Cross-world learned control. Same programme as 122/132.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "A policy for primitive acts instead of a model call per act. Card 126.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.11": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py"
+      ],
+      "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
+      "plan": "Skill transfer through the policy. Card 131.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sandbox/macos_sandbox.py"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Sandboxed environment learning. Aura's governance is ahead here; the sandbox is the enforcement half.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/skill_library.py"
+      ],
+      "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
+      "plan": "A skill heritage is data, not architecture. The transferable half is the W5 registry holding hundreds of learned options.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.3": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Reasoning inside the embodied loop rather than beside it - card 126's escalation split.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
+      "plan": "Unseen-environment generalisation. Card 123.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/self_play.py"
+      ],
+      "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
+      "plan": "Self-directed play with a value-of-information curriculum. Card 128.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/eval_before_promotion.py"
+      ],
+      "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
+      "plan": "Generation-to-generation improvement with promotion gates. Card 129.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curriculum/"
+      ],
+      "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
+      "plan": "Model-generated tasks and rewards, governed. Card 219.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
+      "plan": "Fast perception-action coupling: the policy acts, the cortex is consulted. Card 126.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A6.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "environments/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "World diversity. Card 122.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "A7.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/autonomous_rsi.py",
+        "core/self_improvement/"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "Repeated held-out coding gains from her own modifications, curve reported.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/baselines.py"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "Explicit baseline variants in the archive, not just the champion.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.11": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Open-ended exploration rather than greedy best-only. The same property as A7.3.",
+      "wave": "W13",
+      "status": "open",
+      "note": "Aura is one continuing individual. A population is a SHADOW process: variants evolve in sandboxes against immutable evaluators, and only a promoted winner enters her. Turning the individual into a population is the one thing the audit itself says not to copy."
+    },
+    "A7.12": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/self_improvement/"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Concrete discovered improvements, recorded with provenance.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/statistics.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Repeated evaluation and noise leeway before a variant is believed.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.14": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/security/",
+        "core/governance/"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "Aura's governed candidate/evaluator/promotion structure is ahead of the paper here. Keep it.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/combined_sft_lineage.py"
+      ],
+      "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
+      "plan": "Lineage metadata already exists for cortex candidates; widen it to agent variants.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.2": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/unknowns/novelty_archive.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "An archive of agent variants with scores and lineage. novelty_archive is in-memory dedup for prompts, not a variant store.",
+      "wave": "W13",
+      "status": "open",
+      "note": "Aura is one continuing individual. A population is a SHADOW process: variants evolve in sandboxes against immutable evaluators, and only a promoted winner enters her. Turning the individual into a population is the one thing the audit itself says not to copy."
+    },
+    "A7.3": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Stepping stones: keep variants that scored worse but opened a path. Greedy best-only cannot find them.",
+      "wave": "W13",
+      "status": "open",
+      "note": "Aura is one continuing individual. A population is a SHADOW process: variants evolve in sandboxes against immutable evaluators, and only a promoted winner enters her. Turning the individual into a population is the one thing the audit itself says not to copy."
+    },
+    "A7.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "She already modifies her own code under governance. The bar is the repeated broad capability curve.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/architecture_meta_controller.py"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "Improving the improvement mechanism itself, with the same promotion gate.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.6": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Parent selection under score AND diversity pressure.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "External coding benchmarks as fitness. Requires A1.2 first.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sandbox/static_check.py",
+        "core/learning/proof_obligations.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "A compile-and-filter gate before a variant is scored.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A7.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/distributed_eval.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Parallel attempts, bounded by the host.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.1": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/unknowns/novelty_archive.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "A programs database as evolutionary memory: solutions kept, sampled and recombined.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.10": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "A specific mathematical result is a result, not a mechanism.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.11": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Datacentre resource recovery is not applicable.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.12": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Infrastructure impact is not applicable.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.13": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Objective verification as the fitness function - the important half of this section.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.14": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/learning/distributed_eval.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "High-throughput search infrastructure, bounded by one machine.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.15": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/unknowns/novelty_archive.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Database-driven sampling: the archive chooses what to try next.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/",
+        "core/verify/"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Automated objective evaluators, stronger and more immutable than the proposer.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.3": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/llm/"
+      ],
+      "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
+      "plan": "A model ensemble for breadth and depth. Aura has one resident model; scope to sampling temperature and depth tiers.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.4": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Large evolutionary search is a compute question. Measure the scaling slope first - card 213.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.5": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/science/scientist.py"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Open mathematical discovery. The Aura-side hook is the frontier discovery engine plus verified math.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/architect/code_graph.py"
+      ],
+      "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
+      "plan": "Whole-codebase algorithm evolution over the code graph.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/statistics.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Multi-objective scoring: correctness, cost, risk, simplicity.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.8": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/self_improvement/"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "Deep mutation chains rather than single edits.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A8.9": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
+      "plan": "Deployment into a datacentre is not a bar for a sovereign local agent.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.1": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/self_modification/"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "Self-referential modification, inside the sandbox and the promotion gate.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.10": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/ontogeny/"
+      ],
+      "bar": "Single-lineage vs archive under matched evaluation compute across >=50 generations.",
+      "plan": "The audit's own note: persistence and identity across modifications is Aura's opportunity, not her gap.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.2": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/architecture_meta_controller.py"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "No fixed optimisation routine: the search policy is itself a candidate.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.3": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/goals/"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "Objective-driven redesign rather than parameter tuning.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.4": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/autonomous_rsi.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "Continuous improvement experiments with matched controls.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.5": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
+      "plan": "Cross-task reasoning improvement, held out.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.6": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
+      "plan": "Efficiency counts as gain only under matched budgets.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.7": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "Repeated generations on hidden external tasks; require capability curve, productive meta-changes, caught regressions and independent replay.",
+      "plan": "The agent's own design as the hypothesis space.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.8": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/security/",
+        "core/governance/"
+      ],
+      "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
+      "plan": "The paper names the safeguard gap; Aura already has the safeguards. This is where she is ahead.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
+    },
+    "A9.9": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/baselines.py"
+      ],
+      "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
+      "plan": "A hand-built agent as the comparison baseline.",
+      "wave": "W13",
+      "status": "open",
+      "note": ""
     }
   },
   "rules": {
@@ -2553,6 +4759,7 @@
       "PARTIAL": "The mechanism exists; the named property is not established or not universal.",
       "ABSENT": "No mechanism.",
       "OVERSTATED": "The bar as written does not transfer; the transferable half is named in the plan."
-    }
+    },
+    "two_reports": "Two independent reviews landed on 2026-09-01: a comparative architecture atlas (220 cards, ids 001-220) and a cross-system engineering audit (194 items, ids A1.1-A13.15). They overlap heavily and disagree in places. Both are held here under one adjudication, and where an item appears twice the second entry names the first rather than duplicating the work."
   }
 }
