@@ -18,6 +18,11 @@ opinions without them:
 * A closed item with no test. ``status: closed`` requires ``closed_by``, and
   every path in it must exist. A gap is not closed because code exists; it is
   closed when the named test runs.
+* A closed item whose bar names a DEMONSTRATED result - "beats", "hundreds of
+  tasks", a percentage - with no campaign named. Building the harness that
+  would measure a win is not the win, and an entry that closes on the harness
+  has to say in ``outstanding`` which campaign is still to run. That field is
+  what stops "closed" reading as "demonstrated".
 * A closed item whose bar demands INTEGRATION and whose module nothing calls.
   A bar that says "every", "all" or "architecture-wide" is a claim about the
   system, not about a module, and a module only tests import themselves is at
@@ -87,6 +92,14 @@ INTEGRATION_WORDS = (
     "every ", "all ", "architecture-wide", "most cross", "each major", "universal",
 )
 
+#: Words that make a bar a claim about a RESULT rather than about a mechanism.
+#: A card closing on the harness that would measure such a result has to name
+#: the campaign that has not been run.
+DEMONSTRATION_WORDS = (
+    "beats", "outperform", "better than", "hundreds", "dozens", "million",
+    "thousands", "large margin", "improves with experience",
+)
+
 
 def _module_paths(entry: dict) -> list[str]:
     return [
@@ -124,6 +137,19 @@ def _integration_problems(cid: str, entry: dict) -> list[str]:
     return problems
 
 
+def _demonstration_problems(cid: str, entry: dict) -> list[str]:
+    bar = (entry.get("bar") or "").lower()
+    if not any(word in bar for word in DEMONSTRATION_WORDS):
+        return []
+    if entry.get("outstanding"):
+        return []
+    return [
+        f"[{cid}]: the bar names a demonstrated result ({bar[:70]}...) and the entry "
+        "claims it closed. Name the campaign still to run in `outstanding`, or restate "
+        "the bar as the mechanism the tests actually establish."
+    ]
+
+
 def check() -> int:
     cards, adjudication = load()
     entries = adjudication.get("entries", {})
@@ -153,6 +179,7 @@ def check() -> int:
                 if not (ROOT / path.split("::")[0]).exists():
                     problems.append(f"[{cid}]: closed_by names {path}, which does not exist")
             problems.extend(_integration_problems(cid, entry))
+            problems.extend(_demonstration_problems(cid, entry))
 
     orphans = set(entries) - {card["id"] for card in cards}
     problems.extend(f"[{cid}]: adjudicated but not a card in the report" for cid in sorted(orphans))
@@ -213,6 +240,10 @@ def render() -> int:
                 out.append(f"  - Note: {entry['note']}")
             if entry.get("closed_by"):
                 out.append("  - Closed by: " + ", ".join(f"`{p}`" for p in entry["closed_by"]))
+            if entry.get("wired_by"):
+                out.append("  - Wired by: " + ", ".join(f"`{p}`" for p in entry["wired_by"]))
+            if entry.get("outstanding"):
+                out.append(f"  - Still to run: {entry['outstanding']}")
         out.append("")
 
     TODO.write_text("\n".join(out) + "\n")

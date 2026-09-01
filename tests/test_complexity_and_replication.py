@@ -298,3 +298,58 @@ def test_raising_the_complexity_ratchet_requires_a_reason():
             "a ratchet that can be reset without a reason is a number, not a ratchet"
         )
         assert set(entry["raised"]) <= set(entry["to"])
+
+
+# ── the gap atlas gates itself ────────────────────────────────────────────
+
+def _atlas():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("gap_atlas", ROOT / "tools/gap_atlas.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["gap_atlas"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_every_card_is_adjudicated_and_every_closed_one_names_a_test():
+    assert _atlas().check() == 0
+
+
+def test_a_bar_claiming_something_about_the_system_needs_a_production_caller():
+    module = _atlas()
+    entry = {
+        "bar": "every organ reports through one bus",
+        "closed_by": ["core/cognition/substate.py", "tests/x.py"],
+    }
+    assert module._integration_problems("X", entry)
+    entry["wired_by"] = ["core/cognition/contract_health.py"]
+    assert not module._integration_problems("X", entry)
+
+
+def test_a_bar_naming_a_demonstrated_result_needs_the_campaign_named():
+    module = _atlas()
+    entry = {"bar": "the learned policy beats the static one", "closed_by": ["tests/x.py"]}
+    assert module._demonstration_problems("X", entry)
+    entry["outstanding"] = "a matched-compute A/B"
+    assert not module._demonstration_problems("X", entry)
+
+
+def test_a_mechanism_bar_needs_neither():
+    module = _atlas()
+    entry = {"bar": "duplicate evidence cannot inflate belief", "closed_by": ["tests/x.py"]}
+    assert not module._integration_problems("X", entry)
+    assert not module._demonstration_problems("X", entry)
+
+
+def test_the_cards_that_close_on_a_harness_say_so():
+    import json
+
+    adjudication = json.loads((ROOT / "docs/gap_atlas/adjudication.json").read_text())
+    outstanding = [
+        cid for cid, entry in adjudication["entries"].items() if entry.get("outstanding")
+    ]
+    assert len(outstanding) >= 20, (
+        "building the harness that would measure a win is not the win, and the entries "
+        "that closed on a harness have to say which campaign is still to run"
+    )

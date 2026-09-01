@@ -17,7 +17,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "fit core.science.retrieval_latency over 40+ real recalls and check the intervention direction"
     },
     "002": {
       "verdict": "PARTIAL",
@@ -508,7 +509,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "an accelerated lifetime run over millions of procedure firings with distribution shift"
     },
     "027": {
       "verdict": "PARTIAL",
@@ -687,7 +689,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "a matched-compute A/B of the value-of-computation scheduler against the fixed cadences"
     },
     "036": {
       "verdict": "PARTIAL",
@@ -758,7 +761,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "a search campaign comparing derived child budgets against fixed depth at equal compute"
     },
     "040": {
       "verdict": "PARTIAL",
@@ -1395,7 +1399,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "the staged developmental curriculum, grown against reset, over the sealed task blocks"
     },
     "073": {
       "verdict": "PARTIAL",
@@ -1893,7 +1898,8 @@
       "wired_by": [
         "core/cognition/contract_health.py",
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "an AtomSpace load test at a million atoms; measured to 50k, where point reads stay under 5us"
     },
     "099": {
       "verdict": "PARTIAL",
@@ -1948,7 +1954,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "an ECAN stress campaign on a large learned graph against scan, random and top-degree"
     },
     "102": {
       "verdict": "PARTIAL",
@@ -2457,7 +2464,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "successive developmental checkpoints on the frozen environment bench"
     },
     "130": {
       "verdict": "PROCESS",
@@ -2529,7 +2537,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "a video-rate perception run against the current sparse screen reads"
     },
     "134": {
       "verdict": "PARTIAL",
@@ -2655,7 +2664,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "run both world-model objectives at matched compute and score them on control"
     },
     "141": {
       "verdict": "ABSENT",
@@ -2943,7 +2953,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "a coding board run: full Aura against the 27B scaffold on a frozen suite"
     },
     "157": {
       "verdict": "CAPABILITY",
@@ -3141,7 +3152,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "unseen-task decomposition against the 27B baseline, repeated as experience accumulates"
     },
     "168": {
       "verdict": "PARTIAL",
@@ -3159,7 +3171,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "outstanding": "novel-tool trials counting demonstrations to competence against static descriptions"
     },
     "169": {
       "verdict": "ENGINEERING",
@@ -3706,7 +3719,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "an intervention campaign on the world model against its observational arm"
     },
     "199": {
       "verdict": "PARTIAL",
@@ -3799,7 +3813,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "repeated interaction with a partner, scored against the language prior"
     },
     "204": {
       "verdict": "PARTIAL",
@@ -4244,7 +4259,8 @@
       "note": "core/engineering/ computes a design and draws it, with a DEPS rule forbidding it from reaching anything that generates a number, and 29 published-answer problems gating the formulas. The audit did not see it.",
       "closed_by": [
         "core/engineering/"
-      ]
+      ],
+      "outstanding": "the computed-design problems already gate the formulas; the seeded OS-task run is the environment bench's"
     },
     "A1.17": {
       "verdict": "CAPABILITY",
@@ -4363,7 +4379,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations"
     },
     "A1.6": {
       "verdict": "CAPABILITY",
@@ -5164,7 +5181,8 @@
       "wired_by": [
         "core/brain/cognitive_engine.py",
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "outstanding": "a chunking campaign: a long episode compiled and re-run on unseen related states"
     },
     "A12.5": {
       "verdict": "PARTIAL",
@@ -5182,7 +5200,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "outstanding": "the same campaign, scored on the minimal support the compiler kept"
     },
     "A12.6": {
       "verdict": "PARTIAL",
@@ -5201,7 +5220,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "outstanding": "the same campaign, scored on firings compressed per compiled rule"
     },
     "A12.7": {
       "verdict": "PARTIAL",
@@ -5601,7 +5621,8 @@
       ],
       "wired_by": [
         "core/cognition/contract_health.py"
-      ]
+      ],
+      "outstanding": "fault-injected screen runs scoring recovery apart from success"
     },
     "A2.13": {
       "verdict": "PARTIAL",
@@ -5704,7 +5725,8 @@
       ],
       "wired_by": [
         "core/cognition/growth_report.py"
-      ]
+      ],
+      "outstanding": "mid-execution steering measured on the event spine's lane rewind"
     },
     "A2.19": {
       "verdict": "PARTIAL",
@@ -6099,7 +6121,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations"
     },
     "A3.8": {
       "verdict": "CAPABILITY",
@@ -6117,7 +6140,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "a breadth board run across every capability against the bare cortex"
     },
     "A3.9": {
       "verdict": "CAPABILITY",
@@ -6261,7 +6285,8 @@
       ],
       "wired_by": [
         "tools/evidence_report.py"
-      ]
+      ],
+      "outstanding": "a computer-use board run against the cortex-only arm"
     },
     "A4.7": {
       "verdict": "EVIDENCE",
