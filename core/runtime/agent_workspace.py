@@ -151,9 +151,19 @@ class LocalWorkspace:
         return self.resolve(path, Access.READ).read_text()
 
     def write(self, path: str, content: str) -> Path:
+        """Resolve, then write through the gateway that every write goes through.
+
+        The bound checked in :meth:`resolve` decides WHETHER this may be
+        written; the gateway decides HOW, and it is not optional — an on-loop
+        fsync once froze the live event loop for twenty minutes, which is why
+        there is one write path and a ratchet that only shrinks.
+        """
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
         target = self.resolve(path, Access.WRITE)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content)
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(target.parent, source="agent_workspace")
+        gateway.write_text(target, content, source="agent_workspace")
         return target
 
     def listdir(self, path: str = ".") -> list[str]:

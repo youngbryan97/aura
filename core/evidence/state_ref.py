@@ -65,8 +65,11 @@ class StateOwnershipError(RuntimeError):
 def _identity(payload: Any, kind: str) -> str:
     try:
         material = repr(payload)
-    except Exception:  # pragma: no cover - repr of a hostile object
-        material = f"<unreprable {type(payload).__name__}>"
+    except (TypeError, ValueError, AttributeError, RecursionError) as exc:
+        # An object whose repr raises still needs an identity, and the failure
+        # itself is part of what distinguishes it. Named rather than bare, so
+        # a genuinely unexpected error still surfaces.
+        material = f"<unreprable {type(payload).__name__}: {type(exc).__name__}>"
     return hashlib.blake2s(f"{kind}\x00{material}".encode("utf-8"), digest_size=12).hexdigest()
 
 

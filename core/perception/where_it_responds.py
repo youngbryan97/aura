@@ -576,17 +576,20 @@ def _note_what_was_seen(
     if not where:
         return
     try:
-        with open(where, "a", encoding="utf-8") as out:
-            out.write(
-                json.dumps(
-                    {
-                        "band": list(band) if band else None,
-                        "cells": [[round(y, 6), round(x, 6), t] for y, x, t in cells],
-                    }
-                )
-                + "\n"
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        get_file_write_gateway().append_text(
+            where,
+            json.dumps(
+                {
+                    "band": list(band) if band else None,
+                    "cells": [[round(y, 6), round(x, 6), t] for y, x, t in cells],
+                }
             )
-    except OSError:
+            + "\n",
+            source="where_it_responds",
+        )
+    except (OSError, ImportError, RuntimeError, ValueError):
         # not a failure: writing readings down is a favour to whoever is
         # debugging, and it must never affect what she sees.
         pass

@@ -1,8 +1,8 @@
 {
   "organs": 117,
   "cross_package_edges": 1893,
-  "dependency_entropy": 9.0791,
-  "kernel_lines": 560815,
+  "dependency_entropy": 9.079,
+  "kernel_lines": 560834,
   "history": [
     {
       "raised": [
@@ -69,6 +69,18 @@
         "kernel_lines": 560815
       },
       "because": "109 lines in core/conversation/response_reliability.py: a structured-payload check so the prose leak detector stops rejecting a well-formed JSON extraction for mentioning the user it was asked to extract."
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 560815
+      },
+      "to": {
+        "kernel_lines": 560834
+      },
+      "because": "18 lines across four modules routing writes through the file-write gateway and narrowing three broad excepts: agent_workspace, coding_aci, where_it_responds, state_ref, operator_invention and experiment_registry. Every one removes a bypass the durable-write or enterprise ratchet was counting."
     }
   ]
 }

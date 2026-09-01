@@ -232,7 +232,11 @@ class OperatorKernel:
                     if operator.fn(probe, _Budget(STEP_BUDGET)) == output:
                         matched = True
                         break
-                except Exception:  # noqa: BLE001 - an operator that cannot run does not match
+                except (TypeError, ValueError, ArithmeticError, LookupError,
+                        RecursionError, TimeoutError):
+                    # An installed operator that cannot run on this probe does
+                    # not match it. Named, because an operator raising something
+                    # else is a defect in the kernel rather than a mismatch.
                     continue
             if not matched:
                 novel_on.append(probe)
@@ -265,7 +269,9 @@ class OperatorKernel:
             try:
                 candidate.fn(probe, _Budget(STEP_BUDGET))
                 passed += 1
-            except Exception:  # noqa: BLE001
+            except (TypeError, ValueError, ArithmeticError, LookupError,
+                    RecursionError, TimeoutError):
+                # The adversarial probe broke it, which is the measurement.
                 continue
         if adversarial and passed < len(adversarial):
             return self._record(Verdict(

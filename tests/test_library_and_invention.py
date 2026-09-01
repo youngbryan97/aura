@@ -5,6 +5,8 @@ Cards 013, 030, 043, 057, 089, 090, 092, 095-100, 102, 103, 106, 165, 187,
 """
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from core.cognition.autodoc import AutoDoc, describe
@@ -293,7 +295,8 @@ def _triangular(x, budget):
 
 
 def _forever(x, budget):
-    while True:
+    """A candidate that never terminates. The budget is what stops it."""
+    for _ in itertools.count():
         budget.step()
 
 

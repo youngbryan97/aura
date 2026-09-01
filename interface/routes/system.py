@@ -6,6 +6,7 @@ and all collector/diagnostic helpers.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import hashlib
 import hmac
 import inspect
@@ -649,10 +650,12 @@ def _reset_health_probe_state_for_test(*, drain_s: float = 1.0) -> None:
         pending = [future for future in _HEALTH_PROBE_FUTURES.values() if not future.done()]
     for future in pending:
         try:
+            # Returns the probe's own exception rather than raising it, so the
+            # only escapes are the wait itself timing out or the probe being
+            # cancelled. Both mean the same thing here: it is no longer about
+            # to write, or it will not settle and is abandoned.
             future.exception(timeout=drain_s)
-        except Exception:  # noqa: BLE001 - drained either way
-            # A probe that raised or will not settle is drained either way; the
-            # point is that it is no longer about to write.
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError):
             pass
     with _HEALTH_PROBE_STATE_LOCK:
         for surface in list(_HEALTH_PROBE_FUTURES):

@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -63,12 +62,20 @@ class MalformedExperiment(ValueError):
 
 
 def _commit() -> str:
+    """The commit an experiment ran at. Unknown rather than a guess.
+
+    Through the subprocess gateway, because a raw ``subprocess.run`` here is
+    how process ownership erodes: this is a small read and every small read is.
+    """
     try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        out = get_subprocess_gateway().run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT, timeout=5.0, read_only=True, source="experiment_registry",
         )
         return out.stdout.strip() if out.returncode == 0 else "unknown"
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, ImportError, RuntimeError, ValueError):
         return "unknown"
 
 

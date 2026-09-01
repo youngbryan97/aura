@@ -94,6 +94,19 @@ class Edit:
         return True
 
 
+def _write(target: Path, text: str) -> None:
+    """Every write goes through the gateway, including one this surface makes.
+
+    An on-loop fsync once froze the live event loop for twenty minutes, so
+    there is one write path and a ratchet whose allowlist only shrinks. A
+    repository surface that edits source is exactly the caller that would be
+    tempted to skip it.
+    """
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    get_file_write_gateway().write_text(target, text, source="coding_aci")
+
+
 class TooMuchToRead(ValueError):
     """A view was larger than the budget. Narrow it rather than absorb it."""
 
@@ -167,7 +180,7 @@ class CodingSurface:
         before = "\n".join(lines)
         after_lines = lines[: definition.start - 1] + replacement.splitlines() + lines[definition.end:]
         after = "\n".join(after_lines)
-        target.write_text(after + "\n")
+        _write(target, after + "\n")
         edit = Edit(path=path, target=name, before=before, after=after)
         with self._lock:
             self._edits.append(edit)
@@ -175,7 +188,7 @@ class CodingSurface:
 
     def revert(self, edit: Edit) -> None:
         """Restore the file exactly as it was before this edit."""
-        self._resolve(edit.path).write_text(edit.before + "\n")
+        _write(self._resolve(edit.path), edit.before + "\n")
 
     def tests_touching(self, names: Sequence[str], *, test_root: str = "tests") -> list[str]:
         """The tests that name or import what changed.
