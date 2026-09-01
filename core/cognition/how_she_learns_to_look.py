@@ -138,21 +138,38 @@ def in_the_order_worth_trying(
     """
     most = sum(max(0, len(found)) for found in wanted.values())
 
-    def worth(name: str) -> tuple[float, int, str]:
+    # The rule that combines the two is a TERM, not this function.
+    #
+    # The counts here were learned and the rule combining them was mine, and a
+    # Python expression is the next authored level up — the same shape of gap
+    # growing_at_any_level left one level down when it collapsed the API for
+    # makers and kept a Python callable. It lives in
+    # core/cognition/the_order_she_tries_them_in.py now, where it can be
+    # replaced by the code that replaces a head.
+    #
+    # Laplace on this side too, so that a word agreeing with nothing is
+    # unlikely rather than impossible. A bare fraction makes it exactly zero,
+    # the product is then zero whatever the history says, and the words
+    # history could most help with — the ones that appear inside an undo,
+    # contributing no direct agreement — are the ones it could never move.
+    from core.cognition.the_order_she_tries_them_in import how_it_scores
+
+    def worth(name: str) -> tuple[int, int, str]:
         try:
             agreed = max(0, int(agrees(every[name], wanted)))
         except (ArithmeticError, TypeError, ValueError):
             agreed = 0
-        # Laplace on this side too, so that a word agreeing with nothing is
-        # unlikely rather than impossible. A bare fraction makes it exactly
-        # zero, the product is then zero whatever the history says, and the
-        # words history could most help with — the ones that appear inside an
-        # undo, contributing no direct agreement — are the ones it could never
-        # move.
-        from_the_case = (agreed + 1) / (most + 2)
+        before = how_often_it_worked(name)
+        symbols = shortest(name)
         return (
-            -(from_the_case * how_often_it_worked(name).rate),
-            shortest(name),
+            -how_it_scores(
+                agreed=agreed,
+                places=most,
+                won=before.won,
+                of=before.of,
+                symbols=symbols,
+            ),
+            symbols,
             name,
         )
 
