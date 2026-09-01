@@ -89,6 +89,7 @@ def test_client_refuses_partial_or_stale_model_lane_ownership(monkeypatch) -> No
 
 
 def _valid_worker_response(client, request, *, hidden_states=None):
+    from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
     from core.brain.llm.mlx_worker import (
         _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
         _HIDDEN_SEQUENCE_MAX_TOKENS,
@@ -124,7 +125,7 @@ def _valid_worker_response(client, request, *, hidden_states=None):
                 "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
-            "model_basis": client.get_worker_identity_snapshot(),
+            "model_basis": worker_model_basis(client.get_worker_identity_snapshot()),
             "forward_passes": 1,
             "causal_full_sequence": True,
             "sampling": False,
@@ -204,6 +205,8 @@ def test_worker_refuses_token_overflow_before_model_forward(monkeypatch) -> None
 
 
 def test_client_returns_validated_hidden_sequence_and_exact_receipt(monkeypatch) -> None:
+    from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+
     client = _resident_client(monkeypatch)
     captured: dict[str, object] = {}
 
@@ -228,7 +231,9 @@ def test_client_returns_validated_hidden_sequence_and_exact_receipt(monkeypatch)
         result["hidden_states"],
         np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
     )
-    assert result["receipt"]["model_basis"] == client._worker_identity
+    assert result["receipt"]["model_basis"] == worker_model_basis(
+        client._worker_identity
+    )
     assert captured["principal"] == "mlx_client.encode_hidden_sequence"
     request = captured["request"]
     assert isinstance(request, dict)
@@ -238,6 +243,26 @@ def test_client_returns_validated_hidden_sequence_and_exact_receipt(monkeypatch)
     assert client._active_generations == 0
     assert client._pending_generations == {}
     assert not client._request_lock.locked()
+
+
+def test_parent_only_capture_attestation_does_not_change_model_basis(monkeypatch) -> None:
+    client = _resident_client(monkeypatch)
+    child_identity = dict(client._worker_identity)
+    client._worker_identity["worker_action_capture_origin_binding"] = {
+        "schema": "parent-only-attestation"
+    }
+
+    class ReplyingQueue:
+        def put(self, request, *_args):
+            response = _valid_worker_response(client, request)
+            response["receipt"]["model_basis"] = child_identity
+            client._pending_generations[request["id"]].set_result(response)
+
+    client._req_q = ReplyingQueue()
+    result = asyncio.run(client.encode_hidden_sequence("same neural basis"))
+
+    assert result is not None
+    assert "worker_action_capture_origin_binding" not in result["receipt"]["model_basis"]
 
 
 @pytest.mark.parametrize(

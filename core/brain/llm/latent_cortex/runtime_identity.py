@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -873,6 +874,47 @@ def worker_identity_errors(
     return errors
 
 
+_WORKER_MODEL_BASIS_FIELDS = (
+    "schema",
+    "worker_boot_id",
+    "worker_pid",
+    "worker_model_path",
+    "worker_model_parameter_count",
+    "worker_model_stored_parameter_element_count",
+    "worker_model_parameter_count_basis",
+    "worker_source_sha256",
+    "worker_affective_steering_active",
+    "worker_affective_steering_alpha",
+    "worker_action_capture_identity",
+    "worker_recurrent_adapter_activation",
+    "worker_adapters",
+    "worker_adapter_stack_sha256",
+    "worker_tokenizer",
+    "worker_runtime_tokenizer",
+    "worker_quantization",
+    "worker_stack_identity_gaps",
+)
+
+
+def worker_model_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """Project child and parent identity onto their immutable neural basis.
+
+    The parent adds ``worker_action_capture_origin_binding`` after it attests
+    the child's boot key. That parent-only field describes message origin,
+    not model geometry or weights, and cannot appear in receipts emitted by
+    the already-running child. An explicit projection keeps both processes
+    bound to the same model while excluding later parent annotations.
+    """
+
+    if not isinstance(identity, Mapping):
+        raise TypeError("worker model basis requires an identity mapping")
+    return {
+        field: copy.deepcopy(identity[field])
+        for field in _WORKER_MODEL_BASIS_FIELDS
+        if field in identity
+    }
+
+
 def _typed_issue_list(value: Any) -> list[str]:
     """Issue strings from an untrusted field, never a crash.
 
@@ -1022,5 +1064,6 @@ __all__ = [
     "serving_stack_identity",
     "serving_stack_identity_errors",
     "worker_identity_errors",
+    "worker_model_basis",
     "worker_recurrent_adapter_activation_errors",
 ]

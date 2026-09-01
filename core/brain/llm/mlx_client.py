@@ -12080,7 +12080,9 @@ class MLXLocalClient:
             "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
             "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
         }
-        expected_identity = self.get_worker_identity_snapshot()
+        from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+
+        expected_identity = worker_model_basis(self.get_worker_identity_snapshot())
         expected_receipt = {
             "schema": "aura.hidden_sequence_encoding.v1",
             "request_id": response.get("id"),

@@ -236,6 +236,8 @@ def _encode_hidden_sequence_response(
     hidden_state_bytes = hidden_array.tobytes(order="C")
     hidden_state_sha256 = hashlib.sha256(hidden_state_bytes).hexdigest()
 
+    from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+
     return {
         "id": request_id,
         "action": "encode_hidden_sequence",
@@ -259,7 +261,7 @@ def _encode_hidden_sequence_response(
                 "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
-            "model_basis": dict(worker_identity),
+            "model_basis": worker_model_basis(worker_identity),
             "forward_passes": 1,
             "causal_full_sequence": True,
             "sampling": False,
