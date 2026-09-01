@@ -74,10 +74,16 @@ __all__ = [
 #: is degraded" do not resolve her health, and "is anything failing?" does.
 #: The things of hers a question can be about. Named once, and used both to
 #: recognise them on their own and to decide what a "your" is attached to.
+#: "utilisation" is here for the same reason "load" is: it names a reading of
+#: hers and nothing else. It was in the enquiry list and not in this one, so
+#: "what is your current utilisation?" found a question word and no subject and
+#: never reached her instruments - the mirror image of the false positive this
+#: gate is mostly built to prevent, and the harder one to notice, because a
+#: question that goes unanswered looks like a question nobody asked.
 _HER_PARTS = (
     r"subsystems?|substrate|runtime|internals?|faculties|organs?|"
     r"heartbeats?|degradations?|telemetry|jobs?|cycles?|loops?|"
-    r"lanes?|memory|processor|state|health|status|load"
+    r"lanes?|memory|processor|state|health|status|load|utili[sz]ation"
 )
 #: "your" on its own is not about her.
 #:
