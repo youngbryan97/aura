@@ -136,3 +136,91 @@ def test_a_head_the_compiler_does_not_know_is_refused_rather_than_guessed() -> N
             Term("something nobody wrote"),
             [THE_WORDS_SHE_WAS_GIVEN["here"]],
         )
+
+
+# ── the other algebra ─────────────────────────────────────────────────────
+
+
+def _the_rules(how_many: int = 3000):
+    from core.cognition.an_operation_that_generalises import every_expression
+
+    return list(itertools.islice(every_expression((0, 1, 2, 3), deepest=3), how_many))
+
+
+def test_the_value_expressions_agree_everywhere() -> None:
+    from core.cognition.the_old_language_on_the_floor import (
+        operations_agree_everywhere,
+    )
+
+    found = operations_agree_everywhere(_the_rules())
+    assert found["checked"] > 100_000
+    assert found["agree"], found["apart"][:5]
+
+
+def test_every_way_of_combining_is_covered_by_the_sample() -> None:
+    from core.cognition.an_operation_that_generalises import HOW_TO_COMBINE
+
+    seen = {rule.kind for rule in _the_rules()}
+    assert set(HOW_TO_COMBINE) <= seen, sorted(set(HOW_TO_COMBINE) - seen)
+    assert {"the first", "the second", "a fixed number"} <= seen
+
+
+def test_dividing_by_nothing_refuses_in_both_languages() -> None:
+    from core.cognition.an_operation_that_generalises import Expression
+    from core.cognition.the_floor_she_stands_on import Code, Stuck
+    from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+    from core.cognition.the_old_language_on_the_floor import compile_an_operation
+
+    rule = Expression(
+        "how many times it goes in",
+        parts=(Expression("the first"), Expression("the second")),
+    )
+    with pytest.raises(ZeroDivisionError):
+        rule(7, 0)
+    compiled = compile_an_operation(rule)
+    with pytest.raises(Stuck):
+        run_on_the_floor(
+            Code(
+                "of",
+                parts=(
+                    Code("of", parts=(compiled, Code("a number", value=7))),
+                    Code("a number", value=0),
+                ),
+            )
+        )
+
+
+def test_a_constant_the_floor_cannot_hold_is_refused_rather_than_guessed() -> None:
+    from core.cognition.an_operation_that_generalises import Expression
+    from core.cognition.the_old_language_on_the_floor import compile_an_operation
+
+    with pytest.raises(ValueError):
+        compile_an_operation(Expression("a fixed number", value="a word"))
+    with pytest.raises(ValueError):
+        compile_an_operation(Expression("a way nobody wrote", parts=(
+            Expression("the first"), Expression("the second"))))
+
+
+def test_both_algebras_now_speak_one_semantics() -> None:
+    """What the module is for, held as one assertion.
+
+    A positional term and a value expression both become terms of the same
+    eighteen heads, so an invention in either can be material for an invention
+    in the other. What is left is the SCHEMA — two sources and one operation —
+    and that is a different ceiling, named rather than closed.
+    """
+    from core.cognition.the_floor_she_stands_on import HOW_MANY_PARTS
+    from core.cognition.the_old_language_on_the_floor import compile_an_operation
+
+    def heads(code):
+        yield code.head
+        for part in code.parts:
+            yield from heads(part)
+
+    positional = compile_positional(
+        Term("through", parts=(Term("hole", value=0), Term("many"))),
+        [THE_WORDS_SHE_WAS_GIVEN["one along"]],
+    )
+    valued = compile_an_operation(_the_rules(200)[-1])
+    assert set(heads(positional)) <= set(HOW_MANY_PARTS)
+    assert set(heads(valued)) <= set(HOW_MANY_PARTS)

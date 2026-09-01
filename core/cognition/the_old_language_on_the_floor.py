@@ -21,10 +21,15 @@ directed by a correspondence read straight off the examples. Compiling gives
 one semantics without giving up the frontend, which is the arrangement every
 serious treatment of this converges on.
 
-What is not closed
-------------------
-The value algebra. `an_operation_that_generalises` still has its own eight ways
-of combining two numbers and its own serialiser, and it is listed as open.
+Both halves are here. Positional terms compile through
+:func:`compile_positional`, and the value expressions of
+`an_operation_that_generalises` compile through :func:`compile_an_operation`.
+Each has a check that runs both languages over a grid and demands the same
+answer, refusals included, so what is claimed is behaviour rather than shape.
+
+What is left after that is not a third algebra. It is the SCHEMA — a rule is
+still two sources and one operation, and no head or word changes that. Which
+is a different ceiling, and it is named in the record rather than closed here.
 """
 
 from __future__ import annotations
@@ -56,7 +61,9 @@ from core.cognition.the_floor_she_stands_on import (
 __all__ = [
     "THE_WORDS_SHE_WAS_GIVEN",
     "as_a_floor_term",
+    "compile_an_operation",
     "compile_positional",
+    "operations_agree_everywhere",
     "they_agree_everywhere",
 ]
 
@@ -376,6 +383,124 @@ def they_agree_everywhere(
                             "at": at,
                             "size": size,
                             "positional": said,
+                            "floor": made,
+                        }
+                    )
+    return {"checked": checked, "apart": apart, "agree": not apart}
+
+
+# ── the other algebra ─────────────────────────────────────────────────────
+#
+# An operation is an expression over two values: one of them, a constant, or a
+# way of combining two smaller expressions. Eight ways, and each of them is a
+# floor term over the pair.
+
+
+def _how_they_combine(kind: str, one: Any, other: Any) -> Any:
+    """One way of combining two numbers, as a floor expression."""
+    if kind == "minus":
+        return MINUS(one, other)
+    if kind == "added":
+        return PLUS(one, other)
+    if kind == "multiplied":
+        return TIMES(one, other)
+    if kind == "how far apart they are":
+        return A(
+            L("a", L("b", IF(BELOW(V("a"), V("b")), MINUS(V("b"), V("a")),
+                             MINUS(V("a"), V("b"))))),
+            one,
+            other,
+        )
+    if kind == "the larger":
+        return A(
+            L("a", L("b", IF(BELOW(V("a"), V("b")), V("b"), V("a")))), one, other
+        )
+    if kind == "the smaller":
+        return A(
+            L("a", L("b", IF(BELOW(V("b"), V("a")), V("b"), V("a")))), one, other
+        )
+    if kind == "what is left over":
+        return LEFTOVER(one, other)
+    if kind == "how many times it goes in":
+        return _over(one, other)
+    raise ValueError(f"nothing this compiler knows called {kind!r}")
+
+
+def _compile_operation(rule: Any) -> Any:
+    """One value expression, as a named floor expression over the pair."""
+    kind = rule.kind
+    if kind == "the first":
+        return V("one")
+    if kind == "the second":
+        return V("other")
+    if kind == "a fixed number":
+        value = rule.value
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"the floor holds whole numbers, not {value!r}")
+        return N(value)
+    return _how_they_combine(
+        kind,
+        _compile_operation(rule.parts[0]),
+        _compile_operation(rule.parts[1]),
+    )
+
+
+def compile_an_operation(rule: Any) -> Code:
+    """A value expression as a closed floor term of two numbers."""
+    return build(L("one", L("other", _compile_operation(rule))))
+
+
+def operations_agree_everywhere(
+    rules: Sequence[Any],
+    *,
+    over: Sequence[int] = (-3, -1, 0, 1, 2, 5, 7, 12),
+    fuel: int = 200_000,
+) -> dict[str, Any]:
+    """Run both and demand the same answer, including the same refusals."""
+    from core.cognition.the_floor_she_stands_on import OutOfFuel, Stuck
+    from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+
+    checked = 0
+    apart: list[dict[str, Any]] = []
+    for rule in rules:
+        try:
+            compiled = compile_an_operation(rule)
+        except (ValueError, RecursionError, AttributeError):
+            apart.append({"rule": rule.name, "why": "did not compile"})
+            continue
+        for one in over:
+            for other in over:
+                checked += 1
+                try:
+                    said = rule(one, other)
+                    said = int(said)
+                except (ArithmeticError, TypeError, ValueError):
+                    said = None
+                try:
+                    made = int(
+                        run_on_the_floor(
+                            Code(
+                                "of",
+                                parts=(
+                                    Code(
+                                        "of",
+                                        parts=(compiled, Code("a number", value=one)),
+                                    ),
+                                    Code("a number", value=other),
+                                ),
+                            ),
+                            fuel=fuel,
+                        )
+                    )
+                except (OutOfFuel, Stuck, TypeError, ValueError, ZeroDivisionError):
+                    made = None
+                if said != made:
+                    apart.append(
+                        {
+                            "rule": rule.name,
+                            "one": one,
+                            "other": other,
+                            "expression": said,
                             "floor": made,
                         }
                     )
