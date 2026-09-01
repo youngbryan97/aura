@@ -1074,6 +1074,14 @@ def puts_a_claim_to_her(user_message: str) -> bool:
     return bool(text.strip()) and bool(_ABOUT_A_CLAIM_RE.search(text))
 
 
+#: "Can you...", "could you...", "are you able to..." — asking whether she is
+#: capable of something, which is a question about her however it is phrased.
+_ASKS_WHETHER_SHE_CAN_RE = re.compile(
+    r"\b(?:can|could)\s+you\b|\bare\s+you\s+able\s+to\b|\bcan\s+aura\b",
+    re.IGNORECASE,
+)
+
+
 def asks_about_screens_in_general(user_message: str) -> bool:
     """True when the request is about screens as a kind, not about this one.
 
@@ -1109,13 +1117,25 @@ def asks_about_screens_in_general(user_message: str) -> bool:
     # 2026-08-27: "Open A BROWSER WINDOW, search for climate news, and show me
     # the articles" was read as a question about windows in general and held
     # back from the only lane that could do it.
-    try:
-        from core.conversation.request_mood import assess_request_mood
+    #
+    # "Can you read screens?" is not an instruction, and the mood assessor
+    # reads it as one: "can you X" is ordinarily a polite request, so it comes
+    # back DIRECTIVE for the reason `second_person_request`. That is right for
+    # "can you open Chrome" and wrong here, and it made the imperative
+    # bail-out swallow the question this predicate exists to catch.
+    #
+    # Asking whether she CAN do a thing to a class is a question about her, so
+    # the bail-out is skipped for it. Nothing downstream is loosened: a request
+    # naming a specific instance still fails the class check below, and a
+    # definite plural still fails the article check after it.
+    if not _ASKS_WHETHER_SHE_CAN_RE.search(text):
+        try:
+            from core.conversation.request_mood import assess_request_mood
 
-        if assess_request_mood(user_message).asks_for_action:
-            return False
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+            if assess_request_mood(user_message).asks_for_action:
+                return False
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            pass
     # The class, and nothing definite alongside it to look at.
     if not _SCREENS_IN_GENERAL_RE.search(text):
         return False

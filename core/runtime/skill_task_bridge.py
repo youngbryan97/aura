@@ -210,6 +210,14 @@ _ASKS_INVENTORY_DIRECTLY_RE = re.compile(
     r"|\bwhat(?:'s| is)\s+in\s+your\s+(?:toolkit|inventory|repertoire)\b",
     re.IGNORECASE,
 )
+#: A wh-question whose subject IS her inventory: "what tools can you use...",
+#: "which skills do you have...". The modal inside it is part of the question,
+#: not a request, and reading it as one swallowed the question whole.
+_ASKS_WHICH_TOOLS_RE = re.compile(
+    r"\b(?:what|which|how\s+many)\s+(?:\w+\s+){0,2}"
+    r"(?:tools?|skills?|capabilit(?:y|ies)|abilities)\b",
+    re.IGNORECASE,
+)
 _CAPABILITY_INVENTORY_RE = re.compile(
     r"\bhow\s+many\b.{0,60}\b(?:tools?|skills?|capabilit(?:y|ies))\b|"
     r"\b(?:what|which|list|tell me|describe|explain|show)\b.{0,100}"
@@ -352,7 +360,18 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
     # ("tell me whether", "explain whether") in dialogue; otherwise let the
     # shared grammatical substrate decide whether this is a present directive
     # whose object is a concrete external effect.
-    if not _ANSWER_SURFACE_REQUEST_RE.search(sanitized):
+    #
+    # A wh-question about her tools is not one of those modal requests, and it
+    # was being read as one. "What tools can you use to open apps" comes back
+    # DIRECTIVE for `second_person_request` — the modal is inside the question,
+    # not the whole of it — and "open apps" is an external effect, so the two
+    # conditions below fired together and rejected the question entirely.
+    #
+    # "Can you change my desktop background?" — the case this rejection was
+    # written for — does not open by asking WHICH tools, so it is untouched.
+    if not _ANSWER_SURFACE_REQUEST_RE.search(sanitized) and not _ASKS_WHICH_TOOLS_RE.search(
+        sanitized
+    ):
         try:
             from core.conversation.request_mood import assess_request_mood
 

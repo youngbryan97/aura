@@ -1996,6 +1996,24 @@ def install_runtime_validation() -> dict[str, Any]:
     suite.add_claim(
         Claim(
             statement=(
+                "From the actions a world offers, she composes one nobody wrote, "
+                "and keeps it only where it decides states it was not built from."
+            ),
+            test="she_composes_an_action_she_was_not_given",
+            owner="core/cognition/an_action_she_composed.py",
+            asserted_in="docs/AURA_EXECUTION_TRACKER.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Composition, the retention rule and transfer across two unlike "
+                "worlds are contract-tested on constructed worlds with known "
+                "answers. Nothing here measures how often she composes one in a "
+                "lived session, which is the live half."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
                 "When recurrent cognition chooses to formalize or simulate, one "
                 "bounded machine result can causally inform a second episode."
             ),
