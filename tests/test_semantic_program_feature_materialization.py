@@ -19,6 +19,7 @@ from core.learning.semantic_program_feature_materialization import (
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
     load_semantic_feature_bundle,
+    load_standard_semantic_feature_bundle,
     materialize_semantic_program_features,
     offset_tokenizer_for_worker,
     select_bounded_semantic_examples,
@@ -196,6 +197,34 @@ def test_materialization_publishes_only_after_cpu_reload(tmp_path: Path) -> None
         "validation": 128,
     }
     assert not any(item.metadata.get("source_text") for item in bundle.examples)
+
+
+def test_standard_loader_reconstructs_the_manifest_seed(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "model"
+    checkpoint.mkdir()
+    output = tmp_path / "fresh-features"
+    config = SemanticFeatureConfig(seed=314159)
+    corpus = build_semantic_program_corpus(
+        seed=config.seed,
+        examples_per_operation_pair=config.examples_per_operation_pair,
+    )
+    asyncio.run(
+        materialize_semantic_program_features(
+            client=_FeatureClient(checkpoint),
+            tokenizer=_CharacterTokenizer(),
+            checkpoint=checkpoint,
+            output_directory=output,
+            corpus=corpus,
+            config=config,
+            lane_ownership_receipt=_lane_receipt(checkpoint),
+            tokenizer_identity=_tokenizer_identity(checkpoint),
+        )
+    )
+
+    bundle = load_standard_semantic_feature_bundle(output)
+
+    assert bundle.manifest["config"]["seed"] == 314159
+    assert len(bundle.examples) == 576
 
 
 def test_bundle_rejects_record_tampering(tmp_path: Path) -> None:

@@ -8,29 +8,21 @@ import json
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", type=Path, required=True)
     args = parser.parse_args()
     try:
-        from core.learning.semantic_program_corpus import build_semantic_program_corpus
         from core.learning.semantic_program_feature_materialization import (
-            SemanticFeatureConfig,
-            load_semantic_feature_bundle,
-            select_bounded_semantic_examples,
+            load_standard_semantic_feature_bundle,
         )
 
-        config = SemanticFeatureConfig()
-        corpus = build_semantic_program_corpus(
-            seed=config.seed,
-            examples_per_operation_pair=config.examples_per_operation_pair,
-        )
-        expected = select_bounded_semantic_examples(
-            corpus,
-            max_examples=config.max_examples,
-        )
-        bundle = load_semantic_feature_bundle(args.bundle, expected_examples=expected)
+        bundle = load_standard_semantic_feature_bundle(args.bundle)
         result = {
             "schema": "aura.semantic_program_feature_verification.v1",
             "verified": True,

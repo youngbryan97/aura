@@ -8,6 +8,10 @@ import json
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 def _canonical_bytes(value: object) -> bytes:
     return json.dumps(
@@ -30,24 +34,12 @@ def main() -> int:
         from core.learning.semantic_program_campaign import (
             run_semantic_program_campaign,
         )
-        from core.learning.semantic_program_corpus import build_semantic_program_corpus
         from core.learning.semantic_program_feature_materialization import (
-            SemanticFeatureConfig,
-            load_semantic_feature_bundle,
-            select_bounded_semantic_examples,
+            load_standard_semantic_feature_bundle,
         )
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        config = SemanticFeatureConfig()
-        corpus = build_semantic_program_corpus(
-            seed=config.seed,
-            examples_per_operation_pair=config.examples_per_operation_pair,
-        )
-        expected = select_bounded_semantic_examples(
-            corpus,
-            max_examples=config.max_examples,
-        )
-        bundle = load_semantic_feature_bundle(args.bundle, expected_examples=expected)
+        bundle = load_standard_semantic_feature_bundle(args.bundle)
         result = run_semantic_program_campaign(bundle)
         gateway = get_file_write_gateway()
         with local_internal_governed_scope(

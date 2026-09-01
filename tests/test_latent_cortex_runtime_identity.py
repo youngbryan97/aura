@@ -148,6 +148,32 @@ def test_worker_identity_accepts_production_steering_coefficient():
     assert runtime_identity.worker_identity_errors(identity) == []
 
 
+def test_representation_basis_survives_restart_but_not_neural_stack_drift():
+    first = _worker_identity()
+    restarted = _worker_identity()
+    restarted["worker_boot_id"] = "f" * 32
+    restarted["worker_pid"] = 5678
+    restarted["worker_action_capture_identity"] = build_worker_capture_identity(
+        worker_boot_id="f" * 32,
+        worker_pid=5678,
+    ).public_identity
+
+    expected = runtime_identity.worker_representation_basis(first)
+    assert runtime_identity.worker_representation_basis(restarted) == expected
+    assert runtime_identity.worker_model_basis(restarted) != (
+        runtime_identity.worker_model_basis(first)
+    )
+
+    for field, changed in (
+        ("worker_source_sha256", "f" * 64),
+        ("worker_affective_steering_alpha", 0.31),
+        ("worker_adapter_stack_sha256", "f" * 64),
+    ):
+        drifted = _worker_identity()
+        drifted[field] = changed
+        assert runtime_identity.worker_representation_basis(drifted) != expected
+
+
 def test_lora_identity_hashes_adapter_owned_tensors_not_wrapped_base():
     import mlx.core as mx
     from mlx_lm.tuner.lora import LoRALinear

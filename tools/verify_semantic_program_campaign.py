@@ -10,6 +10,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
@@ -46,11 +50,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         from core.governance_context import local_internal_governed_scope
-        from core.learning.semantic_program_corpus import build_semantic_program_corpus
         from core.learning.semantic_program_feature_materialization import (
-            SemanticFeatureConfig,
-            load_semantic_feature_bundle,
-            select_bounded_semantic_examples,
+            load_standard_semantic_feature_bundle,
         )
         from core.learning.semantic_program_verification import (
             SEMANTIC_PROGRAM_VERIFICATION_SOURCES,
@@ -58,24 +59,14 @@ def main() -> int:
         )
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        config = SemanticFeatureConfig()
-        corpus = build_semantic_program_corpus(
-            seed=config.seed,
-            examples_per_operation_pair=config.examples_per_operation_pair,
-        )
-        expected = select_bounded_semantic_examples(
-            corpus,
-            max_examples=config.max_examples,
-        )
-        bundle = load_semantic_feature_bundle(args.bundle, expected_examples=expected)
+        bundle = load_standard_semantic_feature_bundle(args.bundle)
         model_payload = _load_json(args.model, max_bytes=16 * 1024 * 1024)
         campaign_report = _load_json(
             args.campaign_report,
             max_bytes=16 * 1024 * 1024,
         )
-        repo_root = Path(__file__).resolve().parent.parent
         source_sha256s = {
-            relative: hashlib.sha256((repo_root / relative).read_bytes()).hexdigest()
+            relative: hashlib.sha256((_REPO_ROOT / relative).read_bytes()).hexdigest()
             for relative in SEMANTIC_PROGRAM_VERIFICATION_SOURCES
         }
         verification = verify_semantic_program_campaign(

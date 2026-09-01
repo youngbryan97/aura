@@ -33,6 +33,7 @@ from core.brain.llm.hidden_sequence_contract import (
 from core.governance_context import local_internal_governed_scope
 from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
+    build_semantic_program_corpus,
     project_example_to_ir,
 )
 from core.learning.semantic_program_ir import semantic_program_ir_from_dict
@@ -159,6 +160,50 @@ class LoadedSemanticFeatureBundle:
 
     manifest: dict[str, Any]
     examples: tuple[LoadedSemanticFeatureExample, ...]
+
+
+def semantic_feature_config_from_manifest(
+    manifest: Mapping[str, Any],
+) -> SemanticFeatureConfig:
+    """Recover the declared acquisition config without trusting its corpus."""
+
+    raw = manifest.get("config")
+    expected_fields = {
+        "schema",
+        "seed",
+        "examples_per_operation_pair",
+        "max_examples",
+        "representation",
+        "hidden_timeout_s",
+        "idle_wait_s",
+        "idle_poll_s",
+        "selected_example_ids",
+    }
+    if not isinstance(raw, Mapping) or set(raw) != expected_fields:
+        raise SemanticFeatureMaterializationError(
+            "feature manifest acquisition config fields differ"
+        )
+    config = SemanticFeatureConfig(
+        schema=raw["schema"],
+        seed=raw["seed"],
+        examples_per_operation_pair=raw["examples_per_operation_pair"],
+        max_examples=raw["max_examples"],
+        representation=raw["representation"],
+        hidden_timeout_s=raw["hidden_timeout_s"],
+        idle_wait_s=raw["idle_wait_s"],
+        idle_poll_s=raw["idle_poll_s"],
+    )
+    selected = raw["selected_example_ids"]
+    if (
+        not isinstance(selected, list)
+        or not 1 <= len(selected) <= config.max_examples
+        or len(set(selected)) != len(selected)
+        or any(not isinstance(value, str) or not value for value in selected)
+    ):
+        raise SemanticFeatureMaterializationError(
+            "feature manifest selected example ids are invalid"
+        )
+    return config
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -868,6 +913,67 @@ def load_semantic_feature_bundle(
     return LoadedSemanticFeatureBundle(manifest=manifest, examples=tuple(loaded))
 
 
+def load_standard_semantic_feature_bundle(
+    output_directory: Path,
+) -> LoadedSemanticFeatureBundle:
+    """Reload a bundle and independently reconstruct its seeded corpus."""
+
+    bundle = load_semantic_feature_bundle(output_directory)
+    config = semantic_feature_config_from_manifest(bundle.manifest)
+    corpus = build_semantic_program_corpus(
+        seed=config.seed,
+        examples_per_operation_pair=config.examples_per_operation_pair,
+    )
+    expected_examples = select_bounded_semantic_examples(
+        corpus,
+        max_examples=config.max_examples,
+    )
+    expected_identities = {
+        item.example_id: _example_public_identity(item) for item in expected_examples
+    }
+    selected_ids = bundle.manifest["config"]["selected_example_ids"]
+    if len(selected_ids) != bundle.manifest["example_count"]:
+        raise SemanticFeatureMaterializationError(
+            "feature manifest selection count differs from its records"
+        )
+    if selected_ids != [item.example_id for item in expected_examples]:
+        raise SemanticFeatureMaterializationError(
+            "feature manifest selection differs from rebuilt seeded corpus"
+        )
+    expected_corpus_sha256 = _sha(
+        {
+            "schema": "aura.semantic_program_selected_corpus.v1",
+            "examples": [
+                expected_identities[item.example_id] for item in expected_examples
+            ],
+        }
+    )
+    if expected_corpus_sha256 != bundle.manifest["corpus_sha256"]:
+        raise SemanticFeatureMaterializationError(
+            "feature manifest corpus hash differs from rebuilt seeded corpus"
+        )
+    observed_ids = {item.metadata["example_id"] for item in bundle.examples}
+    if observed_ids != set(expected_identities):
+        raise SemanticFeatureMaterializationError(
+            "feature bundle corpus membership differs from rebuilt seeded corpus"
+        )
+    for item in bundle.examples:
+        identity = expected_identities[item.metadata["example_id"]]
+        for field in (
+            "construction_id",
+            "topology_id",
+            "split",
+            "source_text_sha256",
+            "inputs",
+            "contrast_id",
+        ):
+            if item.metadata[field] != identity[field]:
+                raise SemanticFeatureMaterializationError(
+                    "feature record differs from rebuilt seeded corpus"
+                )
+    return bundle
+
+
 async def _write_bytes(
     gateway: FileWriteGateway,
     path: Path,
@@ -1229,8 +1335,10 @@ __all__ = [
     "SemanticFeatureMaterializationError",
     "load_semantic_feature_bundle",
     "load_semantic_feature_record",
+    "load_standard_semantic_feature_bundle",
     "materialize_semantic_program_features",
     "select_bounded_semantic_examples",
+    "semantic_feature_config_from_manifest",
     "offset_tokenizer_for_worker",
     "tokenize_with_offsets",
     "tokenizer_checkpoint_identity",

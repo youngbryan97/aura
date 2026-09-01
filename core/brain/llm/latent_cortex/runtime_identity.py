@@ -895,6 +895,17 @@ _WORKER_MODEL_BASIS_FIELDS = (
     "worker_stack_identity_gaps",
 )
 
+_WORKER_REPRESENTATION_BASIS_FIELDS = tuple(
+    field
+    for field in _WORKER_MODEL_BASIS_FIELDS
+    if field
+    not in {
+        "worker_boot_id",
+        "worker_pid",
+        "worker_action_capture_identity",
+    }
+)
+
 
 def worker_model_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
     """Project child and parent identity onto their immutable neural basis.
@@ -912,6 +923,25 @@ def worker_model_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
         field: copy.deepcopy(identity[field])
         for field in _WORKER_MODEL_BASIS_FIELDS
         if field in identity
+    }
+
+
+def worker_representation_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """Project worker identity onto the function that produced hidden states.
+
+    A worker boot, PID, and boot signing key establish observation origin. They
+    do not change tokenization, model weights, adapters, steering, recurrence,
+    quantization, or hidden-state extraction. Keeping those session fields in
+    learned-weight compatibility made a clean restart look like neural drift.
+    The complete worker receipt remains attached to every observation; this
+    projection is only the cross-session representation compatibility key.
+    """
+
+    model_basis = worker_model_basis(identity)
+    return {
+        field: copy.deepcopy(model_basis[field])
+        for field in _WORKER_REPRESENTATION_BASIS_FIELDS
+        if field in model_basis
     }
 
 
