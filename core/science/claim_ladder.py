@@ -38,9 +38,10 @@ to a number is what the ladder exists to stop.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
@@ -53,6 +54,7 @@ __all__ = [
     "ClaimLadder",
     "get_ladder",
     "reset_ladder_for_test",
+    "ladder_reset",
     "PrerequisiteMissing",
 ]
 
@@ -281,12 +283,37 @@ def get_ladder() -> ClaimLadder:
 
 
 def reset_ladder_for_test(*, defaults: bool = False) -> ClaimLadder:
+    """Replace the process-wide ladder. Prefer :func:`ladder_reset`.
+
+    The ladder is a singleton installed once per process, so a bare reset is
+    permanent for the rest of the session: a test that empties it leaves every
+    later reader seeing an empty ladder. That has already happened once here,
+    in health_fragments, and the fix is the same - the context manager below
+    puts back what it took.
+    """
     global _ladder
     with _lock:
         _ladder = ClaimLadder()
         if defaults:
             _install_defaults(_ladder)
         return _ladder
+
+
+@contextlib.contextmanager
+def ladder_reset(*, defaults: bool = False) -> Iterator[ClaimLadder]:
+    """An empty ladder for the body, and the real one back afterwards."""
+    global _ladder
+    with _lock:
+        saved = _ladder
+        _ladder = ClaimLadder()
+        if defaults:
+            _install_defaults(_ladder)
+        fresh = _ladder
+    try:
+        yield fresh
+    finally:
+        with _lock:
+            _ladder = saved
 
 
 def _install_defaults(ladder: ClaimLadder) -> None:

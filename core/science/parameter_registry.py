@@ -31,8 +31,9 @@ whether the campaign could have found a different answer.
 
 from __future__ import annotations
 
+import contextlib
 import threading
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -43,6 +44,7 @@ __all__ = [
     "ParameterRegistry",
     "get_parameter_registry",
     "reset_parameter_registry_for_test",
+    "parameter_registry_reset",
     "UnprovenanceError",
 ]
 
@@ -244,12 +246,34 @@ def get_parameter_registry() -> ParameterRegistry:
 
 
 def reset_parameter_registry_for_test(*, known: bool = False) -> ParameterRegistry:
+    """Replace the process-wide registry. Prefer :func:`parameter_registry_reset`.
+
+    A bare reset is permanent for the process; see core/science/singletons.py
+    for the two times that has already cost a debugging session here.
+    """
     global _registry
     with _lock:
         _registry = ParameterRegistry()
         if known:
             _install_known(_registry)
         return _registry
+
+
+@contextlib.contextmanager
+def parameter_registry_reset(*, known: bool = False) -> Iterator[ParameterRegistry]:
+    """A fresh registry for the body, and the real one back afterwards."""
+    import sys
+
+    from core.science.singletons import scoped_singleton
+
+    def _fresh() -> ParameterRegistry:
+        registry = ParameterRegistry()
+        if known:
+            _install_known(registry)
+        return registry
+
+    with scoped_singleton(sys.modules[__name__], "_registry", _fresh, _lock) as registry:
+        yield registry
 
 
 def _install_known(registry: ParameterRegistry) -> None:

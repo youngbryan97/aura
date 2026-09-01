@@ -12,7 +12,7 @@ from core.science.claim_ladder import (
     PrerequisiteMissing,
     Rung,
     get_ladder,
-    reset_ladder_for_test,
+    ladder_reset,
 )
 from core.science.experiment_registry import (
     Arm,
@@ -24,49 +24,65 @@ from core.science.parameter_registry import (
     Kind,
     Parameter,
     UnprovenanceError,
-    reset_parameter_registry_for_test,
+    parameter_registry_reset,
 )
 
 BUDGET = {"model_id": "qwen3.8-27b", "max_output_tokens": 512, "max_wall_clock_s": 60.0}
 
 
+@pytest.fixture(autouse=True)
+def _own_registries():
+    """Every test here gets its own copies, and the process gets them back.
+
+    These tests deliberately record malformed experiments and empty ladders.
+    Those are writes into state tools/evidence_report.py reads, and without
+    this the report sees whatever the last test left - which is how it came to
+    report "every experiment offered was refused as malformed" about a repo
+    that had offered none.
+    """
+    from core.science.singletons import scoped_science_singletons
+
+    with scoped_science_singletons():
+        yield
+
+
 # ── the claim ladder ──────────────────────────────────────────────────────
 
 def test_a_rung_requires_every_rung_below_it():
-    ladder = reset_ladder_for_test()
-    with pytest.raises(PrerequisiteMissing, match="no wired evidence"):
-        ladder.register(
-            "the workspace helps", owner="o",
-            supports=[(Rung.EXISTS, "core/evidence/packet.py"), (Rung.USEFUL, "core/evidence/packet.py")],
-            boundary="b",
-        )
+    with ladder_reset() as ladder:
+        with pytest.raises(PrerequisiteMissing, match="no wired evidence"):
+            ladder.register(
+                "the workspace helps", owner="o",
+                supports=[(Rung.EXISTS, "core/evidence/packet.py"), (Rung.USEFUL, "core/evidence/packet.py")],
+                boundary="b",
+            )
 
 
 def test_a_claim_with_no_boundary_is_refused():
-    ladder = reset_ladder_for_test()
-    with pytest.raises(ValueError, match="states no boundary"):
-        ladder.register("x", owner="o", supports=[(Rung.EXISTS, "core/evidence/packet.py")], boundary="  ")
+    with ladder_reset() as ladder:
+        with pytest.raises(ValueError, match="states no boundary"):
+            ladder.register("x", owner="o", supports=[(Rung.EXISTS, "core/evidence/packet.py")], boundary="  ")
 
 
 def test_a_support_that_does_not_exist_is_refused():
-    ladder = reset_ladder_for_test()
-    with pytest.raises(PrerequisiteMissing, match="do not exist"):
-        ladder.register("x", owner="o", supports=[(Rung.EXISTS, "core/nope.py")], boundary="b")
+    with ladder_reset() as ladder:
+        with pytest.raises(PrerequisiteMissing, match="do not exist"):
+            ladder.register("x", owner="o", supports=[(Rung.EXISTS, "core/nope.py")], boundary="b")
 
 
 def test_the_rung_is_the_highest_unbroken_run():
-    ladder = reset_ladder_for_test()
-    claim = ladder.register(
-        "evidence is sourced", owner="o",
-        supports=[
-            (Rung.EXISTS, "core/evidence/packet.py"),
-            (Rung.WIRED, "core/knowledge/atomspace.py"),
-            (Rung.CAUSAL, "tests/test_evidence_independence.py"),
-        ],
-        boundary="only on sourced paths",
-    )
-    assert claim.rung is Rung.CAUSAL
-    assert claim.to_dict()["question_answered"].startswith("does lesioning")
+    with ladder_reset() as ladder:
+        claim = ladder.register(
+            "evidence is sourced", owner="o",
+            supports=[
+                (Rung.EXISTS, "core/evidence/packet.py"),
+                (Rung.WIRED, "core/knowledge/atomspace.py"),
+                (Rung.CAUSAL, "tests/test_evidence_independence.py"),
+            ],
+            boundary="only on sourced paths",
+        )
+        assert claim.rung is Rung.CAUSAL
+        assert claim.to_dict()["question_answered"].startswith("does lesioning")
 
 
 def test_the_shipped_claims_stand_where_their_artifacts_reach():
@@ -176,33 +192,37 @@ def test_a_policy_parameter_with_no_rationale_is_refused():
 
 def test_best_of_three_cannot_support_a_calibration_claim():
     """The committed instance: three encoder widths, one campaign, twelve won."""
-    registry = reset_parameter_registry_for_test()
-    registry.fitted("grassmann.anchors", 12.0, owner="o",
-                    dataset="one campaign over widths 8/12/16", n=1)
-    result = registry.check_calibration_claim(["grassmann.anchors"])
+    with parameter_registry_reset() as registry:
+        registry.fitted("grassmann.anchors", 12.0, owner="o",
+                        dataset="one campaign over widths 8/12/16", n=1)
+        result = registry.check_calibration_claim(["grassmann.anchors"])
     assert not result["ok"]
     assert "best-of-n is noise" in result["problems"][0]
 
 
 def test_a_fitted_parameter_needs_an_interval_and_a_sensitivity_to_be_identifiable():
-    registry = reset_parameter_registry_for_test()
-    wide = registry.fitted("a", 1.0, owner="o", dataset="d", n=100, interval=(0.0, 5.0), sensitivity=0.5)
-    tight = registry.fitted("b", 1.0, owner="o", dataset="d", n=100, interval=(0.9, 1.1), sensitivity=0.5)
-    insensitive = registry.fitted("c", 1.0, owner="o", dataset="d", n=100, interval=(0.9, 1.1), sensitivity=0.0)
+    with parameter_registry_reset() as registry:
+        wide = registry.fitted("a", 1.0, owner="o", dataset="d", n=100,
+                               interval=(0.0, 5.0), sensitivity=0.5)
+        tight = registry.fitted("b", 1.0, owner="o", dataset="d", n=100,
+                                interval=(0.9, 1.1), sensitivity=0.5)
+        insensitive = registry.fitted("c", 1.0, owner="o", dataset="d", n=100,
+                                      interval=(0.9, 1.1), sensitivity=0.0)
     assert not wide.identifiable
     assert tight.identifiable
     assert not insensitive.identifiable, "an interval alone is imprecision, not identifiability"
 
 
 def test_a_policy_constant_never_pretends_to_support_calibration():
-    registry = reset_parameter_registry_for_test()
-    registry.policy("threshold", 0.7, owner="o", rationale="chosen to refuse rather than guess")
-    assert not registry.check_calibration_claim(["threshold"])["ok"]
+    with parameter_registry_reset() as registry:
+        registry.policy("threshold", 0.7, owner="o",
+                        rationale="chosen to refuse rather than guess")
+        assert not registry.check_calibration_claim(["threshold"])["ok"]
 
 
 def test_the_constants_this_work_introduced_are_declared_as_policy():
-    registry = reset_parameter_registry_for_test(known=True)
-    report = registry.report()
+    with parameter_registry_reset(known=True) as registry:
+        report = registry.report()
     assert report["parameters"] >= 6
     assert report["by_kind"].get("fitted", 0) == 0, (
         "nothing here was fitted to data; calling any of it fitted would be the defect "
@@ -454,3 +474,17 @@ def test_a_wrong_answer_with_a_near_neighbour_is_interference_not_fabrication():
     assert classify_error(returned="xyzzy", expected="dog", nearest_similarity=0.05) is ErrorKind.FABRICATION
     assert classify_error(returned=None, expected="dog") is ErrorKind.OMISSION
     assert classify_error(returned="dog", expected="dog") is ErrorKind.CORRECT
+
+
+def test_a_ladder_reset_does_not_outlive_its_test():
+    """A singleton reset without a restore is permanent for the process.
+
+    health_fragments had this exact defect: one autouse fixture emptied the
+    register and every later test file found it empty. The ladder is the same
+    shape, and the evidence report reads it.
+    """
+    before = len(get_ladder().claims())
+    assert before >= 4
+    with ladder_reset() as fresh:
+        assert fresh.claims() == []
+    assert len(get_ladder().claims()) == before
