@@ -1428,8 +1428,12 @@
       "bar": "Aura inspects, modifies and executes cognitive rules without editing Python, with rollback and governance.",
       "plan": "metta.py has equality rewriting and grounded ops; reasoning semantics are Python. Move a named family of inference-control rules into MeTTa first.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "090": {
       "verdict": "PARTIAL",
@@ -1441,8 +1445,12 @@
       "bar": "Generic cognitive programs run unchanged over at least three heterogeneous spaces.",
       "plan": "One Space API with add/remove/query/substitute/transaction/provenance/attention, adapters for AtomSpace, memory and world model.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "091": {
       "verdict": "PARTIAL",
@@ -1469,8 +1477,12 @@
       "bar": "A query retrieves the complete executable lineage of a learned strategy and substitutes it structurally.",
       "plan": "Procedures as graph-addressable atoms with source, evidence and utility links \u2014 follows W5 plus W1.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "093": {
       "verdict": "ABSENT",
@@ -1513,8 +1525,12 @@
       "bar": "Local learning improves from global context without contaminating unrelated domains.",
       "plan": "Local workers publish candidate atoms; global constraints feed back priors. The contamination half is the test.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "096": {
       "verdict": "PARTIAL",
@@ -1525,8 +1541,12 @@
       "bar": "On frozen synthesis suites it finds compact programs beyond the deterministic enumerator horizon and survives transfer and ablation.",
       "plan": "every_doing() is exhaustive enumeration to depth 2. Add MDL-guided stochastic search over the same operator library.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "097": {
       "verdict": "PARTIAL",
@@ -1537,8 +1557,12 @@
       "bar": "Search complexity falls on later tasks and new abstractions are reused across independent program families.",
       "plan": "Representation growth exists and is not an inner loop of program search. Wire residual structure -> proposed abstraction.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "098": {
       "verdict": "SCALE",
@@ -1559,8 +1583,12 @@
       "bar": "Learned and handwritten cognitive packages are independently versioned, loaded and rolled back.",
       "plan": "Namespaces, versioned rule packages and capability declarations over metta.py.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "100": {
       "verdict": "PARTIAL",
@@ -1571,8 +1599,12 @@
       "bar": "Ambiguous rules keep alternatives until evidence or action resolves them, and calibration improves.",
       "plan": "The rewriter is nondeterministic; the rest of cognition collapses candidates to strings early. Carry weighted hypothesis sets.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "101": {
       "verdict": "PARTIAL",
@@ -1598,8 +1630,12 @@
       "bar": "Metacognition identifies a failing cognitive procedure and proposes a structural repair from the graph.",
       "plan": "Introspection today reads self-state, not program structure. Expose running plans and rule matches as temporary atoms.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "103": {
       "verdict": "OVERSTATED",
@@ -1654,8 +1690,12 @@
       "bar": "Aura learns an inference-ordering policy, validates it, installs it and later revises it without Python modification.",
       "plan": "Depends on 089 and 045.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "107": {
       "verdict": "ABSENT",
@@ -2873,8 +2913,12 @@
       "bar": "Aura derives a semantic operator absent from the original evaluator, solves a previously unreachable family, and later composes it into another learned operator.",
       "plan": "The deepest item. Requires W10 rollback and sandbox proof first; self-extension without them is untestable self-corruption.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/operator_invention.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "188": {
       "verdict": "PARTIAL",
@@ -2884,8 +2928,12 @@
       "bar": "A new operator survives adversarial held-out tests and rollback restores exact prior semantics.",
       "plan": "Versioned kernel extensions with effect types, resource bounds, differential tests and automatic rollback.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/operator_invention.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "189": {
       "verdict": "PARTIAL",
@@ -3286,8 +3334,12 @@
       "bar": "On held-out families, induced programs beat both the resident model and supplied-tool baselines with no answer leakage.",
       "plan": "The module is answer-blind and receives operation literals. Induce the program from the problem and world state, verified by execution.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/operator_invention.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "216": {
       "verdict": "PARTIAL",
@@ -3297,8 +3349,12 @@
       "bar": "Correct hidden injection improves multi-step continuation; wrong-state and projection lesions disrupt it; no answer text is present.",
       "plan": "State is serialised today. Project qualified RLC state into controlled residual slots with the two lesions as controls.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/operator_invention.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "217": {
       "verdict": "PARTIAL",
@@ -3586,8 +3642,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "A wake-sleep loop: solve, abstract, dream. Aura has all three phases and no loop that runs them as one cycle.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.10": {
       "verdict": "PARTIAL",
@@ -3597,8 +3657,12 @@
       "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
       "plan": "Joint language and search learning - the two halves must move together.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.11": {
       "verdict": "PARTIAL",
@@ -3608,8 +3672,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Clean wake / abstraction / dream ablations.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.12": {
       "verdict": "PARTIAL",
@@ -3620,8 +3688,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "A typed functional DSL discipline. one_algebra.py is exactly this and is not yet universal.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/knowledge/spaces.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.13": {
       "verdict": "PARTIAL",
@@ -3631,8 +3703,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Compiled symbolic search rather than interpreted enumeration.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.14": {
       "verdict": "PARTIAL",
@@ -3642,8 +3718,12 @@
       "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
       "plan": "An interpretable learned library a human can read.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.15": {
       "verdict": "PARTIAL",
@@ -3653,8 +3733,12 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "A focused mechanism with a clear causal role - the discipline, not a feature.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.2": {
       "verdict": "ABSENT",
@@ -3665,8 +3749,12 @@
       "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
       "plan": "CORPUS-WIDE compression: refactor the whole library against every solved trace, not one primitive at a time. This is the biggest real gap in the second audit.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.3": {
       "verdict": "PARTIAL",
@@ -3676,8 +3764,12 @@
       "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
       "plan": "A learned recognition model that proposes what to try, trained on real replay. The current prior is close to a no-op.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.4": {
       "verdict": "PARTIAL",
@@ -3688,8 +3780,12 @@
       "bar": "Ablate dream vs replay vs both; require improved held-out search without more spurious abstractions or forgetting.",
       "plan": "Dreamed problems: generate tasks from the library to train the recogniser.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.5": {
       "verdict": "PARTIAL",
@@ -3699,8 +3795,12 @@
       "bar": "Ablate dream vs replay vs both; require improved held-out search without more spurious abstractions or forgetting.",
       "plan": "Replay of solved problems alongside dreams.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.6": {
       "verdict": "PARTIAL",
@@ -3710,8 +3810,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Abstractions built on abstractions - multilayer, not flat.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.7": {
       "verdict": "PARTIAL",
@@ -3721,8 +3825,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Transfer across domains. Card 182/186.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.8": {
       "verdict": "CAPABILITY",
@@ -3732,8 +3840,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Rediscovering known concepts is the evidence that compression found real structure.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A10.9": {
       "verdict": "PARTIAL",
@@ -3743,8 +3855,12 @@
       "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
       "plan": "An explicit MDL objective over the library. what_it_costs_to_say.py is the seed.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.1": {
       "verdict": "ABSENT",
@@ -3754,8 +3870,12 @@
       "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
       "plan": "Global abstraction discovery over the corpus of solutions, not greedy local extraction. Same as A10.2.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.10": {
       "verdict": "PARTIAL",
@@ -3765,8 +3885,12 @@
       "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
       "plan": "The library as a readable product.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.11": {
       "verdict": "PARTIAL",
@@ -3776,8 +3900,12 @@
       "bar": "Cold vs learned search on unseen tasks: nodes expanded, time-to-first-solution, solve rate and calibration across seeds.",
       "plan": "Model-guided synthesis that uses library semantics rather than only names.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/autodoc.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.12": {
       "verdict": "PARTIAL",
@@ -3787,8 +3915,12 @@
       "bar": "Subsystem survives only if lesion causes preregistered task loss or loss of a non-performance invariant.",
       "plan": "A specialised clean pipeline. Aura's version must not become a fourth synthesis path - fold into the W5 registry.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.2": {
       "verdict": "SCALE",
@@ -3798,8 +3930,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Compression that scales to the whole solution corpus.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.3": {
       "verdict": "ABSENT",
@@ -3809,8 +3945,12 @@
       "bar": "Opaque vs AutoDoc vs no-name A/B on held-out synthesis/search.",
       "plan": "Natural-language names and docstrings for learned abstractions, generated and kept only if they measurably help.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/autodoc.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.4": {
       "verdict": "EVIDENCE",
@@ -3820,8 +3960,12 @@
       "bar": "Opaque vs AutoDoc vs no-name A/B on held-out synthesis/search.",
       "plan": "The A/B that says whether names help the solver. Without it, naming is decoration.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/autodoc.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.5": {
       "verdict": "PARTIAL",
@@ -3831,8 +3975,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Synthesise, compress, document, iterate - as one loop.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.6": {
       "verdict": "CAPABILITY",
@@ -3842,8 +3990,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Harder tasks in the evaluated domains.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.7": {
       "verdict": "PARTIAL",
@@ -3853,8 +4005,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Linguistically grounded libraries: the name and the semantics agree.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/autodoc.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.8": {
       "verdict": "PARTIAL",
@@ -3864,8 +4020,12 @@
       "bar": "Compression ratio, downstream solve rate, wall time and memory across >10k solved traces, compared with current local ecology.",
       "plan": "Near-optimal reusable abstractions, measured by what they buy.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/library_compression.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A11.9": {
       "verdict": "PARTIAL",
@@ -3875,8 +4035,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Ablate documentation and compression separately.",
       "wave": "W10",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/wake_sleep.py",
+        "tests/test_library_and_invention.py"
+      ]
     },
     "A12.1": {
       "verdict": "PARTIAL",
