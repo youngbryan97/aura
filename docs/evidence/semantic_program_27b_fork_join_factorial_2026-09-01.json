@@ -1,0 +1,53 @@
+{
+  "schema": "aura.semantic_program_factorial_family_verification.v1",
+  "source_commit": "79867d88f8ec05685deb2af09b79b333babe97fc",
+  "claim_boundary": "bounded resident-27B language-to-program transfer across independently crossed constructions and four-input three-step fork-join topologies in synthetic integer arithmetic; not broad-domain, frontier-reasoning, or serving evidence",
+  "corpus_kind": "fork_join_4x3_factorial16",
+  "factorial_design": {
+    "construction_count": 9,
+    "topology_count": 9,
+    "operation_cover_per_cell": 16,
+    "total_examples": 1296,
+    "train_examples": 432,
+    "validation_examples": 432,
+    "test_examples": 432
+  },
+  "feature_manifest_sha256": "b0d0b8ab844e7c1a4c1b2af3677a6a30613bf0535f205595f435a7165a3bde9d",
+  "model_basis_sha256": "afcdeabab11d9acf129b355b4665736342f3fd15ed7ff765e668c1a8e7a6e0ec",
+  "transducer_receipt_sha256": "71a4d6e1e67606f9d4d32e7c5c4a52d6f7e887403c0b1b3025c47d6efe49f582",
+  "campaign_report_sha256": "273ae4411ac38c8d2100a792ba5d1ec4def82a6aca80cc7a89ca5d1be17595f6",
+  "held_out": {
+    "total": 864,
+    "program_exact": 794,
+    "answer_exact": 795,
+    "program_accuracy": 0.9189814814814815,
+    "answer_accuracy": 0.9201388888888888
+  },
+  "test": {
+    "total": 432,
+    "program_exact": 398,
+    "answer_exact": 399
+  },
+  "validation": {
+    "total": 432,
+    "program_exact": 396,
+    "answer_exact": 396
+  },
+  "paired_program_controls": {
+    "coefficient_lesion_test": {"treatment_only": 398, "control_only": 0, "one_sided_exact_p": 1.5490367659397273e-120},
+    "coefficient_lesion_validation": {"treatment_only": 396, "control_only": 0, "one_sided_exact_p": 6.196147063758909e-120},
+    "hidden_token_shuffle_test": {"treatment_only": 366, "control_only": 0, "one_sided_exact_p": 6.653062250012736e-111},
+    "hidden_token_shuffle_validation": {"treatment_only": 363, "control_only": 0, "one_sided_exact_p": 5.3224498000101884e-110},
+    "label_permutation_test": {"treatment_only": 398, "control_only": 0, "one_sided_exact_p": 1.5490367659397273e-120},
+    "label_permutation_validation": {"treatment_only": 396, "control_only": 0, "one_sided_exact_p": 6.196147063758909e-120}
+  },
+  "raw_feature_records_reloaded": 1296,
+  "task_rows_independently_recounted": 3888,
+  "campaign_replay_exact": true,
+  "deterministic_refit_exact": true,
+  "expected_answers_available_to_training": false,
+  "verification_sha256": "1a19290034a26cca33b51c3ad38622b0fc2dd1b0836b245c1a198bb365617c0f",
+  "verification_file_sha256": "0300f8c9a5e5706521956e7a435bb32b5bdc1b95ed114a166a082ebacc13f94b",
+  "verified": true,
+  "serving_authority": false
+}
