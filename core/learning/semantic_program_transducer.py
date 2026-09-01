@@ -211,6 +211,8 @@ class SemanticTransducerTrainingExample:
     public_inputs: tuple[SemanticValue, ...]
     hidden_channels: tuple[str, ...] = ()
     hidden_channel_widths: tuple[int, ...] = ()
+    contrast_id: str = ""
+    tokenizer_identity_sha256: str = ""
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -229,6 +231,10 @@ class SemanticTransducerTrainingExample:
             raise ValueError("semantic transducer split is invalid")
         if not self.construction_id or not self.topology_id:
             raise ValueError("semantic transducer provenance is incomplete")
+        if self.tokenizer_identity_sha256 and not _is_sha256(
+            self.tokenizer_identity_sha256
+        ):
+            raise ValueError("semantic transducer tokenizer identity is invalid")
         channels = self.hidden_channels or (_FINAL_CAUSAL_CHANNEL,)
         channel_widths = self.hidden_channel_widths or (hidden.shape[1],)
         if (
@@ -280,11 +286,14 @@ class LinearPointerHead:
         hidden: np.ndarray,
         *,
         limit: int,
+        max_span_tokens: int = SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
     ) -> tuple[tuple[TokenSpan, float], ...]:
         """Return the strongest distinct source spans in stable score order."""
 
         if type(limit) is not int or limit < 1:
             raise ValueError("semantic pointer candidate limit is invalid")
+        if type(max_span_tokens) is not int or max_span_tokens < 1:
+            raise ValueError("semantic pointer span limit is invalid")
         matrix = _hidden_array(hidden, expected_width=self.width)
         start_scores = matrix @ self.start_weight + self.start_bias
         end_scores = matrix @ self.end_weight + self.end_bias
@@ -292,7 +301,7 @@ class LinearPointerHead:
         for start in range(matrix.shape[0]):
             stop = min(
                 matrix.shape[0],
-                start + SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
+                start + max_span_tokens,
             )
             for end in range(start, stop):
                 candidates.append(
@@ -1345,7 +1354,14 @@ def _gold_spans(ir: SemanticProgramIR) -> dict[str, TokenSpan]:
     return spans
 
 
-def _fit_binary_head(features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, float]:
+def _fit_binary_head(
+    features: np.ndarray,
+    labels: np.ndarray,
+    *,
+    sample_weight: np.ndarray | None = None,
+    max_iter: int = 1000,
+    tolerance: float = 1e-4,
+) -> tuple[np.ndarray, float]:
     from sklearn.linear_model import LogisticRegression
 
     if set(np.unique(labels).tolist()) != {0, 1}:
@@ -1353,11 +1369,15 @@ def _fit_binary_head(features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarr
     classifier = LogisticRegression(
         C=10.0,
         class_weight="balanced",
-        max_iter=1000,
+        max_iter=max_iter,
         random_state=0,
         solver="liblinear",
+        tol=tolerance,
     )
-    classifier.fit(features, labels)
+    if sample_weight is None:
+        classifier.fit(features, labels)
+    else:
+        classifier.fit(features, labels, sample_weight=sample_weight)
     return (
         np.asarray(classifier.coef_[0], dtype=np.float32),
         float(classifier.intercept_[0]),
@@ -1367,6 +1387,8 @@ def _fit_binary_head(features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarr
 def _fit_classifier(
     features: np.ndarray,
     labels: Sequence[str],
+    *,
+    sample_weight: np.ndarray | None = None,
 ) -> LinearClassifierHead:
     from sklearn.linear_model import LogisticRegression
 
@@ -1380,7 +1402,10 @@ def _fit_classifier(
         random_state=0,
         solver="lbfgs",
     )
-    classifier.fit(features, list(labels))
+    if sample_weight is None:
+        classifier.fit(features, list(labels))
+    else:
+        classifier.fit(features, list(labels), sample_weight=sample_weight)
     classes = tuple(str(value) for value in classifier.classes_.tolist())
     weight = np.asarray(classifier.coef_, dtype=np.float32)
     bias = np.asarray(classifier.intercept_, dtype=np.float32)
@@ -1455,10 +1480,7 @@ def _fit_multiview_operation_head(
             for index, (item, _) in enumerate(rows)
             if item.construction_id == held_out_construction
         )
-        if (
-            {labels_by_row[index] for index in fit_indices} != set(labels)
-            or not held_out_indices
-        ):
+        if {labels_by_row[index] for index in fit_indices} != set(labels) or not held_out_indices:
             continue
         fold_indices[held_out_construction] = (fit_indices, held_out_indices)
         for mode in candidate_modes:
@@ -1480,9 +1502,7 @@ def _fit_multiview_operation_head(
             heads = tuple(fold_heads[(held_out_construction, mode)] for mode in modes)
             for index in held_out_indices:
                 features = tuple(features_by_mode[mode][index] for mode in modes)
-                correct += int(
-                    _multiview_prediction(heads, features) == labels_by_row[index]
-                )
+                correct += int(_multiview_prediction(heads, features) == labels_by_row[index])
                 total += 1
         if valid and total:
             feature_width = sum(

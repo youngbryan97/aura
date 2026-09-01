@@ -64,6 +64,8 @@ def training_examples_from_feature_bundle(
                 str(item.metadata["worker_receipt"]["representation"]),
                 int(item.metadata["hidden_size"]),
             ),
+            contrast_id=str(item.metadata.get("contrast_id", "")),
+            tokenizer_identity_sha256=str(item.metadata["tokenizer_identity_sha256"]),
         )
         for item in bundle.examples
     )
