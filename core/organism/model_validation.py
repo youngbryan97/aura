@@ -3633,10 +3633,6 @@ def _semantic_program_27b_certificate_holds() -> bool:
     try:
         certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
         source_sha256s = certificate["source_sha256s"]
-        current_source_sha256s = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_sha256s
-        }
         body = {
             key: value
             for key, value in certificate.items()
@@ -3689,7 +3685,11 @@ def _semantic_program_27b_certificate_holds() -> bool:
         and certificate.get("serving_authority") is False
         and certificate.get("claim_boundary") == expected_boundary
         and observed_answer_pairs == expected_answer_pairs
-        and current_source_sha256s == source_sha256s
+        and _historical_semantic_sources_hold(
+            root,
+            certificate_path,
+            source_sha256s,
+        )
         and certificate.get("verification_sha256")
         == hashlib.sha256(canonical).hexdigest()
     )
@@ -3708,10 +3708,6 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
     try:
         certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
         source_sha256s = certificate["source_sha256s"]
-        current_source_sha256s = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_sha256s
-        }
         body = {
             key: value
             for key, value in certificate.items()
@@ -3752,10 +3748,60 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
         and compatibility.get("coefficients_changed") is False
         and compatibility.get("hidden_states_changed") is False
         and compatibility.get("serving_authority") is False
-        and current_source_sha256s == source_sha256s
+        and _historical_semantic_sources_hold(
+            root,
+            certificate_path,
+            source_sha256s,
+        )
         and certificate.get("verification_sha256")
         == hashlib.sha256(canonical).hexdigest()
     )
+
+
+def _historical_semantic_sources_hold(
+    root: pathlib.Path,
+    certificate_path: pathlib.Path,
+    source_sha256s: dict[str, str],
+) -> bool:
+    """Verify measured source against committed blobs, never the evolving tree."""
+
+    import hashlib
+    import json
+    import subprocess
+
+    binding_path = (
+        root
+        / "docs/evidence/semantic_program_27b_source_binding_2026-09-01.json"
+    )
+    try:
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        commit = binding["source_commit"]
+        certificate_hash = binding["certificates"][certificate_path.name]
+        if (
+            binding.get("schema") != "aura.historical_semantic_source_binding.v1"
+            or binding.get("serving_authority") is not False
+            or not isinstance(commit, str)
+            or len(commit) != 40
+            or any(character not in "0123456789abcdef" for character in commit)
+            or hashlib.sha256(certificate_path.read_bytes()).hexdigest()
+            != certificate_hash
+        ):
+            return False
+        for relative, expected in source_sha256s.items():
+            source_path = pathlib.PurePosixPath(relative)
+            if source_path.is_absolute() or ".." in source_path.parts:
+                return False
+            payload = subprocess.run(
+                ["git", "show", f"{commit}:{relative}"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            ).stdout
+            if hashlib.sha256(payload).hexdigest() != expected:
+                return False
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
+        return False
+    return True
 
 
 def _neural_complete_engine_contract_holds() -> bool:

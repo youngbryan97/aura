@@ -1,0 +1,9 @@
+{
+  "schema": "aura.historical_semantic_source_binding.v1",
+  "source_commit": "f731803dae2ba82db5b8924664c04756b9ede550",
+  "certificates": {
+    "semantic_program_27b_reverification_2026-09-01.json": "7e6c070aee5bb8c5bd9541d4bd42d4b6e0d23540e6811c12d3210bcf9cb5f0bd",
+    "semantic_program_27b_frozen_replication_2026-09-01.json": "cf442590f124f3e7d1a372125ff4588545d9bcecbd11aae8253e6abcca819262"
+  },
+  "serving_authority": false
+}

@@ -327,7 +327,9 @@ records, reproduced the coefficients and report exactly, and recounted all
 serving and broad-domain transfer remain open.
 The campaign was reverified after the replication tooling changed two bound
 source files; the first certificate remains the immutable historical record,
-and the current claim reads the new source-matched certificate.
+and the current claim reads the certificate bound to the exact measured commit.
+Later source evolution cannot rewrite that historical result or grant serving
+authority to a different implementation.
 
 The coefficients were then frozen and evaluated on a separately seeded cohort
 with no task overlap. A clean worker restart changed its process identity but

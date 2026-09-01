@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 CERTIFICATE = (
@@ -13,6 +13,28 @@ CERTIFICATE = (
     / "docs/evidence/semantic_program_27b_frozen_replication_2026-09-01.json"
 )
 PUBLIC_PAGES = (ROOT / "README.md", ROOT / "docs/RECURSIVE_LATENT_CORTEX.md")
+BINDING = (
+    ROOT / "docs/evidence/semantic_program_27b_source_binding_2026-09-01.json"
+)
+
+
+def _assert_measured_commit_sources(certificate: dict[str, object]) -> None:
+    binding = json.loads(BINDING.read_text(encoding="utf-8"))
+    commit = binding["source_commit"]
+
+    assert binding["serving_authority"] is False
+    assert (
+        hashlib.sha256(CERTIFICATE.read_bytes()).hexdigest()
+        == binding["certificates"][CERTIFICATE.name]
+    )
+    for relative, expected in certificate["source_sha256s"].items():
+        payload = subprocess.run(
+            ["git", "show", f"{commit}:{relative}"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+        assert hashlib.sha256(payload).hexdigest() == expected
 
 
 def test_fresh_cohort_claim_matches_source_bound_certificate() -> None:
@@ -39,8 +61,7 @@ def test_fresh_cohort_claim_matches_source_bound_certificate() -> None:
     assert certificate["expected_answers_available_to_training"] is False
     assert certificate["serving_authority"] is False
     assert certificate["verification_sha256"] == hashlib.sha256(encoded).hexdigest()
-    for relative, expected in certificate["source_sha256s"].items():
-        assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == expected
+    _assert_measured_commit_sources(certificate)
 
     for page in PUBLIC_PAGES:
         text = page.read_text(encoding="utf-8")

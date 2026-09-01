@@ -148,7 +148,9 @@ The programme used a 1.5B vehicle while the historical resident 32B stayed live,
   the feature basis, learned coefficients, report and verifier source. A second
   certificate reproduced the result after the replication work changed two
   bound source files; the first certificate remains an immutable historical
-  record, while the current claim reads the source-matched re-verification.
+  record, while the current claim reads the re-verification bound to the exact
+  measured commit. Later source evolution does not rewrite the result or grant
+  serving authority to a different implementation.
 - **The semantic transducer survives fresh examples and a worker restart.** A
   second 576-task cohort used a new seed and shared no example ids with the
   training campaign. The frozen coefficients emitted 114/256 exact held-out
