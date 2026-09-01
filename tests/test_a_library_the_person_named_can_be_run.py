@@ -28,8 +28,26 @@ _KIT = (
 )
 
 
+def _the_kit_is_there() -> bool:
+    """Whether the fixture library is actually present, not merely its folder.
+
+    ``Path(_KIT).is_dir()`` was the guard, and the directory outlived its
+    contents: another session cleaned the kit and left ``__pycache__`` behind,
+    so the folder existed, the guard passed, and three tests ran against an
+    empty library and failed on the sandbox returning "error". A skip that
+    checks for the wrong thing is worse than no skip, because the failure it
+    produces looks like a defect in the code under test.
+    """
+    root = Path(_KIT)
+    return root.is_dir() and any(
+        path.suffix == ".py" and path.name != "__init__.py"
+        for path in root.rglob("*.py")
+        if "__pycache__" not in path.parts
+    )
+
+
 def test_a_directory_of_python_is_allowed() -> None:
-    if not Path(_KIT).is_dir():
+    if not _the_kit_is_there():
         return
     allowed, why = _library_path_is_allowed(_KIT)
     assert allowed, why
@@ -62,7 +80,7 @@ def test_the_path_is_taken_from_the_request_when_none_was_given() -> None:
     the model remembering a field it has never seen.
     """
 
-    if not Path(_KIT).is_dir():
+    if not _the_kit_is_there():
         return
     named_directly = _a_library_the_person_named(
         {"objective": f"There's a library at {_KIT} with an API.md. Use it."}
@@ -83,7 +101,7 @@ def test_the_path_is_taken_from_the_request_when_none_was_given() -> None:
 def test_the_runner_actually_runs_it() -> None:
     """End to end, in the sandbox, with no import in the sandboxed code."""
 
-    if not Path(_KIT).is_dir():
+    if not _the_kit_is_there():
         return
     from core.sandbox.runner import run_untrusted
 
