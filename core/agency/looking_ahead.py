@@ -26,7 +26,7 @@ from typing import Any, Sequence
 
 from core.agency.how_good_is_this import how_good, why
 
-__all__ = ["DEEPEST", "look_ahead", "how_deep_to_look"]
+__all__ = ["DEEPEST", "look_ahead", "how_deep_to_look", "worth_finding_out"]
 
 logger = logging.getLogger("Aura.LookingAhead")
 
@@ -62,6 +62,52 @@ def how_deep_to_look(available: int, budget_s: float, branching: int = 4) -> int
             break
         depth += 1
     return depth
+
+
+def worth_finding_out(
+    knows: Any,
+    state: Any,
+    actions: Sequence[str],
+    ahead: dict[str, tuple[float, str]] | None = None,
+) -> dict[str, float]:
+    """What each act is worth for what it would TELL her, not where it leads.
+
+    Looking ahead asks which move is best under the rule she is using. This
+    asks a different question: which move would settle which rule is right.
+    They are not the same move, and early on the second is worth far more —
+    a rule she is sure of improves every move after this one, and a slightly
+    better position improves only this one.
+
+    Scaled by what knowing is worth here, which is read off the futures she
+    can already see: where the best and worst moves available differ by very
+    little, being right about the rule is worth very little, and where they
+    differ by a lot it is worth a lot. So the number comes from her own
+    situation rather than from a setting, and it goes to nought by itself as
+    the rule settles — at which point she stops experimenting, because there
+    is nothing left to find out.
+
+    Where she cannot see ahead at all, this is what she has: the acts are
+    scored purely by what they would settle, which is the right thing to do
+    when she has no model to prefer anything by.
+    """
+    settle = getattr(knows, "what_this_would_settle", None)
+    if not callable(settle) or state is None:
+        return {}
+    told: dict[str, float] = {}
+    for action in actions:
+        try:
+            told[action] = max(0.0, float(settle(state, action)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    if not told or not any(told.values()):
+        return {}
+    values = [value for value, _ in (ahead or {}).values()]
+    # What being right is worth here. With nothing to see ahead, finding out
+    # is the only thing on offer and is worth one whole move.
+    spread = (max(values) - min(values)) if len(values) > 1 else 1.0
+    if spread <= 0.0:
+        return {}
+    return {action: share * spread for action, share in told.items()}
 
 
 def look_ahead(

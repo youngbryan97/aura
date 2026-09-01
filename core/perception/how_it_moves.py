@@ -629,6 +629,76 @@ class HowItMoves:
                 best = (share, rule.name, right, tried)
         return (best[1], best[2], best[3]) if best else None
 
+    def still_standing(self) -> tuple[Rule, ...]:
+        """Every rule her evidence has not yet ruled out.
+
+        A rule is out when it has been tried enough to judge and has been
+        wrong too often. One with too little against it is still in, because
+        the thing she does not have evidence about is exactly the thing worth
+        acting to find out.
+        """
+        moving = self.moved >= ENOUGH_TO_TRUST
+        standing: list[Rule] = []
+        for rule in RULES:
+            tried = (
+                self.tried_when_it_moved.get(rule.name, 0)
+                if moving
+                else self.tried.get(rule.name, 0)
+            )
+            if tried < ENOUGH_TO_TRUST:
+                standing.append(rule)
+                continue
+            right = (
+                self.right_when_it_moved.get(rule.name, 0)
+                if moving
+                else self.right.get(rule.name, 0)
+            )
+            if right / tried >= OFTEN_ENOUGH:
+                standing.append(rule)
+        return tuple(standing)
+
+    def what_this_would_settle(self, arrangement: Arrangement, action: str) -> float:
+        """How much of the question this act would answer, from 0 to 1.
+
+        The rules still standing disagree about some acts and agree about
+        others. An act they all foretell the same way can be right or wrong
+        but cannot tell her WHICH of them was right, so doing it leaves her
+        exactly as unsure as before. An act they split over settles something
+        whatever happens.
+
+        This is the whole of acting to find out, and it is the reason
+        a person pushes a thing one way early on and then never needs to
+        again: nought when one rule is left or they all agree, and largest
+        when the surviving rules are split evenly over what comes next.
+        """
+        standing = self.still_standing()
+        if len(standing) < 2:
+            return 0.0
+        seen: list[Arrangement] = []
+        counts: list[int] = []
+        for rule in standing:
+            try:
+                foretold = rule.apply(self.the_thing(arrangement), action)
+            except (AttributeError, TypeError, ValueError):
+                foretold = None
+            if foretold is None:
+                continue
+            for index, already in enumerate(seen):
+                if _near_enough(foretold, already):
+                    counts[index] += 1
+                    break
+            else:
+                seen.append(foretold)
+                counts.append(1)
+        if len(counts) < 2:
+            return 0.0
+        # How split they are, not how many there are. Two rules that disagree
+        # settle the question outright; nine that agree and one that does not
+        # barely narrow it.
+        total = sum(counts)
+        largest = max(counts)
+        return (total - largest) / total
+
     def confidence(self) -> float:
         """How often the rule she is using has been right about a real move."""
         rule = self.rule()

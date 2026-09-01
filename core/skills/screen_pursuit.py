@@ -2170,7 +2170,7 @@ async def pursue_on_screen(
     from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
     from core.agency.how_good_is_this import worth_comparing
-    from core.agency.looking_ahead import look_ahead
+    from core.agency.looking_ahead import look_ahead, worth_finding_out
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
@@ -3355,6 +3355,43 @@ async def pursue_on_screen(
                     approach=held_line,
                     budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
                     world=world,
+                )
+            # And what a move would TELL her, which is a different question
+            # from where it leads.
+            #
+            # Two rules that both fit everything she has seen disagree about
+            # some acts and agree about others. An act they agree on can go
+            # well and still leave her exactly as unsure as before; an act
+            # they split over settles which of them is right whatever happens.
+            # Being right about the rule improves every move after this one,
+            # so early on it is worth more than the position it costs — which
+            # is why a person pushes a thing one way once, early, and then
+            # never needs to again.
+            #
+            # It goes to nought by itself as the evidence rules them out, so
+            # there is nothing to turn off.
+            telling = worth_finding_out(
+                knows.rules, laid_out, [option.name for option in available], ahead
+            )
+            if telling:
+                if ahead:
+                    ahead = {
+                        name: (value + telling.get(name, 0.0), reason)
+                        for name, (value, reason) in ahead.items()
+                    }
+                else:
+                    ahead = {
+                        name: (value, "this is the one that would settle how this moves")
+                        for name, value in telling.items()
+                    }
+                logger.info(
+                    "acting to find out: %s",
+                    ", ".join(
+                        f"{name} {value:.3f}"
+                        for name, value in sorted(
+                            telling.items(), key=lambda pair: -pair[1]
+                        )[:4]
+                    ),
                 )
             # And a routine move in a fast loop does not always need words.
             #
