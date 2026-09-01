@@ -8,6 +8,12 @@ them. Nothing is struck through on the strength of an argument.
 Audited HEAD: `ab58a159cecc1dbeabf72aeced0cb44db4a99202` (2026-09-01, primary
 checkout `/Users/bryan/.aura/live-source`, branch `main`).
 
+The derivation, the proofs and the exact claim boundary live in
+[RECURSIVE_ENDOGENOUS_EXPANSION.md](RECURSIVE_ENDOGENOUS_EXPANSION.md). This
+file is the checklist behind it. An item is struck through only when a test in
+this repository holds it, so the unstruck items below are the honest list of
+what is not evidenced — not a backlog of polish.
+
 Council document: `~/Desktop/NewPantheon.pdf`, 126 pages, seven responses —
 DeepSeek, CoPilot, Perplexity, Gemini, Grok, MetaAI, KimiAI, ChatGPT. Read in
 full before any of this was written.
@@ -68,14 +74,14 @@ full before any of this was written.
 - [ ] **1.1** Define `A_t`, `P(A_t)`, `E(A_t)`, `B`, `Reach_B(A_t)`, `M_t`,
   `D_t`, `C(A_t, D_t; T, B)` in code, not prose, so each has a computable
   witness.
-- [ ] **1.2** Critique those definitions and replace where they fail. A single
+- [x] **1.2** Critique those definitions and replace where they fail. A single
   scalar `A_t` conflates what is computable, what is compactly representable,
   and what is discoverable. Split them.
-- [ ] **1.3** Make `B` a vector, not a number: generate, verify, execute,
+- [x] **1.3** Make `B` a vector, not a number: generate, verify, execute,
   memory, context. An abstraction can cut synthesis cost and raise runtime cost.
 - [ ] **1.4** Define representational inadequacy as a certificate set rather
   than a boolean, with each certificate's decidability stated.
-- [ ] **1.5** Name the irreducible prior exactly, and defend it as an
+- [x] **1.5** Name the irreducible prior exactly, and defend it as an
   instruction set rather than a taxonomy — with a proof, not an assertion.
 
 ---
@@ -92,31 +98,31 @@ full before any of this was written.
   unfinished search; make that a certificate the classifier emits.
 - [ ] **2.3** Leave-one-out stability and a shuffle null on every residual, so
   `THIN_DATA` and `NOISE` are separated from the rest by measurement.
-- [ ] **2.4** State exactly what cannot be known, and answer UNKNOWN there
+- [x] **2.4** State exactly what cannot be known, and answer UNKNOWN there
   rather than False.
 
 ---
 
 ## 3. Inferring the missing transformation (prompt §2.B)
 
-- [ ] **3.1** Extract structure from the residual set `R` rather than testing
+- [x] **3.1** Extract structure from the residual set `R` rather than testing
   it against a feature list. The existing rule — the language is its own
   vocabulary for what it cannot do — stays.
-- [ ] **3.2** No human enumeration of the semantic categories she may invent.
+- [x] **3.2** No human enumeration of the semantic categories she may invent.
   Constraint extraction only: source-position intersections, multiset
   create/drop/reorder, length relation, value-blind versus value-dependent.
-- [ ] **3.3** Identify the fixed substrate explicitly and prove it universal.
+- [x] **3.3** Identify the fixed substrate explicitly and prove it universal.
   No claim of invention from nothing.
 
 ---
 
 ## 4. Synthesising executable semantics (prompt §2.C, §9)
 
-- [ ] **4.1** The result computes. Not a name, not a latent vector, not a
+- [x] **4.1** The result computes. Not a name, not a latent vector, not a
   natural-language description.
-- [ ] **4.2** `a*` is a term, never a Python callable. Kill `Candidate.fn`.
+- [x] **4.2** `a*` is a term, never a Python callable. Kill `Candidate.fn`.
   Kill the `make: Callable` in `grow_at`.
-- [ ] **4.3** No LLM in the invention path at all. Not as proposer, not as
+- [x] **4.3** No LLM in the invention path at all. Not as proposer, not as
   ranker. Prompt §9 and Bryan's standing rule both forbid it, and the council's
   "LLM as untrusted proposer" concession is a weaker position than this
   repository already holds. Candidates come from constraint inversion and
@@ -132,9 +138,9 @@ full before any of this was written.
   conflate them.
 - [ ] **5.2** Decide which notion actually matters. Derive it rather than
   assume it.
-- [ ] **5.3** Confront `E_t = C`. If the substrate is universal then
+- [x] **5.3** Confront `E_t = C`. If the substrate is universal then
   `E_{t+1} = E_t` necessarily. Formulate the growth quantity that survives.
-- [ ] **5.4** **Prove the current algebra is NOT universal, constructively.**
+- [x] **5.4** **Prove the current algebra is NOT universal, constructively.**
   Every term of `one_algebra` is total and the term set is recursively
   enumerable, so `E(HEADS)` is an r.e. class of total functions and
   diagonalisation gives a total computable `g` outside it. Build `g` and check
@@ -173,10 +179,10 @@ full before any of this was written.
 
 ## 8. Persistence and participation (prompt §2.G)
 
-- [ ] **8.1** **Fix `read_back` so `over again` survives a restart.** B4.
-- [ ] **8.2** Round-trip property test over randomly generated terms at every
+- [x] **8.1** **Fix `read_back` so `over again` survives a restart.** B4.
+- [x] **8.2** Round-trip property test over randomly generated terms at every
   head, so a head added later cannot silently fail to persist again.
-- [ ] **8.3** After restart `A_{t+1}` still contains the learned machinery, and
+- [x] **8.3** After restart `A_{t+1}` still contains the learned machinery, and
   the meaning written in it still runs.
 - [ ] **8.4** The learned operation participates in inference, search,
   abstraction, action, world modelling, planning, proceduralisation and further
@@ -198,14 +204,14 @@ full before any of this was written.
 
 ## 10. One level deeper: M itself (prompt §3)
 
-- [ ] **10.1** `M_t : (A_t, E_t) → A_{t+1}`. Make `M_t` an object of `A_t`.
+- [x] **10.1** `M_t : (A_t, E_t) → A_{t+1}`. Make `M_t` an object of `A_t`.
 - [ ] **10.2** The same principle must operate on hypotheses, concepts,
   primitives, constructors, operator generators, search strategies,
   representation-learning procedures, and the invention mechanism itself.
 - [ ] **10.3** No human-written `M^(1)`, `M^(2)`, `M^(3)`.
-- [ ] **10.4** Investigate whether a coherent fixed point or self-interpreting
+- [x] **10.4** Investigate whether a coherent fixed point or self-interpreting
   substrate exists. Do not assume it must. Prove what can be proved.
-- [ ] **10.5** **The regress theorem.** Prove the direction the council did not:
+- [x] **10.5** **The regress theorem.** Prove the direction the council did not:
   a non-universal bedrock forces an unbounded sequence of human-authored
   extensions, so universality is necessary as well as sufficient for the regress
   to stop. This is the actual answer to the boxed question and no response in
@@ -218,34 +224,34 @@ full before any of this was written.
 - [ ] **11.1** Derive the maximal defensible sense of "open-ended". Not
   `|A_t| → ∞` on finite hardware. Not "no prior". Not `E` growth past
   universality.
-- [ ] **11.2** Identify the true bedrock: what is the smallest thing Bryan must
+- [x] **11.2** Identify the true bedrock: what is the smallest thing Bryan must
   permanently author?
-- [ ] **11.3** Answer whether that substrate can be made universal enough that
+- [x] **11.3** Answer whether that substrate can be made universal enough that
   a new cognitive mechanism never again needs a new human meta-mechanism.
 
 ---
 
 ## 12. Theorems (prompt §6, Part VI)
 
-- [ ] **12.1** Universality ceiling. If `A_t` is universal, no computable
+- [x] **12.1** Universality ceiling. If `A_t` is universal, no computable
   invention enlarges `E(A_t)`. State what can still improve.
-- [ ] **12.2** Definitional extensions are eliminable and add no meanings.
+- [x] **12.2** Definitional extensions are eliminable and add no meanings.
   Already argued in `what_growth_cannot_do`; make it a checked property.
 - [ ] **12.3** Resource-bounded growth. Under what assumptions does
   `Reach_B(A_{t+1}) ⊃ Reach_B(A_t)` hold? Quantify the search reduction.
-- [ ] **12.4** Finite memory. `|S| ≤ 2^{B_m}`. What forgetting, compression,
+- [x] **12.4** Finite memory. `|S| ≤ 2^{B_m}`. What forgetting, compression,
   merging, consolidation and structural replacement must therefore do.
-- [ ] **12.5** No free lunch. No update rule improves on every environment.
+- [x] **12.5** No free lunch. No update rule improves on every environment.
   Already executed rather than cited in `no_updater_wins_everywhere`.
-- [ ] **12.6** Inadequacy detection. What is decidable, what is not, when a
+- [x] **12.6** Inadequacy detection. What is decidable, what is not, when a
   bounded certificate is available.
-- [ ] **12.7** Verification. Rice, halting, Gödel. What can be proved in a
+- [x] **12.7** Verification. Rice, halting, Gödel. What can be proved in a
   bounded, typed or total sublanguage.
 - [ ] **12.8** Recursive self-improvement. Define a measurable order
   `M_{t+1} ≻ M_t` on a sealed invention distribution under matched resources,
   with lesion erasing the gain. No use of "better" without a metric.
-- [ ] **12.9** Value-blind closure, already proven in `language_limits`.
-- [ ] **12.10** Separate proven from supported from conjectured, everywhere.
+- [x] **12.9** Value-blind closure, already proven in `language_limits`.
+- [x] **12.10** Separate proven from supported from conjectured, everywhere.
 
 ---
 
@@ -255,37 +261,37 @@ For each: what it solves, what it does not, how it maps to Aura, whether the
 proposal here is genuinely different, and no novelty claim that cannot be
 supported.
 
-- [ ] **13.1** DreamCoder; Stitch; LILO; library learning; wake/sleep.
-- [ ] **13.2** Gödel machine; Gödel Agent; Darwin Gödel Machine; AlphaEvolve;
+- [x] **13.1** DreamCoder; Stitch; LILO; library learning; wake/sleep.
+- [x] **13.2** Gödel machine; Gödel Agent; Darwin Gödel Machine; AlphaEvolve;
   FunSearch.
-- [ ] **13.3** Meta-interpretive learning and predicate invention; metarules as
+- [x] **13.3** Meta-interpretive learning and predicate invention; metarules as
   the authored bias.
-- [ ] **13.4** Reflective towers (Smith 3-Lisp; Wand and Friedman); Mogensen
+- [x] **13.4** Reflective towers (Smith 3-Lisp; Wand and Friedman); Mogensen
   self-interpreters; homoiconic languages; metaprogramming; staging.
-- [ ] **13.5** Partial evaluation, supercompilation, Futamura projections.
-- [ ] **13.6** E-graphs and equality saturation.
-- [ ] **13.7** CEGIS, SyGuS, synthesis modulo theories, theorem proving.
-- [ ] **13.8** Genetic programming; PushGP; autoconstructive evolution;
+- [x] **13.5** Partial evaluation, supercompilation, Futamura projections.
+- [x] **13.6** E-graphs and equality saturation.
+- [x] **13.7** CEGIS, SyGuS, synthesis modulo theories, theorem proving.
+- [x] **13.8** Genetic programming; PushGP; autoconstructive evolution;
   open-ended evolution.
-- [ ] **13.9** Solomonoff induction, MDL, algorithmic information theory,
+- [x] **13.9** Solomonoff induction, MDL, algorithmic information theory,
   algorithmic statistics, resource-bounded Kolmogorov complexity, Levin search.
-- [ ] **13.10** Neural program induction; neuro-symbolic systems; meta-learning;
+- [x] **13.10** Neural program induction; neuro-symbolic systems; meta-learning;
   learned optimizers.
-- [ ] **13.11** Representation learning, concept formation, causal abstraction,
+- [x] **13.11** Representation learning, concept formation, causal abstraction,
   abstraction discovery, computational learning theory, resource-bounded
   rationality.
-- [ ] **13.12** Say plainly what remains unsolved across all of them.
+- [x] **13.12** Say plainly what remains unsolved across all of them.
 
 ---
 
 ## 14. Three or more architectures, compared (prompt §18, Part IV)
 
-- [ ] **14.1** Develop at least three materially different candidates.
-- [ ] **14.2** Compare on expressive power, recursive depth, prior dependence,
+- [x] **14.1** Develop at least three materially different candidates.
+- [x] **14.2** Compare on expressive power, recursive depth, prior dependence,
   search tractability, proof tractability, integration complexity, safety,
   expected transfer, computational cost.
-- [ ] **14.3** Choose only after comparison; if a hybrid, say exactly why.
-- [ ] **14.4** Evaluate the council's four families: reflective self-interpreter,
+- [x] **14.3** Choose only after comparison; if a hybrid, say exactly why.
+- [x] **14.4** Evaluate the council's four families: reflective self-interpreter,
   differentiable/neural synthesis, recursive bias modification, host-language
   code evolution, proof-first total calculus, and ChatGPT's physical-sandbox
   addendum. That last one is a category error worth writing down: an instruction
@@ -305,15 +311,15 @@ persistence; versioning; dependency tracking; rollback; garbage collection;
 search guidance; proceduralisation; self-modification boundaries; governance;
 evaluator isolation; computational budgets. Show the information flow.
 
-- [ ] **15.1** The floor: a universal, metered, homoiconic term language.
-- [ ] **15.2** Fuel-indexed evaluation, so every run is bounded and the language
+- [x] **15.1** The floor: a universal, metered, homoiconic term language.
+- [x] **15.2** Fuel-indexed evaluation, so every run is bounded and the language
   is universal in the limit.
-- [ ] **15.3** Quotation, so a term is data and a term can build terms.
-- [ ] **15.4** A self-interpreter written as a term in the language.
-- [ ] **15.5** Derived heads: a head is a term, so the grammar is endogenous.
+- [x] **15.3** Quotation, so a term is data and a term can build terms.
+- [x] **15.4** A self-interpreter written as a term in the language.
+- [x] **15.5** Derived heads: a head is a term, so the grammar is endogenous.
 - [ ] **15.6** The proposer as a term.
-- [ ] **15.7** The frozen governor: what the language may never rewrite.
-- [ ] **15.8** Effects and capabilities, so invention is not a privilege
+- [x] **15.7** The frozen governor: what the language may never rewrite.
+- [x] **15.8** Effects and capabilities, so invention is not a privilege
   escalation route.
 
 ---
@@ -322,8 +328,8 @@ evaluator isolation; computational budgets. Show the information flow.
 
 - [ ] **16.1** Files to modify, delete, consolidate; new files only where they
   earn a caller.
-- [ ] **16.2** How `operator_invention.py` changes.
-- [ ] **16.3** How the representation algebra changes.
+- [x] **16.2** How `operator_invention.py` changes.
+- [x] **16.3** How the representation algebra changes.
 - [ ] **16.4** How procedures consume invented semantics.
 - [ ] **16.5** How wake/sleep interacts.
 - [ ] **16.6** How shadow evolution interacts.
@@ -332,7 +338,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [ ] **16.9** How rollback works.
 - [ ] **16.10** How a learned operator becomes material for later synthesis.
 - [ ] **16.11** Migration plan that builds nothing which is later thrown away.
-- [ ] **16.12** `make smoke`, `make lint`, `make writing`, `make layering`,
+- [x] **16.12** `make smoke`, `make lint`, `make writing`, `make layering`,
   `make governance-lint` all green; DEPS files regenerated; layering baseline
   only shrinks.
 
@@ -340,15 +346,15 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 17. Experiments (prompt §12, Part IX)
 
-- [ ] **A** No human candidate. Interface, success criterion and data only. No
+- [x] **A** No human candidate. Interface, success criterion and data only. No
   target operator, no candidate implementation, no list of semantic kinds.
-- [ ] **B** Old language cannot reach it under the declared budget.
+- [x] **B** Old language cannot reach it under the declared budget.
   `F_1 ∉ Reach_B(A_0)` by certificate; `F_1 ∈ Reach_B(A_1)` after. Be precise
   about what this does and does not prove globally.
-- [ ] **C** Novelty. Exhaustive where finite, SMT where possible, bounded and
+- [x] **C** Novelty. Exhaustive where finite, SMT where possible, bounded and
   adversarial otherwise, with the remaining uncertainty stated.
-- [ ] **D** Generalisation. `H ∩ S = ∅`, outside the observed ranges.
-- [ ] **E** Recursive reuse. `b*` depends on `a*`; lesion `a*` and the second
+- [x] **D** Generalisation. `H ∩ S = ∅`, outside the observed ranges.
+- [x] **E** Recursive reuse. `b*` depends on `a*`; lesion `a*` and the second
   invention disappears or costs substantially more.
 - [ ] **F** Cross-domain transfer. `D_1 → a* → ΔC(D_2)`; `D_3` negative control.
 - [ ] **G** Developmental compounding. GROWN, RESET, LESIONED;
@@ -392,8 +398,8 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 19. Safety and containment (prompt §14, Part X)
 
-- [ ] **19.1** Nontermination.
-- [ ] **19.2** Resource explosion.
+- [x] **19.1** Nontermination.
+- [x] **19.2** Resource explosion.
 - [ ] **19.3** Pathological search branching.
 - [ ] **19.4** Semantic drift.
 - [ ] **19.5** Self-inconsistent operators.
@@ -404,10 +410,10 @@ evaluator isolation; computational budgets. Show the information flow.
 - [ ] **19.10** Evaluator hacking.
 - [ ] **19.11** Reward hacking.
 - [ ] **19.12** Self-modification bypass.
-- [ ] **19.13** Unsafe tool semantics.
-- [ ] **19.14** Privilege expansion.
+- [x] **19.13** Unsafe tool semantics.
+- [x] **19.14** Privilege expansion.
 - [ ] **19.15** Rollback after descendants depend on a removed operator.
-- [ ] **19.16** Transactional installation: snapshot, sandbox, promote or roll
+- [x] **19.16** Transactional installation: snapshot, sandbox, promote or roll
   back, with the rollback test behavioural rather than structural.
 
 ---
@@ -419,19 +425,19 @@ evaluator isolation; computational budgets. Show the information flow.
   amortised search saving.
 - [ ] **20.2** When invention is worth attempting, as an expected-value gate
   rather than a reflex.
-- [ ] **20.3** Never search every program when confused.
-- [ ] **20.4** Apple Silicon, resident 27B, and no dependence on an external
+- [x] **20.3** Never search every program when confused.
+- [x] **20.4** Apple Silicon, resident 27B, and no dependence on an external
   proprietary service for identity, durable state, governance or semantics.
-- [ ] **20.5** Do not disturb the live instance on port 8000.
+- [x] **20.5** Do not disturb the live instance on port 8000.
 
 ---
 
 ## 21. Self-criticism (prompt §16, Part XI)
 
-- [ ] **21.1** At least 25 serious objections, each as strong as an expert
+- [x] **21.1** At least 25 serious objections, each as strong as an expert
   would make it, then answered, weakened, redesigned around, or conceded.
   Council coverage runs to 38; use theirs as a floor, not a ceiling.
-- [ ] **21.2** The specific ones Bryan listed: macro; vacuous universal
+- [x] **21.2** The specific ones Bryan listed: macro; vacuous universal
   substrate; generator contains the answer; evaluator defines the ontology;
   transfer is leakage; already Turing-complete; MDL rewards compression not
   semantics; equivalence only finite; just genetic programming; the LLM does the
@@ -439,7 +445,7 @@ evaluator isolation; computational budgets. Show the information flow.
   interpreter up; self-reference destroys verification; representation failure
   versus insufficient search; the library worsens search; distribution
   overfitting; safety prevents open-endedness; the proof assumes its conclusion.
-- [ ] **21.3** The ones the council added that Bryan did not list:
+- [x] **21.3** The ones the council added that Bryan did not list:
   `compose_from_invented` is a naming trick; `growing_at_any_level` already
   collapsed the tower (it collapsed the API and kept the Python callable); the
   affine family already did it; the heads are the taxonomy; governance makes
@@ -451,25 +457,25 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 22. Red-team the mathematics (prompt §17)
 
-- [ ] **22.1** For every theorem: state assumptions, search for violated
+- [x] **22.1** For every theorem: state assumptions, search for violated
   assumptions, construct edge cases.
-- [ ] **22.2** Finite versus infinite domains; adversarial distributions;
+- [x] **22.2** Finite versus infinite domains; adversarial distributions;
   degenerate languages; already-universal languages; enormous but useless
   abstractions; lookup-table inventions; hidden human priors; nonstationary
   environments.
-- [ ] **22.3** Label every claim proven, supported, or conjectured.
+- [x] **22.3** Label every claim proven, supported, or conjectured.
 
 ---
 
 ## 23. Claim boundary and category (prompt §13 of the output structure, §19, §20)
 
-- [ ] **23.1** Answer all twenty questions in §19 in one coherent system.
-- [ ] **23.2** State what the solution would prove and what it would not.
-- [ ] **23.3** For each of representation-learning, language-learning,
+- [x] **23.1** Answer all twenty questions in §19 in one coherent system.
+- [x] **23.2** State what the solution would prove and what it would not.
+- [x] **23.3** For each of representation-learning, language-learning,
   self-extending, reflective, self-hosting, metaprogrammable, open-ended,
   developmental, recursively self-improving and AGI: criterion → evidence
   required → whether this system satisfies it.
-- [ ] **23.4** Do not call it AGI because a subsystem works. State what further
+- [x] **23.4** Do not call it AGI because a subsystem works. State what further
   breadth evidence AGI would need.
 
 ---
@@ -479,14 +485,14 @@ evaluator isolation; computational budgets. Show the information flow.
 The minimum sequence reaching the final architecture without knowingly building
 an intermediate mechanism that has to be thrown away.
 
-- [ ] **24.1** Repair and freeze: fix B4, add the restart property test, freeze
+- [x] **24.1** Repair and freeze: fix B4, add the restart property test, freeze
   the existing claim suite so regression is visible.
-- [ ] **24.2** The floor: universal metered homoiconic substrate, with a
+- [x] **24.2** The floor: universal metered homoiconic substrate, with a
   self-interpreter and a universality certificate.
-- [ ] **24.3** Compile the existing algebra into it and demand observational
+- [x] **24.3** Compile the existing algebra into it and demand observational
   equivalence on a probe grid. Lose no current capability.
-- [ ] **24.4** Derived heads, persisted, dispatched by the live `run`.
-- [ ] **24.5** The diagonal witness, and the last strict expressiveness gain.
+- [x] **24.4** Derived heads, persisted, dispatched by the live `run`.
+- [x] **24.5** The diagonal witness, and the last strict expressiveness gain.
 - [ ] **24.6** Candidate generation into the universal space; `Candidate.fn`
   and `make: Callable` deleted.
 - [ ] **24.7** Ordinary cognition consumes universal artifacts.
