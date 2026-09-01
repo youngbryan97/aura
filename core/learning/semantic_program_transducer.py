@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final
@@ -43,6 +44,10 @@ SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS: Final = 24
 
 _MAX_TRANSDUCER_INPUTS: Final = 8
 _MAX_TRANSDUCER_STEPS: Final = 16
+_STRUCTURED_INPUT_CANDIDATES: Final = 64
+_STRUCTURED_ARGUMENT_CANDIDATES: Final = 16
+_STRUCTURED_POINTER_BEAM: Final = 512
+_STRUCTURED_ARGUMENT_BEAM: Final = 1024
 
 
 def _pointer_roles(input_count: int, step_count: int) -> tuple[str, ...]:
@@ -213,24 +218,44 @@ class LinearPointerHead:
     def width(self) -> int:
         return int(self.start_weight.size)
 
-    def decode(self, hidden: np.ndarray) -> tuple[TokenSpan, float]:
+    def decode_candidates(
+        self,
+        hidden: np.ndarray,
+        *,
+        limit: int,
+    ) -> tuple[tuple[TokenSpan, float], ...]:
+        """Return the strongest distinct source spans in stable score order."""
+
+        if type(limit) is not int or limit < 1:
+            raise ValueError("semantic pointer candidate limit is invalid")
         matrix = _hidden_array(hidden, expected_width=self.width)
         start_scores = matrix @ self.start_weight + self.start_bias
         end_scores = matrix @ self.end_weight + self.end_bias
-        best_score = float("-inf")
-        best = (0, 0)
+        candidates: list[tuple[TokenSpan, float]] = []
         for start in range(matrix.shape[0]):
             stop = min(
                 matrix.shape[0],
                 start + SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
             )
-            relative_end = int(np.argmax(end_scores[start:stop]))
-            end = start + relative_end
-            score = float(start_scores[start] + end_scores[end])
-            if score > best_score:
-                best_score = score
-                best = (start, end)
-        return TokenSpan(best[0], best[1] + 1), best_score
+            for end in range(start, stop):
+                candidates.append(
+                    (
+                        TokenSpan(start, end + 1),
+                        float(start_scores[start] + end_scores[end]),
+                    )
+                )
+        candidates.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
+        return tuple(candidates[:limit])
+
+    def score_span(self, hidden: np.ndarray, span: TokenSpan) -> float:
+        matrix = _hidden_array(hidden, expected_width=self.width)
+        span.validate_bound(matrix.shape[0])
+        start_score = float(matrix[span.start] @ self.start_weight + self.start_bias)
+        end_score = float(matrix[span.end - 1] @ self.end_weight + self.end_bias)
+        return start_score + end_score
+
+    def decode(self, hidden: np.ndarray) -> tuple[TokenSpan, float]:
+        return self.decode_candidates(hidden, limit=1)[0]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -299,6 +324,219 @@ class SemanticTransductionOutcome:
     @property
     def accepted(self) -> bool:
         return self.ir is not None
+
+
+@dataclass(frozen=True, slots=True)
+class _ArgumentCandidate:
+    span: TokenSpan
+    register: int
+    pointer_score: float
+    score: float
+    confidence: float
+
+
+def _spans_overlap(left: TokenSpan, right: TokenSpan) -> bool:
+    return left.start < right.end and right.start < left.end
+
+
+def _joint_pointer_assignment(
+    candidates: Sequence[Sequence[tuple[TokenSpan, float]]],
+    *,
+    ordered: bool,
+) -> tuple[tuple[TokenSpan, ...], tuple[float, ...]] | None:
+    """Choose one globally compatible span for every learned pointer role."""
+
+    beam: list[tuple[float, tuple[TokenSpan, ...], tuple[float, ...]]] = [
+        (0.0, (), ())
+    ]
+    for role_candidates in candidates:
+        expanded: list[tuple[float, tuple[TokenSpan, ...], tuple[float, ...]]] = []
+        for total, spans, scores in beam:
+            for span, score in role_candidates:
+                if any(_spans_overlap(span, prior) for prior in spans):
+                    continue
+                if ordered and spans and spans[-1].end > span.start:
+                    continue
+                expanded.append((total + score, (*spans, span), (*scores, score)))
+        if not expanded:
+            return None
+        expanded.sort(
+            key=lambda item: (
+                -item[0],
+                tuple((span.start, span.end) for span in item[1]),
+            )
+        )
+        beam = expanded[:_STRUCTURED_POINTER_BEAM]
+    _, spans, scores = beam[0]
+    return spans, scores
+
+
+def _best_argument_candidates(
+    *,
+    pointer_candidates: Sequence[tuple[TokenSpan, float]],
+    pointer_head: LinearPointerHead,
+    classifier: LinearClassifierHead,
+    hidden: np.ndarray,
+    tokens: Sequence[int],
+    input_spans: Sequence[TokenSpan],
+    operation_spans: Sequence[TokenSpan],
+    current_step: int,
+    input_count: int,
+) -> tuple[_ArgumentCandidate, ...]:
+    """Collapse span proposals to the strongest causal proposal per register."""
+
+    output_register = input_count + current_step
+    by_register: dict[int, _ArgumentCandidate] = {}
+    candidates = list(pointer_candidates)
+    observed_spans = {span for span, _score in candidates}
+    for input_span in input_spans:
+        if input_span not in observed_spans:
+            candidates.append((input_span, pointer_head.score_span(hidden, input_span)))
+    for span, pointer_score in candidates:
+        input_matches = [
+            index for index, input_span in enumerate(input_spans) if span == input_span
+        ]
+        confidence: float
+        if len(input_matches) == 1:
+            register = input_matches[0]
+            confidence = pointer_score
+        else:
+            prior_result = _resolve_prior_result_register(
+                token_ids=tokens,
+                reference_span=span,
+                operation_spans=operation_spans,
+                current_step=current_step,
+                input_count=input_count,
+            )
+            if prior_result is not None:
+                register = prior_result
+                confidence = pointer_score
+            else:
+                label, classifier_confidence = classifier.predict(_pool(hidden, span))
+                register = int(label)
+                confidence = classifier_confidence
+        if register < 0 or register >= output_register:
+            continue
+        score = pointer_score
+        if 0.0 < confidence <= 1.0:
+            score += math.log(confidence)
+        candidate = _ArgumentCandidate(
+            span,
+            register,
+            pointer_score,
+            score,
+            confidence,
+        )
+        previous = by_register.get(register)
+        if previous is None or (
+            candidate.score,
+            -candidate.span.start,
+            -candidate.span.end,
+        ) > (
+            previous.score,
+            -previous.span.start,
+            -previous.span.end,
+        ):
+            by_register[register] = candidate
+    return tuple(
+        sorted(
+            by_register.values(),
+            key=lambda item: (-item.score, item.register, item.span.start, item.span.end),
+        )
+    )
+
+
+def _structured_argument_assignment(
+    *,
+    pointer_candidates: dict[str, Sequence[tuple[TokenSpan, float]]],
+    pointer_heads: dict[str, LinearPointerHead],
+    argument_heads: Sequence[Sequence[LinearClassifierHead]],
+    hidden: np.ndarray,
+    tokens: Sequence[int],
+    input_spans: Sequence[TokenSpan],
+    operation_spans: Sequence[TokenSpan],
+    input_count: int,
+    step_count: int,
+) -> tuple[
+    tuple[tuple[int, int], ...],
+    tuple[tuple[TokenSpan, TokenSpan], ...],
+    tuple[tuple[float, float], ...],
+    tuple[tuple[float, float], ...],
+] | None:
+    """Find the strongest forward assignment that keeps every step causal."""
+
+    states: list[
+        tuple[
+            float,
+            tuple[tuple[int, int], ...],
+            tuple[tuple[TokenSpan, TokenSpan], ...],
+            tuple[tuple[float, float], ...],
+            tuple[tuple[float, float], ...],
+        ]
+    ] = [(0.0, (), (), (), ())]
+    for step in range(step_count):
+        role_zero = f"argument:{step}:0"
+        role_one = f"argument:{step}:1"
+        zero = _best_argument_candidates(
+            pointer_candidates=pointer_candidates[role_zero],
+            pointer_head=pointer_heads[role_zero],
+            classifier=argument_heads[step][0],
+            hidden=hidden,
+            tokens=tokens,
+            input_spans=input_spans,
+            operation_spans=operation_spans,
+            current_step=step,
+            input_count=input_count,
+        )
+        one = _best_argument_candidates(
+            pointer_candidates=pointer_candidates[role_one],
+            pointer_head=pointer_heads[role_one],
+            classifier=argument_heads[step][1],
+            hidden=hidden,
+            tokens=tokens,
+            input_spans=input_spans,
+            operation_spans=operation_spans,
+            current_step=step,
+            input_count=input_count,
+        )
+        if not zero or not one:
+            return None
+        expanded = []
+        for total, arguments, spans, pointer_scores, confidences in states:
+            for left in zero:
+                for right in one:
+                    expanded.append(
+                        (
+                            total + left.score + right.score,
+                            (*arguments, (left.register, right.register)),
+                            (*spans, (left.span, right.span)),
+                            (*pointer_scores, (left.pointer_score, right.pointer_score)),
+                            (*confidences, (left.confidence, right.confidence)),
+                        )
+                    )
+        expanded.sort(
+            key=lambda item: (
+                -item[0],
+                item[1],
+                tuple(
+                    (left.start, left.end, right.start, right.end)
+                    for left, right in item[2]
+                ),
+            )
+        )
+        states = expanded[:_STRUCTURED_ARGUMENT_BEAM]
+
+    expected_outputs = set(range(input_count, input_count + step_count))
+    terminal = input_count + step_count - 1
+    for _, arguments, spans, pointer_scores, confidences in states:
+        required = {terminal}
+        for step in range(step_count - 1, -1, -1):
+            output = input_count + step
+            if output in required:
+                required.update(arguments[step])
+        if expected_outputs.issubset(required):
+            return arguments, spans, pointer_scores, confidences
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -466,59 +704,125 @@ class SemanticProgramTransducer:
 
         spans: dict[str, TokenSpan] = {}
         pointer_scores: dict[str, float] = {}
+        pointer_candidates: dict[str, tuple[tuple[TokenSpan, float], ...]] = {}
         roles = _pointer_roles(self.input_count, self.step_count)
         for role in roles:
-            span, score = self.pointer_heads[role].decode(hidden)
+            if self.schema != SEMANTIC_TRANSDUCER_SCHEMA:
+                candidate_limit = 1
+            elif role.startswith("input:"):
+                candidate_limit = _STRUCTURED_INPUT_CANDIDATES
+            elif role.startswith("argument:"):
+                candidate_limit = _STRUCTURED_ARGUMENT_CANDIDATES
+            else:
+                candidate_limit = 1
+            candidates = self.pointer_heads[role].decode_candidates(
+                hidden,
+                limit=candidate_limit,
+            )
+            pointer_candidates[role] = candidates
+            span, score = candidates[0]
             spans[role] = span
             pointer_scores[role] = score
 
+        if self.schema == SEMANTIC_TRANSDUCER_SCHEMA:
+            input_roles = tuple(
+                f"input:{index}" for index in range(self.input_count)
+            )
+            input_assignment = _joint_pointer_assignment(
+                tuple(pointer_candidates[role] for role in input_roles),
+                ordered=False,
+            )
+            if input_assignment is not None:
+                selected_spans, selected_scores = input_assignment
+                for role, span, score in zip(
+                    input_roles,
+                    selected_spans,
+                    selected_scores,
+                    strict=True,
+                ):
+                    spans[role] = span
+                    pointer_scores[role] = score
+
         confidences: dict[str, float] = {}
         operations: list[str] = []
-        arguments: list[tuple[int, int]] = []
         operation_spans = tuple(spans[f"operation:{step}"] for step in range(self.step_count))
         for step in range(self.step_count):
             op_feature = _pool(hidden, spans[f"operation:{step}"])
             operation, confidence = self.operation_heads[step].predict(op_feature)
             operations.append(operation)
             confidences[f"operation:{step}"] = confidence
-            step_args: list[int] = []
-            for position in range(2):
-                role = f"argument:{step}:{position}"
-                span = spans[role]
-                input_matches = [
-                    index
-                    for index in range(self.input_count)
-                    if span == spans[f"input:{index}"]
-                ]
-                if len(input_matches) == 1:
-                    argument = input_matches[0]
-                    confidence = min(
-                        pointer_scores[role],
-                        pointer_scores[f"input:{argument}"],
-                    )
-                else:
-                    prior_result = _resolve_prior_result_register(
-                        token_ids=tokens,
-                        reference_span=span,
-                        operation_spans=operation_spans,
-                        current_step=step,
-                        input_count=self.input_count,
-                    )
-                    if prior_result is not None:
-                        argument = prior_result
+
+        structured_arguments = (
+            _structured_argument_assignment(
+                pointer_candidates=pointer_candidates,
+                argument_heads=self.argument_heads,
+                pointer_heads=self.pointer_heads,
+                hidden=hidden,
+                tokens=tokens,
+                input_spans=tuple(
+                    spans[f"input:{index}"] for index in range(self.input_count)
+                ),
+                operation_spans=operation_spans,
+                input_count=self.input_count,
+                step_count=self.step_count,
+            )
+            if self.schema == SEMANTIC_TRANSDUCER_SCHEMA
+            else None
+        )
+        arguments: list[tuple[int, int]] = []
+        if structured_arguments is not None:
+            assigned_arguments, assigned_spans, assigned_scores, assigned_confidences = (
+                structured_arguments
+            )
+            arguments.extend(assigned_arguments)
+            for step in range(self.step_count):
+                for position in range(2):
+                    role = f"argument:{step}:{position}"
+                    spans[role] = assigned_spans[step][position]
+                    pointer_scores[role] = assigned_scores[step][position]
+                    confidences[role] = assigned_confidences[step][position]
+        else:
+            for step in range(self.step_count):
+                step_args: list[int] = []
+                for position in range(2):
+                    role = f"argument:{step}:{position}"
+                    span = spans[role]
+                    input_matches = [
+                        index
+                        for index in range(self.input_count)
+                        if span == spans[f"input:{index}"]
+                    ]
+                    if len(input_matches) == 1:
+                        argument = input_matches[0]
                         confidence = min(
                             pointer_scores[role],
-                            pointer_scores[f"operation:{prior_result - self.input_count}"],
+                            pointer_scores[f"input:{argument}"],
                         )
                     else:
-                        feature = _pool(hidden, span)
-                        label, confidence = self.argument_heads[step][position].predict(
-                            feature
+                        prior_result = _resolve_prior_result_register(
+                            token_ids=tokens,
+                            reference_span=span,
+                            operation_spans=operation_spans,
+                            current_step=step,
+                            input_count=self.input_count,
                         )
-                        argument = int(label)
-                step_args.append(argument)
-                confidences[role] = confidence
-            arguments.append((step_args[0], step_args[1]))
+                        if prior_result is not None:
+                            argument = prior_result
+                            confidence = min(
+                                pointer_scores[role],
+                                pointer_scores[
+                                    f"operation:{prior_result - self.input_count}"
+                                ],
+                            )
+                        else:
+                            feature = _pool(hidden, span)
+                            label, confidence = self.argument_heads[step][position].predict(
+                                feature
+                            )
+                            argument = int(label)
+                    step_args.append(argument)
+                    confidences[role] = confidence
+                arguments.append((step_args[0], step_args[1]))
 
         instructions = tuple(
             SemanticIRInstruction(

@@ -13,8 +13,12 @@ from core.learning.semantic_program_ir import (
     TokenSpan,
 )
 from core.learning.semantic_program_transducer import (
+    LinearClassifierHead,
+    LinearPointerHead,
     SemanticTransducerTrainingExample,
+    _joint_pointer_assignment,
     _resolve_prior_result_register,
+    _structured_argument_assignment,
     fit_semantic_program_transducer,
     semantic_program_transducer_from_dict,
 )
@@ -448,3 +452,97 @@ def test_prior_result_reference_falls_back_when_antecedent_is_ambiguous() -> Non
         )
         is None
     )
+
+
+def test_pointer_candidates_preserve_the_original_best_span() -> None:
+    hidden = np.asarray(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [2**-0.5, 2**-0.5],
+        ],
+        dtype=np.float32,
+    )
+    head = LinearPointerHead(
+        start_weight=np.asarray([2.0, 1.0], dtype=np.float32),
+        start_bias=0.0,
+        end_weight=np.asarray([1.0, 2.0], dtype=np.float32),
+        end_bias=0.0,
+    )
+
+    candidates = head.decode_candidates(hidden, limit=4)
+
+    assert candidates[0] == head.decode(hidden)
+    assert len({span for span, _score in candidates}) == 4
+    assert [score for _span, score in candidates] == sorted(
+        (score for _span, score in candidates),
+        reverse=True,
+    )
+
+
+def test_joint_pointer_assignment_replaces_overlapping_local_maxima() -> None:
+    selected = _joint_pointer_assignment(
+        (
+            (
+                (TokenSpan(0, 2), 10.0),
+                (TokenSpan(0, 1), 9.0),
+            ),
+            (
+                (TokenSpan(1, 3), 10.0),
+                (TokenSpan(2, 3), 8.0),
+            ),
+        ),
+        ordered=False,
+    )
+
+    assert selected == ((TokenSpan(0, 1), TokenSpan(1, 3)), (9.0, 10.0))
+
+
+def test_structured_arguments_keep_every_intermediate_result_causal() -> None:
+    hidden = np.zeros((15, 2), dtype=np.float32)
+    hidden[:, 0] = 1.0
+    classifier = LinearClassifierHead(
+        labels=("0", "1", "2", "3", "4", "5"),
+        weight=np.zeros((6, 2), dtype=np.float32),
+        bias=np.asarray([1.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32),
+    )
+    input_spans = tuple(TokenSpan(index, index + 1) for index in range(4))
+    operation_spans = (TokenSpan(4, 5), TokenSpan(8, 9), TokenSpan(12, 13))
+    tokens = (10, 11, 12, 13, 20, 700, 21, 22, 30, 800, 31, 32, 40, 700, 800)
+    pointer_candidates = {
+        "argument:0:0": ((input_spans[0], 10.0),),
+        "argument:0:1": ((input_spans[1], 10.0),),
+        "argument:1:0": ((input_spans[2], 10.0),),
+        "argument:1:1": ((input_spans[3], 10.0),),
+        "argument:2:0": (
+            (input_spans[0], 100.0),
+            (TokenSpan(13, 14), 90.0),
+        ),
+        "argument:2:1": (
+            (input_spans[1], 100.0),
+            (TokenSpan(14, 15), 90.0),
+        ),
+    }
+    pointer_head = LinearPointerHead(
+        start_weight=np.asarray([1.0, 0.0], dtype=np.float32),
+        start_bias=0.0,
+        end_weight=np.asarray([1.0, 0.0], dtype=np.float32),
+        end_bias=0.0,
+    )
+
+    assignment = _structured_argument_assignment(
+        pointer_candidates=pointer_candidates,
+        pointer_heads={role: pointer_head for role in pointer_candidates},
+        argument_heads=((classifier, classifier),) * 3,
+        hidden=hidden,
+        tokens=tokens,
+        input_spans=input_spans,
+        operation_spans=operation_spans,
+        input_count=4,
+        step_count=3,
+    )
+
+    assert assignment is not None
+    arguments, spans, _scores, _confidences = assignment
+    assert arguments == ((0, 1), (2, 3), (4, 5))
+    assert spans[2] == (TokenSpan(13, 14), TokenSpan(14, 15))
