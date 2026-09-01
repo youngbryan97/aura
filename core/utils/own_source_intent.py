@@ -73,6 +73,28 @@ ACTUAL_SOURCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Semantic similarity can identify that a sentence is about implementation,
+# but it cannot invent whose implementation it is. This structural subject
+# test supplies that missing relation for the embedding route. It deliberately
+# excludes ordinary second-person requests such as "can you explain X" where
+# Aura is the addressee rather than the object being inspected.
+_OWN_IMPLEMENTATION_SUBJECT_RE = re.compile(
+    r"\b(?:your|yours|yourself|aura(?:'s)?)\b"
+    r"|\bhow\s+(?:do|does|did|would|can)\s+(?:you|aura)\b"
+    r"|\b(?:you(?:'re|'re)|you\s+are|aura\s+is)\b[^.?!]{0,50}"
+    r"\b(?:built|made|implemented|wired|structured|organized|interested|"
+    r"using|running|maintaining)\b"
+    r"|\bwhat\b[^.?!]{0,30}\b(?:do|would)\s+you\b[^.?!]{0,30}"
+    r"\b(?:use|run|maintain|find\s+interesting)\b",
+    re.IGNORECASE,
+)
+
+
+def refers_to_own_implementation(user_message: Any) -> bool:
+    """Whether Aura is the grammatical subject of an implementation question."""
+
+    return bool(_OWN_IMPLEMENTATION_SUBJECT_RE.search(str(user_message or "")))
+
 
 def _contains_show_marker(text: str) -> bool:
     if _SHOW_CUE_RE.search(text):
@@ -170,4 +192,5 @@ __all__ = [
     "OWN_SOURCE_RE",
     "SOURCE_SHOW_MARKERS",
     "asks_for_own_source",
+    "refers_to_own_implementation",
 ]

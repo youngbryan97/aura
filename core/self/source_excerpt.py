@@ -795,9 +795,14 @@ def snippet_verdict(code: str) -> tuple[str, str]:
 #: First person about the thing being shown. Not a way of asking — a way of
 #: CLAIMING, read off her own draft after the fact.
 _CLAIMS_OWNERSHIP_RE = re.compile(
-    r"\b(?:my|mine|i)\b[^.\n]{0,60}"
-    r"\b(?:code|codebase|source|module|file|implementation|architecture|system|repo|repository)\b"
-    r"|\b(?:code|snippet|function|module|file)\b[^.\n]{0,40}\b(?:of mine|i wrote|i built|from me)\b",
+    r"\bmy\s+(?:(?:own|actual|real|current|cognitive|runtime|internal)\s+){0,3}"
+    r"(?:code|codebase|source|module|file|implementation|architecture|system|repo|repository)\b"
+    r"|\b(?:code|snippet|function|module|file|implementation|architecture)\b"
+    r"[^.\n]{0,50}\b(?:of mine|from\s+my\s+(?:code|source|implementation|architecture)|"
+    r"part\s+of\s+my\s+(?:code|source|implementation|architecture)|"
+    r"i\s+(?:wrote|built|implemented|authored))\b"
+    r"|\bi\s+(?:wrote|built|implemented|authored|maintain)\b[^.\n]{0,50}"
+    r"\b(?:code|snippet|function|module|file|implementation|architecture)\b",
     re.IGNORECASE,
 )
 

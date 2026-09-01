@@ -15739,6 +15739,14 @@ def _turn_may_concern_own_source(user_message: str) -> bool:
         # turn that already has the one it asked for.
         if _asks_to_read_a_named_file(text):
             return False
+        from core.utils.own_source_intent import refers_to_own_implementation
+
+        # Similarity can establish "implementation question" but not the
+        # referent. Without a self subject, a question about asyncio, NumPy, or
+        # any other program is not a question about Aura's source. An excerpt
+        # already on the table supplies the referent for terse follow-ups.
+        if not (_has_current_shown_source() or refers_to_own_implementation(text)):
+            return False
         if wants_evidence(text, OWN_SOURCE, margin=_OWN_SOURCE_ROUTE_MARGIN):
             return True
         # A provenance score cannot manufacture the object it refers to. It

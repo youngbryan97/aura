@@ -597,6 +597,61 @@ class FileRead:
 #: the sentence around it sounded like an instruction is not the question.
 _PATH_TOKEN_RE = re.compile(r"(?:[~/]|\b)[\w./\-]*[\w\-]\.[A-Za-z0-9]{1,6}\b")
 
+# A nonexistent path has no filesystem evidence to distinguish it from another
+# dotted language object (``asyncio.Lock``, ``package.Class``). Existing paths
+# are always read above. For an absent token, require either path structure, an
+# explicit file/document subject, or a conventional file suffix before the
+# reader claims the turn and reports absence.
+_CONVENTIONAL_FILE_SUFFIXES = frozenset(
+    {
+        ".cfg",
+        ".conf",
+        ".css",
+        ".csv",
+        ".docx",
+        ".html",
+        ".ini",
+        ".ipynb",
+        ".js",
+        ".json",
+        ".jsx",
+        ".log",
+        ".md",
+        ".pdf",
+        ".py",
+        ".rst",
+        ".sh",
+        ".sql",
+        ".toml",
+        ".ts",
+        ".tsv",
+        ".tsx",
+        ".txt",
+        ".xlsx",
+        ".xml",
+        ".yaml",
+        ".yml",
+    }
+)
+_EXPLICIT_FILE_SUBJECT_RE = re.compile(
+    r"\b(?:file|path|document|spreadsheet|workbook|script|source|readme|"
+    r"configuration|config|log)\b",
+    re.IGNORECASE,
+)
+
+
+def _missing_token_names_a_file(candidate: str, message: str) -> bool:
+    """Whether an unresolved dotted token is still structurally a file."""
+
+    token = str(candidate or "").strip()
+    if not token:
+        return False
+    if token.startswith(("/", "~/", "./")) or "/" in token or "\\" in token:
+        return True
+    if _EXPLICIT_FILE_SUBJECT_RE.search(str(message or "")):
+        return True
+    return Path(token).suffix.casefold() in _CONVENTIONAL_FILE_SUFFIXES
+
 
 #: Files this conversation has actually read, newest first.
 #:
@@ -758,7 +813,7 @@ def requested_file_read(user_message: Any) -> FileRead | None:
         # Named something file-shaped that is not there. Remember the first
         # one so a missing file is REPORTED rather than silently ignored,
         # which is how "I estimated" became an acceptable answer.
-        if missing is None:
+        if missing is None and _missing_token_names_a_file(candidate, text):
             missing = candidate
     if denied:
         return FileRead(

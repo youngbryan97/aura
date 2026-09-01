@@ -107,6 +107,15 @@ def test_messages_naming_no_file_are_ignored(message):
     assert requested_file_read(message) is None
 
 
+def test_a_dotted_python_symbol_is_not_a_missing_file() -> None:
+    message = (
+        "Does an asyncio.Lock prevent other tasks from running while one task holds it? "
+        "Give one small runnable Python example."
+    )
+
+    assert requested_file_read(message) is None
+
+
 def test_a_missing_file_is_reported_not_invented():
     """Silence here is what made "I estimated" an acceptable answer."""
     result = requested_file_read("the file totally_missing_xyz.md is broken")

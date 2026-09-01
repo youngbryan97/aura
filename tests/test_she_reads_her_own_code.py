@@ -752,6 +752,20 @@ class TestSheReadsThePhrasingNotTheQuestion:
         neutral = "Sure:\n```python\ndef sort_list(x):\n    return sorted(x)\n```"
         assert reply_claims_own_code(neutral) is False
 
+        explanatory = (
+            "In my explanation, this code shows how the lock behaves:\n"
+            "```python\nimport asyncio\n```"
+        )
+        demonstration = (
+            "I would demonstrate the lock with this code:\n"
+            "```python\nimport asyncio\n```"
+        )
+        assert reply_claims_own_code(explanatory) is False
+        assert reply_claims_own_code(demonstration) is False
+
+        authored = "I wrote this code:\n```python\ndef my_runtime():\n    return 1\n```"
+        assert reply_claims_own_code(authored) is True
+
     def test_a_citation_does_not_outlive_the_reply_it_described(self):
         """Otherwise "where's that from?" answers with a real, unrelated path."""
         from core.self.source_excerpt import (

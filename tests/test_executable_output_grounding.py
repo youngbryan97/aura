@@ -194,3 +194,27 @@ async def test_chat_delivery_records_grounding_and_visible_authorship(
     assert trace["deterministic_repair_applied"] is False
     assert trace["text_mutations"][0]["stage"] == "chat.executable_output_grounding"
     assert trace["text_mutations"][0]["authorship_effect"] == "augmented_by_runtime"
+
+
+@pytest.mark.asyncio
+async def test_a_general_python_example_is_not_rewritten_as_aura_source() -> None:
+    from interface.routes import chat
+
+    question = (
+        "Does an asyncio.Lock prevent other tasks from running while one task holds it? "
+        "Give a concise complete explanation and one small runnable Python example."
+    )
+    reply = (
+        "I would demonstrate the behavior with this code:\n\n"
+        "```python\nimport asyncio\nprint(asyncio.Lock)\n```"
+    )
+    trace: dict[str, object] = {}
+
+    delivered = await chat._check_a_reply_against_her_own_source(
+        text=reply,
+        turn_trace=trace,
+        visible=question,
+    )
+
+    assert delivered == reply
+    assert trace.get("text_mutations") is None

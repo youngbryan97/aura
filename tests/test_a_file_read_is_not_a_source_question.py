@@ -60,3 +60,12 @@ def test_the_file_reader_is_what_decides() -> None:
 
     assert requested_file_read("read me the first line of CONTRIBUTING.md") is not None
     assert requested_file_read("show me your code for the write gateway") is None
+
+
+def test_a_general_library_question_does_not_become_aura_source() -> None:
+    message = (
+        "Does an asyncio.Lock prevent other tasks from running while one task holds it? "
+        "Give a concise complete explanation and one small runnable Python example."
+    )
+
+    assert not _turn_may_concern_own_source(message)
