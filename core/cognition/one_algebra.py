@@ -42,8 +42,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
 __all__ = [
+    "DERIVED_HEADS",
     "HEADS",
     "HOW_MANY_PARTS",
+    "Head",
+    "forget_the_head",
+    "parts_taken_by",
+    "the_head_she_wrote",
     "Term",
     "what_it_rests_on",
     "a_maker_she_wrote",
@@ -163,6 +168,129 @@ HOW_MANY_PARTS: dict[str, int] = {
 }
 
 
+@dataclass(frozen=True)
+class Head:
+    """A way of computing she wrote, standing where a head stands.
+
+    The last authored thing in this module was the grammar. ``HEADS`` is seven
+    operations and ``run`` is an if-chain over eight more, so a family needing
+    a ninth waited for somebody to edit this file. That is not a small gap:
+    :mod:`core.cognition.what_the_old_language_cannot_say` proves the heads
+    above bound what any term can say by a polynomial in the length of the
+    state, so doubling is outside the language at every term length and over
+    every vocabulary. No word, maker or level she invents reaches it.
+
+    A head is now a term on the floor, and the floor is universal — so what
+    she can put here is not a longer list but everything computable.
+
+    ``body`` is a floor function taking, in order, the position, the length,
+    and one table per part. A table is what a part SAYS at every position of a
+    state this long, which is finite because a term is a pure function of
+    position and length. Handing tables rather than numbers is what lets a
+    head she writes do what ``through``, ``undo`` and ``over again`` do — read
+    a part somewhere other than here — instead of being limited to arithmetic
+    on what the parts happen to say at this one position.
+    """
+
+    name: str
+    takes: int
+    body: Any
+
+    def describes(self) -> str:
+        from core.cognition.the_floor_she_stands_on import how_long
+
+        return f"{self.name!r}, {self.takes} part(s), {how_long(self.body)} symbols"
+
+
+#: The heads she wrote. Empty at boot and filled from what was kept, which is
+#: the difference between a grammar and a list.
+DERIVED_HEADS: dict[str, Head] = {}
+
+#: What one head may spend on one position. Small, because a search walks
+#: millions of terms and every one of them may contain a head she wrote; a
+#: head that cannot answer inside this is treated as one that does not compute
+#: here, which is the same answer the arithmetic heads give on a division by
+#: nothing.
+_A_HEAD_MAY_SPEND = 20_000
+
+
+def parts_taken_by(head: str) -> int | None:
+    """How many parts this head takes, whether it was written or authored."""
+    written = DERIVED_HEADS.get(head)
+    if written is not None:
+        return written.takes
+    return HOW_MANY_PARTS.get(head)
+
+
+def the_head_she_wrote(name: str, takes: int, body: Any) -> Head:
+    """Put a way of computing into the grammar itself.
+
+    Nothing is judged here. Whether it earns its place is the same question
+    asked of a word and a maker, and the same code asks it; this only makes it
+    reachable once the answer is yes.
+    """
+    made = Head(name=str(name), takes=max(1, int(takes)), body=body)
+    DERIVED_HEADS[made.name] = made
+    logger.info("she wrote a way of computing: %s", made.describes())
+    return made
+
+
+def forget_the_head(name: str) -> bool:
+    """Take one out again. Terms mentioning it stop computing, loudly."""
+    return DERIVED_HEADS.pop(str(name), None) is not None
+
+
+def _what_a_part_says(
+    part: Term, size: int, words: Sequence[Any], depth: int
+) -> Any:
+    """Everything a part says at a state this long, as a list on the floor."""
+    from core.cognition.the_floor_she_stands_on import from_list
+
+    return from_list(
+        [run(part, at, size, words, depth + 1) % max(1, size) for at in range(size)]
+    )
+
+
+def _a_head_she_wrote(
+    written: Head, term: Term, index: int, size: int, words: Sequence[Any], depth: int
+) -> int:
+    """Run a head she wrote, on the floor, under its own meter."""
+    from core.cognition.the_floor_she_stands_on import Code as FloorCode
+    from core.cognition.the_floor_she_stands_on import OutOfFuel, Stuck
+    from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+
+    if len(term.parts) != written.takes:
+        raise ValueError(f"{written.name!r} takes {written.takes} parts")
+    given: Any = written.body
+    for one in (
+        FloorCode("a number", value=int(index)),
+        FloorCode("a number", value=int(size)),
+    ):
+        given = FloorCode("of", parts=(given, one))
+    tables = [_what_a_part_says(part, size, words, depth) for part in term.parts]
+    try:
+        work = run_on_the_floor(given, fuel=_A_HEAD_MAY_SPEND)
+        for table in tables:
+            work = _apply_to_value(work, table)
+        return int(work) % max(1, size)
+    except (OutOfFuel, Stuck, TypeError) as exc:
+        # A head that cannot answer here is a head that does not compute here,
+        # which is what a division by nothing already means in this module.
+        raise ValueError(f"{written.name!r} said nothing here: {exc}") from exc
+
+
+def _apply_to_value(work: Any, given: Any) -> Any:
+    """Apply a floor function to a value that is already computed."""
+    from core.cognition.the_floor_she_stands_on import Closure, Stuck
+    from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+
+    if not isinstance(work, Closure):
+        raise Stuck(f"a head she wrote gave {work!r} where a function was wanted")
+    return run_on_the_floor(
+        work.body, (given, *work.env), fuel=_A_HEAD_MAY_SPEND
+    )
+
+
 def run(
     term: Term, index: int, size: int, words: Sequence[Any], depth: int = 0
 ) -> int:
@@ -228,6 +356,9 @@ def run(
     if head == "if":
         chosen = 1 if run(term.parts[0], index, size, words, depth + 1) else 2
         return run(term.parts[chosen], index, size, words, depth + 1)
+    written = DERIVED_HEADS.get(head)
+    if written is not None:
+        return _a_head_she_wrote(written, term, index, size, words, depth)
     work = HEADS.get(head)
     if work is None:
         raise ValueError(f"nothing in the grammar called {head!r}")
@@ -377,7 +508,17 @@ def every_term(
     by_size: dict[int, list[Term]] = {1: [*leaves, *slots]}
     # Applying a word and undoing one take a term where the others take a
     # number, and they are what makes a term able to make words at all.
-    heads = (*HEADS, "through", "undo", "over again")
+    heads = (
+        *HEADS,
+        "through",
+        "undo",
+        "over again",
+        # And the ways of computing she wrote. A head she added is a branch at
+        # every step of every search from now on, which is the cost every
+        # addition to a language charges; it is admitted only where it earns
+        # that, by the same gate that admits a word.
+        *(name for name, one in DERIVED_HEADS.items() if one.takes == 2),
+    )
     # Every size, not every other one.
     #
     # Stepping by two was right while every head took two parts: one plus two
@@ -809,7 +950,7 @@ def read_back(row: Any) -> Term | None:
     if not isinstance(row, dict):
         return None
     head = str(row.get("head") or "")
-    wanted = HOW_MANY_PARTS.get(head)
+    wanted = parts_taken_by(head)
     if wanted is None:
         return None
     parts = tuple(

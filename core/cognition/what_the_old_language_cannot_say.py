@@ -86,6 +86,9 @@ __all__ = [
     "the_bound_holds_on",
     "where_doubling_escapes",
     "a_sample_of_terms",
+    "every_word_she_could_make",
+    "the_one_no_word_of_hers_says",
+    "no_word_of_hers_says_it",
     "the_heads_the_argument_covers",
     "why_it_cannot_be_said",
 ]
@@ -253,4 +256,112 @@ def the_heads_the_argument_covers() -> set[str]:
     return {
         "where", "many", "fixed", "hole", "through", "undo", "over again", "if",
         *HEADS,
+    }
+
+
+# ── a second witness, inside the range positions live in ──────────────────
+#
+# The bound above is about the numbers a term can produce, and doubling is
+# outside because it grows too fast. A fair objection is that a WORD only ever
+# hands back a place inside the state, so a function that leaves that range was
+# never a candidate. The objection is right, and it needs a second argument.
+#
+# Here it is, and it is the older one. Every word she can make is a term over
+# the words she was given — that is what `addressings` produces and what
+# `what_it_rests_on` records — so the words she can ever have are recursively
+# enumerable, and each of them either answers or refuses at every place. Walk
+# that enumeration and answer differently from the n-th word at the n-th
+# place. The result is a place inside the state, it is computable, and it is
+# not what any word says. Not at any length, not after any number of makers,
+# not over any vocabulary she can build, because the vocabulary she can build
+# is what was walked.
+
+
+def every_word_she_could_make(
+    given: Sequence[Callable[[int, int], int]] | None = None,
+) -> Iterator[tuple[str, Callable[[int, int], int]]]:
+    """Every word constructible from the ones she was given, shortest first.
+
+    Enumerated by size, with the constants a term may mention bounded by the
+    size, so a term of any length and any constant appears eventually. That is
+    all the argument needs: a surjection onto the words, computable, in an
+    order that terminates on each element.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import Made, _choose, every_term, holes_in
+
+    words = list(given if given is not None else WHERE_FROM.values())
+    seen: set[str] = set()
+    deepest = 1
+    while True:
+        for term in every_term(tuple(range(deepest + 1)), holes=2, deepest=deepest):
+            takes = holes_in(term)
+            for chosen in _choose(list(range(len(words))), max(0, takes)):
+                name = f"{term.name}[{','.join(str(one) for one in chosen)}]"
+                if name in seen:
+                    continue
+                seen.add(name)
+                yield name, Made(
+                    term=term, words=tuple(words[one] for one in chosen)
+                )
+        deepest += 1
+
+
+def the_one_no_word_of_hers_says(
+    given: Sequence[Callable[[int, int], int]] | None = None,
+) -> Callable[[int, int], int]:
+    """A place-valued rule that differs from the n-th word she can make, at n.
+
+    Total, computable, and inside the range a word answers in. Slow, because
+    it walks the enumeration to find the n-th word; that is a cost of the
+    construction and not a limit on it.
+    """
+    made: list[Callable[[int, int], int]] = []
+    walking = every_word_she_could_make(given)
+
+    def says(index: int, size: int) -> int:
+        while len(made) <= index:
+            made.append(next(walking)[1])
+        if size < 2:
+            return 0
+        try:
+            answered = int(made[index](index, size)) % size
+        except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
+            # It refuses here. Answering at all is already different.
+            return 0
+        return (answered + 1) % size
+
+    return says
+
+
+def no_word_of_hers_says_it(how_many: int = 300, *, also_at: int = 3) -> dict[str, Any]:
+    """Check the diagonal against the words themselves, rather than assert it.
+
+    The n-th word is asked at position n, in a state long enough to contain
+    that position — the diagonal point, and the one place the construction
+    promises a disagreement. It is checked at a few longer states as well,
+    because a construction that only worked at one length would be worth
+    knowing about, and those extra checks are not part of the argument.
+    """
+    rule = the_one_no_word_of_hers_says()
+    agreed: list[dict[str, Any]] = []
+    checked = 0
+    counted = 0
+    for index, (name, word) in enumerate(every_word_she_could_make()):
+        if index >= how_many:
+            break
+        counted = index + 1
+        for size in (index + 2, *(index + 2 + step for step in range(1, also_at))):
+            checked += 1
+            try:
+                said = int(word(index, size)) % size
+            except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
+                said = None
+            if said is not None and said == rule(index, size):
+                agreed.append({"word": name, "at": index, "size": size})
+    return {
+        "words": counted,
+        "checked": checked,
+        "agreed": agreed,
+        "differs_from_every_one": not agreed,
     }
