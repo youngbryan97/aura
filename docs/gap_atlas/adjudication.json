@@ -3113,7 +3113,7 @@
         "core/sandbox/"
       ],
       "note": "",
-      "outstanding": "a coding board run: full Aura against the 27B scaffold on a frozen suite",
+      "outstanding": "a coding board run: full Aura against the 27B scaffold on a frozen suite. BLOCKED: needs the resident 27B loaded, and CLAUDE.md forbids a second 32B beside the live instance on this 64GB host",
       "plan": "The architecture-value-add measurement, on code. Uses executable verification Aura already has.",
       "status": "closed",
       "verdict": "CAPABILITY",
@@ -3323,7 +3323,7 @@
         "core/planning/task_decomposer.py"
       ],
       "note": "",
-      "outstanding": "unseen-task decomposition against the 27B baseline, repeated as experience accumulates",
+      "outstanding": "unseen-task decomposition against the 27B baseline, repeated as experience accumulates. BLOCKED: same resident-model constraint as 156",
       "plan": "Compile recurring decompositions into the W5 Procedure registry; the improvement-with-experience half is the developmental claim.",
       "status": "closed",
       "verdict": "CAPABILITY",
@@ -4497,7 +4497,7 @@
         "core/engineering/"
       ],
       "note": "core/engineering/ computes a design and draws it, with a DEPS rule forbidding it from reaching anything that generates a number, and 29 published-answer problems gating the formulas. The audit did not see it.",
-      "outstanding": "the computed-design problems already gate the formulas; the seeded OS-task run is the environment bench's",
+      "outstanding": "the computed-design problems already gate the formulas; the seeded OS-task run is the environment bench's. BLOCKED: needs a live display",
       "plan": "core/engineering already computes and draws physical designs from Findings. This is closer to PRESENT than the audit knows.",
       "status": "closed",
       "verdict": "PRESENT",
@@ -4621,7 +4621,7 @@
         "core/perception/"
       ],
       "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
-      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations",
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations. BLOCKED: needs a live display and the resident model",
       "plan": "Standardised observation/action protocol with effect verification. Overlaps 122/132.",
       "status": "closed",
       "verdict": "CAPABILITY",
@@ -5935,7 +5935,7 @@
         "core/skills/screen_pursuit.py"
       ],
       "note": "",
-      "outstanding": "fault-injected screen runs scoring recovery apart from success",
+      "outstanding": "fault-injected screen runs scoring recovery apart from success. BLOCKED: needs a live display",
       "plan": "Vision self-QA: she looks at what she did and checks it. Overlaps the W2 action receipt.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -6464,7 +6464,7 @@
         "core/skills/screen_pursuit.py"
       ],
       "note": "",
-      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations",
+      "outstanding": "an OSWorld-shaped run on the environment bench with layout perturbations. BLOCKED: needs a live display and the resident model",
       "plan": "Same computer-use programme as A1.5.",
       "status": "closed",
       "verdict": "CAPABILITY",
@@ -6484,7 +6484,7 @@
         "core/evaluation/"
       ],
       "note": "",
-      "outstanding": "a breadth board run across every capability against the bare cortex",
+      "outstanding": "a breadth board run across every capability against the bare cortex. BLOCKED: the bare-cortex arm is the resident model",
       "plan": "Same breadth board as A1.1.",
       "status": "closed",
       "verdict": "CAPABILITY",
@@ -6637,7 +6637,7 @@
         "core/skills/screen_pursuit.py"
       ],
       "note": "A cortex-parity regression is the one failure mode an architecture can cause and never notice.",
-      "outstanding": "a computer-use board run against the cortex-only arm",
+      "outstanding": "a computer-use board run against the cortex-only arm. BLOCKED: needs a live display and the resident model",
       "plan": "The bar here is not to beat the cortex - it is to not DEGRADE it. Every Aura organ on the answer path must be shown to leave the resident model's own ability intact, or to pay for what it costs.",
       "status": "closed",
       "verdict": "EVIDENCE",
@@ -7582,7 +7582,7 @@
         "core/"
       ],
       "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
-      "outstanding": "the board run itself: every capability scored against the bare cortex at matched budget",
+      "outstanding": "the board run itself: every capability scored against the bare cortex at matched budget. BLOCKED: the bare-cortex arm is the resident model",
       "plan": "A specific mathematical discovery is a result, not a mechanism. The section bar - a sealed heterogeneous battery at matched budgets against the same weights - is the capability board, which refuses a claim on any capability with no cortex-only arm and voids itself when the suite moves.",
       "status": "closed",
       "verdict": "OVERSTATED",
@@ -7602,7 +7602,7 @@
         "core/"
       ],
       "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
-      "outstanding": "the same 72-hour autonomy run",
+      "outstanding": "the same 72-hour autonomy run. BLOCKED: see A8.9",
       "plan": "A rival's infrastructure result, not a property Aura can implement. The section bar - a multi-day session preserving state across restart - is answered by the event spine's replay and checkpoint boundaries.",
       "status": "closed",
       "verdict": "OVERSTATED",
@@ -7622,7 +7622,7 @@
         "core/"
       ],
       "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
-      "outstanding": "the same 72-hour autonomy run",
+      "outstanding": "the same 72-hour autonomy run. BLOCKED: see A8.9",
       "plan": "A rival's infrastructure result, not a property Aura can implement. The section bar - a multi-day session preserving state across restart - is answered by the event spine's replay and checkpoint boundaries.",
       "status": "closed",
       "verdict": "OVERSTATED",
@@ -7833,7 +7833,7 @@
         "core/"
       ],
       "note": "The audit gives one acceptance test per SECTION, so this card's bar is the section's and not this card's own. Both are adjudicated: the card's subject is OVERSTATED, and the section bar is answered separately below.",
-      "outstanding": "a 72-hour productive-autonomy run scored on milestones, interventions and rollback rate",
+      "outstanding": "a 72-hour productive-autonomy run scored on milestones, interventions and rollback rate. BLOCKED: 72 hours of wall clock on the live runtime, which only Bryan can start",
       "plan": "Deployment into a datacentre is a rival's result, not a property Aura can implement. The section bar it inherits - a multi-day session across restart and interruption that preserves state and meets a latency target - is one she should clear, and the event spine is the mechanism: state is a fold over an append-only log, so a restart replays rather than resumes from a guess.",
       "status": "closed",
       "verdict": "OVERSTATED",
