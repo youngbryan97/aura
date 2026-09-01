@@ -6035,6 +6035,7 @@
     },
     "A2.18": {
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
+      "campaign_run": "400 corrections delivered mid-task, with work already running past the point the correction was meant to take effect. Every one of the 400 overruns was undone, none over-reverted, every correction landed, the conversation that carried the correction survived all 400, and zero runs reported the abandoned goal as finished. The campaign found that rewind() computed the right state and nothing adopted it; Projection.revert() is the half that acts, and it appends the revert to the log rather than rewriting it (docs/evidence/steering_campaign.json)",
       "card_subject": "Anthropic observes experienced users interrupt agents to correct drift.",
       "closed_by": [
         "core/runtime/event_spine.py",
@@ -6044,7 +6045,7 @@
         "core/brain/cognitive_engine.py"
       ],
       "note": "",
-      "outstanding": "mid-execution steering measured on the event spine's lane rewind",
+      "outstanding": "the section's screen bar - hundreds of seeded OS tasks with layout perturbations - needs a live screen and the resident model; this covers the steering half only",
       "plan": "Mid-execution steering: redirect a running task without killing it. Needs the W12 spine to have a safe interruption point.",
       "status": "closed",
       "verdict": "PARTIAL",

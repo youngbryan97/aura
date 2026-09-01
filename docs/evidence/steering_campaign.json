@@ -1,0 +1,27 @@
+{
+  "card": "A2.18",
+  "claim_boundary": "mid-execution correction on core.runtime.event_spine's per-lane rewind, over synthetic tasks; not a screen or OS-task run, and not a claim that the runtime routes real interruptions here",
+  "config": {
+    "seed": 1618033,
+    "steps": 12,
+    "tasks": 400
+  },
+  "conversation_never_lost": true,
+  "counts": {
+    "conversation_survived": 400,
+    "correction_landed": 400,
+    "false_success": 0,
+    "kept_old_goal": 0,
+    "overrun_survived_the_revert": 0,
+    "overrun_undone": 400,
+    "revert_took_too_much": 0,
+    "rewind_agrees_with_revert": 400,
+    "work_ran_past_the_correction": 400
+  },
+  "every_correction_landed": true,
+  "every_overrun_undone": true,
+  "no_revert_took_too_much": true,
+  "of": 400,
+  "schema": "aura.steering_campaign.v1",
+  "zero_false_success": true
+}

@@ -607,3 +607,39 @@ def test_the_law_predicts_the_right_direction_under_intervention():
     assert intervention["to_candidates"] > intervention["from_candidates"]
     assert intervention["direction"] == "up"
     assert intervention["predicted_delta"] > 0
+
+
+# ── interrupted mid-task, hundreds of times ───────────────────────────────
+#
+# Card A2.18.
+
+
+def test_a_correction_undoes_the_overrun_and_keeps_the_conversation():
+    import random
+
+    from tools.campaigns.steering_campaign import one_task
+
+    rng = random.Random(41)
+    rows = [one_task(rng, steps=12) for _ in range(120)]
+    assert all(r["work_ran_past_the_correction"] for r in rows), (
+        "nothing ran past the checkpoint, so the revert had nothing to undo"
+    )
+    assert all(r["overrun_undone"] for r in rows)
+    assert not any(r["revert_took_too_much"] for r in rows)
+    assert all(r["correction_landed"] for r in rows)
+    assert all(r["conversation_survived"] for r in rows)
+    assert not any(r["false_success"] for r in rows)
+
+
+def test_the_steering_evidence_reports_zero_false_success():
+    payload = _sealed("steering_campaign.json")
+    assert payload["card"] == "A2.18"
+    assert payload["of"] >= 100
+    assert payload["zero_false_success"]
+    assert payload["every_correction_landed"]
+    assert payload["conversation_never_lost"]
+    assert payload["every_overrun_undone"]
+    assert payload["no_revert_took_too_much"]
+    counts = payload["counts"]
+    assert counts["work_ran_past_the_correction"] == payload["of"]
+    assert counts["overrun_survived_the_revert"] == 0

@@ -301,6 +301,68 @@ class Projection:
             raise KeyError(f"no checkpoint named {name!r}")
         return self.at(mark.seq, lanes=lanes)
 
+    def revert(
+        self, name: str, *, lanes: Sequence[Lane] | None = None, reason: str = ""
+    ) -> dict[str, Any]:
+        """Make the state at a checkpoint the live state, and say so in the log.
+
+        :meth:`rewind` computes what the state WAS and hands it back; nothing
+        adopts it. A caller who rewinds and then keeps working still has the
+        abandoned work in the projection, which is how a correction lands in a
+        report and not in the state. This is the half that acts.
+
+        The log is still never rewritten. A revert is an event like any other,
+        appended to the system lane, so "we went back" is in the history rather
+        than being the absence of what used to be there. ``lanes`` reverts one
+        stream and leaves the others where they are, which is what lets a
+        correction undo the work without taking the conversation with it.
+        """
+        with self._lock:
+            mark = self._checkpoints.get(name)
+        if mark is None:
+            raise KeyError(f"no checkpoint named {name!r}")
+        restored = self.at(mark.seq, lanes=lanes)
+        with self._lock:
+            if lanes is None:
+                self._state = restored
+            else:
+                # Only the keys the named lanes' reducers own go back. A key
+                # written from a lane nobody reverted is not part of what was
+                # undone, and taking it too is the failure this argument exists
+                # to prevent.
+                owned = {
+                    key
+                    for reducer in self._reducers.values()
+                    for key in reducer.owns
+                    if any(
+                        event.lane in lanes
+                        for event in self._log.events(since=mark.seq)
+                        if event.kind in reducer.kinds
+                    )
+                }
+                for key in owned:
+                    if key in restored:
+                        self._state[key] = restored[key]
+                    else:
+                        self._state.pop(key, None)
+            reverted = dict(self._state)
+        event = self._log.append(
+            "spine.reverted",
+            {
+                "checkpoint": name,
+                "to_seq": mark.seq,
+                "lanes": sorted(lane.value for lane in lanes) if lanes else None,
+                "reason": reason,
+            },
+            lane=Lane.SYSTEM,
+        )
+        with self._lock:
+            # The revert event is history, not something to fold: applying it
+            # would be asking a reducer what a revert does to the state it just
+            # became.
+            self._applied = event.seq
+        return reverted
+
     def checkpoints(self) -> list[Checkpoint]:
         with self._lock:
             return sorted(self._checkpoints.values(), key=lambda c: c.seq)

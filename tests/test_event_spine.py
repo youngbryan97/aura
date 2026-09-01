@@ -288,3 +288,94 @@ def test_every_cross_organ_contract_carries_a_schema_version():
 
     assert len({packet, state_ref, receipt}) == 3
     assert all(v.startswith("aura.") and v.endswith(".v1") for v in (packet, state_ref, receipt))
+
+
+# ── rewind computes; revert acts ──────────────────────────────────────────
+#
+# Card A2.18. rewind() hands back what the state WAS and nothing adopts it, so
+# a caller who rewound and kept working still had the abandoned work in the
+# projection — a correction that lands in a report and not in what she does.
+
+
+def _steering_projection():
+    log = EventLog(capacity=1000)
+    projection = Projection(log)
+
+    def _work(state, event):
+        if event.kind == "work.step":
+            state.setdefault("steps", []).append(event.payload["step"])
+        elif event.kind == "work.done":
+            state["finished"] = event.payload["goal"]
+
+    def _talk(state, event):
+        state.setdefault("said", []).append(event.payload["text"])
+
+    projection.register("work", ("work.step", "work.done"), ("steps", "finished"), _work)
+    projection.register("talk", ("said",), ("said",), _talk)
+    return log, projection
+
+
+def test_revert_makes_the_rewound_state_the_live_state():
+    log, projection = _steering_projection()
+    for i in range(3):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+    projection.checkpoint("mark", lane=Lane.WORK)
+    for i in range(3, 6):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+
+    assert len(projection.state()["steps"]) == 6
+    # rewind alone leaves the projection where it was.
+    assert len(projection.rewind("mark")["steps"]) == 3
+    assert len(projection.state()["steps"]) == 6
+    # revert adopts it.
+    assert len(projection.revert("mark")["steps"]) == 3
+    assert len(projection.state()["steps"]) == 3
+
+
+def test_reverting_one_lane_leaves_the_other_alone():
+    log, projection = _steering_projection()
+    log.append("said", {"text": "do the thing"}, lane=Lane.CONVERSATION)
+    for i in range(3):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+    projection.checkpoint("mark", lane=Lane.WORK)
+
+    log.append("said", {"text": "actually, the other thing"}, lane=Lane.CONVERSATION)
+    for i in range(3, 6):
+        log.append("work.step", {"step": f"a{i}"}, lane=Lane.WORK)
+    projection.advance()
+
+    after = projection.revert("mark", lanes=(Lane.WORK,), reason="corrected")
+    assert len(after["steps"]) == 3, "the overrun was not undone"
+    # The correction that caused the revert must survive it.
+    assert len(after["said"]) == 2
+
+
+def test_a_revert_is_in_the_log_rather_than_being_the_absence_of_something():
+    log, projection = _steering_projection()
+    log.append("work.step", {"step": "a0"}, lane=Lane.WORK)
+    projection.advance()
+    projection.checkpoint("mark")
+    log.append("work.step", {"step": "a1"}, lane=Lane.WORK)
+    projection.advance()
+    before = log.head
+
+    projection.revert("mark", reason="user changed their mind")
+
+    # The log is never rewritten: the abandoned step is still in the history.
+    assert log.head > before
+    steps = [e for e in log.events() if e.kind == "work.step"]
+    assert len(steps) == 2
+    reverts = [e for e in log.events() if e.kind == "spine.reverted"]
+    assert len(reverts) == 1
+    assert reverts[0].payload["checkpoint"] == "mark"
+    assert reverts[0].payload["reason"] == "user changed their mind"
+    assert reverts[0].lane is Lane.SYSTEM
+
+
+def test_reverting_an_unknown_checkpoint_says_so():
+    _log, projection = _steering_projection()
+    with pytest.raises(KeyError, match="no checkpoint named"):
+        projection.revert("never-set")
