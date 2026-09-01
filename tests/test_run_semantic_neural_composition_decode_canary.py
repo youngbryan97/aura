@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+
 from tools.run_semantic_neural_composition_canary import _reference
 from tools.run_semantic_neural_composition_decode_canary import (
     ARMS,
+    JOURNAL_SCHEMA,
+    _append_journal_event,
     _arm_order,
     _cohort,
     _prompt_tokens,
@@ -43,6 +47,27 @@ def test_structured_prefill_opens_the_answer_channel() -> None:
     assert _prompt_tokens(tokenizer, "objective", "state") == (11, 12, 13)
     assert tokenizer.calls[-1]["enable_thinking"] is False
     assert tokenizer.encoded == "<answer>objective\n\nstate"
+
+
+def test_decode_journal_is_receipt_chained(tmp_path) -> None:
+    journal = tmp_path / "canary.jsonl"
+    journal.touch()
+
+    first = _append_journal_event(
+        journal,
+        {"event": "first"},
+        previous_receipt_sha256="0" * 64,
+    )
+    second = _append_journal_event(
+        journal,
+        {"event": "second"},
+        previous_receipt_sha256=first,
+    )
+    events = [json.loads(line) for line in journal.read_text().splitlines()]
+
+    assert [event["schema"] for event in events] == [JOURNAL_SCHEMA, JOURNAL_SCHEMA]
+    assert events[1]["previous_receipt_sha256"] == first
+    assert events[1]["receipt_sha256"] == second
 
 
 def test_all_causal_states_share_protocol_but_not_result() -> None:

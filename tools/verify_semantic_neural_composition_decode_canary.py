@@ -33,6 +33,7 @@ from tools.run_semantic_neural_composition_canary import (  # noqa: E402
 from tools.run_semantic_neural_composition_decode_canary import (  # noqa: E402
     ARMS,
     CLAIM_BOUNDARY,
+    JOURNAL_SCHEMA,
     SCHEMA,
     SOURCE_PATHS,
     _arm_order,
@@ -182,7 +183,85 @@ def _summary(rows: list[dict[str, Any]], arm: str) -> dict[str, Any]:
     return {**body, "receipt_sha256": _sha(body)}
 
 
-def verify(payload: dict[str, Any]) -> dict[str, Any]:
+def _verify_journal(
+    payload: dict[str, Any],
+    explicit_path: Path | None,
+) -> dict[str, Any]:
+    recorded = payload.get("journal_path")
+    if not isinstance(recorded, str) or not recorded:
+        raise RuntimeError("composition decode journal identity is missing")
+    path = (explicit_path or Path(recorded)).expanduser().resolve(strict=True)
+    events: list[dict[str, Any]] = []
+    previous = "0" * 64
+    with path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"composition decode journal line {line_number} is invalid JSON"
+                ) from exc
+            if not isinstance(event, dict) or event.get("schema") != JOURNAL_SCHEMA:
+                raise RuntimeError(
+                    f"composition decode journal line {line_number} is invalid"
+                )
+            receipt = event.get("receipt_sha256")
+            body = {key: value for key, value in event.items() if key != "receipt_sha256"}
+            if event.get("previous_receipt_sha256") != previous or receipt != _sha(body):
+                raise RuntimeError(
+                    f"composition decode journal chain broke at line {line_number}"
+                )
+            previous = str(receipt)
+            events.append(event)
+
+    rows = payload.get("rows")
+    if not isinstance(rows, list) or len(events) != len(rows) + 2:
+        raise RuntimeError("composition decode journal population differs")
+    started, *decode_events, completed = events
+    model_identity = payload.get("model_identity")
+    expected_start = {
+        "event": "campaign_started",
+        "source_commit": payload.get("source_commit"),
+        "seed": payload.get("seed"),
+        "task_count": payload.get("task_count"),
+        "arm_count": len(ARMS),
+        "max_tokens": payload.get("max_tokens"),
+        "model_identity": model_identity,
+    }
+    if any(started.get(key) != value for key, value in expected_start.items()):
+        raise RuntimeError("composition decode journal campaign identity differs")
+    for index, (event, row) in enumerate(zip(decode_events, rows, strict=True), start=1):
+        if (
+            event.get("event") != "decode_committed"
+            or event.get("completed") != index
+            or event.get("total") != len(rows)
+            or event.get("row") != row
+        ):
+            raise RuntimeError(f"composition decode journal row {index} differs")
+    last_decode_receipt = decode_events[-1]["receipt_sha256"]
+    if payload.get("journal_last_decode_receipt_sha256") != last_decode_receipt:
+        raise RuntimeError("composition decode final journal decode receipt differs")
+    if (
+        completed.get("event") != "campaign_completed"
+        or completed.get("previous_receipt_sha256") != last_decode_receipt
+        or completed.get("admitted") is not payload.get("admitted")
+        or completed.get("report_receipt_sha256") != payload.get("receipt_sha256")
+    ):
+        raise RuntimeError("composition decode journal completion differs")
+    return {
+        "path": str(path),
+        "sha256": _file_sha(path),
+        "event_count": len(events),
+        "decode_count": len(decode_events),
+        "final_receipt_sha256": completed["receipt_sha256"],
+    }
+
+
+def verify(
+    payload: dict[str, Any],
+    *,
+    journal_path: Path | None = None,
+) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
         raise RuntimeError("composition decode schema mismatch")
     _verify_receipt(payload, "receipt_sha256")
@@ -311,6 +390,7 @@ def verify(payload: dict[str, Any]) -> dict[str, Any]:
         or payload.get("claim_boundary") != CLAIM_BOUNDARY
     ):
         raise RuntimeError("composition decode adjudication differs")
+    journal_identity = _verify_journal(payload, journal_path)
     body = {
         "schema": VERIFICATION_SCHEMA,
         "verified": admitted,
@@ -324,6 +404,7 @@ def verify(payload: dict[str, Any]) -> dict[str, Any]:
         "independent_exact_by_arm": {arm: arms[arm]["exact"] for arm in ARMS},
         "gain_count": len(gain_set),
         "regression_count": len(regressions),
+        "journal_identity": journal_identity,
         "paired_one_sided_exact_p": (
             math.ldexp(1.0, -len(gain_set)) if not regressions else 1.0
         ),
@@ -337,9 +418,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--journal", type=Path)
     args = parser.parse_args()
     payload = json.loads(args.report.expanduser().resolve().read_text(encoding="utf-8"))
-    result = verify(payload)
+    result = verify(payload, journal_path=args.journal)
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.out is not None:
         atomic_write_text(args.out.expanduser().resolve(), encoded, power_safe=True)

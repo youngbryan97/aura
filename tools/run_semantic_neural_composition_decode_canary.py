@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import subprocess
@@ -45,6 +46,7 @@ from tools.verify_semantic_neural_composition_canary import (  # noqa: E402
 )
 
 SCHEMA: Final = "aura.rlc.semantic_neural_composition_decode_canary.v1"
+JOURNAL_SCHEMA: Final = "aura.rlc.semantic_neural_composition_decode_journal.v1"
 ARMS: Final = (
     "ordinary_base",
     "matched_wire_base",
@@ -93,6 +95,25 @@ def _file_sha(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _append_journal_event(
+    path: Path,
+    event: dict[str, Any],
+    *,
+    previous_receipt_sha256: str,
+) -> str:
+    body = {
+        "schema": JOURNAL_SCHEMA,
+        "previous_receipt_sha256": previous_receipt_sha256,
+        **event,
+    }
+    receipt = _sha(body)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({**body, "receipt_sha256": receipt}, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return receipt
 
 
 def _git(*args: str) -> str:
@@ -243,6 +264,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--resident-manifest", type=Path, required=True)
     parser.add_argument("--composition-basis", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--journal", type=Path)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED + 100)
     parser.add_argument("--tasks", type=int, default=8)
     parser.add_argument("--max-tokens", type=int, default=96)
@@ -260,6 +282,34 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
     workflows = [render_public_typed_workflow(document) for document in documents]
     states = [_state_arms(document) for document in documents]
     expected = [_reference(document) for document in documents]
+    journal_path = (
+        args.journal.expanduser().resolve()
+        if args.journal is not None
+        else args.out.with_name(f"{args.out.name}.journal.jsonl")
+    )
+    if journal_path.exists():
+        raise RuntimeError("composition decode journal already exists")
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    journal_path.touch(mode=0o600, exist_ok=False)
+    journal_receipt = _append_journal_event(
+        journal_path,
+        {
+            "event": "campaign_started",
+            "source_commit": commit,
+            "seed": args.seed,
+            "task_count": args.tasks,
+            "arm_count": len(ARMS),
+            "max_tokens": args.max_tokens,
+            "model_identity": {
+                "path": str(model_path),
+                "config_sha256": _file_sha(model_path / "config.json"),
+                "weights_index_sha256": _file_sha(
+                    model_path / "model.safetensors.index.json"
+                ),
+            },
+        },
+        previous_receipt_sha256="0" * 64,
+    )
 
     from mlx_lm import load
 
@@ -313,6 +363,16 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
                 ),
             }
             rows.append(row)
+            journal_receipt = _append_journal_event(
+                journal_path,
+                {
+                    "event": "decode_committed",
+                    "completed": len(rows),
+                    "total": args.tasks * len(ARMS),
+                    "row": row,
+                },
+                previous_receipt_sha256=journal_receipt,
+            )
             print(
                 json.dumps(
                     {
@@ -387,12 +447,23 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         "regression_set_sha256": _sha(regressions),
         "regression_count": len(regressions),
         "rows": rows,
+        "journal_path": str(journal_path),
+        "journal_last_decode_receipt_sha256": journal_receipt,
         "admitted": admitted,
         "claim_boundary": CLAIM_BOUNDARY,
         "elapsed_seconds": round(time.time() - started, 3),
     }
     payload = {**body, "receipt_sha256": _sha(body)}
     atomic_write_text(args.out, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    _append_journal_event(
+        journal_path,
+        {
+            "event": "campaign_completed",
+            "admitted": admitted,
+            "report_receipt_sha256": payload["receipt_sha256"],
+        },
+        previous_receipt_sha256=journal_receipt,
+    )
     print(json.dumps({"event": "canary_complete", "admitted": admitted}, sort_keys=True))
     return 0 if admitted else 2
 
