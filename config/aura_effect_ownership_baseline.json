@@ -4473,6 +4473,14 @@
       "scope": "<module>.AuraKernel._record_dream_fragment"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/knowledge/atomspace_persistence.py",
+      "scope": "<module>.save"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -16138,6 +16146,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "39d9016993d70aa21b20e286070fdeb6e01865843fd4d6930053e697ad445216",
+  "inventory_sha256": "6b6d8923d0a0db8f6cf0db316a17d4a2fe09a50c8b39d5156281ee5df8738309",
   "schema_version": 1
 }

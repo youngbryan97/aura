@@ -1,8 +1,8 @@
 {
   "organs": 117,
   "cross_package_edges": 1893,
-  "dependency_entropy": 9.079,
-  "kernel_lines": 560848,
+  "dependency_entropy": 9.0781,
+  "kernel_lines": 561493,
   "history": [
     {
       "raised": [
@@ -93,6 +93,30 @@
         "kernel_lines": 560848
       },
       "because": "stable_seed(): a concept's vector was seeded from hash(name), salted per interpreter, so 'red' was a different vector in every process and the capacity curve was a fresh random draw rather than a property of the dimension"
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 560848
+      },
+      "to": {
+        "kernel_lines": 561430
+      },
+      "because": "AtomSpace persistence (snapshot/save/restore/load) closes card 098's crash-safety half; Projection.revert closes A2.18's steering half; EntityTrack velocity and predicted-position association close card 133; ProceduralValue's failure cost and recency-weighted rate close card 026"
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 561430
+      },
+      "to": {
+        "kernel_lines": 561493
+      },
+      "because": "AtomSpace split into store, persistence and attention-control modules to clear the 30-method ceiling; the import headers and TYPE_CHECKING blocks the split needs cost 63 lines"
     }
   ]
 }

@@ -35,6 +35,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.knowledge.atomspace_attention import (  # noqa: E402
+    neighbours,
+    reset_attention,
+    spread_importance_touches,
+)
 from core.knowledge.atomspace import (  # noqa: E402
     EVALUATION,
     LIST,
@@ -109,7 +114,7 @@ def _breadth_first(
         spent += 1
         if isinstance(node, Node) and node.atype == CONCEPT:
             order.append(node)
-        for neighbour in space.neighbours(node):
+        for neighbour in neighbours(space, node):
             if neighbour not in seen:
                 frontier.append(neighbour)
     return order[:budget]
@@ -139,13 +144,13 @@ def one_trial(
     seeded = [group[rng.randrange(len(group))] for _ in range(seeds)]
 
     # ECAN: pay the seeds, run the economy, read the focus.
-    space.reset_attention()
+    reset_attention(space)
     for node in seeded:
         space.stimulate(node)
     began = time.perf_counter()
     touched = 0
     for _ in range(ticks):
-        touched += space.spread_importance_touches()
+        touched += spread_importance_touches(space)
         space.collect_rent()
     ecan_s = time.perf_counter() - began
     focus = [

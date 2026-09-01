@@ -18,6 +18,8 @@ from pathlib import Path
 import pytest
 
 from core.knowledge.atomspace import AtomSpace, Node, TruthValue
+from core.knowledge.atomspace_attention import reset_attention
+from core.knowledge.atomspace_persistence import load, restore, save, snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs" / "evidence"
@@ -41,7 +43,7 @@ def test_resetting_attention_returns_the_fund_and_keeps_what_mattered():
     before = space.get_av(node)
     assert before.sti > 0 and before.lti > 0
 
-    reclaimed = space.reset_attention()
+    reclaimed = reset_attention(space)
 
     after = space.get_av(node)
     assert reclaimed == pytest.approx(before.sti)
@@ -59,7 +61,7 @@ def test_a_second_task_does_not_start_on_the_first_task_s_salience():
     for node in (first, second):
         space.add(node, TruthValue(0.9, 10.0), source="t")
     space.stimulate(first)
-    space.reset_attention()
+    reset_attention(space)
     space.stimulate(second)
     assert space.get_av(first).sti == 0.0
     assert space.get_av(second).sti > 0.0
@@ -258,10 +260,10 @@ def test_a_reloaded_store_holds_what_the_first_one_held():
     before = len(space)
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "atoms.json"
-        assert space.save(path) == before
+        assert save(space, path) == before
 
         fresh = AtomSpace(max_atoms=1000)
-        assert fresh.load(path) == before
+        assert load(fresh, path) == before
 
     assert len(fresh) == before
     assert fresh.get_tv(red).strength == pytest.approx(space.get_tv(red).strength)
@@ -278,9 +280,9 @@ def test_provenance_survives_the_restart_so_evidence_is_not_double_counted():
     space, red, _ = _populated()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "atoms.json"
-        space.save(path)
+        save(space, path)
         fresh = AtomSpace(max_atoms=1000)
-        fresh.load(path)
+        load(fresh, path)
 
     restated = fresh.add(red, TruthValue(0.8, 4.0), source="memory")
     original = space.add(red, TruthValue(0.8, 4.0), source="memory")
@@ -295,13 +297,13 @@ def test_a_truncated_snapshot_is_refused_rather_than_half_loaded():
     space, _, _ = _populated()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "atoms.json"
-        space.save(path)
+        save(space, path)
         text = path.read_text(encoding="utf-8")
         path.write_text(text[: len(text) // 2], encoding="utf-8")
 
         fresh = AtomSpace(max_atoms=1000)
         with pytest.raises(json.JSONDecodeError):
-            fresh.load(path)
+            load(fresh, path)
     # And the store it was loading into is untouched.
     assert len(fresh) == 0
 
@@ -310,11 +312,11 @@ def test_a_snapshot_from_another_format_is_refused():
     space, _, _ = _populated()
     fresh = AtomSpace(max_atoms=1000)
     with pytest.raises(ValueError, match="refusing to load part of it"):
-        fresh.restore({"schema": "something.else.v9", "atoms": []})
+        restore(fresh, {"schema": "something.else.v9", "atoms": []})
     with pytest.raises(ValueError, match="no atom list"):
-        payload = space.snapshot()
+        payload = snapshot(space)
         payload["atoms"] = None
-        fresh.restore(payload)
+        restore(fresh, payload)
     assert len(fresh) == 0
 
 
@@ -323,11 +325,11 @@ def test_a_crash_part_way_through_a_save_leaves_the_old_snapshot(tmp_path):
     leave a shorter store that loads without complaint."""
     space, _, _ = _populated()
     path = tmp_path / "atoms.json"
-    space.save(path)
+    save(space, path)
     first = path.read_bytes()
 
     bigger = AtomSpace(max_atoms=1000)
-    bigger.restore(space.snapshot())
+    restore(bigger, snapshot(space))
     for i in range(200):
         bigger.add(Node("Concept", f"extra{i}"), TruthValue(0.5, 1.0), source="t")
 
@@ -338,9 +340,9 @@ def test_a_crash_part_way_through_a_save_leaves_the_old_snapshot(tmp_path):
     for leftover in survivors:
         assert leftover.name != path.name
 
-    bigger.save(path)
+    save(bigger, path)
     reloaded = AtomSpace(max_atoms=1000)
-    assert reloaded.load(path) == len(bigger)
+    assert load(reloaded, path) == len(bigger)
 
 
 # ── the model that scores best is not the model that plans best ───────────
