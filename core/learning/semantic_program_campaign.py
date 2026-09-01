@@ -25,7 +25,7 @@ from core.learning.semantic_program_transducer import (
     fit_semantic_program_transducer,
 )
 
-SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA: Final = "aura.semantic_program_campaign.v2"
+SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA: Final = "aura.semantic_program_campaign.v3"
 
 
 def _sha(value: Any) -> str:
@@ -76,13 +76,17 @@ def _one_sided_exact_p(*, treatment_only: int, control_only: int) -> float:
 def _paired_control(
     treatment_rows: Sequence[dict[str, Any]],
     control_rows: Sequence[dict[str, Any]],
+    *,
+    metric: str = "program_exact",
 ) -> dict[str, Any]:
+    if metric not in {"program_exact", "answer_exact"}:
+        raise ValueError(f"semantic campaign paired metric is unsupported: {metric}")
     treatment = {
-        str(row["source_text_sha256"]): bool(row["program_exact"])
+        str(row["source_text_sha256"]): bool(row[metric])
         for row in treatment_rows
     }
     control = {
-        str(row["source_text_sha256"]): bool(row["program_exact"])
+        str(row["source_text_sha256"]): bool(row[metric])
         for row in control_rows
     }
     if treatment.keys() != control.keys():
@@ -90,6 +94,7 @@ def _paired_control(
     treatment_only = sum(treatment[key] and not control[key] for key in treatment)
     control_only = sum(control[key] and not treatment[key] for key in treatment)
     return {
+        "metric": metric,
         "treatment_only": treatment_only,
         "control_only": control_only,
         "discordant": treatment_only + control_only,
@@ -147,7 +152,8 @@ def run_semantic_program_campaign(
             arm="label_permutation",
         ).to_dict()
 
-    paired: dict[str, dict[str, Any]] = {}
+    paired_programs: dict[str, dict[str, Any]] = {}
+    paired_answers: dict[str, dict[str, Any]] = {}
     for split in ("validation", "test"):
         treatment_rows = arms[f"treatment:{split}"]["rows"]
         for control in (
@@ -155,9 +161,16 @@ def run_semantic_program_campaign(
             "coefficient_lesion",
             "label_permutation",
         ):
-            paired[f"{control}:{split}"] = _paired_control(
+            control_rows = arms[f"{control}:{split}"]["rows"]
+            paired_programs[f"{control}:{split}"] = _paired_control(
                 treatment_rows,
-                arms[f"{control}:{split}"]["rows"],
+                control_rows,
+                metric="program_exact",
+            )
+            paired_answers[f"{control}:{split}"] = _paired_control(
+                treatment_rows,
+                control_rows,
+                metric="answer_exact",
             )
 
     held_out_treatment = sum(
@@ -168,6 +181,10 @@ def run_semantic_program_campaign(
         arms[f"treatment:{split}"]["total"]
         for split in ("validation", "test")
     )
+    held_out_answer_exact = sum(
+        arms[f"treatment:{split}"]["answer_exact"]
+        for split in ("validation", "test")
+    )
     body = {
         "schema": SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA,
         "feature_manifest_sha256": bundle.manifest["manifest_sha256"],
@@ -175,9 +192,11 @@ def run_semantic_program_campaign(
         "transducer_receipt_sha256": model.receipt_sha256,
         "example_count": len(examples),
         "held_out_treatment_program_exact": held_out_treatment,
+        "held_out_treatment_answer_exact": held_out_answer_exact,
         "held_out_total": held_out_total,
         "arms": arms,
-        "paired_controls": paired,
+        "paired_program_controls": paired_programs,
+        "paired_answer_controls": paired_answers,
         "expected_answers_available_to_training": False,
         "expected_answers_available_to_evaluation": True,
         "verifier_traces_available": False,

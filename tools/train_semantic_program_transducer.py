@@ -68,7 +68,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "schema": "aura.semantic_program_campaign_cli.v1",
+                    "schema": "aura.semantic_program_campaign_cli.v2",
                     "complete": False,
                     "error": f"{type(exc).__name__}: {exc}",
                 },
@@ -80,12 +80,15 @@ def main() -> int:
         )
         return 1
     summary = {
-        "schema": "aura.semantic_program_campaign_cli.v1",
+        "schema": "aura.semantic_program_campaign_cli.v2",
         "complete": True,
         "report_sha256": result.report["report_sha256"],
         "transducer_receipt_sha256": result.model.receipt_sha256,
         "held_out_treatment_program_exact": result.report[
             "held_out_treatment_program_exact"
+        ],
+        "held_out_treatment_answer_exact": result.report[
+            "held_out_treatment_answer_exact"
         ],
         "held_out_total": result.report["held_out_total"],
         "model_output": str(args.model_output.expanduser().resolve()),
