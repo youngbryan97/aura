@@ -271,17 +271,28 @@ def label_permuted_training_examples(
     if len(training) < 2:
         raise ValueError("semantic label null needs at least two training examples")
     rng = random.Random(seed)
-    donor_indices = list(range(len(training)))
-    for _ in range(1000):
-        rng.shuffle(donor_indices)
-        if all(
-            training[index].ir.to_program()
-            != training[donor].ir.to_program()
-            for index, donor in enumerate(donor_indices)
-        ):
-            break
-    else:
-        raise ValueError("semantic label null could not form a program derangement")
+    groups: dict[str, list[int]] = {}
+    for index, item in enumerate(training):
+        groups.setdefault(item.ir.to_program().sha(), []).append(index)
+    largest_group = max(len(indices) for indices in groups.values())
+    if largest_group * 2 > len(training):
+        raise ValueError("semantic label null support is too concentrated to derange")
+    group_order = sorted(groups)
+    rng.shuffle(group_order)
+    ordered_indices: list[int] = []
+    for key in group_order:
+        indices = list(groups[key])
+        rng.shuffle(indices)
+        ordered_indices.extend(indices)
+    rotated = ordered_indices[largest_group:] + ordered_indices[:largest_group]
+    donor_indices = [0] * len(training)
+    for recipient, donor in zip(ordered_indices, rotated, strict=True):
+        donor_indices[recipient] = donor
+    if not all(
+        training[index].ir.to_program() != training[donor].ir.to_program()
+        for index, donor in enumerate(donor_indices)
+    ):
+        raise AssertionError("validated semantic label derangement construction failed")
 
     replacements: dict[int, SemanticTransducerTrainingExample] = {}
     for index, donor_index in enumerate(donor_indices):

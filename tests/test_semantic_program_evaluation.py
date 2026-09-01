@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from core.learning.semantic_program_evaluation import (
     coefficient_lesion,
     evaluate_semantic_program_transducer,
@@ -78,3 +80,25 @@ def test_label_permutation_changes_every_training_program() -> None:
     assert [item for item in permuted if item.split == "test"] == [
         item for item in examples if item.split == "test"
     ]
+
+
+def test_label_permutation_deranges_repeated_program_classes() -> None:
+    distinct = []
+    for item in _training():
+        if all(item.ir.to_program() != seen.ir.to_program() for seen in distinct):
+            distinct.append(item)
+        if len(distinct) == 3:
+            break
+    repeated = [
+        replace(item, construction_id=f"duplicate-{group}-{copy}")
+        for group, item in enumerate(distinct)
+        for copy in range(12)
+    ]
+
+    permuted = label_permuted_training_examples(repeated, seed=11)
+
+    assert len(permuted) == len(repeated)
+    assert all(
+        original.ir.to_program() != changed.ir.to_program()
+        for original, changed in zip(repeated, permuted, strict=True)
+    )
