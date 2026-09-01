@@ -154,7 +154,7 @@ def test_a_term_using_a_head_that_is_gone_does_not_quietly_answer(
     the_head_she_wrote("two to the", 2, _doubling_head())
     term = Term("two to the", parts=(Term("where"), Term("where")))
     assert run(term, 2, 5, (_HERE, _ALONG)) == 4
-    assert forget_the_head("two to the")
+    assert forget_the_head("two to the")["removed"]
     with pytest.raises(ValueError):
         run(term, 2, 5, (_HERE, _ALONG))
     assert read_back(written_down(term)) is None
@@ -234,3 +234,58 @@ def test_the_diagonal_is_a_place_inside_the_state() -> None:
     for size in (2, 3, 5, 8):
         for at in range(size):
             assert 0 <= rule(at, size) < size
+
+
+def test_taking_a_head_out_takes_the_words_written_over_it(_clean_registry) -> None:
+    """A word whose term uses a head that is gone is worse than a missing word.
+
+    A search walks it, spends the time, and gets an exception rather than an
+    answer. So the removal cascades and says what went.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import Made
+
+    the_head_she_wrote("two to the", 2, _doubling_head())
+    over = Term("two to the", parts=(Term("hole", value=0), Term("hole", value=1)))
+    was = dict(WHERE_FROM)
+    try:
+        WHERE_FROM["a word over a head"] = Made(
+            term=over,
+            words=(WHERE_FROM["here"], WHERE_FROM["one along"]),
+            built_from=("here", "one along"),
+        )
+        report = forget_the_head("two to the")
+        assert report["removed"]
+        assert report["words"] == ["a word over a head"]
+        assert "a word over a head" not in WHERE_FROM
+        assert "here" in WHERE_FROM, "an unrelated word was taken out"
+    finally:
+        WHERE_FROM.clear()
+        WHERE_FROM.update(was)
+
+
+def test_a_head_that_was_never_there_reports_so_rather_than_raising(
+    _clean_registry,
+) -> None:
+    report = forget_the_head("nothing anybody wrote")
+    assert report == {"head": "nothing anybody wrote", "removed": False, "words": []}
+
+
+def test_a_descendant_head_keeps_computing_when_its_ancestor_goes(
+    _clean_registry,
+) -> None:
+    """A floor term contains its parts rather than pointing at them.
+
+    So a head written over another head carries a copy and needs no cascade.
+    Worth a test rather than a comment, because the opposite would be a silent
+    wrong answer rather than a loud failure.
+    """
+    from core.cognition.the_floor_she_stands_on import how_long
+
+    the_head_she_wrote("two to the", 2, _doubling_head())
+    ancestor = DERIVED_HEADS["two to the"].body
+    the_head_she_wrote("built on it", 2, ancestor)
+    assert how_long(DERIVED_HEADS["built on it"].body) == how_long(ancestor)
+    forget_the_head("two to the")
+    still = Term("built on it", parts=(Term("where"), Term("where")))
+    assert [run(still, at, 5, (_HERE, _ALONG)) for at in range(5)] == [1, 2, 4, 3, 1]

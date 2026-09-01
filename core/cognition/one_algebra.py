@@ -235,9 +235,56 @@ def the_head_she_wrote(name: str, takes: int, body: Any) -> Head:
     return made
 
 
-def forget_the_head(name: str) -> bool:
-    """Take one out again. Terms mentioning it stop computing, loudly."""
-    return DERIVED_HEADS.pop(str(name), None) is not None
+def _mentions(term: Term, head: str) -> bool:
+    """Whether this term uses that head, anywhere inside it."""
+    edge = [term]
+    while edge:
+        here = edge.pop()
+        if here.head == head:
+            return True
+        edge.extend(here.parts)
+    return False
+
+
+def forget_the_head(name: str) -> dict[str, Any]:
+    """Take a head out, and take out what was written over it.
+
+    Removing a head on its own leaves every word written over it as a name
+    that raises when anything asks it — which is worse than a missing word,
+    because a search walks it, spends the time, and gets an exception rather
+    than an answer. So the removal cascades: a word whose term mentions the
+    head goes with it, and what went is reported rather than logged and
+    forgotten.
+
+    A head she wrote over another head needs no cascade. A floor term contains
+    its parts rather than pointing at them, so a descendant carries a copy of
+    its ancestor's body and keeps computing after the ancestor is gone. That
+    is a property of the representation and not an oversight; provenance is
+    what the dependency record is for, and behaviour is not at risk.
+    """
+    said = str(name or "")
+    gone = DERIVED_HEADS.pop(said, None)
+    if gone is None:
+        return {"head": said, "removed": False, "words": []}
+    words: list[str] = []
+    try:
+        from core.cognition.an_invented_kind import WHERE_FROM
+
+        for word_name, word in list(WHERE_FROM.items()):
+            term = getattr(word, "term", None)
+            if isinstance(term, Term) and _mentions(term, said):
+                WHERE_FROM.pop(word_name, None)
+                words.append(word_name)
+    except (ImportError, AttributeError):  # pragma: no cover - import only
+        pass
+    if words:
+        logger.info(
+            "took out %r and the %d word(s) written over it: %s",
+            said,
+            len(words),
+            ", ".join(words),
+        )
+    return {"head": said, "removed": True, "words": sorted(words)}
 
 
 def _what_a_part_says(
