@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import queue
 import threading
 from types import SimpleNamespace
@@ -25,7 +26,7 @@ def _resident_client(monkeypatch):
     }
     client._shutting_down = False
     client._init_done = True
-    client._process = SimpleNamespace(is_alive=lambda: True)
+    client._process = SimpleNamespace(pid=1234, is_alive=lambda: True)
     client._active_generations = 0
     client._active_generation_started_at = 0.0
     client._warmup_in_flight = False
@@ -46,6 +47,45 @@ def _resident_client(monkeypatch):
     client._authorize_job = lambda request, **_kwargs: request
     monkeypatch.setattr(mlx_client, "_foreground_owner_active", lambda: False)
     return client
+
+
+def test_client_exposes_exact_hash_bound_model_lane_ownership(monkeypatch) -> None:
+    client = _resident_client(monkeypatch)
+    client._model_lane_state_lock = threading.RLock()
+    client._model_lane_owner_id = "mlx:test:resident"
+    client._model_lane_fencing_token = 17
+    client._model_lane_terminal_receipt_id = "terminal-17"
+
+    receipt = client.get_model_lane_ownership_snapshot()
+
+    assert receipt["schema"] == "aura.mlx_model_lane_ownership.v1"
+    assert receipt["exclusive"] is True
+    assert receipt["owner_id"] == "mlx:test:resident"
+    assert receipt["fencing_token"] == 17
+    assert receipt["terminal_receipt_id"] == "terminal-17"
+    assert receipt["campaign_pid"] > 0
+    assert receipt["worker_pid"] == 1234
+    body = dict(receipt)
+    receipt_sha256 = body.pop("receipt_sha256")
+    encoded = json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+    assert receipt_sha256 == hashlib.sha256(encoded).hexdigest()
+
+
+def test_client_refuses_partial_or_stale_model_lane_ownership(monkeypatch) -> None:
+    client = _resident_client(monkeypatch)
+    client._model_lane_state_lock = threading.RLock()
+    client._model_lane_owner_id = "mlx:test:resident"
+    client._model_lane_fencing_token = 17
+    client._model_lane_terminal_receipt_id = "terminal-17"
+    client._process = SimpleNamespace(pid=9999, is_alive=lambda: True)
+
+    assert client.get_model_lane_ownership_snapshot() == {}
 
 
 def _valid_worker_response(client, request, *, hidden_states=None):

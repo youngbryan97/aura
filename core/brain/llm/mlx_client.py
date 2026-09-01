@@ -9458,6 +9458,67 @@ class MLXLocalClient:
             return {}
         return copy.deepcopy(identity)
 
+    def get_model_lane_ownership_snapshot(self) -> dict[str, Any]:
+        """Return a hash-bound receipt for the worker this client owns now.
+
+        A consumer that records resident neural evidence needs more than a
+        model path.  It must bind the observation to the durable lane fence,
+        the parent process, and the exact live child.  Empty output means that
+        one of those identities is not established; callers must not infer
+        ownership from a partially populated client.
+        """
+
+        owner_id, fencing_token, terminal_receipt_id = (
+            self._durable_model_lane_owner_snapshot()
+        )
+        identity = self.get_worker_identity_snapshot()
+        process = getattr(self, "_process", None)
+        process_pid = getattr(process, "pid", None)
+        worker_pid = identity.get("worker_pid")
+        worker_boot_id = identity.get("worker_boot_id")
+        worker_model_path = identity.get("worker_model_path")
+        try:
+            process_alive = bool(process is not None and process.is_alive())
+        except (AssertionError, OSError, ValueError):
+            process_alive = False
+        if (
+            not owner_id
+            or fencing_token <= 0
+            or not terminal_receipt_id
+            or not process_alive
+            or type(process_pid) is not int
+            or process_pid <= 0
+            or type(worker_pid) is not int
+            or worker_pid != process_pid
+            or not isinstance(worker_boot_id, str)
+            or not worker_boot_id
+            or not isinstance(worker_model_path, str)
+            or os.path.realpath(worker_model_path) != os.path.realpath(self.model_path)
+        ):
+            return {}
+        body = {
+            "schema": "aura.mlx_model_lane_ownership.v1",
+            "exclusive": True,
+            "owner_id": owner_id,
+            "fencing_token": fencing_token,
+            "terminal_receipt_id": terminal_receipt_id,
+            "model_path": os.path.realpath(self.model_path),
+            "campaign_pid": os.getpid(),
+            "worker_pid": worker_pid,
+            "worker_boot_id": worker_boot_id,
+        }
+        canonical = json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+        return {
+            **body,
+            "receipt_sha256": hashlib.sha256(canonical).hexdigest(),
+        }
+
     def _attest_mycelial_worker(self, init_receipt: Mapping[str, Any]) -> None:
         """Publish the accepted worker identity to Mycelium after READY validation."""
         identity = self.get_worker_identity_snapshot()
