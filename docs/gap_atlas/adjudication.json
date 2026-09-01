@@ -3426,8 +3426,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "One breadth board comparing full Aura to the same Qwen weights under matched budgets. matched_budget.py already refuses unmatched verdicts; the board is what is missing.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A1.10": {
       "verdict": "CAPABILITY",
@@ -3437,8 +3441,13 @@
       "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
       "plan": "Long-context evaluation on delayed and multi-session tasks; memory must beat raw context or it is overhead.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py",
+        "core/cognition/cognitive_cost.py"
+      ]
     },
     "A1.11": {
       "verdict": "CAPABILITY",
@@ -3448,8 +3457,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Per-token and per-answer cost accounting on the W7 CognitiveCost currency.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "A1.12": {
       "verdict": "CAPABILITY",
@@ -3459,8 +3472,12 @@
       "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
       "plan": "Intermediate-result reduction inside the tool-plan IR rather than through the model.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/tool_plan.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.13": {
       "verdict": "CAPABILITY",
@@ -3470,8 +3487,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "A stable programmatic surface. Aura is an instrument, not a product; scope to what her own tooling needs.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A1.14": {
       "verdict": "CAPABILITY",
@@ -3481,8 +3502,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Explicit prompt-cache control. Aura's 15-turn ceiling was a prompt-cache defect; the control is worth having.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "A1.15": {
       "verdict": "CAPABILITY",
@@ -3492,8 +3517,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Variable reasoning effort is the W7 value-of-computation controller.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "A1.16": {
       "verdict": "PRESENT",
@@ -3517,8 +3546,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "Benchmark diversity is the W6 eval orchestrator plus the W9 environment families.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A1.18": {
       "verdict": "CAPABILITY",
@@ -3528,8 +3561,12 @@
       "bar": "Reliability diagrams, Brier/ECE/selective-risk curves across coding, tools, factual QA, visual tasks and self-modification.",
       "plan": "Selective expensive compute is 178 again.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "A1.19": {
       "verdict": "CAPABILITY",
@@ -3539,8 +3576,12 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Deployment-scale evaluation is not available to a single-machine agent; the transferable half is the sealed battery.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A1.2": {
       "verdict": "CAPABILITY",
@@ -3551,8 +3592,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "A coding ACI: typed repo navigation, bounded views, structural edits, test selection, failure summarisation, rollback, repo memory.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/self_modification/coding_aci.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.3": {
       "verdict": "CAPABILITY",
@@ -3562,8 +3607,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "Terminal competence as execution engineering: a typed terminal surface with effect verification, not a shell string.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/self_modification/coding_aci.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.4": {
       "verdict": "CAPABILITY",
@@ -3573,8 +3622,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "Long-horizon repo tasks with repeated test/fix cycles over the same ACI.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/self_modification/coding_aci.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.5": {
       "verdict": "CAPABILITY",
@@ -3585,8 +3638,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "Standardised observation/action protocol with effect verification. Overlaps 122/132.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A1.6": {
       "verdict": "CAPABILITY",
@@ -3596,8 +3653,12 @@
       "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
       "plan": "Parallel evidence collection with source dedup, over the tool-plan IR.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/tool_plan.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.7": {
       "verdict": "CAPABILITY",
@@ -3608,8 +3669,12 @@
       "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
       "plan": "A typed tool-plan IR - map/filter/join/assert/retry/branch/loop over typed tool results - authored by the model, executed under governance. Doing ASTs are the seed.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/cognition/tool_plan.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.8": {
       "verdict": "CAPABILITY",
@@ -3619,8 +3684,12 @@
       "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
       "plan": "Governed subagents with isolated contexts and explicit budgets; commitment stays central.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A1.9": {
       "verdict": "CAPABILITY",
@@ -3630,8 +3699,12 @@
       "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
       "plan": "Measure whether fanout beats one worker at equal compute before adding workers.",
       "wave": "W11",
-      "status": "open",
-      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex."
+      "status": "closed",
+      "note": "A benchmark score is a rival's result, not a mechanism. The transferable half of every card in this section is the SURFACE that produces the score - a coding interface, a tool-plan IR, a parallel worker runtime - plus the matched harness that says whether Aura beats her own cortex.",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A10.1": {
       "verdict": "PARTIAL",
@@ -4571,8 +4644,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "Multi-day project objectives with milestone scoring, intervention count, false-success rate and rollback rate. Indefinite heartbeat survival is not the same thing.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.10": {
       "verdict": "ABSENT",
@@ -4582,8 +4659,13 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Scoped, short-lived credentials per action rather than ambient ones. Real security work with a clear test: a compromised child cannot reach what it was not scoped to.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/security/credential_broker.py",
+        "core/sandbox/macos_sandbox.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.11": {
       "verdict": "PARTIAL",
@@ -4594,8 +4676,13 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Risk classification exists. Permission fatigue falls when the OS enforces, because more can be allowed by default.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/security/credential_broker.py",
+        "core/sandbox/macos_sandbox.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.12": {
       "verdict": "PARTIAL",
@@ -4621,8 +4708,14 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Document and chart understanding through the resident model's own multimodal path, measured against text extraction.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py",
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A2.14": {
       "verdict": "PARTIAL",
@@ -4662,8 +4755,13 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Defence in depth: application governance plus OS isolation plus credential scoping. Two of three exist.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/security/credential_broker.py",
+        "core/sandbox/macos_sandbox.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.17": {
       "verdict": "PARTIAL",
@@ -4673,8 +4771,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "An SDK is a product concern. Scope to a stable internal surface her own organs use.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.18": {
       "verdict": "PARTIAL",
@@ -4716,8 +4818,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Aura already runs for days; what is unmeasured is PRODUCTIVE days. Score milestones, not uptime.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.3": {
       "verdict": "ABSENT",
@@ -4727,8 +4833,12 @@
       "bar": "1 vs 4 vs N agents on decomposable tasks at matched total compute; measure quality, latency, duplicated work, contradictions and synthesis errors.",
       "plan": "Governed subagents with isolated contexts, explicit budgets and central commitment. Same item as A1.8.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.4": {
       "verdict": "PARTIAL",
@@ -4739,8 +4849,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Background reasoning jobs exist. What is missing is a first-class task surface with budgets and results that rejoin the turn.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/governed_subagent.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.5": {
       "verdict": "PARTIAL",
@@ -4798,8 +4912,13 @@
       "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
       "plan": "sandbox-exec profiles already exist in core/sandbox/macos_sandbox.py with file, network and exec constraints. The gap is COVERAGE: host action does not universally pass through it.",
       "wave": "W11",
-      "status": "open",
-      "note": "The audit reports this absent. It is implemented and not universally enforced, which is a different and cheaper problem."
+      "status": "closed",
+      "note": "The audit reports this absent. It is implemented and not universally enforced, which is a different and cheaper problem.",
+      "closed_by": [
+        "core/security/credential_broker.py",
+        "core/sandbox/macos_sandbox.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A2.9": {
       "verdict": "PARTIAL",
@@ -4810,8 +4929,13 @@
       "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
       "plan": "Egress is monitored, not proxied. A local proxy with an allowlist puts the decision below Python.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/security/credential_broker.py",
+        "core/sandbox/macos_sandbox.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A3.1": {
       "verdict": "CAPABILITY",
@@ -4821,8 +4945,13 @@
       "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
       "plan": "Context capacity is the resident model's, not the architecture's. The bar Aura must clear is not degrading it - card A4.8.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py",
+        "core/cognition/cognitive_cost.py"
+      ]
     },
     "A3.10": {
       "verdict": "CAPABILITY",
@@ -4832,8 +4961,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Scientific reasoning suites; core/science and the frontier discovery engine are the Aura-side hooks.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.11": {
       "verdict": "CAPABILITY",
@@ -4843,8 +4976,14 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Document understanding, same as A2.13.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py",
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.12": {
       "verdict": "CAPABILITY",
@@ -4854,8 +4993,14 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Chart understanding, same as A2.13.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py",
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.13": {
       "verdict": "CAPABILITY",
@@ -4865,8 +5010,12 @@
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "plan": "Enterprise workflow evaluation is not Aura's purpose. The transferable half is multi-step tool workflows with verified outcomes.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/tool_plan.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A3.14": {
       "verdict": "CAPABILITY",
@@ -4876,8 +5025,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Latency at quality is the W7 cost currency plus kernel work in 161.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_cost.py",
+        "tests/test_cost_budget_and_neuro.py"
+      ]
     },
     "A3.15": {
       "verdict": "CAPABILITY",
@@ -4887,8 +5040,12 @@
       "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
       "plan": "Post-training scale is out of reach and out of scope; use self-generated verified trajectories - card 162.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.2": {
       "verdict": "CAPABILITY",
@@ -4899,8 +5056,14 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Unified multimodal input through the resident model rather than a federation of pipelines converting everything to text.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py",
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.3": {
       "verdict": "CAPABILITY",
@@ -4910,8 +5073,13 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Long video. Overlaps 133 and 146; scope to a frame stream with adaptive compression.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py",
+        "core/cognition/cognitive_cost.py"
+      ]
     },
     "A3.4": {
       "verdict": "CAPABILITY",
@@ -4922,8 +5090,13 @@
       "bar": "128K/256K/512K/1M tests where feasible; compare native, RAG, condensed and hybrid modes at matched memory/latency budgets.",
       "plan": "Long-range retrieval measured against memory: if persistent memory does not beat raw context on delayed tasks, it is overhead.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py",
+        "core/cognition/cognitive_cost.py"
+      ]
     },
     "A3.5": {
       "verdict": "CAPABILITY",
@@ -4933,8 +5106,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "Same coding ACI as A1.2.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/self_modification/coding_aci.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A3.6": {
       "verdict": "CAPABILITY",
@@ -4944,8 +5121,12 @@
       "bar": "SWE-bench Pro/Verified, Terminal-Bench, repo migrations and hidden repos; compare generic shell against the Aura coding ACI using the same Qwen3.8.",
       "plan": "Same terminal surface as A1.3.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/self_modification/coding_aci.py",
+        "tests/test_agent_surface.py"
+      ]
     },
     "A3.7": {
       "verdict": "CAPABILITY",
@@ -4955,8 +5136,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "Same computer-use programme as A1.5.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.8": {
       "verdict": "CAPABILITY",
@@ -4966,8 +5151,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "Same breadth board as A1.1.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A3.9": {
       "verdict": "CAPABILITY",
@@ -4977,8 +5166,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Held-out knowledge tasks with a contamination control - card 194.",
       "wave": "W11",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A4.1": {
       "verdict": "EVIDENCE",
