@@ -13,15 +13,18 @@ from core.learning.semantic_program_campaign import (
     run_semantic_program_campaign,
 )
 from core.learning.semantic_program_feature_materialization import (
+    CHAIN_CORPUS_KIND,
+    FORK_JOIN_CORPUS_KIND,
+    FORK_JOIN_FACTORIAL_CORPUS_KIND,
+    FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    SEQUENCE_CHAIN_CORPUS_KIND,
     LoadedSemanticFeatureBundle,
 )
 from core.learning.semantic_program_transducer import (
     semantic_program_transducer_from_dict,
 )
 
-SEMANTIC_PROGRAM_VERIFICATION_SCHEMA: Final = (
-    "aura.semantic_program_campaign_verification.v1"
-)
+SEMANTIC_PROGRAM_VERIFICATION_SCHEMA: Final = "aura.semantic_program_campaign_verification.v1"
 SEMANTIC_PROGRAM_VERIFICATION_SOURCES: Final = (
     "core/brain/llm/hidden_sequence_contract.py",
     "core/learning/procedure_induction.py",
@@ -62,6 +65,32 @@ _CONTROLS: Final = (
     "coefficient_lesion",
     "label_permutation",
 )
+_ARITHMETIC_CORPUS_KINDS: Final = frozenset(
+    {
+        CHAIN_CORPUS_KIND,
+        FORK_JOIN_CORPUS_KIND,
+        FORK_JOIN_FACTORIAL_CORPUS_KIND,
+        FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    }
+)
+
+
+def semantic_program_claim_boundary(corpus_kind: str) -> str:
+    """Name the measured family without widening its evidence authority."""
+
+    if corpus_kind in _ARITHMETIC_CORPUS_KINDS:
+        family = "construction-held-out synthetic arithmetic language"
+    elif corpus_kind == SEQUENCE_CHAIN_CORPUS_KIND:
+        family = (
+            "construction-held-out synthetic typed sequence transformation "
+            "and scalar aggregation language"
+        )
+    else:
+        raise ValueError("semantic verification corpus family is unsupported")
+    return (
+        "bounded resident-27B semantic program acquisition and exact answer "
+        f"execution on {family}; not broad-domain or frontier reasoning evidence"
+    )
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -83,8 +112,7 @@ def _one_sided_exact_p(*, treatment_only: int, control_only: int) -> float:
     if discordant == 0:
         return 1.0
     return sum(
-        math.comb(discordant, successes)
-        for successes in range(treatment_only, discordant + 1)
+        math.comb(discordant, successes) for successes in range(treatment_only, discordant + 1)
     ) / (2**discordant)
 
 
@@ -124,14 +152,8 @@ def recount_semantic_pair(
 
     if metric not in {"program_exact", "answer_exact"}:
         raise ValueError("semantic verification paired metric is unsupported")
-    treatment = {
-        str(row["source_text_sha256"]): row.get(metric) is True
-        for row in treatment_rows
-    }
-    control = {
-        str(row["source_text_sha256"]): row.get(metric) is True
-        for row in control_rows
-    }
+    treatment = {str(row["source_text_sha256"]): row.get(metric) is True for row in treatment_rows}
+    control = {str(row["source_text_sha256"]): row.get(metric) is True for row in control_rows}
     if treatment.keys() != control.keys():
         raise ValueError("semantic verification paired tasks differ")
     treatment_only = sum(treatment[key] and not control[key] for key in treatment)
@@ -170,9 +192,7 @@ def verify_semantic_program_campaign(
         raise ValueError("semantic verification source identity is invalid")
     if not isinstance(stored_report, dict):
         raise ValueError("semantic verification report is invalid")
-    report_body = {
-        key: value for key, value in stored_report.items() if key != "report_sha256"
-    }
+    report_body = {key: value for key, value in stored_report.items() if key != "report_sha256"}
     if (
         stored_report.get("schema") != SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA
         or stored_report.get("report_sha256") != _sha(report_body)
@@ -187,8 +207,7 @@ def verify_semantic_program_campaign(
         raise ValueError("semantic verification replay differs from stored report")
 
     recounted_arms = {
-        name: recount_semantic_arm(arm)
-        for name, arm in sorted(stored_report["arms"].items())
+        name: recount_semantic_arm(arm) for name, arm in sorted(stored_report["arms"].items())
     }
     paired_programs: dict[str, dict[str, Any]] = {}
     paired_answers: dict[str, dict[str, Any]] = {}
@@ -207,23 +226,19 @@ def verify_semantic_program_campaign(
                 control_rows,
                 metric="answer_exact",
             )
-    if (
-        paired_programs != stored_report.get("paired_program_controls")
-        or paired_answers != stored_report.get("paired_answer_controls")
-    ):
+    if paired_programs != stored_report.get(
+        "paired_program_controls"
+    ) or paired_answers != stored_report.get("paired_answer_controls"):
         raise ValueError("semantic verification paired scores differ")
 
     held_out_programs = sum(
-        recounted_arms[f"treatment:{split}"]["program_exact"]
-        for split in ("validation", "test")
+        recounted_arms[f"treatment:{split}"]["program_exact"] for split in ("validation", "test")
     )
     held_out_answers = sum(
-        recounted_arms[f"treatment:{split}"]["answer_exact"]
-        for split in ("validation", "test")
+        recounted_arms[f"treatment:{split}"]["answer_exact"] for split in ("validation", "test")
     )
     held_out_total = sum(
-        recounted_arms[f"treatment:{split}"]["total"]
-        for split in ("validation", "test")
+        recounted_arms[f"treatment:{split}"]["total"] for split in ("validation", "test")
     )
     if (
         held_out_programs != stored_report.get("held_out_treatment_program_exact")
@@ -258,10 +273,8 @@ def verify_semantic_program_campaign(
         "paired_answer_controls": paired_answers,
         "expected_answers_available_to_training": False,
         "serving_authority": False,
-        "claim_boundary": (
-            "bounded resident-27B semantic program acquisition and exact answer "
-            "execution on construction-held-out synthetic arithmetic language; "
-            "not broad-domain or frontier reasoning evidence"
+        "claim_boundary": semantic_program_claim_boundary(
+            str(bundle.manifest.get("config", {}).get("corpus_kind", CHAIN_CORPUS_KIND))
         ),
     }
     return {**body, "verification_sha256": _sha(body)}
@@ -272,5 +285,6 @@ __all__ = [
     "SEMANTIC_PROGRAM_VERIFICATION_SOURCES",
     "recount_semantic_arm",
     "recount_semantic_pair",
+    "semantic_program_claim_boundary",
     "verify_semantic_program_campaign",
 ]

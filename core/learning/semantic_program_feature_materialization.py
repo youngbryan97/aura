@@ -39,7 +39,10 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_sequence_corpus,
     project_example_to_ir,
 )
-from core.learning.semantic_program_ir import semantic_program_ir_from_dict
+from core.learning.semantic_program_ir import (
+    semantic_program_ir_from_dict,
+    semantic_value_to_json,
+)
 from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.file_write_gateway import FileWriteGateway, get_file_write_gateway
 
@@ -313,7 +316,7 @@ def _example_public_identity(example: SemanticProgramExample) -> dict[str, Any]:
         "topology_id": example.topology_id,
         "split": example.split,
         "source_text_sha256": hashlib.sha256(example.source_text.encode("utf-8")).hexdigest(),
-        "inputs": list(example.inputs),
+        "inputs": [semantic_value_to_json(value) for value in example.inputs],
         "program": {
             "n_inputs": example.program.n_inputs,
             "instructions": [
@@ -1155,6 +1158,20 @@ async def materialize_semantic_program_features(
         )
         if bundle.manifest["config_sha256"] != config_sha256:
             raise SemanticFeatureMaterializationError("existing bundle config differs")
+        complete_status = _status_payload(
+            complete=True,
+            reason="already_complete",
+            completed=len(bundle.examples),
+            total=len(selected),
+            config_sha256=config_sha256,
+            corpus_sha256=corpus_sha256,
+        )
+        await _write_bytes(
+            writer,
+            root / _STATUS_NAME,
+            complete_status,
+            source="semantic_program_features.recovered_complete_status",
+        )
         return MaterializationResult(
             complete=True,
             completed_examples=len(bundle.examples),
@@ -1261,7 +1278,7 @@ async def materialize_semantic_program_features(
             "construction_id": example.construction_id,
             "topology_id": example.topology_id,
             "contrast_id": example.contrast_id,
-            "inputs": list(example.inputs),
+            "inputs": [semantic_value_to_json(value) for value in example.inputs],
             "source_text_sha256": hashlib.sha256(example.source_text.encode("utf-8")).hexdigest(),
             "corpus_sha256": corpus_sha256,
             "config_sha256": config_sha256,

@@ -332,6 +332,59 @@ def test_sequence_family_reconstructs_from_declared_config() -> None:
     } == {"train": 180, "validation": 180, "test": 180}
 
 
+def test_sequence_feature_bundle_round_trips_nested_exact_values(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "model"
+    checkpoint.mkdir()
+    output = tmp_path / "sequence-features"
+    config = SemanticFeatureConfig(
+        seed=1414213,
+        examples_per_operation_pair=1,
+        max_examples=270,
+        corpus_kind=SEQUENCE_CHAIN_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+    corpus = build_semantic_program_corpus_for_config(config)
+    client = _FeatureClient(checkpoint)
+
+    result = asyncio.run(
+        materialize_semantic_program_features(
+            client=client,
+            tokenizer=_CharacterTokenizer(),
+            checkpoint=checkpoint,
+            output_directory=output,
+            corpus=corpus,
+            config=config,
+            lane_ownership_receipt=_lane_receipt(checkpoint),
+            tokenizer_identity=_tokenizer_identity(checkpoint),
+        )
+    )
+    bundle = load_standard_semantic_feature_bundle(output)
+
+    assert result.complete
+    assert len(bundle.examples) == 270
+    assert all(isinstance(item.metadata["inputs"][0], list) for item in bundle.examples)
+
+    calls_before_resume = client.calls
+    resumed = asyncio.run(
+        materialize_semantic_program_features(
+            client=client,
+            tokenizer=_CharacterTokenizer(),
+            checkpoint=checkpoint,
+            output_directory=output,
+            corpus=corpus,
+            config=config,
+            lane_ownership_receipt=_lane_receipt(checkpoint),
+            tokenizer_identity=_tokenizer_identity(checkpoint),
+        )
+    )
+    status = json.loads((output / "status.json").read_text(encoding="ascii"))
+
+    assert resumed.reason == "already_complete"
+    assert client.calls == calls_before_resume
+    assert status["complete"] is True
+    assert status["reason"] == "already_complete"
+
+
 def test_bundle_rejects_record_tampering(tmp_path: Path) -> None:
     checkpoint = tmp_path / "model"
     checkpoint.mkdir()

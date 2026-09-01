@@ -5,6 +5,7 @@ import pytest
 from core.learning.semantic_program_verification import (
     recount_semantic_arm,
     recount_semantic_pair,
+    semantic_program_claim_boundary,
 )
 
 
@@ -58,16 +59,22 @@ def test_recount_pair_keeps_program_and_answer_outcomes_separate() -> None:
         _row("b", program=True, answer=True),
     ]
 
-    assert recount_semantic_pair(
-        treatment,
-        control,
-        metric="program_exact",
-    )["control_only"] == 1
-    assert recount_semantic_pair(
-        treatment,
-        control,
-        metric="answer_exact",
-    )["treatment_only"] == 1
+    assert (
+        recount_semantic_pair(
+            treatment,
+            control,
+            metric="program_exact",
+        )["control_only"]
+        == 1
+    )
+    assert (
+        recount_semantic_pair(
+            treatment,
+            control,
+            metric="answer_exact",
+        )["treatment_only"]
+        == 1
+    )
 
 
 def test_recount_rejects_duplicate_task_identity() -> None:
@@ -93,3 +100,14 @@ def test_recount_rejects_duplicate_task_identity() -> None:
 
     with pytest.raises(ValueError, match="identity"):
         recount_semantic_arm(arm)
+
+
+def test_claim_boundary_tracks_the_declared_semantic_family() -> None:
+    arithmetic = semantic_program_claim_boundary("fork_join_4x3_factorial16")
+    sequence = semantic_program_claim_boundary("sequence_chain_1x2_factorial")
+
+    assert "synthetic arithmetic language" in arithmetic
+    assert "typed sequence transformation" in sequence
+    assert "not broad-domain" in sequence
+    with pytest.raises(ValueError, match="unsupported"):
+        semantic_program_claim_boundary("undeclared-family")
