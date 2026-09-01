@@ -38,6 +38,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 __all__ = [
     "WhatItBought",
     "WhatItPaidFor",
@@ -118,11 +120,20 @@ def the_shortest_way_to_say(
     finding something inside a budget is not the same as its not being there,
     and only one of those is a fact about the language.
     """
-    from core.cognition.one_algebra import Made, every_term, holes_in
-    from core.cognition.one_algebra import _choose  # noqa: PLC2701 - one algebra
+    from core.cognition.one_algebra import (
+        Made,
+        _choose,  # noqa: PLC2701 - one algebra
+        every_term,
+        holes_in,
+    )
 
     names = sorted(words)
     began = time.monotonic()
+    # ``says_it`` is the caller's, and a candidate that raises is not a
+    # candidate. Counted rather than swallowed: a predicate that raises on
+    # every term returns "no term says it", which is the same answer as a
+    # language that genuinely cannot say it. Only the count separates them.
+    refused = 0
     deepest = max(1, (int(up_to) - 1) // 2)
     for term in every_term(tuple(constants), holes=max(1, holes), deepest=deepest):
         if term.how_long() > up_to:
@@ -134,8 +145,8 @@ def the_shortest_way_to_say(
             try:
                 if says_it(Made(term=term, words=())):
                     return term.how_long(), term.name, True
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - the caller's predicate, counted below
+                refused += 1
             continue
         if needs > holes:
             continue
@@ -147,8 +158,15 @@ def the_shortest_way_to_say(
                         f"{term.name} [{', '.join(chosen)}]",
                         True,
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001 - the caller's predicate, counted below
+                refused += 1
                 continue
+    if refused:
+        record_degradation(
+            "what_an_invention_buys",
+            RuntimeError(f"the predicate raised on {refused} candidate terms"),
+            action="treated each as a term that does not say it",
+        )
     return None, "", True
 
 

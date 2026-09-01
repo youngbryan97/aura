@@ -3344,28 +3344,14 @@ def _public_transition_compiler_contract_holds() -> bool:
 
 
 def _semantic_neural_composition_certificate_holds() -> bool:
-    import hashlib
-    import json
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    artifact_root = (
-        root
-        / "artifacts/closeout/latent_cortex/typed_composition_canary_20260831"
+    bundle = _canary_artifact_bundle(
+        "artifacts/closeout/latent_cortex/typed_composition_canary_20260831",
+        "tools/verify_semantic_neural_composition_canary.py",
     )
-    try:
-        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
-        verification = json.loads(
-            (artifact_root / "verification.json").read_text(encoding="utf-8")
-        )
-        source_hashes = result["source_sha256s"]
-        current_hashes = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_hashes
-        }
-        verifier_path = root / "tools/verify_semantic_neural_composition_canary.py"
-        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    if bundle is None:
         return False
+    result, verification, current_hashes, verifier_sha, artifact_root = bundle
+    source_hashes = result["source_sha256s"]
 
     expected_counts = {
         "treatment_exact": 96,
@@ -3407,28 +3393,17 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     import hashlib
     import json
 
-    root = pathlib.Path(__file__).resolve().parents[2]
-    artifact_root = (
-        root
-        / "artifacts/closeout/latent_cortex/"
-        "typed_composition_decode_canary_20260831"
+    bundle = _canary_artifact_bundle(
+        "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260831",
+        "tools/verify_semantic_neural_composition_decode_canary.py",
     )
+    if bundle is None:
+        return False
+    result, verification, current_hashes, verifier_sha, artifact_root = bundle
+    source_hashes = result["source_sha256s"]
     try:
-        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
-        verification = json.loads(
-            (artifact_root / "verification.json").read_text(encoding="utf-8")
-        )
         journal_path = artifact_root / "result.json.journal.jsonl"
         journal_sha = hashlib.sha256(journal_path.read_bytes()).hexdigest()
-        source_hashes = result["source_sha256s"]
-        current_hashes = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_hashes
-        }
-        verifier_path = (
-            root / "tools/verify_semantic_neural_composition_decode_canary.py"
-        )
-        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return False
 
@@ -3481,29 +3456,14 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
 
 
 def _induced_neural_procedure_certificate_holds() -> bool:
-    import hashlib
-    import json
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    artifact_root = (
-        root
-        / "artifacts/closeout/latent_cortex/"
-        "induced_neural_procedure_canary_20260831"
+    bundle = _canary_artifact_bundle(
+        "artifacts/closeout/latent_cortex/induced_neural_procedure_canary_20260831",
+        "tools/verify_induced_neural_procedure_canary.py",
     )
-    try:
-        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
-        verification = json.loads(
-            (artifact_root / "verification.json").read_text(encoding="utf-8")
-        )
-        source_hashes = result["source_sha256s"]
-        current_hashes = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_hashes
-        }
-        verifier_path = root / "tools/verify_induced_neural_procedure_canary.py"
-        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    if bundle is None:
         return False
+    result, verification, current_hashes, verifier_sha, artifact_root = bundle
+    source_hashes = result["source_sha256s"]
 
     expected_counts = {
         "treatment_exact": 96,
@@ -3556,24 +3516,15 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     import hashlib
     import json
 
-    root = pathlib.Path(__file__).resolve().parents[2]
-    artifact_root = (
-        root
-        / "artifacts/closeout/latent_cortex/"
-        "induced_neural_procedure_decode_canary_20260831"
+    bundle = _canary_artifact_bundle(
+        "artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260831",
+        "tools/verify_induced_neural_procedure_decode_canary.py",
     )
+    if bundle is None:
+        return False
+    result, verification, current_hashes, verifier_sha, artifact_root = bundle
+    source_hashes = result["source_sha256s"]
     try:
-        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
-        verification = json.loads(
-            (artifact_root / "verification.json").read_text(encoding="utf-8")
-        )
-        source_hashes = result["source_sha256s"]
-        current_hashes = {
-            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in source_hashes
-        }
-        verifier_path = root / "tools/verify_induced_neural_procedure_decode_canary.py"
-        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
         manifest_path = pathlib.Path(result["resident_manifest_identity"]["path"])
         manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
@@ -3640,30 +3591,15 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
 
 
 def _semantic_program_27b_certificate_holds() -> bool:
-    import hashlib
-    import json
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    certificate_path = (
-        root
-        / "docs/evidence/semantic_program_27b_reverification_2026-09-01.json"
+    loaded = _sealed_certificate(
+        "docs/evidence/semantic_program_27b_reverification_2026-09-01.json"
     )
+    if loaded is None:
+        return False
+    certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
-        certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
         source_sha256s = certificate["source_sha256s"]
-        body = {
-            key: value
-            for key, value in certificate.items()
-            if key != "verification_sha256"
-        }
-        canonical = json.dumps(
-            body,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-            allow_nan=False,
-        ).encode("ascii")
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, TypeError):
         return False
 
     expected_boundary = (
@@ -3708,37 +3644,20 @@ def _semantic_program_27b_certificate_holds() -> bool:
             certificate_path,
             source_sha256s,
         )
-        and certificate.get("verification_sha256")
-        == hashlib.sha256(canonical).hexdigest()
+        and certificate.get("verification_sha256") == expected_verification_sha256
     )
 
 
 def _semantic_program_27b_replication_certificate_holds() -> bool:
-    import hashlib
-    import json
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    certificate_path = (
-        root
-        / "docs/evidence/"
-        "semantic_program_27b_frozen_replication_2026-09-01.json"
+    loaded = _sealed_certificate(
+        "docs/evidence/semantic_program_27b_frozen_replication_2026-09-01.json"
     )
+    if loaded is None:
+        return False
+    certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
-        certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
         source_sha256s = certificate["source_sha256s"]
-        body = {
-            key: value
-            for key, value in certificate.items()
-            if key != "verification_sha256"
-        }
-        canonical = json.dumps(
-            body,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-            allow_nan=False,
-        ).encode("ascii")
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, TypeError):
         return False
 
     compatibility = certificate.get("representation_compatibility")
@@ -3771,9 +3690,74 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
             certificate_path,
             source_sha256s,
         )
-        and certificate.get("verification_sha256")
-        == hashlib.sha256(canonical).hexdigest()
+        and certificate.get("verification_sha256") == expected_verification_sha256
     )
+
+
+def _canary_artifact_bundle(
+    relative_artifact_root: str, verifier_relative: str
+) -> tuple[dict, dict, dict, str, pathlib.Path] | None:
+    """Load one closeout canary's result, verification, and identity hashes.
+
+    Every canary predicate opened the same five things in the same order and
+    caught the same five exceptions. Written once, a sixth canary is its own
+    assertions instead of a copy of the preamble that came before it.
+
+    Returns ``(result, verification, current_source_hashes, verifier_sha,
+    artifact_root)``, or None when anything is missing or malformed.
+    """
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    artifact_root = root / relative_artifact_root
+    try:
+        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
+        verification = json.loads(
+            (artifact_root / "verification.json").read_text(encoding="utf-8")
+        )
+        current_hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in result["source_sha256s"]
+        }
+        verifier_sha = hashlib.sha256(
+            (root / verifier_relative).read_bytes()
+        ).hexdigest()
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return result, verification, current_hashes, verifier_sha, artifact_root
+
+
+def _sealed_certificate(relative_path: str) -> tuple[dict, str, pathlib.Path, pathlib.Path] | None:
+    """Load a docs/evidence certificate and the digest its body must match.
+
+    Returns ``(certificate, expected_verification_sha256, certificate_path,
+    root)``, or None when the file is missing or will not canonicalise. The
+    caller compares the digest, because a helper that both computes and accepts
+    it is not a check.
+    """
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    certificate_path = root / relative_path
+    try:
+        certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+        body = {
+            key: value
+            for key, value in certificate.items()
+            if key != "verification_sha256"
+        }
+        canonical = json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return certificate, hashlib.sha256(canonical).hexdigest(), certificate_path, root
 
 
 def _historical_semantic_sources_hold(

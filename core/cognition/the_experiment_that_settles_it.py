@@ -98,7 +98,7 @@ class Experiment:
 def _readable(answer: Any) -> str:
     try:
         return str(list(answer)) if isinstance(answer, tuple) else str(answer)
-    except Exception:  # pragma: no cover - str of a hostile object
+    except Exception:  # noqa: BLE001 - last-resort floor: str() of a hostile object
         return repr(answer)
 
 
@@ -114,25 +114,38 @@ def _how_likely_before_any_of_it(
     the honest weight is the same as its neighbours'.
     """
     weights: dict[str, float] = {}
-    for name, one in hypotheses.items():
-        if plausibility is not None:
+    if plausibility is not None:
+        for name, one in hypotheses.items():
             weights[name] = max(0.0, float(plausibility(name, one)))
-            continue
-        weights[name] = 2.0 ** -_how_long(one)
+    else:
+        lengths = {name: _how_long(one) for name, one in hypotheses.items()}
+        measured = [n for n in lengths.values() if n is not None]
+        # An account that will not say how long it is weighs like its
+        # neighbours. Reading it as length zero made it the LIKELIEST account
+        # in the set, because every account that DID answer is at least one
+        # symbol long and so weighs at most a half.
+        typical = sum(measured) / len(measured) if measured else 1.0
+        for name, length in lengths.items():
+            weights[name] = 2.0 ** -(typical if length is None else length)
     total = sum(weights.values())
     if total <= 0:
         return {name: 1.0 / len(hypotheses) for name in hypotheses}
     return {name: weight / total for name, weight in weights.items()}
 
 
-def _how_long(one: Any) -> int:
+def _how_long(one: Any) -> int | None:
+    """How many symbols the account takes, or None when it will not say.
+
+    None and zero are different answers and the caller weighs them
+    differently, so this must not collapse one into the other.
+    """
     from core.cognition.what_it_costs_to_say import how_long_it_is
 
     try:
         length = int(how_long_it_is(one))
-    except Exception:
-        return 0
-    return length if length > 0 else 0
+    except Exception:  # noqa: BLE001 - accounts are hers and may be anything
+        return None
+    return max(0, length)
 
 
 def _doubt(weights: Mapping[str, float]) -> float:
@@ -158,7 +171,7 @@ def _what_each_expects(
     for name, one in hypotheses.items():
         try:
             answer = predicts(one, act)
-        except Exception:
+        except Exception:  # noqa: BLE001 - refusing to say IS an answer here
             answer = SILENT
         said[name] = SILENT if answer is None else answer
     return said
@@ -328,7 +341,7 @@ def what_these_acts_cannot_separate(
         for act in acts:
             try:
                 answer = predicts(one, act)
-            except Exception:
+            except Exception:  # noqa: BLE001 - refusing to say IS an answer here
                 answer = SILENT
             marks.append(_key(SILENT if answer is None else answer))
         signatures.setdefault(tuple(marks), []).append(name)

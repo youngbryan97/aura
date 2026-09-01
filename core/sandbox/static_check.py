@@ -67,7 +67,11 @@ def _from_api(finding: ApiFinding) -> StaticFinding:
 
 def _does_not_parse(code: str) -> StaticFinding | None:
     try:
-        compile(code, "<the code>", "exec")
+        # noqa: S102 - reviewed: this is the parser, not an interpreter. compile()
+        # in "exec" mode builds a code object and nothing runs it; the object is
+        # discarded on the next line. Asking whether code parses without parsing
+        # it is not possible, and a static checker that cannot is not one.
+        compile(code, "<the code>", "exec")  # noqa: S102
     except SyntaxError as exc:
         return StaticFinding(
             line=int(exc.lineno or 0),

@@ -44,6 +44,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.cognition.keeping_the_language_small import what_a_word_is_worth
+from core.runtime.errors import record_degradation
 
 __all__ = [
     "AfterForgetting",
@@ -262,10 +263,15 @@ def _makers_that_make_the_same_things(
     from core.cognition.the_ruler_she_cannot_move import what_it_costs_to_be
 
     by_product: dict[tuple[Any, ...], list[tuple[int, str]]] = {}
+    # A maker that raises makes nothing, and a maker that makes nothing is
+    # kept. Counted rather than swallowed: if every maker raises, the grouping
+    # is empty for the same reason as a language with no makers at all.
+    broken: list[str] = []
     for name, maker in sorted(makers.items()):
         try:
             made = maker(dict(_the_language()))
-        except Exception:
+        except Exception:  # noqa: BLE001 - makers are hers, counted below
+            broken.append(name)
             continue
         marks = []
         costs = 0
@@ -278,6 +284,12 @@ def _makers_that_make_the_same_things(
         if not marks:
             continue
         by_product.setdefault(tuple(marks), []).append((costs, name))
+    if broken:
+        record_degradation(
+            "an_ecology_of_words",
+            RuntimeError(f"makers raised instead of making: {', '.join(broken)}"),
+            action="grouped the rest; a maker that raises is not retired for it",
+        )
     kept: dict[str, tuple[str, ...]] = {}
     for group in by_product.values():
         if len(group) < 2:

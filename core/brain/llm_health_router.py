@@ -599,8 +599,12 @@ async def _await_while_it_is_working(
                 await task
             except asyncio.CancelledError:
                 pass
-            except Exception as exc:
-                logger.warning("Endpoint cancellation cleanup failed: %s", exc)
+            except Exception as exc:  # noqa: BLE001 - recorded below, not swallowed
+                record_degradation(
+                    "llm_health_router",
+                    exc,
+                    action="abandoned the cancelled endpoint task",
+                )
 
 class _DeepLaneUnavailable(RuntimeError):
     """This host cannot admit the deep solver, so no lane is built for it."""

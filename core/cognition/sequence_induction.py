@@ -40,6 +40,7 @@ from core.cognition.primitive_invention import (
 )
 from core.cognition.relation_language import RelationLanguage
 from core.cognition.value_order import solve_ordering, solve_ordering_then_move
+from core.runtime.errors import record_degradation
 
 __all__ = ["SequenceQuestion", "answer_sequence_question", "read_sequence_question"]
 
@@ -279,8 +280,12 @@ def _the_one_thing_worth_asking_him(
             every_act_that_settles_a_sequence(of_length),
             predicts=says,
         )
-    except Exception:
-        logger.debug("choosing an example to ask for failed", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 - recorded below, not swallowed
+        record_degradation(
+            "sequence_induction",
+            exc,
+            action="asked for no example, so the reading stays undecided",
+        )
         return ""
     if best is None:
         return ""
