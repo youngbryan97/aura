@@ -256,14 +256,31 @@ class AuraEventBus:
         logger.warning(message, *args, exc)
 
     def is_alive(self) -> bool:
-        """Return true only when local event delivery is usable and not degraded."""
+        """Return true only when local event delivery is usable and not degraded.
+
+        The bus binds its loop lazily, on the first subscribe or publish. So a
+        bus nobody has used yet has ``_loop is None``, and requiring a bound
+        loop reported it DEAD — which the health checker treats as a critical
+        component that stopped answering, tainting a clean boot with "an organ
+        crashed and was restarted in-process" before anything had gone wrong.
+
+        An unused bus is not a wedged bus. What the question actually asks is
+        whether local delivery would work right now, so an unbound bus is alive
+        when there is a running loop for it to bind to.
+        """
         if self._redis_required and (self._remote_degraded or self._use_redis and self._redis is None):
             return False
-        return bool(
-            self._loop is not None
-            and self._loop.is_running()
-            and not self.degraded
-        )
+        if self.degraded:
+            return False
+        if self._loop is not None:
+            return bool(self._loop.is_running())
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No loop here to bind to and none bound already. Asked from a
+            # plain thread, this cannot be answered in the affirmative.
+            return False
+        return True
 
     async def diagnose(self):
         """Actively check and report health, attempting self-repair if needed."""

@@ -6,7 +6,7 @@
   },
   "Param diversity: token budget std": {
     "ok": "True",
-    "token_std": 38.4,
+    "token_std": 38.3,
     "token_range": "[619, 768]"
   },
   "Mood vector pairwise distance": {
@@ -18,15 +18,15 @@
   "Temperature tracks arousal": {
     "ok": true,
     "calm_temp": 0.543,
-    "excited_temp": 0.887,
-    "delta": 0.344
+    "excited_temp": 0.886,
+    "delta": 0.343
   },
   "State distance predicts param distance": {
     "ok": "True",
-    "pearson_r": 0.8874,
+    "pearson_r": 0.887,
     "p_value": 0.0,
     "mean_state_dist": 0.1992,
-    "mean_param_dist": 0.096
+    "mean_param_dist": 0.0957
   },
   "Receptor adaptation attenuates DA": {
     "ok": true,
@@ -36,22 +36,22 @@
   },
   "Valence->tokens correlation": {
     "ok": true,
-    "pearson_r": 0.9958,
+    "pearson_r": 0.9957,
     "p_value": 0.0
   },
   "STDP trajectory divergence": {
     "ok": true,
-    "divergence": 0.3914
+    "divergence": 0.3531
   },
   "FE scales with prediction error": {
     "ok": true,
-    "fe_low_pe": 0.2648,
-    "fe_high_pe": 0.282,
-    "urgency_low": 0.267
+    "fe_low_pe": 0.2646,
+    "fe_high_pe": 0.2816,
+    "urgency_low": 0.2665
   },
   "Action urgency scales with FE": {
     "ok": true,
-    "urgency_high_pe": 0.3191
+    "urgency_high_pe": 0.3185
   },
   "Critical depletion changes inference": {
     "ok": true,
@@ -75,20 +75,20 @@
   "Circumplex produces diverse narratives": {
     "ok": true,
     "distinct_narratives": 4,
-    "examples": "['Somatically calm and settled.', 'Somatically tense and overloaded.', 'Somatically tired and withdrawn.']"
+    "examples": "['Somatically alert and energized.', 'Somatically calm and settled.', 'Somatically tired and withdrawn.']"
   },
   "State reversal: positive -> more tokens": {
     "ok": "True",
     "pos_mean_tokens": 768.0,
-    "neg_mean_tokens": 633.0
+    "neg_mean_tokens": 634.0
   },
   "Extreme states diverge from human baseline": {
     "ok": "True",
-    "mean_param_divergence": 0.2845
+    "mean_param_divergence": 0.285
   },
   "Substrate idle drift (100 ticks)": {
     "ok": true,
-    "L2_drift": 6.0105
+    "L2_drift": 6.0033
   },
   "Homeostasis degradation changes context": {
     "ok": true,
@@ -97,8 +97,8 @@
   },
   "FE responds to prediction error": {
     "ok": true,
-    "fe_low": 0.263,
-    "fe_high": 0.272,
+    "fe_low": 0.2646,
+    "fe_high": 0.2748,
     "action_low": "rest",
     "action_high": "rest"
   },
@@ -137,7 +137,7 @@
   },
   "Shuffled W produces different trajectory": {
     "ok": true,
-    "divergence": 6.9799
+    "divergence": 6.85
   },
   "State transfer carries behavioral bias": {
     "ok": true,
@@ -154,7 +154,7 @@
   },
   "Zero W produces degenerate dynamics": {
     "ok": true,
-    "divergence_vs_real": 2.3389
+    "divergence_vs_real": 2.3354
   },
   "Full stack effective dimensionality": {
     "ok": true,
@@ -173,22 +173,22 @@
   "Quality space has categorical structure": {
     "ok": "True",
     "within_mean": 0.2274,
-    "between_mean": 0.3309,
-    "separation_ratio": 1.455
+    "between_mean": 0.3311,
+    "separation_ratio": 1.456
   },
   "Quality space is multi-dimensional": {
     "ok": "True",
-    "pc1_var": 0.8903,
+    "pc1_var": 0.8901,
     "pc2_var": 0.0894,
-    "pc3_var": 0.013
+    "pc3_var": 0.0131
   },
   "Perturbation complexity (intact system)": {
     "ok": true,
-    "complexity": 0.3245
+    "complexity": 0.3235
   },
   "Intact vs shuffled divergence": {
     "ok": true,
-    "final_state_divergence": 4.9853
+    "final_state_divergence": 4.9301
   },
   "Phi=0 removes GWT boost (anesthesia)": {
     "ok": true,
@@ -198,6 +198,6 @@
   "Will produces valid decisions": {
     "ok": true,
     "outcome": "proceed",
-    "receipt": "will_6888a003a84"
+    "receipt": "will_9923faf0d7f"
   }
 }

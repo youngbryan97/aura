@@ -24,7 +24,7 @@ from core.runtime.health_fragments import (
     EXPECTED_FRAGMENTS,
     collect_health_fragments,
     register_health_fragment,
-    reset_health_fragments_for_test,
+    health_fragments_reset,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,9 +33,14 @@ HEALTH_CONTRACT = ROOT / "core" / "runtime" / "health_contract.py"
 
 @pytest.fixture(autouse=True)
 def _clean_register():
-    reset_health_fragments_for_test()
-    yield
-    reset_health_fragments_for_test()
+    """An empty register for these tests, and everything back afterwards.
+
+    Clearing without restoring was permanent: registration happens at module
+    import, once per process, so every later test file found an empty register
+    and every expected fragment reported absent.
+    """
+    with health_fragments_reset():
+        yield
 
 
 def test_an_unpublished_fragment_is_reported_absent_not_omitted():
@@ -119,15 +124,49 @@ def test_external_reach_moved_out_of_the_foundation():
     assert "mcp_connectors" not in source
 
 
-def test_the_real_publishers_register_on_import():
-    import core.capabilities.mcp_connectors  # noqa: F401
-    import core.learning.sealed_artifact_admission  # noqa: F401
-    import core.memory.memory_inventory  # noqa: F401
+def test_every_real_publisher_can_re_register_itself():
+    """Import is not a re-runnable registration, and the modules know it.
+
+    A module is imported once per process, so after any reset an import-time
+    registration cannot be re-established - which is why memory_inventory
+    exposes a public register and MemoryFacade calls it on every refresh. This
+    checked the import instead, and passed only while it happened to run before
+    anything else had imported those modules.
+
+    What matters in production is that each publisher's entry point puts the
+    fragment back. That is what this runs.
+    """
+    from core.capabilities.mcp_connectors import _register_fragment as register_reach
+    from core.learning.sealed_artifact_admission import (
+        _register_fragment as register_sealed,
+    )
+    from core.memory.memory_inventory import register_memory_health_fragment
+
+    for register in (register_reach, register_sealed, register_memory_health_fragment):
+        register()
 
     fragments = collect_health_fragments()
-
     for name in ("external_reach", "memory_inventory", "sealed_artifacts"):
         assert fragments[name]["registered"] is True, name
+
+
+def test_the_cognitive_publishers_can_re_register_too():
+    from core.cognition.contract_health import install
+
+    assert install() == {"contracts": True, "growth": True}
+    fragments = collect_health_fragments()
+    for name in ("cognitive_contracts", "cognitive_growth"):
+        assert fragments[name]["registered"] is True, name
+
+
+def test_a_reset_is_reversible_so_it_does_not_outlive_the_test():
+    from core.memory.memory_inventory import register_memory_health_fragment
+
+    register_memory_health_fragment()
+    assert collect_health_fragments()["memory_inventory"]["registered"] is True
+    with health_fragments_reset():
+        assert collect_health_fragments()["memory_inventory"]["registered"] is False
+    assert collect_health_fragments()["memory_inventory"]["registered"] is True
 
 
 def test_the_facade_publishes_the_memory_fragment():

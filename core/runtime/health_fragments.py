@@ -21,8 +21,9 @@ exactly that shape.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
@@ -101,15 +102,50 @@ def collect_health_fragments() -> dict[str, dict[str, Any]]:
     return fragments
 
 
-def reset_health_fragments_for_test() -> None:
+def reset_health_fragments_for_test() -> dict[str, Callable[[], dict[str, Any]]]:
+    """Empty the register and RETURN what was in it.
+
+    Registration happens at module import, which happens once per process, so a
+    reset that only clears is permanent for the rest of the session: every test
+    file that runs afterwards finds an empty register and every expected
+    fragment reports absent. That is how a fragment test passed alone and failed
+    in a wide run.
+
+    Returning the previous providers is what makes the reset reversible. Pass
+    the result to :func:`restore_health_fragments_for_test`, or use
+    :func:`health_fragments_reset` which does both.
+    """
+    with _LOCK:
+        previous = dict(_PROVIDERS)
+        _PROVIDERS.clear()
+        return previous
+
+
+def restore_health_fragments_for_test(
+    providers: dict[str, Callable[[], dict[str, Any]]],
+) -> None:
+    """Put back what a reset took out."""
     with _LOCK:
         _PROVIDERS.clear()
+        _PROVIDERS.update(providers)
+
+
+@contextlib.contextmanager
+def health_fragments_reset() -> Iterator[None]:
+    """An empty register for the body, and everything back afterwards."""
+    saved = reset_health_fragments_for_test()
+    try:
+        yield
+    finally:
+        restore_health_fragments_for_test(saved)
 
 
 __all__ = [
     "EXPECTED_FRAGMENTS",
     "HEALTH_FRAGMENTS_SCHEMA",
     "collect_health_fragments",
+    "health_fragments_reset",
+    "restore_health_fragments_for_test",
     "register_health_fragment",
     "reset_health_fragments_for_test",
 ]

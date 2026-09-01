@@ -33,6 +33,17 @@ def booted_runtime():
     not a special one. No model is loaded.
     """
 
+    # Liveness has to be read INSIDE the loop the runtime booted on.
+    # ``asyncio.run`` closes that loop when it returns, and the event bus
+    # captured it: ``is_alive()`` checks ``loop.is_running()``, which is False
+    # for a closed loop however healthy the bus was. Reading the critical-ping
+    # count after the fixture therefore reported the event bus wedged on every
+    # run, in a suite whose whole purpose is to refuse vacuous passes.
+    #
+    # Counters — rounds run, locks known, groups registered — accumulate and
+    # survive the loop, so only the liveness reading is taken from inside.
+    readings: dict[str, int] = {}
+
     async def _boot():
         from core.runtime.foundations import activate_foundations
 
@@ -40,9 +51,10 @@ def booted_runtime():
         # The 5s group needs one full period to have completed a cycle; 6.5s
         # gives the 1Hz group six-plus and the 5s group one-plus.
         await asyncio.sleep(6.5)
+        readings["critical_unresponsive"] = mv._critical_unresponsive()
 
     asyncio.run(asyncio.wait_for(_boot(), timeout=90))
-    yield
+    yield readings
 
     try:
         from core.fsw.rate_groups import get_scheduler
@@ -105,7 +117,10 @@ class TestTheHealthCheckerActuallyPings:
         )
 
     def test_no_critical_component_is_wedged(self, booted_runtime):
-        assert mv._critical_unresponsive() == 0
+        assert booted_runtime["critical_unresponsive"] == 0, (
+            "a component the runtime declares critical stopped answering its ping "
+            "while the runtime was up"
+        )
 
 
 class TestLockdepSeesRealAcquisitions:
