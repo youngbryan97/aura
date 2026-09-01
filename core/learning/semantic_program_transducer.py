@@ -2,8 +2,10 @@
 
 This is a bounded neural transducer, not a phrase parser.  Linear pointer heads
 locate source spans; learned classifiers assign primitive and register meaning
-to those spans.  A deterministic decoder then proposes ``SemanticProgramIR``,
-whose validator remains the authority on type and causal structure.
+to those spans.  Exact span identity binds direct inputs and unambiguous prior
+result references before the classifier fallback.  A deterministic decoder then
+proposes ``SemanticProgramIR``, whose validator remains the authority on type
+and causal structure.
 
 The legacy contract covers three public inputs and two binary instructions.
 The current contract derives its input and step geometry from the training
@@ -116,6 +118,37 @@ def _hidden_array(value: Any, *, expected_width: int | None = None) -> np.ndarra
     if np.any(np.abs(norms - 1.0) > 1e-4):
         raise ValueError("semantic transducer hidden states must be unit normalized")
     return np.ascontiguousarray(array)
+
+
+def _resolve_prior_result_register(
+    *,
+    token_ids: Sequence[int],
+    reference_span: TokenSpan,
+    operation_spans: Sequence[TokenSpan],
+    current_step: int,
+    input_count: int,
+) -> int | None:
+    """Bind one later mention to a unique earlier result-definition window."""
+
+    if current_step < 1 or current_step >= len(operation_spans):
+        return None
+    tokens = tuple(int(token) for token in token_ids)
+    needle = tokens[reference_span.start : reference_span.end]
+    if not needle:
+        return None
+    candidate_steps: set[int] = set()
+    for prior_step in range(current_step):
+        lower = operation_spans[prior_step].end
+        upper = operation_spans[prior_step + 1].start
+        if lower >= upper or len(needle) > upper - lower:
+            continue
+        for start in range(lower, upper - len(needle) + 1):
+            if tokens[start : start + len(needle)] == needle:
+                candidate_steps.add(prior_step)
+                break
+    if len(candidate_steps) != 1:
+        return None
+    return input_count + candidate_steps.pop()
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +475,7 @@ class SemanticProgramTransducer:
         confidences: dict[str, float] = {}
         operations: list[str] = []
         arguments: list[tuple[int, int]] = []
+        operation_spans = tuple(spans[f"operation:{step}"] for step in range(self.step_count))
         for step in range(self.step_count):
             op_feature = _pool(hidden, spans[f"operation:{step}"])
             operation, confidence = self.operation_heads[step].predict(op_feature)
@@ -463,11 +497,25 @@ class SemanticProgramTransducer:
                         pointer_scores[f"input:{argument}"],
                     )
                 else:
-                    feature = _pool(hidden, span)
-                    label, confidence = self.argument_heads[step][position].predict(
-                        feature
+                    prior_result = _resolve_prior_result_register(
+                        token_ids=tokens,
+                        reference_span=span,
+                        operation_spans=operation_spans,
+                        current_step=step,
+                        input_count=self.input_count,
                     )
-                    argument = int(label)
+                    if prior_result is not None:
+                        argument = prior_result
+                        confidence = min(
+                            pointer_scores[role],
+                            pointer_scores[f"operation:{prior_result - self.input_count}"],
+                        )
+                    else:
+                        feature = _pool(hidden, span)
+                        label, confidence = self.argument_heads[step][position].predict(
+                            feature
+                        )
+                        argument = int(label)
                 step_args.append(argument)
                 confidences[role] = confidence
             arguments.append((step_args[0], step_args[1]))

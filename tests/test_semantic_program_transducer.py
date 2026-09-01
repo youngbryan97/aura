@@ -14,6 +14,7 @@ from core.learning.semantic_program_ir import (
 )
 from core.learning.semantic_program_transducer import (
     SemanticTransducerTrainingExample,
+    _resolve_prior_result_register,
     fit_semantic_program_transducer,
     semantic_program_transducer_from_dict,
 )
@@ -412,3 +413,38 @@ def test_direct_input_arguments_resolve_from_grounded_span_identity() -> None:
 
     assert outcome.ir is not None
     assert outcome.ir.instructions[0].args == (0, 1)
+
+
+def test_prior_result_reference_resolves_from_unique_causal_definition_window() -> None:
+    tokens = (10, 11, 700, 701, 20, 21, 800, 801, 30, 800, 801, 700, 701)
+    operation_spans = (TokenSpan(0, 1), TokenSpan(4, 5), TokenSpan(8, 9))
+
+    assert _resolve_prior_result_register(
+        token_ids=tokens,
+        reference_span=TokenSpan(9, 11),
+        operation_spans=operation_spans,
+        current_step=2,
+        input_count=4,
+    ) == 5
+    assert _resolve_prior_result_register(
+        token_ids=tokens,
+        reference_span=TokenSpan(11, 13),
+        operation_spans=operation_spans,
+        current_step=2,
+        input_count=4,
+    ) == 4
+
+
+def test_prior_result_reference_falls_back_when_antecedent_is_ambiguous() -> None:
+    tokens = (10, 700, 20, 700, 30, 700)
+
+    assert (
+        _resolve_prior_result_register(
+            token_ids=tokens,
+            reference_span=TokenSpan(5, 6),
+            operation_spans=(TokenSpan(0, 1), TokenSpan(2, 3), TokenSpan(4, 5)),
+            current_step=2,
+            input_count=4,
+        )
+        is None
+    )
