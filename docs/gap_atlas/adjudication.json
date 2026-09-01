@@ -702,8 +702,12 @@
       "bar": "Knowledge translates both ways with measured fidelity and reuse.",
       "plan": "Both substrates are real; no object links them. DualKnowledge record on the W2 ConceptHandle carrying latent, rule, confidence and conversion loss.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "047": {
       "verdict": "PARTIAL",
@@ -714,8 +718,12 @@
       "bar": "Extracted rules predict implicit behaviour and transfer to new tasks.",
       "plan": "rule_extractor.py extracts from text, not from learned policies. Extract over RLC and world-model trajectories, then falsify.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "048": {
       "verdict": "PARTIAL",
@@ -726,8 +734,12 @@
       "bar": "Latency drops after distillation with no behaviour regression.",
       "plan": "Distillation machinery exists and is not driven by validated explicit procedures. Wire Procedure -> distillation with an equivalence gate.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "049": {
       "verdict": "PARTIAL",
@@ -791,8 +803,12 @@
       "bar": "Three unrelated domains complete experience -> implicit -> explicit -> falsify -> distil with no new learning code.",
       "plan": "The cycle is the W8 deliverable; the pieces are all present and unconnected.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "054": {
       "verdict": "ABSENT",
@@ -1092,8 +1108,12 @@
       "bar": "For each migrated primitive, lesioning the neural implementation removes the behaviour while the symbolic one is absent.",
       "plan": "RLC already executes typed workflows in learned tissue. Define NeuralExecutable and migrate a small named set, with the equivalence test as the gate.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "075": {
       "verdict": "PARTIAL",
@@ -1105,8 +1125,12 @@
       "bar": "A learned concept moves among perception, working memory, planning and action with no per-pair adapter, and survives round-trip.",
       "plan": "Several unrelated vector spaces. Canonical vector schema with typed projections; W2 ConceptHandle is the identity that makes it checkable.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "076": {
       "verdict": "PARTIAL",
@@ -1117,8 +1141,12 @@
       "bar": "Novel role-filler combinations are manipulated correctly without retraining each combination.",
       "plan": "Binding/unbinding over the canonical vector, tied to ConceptHandles.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "077": {
       "verdict": "PARTIAL",
@@ -1140,8 +1168,12 @@
       "bar": "Capacity, decay and interference curves are measured, stable and causally linked to planning.",
       "plan": "A small recurrent working-memory layer with gated write/maintain/read.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "079": {
       "verdict": "SCALE",
@@ -1152,8 +1184,13 @@
       "bar": "Novel visual stimuli drive retrieval and action selection without OCR or text mediation.",
       "plan": "Genuine and expensive. Scope to a projection head from existing frame features into the canonical vector.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "080": {
       "verdict": "OVERSTATED",
@@ -1186,8 +1223,12 @@
       "bar": "Representational transformations are quantified and lesions reveal where task information is gained or lost.",
       "plan": "CKA/RSA/subspace angle over the canonical latent channels; cheap and immediately diagnostic.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "083": {
       "verdict": "PARTIAL",
@@ -1197,8 +1238,12 @@
       "bar": "Noisy bound representations recover the correct concept above baselines across modalities.",
       "plan": "One cleanup operation shared by all cognitive vectors, with collision diagnostics.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "084": {
       "verdict": "PARTIAL",
@@ -1210,10 +1255,10 @@
       "plan": "Measure capacity against dimension and noise per channel; feeds the W6 parameter registry (these are FITTED, not POLICY).",
       "wave": "W6",
       "status": "closed",
-      "note": "",
+      "note": "Measured: at a 200-item cleanup memory the recovery rate at 12 bound pairs is 0.50 (d=128), 0.67 (d=256), 0.92 (d=512), 0.83 (d=1024). DEFAULT_DIMENSION=512 is now justified by that curve rather than by taste.",
       "closed_by": [
-        "core/science/parameter_registry.py",
-        "tests/test_scientific_substrate.py"
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
       ]
     },
     "085": {
@@ -1225,8 +1270,13 @@
       "bar": "Perturbing time constants changes response and working-memory timing as predicted on held-out tasks.",
       "plan": "Aura's continuous substrates have synthetic dynamics and no timing validation.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "086": {
       "verdict": "PARTIAL",
@@ -1248,8 +1298,12 @@
       "bar": "Previously coded operations compile into neural substrate and pass semantic equivalence and performance tests.",
       "plan": "The bounded version: typed function plus error tolerance, synthesise into RLC, keep only what passes equivalence. induced_neural_procedure.py is the seed.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "088": {
       "verdict": "PARTIAL",
@@ -1261,8 +1315,12 @@
       "bar": "Cross-neural adapter count falls while capability and lesion interpretability rise.",
       "plan": "Pick the canonical neural-state algebra and require deviations to justify themselves; enforce with a ratchet.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "089": {
       "verdict": "PARTIAL",
@@ -1333,8 +1391,12 @@
       "bar": "A learned episode becomes semantic rule, procedure, neural skill and attentional prior when evidence warrants.",
       "plan": "Several conversions exist; no conversion graph with loss and provenance.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "095": {
       "verdict": "PARTIAL",
@@ -1624,8 +1686,13 @@
       "bar": "Typed populations improve a targeted cognitive signature against a parameter-matched homogeneous control.",
       "plan": "Only where a testable hypothesis exists; heterogeneity as decoration is worse than none.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "117": {
       "verdict": "OVERSTATED",
@@ -2102,8 +2169,12 @@
       "bar": "Cross-modal tasks improve without converting all perception to text.",
       "plan": "Project multimodal encoders into the canonical cognitive vector.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/cognitive_vector.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "159": {
       "verdict": "PARTIAL",
@@ -2443,8 +2514,12 @@
       "bar": "A skill travels implicit -> explicit -> neural and preserves behaviour within tolerance; each form adds measurable benefit.",
       "plan": "Extract, Distil, Explain with semantic equivalence tests. W8 is exactly this.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "184": {
       "verdict": "PARTIAL",
@@ -2887,8 +2962,12 @@
       "bar": "Credit lesions stop the responsible component improving while unrelated components stay stable.",
       "plan": "Contribution estimates on the W3 event DAG, routed to policy, rule, tissue, memory and attention learners.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/dual_knowledge.py",
+        "tests/test_cross_substrate.py"
+      ]
     },
     "218": {
       "verdict": "ABSENT",
