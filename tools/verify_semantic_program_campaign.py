@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -52,6 +53,7 @@ def main() -> int:
             select_bounded_semantic_examples,
         )
         from core.learning.semantic_program_verification import (
+            SEMANTIC_PROGRAM_VERIFICATION_SOURCES,
             verify_semantic_program_campaign,
         )
         from core.runtime.file_write_gateway import get_file_write_gateway
@@ -71,10 +73,16 @@ def main() -> int:
             args.campaign_report,
             max_bytes=16 * 1024 * 1024,
         )
+        repo_root = Path(__file__).resolve().parent.parent
+        source_sha256s = {
+            relative: hashlib.sha256((repo_root / relative).read_bytes()).hexdigest()
+            for relative in SEMANTIC_PROGRAM_VERIFICATION_SOURCES
+        }
         verification = verify_semantic_program_campaign(
             bundle,
             stored_model_payload=model_payload,
             stored_report=campaign_report,
+            source_sha256s=source_sha256s,
         )
         with local_internal_governed_scope(
             "semantic_program_campaign.verification",

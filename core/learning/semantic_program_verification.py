@@ -22,6 +22,14 @@ from core.learning.semantic_program_transducer import (
 SEMANTIC_PROGRAM_VERIFICATION_SCHEMA: Final = (
     "aura.semantic_program_campaign_verification.v1"
 )
+SEMANTIC_PROGRAM_VERIFICATION_SOURCES: Final = (
+    "core/learning/semantic_program_campaign.py",
+    "core/learning/semantic_program_evaluation.py",
+    "core/learning/semantic_program_execution.py",
+    "core/learning/semantic_program_transducer.py",
+    "core/learning/semantic_program_verification.py",
+    "tools/verify_semantic_program_campaign.py",
+)
 _ARMS: Final = {
     "treatment:train",
     "treatment:validation",
@@ -140,9 +148,21 @@ def verify_semantic_program_campaign(
     *,
     stored_model_payload: Any,
     stored_report: Any,
+    source_sha256s: Mapping[str, str],
 ) -> dict[str, Any]:
     """Replay a frozen campaign and independently reconstruct every score."""
 
+    if (
+        not isinstance(source_sha256s, Mapping)
+        or set(source_sha256s) != set(SEMANTIC_PROGRAM_VERIFICATION_SOURCES)
+        or any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for value in source_sha256s.values()
+        )
+    ):
+        raise ValueError("semantic verification source identity is invalid")
     if not isinstance(stored_report, dict):
         raise ValueError("semantic verification report is invalid")
     report_body = {
@@ -219,6 +239,7 @@ def verify_semantic_program_campaign(
         "campaign_report_sha256": stored_report["report_sha256"],
         "stored_model_sha256": _sha(stored_model_payload),
         "stored_report_sha256": _sha(stored_report),
+        "source_sha256s": dict(sorted(source_sha256s.items())),
         "raw_feature_records_reloaded": len(bundle.examples),
         "deterministic_refit_exact": True,
         "campaign_replay_exact": True,
@@ -243,6 +264,7 @@ def verify_semantic_program_campaign(
 
 __all__ = [
     "SEMANTIC_PROGRAM_VERIFICATION_SCHEMA",
+    "SEMANTIC_PROGRAM_VERIFICATION_SOURCES",
     "recount_semantic_arm",
     "recount_semantic_pair",
     "verify_semantic_program_campaign",
