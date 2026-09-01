@@ -323,9 +323,18 @@ def test_typed_transducer_learns_unary_sequence_programs() -> None:
     )
     replay = semantic_program_transducer_from_dict(model.to_dict())
 
-    assert model.schema == "aura.semantic_program_transducer.v3"
+    assert model.schema == "aura.semantic_program_transducer.v4"
     assert model.argument_arities == (1, 1)
     assert model.training_receipt["argument_arities"] == [1, 1]
+    assert model.training_receipt["classifier_sharing"] == (
+        "by_operation_support_and_argument_slot"
+    )
+    assert model.training_receipt["operation_support_by_step"] == [
+        sorted(_SEQUENCE_FIRST_OPS),
+        sorted(_SEQUENCE_SECOND_OPS),
+    ]
+    assert model.operation_heads[0].labels == tuple(sorted(_SEQUENCE_FIRST_OPS))
+    assert model.operation_heads[1].labels == tuple(sorted(_SEQUENCE_SECOND_OPS))
     assert outcome.accepted
     assert outcome.ir is not None
     assert outcome.ir.to_program() == held_out.ir.to_program()

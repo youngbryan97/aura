@@ -35,9 +35,13 @@ from core.learning.semantic_program_ir import (
 LEGACY_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
 SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v2"
 TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v3"
+SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v4"
 LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v1"
 SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v2"
 TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v3"
+SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v4"
+)
 SEMANTIC_TRANSDUCER_INPUTS: Final = 3
 SEMANTIC_TRANSDUCER_STEPS: Final = 2
 SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS: Final = 24
@@ -93,6 +97,7 @@ _RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {
     "step_count",
 }
 _RECEIPT_FIELDS_V3: Final = _RECEIPT_FIELDS_V2 | {"argument_arities"}
+_RECEIPT_FIELDS_V4: Final = _RECEIPT_FIELDS_V3 | {"operation_support_by_step"}
 
 
 def _sha(value: Any) -> str:
@@ -593,6 +598,8 @@ class SemanticProgramTransducer:
         expected_schema = (
             LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if legacy
+            else SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
@@ -604,6 +611,7 @@ class SemanticProgramTransducer:
                 LEGACY_SEMANTIC_TRANSDUCER_SCHEMA,
                 SEMANTIC_TRANSDUCER_SCHEMA,
                 TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
             }
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
@@ -641,6 +649,8 @@ class SemanticProgramTransducer:
         expected_receipt_fields = (
             _RECEIPT_FIELDS
             if legacy
+            else _RECEIPT_FIELDS_V4
+            if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else _RECEIPT_FIELDS_V3
             if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else _RECEIPT_FIELDS_V2
@@ -666,7 +676,12 @@ class SemanticProgramTransducer:
                 and (
                     receipt.get("input_count") != self.input_count
                     or receipt.get("step_count") != self.step_count
-                    or receipt.get("classifier_sharing") != "across_step_slots"
+                    or receipt.get("classifier_sharing")
+                    != (
+                        "by_operation_support_and_argument_slot"
+                        if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        else "across_step_slots"
+                    )
                     or receipt.get("shared_argument_support")
                     != [
                         sorted(
@@ -684,12 +699,33 @@ class SemanticProgramTransducer:
                         for position in range(max(self.argument_arities))
                     ]
                     or (
-                        self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        self.schema
+                        in {
+                            TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                        }
                         and receipt.get("argument_arities") != list(self.argument_arities)
                     )
+                    or (
+                        self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        and receipt.get("operation_support_by_step")
+                        != [sorted(head.labels) for head in self.operation_heads]
+                    )
                     or any(
-                        head.to_dict() != self.operation_heads[0].to_dict()
-                        for head in self.operation_heads[1:]
+                        left.labels == right.labels and left.to_dict() != right.to_dict()
+                        for index, left in enumerate(self.operation_heads)
+                        for right in self.operation_heads[index + 1 :]
+                    )
+                    or (
+                        self.schema
+                        in {
+                            SEMANTIC_TRANSDUCER_SCHEMA,
+                            TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                        }
+                        and any(
+                            head.to_dict() != self.operation_heads[0].to_dict()
+                            for head in self.operation_heads[1:]
+                        )
                     )
                     or any(
                         head.to_dict()
@@ -755,10 +791,14 @@ class SemanticProgramTransducer:
         if self.schema in {
             SEMANTIC_TRANSDUCER_SCHEMA,
             TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
         }:
             payload["input_count"] = self.input_count
             payload["step_count"] = self.step_count
-        if self.schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+        if self.schema in {
+            TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+        }:
             payload["argument_arities"] = list(self.argument_arities)
         return payload
 
@@ -812,6 +852,7 @@ class SemanticProgramTransducer:
         if self.schema in {
             SEMANTIC_TRANSDUCER_SCHEMA,
             TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
         }:
             input_roles = tuple(f"input:{index}" for index in range(self.input_count))
             input_assignment = _joint_pointer_assignment(
@@ -850,7 +891,12 @@ class SemanticProgramTransducer:
                 input_count=self.input_count,
                 argument_arities=self.argument_arities,
             )
-            if self.schema in {SEMANTIC_TRANSDUCER_SCHEMA, TYPED_SEMANTIC_TRANSDUCER_SCHEMA}
+            if self.schema
+            in {
+                SEMANTIC_TRANSDUCER_SCHEMA,
+                TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            }
             else None
         )
         arguments: list[tuple[int, ...]] = []
@@ -1101,16 +1147,30 @@ def fit_semantic_program_transducer(
                 )
             argument_heads.append((step_argument_heads[0], step_argument_heads[1]))
     else:
-        shared_operation = _fit_classifier(
-            np.stack(
-                [
-                    _pool(item.hidden_states, instruction.operation_span)
-                    for item in training
-                    for instruction in item.ir.instructions
-                ]
-            ),
-            [instruction.op for item in training for instruction in item.ir.instructions],
+        operation_supports = tuple(
+            tuple(sorted({item.ir.instructions[step].op for item in training}))
+            for step in range(step_count)
         )
+        operation_heads_by_support: dict[tuple[str, ...], LinearClassifierHead] = {}
+        for support in sorted(set(operation_supports)):
+            supported_steps = tuple(
+                step
+                for step, step_support in enumerate(operation_supports)
+                if step_support == support
+            )
+            operation_heads_by_support[support] = _fit_classifier(
+                np.stack(
+                    [
+                        _pool(
+                            item.hidden_states,
+                            item.ir.instructions[step].operation_span,
+                        )
+                        for item in training
+                        for step in supported_steps
+                    ]
+                ),
+                [item.ir.instructions[step].op for item in training for step in supported_steps],
+            )
         shared_arguments = tuple(
             _fit_classifier(
                 np.stack(
@@ -1133,7 +1193,7 @@ def fit_semantic_program_transducer(
             )
             for position in range(max(argument_arities))
         )
-        operation_heads = [shared_operation for _ in range(step_count)]
+        operation_heads = [operation_heads_by_support[support] for support in operation_supports]
         argument_heads = [shared_arguments[:arity] for arity in argument_arities]
 
     coefficient_body = {
@@ -1165,13 +1225,15 @@ def fit_semantic_program_transducer(
     typed = any(arity != 2 for arity in argument_arities)
     if not legacy:
         receipt_body["schema"] = (
-            TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if typed
             else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
         )
         receipt_body["input_count"] = input_count
         receipt_body["step_count"] = step_count
-        receipt_body["classifier_sharing"] = "across_step_slots"
+        receipt_body["classifier_sharing"] = (
+            "by_operation_support_and_argument_slot" if typed else "across_step_slots"
+        )
         receipt_body["shared_argument_support"] = [
             sorted(
                 {
@@ -1185,12 +1247,15 @@ def fit_semantic_program_transducer(
         ]
         if typed:
             receipt_body["argument_arities"] = list(argument_arities)
+            receipt_body["operation_support_by_step"] = [
+                list(support) for support in operation_supports
+            ]
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
         schema=(
             LEGACY_SEMANTIC_TRANSDUCER_SCHEMA
             if legacy
-            else TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            else SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             if typed
             else SEMANTIC_TRANSDUCER_SCHEMA
         ),
@@ -1259,7 +1324,10 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         step_count = payload.get("step_count")
         argument_arities = (2,) * step_count if type(step_count) is int else ()
         expected_fields = common_fields | {"input_count", "step_count"}
-    elif schema == TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+    elif schema in {
+        TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+        SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+    }:
         input_count = payload.get("input_count")
         step_count = payload.get("step_count")
         raw_arities = payload.get("argument_arities")
@@ -1319,6 +1387,7 @@ __all__ = [
     "SEMANTIC_TRANSDUCER_INPUTS",
     "SEMANTIC_TRANSDUCER_SCHEMA",
     "SEMANTIC_TRANSDUCER_STEPS",
+    "SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA",
     "SemanticProgramTransducer",
     "SemanticTransducerTrainingExample",
     "SemanticTransductionOutcome",
