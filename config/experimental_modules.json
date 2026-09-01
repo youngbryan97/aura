@@ -3,6 +3,7 @@
   "description": "Modules that are a scientific rig rather than a runtime path. Each is exempt from the test-only reachability count and must state why. Read by tools/lint_module_reachability.py. A module listed here may not be cited as evidence that the runtime does something.",
   "modules": {
     "core.learning.procedure_induction": "Enumerative procedure synthesis for the compiler-free acquisition experiment. Run deliberately by tests and by tools; nothing in the response path calls it, and wiring it in to satisfy a counter would be worse than leaving it out.",
-    "core.learning.compiler_free_experiment": "The held-out-family experiment with its lesion and null arms. An experiment, not a capability: its result is a verdict about Aura, not a behaviour of Aura."
+    "core.learning.compiler_free_experiment": "The held-out-family experiment with its lesion and null arms. An experiment, not a capability: its result is a verdict about Aura, not a behaviour of Aura.",
+    "core.learning.induced_neural_procedure": "Experimental bridge from family-blind induced programs into qualified semantic neural tissue; it remains outside serving until powered transfer and resident-decode controls pass."
   }
 }
