@@ -36,6 +36,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_corpus,
     project_example_to_ir,
 )
@@ -57,12 +58,14 @@ FORK_JOIN_CORPUS_KIND: Final = "fork_join_4x3"
 FORK_JOIN_SOURCE_ORDER_CORPUS_KIND: Final = "fork_join_4x3_source_order"
 FORK_JOIN_FACTORIAL_CORPUS_KIND: Final = "fork_join_4x3_factorial16"
 SEQUENCE_CHAIN_CORPUS_KIND: Final = "sequence_chain_1x2_factorial"
+SEQUENCE_BINARY_CHAIN_CORPUS_KIND: Final = "sequence_binary_chain_3x2_factorial"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
         FORK_JOIN_CORPUS_KIND,
         FORK_JOIN_FACTORIAL_CORPUS_KIND,
         FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+        SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         SEQUENCE_CHAIN_CORPUS_KIND,
     }
 )
@@ -187,6 +190,11 @@ def build_semantic_program_corpus_for_config(
         )
     if config.corpus_kind == SEQUENCE_CHAIN_CORPUS_KIND:
         return build_semantic_program_sequence_corpus(
+            seed=config.seed,
+            examples_per_operation_pair=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == SEQUENCE_BINARY_CHAIN_CORPUS_KIND:
+        return build_semantic_program_sequence_binary_corpus(
             seed=config.seed,
             examples_per_operation_pair=config.examples_per_operation_pair,
         )
@@ -1416,6 +1424,7 @@ __all__ = [
     "SemanticFeatureMaterializationError",
     "SEMANTIC_CORPUS_KINDS",
     "SEQUENCE_CHAIN_CORPUS_KIND",
+    "SEQUENCE_BINARY_CHAIN_CORPUS_KIND",
     "build_semantic_program_corpus_for_config",
     "load_semantic_feature_bundle",
     "load_semantic_feature_record",

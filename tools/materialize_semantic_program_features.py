@@ -17,6 +17,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 def _arguments() -> argparse.Namespace:
     from core.brain.llm.hidden_sequence_contract import HIDDEN_SEQUENCE_REPRESENTATIONS
+    from core.learning.semantic_program_feature_materialization import SEMANTIC_CORPUS_KINDS
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
@@ -32,13 +33,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--max-examples", type=int, default=576)
     parser.add_argument(
         "--corpus-kind",
-        choices=(
-            "chain_3x2",
-            "fork_join_4x3",
-            "fork_join_4x3_source_order",
-            "fork_join_4x3_factorial16",
-            "sequence_chain_1x2_factorial",
-        ),
+        choices=sorted(SEMANTIC_CORPUS_KINDS),
         default="chain_3x2",
     )
     parser.add_argument(

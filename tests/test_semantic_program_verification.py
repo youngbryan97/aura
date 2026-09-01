@@ -105,9 +105,12 @@ def test_recount_rejects_duplicate_task_identity() -> None:
 def test_claim_boundary_tracks_the_declared_semantic_family() -> None:
     arithmetic = semantic_program_claim_boundary("fork_join_4x3_factorial16")
     sequence = semantic_program_claim_boundary("sequence_chain_1x2_factorial")
+    sequence_binary = semantic_program_claim_boundary("sequence_binary_chain_3x2_factorial")
 
     assert "synthetic arithmetic language" in arithmetic
     assert "typed sequence transformation" in sequence
+    assert "sequence lookup" in sequence_binary
+    assert "occurrence counting" in sequence_binary
     assert "not broad-domain" in sequence
     with pytest.raises(ValueError, match="unsupported"):
         semantic_program_claim_boundary("undeclared-family")

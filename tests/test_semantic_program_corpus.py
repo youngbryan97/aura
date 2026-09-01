@@ -6,6 +6,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_corpus,
     project_example_to_ir,
 )
@@ -345,3 +346,71 @@ def test_sequence_programs_are_exact_and_both_steps_are_load_bearing() -> None:
         )
         assert ir.to_program() == example.program
         assert ir.receipt()["all_steps_causally_load_bearing"] is True
+
+
+def test_sequence_binary_corpus_holds_out_constructions_and_covers_operations() -> None:
+    examples = build_semantic_program_sequence_binary_corpus(examples_per_operation_pair=2)
+    constructions = {
+        split: {item.construction_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+    expected_operations = {
+        (first, second) for first in ("at", "count_of") for second in ("add", "sub", "mul", "idiv")
+    }
+
+    assert len(examples) == 144
+    assert {split: len(values) for split, values in constructions.items()} == {
+        "train": 3,
+        "validation": 3,
+        "test": 3,
+    }
+    assert all(
+        not constructions[left] & constructions[right]
+        for left, right in (
+            ("train", "validation"),
+            ("train", "test"),
+            ("validation", "test"),
+        )
+    )
+    for split in constructions:
+        assert {
+            tuple(item.instruction.op for item in example.instructions)
+            for example in examples
+            if example.split == split
+        } == expected_operations
+
+
+def test_sequence_binary_programs_preserve_mixed_value_and_pointer_semantics() -> None:
+    examples = build_semantic_program_sequence_binary_corpus()
+
+    assert len({example.example_id for example in examples}) == len(examples)
+    for example in examples:
+        sequence, selector, adjustment = example.inputs
+        assert isinstance(sequence, tuple)
+        assert selector in sequence
+        assert 0 <= selector < len(sequence)
+        assert type(adjustment) is int and adjustment > 0
+        assert tuple(item.instruction.args for item in example.instructions) == (
+            (0, 1),
+            (3, 2),
+        )
+        assert example.instructions[0].depends_on == ()
+        assert example.instructions[1].depends_on == (0,)
+        assert type(example.program.run(example.inputs)) is int
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(example.source_text))),
+            offset_mapping=_character_offsets(example.source_text),
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+
+
+def test_sequence_binary_corpus_is_deterministic_and_seeded() -> None:
+    first = build_semantic_program_sequence_binary_corpus(seed=11)
+    replay = build_semantic_program_sequence_binary_corpus(seed=11)
+    changed = build_semantic_program_sequence_binary_corpus(seed=12)
+
+    assert first == replay
+    assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)

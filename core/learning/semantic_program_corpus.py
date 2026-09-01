@@ -54,6 +54,8 @@ _SEQUENCE_AGGREGATES: Final = (
     "head",
     "last",
 )
+_SEQUENCE_BINARY_SELECTORS: Final = ("at", "count_of")
+_SCALAR_CONTINUATIONS: Final = ("add", "sub", "mul", "idiv")
 _SEQUENCE_OPERATION_LANGUAGE: Final[dict[str, tuple[str, ...]]] = {
     "unique": (
         "duplicate removal",
@@ -175,6 +177,78 @@ _SEQUENCE_OPERATION_LANGUAGE: Final[dict[str, tuple[str, ...]]] = {
         "finding the value at the end",
         "obtaining the last item",
         "returning the terminal value",
+    ),
+}
+
+_SEQUENCE_BINARY_OPERATION_LANGUAGE: Final[dict[str, tuple[str, ...]]] = {
+    "at": (
+        "index lookup",
+        "position-based selection",
+        "item retrieval by index",
+        "indexed access",
+        "selection at a numbered position",
+        "reading one indexed entry",
+        "retrieval from a sequence position",
+        "looking up an item by index",
+        "access at the given index",
+    ),
+    "count_of": (
+        "occurrence counting",
+        "frequency measurement",
+        "counting matching values",
+        "multiplicity calculation",
+        "measuring how often a value occurs",
+        "counting copies of one value",
+        "finding a value's frequency",
+        "tallying matching entries",
+        "computing the occurrence count",
+    ),
+}
+
+_SCALAR_CONTINUATION_LANGUAGE: Final[dict[str, tuple[str, ...]]] = {
+    "add": (
+        "plus",
+        "added to",
+        "increased by",
+        "combined additively with",
+        "summed with",
+        "augmented by",
+        "with the addition of",
+        "plus the quantity",
+        "after adding",
+    ),
+    "sub": (
+        "minus",
+        "reduced by",
+        "less",
+        "with the subtraction of",
+        "decreased by",
+        "after removing",
+        "minus the quantity",
+        "after subtracting",
+        "with a deduction of",
+    ),
+    "mul": (
+        "times",
+        "multiplied by",
+        "scaled by",
+        "combined multiplicatively with",
+        "with a factor of",
+        "after multiplication by",
+        "times the quantity",
+        "using a multiplier of",
+        "with the product factor",
+    ),
+    "idiv": (
+        "integer-divided by",
+        "floor-divided by",
+        "divided by with the quotient rounded down using",
+        "reduced to the whole-number quotient over",
+        "divided without a remainder fraction by",
+        "converted to the integer quotient over",
+        "whole-number divided by",
+        "divided by and rounded down using",
+        "integrally divided by",
     ),
 }
 
@@ -1404,6 +1478,263 @@ def build_semantic_program_sequence_corpus(
     return tuple(examples)
 
 
+def _sequence_binary_example_id(
+    construction_id: str,
+    first_op: str,
+    second_op: str,
+    inputs: tuple[tuple[int, ...], int, int],
+    sample_index: int,
+) -> str:
+    body = f"{construction_id}|{first_op}|{second_op}|{inputs}|{sample_index}"
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
+def _render_sequence_binary_chain(
+    *,
+    construction_index: int,
+    first_op: str,
+    second_op: str,
+    values: tuple[int, ...],
+    selector: int,
+    adjustment: int,
+) -> tuple[
+    str,
+    tuple[CharacterSpan, CharacterSpan, CharacterSpan],
+    tuple[SemanticInstructionAnnotation, SemanticInstructionAnnotation],
+]:
+    builder = _AnnotatedText()
+    first_phrase = _SEQUENCE_BINARY_OPERATION_LANGUAGE[first_op][construction_index]
+    second_phrase = _SCALAR_CONTINUATION_LANGUAGE[second_op][construction_index]
+    register_name = (
+        "selected quantity",
+        "lookup result",
+        "derived count",
+        "intermediate number",
+        "retrieved value",
+        "computed scalar",
+        "selection result",
+        "working number",
+        "obtained quantity",
+    )[construction_index]
+    input_text = "[" + ", ".join(str(value) for value in values) + "]"
+
+    def append_sequence() -> None:
+        builder.append(input_text, label="input:0")
+
+    def append_selector() -> None:
+        builder.append(str(selector), label="input:1")
+
+    def append_adjustment() -> None:
+        builder.append(str(adjustment), label="input:2")
+
+    def append_first_operation() -> None:
+        builder.append(first_phrase, label="operation:0")
+
+    def define_result() -> None:
+        builder.append(register_name, label="result:0")
+
+    def reference_result() -> None:
+        builder.append(register_name, label="argument:1:0")
+
+    def append_second_expression() -> None:
+        reference_result()
+        builder.append(" ")
+        builder.append(second_phrase, label="operation:1")
+        builder.append(" ")
+        append_adjustment()
+
+    if construction_index == 0:
+        builder.append("For ")
+        append_sequence()
+        builder.append(", perform ")
+        append_first_operation()
+        builder.append(" using selector ")
+        append_selector()
+        builder.append(", and call the output ")
+        define_result()
+        builder.append(". Compute ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 1:
+        builder.append("Starting with ")
+        append_sequence()
+        builder.append(", use ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append("; name its output ")
+        define_result()
+        builder.append(". Then evaluate ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 2:
+        builder.append("Take ")
+        append_sequence()
+        builder.append(" through ")
+        append_first_operation()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(". Let ")
+        define_result()
+        builder.append(" denote the scalar produced; return ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 3:
+        builder.append("Given ")
+        append_sequence()
+        builder.append(", apply ")
+        append_first_operation()
+        builder.append(" at selector ")
+        append_selector()
+        builder.append(" and bind the answer as ")
+        define_result()
+        builder.append(". Finish with ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 4:
+        builder.append("On the values ")
+        append_sequence()
+        builder.append(", carry out ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append("; refer to that output as ")
+        define_result()
+        builder.append(". The final number is ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 5:
+        builder.append("Begin from ")
+        append_sequence()
+        builder.append(" and execute ")
+        append_first_operation()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(". Label the outcome ")
+        define_result()
+        builder.append(", then calculate ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 6:
+        builder.append("Use ")
+        append_first_operation()
+        builder.append(" on ")
+        append_sequence()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(" to obtain ")
+        define_result()
+        builder.append(". Report ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 7:
+        builder.append("From ")
+        append_sequence()
+        builder.append(", run ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append(" and retain the result as ")
+        define_result()
+        builder.append(". Next compute ")
+        append_second_expression()
+        builder.append(".")
+    elif construction_index == 8:
+        builder.append("Process ")
+        append_sequence()
+        builder.append(" by ")
+        append_first_operation()
+        builder.append(" using selector ")
+        append_selector()
+        builder.append(". Call what it returns ")
+        define_result()
+        builder.append("; the requested result is ")
+        append_second_expression()
+        builder.append(".")
+    else:  # pragma: no cover - private caller pins the construction range
+        raise ValueError("sequence binary construction index is invalid")
+
+    input_spans = tuple(builder.span(f"input:{index}") for index in range(3))
+    instructions = (
+        SemanticInstructionAnnotation(
+            instruction=Instruction(first_op, (0, 1)),
+            operation_span=builder.span("operation:0"),
+            argument_spans=(input_spans[0], input_spans[1]),
+            depends_on=(),
+        ),
+        SemanticInstructionAnnotation(
+            instruction=Instruction(second_op, (3, 2)),
+            operation_span=builder.span("operation:1"),
+            argument_spans=(builder.span("argument:1:0"), input_spans[2]),
+            depends_on=(0,),
+        ),
+    )
+    return builder.text, input_spans, instructions
+
+
+def build_semantic_program_sequence_binary_corpus(
+    *,
+    seed: int = 2236067,
+    examples_per_operation_pair: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build mixed sequence/scalar programs with binary lookup semantics."""
+
+    if examples_per_operation_pair < 1:
+        raise ValueError("sequence binary corpus needs at least one sample per operation pair")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    for construction_index in range(9):
+        construction_id = f"sequence-binary-construction-{construction_index}"
+        split: CorpusSplit = (
+            "train"
+            if construction_index < 3
+            else "validation"
+            if construction_index < 6
+            else "test"
+        )
+        for sample_index in range(examples_per_operation_pair):
+            selector = rng.randint(1, 4)
+            values = [rng.randint(1, 20) for _ in range(rng.randint(6, 8))]
+            values[rng.randrange(len(values))] = selector
+            public_sequence = tuple(values)
+            adjustment = rng.randint(2, 7)
+            inputs = (public_sequence, selector, adjustment)
+            contrast_id = hashlib.sha256(
+                f"sequence-binary|{construction_id}|{inputs}|{sample_index}".encode()
+            ).hexdigest()[:24]
+            for first_op in _SEQUENCE_BINARY_SELECTORS:
+                for second_op in _SCALAR_CONTINUATIONS:
+                    source_text, input_spans, instructions = _render_sequence_binary_chain(
+                        construction_index=construction_index,
+                        first_op=first_op,
+                        second_op=second_op,
+                        values=public_sequence,
+                        selector=selector,
+                        adjustment=adjustment,
+                    )
+                    examples.append(
+                        SemanticProgramExample(
+                            example_id=_sequence_binary_example_id(
+                                construction_id,
+                                first_op,
+                                second_op,
+                                inputs,
+                                sample_index,
+                            ),
+                            construction_id=construction_id,
+                            topology_id="binary-sequence-to-scalar-chain",
+                            split=split,
+                            source_text=source_text,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            instructions=instructions,
+                            report_value=4,
+                            contrast_id=contrast_id,
+                        )
+                    )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -1472,6 +1803,7 @@ __all__ = [
     "build_semantic_program_corpus",
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
+    "build_semantic_program_sequence_binary_corpus",
     "build_semantic_program_sequence_corpus",
     "project_example_to_ir",
 ]

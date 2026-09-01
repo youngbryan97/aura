@@ -17,6 +17,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
     LoadedSemanticFeatureBundle,
 )
@@ -84,6 +85,11 @@ def semantic_program_claim_boundary(corpus_kind: str) -> str:
         family = (
             "construction-held-out synthetic typed sequence transformation "
             "and scalar aggregation language"
+        )
+    elif corpus_kind == SEQUENCE_BINARY_CHAIN_CORPUS_KIND:
+        family = (
+            "construction-held-out synthetic sequence lookup, occurrence counting, "
+            "and scalar continuation language"
         )
     else:
         raise ValueError("semantic verification corpus family is unsupported")

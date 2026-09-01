@@ -20,6 +20,7 @@ from core.brain.llm.hidden_sequence_contract import (
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_corpus,
 )
 from core.learning.semantic_program_feature_materialization import (
@@ -27,6 +28,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
@@ -82,10 +84,14 @@ def test_materializer_cli_accepts_shared_hidden_representation(
             "/tmp/output",
             "--representation",
             LEXICAL_MID_FINAL_V1,
+            "--corpus-kind",
+            SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         ],
     )
 
-    assert materializer_cli._arguments().representation == LEXICAL_MID_FINAL_V1
+    arguments = materializer_cli._arguments()
+    assert arguments.representation == LEXICAL_MID_FINAL_V1
+    assert arguments.corpus_kind == SEQUENCE_BINARY_CHAIN_CORPUS_KIND
 
 
 class _CharacterTokenizer:
@@ -370,6 +376,27 @@ def test_sequence_family_reconstructs_from_declared_config() -> None:
             "test",
         )
     } == {"train": 180, "validation": 180, "test": 180}
+
+
+def test_sequence_binary_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=2236067,
+        examples_per_operation_pair=2,
+        max_examples=144,
+        corpus_kind=SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_sequence_binary_corpus(
+        seed=2236067,
+        examples_per_operation_pair=2,
+    )
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in ("train", "validation", "test")
+    } == {"train": 48, "validation": 48, "test": 48}
 
 
 def test_sequence_feature_bundle_round_trips_nested_exact_values(tmp_path: Path) -> None:
